@@ -1,0 +1,7 @@
+.idea/
+target/
+*.iml
+*~
+**/*.class
+src/test/scala/com/cognite/spark/connector/package.scala
+derby.log
