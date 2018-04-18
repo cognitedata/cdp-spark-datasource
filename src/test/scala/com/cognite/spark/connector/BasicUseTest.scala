@@ -8,6 +8,7 @@ import org.scalatest.junit.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
 class BasicUseTest extends FunSuite with DataFrameSuiteBase {
+  val apiKey = System.getenv("COGNITE_API_KEY")
   test("Use our own custom format for timeseries") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
         .option("project", "akerbp")
