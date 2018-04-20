@@ -49,17 +49,9 @@ is not specific for our code)
 Currently, the tests run against production akerbp tags. This is
 temporary (and only read) until we get a nice local test to run against.
 
-To make the tests pass, add a file
-```src/test/scala/com/cognite/spark/connector/package.scala``` which
-defines the api-key:
-
-```
-package com.cognite.spark
-
-package object connector {
-  val apiKey = "secret-key-connected-to-your-user"
-  }
-```
+To make the tests pass, set the environment variable `COGNITE_API_KEY`
+to an API key with access to the production akerbp tags.
+It is highly recommended that you use an API key with *read-only* access.
 
 The goal is of course to avoid this.
 
