@@ -79,7 +79,7 @@ class RawTableRelation(apiKey: String,
     var nRowsRemaining = limit
 
     do {
-      val thisBatchSize = scala.math.max(nRowsRemaining.getOrElse(0L), batchSize)
+      val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize.toLong).toInt, batchSize)
       val urlBuilder = RawTableRelation.baseRawTableURL(project, database, table)
         .addQueryParameter("limit", thisBatchSize.toString)
       if (!cursor.isEmpty) {
