@@ -1,6 +1,6 @@
 package com.cognite.spark.connector
 
-import com.holdenkarau.spark.testing.{DataFrameSuiteBase, SharedSparkContext}
+import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.types._
 import org.junit.runner.RunWith
 import org.scalatest.FunSuite
@@ -11,10 +11,10 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   val apiKey = System.getenv("COGNITE_API_KEY")
   test("Use our own custom format for timeseries") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
-        .option("project", "akerbp")
-        .option("apiKey", apiKey)
-        .option("type", "timeseries")
-        .load("00ADD0002/B1/5mMid")
+      .option("project", "akerbp")
+      .option("apiKey", apiKey)
+      .option("type", "timeseries")
+      .load("00ADD0002/B1/5mMid")
     assert(df.schema.length == 3)
 
     assert(df.schema.fields.sameElements(Array(StructField("tagId", StringType, nullable = false),
@@ -22,16 +22,15 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       StructField("value", DoubleType, nullable = false))))
   }
 
-  // NB: We will change this to use .where() instead of options (i.e pushdowns)
   test("Iterate over period longer than limit") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
       .option("project", "akerbp")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
       .option("batchSize", "100")
-      .option("start", "0")
-      .option("stop", "1390902000001")
+      .option("limit", "1000")
       .load("00ADD0002/B1/5mMid")
+      .where("timestamp > 0 and timestamp < 1390902000001")
     assert(df.count() == 1000)
   }
 
@@ -41,8 +40,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .option("apiKey", apiKey)
       .option("type", "timeseries")
       .option("batchSize", "2000")
-      .option("start", "0")
-      .option("stop", "1390902000001")
+      .option("limit", "1000")
       .load("00ADD0002/B1/5mMid")
     assert(df.count() == 1000)
   }
@@ -53,9 +51,9 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .option("apiKey", apiKey)
       .option("type", "timeseries")
       .option("batchSize", "1000")
-      .option("start", "0")
-      .option("stop", "1390902000001")
+      .option("limit", "1000")
       .load("00ADD0002/B1/5mMid")
+      .where("timestamp >= 0 and timestamp <= 1390902000001")
     assert(df.count() == 1000)
   }
 

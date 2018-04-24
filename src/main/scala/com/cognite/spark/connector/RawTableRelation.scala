@@ -23,15 +23,12 @@ class RawTableRelation(apiKey: String,
                        database: String,
                        table: String,
                        userSchema: Option[StructType],
-                       limit: Option[Long],
+                       limit: Option[Int],
                        batchSizeOption: Option[Int])(@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
     with Serializable {
-
-  val DEFAULT_BATCH_SIZE = 10000
-
   // TODO: make read/write timeouts configurable
   @transient lazy val client: OkHttpClient = new OkHttpClient.Builder()
     .readTimeout(2, TimeUnit.MINUTES)
@@ -44,10 +41,7 @@ class RawTableRelation(apiKey: String,
     mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
     mapper
   }
-  val batchSize = batchSizeOption match {
-    case Some(size) => size
-    case None => DEFAULT_BATCH_SIZE
-  }
+  @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
 
   override def schema: StructType = userSchema.getOrElse[StructType] {
     // not sure if we should flatten here or not. probably yes? it's a much nicer interface, but it does have a
@@ -79,7 +73,7 @@ class RawTableRelation(apiKey: String,
     var nRowsRemaining = limit
 
     do {
-      val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize.toLong).toInt, batchSize)
+      val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize), batchSize)
       val urlBuilder = RawTableRelation.baseRawTableURL(project, database, table)
         .addQueryParameter("limit", thisBatchSize.toString)
       if (!cursor.isEmpty) {

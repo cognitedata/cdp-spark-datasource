@@ -13,9 +13,9 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import scala.collection.mutable.ListBuffer
 
+// it may seem like this could be generalized, but it doesn't work across modules(?)
 case class AssetsData(data: AssetsDataItems[AssetsItem])
 
-// TODO: move this to a shared place, name them DataItemsWithCursor and DataItems
 case class AssetsDataItems[A](items: Seq[A], nextCursor: Option[String] = None)
 
 case class PostAssetsDataItems[A](items: Seq[A])
@@ -36,15 +36,12 @@ case class PostAssetsItem(name: String,
 class AssetsTableRelation(apiKey: String,
                           project: String,
                           assetPath: Option[String],
-                          limit: Option[Long],
+                          limit: Option[Int],
                           batchSizeOption: Option[Int])(@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
-    // TODO: we shouldn't need to serialize this class, need to fix some transients etc. to avoid it
     with Serializable {
-  val DEFAULT_BATCH_SIZE = 10000
-
   // TODO: make read/write timeouts configurable
   @transient lazy val client: OkHttpClient = new OkHttpClient.Builder()
     .readTimeout(2, TimeUnit.MINUTES)
@@ -57,10 +54,7 @@ class AssetsTableRelation(apiKey: String,
     mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)
     mapper
   }
-  val batchSize = batchSizeOption match {
-    case Some(size) => size
-    case None => DEFAULT_BATCH_SIZE
-  }
+  @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
 
   override def schema: StructType = StructType(Seq(
     StructField("name", DataTypes.StringType),
@@ -73,10 +67,10 @@ class AssetsTableRelation(apiKey: String,
     val responses: ListBuffer[Row] = ListBuffer()
     var doneReading = false
     var cursor: Option[String] = None
-    var nRowsRemaining: Option[Long] = limit
+    var nRowsRemaining: Option[Int] = limit
 
     do {
-      val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize.toLong).toInt, batchSize)
+      val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize), batchSize)
       val urlBuilder = AssetsTableRelation.baseAssetsURL(project)
         .addQueryParameter("limit", thisBatchSize.toString)
       if (!assetPath.isEmpty) {
@@ -127,7 +121,7 @@ class AssetsTableRelation(apiKey: String,
     // this definitely seems like a common pattern that could be refactored out to a common method
     val assetItems = rows.map(r =>
       PostAssetsItem(r.getString(0), r.getString(2), r.getAs[Map[String, String]](3)))
-    val items = new PostAssetsDataItems[PostAssetsItem](assetItems)
+    val items = PostAssetsDataItems[PostAssetsItem](assetItems)
 
     val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
     val requestBody = RequestBody.create(jsonMediaType, mapper.writeValueAsString(items))
