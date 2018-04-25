@@ -24,28 +24,18 @@ class DefaultSource extends RelationProvider
       case _: NumberFormatException => None
     }
     val limit = try {
-      parameters.get("limit").map(_.toLong)
+      parameters.get("limit").map(_.toInt)
     } catch {
       case _: NumberFormatException => None
     }
     resourceType match {
       case "timeseries" =>
         val tagId = parameters.getOrElse("path", sys.error("tagId must be specified (as a parameter to load())"))
-        new FullScanRelations(apiKey = apiKey,
-          project = project,
-          path = tagId,
-          suppliedSchema = schema,
-          batchSize = parameters.getOrElse("batchSize", "1000").toInt,
-          start = parameters.get("start").map(v => v.toLong).orElse(None),
-          stop = parameters.get("stop").map(v => v.toLong).orElse(None)
-        )(sqlContext)
+        new TimeSeriesRelation(apiKey, project, tagId, schema, limit, batchSize)(sqlContext)
       case "tables" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("path", sys.error("table name must be specified (as a parameter to load())"))
-        new RawTableRelation(apiKey, project, database, tableName,
-          Option(schema),
-          limit,
-          batchSize)(sqlContext)
+        new RawTableRelation(apiKey, project, database, tableName, Option(schema), limit, batchSize)(sqlContext)
       case "assets" =>
         val assetsPath = parameters.get("path")
         if (assetsPath.isDefined && !AssetsTableRelation.isValidAssetsPath(assetsPath.get)) {
