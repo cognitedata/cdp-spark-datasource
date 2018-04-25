@@ -18,7 +18,7 @@ of workers configured.
 To use it with spark-shell:
 
 ```
-$> spark-shell --jars ~/path-to-repo/target/cdb-spark-connector-jar-with-dependencies.jar
+$> spark-shell --jars ~/path-to-repo/target/cdp-spark-connector-jar-with-dependencies.jar
 Spark context Web UI available at http://192.168.20.102:4040
 Spark context available as 'sc' (master = local[*], app id = local-1513307936323).
 Spark session available as 'spark'.
@@ -32,10 +32,10 @@ Using Scala version 2.11.8 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_131)
 Type in expressions to have them evaluated.
 Type :help for more information.
 
-scala> val apikey="secret-key-you-have"
+scala> val apiKey="secret-key-you-have"
 scala> val df = spark.sqlContext.read.format("com.cognite.spark.connector")
   .option("project", "akerbp")
-  .option("apiKey", apikey)
+  .option("apiKey", apiKey)
   .option("batchSize", "1000")
   .option("limit", "10000")
   .option("tagId", ""00ADD0002/B1/5mMid")
