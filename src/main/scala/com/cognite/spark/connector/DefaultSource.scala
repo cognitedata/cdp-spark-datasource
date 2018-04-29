@@ -34,8 +34,21 @@ class DefaultSource extends RelationProvider
         new TimeSeriesRelation(apiKey, project, tagId, schema, limit, batchSize)(sqlContext)
       case "tables" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
-        val tableName = parameters.getOrElse("path", sys.error("table name must be specified (as a parameter to load())"))
-        new RawTableRelation(apiKey, project, database, tableName, Option(schema), limit, batchSize)(sqlContext)
+        val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
+        val inferSchema = parameters.get("inferSchema") match {
+          case Some("true") => true
+          case Some("false") => false
+          case Some(_) => sys.error("inferSchema must be 'true' or 'false'")
+          case None => false
+        }
+        val inferSchemaLimit = try {
+          Some(parameters.get("inferSchemaLimit").get.toInt)
+        } catch {
+          case _: NumberFormatException => sys.error("inferSchemaLimit must be an integer")
+          case _: NoSuchElementException => None
+        }
+        new RawTableRelation(apiKey, project, database, tableName, Option(schema), limit,
+          inferSchema, inferSchemaLimit, batchSize)(sqlContext)
       case "assets" =>
         val assetsPath = parameters.get("path")
         if (assetsPath.isDefined && !AssetsTableRelation.isValidAssetsPath(assetsPath.get)) {

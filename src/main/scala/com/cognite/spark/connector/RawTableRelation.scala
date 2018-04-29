@@ -24,6 +24,8 @@ class RawTableRelation(apiKey: String,
                        table: String,
                        userSchema: Option[StructType],
                        limit: Option[Int],
+                       inferSchema: Boolean,
+                       inferSchemaLimit: Option[Int],
                        batchSizeOption: Option[Int])(@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
@@ -42,31 +44,25 @@ class RawTableRelation(apiKey: String,
     mapper
   }
   @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
+  @transient lazy val defaultSchema = StructType(Seq(
+    StructField("key", DataTypes.StringType),
+    StructField("columns", DataTypes.StringType)
+  ))
 
-  override def schema: StructType = userSchema.getOrElse[StructType] {
-    // not sure if we should flatten here or not. probably yes? it's a much nicer interface, but it does have a
-    // performance impact since we need some rows (not necessarily all) to do the schema inference.
-    //
-    // the procedure to do so is like this
-    // step 1: read df, remember to cache()
-    //    val df = spark.sqlContext.read.format("com.cognite.spark.connector").option("project", "akerbp").option("apiKey", apikey).option("type", "tables").option("database", "Workmate").load("TagDocument").cache()
-    // step 2: infer json schema from columns
-    //    val jsonDf = spark.read.json(df.select("columns").as[String])
-    // step 3: apply schema to columns:
-    //    val nonflatDf = df.select($"key", from_json($"columns", jsonDf.schema).alias("columns"))
-    // step 4: flatten with json schema:
-    //    val flatDf = nonflatDf.select("key", "columns.*")
-    //
-    // maybe use the inferSchema parameter to decide, similar to the CSV reader?
-    // to do it efficiently we'd need a way to get a random sample of N rows from the table,
-    // which is not possible with the current API.
-    StructType(Seq(
-      StructField("key", DataTypes.StringType),
-      StructField("columns", DataTypes.StringType)
-    ))
+  override val schema: StructType = userSchema.getOrElse {
+    if (inferSchema) {
+      val rdd = readRows(inferSchemaLimit)
+
+      import sqlContext.sparkSession.implicits._
+      val df = sqlContext.createDataFrame(rdd, defaultSchema)
+      val jsonDf = sqlContext.sparkSession.read.json(df.select($"columns").as[String])
+      StructType(StructField("key", DataTypes.StringType) +: jsonDf.schema.fields)
+    } else {
+      defaultSchema
+    }
   }
 
-  override def buildScan(): RDD[Row] = {
+  private def readRows(limit: Option[Int]): RDD[Row] = {
     val responses: ListBuffer[Row] = ListBuffer()
     var doneReading = false
     var cursor: Option[String] = None
@@ -88,7 +84,8 @@ class RawTableRelation(apiKey: String,
             .build())
           .execute()
         if (!response.isSuccessful) {
-          throw new RuntimeException("Non-200 status when querying API, received " + response.code() + "(" + response.message() + ")")
+          throw new RuntimeException("Non-200 status when querying API for " +
+            "database " + database + ", table " + table + " in project " + project)
         }
         val r = mapper.readValue(response.body().string(), classOf[RawData])
         for (item <- r.data.items) {
@@ -106,6 +103,21 @@ class RawTableRelation(apiKey: String,
     } while (!cursor.isEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0))
 
     sqlContext.sparkContext.parallelize(responses)
+  }
+
+  override def buildScan(): RDD[Row] = {
+    val rdd = readRows(limit)
+    if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
+      rdd
+    } else {
+      val jsonFields = StructType.apply(schema.tail)
+      val df = sqlContext.sparkSession.createDataFrame(rdd, defaultSchema)
+      import sqlContext.implicits.StringToColumn
+      import org.apache.spark.sql.functions._
+      val dfWithSchema = df.select($"key", from_json($"columns", jsonFields).alias("columns"))
+      val flatDf = dfWithSchema.select("key", "columns.*")
+      flatDf.rdd
+    }
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
