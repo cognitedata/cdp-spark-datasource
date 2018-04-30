@@ -33,7 +33,15 @@ Type in expressions to have them evaluated.
 Type :help for more information.
 
 scala> val apikey="secret-key-you-have"
-scala> val df = spark.sqlContext.read.format("com.cognite.spark.connector").option("project", "akerbp").option("apiKey", apikey).option("batchSize", "1000").option("start", "0").option("stop", "1390902000001").load("00ADD0002/B1/5mMid")
+scala> val df = spark.sqlContext.read.format("com.cognite.spark.connector")
+  .option("project", "akerbp")
+  .option("apiKey", apikey)
+  .option("batchSize", "1000")
+  .option("limit", "10000")
+  .option("tagId", ""00ADD0002/B1/5mMid")
+  .load()
+  .where("timestamp > 0 and timestamp < 1390902000001")
+
 df: org.apache.spark.sql.DataFrame = [tagId: string, timestamp: bigint ... 1 more field]
 
 scala> df.count()

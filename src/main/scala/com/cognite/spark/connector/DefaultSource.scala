@@ -30,7 +30,7 @@ class DefaultSource extends RelationProvider
     }
     resourceType match {
       case "timeseries" =>
-        val tagId = parameters.getOrElse("path", sys.error("tagId must be specified (as a parameter to load())"))
+        val tagId = parameters.getOrElse("tagId", sys.error("tagId must be specified"))
         new TimeSeriesRelation(apiKey, project, tagId, schema, limit, batchSize)(sqlContext)
       case "tables" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
@@ -50,7 +50,7 @@ class DefaultSource extends RelationProvider
         new RawTableRelation(apiKey, project, database, tableName, Option(schema), limit,
           inferSchema, inferSchemaLimit, batchSize)(sqlContext)
       case "assets" =>
-        val assetsPath = parameters.get("path")
+        val assetsPath = parameters.get("assetsPath")
         if (assetsPath.isDefined && !AssetsTableRelation.isValidAssetsPath(assetsPath.get)) {
           sys.error("Invalid assets path: " + assetsPath.get)
         }
