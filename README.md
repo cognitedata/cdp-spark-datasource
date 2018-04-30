@@ -72,17 +72,14 @@ will give you a jar, ```cdp-spark-connector-jar-with-dependencies.jar```
 ## Short-term list of missing features:
 
 - Multi-tags (finally figured out how to best do it)
-- Functioning pushdown which allows .where() etc. - currently fixing bugs on that
 - Better schema handling
-- Infer schema automatically
 - better error handling
 - retry on error
-- support magical date format (-2w)
+- (maybe) support magical date format (-2w)
 - implement logging according to the standard spark way
 - expose partitions to allow for multi-worker-downloads
-- write support
+- write support (partial support in place)
 - use protobuf apis for improved performance
-- expose more than the timeseries API
 - streaming support
 - figure out how to expose metadata
 - figure out how to expose aggregators in a logical way
