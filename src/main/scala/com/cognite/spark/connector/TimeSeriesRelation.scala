@@ -129,10 +129,10 @@ class TimeSeriesRelation(apiKey: String,
 
     var nRowsRemaining: Option[Int] = limit
     var tag: TimeSeriesItem = TimeSeriesItem("", Array.empty)
-    var next = timestampLowerLimit
+    var next = timestampLowerLimit.getOrElse(maxTimestamp - 1000 * 60 * 60 * 24 * 14)
     do {
       val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize), batchSize)
-      tag = getTag(next, Some(maxTimestamp), thisBatchSize)
+      tag = getTag(Some(next), Some(maxTimestamp), thisBatchSize)
       for (datapoint <- tag.datapoints) {
         val columns: ListBuffer[Any] = ListBuffer()
         for (index <- requiredColumnIndexes) {
@@ -146,10 +146,10 @@ class TimeSeriesRelation(apiKey: String,
         responses += Row.fromSeq(columns)
       }
       if (tag.datapoints.nonEmpty) {
-        next = Some(tag.datapoints.last.timestamp + 1)
+        next = tag.datapoints.last.timestamp + 1
       }
       nRowsRemaining = nRowsRemaining.map(_ - tag.datapoints.size)
-    } while (tag.datapoints.nonEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0) && (next.isEmpty || next.get < maxTimestamp))
+    } while (tag.datapoints.nonEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0) && (next < maxTimestamp))
     sqlContext.sparkContext.parallelize(responses)
   }
 
