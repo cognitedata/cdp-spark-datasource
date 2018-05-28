@@ -40,7 +40,9 @@ class TimeSeriesRelation(apiKey: String,
                          path: String,
                          suppliedSchema: StructType,
                          limit: Option[Int],
-                         batchSizeOption: Option[Int])(@transient val sqlContext: SQLContext)
+                         batchSizeOption: Option[Int],
+                         aggregates: Option[String],
+                         granularity: Option[String])(@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
@@ -130,6 +132,7 @@ class TimeSeriesRelation(apiKey: String,
     var nRowsRemaining: Option[Int] = limit
     var tag: TimeSeriesItem = TimeSeriesItem("", Array.empty)
     var next = timestampLowerLimit.getOrElse(maxTimestamp - 1000 * 60 * 60 * 24 * 14)
+    var newDatapoints: Seq[TimeSeriesDataPoint] = Seq[TimeSeriesDataPoint]()
     do {
       val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize), batchSize)
       tag = getTag(Some(next), Some(maxTimestamp), thisBatchSize)
@@ -145,20 +148,29 @@ class TimeSeriesRelation(apiKey: String,
         }
         responses += Row.fromSeq(columns)
       }
-      if (tag.datapoints.nonEmpty) {
-        next = tag.datapoints.last.timestamp + 1
+      newDatapoints = tag.datapoints.filter(value => value.timestamp > next)
+      if (newDatapoints.nonEmpty) {
+        next = newDatapoints.last.timestamp + 1
       }
-      nRowsRemaining = nRowsRemaining.map(_ - tag.datapoints.size)
-    } while (tag.datapoints.nonEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0) && (next < maxTimestamp))
+      nRowsRemaining = nRowsRemaining.map(_ - newDatapoints.size)
+    } while (newDatapoints.nonEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0) && (next < maxTimestamp))
     sqlContext.sparkContext.parallelize(responses)
   }
 
   // Should be rewritten to use async queries
   def getTag(start: Option[Long], stop: Option[Long], limit: Int): TimeSeriesItem = {
-    val url = TimeSeriesRelation.baseTimeSeriesURL(project, start, stop)
+    var urlSource = TimeSeriesRelation.baseTimeSeriesURL(project, start, stop)
       .addPathSegment(path)
       .addQueryParameter("limit", limit.toString)
-      .build()
+    urlSource = aggregates match {
+      case Some(value) => urlSource.addQueryParameter("aggregates", value)
+      case _ => urlSource
+    }
+    urlSource = granularity match {
+      case Some(value) => urlSource.addQueryParameter("granularity", value)
+      case _ => urlSource
+    }
+    val url = urlSource.build()
     val response = client.newCall(TimeSeriesRelation.baseRequest(apiKey)
       .url(url)
       .build()).execute()
@@ -169,7 +181,10 @@ class TimeSeriesRelation(apiKey: String,
   }
 
   def parseResult(response: Response): TimeSeriesItem = {
-    val json = response.body().string()
+    // Using replaceAll as bandaid solution for accepting aggregates
+    // TODO: Replace with something slightly less terrible
+    val json = response.body().string().replaceAll("average|max|min|count|sum|interpolation|stepInterpolation|continousVariance|discreteVariance|totalVariation", "value")
+
     val js = mapper.readValue(json, classOf[TimeSeriesData])
     js.data.items.head
   }
