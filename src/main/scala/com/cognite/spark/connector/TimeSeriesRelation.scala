@@ -119,7 +119,7 @@ class TimeSeriesRelation(apiKey: String,
       case None => {
         getLatestDatapoint()
           .getOrElse(sys.error("Failed to get latest datapoint for " + path))
-          .timestamp
+          .timestamp + 1
       }
     }
 
