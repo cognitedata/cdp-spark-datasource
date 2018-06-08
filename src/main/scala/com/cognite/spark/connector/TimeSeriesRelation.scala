@@ -89,15 +89,22 @@ class TimeSeriesRelation(apiKey: String,
       .addPathSegments("timeseries/latest")
       .addPathSegment(path)
       .build()
-    val response = client.newCall(TimeSeriesRelation.baseRequest(apiKey)
-      .url(url)
-      .build()).execute()
-    if (!response.isSuccessful) {
-      throw new RuntimeException("Non-200 status when querying API, received " + response.code() + "(" + response.message() + ")")
-    }
+    var response: Response = null
+    try {
+      response = client.newCall(TimeSeriesRelation.baseRequest(apiKey)
+        .url(url)
+        .build()).execute()
+      if (!response.isSuccessful) {
+        throw new RuntimeException("Non-200 status when querying API, received " + response.code() + "(" + response.message() + ")")
+      }
 
-    val r: TimeSeriesLatestDataPoint = mapper.readValue(response.body().string(), classOf[TimeSeriesLatestDataPoint])
-    Option(r.data.items.head)
+      val r: TimeSeriesLatestDataPoint = mapper.readValue(response.body().string(), classOf[TimeSeriesLatestDataPoint])
+      Option(r.data.items.head)
+    } finally {
+      if (response != null) {
+        response.close()
+      }
+    }
   }
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
@@ -169,9 +176,13 @@ class TimeSeriesRelation(apiKey: String,
   }
 
   def parseResult(response: Response): TimeSeriesItem = {
-    val json = response.body().string()
-    val js = mapper.readValue(json, classOf[TimeSeriesData])
-    js.data.items.head
+    try {
+      val json = response.body().string()
+      val js = mapper.readValue(json, classOf[TimeSeriesData])
+      js.data.items.head
+    } finally {
+      response.close()
+    }
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
@@ -194,16 +205,23 @@ class TimeSeriesRelation(apiKey: String,
     println("post to " + TimeSeriesRelation.baseTimeSeriesURL(project)
       .addPathSegment(tagId)
       .build())
-    val response = client.newCall(
-      TimeSeriesRelation.baseRequest(apiKey)
-        .url(TimeSeriesRelation.baseTimeSeriesURL(project)
-          .addPathSegment(tagId)
-          .build())
-        .post(requestBody)
-        .build()
-    ).execute()
-    if (!response.isSuccessful) {
-      throw new RuntimeException("Non-200 status when posting to raw API, received " + response.code() + "(" + response.message() + ")")
+    var response: Response = null
+    try {
+      response = client.newCall(
+        TimeSeriesRelation.baseRequest(apiKey)
+          .url(TimeSeriesRelation.baseTimeSeriesURL(project)
+            .addPathSegment(tagId)
+            .build())
+          .post(requestBody)
+          .build()
+      ).execute()
+      if (!response.isSuccessful) {
+        throw new RuntimeException("Non-200 status when posting to raw API, received " + response.code() + "(" + response.message() + ")")
+      }
+    } finally {
+      if (response != null) {
+        response.close()
+      }
     }
   }
 }
