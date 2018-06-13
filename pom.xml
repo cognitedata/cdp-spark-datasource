@@ -50,6 +50,11 @@
       <version>2.6.7</version>
     </dependency>
     <dependency>
+      <groupId>com.cognite.data</groupId>
+      <artifactId>cognite-data</artifactId>
+      <version>0.18</version>
+    </dependency>
+    <dependency>
       <groupId>com.holdenkarau</groupId>
       <artifactId>spark-testing-base_2.11</artifactId>
       <version>${spark.version}_0.9.0</version>
@@ -99,21 +104,32 @@
           </includes>
         </configuration>
       </plugin>
+
+      <!-- Package and shade Spark protobuf -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-assembly-plugin</artifactId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.1.1</version>
         <executions>
           <execution>
-            <id>make-assembly</id>
-            <goals>
-              <goal>single</goal>
-            </goals>
             <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
             <configuration>
-              <finalName>cdp-spark-connector</finalName>
-              <descriptorRefs>
-                <descriptorRef>jar-with-dependencies</descriptorRef>
-              </descriptorRefs>
+              <shadedArtifactAttached>true</shadedArtifactAttached>
+              <shadedClassifierName>jar-with-dependencies</shadedClassifierName>
+              <artifactSet>
+                <includes>
+                  <include>*:*</include>
+                </includes>
+              </artifactSet>
+              <relocations>
+                <relocation>
+                  <pattern>com.google.protobuf</pattern>
+                  <shadedPattern>com.google.protobufv3_5_1</shadedPattern>
+                </relocation>
+              </relocations>
             </configuration>
           </execution>
         </executions>

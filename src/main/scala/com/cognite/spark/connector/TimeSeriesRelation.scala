@@ -1,5 +1,6 @@
 package com.cognite.spark.connector
 
+import com.cognite.data.api.v1.{NumericDatapoint, NumericTimeseriesData, TimeseriesData}
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import okhttp3._
@@ -8,10 +9,9 @@ import org.apache.spark.sql.sources.{BaseRelation, TableScan, _}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 import scala.util.Try
-
-case class TimeSeriesData(data: TimeSeriesDataItems[TimeSeriesItem])
 
 case class TimeSeriesDataItems[A](items: Seq[A])
 
@@ -135,38 +135,39 @@ class TimeSeriesRelation(apiKey: String,
     val responses: ListBuffer[Row] = ListBuffer()
 
     var nRowsRemaining: Option[Int] = limit
-    var tag: TimeSeriesItem = TimeSeriesItem("", Array.empty)
+    var tag: Seq[NumericDatapoint] = Seq.empty
     var next = timestampLowerLimit.getOrElse(maxTimestamp - 1000 * 60 * 60 * 24 * 14)
     do {
       val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize), batchSize)
       tag = getTag(Some(next), Some(maxTimestamp), thisBatchSize)
-      for (datapoint <- tag.datapoints) {
+      for (datapoint <- tag) {
         val columns: ListBuffer[Any] = ListBuffer()
         for (index <- requiredColumnIndexes) {
           index match {
-            case 0 => columns += tag.tagId
-            case 1 => columns += datapoint.timestamp
-            case 2 => columns += datapoint.value
+            case 0 => columns += path
+            case 1 => columns += datapoint.getTimestamp
+            case 2 => columns += datapoint.getValue
             case _ => sys.error("Invalid required column index " + index.toString)
           }
         }
         responses += Row.fromSeq(columns)
       }
-      if (tag.datapoints.nonEmpty) {
-        next = tag.datapoints.last.timestamp + 1
+      if (tag.nonEmpty) {
+        next = tag.last.getTimestamp + 1
       }
-      nRowsRemaining = nRowsRemaining.map(_ - tag.datapoints.size)
-    } while (tag.datapoints.nonEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0) && (next < maxTimestamp))
+      nRowsRemaining = nRowsRemaining.map(_ - tag.size)
+    } while (tag.nonEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0) && (next < maxTimestamp))
     sqlContext.sparkContext.parallelize(responses)
   }
 
   // Should be rewritten to use async queries
-  def getTag(start: Option[Long], stop: Option[Long], limit: Int): TimeSeriesItem = {
+  def getTag(start: Option[Long], stop: Option[Long], limit: Int): Seq[NumericDatapoint] = {
     val url = TimeSeriesRelation.baseTimeSeriesURL(project, start, stop)
       .addPathSegment(path)
       .addQueryParameter("limit", limit.toString)
       .build()
     val response = client.newCall(TimeSeriesRelation.baseRequest(apiKey)
+      .header("Accept", "application/protobuf")
       .url(url)
       .build()).execute()
     if (!response.isSuccessful) {
@@ -175,11 +176,13 @@ class TimeSeriesRelation(apiKey: String,
     parseResult(response)
   }
 
-  def parseResult(response: Response): TimeSeriesItem = {
+  def parseResult(response: Response): Seq[NumericDatapoint] = {
     try {
-      val json = response.body().string()
-      val js = mapper.readValue(json, classOf[TimeSeriesData])
-      js.data.items.head
+      val body = response.body()
+      val tsData = TimeseriesData.parseFrom(body.byteStream())
+      //TODO: handle string timeseries
+      val data = if (tsData.hasNumericData) tsData.getNumericData.getPointsList.asScala else Seq.empty
+      data
     } finally {
       response.close()
     }
@@ -192,16 +195,18 @@ class TimeSeriesRelation(apiKey: String,
   }
 
   private def postRows(rows: Seq[Row]) = {
-    val dataPointsByTagId = rows.groupBy(r => r.getAs[String](0))
-      .mapValues(rs => rs.map(r => TimeSeriesDataPoint(r.getLong(1), r.getDouble(2))))
-    for ((tagId, dataPoints) <- dataPointsByTagId) {
-      postTimeSeries(tagId, TimeSeriesDataItems[TimeSeriesDataPoint](dataPoints))
+    val tsDataByTagId = rows.groupBy(r => r.getAs[String](0))
+      .mapValues(rs => NumericTimeseriesData.newBuilder().addAllPoints(rs.map(r =>
+        NumericDatapoint.newBuilder().setTimestamp(r.getLong(1)).setValue(r.getDouble(2)).build()
+      ).asJava))
+    for ((tagId, dataPointBuilder) <- tsDataByTagId) {
+      postTimeSeries(tagId, TimeseriesData.newBuilder().setNumericData(dataPointBuilder).build().toByteArray)
     }
   }
 
-  private def postTimeSeries(tagId: String, items: TimeSeriesDataItems[TimeSeriesDataPoint]) = {
-    val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
-    val requestBody = RequestBody.create(jsonMediaType, mapper.writeValueAsString(items))
+  private def postTimeSeries(tagId: String, items: Array[Byte]) = {
+    val protobufMediaType = MediaType.parse("application/protobuf")
+    val requestBody = RequestBody.create(protobufMediaType, items)
     println("post to " + TimeSeriesRelation.baseTimeSeriesURL(project)
       .addPathSegment(tagId)
       .build())

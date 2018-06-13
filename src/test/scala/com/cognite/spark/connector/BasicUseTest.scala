@@ -14,12 +14,13 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .option("project", "akerbp")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
-      .load("00ADD0002/B1/5mMid")
+      .option("tagId", "00ADD0002/B1/5mMid")
+      .load()
     assert(df.schema.length == 3)
 
-    assert(df.schema.fields.sameElements(Array(StructField("tagId", StringType, nullable = false),
-      StructField("timestamp", LongType, nullable = false),
-      StructField("value", DoubleType, nullable = false))))
+    assert(df.schema.fields.sameElements(Array(StructField("tagId", StringType, nullable = true),
+      StructField("timestamp", LongType, nullable = true),
+      StructField("value", DoubleType, nullable = true))))
   }
 
   test("Iterate over period longer than limit") {
@@ -29,8 +30,9 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .option("type", "timeseries")
       .option("batchSize", "100")
       .option("limit", "1000")
-      .load("00ADD0002/B1/5mMid")
-      .where("timestamp > 0 and timestamp < 1390902000001")
+      .option("tagId", "00ADD0002/B1/5mMid")
+      .load()
+      .where("timestamp > 0 and timestamp < 1790902000001")
     assert(df.count() == 1000)
   }
 
@@ -41,7 +43,8 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .option("type", "timeseries")
       .option("batchSize", "2000")
       .option("limit", "1000")
-      .load("00ADD0002/B1/5mMid")
+      .option("tagId", "00ADD0002/B1/5mMid")
+      .load()
     assert(df.count() == 1000)
   }
 
@@ -52,7 +55,8 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .option("type", "timeseries")
       .option("batchSize", "1000")
       .option("limit", "1000")
-      .load("00ADD0002/B1/5mMid")
+      .option("tagId", "00ADD0002/B1/5mMid")
+      .load()
       .where("timestamp >= 0 and timestamp <= 1390902000001")
     assert(df.count() == 1000)
   }
