@@ -181,8 +181,7 @@ class TimeSeriesRelation(apiKey: String,
       val body = response.body()
       val tsData = TimeseriesData.parseFrom(body.byteStream())
       //TODO: handle string timeseries
-      val data = if (tsData.hasNumericData) tsData.getNumericData.getPointsList.asScala else Seq.empty
-      data
+      if (tsData.hasNumericData) tsData.getNumericData.getPointsList.asScala else Seq.empty
     } finally {
       response.close()
     }
@@ -200,13 +199,13 @@ class TimeSeriesRelation(apiKey: String,
         NumericDatapoint.newBuilder().setTimestamp(r.getLong(1)).setValue(r.getDouble(2)).build()
       ).asJava))
     for ((tagId, dataPointBuilder) <- tsDataByTagId) {
-      postTimeSeries(tagId, TimeseriesData.newBuilder().setNumericData(dataPointBuilder).build().toByteArray)
+      postTimeSeries(tagId, TimeseriesData.newBuilder().setNumericData(dataPointBuilder).build())
     }
   }
 
-  private def postTimeSeries(tagId: String, items: Array[Byte]) = {
+  private def postTimeSeries(tagId: String, data: TimeseriesData) = {
     val protobufMediaType = MediaType.parse("application/protobuf")
-    val requestBody = RequestBody.create(protobufMediaType, items)
+    val requestBody = RequestBody.create(protobufMediaType, data.toByteArray)
     println("post to " + TimeSeriesRelation.baseTimeSeriesURL(project)
       .addPathSegment(tagId)
       .build())
