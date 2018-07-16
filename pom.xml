@@ -6,7 +6,7 @@
 
   <groupId>com.cognite.spark.connector</groupId>
   <artifactId>cdp-spark-connector</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>0.0.2-SNAPSHOT</version>
 
   <properties>
     <spark.version>2.3.0</spark.version>
@@ -67,6 +67,14 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <repositories>
+    <repository>
+      <id>repository.dev.cognite.ai</id>
+      <name>cognite repository</name>
+      <url>https://repository.dev.cognite.ai/repository/all-releases/</url>
+    </repository>
+  </repositories>
 
   <build>
     <sourceDirectory>src/main/scala</sourceDirectory>
@@ -136,4 +144,17 @@
       </plugin>
     </plugins>
   </build>
+
+  <distributionManagement>
+    <repository>
+      <id>repository.dev.cognite.ai</id>
+      <name>Cognite maven releases</name>
+      <url>https://repository.dev.cognite.ai/repository/cognite/</url>
+    </repository>
+    <snapshotRepository>
+      <id>repository.dev.cognite.ai</id>
+      <name>Cognite maven snapshots</name>
+      <url>https://repository.dev.cognite.ai/repository/cognite-snapshot</url>
+    </snapshotRepository>
+  </distributionManagement>
 </project>
