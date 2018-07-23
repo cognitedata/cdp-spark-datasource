@@ -79,7 +79,7 @@ class RawTableRelation(apiKey: String,
       var response: Response = null
       try {
         response = client.newCall(
-          RawTableRelation.baseRequest(apiKey)
+          CdpConnector.baseRequest(apiKey)
             .url(urlBuilder.build())
             .build())
           .execute()
@@ -143,7 +143,7 @@ class RawTableRelation(apiKey: String,
     // we could even make those calls async, maybe not worth it though
     println("Posting to " + RawTableRelation.baseRawTableURL(project, database, table).build().toString)
     val response = client.newCall(
-      RawTableRelation.baseRequest(apiKey)
+      CdpConnector.baseRequest(apiKey)
         .url(RawTableRelation.baseRawTableURL(project, database, table)
           .addPathSegment("create")
           .build())
@@ -158,21 +158,9 @@ class RawTableRelation(apiKey: String,
 
 object RawTableRelation {
   def baseRawTableURL(project: String, database: String, table: String): HttpUrl.Builder = {
-    new HttpUrl.Builder()
-      .scheme("https")
-      .host("api.cognitedata.com")
-      .addPathSegments("api/0.4/projects")
-      .addPathSegment(project)
+    CdpConnector.baseUrl(project, "0.4")
       .addPathSegment("raw")
       .addPathSegment(database)
       .addPathSegment(table)
-  }
-
-  def baseRequest(apiKey: String): Request.Builder = {
-    new Request.Builder()
-      .header("Content-Type", "application/json")
-      .header("Accept", "application/json")
-      .header("Accept-Charset", "utf-8")
-      .header("api-key", apiKey)
   }
 }
