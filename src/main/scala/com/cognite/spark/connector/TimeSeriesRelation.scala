@@ -91,7 +91,7 @@ class TimeSeriesRelation(apiKey: String,
       .build()
     var response: Response = null
     try {
-      response = client.newCall(TimeSeriesRelation.baseRequest(apiKey)
+      response = client.newCall(CdpConnector.baseRequest(apiKey)
         .url(url)
         .build()).execute()
       if (!response.isSuccessful) {
@@ -166,7 +166,7 @@ class TimeSeriesRelation(apiKey: String,
       .addPathSegment(path)
       .addQueryParameter("limit", limit.toString)
       .build()
-    val response = client.newCall(TimeSeriesRelation.baseRequest(apiKey)
+    val response = client.newCall(CdpConnector.baseRequest(apiKey)
       .header("Accept", "application/protobuf")
       .url(url)
       .build()).execute()
@@ -212,7 +212,7 @@ class TimeSeriesRelation(apiKey: String,
     var response: Response = null
     try {
       response = client.newCall(
-        TimeSeriesRelation.baseRequest(apiKey)
+        CdpConnector.baseRequest(apiKey)
           .url(TimeSeriesRelation.baseTimeSeriesURL(project)
             .addPathSegment(tagId)
             .build())
@@ -232,22 +232,10 @@ class TimeSeriesRelation(apiKey: String,
 
 object TimeSeriesRelation {
   def baseTimeSeriesURL(project: String, start: Option[Long] = None, stop: Option[Long] = None): HttpUrl.Builder = {
-    val builder = new HttpUrl.Builder()
-      .scheme("https")
-      .host("api.cognitedata.com")
-      .addPathSegments("api/0.4/projects")
-      .addPathSegment(project)
+    val builder = CdpConnector.baseUrl(project, "0.4")
       .addPathSegments("timeseries/data")
     start.map(q => builder.addQueryParameter("start", q.toString))
     stop.map(q => builder.addQueryParameter("end", q.toString))
     builder
-  }
-
-  def baseRequest(apiKey: String): Request.Builder = {
-    new Request.Builder()
-      .header("Content-Type", "application/json")
-      .header("Accept", "application/json")
-      .header("Accept-Charset", "utf-8")
-      .header("Api-Key", apiKey)
   }
 }

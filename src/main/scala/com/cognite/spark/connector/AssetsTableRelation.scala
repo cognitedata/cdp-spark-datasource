@@ -82,11 +82,11 @@ class AssetsTableRelation(apiKey: String,
 
       var response: Response = null
       try {
-        println("querying " + AssetsTableRelation.baseRequest(apiKey)
+        println("querying " + CdpConnector.baseRequest(apiKey)
           .url(urlBuilder.build())
           .build())
         response = client.newCall(
-          AssetsTableRelation.baseRequest(apiKey)
+          CdpConnector.baseRequest(apiKey)
             .url(urlBuilder.build())
             .build())
           .execute()
@@ -127,7 +127,7 @@ class AssetsTableRelation(apiKey: String,
     val requestBody = RequestBody.create(jsonMediaType, mapper.writeValueAsString(items))
     println("Posting '" + mapper.writeValueAsString(items) + "' to " + AssetsTableRelation.baseAssetsURL(project).build().toString)
     val response = client.newCall(
-      RawTableRelation.baseRequest(apiKey)
+      CdpConnector.baseRequest(apiKey)
         .url(AssetsTableRelation.baseAssetsURL(project).build())
         .post(requestBody)
         .build()
@@ -148,20 +148,8 @@ object AssetsTableRelation {
   }
 
   def baseAssetsURL(project: String): HttpUrl.Builder = {
-    new HttpUrl.Builder()
-      .scheme("https")
-      .host("api.cognitedata.com")
-      .addPathSegments("api/0.4/projects")
-      .addPathSegment(project)
+    CdpConnector.baseUrl(project, "0.4")
       .addPathSegment("assets")
-  }
-
-  def baseRequest(apiKey: String): Request.Builder = {
-    new Request.Builder()
-      .header("Content-Type", "application/json")
-      .header("Accept", "application/json")
-      .header("Accept-Charset", "utf-8")
-      .header("api-key", apiKey)
   }
 
   val validPathComponentTypes = Seq(
