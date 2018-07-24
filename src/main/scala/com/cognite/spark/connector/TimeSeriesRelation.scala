@@ -132,32 +132,25 @@ class TimeSeriesRelation(apiKey: String,
 
     val requiredColumnToIndex = Map("tagId" -> 0, "timestamp" -> 1, "value" -> 2)
     val requiredColumnIndexes = requiredColumns.map(requiredColumnToIndex)
-    val responses: ListBuffer[Row] = ListBuffer()
-
-    var nRowsRemaining: Option[Int] = limit
-    var tag: Seq[NumericDatapoint] = Seq.empty
-    var next = timestampLowerLimit.getOrElse(maxTimestamp - 1000 * 60 * 60 * 24 * 14)
-    do {
-      val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize), batchSize)
-      tag = getTag(Some(next), Some(maxTimestamp), thisBatchSize)
-      for (datapoint <- tag) {
-        val columns: ListBuffer[Any] = ListBuffer()
-        for (index <- requiredColumnIndexes) {
-          index match {
-            case 0 => columns += path
-            case 1 => columns += datapoint.getTimestamp
-            case 2 => columns += datapoint.getValue
-            case _ => sys.error("Invalid required column index " + index.toString)
-          }
+    val toColumns: NumericDatapoint => Seq[Option[Any]] = dataPoint =>
+      for (index <- requiredColumnIndexes)
+        yield index match {
+          case 0 => Some(path)
+          case 1 => Some(dataPoint.getTimestamp)
+          case 2 => Some(dataPoint.getValue)
+          case _ =>
+            sys.error("Invalid required column index " + index.toString)
+            None
         }
-        responses += Row.fromSeq(columns)
-      }
-      if (tag.nonEmpty) {
-        next = tag.last.getTimestamp + 1
-      }
-      nRowsRemaining = nRowsRemaining.map(_ - tag.size)
-    } while (tag.nonEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0) && (next < maxTimestamp))
-    sqlContext.sparkContext.parallelize(responses)
+
+    val next = timestampLowerLimit.getOrElse(maxTimestamp - 1000 * 60 * 60 * 24 * 14)
+    val finalRows = Batch.withCursor(batchSize, limit) { (thisBatchSize, cursor: Option[Long]) =>
+      val tags = getTag(Some(cursor.getOrElse(next)), Some(maxTimestamp), thisBatchSize)
+      val rows = for (dataPoint <- tags)
+        yield Row.fromSeq(toColumns(dataPoint).flatten)
+      (rows, tags.lastOption.map(_.getTimestamp + 1))
+    }.toList
+    sqlContext.sparkContext.parallelize(finalRows)
   }
 
   // Should be rewritten to use async queries

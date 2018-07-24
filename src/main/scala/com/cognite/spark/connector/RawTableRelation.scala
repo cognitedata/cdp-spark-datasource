@@ -12,11 +12,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import scala.collection.mutable.ListBuffer
 
-case class RawData(data: RawDataItems)
-
-case class RawDataItems(items: Seq[RawDataItemsItem], nextCursor: Option[String] = None)
-
-case class RawDataItemsItem(key: String, columns: Map[String, Any])
+case class RawItem(key: String, columns: Map[String, Any])
 
 class RawTableRelation(apiKey: String,
                        project: String,
@@ -63,46 +59,11 @@ class RawTableRelation(apiKey: String,
   }
 
   private def readRows(limit: Option[Int]): RDD[Row] = {
-    val responses: ListBuffer[Row] = ListBuffer()
-    var doneReading = false
-    var cursor: Option[String] = None
-    var nRowsRemaining = limit
-
-    do {
-      val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize), batchSize)
-      val urlBuilder = RawTableRelation.baseRawTableURL(project, database, table)
-        .addQueryParameter("limit", thisBatchSize.toString)
-      if (!cursor.isEmpty) {
-        urlBuilder.addQueryParameter("cursor", cursor.get)
-      }
-
-      var response: Response = null
-      try {
-        response = client.newCall(
-          CdpConnector.baseRequest(apiKey)
-            .url(urlBuilder.build())
-            .build())
-          .execute()
-        if (!response.isSuccessful) {
-          throw new RuntimeException("Non-200 status when querying API for " +
-            "database " + database + ", table " + table + " in project " + project)
-        }
-        val r = mapper.readValue(response.body().string(), classOf[RawData])
-        for (item <- r.data.items) {
-          responses += Row(item.key, mapper.writeValueAsString(item.columns))
-        }
-
-        cursor = r.data.nextCursor
-        nRowsRemaining = nRowsRemaining.map(_ - r.data.items.size)
-      } finally {
-        if (response != null) {
-          response.close()
-        }
-      }
-
-    } while (!cursor.isEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0))
-
-    sqlContext.sparkContext.parallelize(responses)
+    val url = RawTableRelation.baseRawTableURL(project, database, table).build()
+    val result = CdpResults[RawItem](apiKey, url, batchSize, limit)
+      .map(item => Row(item.key, mapper.writeValueAsString(item.columns)))
+      .toList
+    sqlContext.sparkContext.parallelize(result)
   }
 
   override def buildScan(): RDD[Row] = {
@@ -133,10 +94,10 @@ class RawTableRelation(apiKey: String,
   }
 
   private def postRows(nonKeyColumnNames: Array[String], rows: Seq[Row]) = {
-    val rawDataItemsItems = rows.map(row => RawDataItemsItem(
+    val rawDataItemsItems = rows.map(row => RawItem(
       row.getString(row.fieldIndex("key")),
       row.getValuesMap[Any](nonKeyColumnNames)))
-    val items = new RawDataItems(rawDataItemsItems)
+    val items = Data(DataItemsWithCursor(rawDataItemsItems))
 
     val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
     val requestBody = RequestBody.create(jsonMediaType, mapper.writeValueAsString(items))
