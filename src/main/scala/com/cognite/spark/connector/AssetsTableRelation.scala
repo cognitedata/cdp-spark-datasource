@@ -13,11 +13,6 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import scala.collection.mutable.ListBuffer
 
-// it may seem like this could be generalized, but it doesn't work across modules(?)
-case class AssetsData(data: AssetsDataItems[AssetsItem])
-
-case class AssetsDataItems[A](items: Seq[A], nextCursor: Option[String] = None)
-
 case class PostAssetsDataItems[A](items: Seq[A])
 
 case class AssetsItem(name: String,
@@ -64,51 +59,13 @@ class AssetsTableRelation(apiKey: String,
     StructField("id", DataTypes.LongType)))
 
   override def buildScan(): RDD[Row] = {
-    val responses: ListBuffer[Row] = ListBuffer()
-    var doneReading = false
-    var cursor: Option[String] = None
-    var nRowsRemaining: Option[Int] = limit
+    val urlBuilder = AssetsTableRelation.baseAssetsURL(project)
+    assetPath.foreach(path => urlBuilder.addQueryParameter("path", path))
+    val result = CdpResults[AssetsItem](apiKey, urlBuilder.build(), batchSize, limit)
+      .map(item => Row(item.name, item.parentId, item.description, item.metadata, item.id))
+      .toList
 
-    do {
-      val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(batchSize), batchSize)
-      val urlBuilder = AssetsTableRelation.baseAssetsURL(project)
-        .addQueryParameter("limit", thisBatchSize.toString)
-      if (!assetPath.isEmpty) {
-        urlBuilder.addQueryParameter("path", assetPath.get)
-      }
-      if (!cursor.isEmpty) {
-        urlBuilder.addQueryParameter("cursor", cursor.get)
-      }
-
-      var response: Response = null
-      try {
-        println("querying " + CdpConnector.baseRequest(apiKey)
-          .url(urlBuilder.build())
-          .build())
-        response = client.newCall(
-          CdpConnector.baseRequest(apiKey)
-            .url(urlBuilder.build())
-            .build())
-          .execute()
-        if (!response.isSuccessful) {
-          throw new RuntimeException("Non-200 status when querying API, received " + response.code() + "(" + response.message() + ")")
-        }
-        val r = mapper.readValue(response.body().string(), classOf[AssetsData])
-        for (item <- r.data.items) {
-          responses += Row(item.name, item.parentId, item.description, item.metadata, item.id)
-        }
-
-        cursor = r.data.nextCursor
-        nRowsRemaining = nRowsRemaining.map(_ - r.data.items.size)
-      } finally {
-        if (response != null) {
-          response.close()
-        }
-      }
-
-    } while (!cursor.isEmpty && (nRowsRemaining.isEmpty || nRowsRemaining.get > 0))
-
-    sqlContext.sparkContext.parallelize(responses)
+    sqlContext.sparkContext.parallelize(result)
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
