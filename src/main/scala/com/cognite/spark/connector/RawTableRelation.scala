@@ -1,16 +1,10 @@
 package com.cognite.spark.connector
 
-import java.util.concurrent.TimeUnit
-
-import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import okhttp3._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-
-import scala.collection.mutable.ListBuffer
 
 case class RawItem(key: String, columns: Map[String, Any])
 
@@ -28,17 +22,6 @@ class RawTableRelation(apiKey: String,
     with TableScan
     with Serializable {
   // TODO: make read/write timeouts configurable
-  @transient lazy val client: OkHttpClient = new OkHttpClient.Builder()
-    .readTimeout(2, TimeUnit.MINUTES)
-    .writeTimeout(2, TimeUnit.MINUTES)
-    .build()
-  @transient lazy val mapper: ObjectMapper = {
-    val mapper = new ObjectMapper()
-    mapper.registerModule(DefaultScalaModule)
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-    mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
-    mapper
-  }
   @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
   @transient lazy val defaultSchema = StructType(Seq(
     StructField("key", DataTypes.StringType),
@@ -60,8 +43,8 @@ class RawTableRelation(apiKey: String,
 
   private def readRows(limit: Option[Int]): RDD[Row] = {
     val url = RawTableRelation.baseRawTableURL(project, database, table).build()
-    val result = CdpResults[RawItem](apiKey, url, batchSize, limit)
-      .map(item => Row(item.key, mapper.writeValueAsString(item.columns)))
+    val result = CdpConnector.get[RawItem](apiKey, url, batchSize, limit)
+      .map(item => Row(item.key, CdpConnector.mapper.writeValueAsString(item.columns)))
       .toList
     sqlContext.sparkContext.parallelize(result)
   }
@@ -94,26 +77,15 @@ class RawTableRelation(apiKey: String,
   }
 
   private def postRows(nonKeyColumnNames: Array[String], rows: Seq[Row]) = {
-    val rawDataItemsItems = rows.map(row => RawItem(
+    val items = rows.map(row => RawItem(
       row.getString(row.fieldIndex("key")),
       row.getValuesMap[Any](nonKeyColumnNames)))
-    val items = Data(DataItemsWithCursor(rawDataItemsItems))
 
-    val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
-    val requestBody = RequestBody.create(jsonMediaType, mapper.writeValueAsString(items))
-    // we could even make those calls async, maybe not worth it though
-    println("Posting to " + RawTableRelation.baseRawTableURL(project, database, table).build().toString)
-    val response = client.newCall(
-      CdpConnector.baseRequest(apiKey)
-        .url(RawTableRelation.baseRawTableURL(project, database, table)
-          .addPathSegment("create")
-          .build())
-        .post(requestBody)
-        .build()
-    ).execute()
-    if (!response.isSuccessful) {
-      throw new RuntimeException("Non-200 status when posting to raw API, received " + response.code() + "(" + response.message() + ")")
-    }
+    val url = RawTableRelation.baseRawTableURL(project, database, table)
+      .addPathSegment("create")
+      .build()
+
+    CdpConnector.post(apiKey, url, items)
   }
 }
 
