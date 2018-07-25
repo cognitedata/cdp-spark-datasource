@@ -1,7 +1,5 @@
 package com.cognite.spark.connector
 
-import java.util.concurrent.TimeUnit
-
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
@@ -10,8 +8,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-
-import scala.collection.mutable.ListBuffer
 
 case class PostAssetsDataItems[A](items: Seq[A])
 
@@ -38,17 +34,6 @@ class AssetsTableRelation(apiKey: String,
     with TableScan
     with Serializable {
   // TODO: make read/write timeouts configurable
-  @transient lazy val client: OkHttpClient = new OkHttpClient.Builder()
-    .readTimeout(2, TimeUnit.MINUTES)
-    .writeTimeout(2, TimeUnit.MINUTES)
-    .build()
-  @transient lazy val mapper: ObjectMapper = {
-    val mapper = new ObjectMapper()
-    mapper.registerModule(DefaultScalaModule)
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-    mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)
-    mapper
-  }
   @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
 
   override def schema: StructType = StructType(Seq(
@@ -61,7 +46,7 @@ class AssetsTableRelation(apiKey: String,
   override def buildScan(): RDD[Row] = {
     val urlBuilder = AssetsTableRelation.baseAssetsURL(project)
     assetPath.foreach(path => urlBuilder.addQueryParameter("path", path))
-    val result = CdpResults[AssetsItem](apiKey, urlBuilder.build(), batchSize, limit)
+    val result = CdpConnector.get[AssetsItem](apiKey, urlBuilder.build(), batchSize, limit)
       .map(item => Row(item.name, item.parentId, item.description, item.metadata, item.id))
       .toList
 
@@ -75,23 +60,9 @@ class AssetsTableRelation(apiKey: String,
   }
 
   private def postRows(rows: Seq[Row]) = {
-    // this definitely seems like a common pattern that could be refactored out to a common method
     val assetItems = rows.map(r =>
       PostAssetsItem(r.getString(0), r.getString(2), r.getAs[Map[String, String]](3)))
-    val items = PostAssetsDataItems[PostAssetsItem](assetItems)
-
-    val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
-    val requestBody = RequestBody.create(jsonMediaType, mapper.writeValueAsString(items))
-    println("Posting '" + mapper.writeValueAsString(items) + "' to " + AssetsTableRelation.baseAssetsURL(project).build().toString)
-    val response = client.newCall(
-      CdpConnector.baseRequest(apiKey)
-        .url(AssetsTableRelation.baseAssetsURL(project).build())
-        .post(requestBody)
-        .build()
-    ).execute()
-    if (!response.isSuccessful) {
-      throw new RuntimeException("Non-200 status when posting to raw API, received " + response.code() + "(" + response.message() + ")")
-    }
+    CdpConnector.post(apiKey, AssetsTableRelation.baseAssetsURL(project).build(), assetItems)
   }
 }
 
