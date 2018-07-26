@@ -61,4 +61,38 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     assert(df.count() == 1000)
   }
 
+  test("smoke test assets") {
+    val df = sqlContext.read.format("com.cognite.spark.connector")
+      .option("project", "akerbp")
+      .option("apiKey", apiKey)
+      .option("type", "assets")
+      .option("batchSize", "1000")
+      .option("limit", "1000")
+      .option("assetsPath", "[\"IAA\"]")
+      .load()
+
+    df.createTempView("assets")
+    val res = sqlContext.sql("select * from assets")
+      .collect()
+    assert(res.length == 1000)
+  }
+
+  test("smoke test tables") {
+    val df = sqlContext.read.format("com.cognite.spark.connector")
+      .option("project", "akerbp")
+      .option("apiKey", apiKey)
+      .option("type", "tables")
+      .option("batchSize", "1000")
+      .option("limit", "1000")
+      .option("database", "cow")
+      .option("table", "Workpermit")
+      .option("inferSchema", "true")
+      .option("inferSchemaLimit", "100")
+      .load()
+
+    df.createTempView("tables")
+    val res = sqlContext.sql("select * from tables")
+        .collect()
+    assert(res.length == 1000)
+  }
 }

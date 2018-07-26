@@ -8,14 +8,14 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
+import io.circe.generic.auto._
 
 case class PostAssetsDataItems[A](items: Seq[A])
 
 case class AssetsItem(name: String,
-                      // FIXME: parentId is optional
-                      parentId: Long,
-                      description: String,
-                      metadata: Map[String, String],
+                      parentId: Option[Long],
+                      description: Option[String],
+                      metadata: Option[Map[String, String]],
                       id: Long)
 
 case class PostAssetsItem(name: String,

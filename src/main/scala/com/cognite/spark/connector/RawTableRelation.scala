@@ -1,12 +1,17 @@
 package com.cognite.spark.connector
 
+import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import io.circe.JsonObject
 import okhttp3._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
+import io.circe.generic.auto._
+import io.circe.syntax._
 
-case class RawItem(key: String, columns: Map[String, Any])
+case class RawItem(key: String, columns: JsonObject)
 
 class RawTableRelation(apiKey: String,
                        project: String,
@@ -27,6 +32,14 @@ class RawTableRelation(apiKey: String,
     StructField("key", DataTypes.StringType),
     StructField("columns", DataTypes.StringType)
   ))
+  @transient lazy val mapper: ObjectMapper = {
+    val mapper = new ObjectMapper()
+    mapper.registerModule(DefaultScalaModule)
+    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+    mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
+    mapper
+  }
+
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
@@ -44,7 +57,7 @@ class RawTableRelation(apiKey: String,
   private def readRows(limit: Option[Int]): RDD[Row] = {
     val url = RawTableRelation.baseRawTableURL(project, database, table).build()
     val result = CdpConnector.get[RawItem](apiKey, url, batchSize, limit)
-      .map(item => Row(item.key, CdpConnector.mapper.writeValueAsString(item.columns)))
+      .map(item => Row(item.key, item.columns.asJson.noSpaces))
       .toList
     sqlContext.sparkContext.parallelize(result)
   }
@@ -79,7 +92,9 @@ class RawTableRelation(apiKey: String,
   private def postRows(nonKeyColumnNames: Array[String], rows: Seq[Row]) = {
     val items = rows.map(row => RawItem(
       row.getString(row.fieldIndex("key")),
-      row.getValuesMap[Any](nonKeyColumnNames)))
+      io.circe.parser.decode[JsonObject](
+        mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames))).right.get
+      ))
 
     val url = RawTableRelation.baseRawTableURL(project, database, table)
       .addPathSegment("create")
