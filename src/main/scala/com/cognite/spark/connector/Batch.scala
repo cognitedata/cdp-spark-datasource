@@ -5,7 +5,7 @@ object Batch {
     // We want to do a do / while, but lack construct for that in Iterator
     // That's why lastChunk has to be cached and merged in the end
     var lastChunk = Seq.empty[A]
-    Iterator.iterate((limit, true, Seq.empty[A], Option.empty[B])) {
+    val iterator = Iterator.iterate((limit, true, Seq.empty[A], Option.empty[B])) {
       case (nRowsRemaining, _, _, cursor) =>
           val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(chunkSize), chunkSize)
           val (chunk, newCursor) = processChunk(thisBatchSize, cursor)
@@ -15,5 +15,10 @@ object Batch {
           (rowsRemaining, continue, chunk, newCursor)
     }.takeWhile(_._2)
       .flatMap(_._3) ++ lastChunk
+
+    limit match {
+      case Some(value) => iterator.take(value)
+      case None => iterator
+    }
   }
 }
