@@ -55,6 +55,8 @@ class DefaultSource extends RelationProvider
           sys.error("Invalid assets path: " + assetsPath.get)
         }
         new AssetsTableRelation(apiKey, project, assetsPath, limit, batchSize)(sqlContext)
+      case "events" =>
+        new EventsRelation(apiKey, project, limit, batchSize)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
