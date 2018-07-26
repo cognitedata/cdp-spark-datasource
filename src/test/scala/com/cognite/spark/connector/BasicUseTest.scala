@@ -95,4 +95,19 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
         .collect()
     assert(res.length == 1000)
   }
+
+  test("smoke test events") {
+    val df = sqlContext.read.format("com.cognite.spark.connector")
+      .option("project", "akerbp")
+      .option("apiKey", apiKey)
+      .option("type", "events")
+      .option("batchSize", "500")
+      .option("limit", "1000")
+      .load()
+
+    df.createTempView("events")
+    val res = sqlContext.sql("select * from events")
+      .collect()
+    assert(res.length == 1000)
+  }
 }
