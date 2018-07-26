@@ -3,14 +3,18 @@ package com.cognite.spark.connector
 import okhttp3._
 import java.util.concurrent.TimeUnit
 
-import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import io.circe._
+import io.circe.generic.auto._
+import io.circe.parser._
+import io.circe.syntax._
 
-case class Data[A](data: DataItemsWithCursor[A])
-case class DataItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
-case class DataItems[A](items: Seq[A])
+case class Data[A](data: A)
+case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
+case class Items[A](items: Seq[A])
 
 object CdpConnector {
+  type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
+
   def baseUrl(project: String, version: String = "0.5"): HttpUrl.Builder = {
     new HttpUrl.Builder()
       .scheme("https")
@@ -34,15 +38,7 @@ object CdpConnector {
     .writeTimeout(2, TimeUnit.MINUTES)
     .build()
 
-  @transient lazy val mapper: ObjectMapper = {
-    val mapper = new ObjectMapper()
-    mapper.registerModule(DefaultScalaModule)
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-    mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
-    mapper
-  }
-
-  def get[A](apiKey: String, url: HttpUrl, batchSize: Int, limit: Option[Int]): Iterator[A] = {
+  def get[A](apiKey: String, url: HttpUrl, batchSize: Int, limit: Option[Int])(implicit decoder: Decoder[A]): Iterator[A] = {
     Batch.withCursor(batchSize, limit) { (chunkSize, cursor: Option[String]) =>
       val nextUrl = url.newBuilder().addQueryParameter("limit", chunkSize.toString)
       cursor.foreach(cur => nextUrl.addQueryParameter("cursor", cur))
@@ -52,18 +48,22 @@ object CdpConnector {
         if (!response.isSuccessful) {
           throw new RuntimeException("Non-200 status when querying API")
         }
-        val r = mapper.readValue(response.body().string(), classOf[Data[A]])
-        (r.data.items, r.data.nextCursor)
+
+        val d = response.body().string()
+        decode[DataItemsWithCursor[A]](d) match {
+          case Right(r) => (r.data.items, r.data.nextCursor)
+          case Left(e) => throw new RuntimeException("Failed to deserialize", e)
+        }
       } finally {
         response.close()
       }
     }
   }
 
-  def post[A](apiKey: String, url: HttpUrl, items: Seq[A]): Unit = {
-    val dataItems = DataItems(items)
+  def post[A](apiKey: String, url: HttpUrl, items: Seq[A])(implicit encoder : Encoder[A]): Unit = {
+    val dataItems = Items(items)
     val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
-    val requestBody = RequestBody.create(jsonMediaType, mapper.writeValueAsString(dataItems))
+    val requestBody = RequestBody.create(jsonMediaType, dataItems.asJson.noSpaces)
 
     val response = client.newCall(
       CdpConnector.baseRequest(apiKey)
