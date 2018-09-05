@@ -10,6 +10,7 @@ import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import io.circe.generic.auto._
 import io.circe.syntax._
+import org.apache.spark.groupon.metrics.UserMetricsSystem
 
 case class RawItem(key: String, columns: JsonObject)
 
@@ -21,7 +22,9 @@ class RawTableRelation(apiKey: String,
                        limit: Option[Int],
                        inferSchema: Boolean,
                        inferSchemaLimit: Option[Int],
-                       batchSizeOption: Option[Int])(@transient val sqlContext: SQLContext)
+                       batchSizeOption: Option[Int],
+                       metricsPrefix: String,
+                       collectMetrics: Boolean)(val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
@@ -40,6 +43,9 @@ class RawTableRelation(apiKey: String,
     mapper
   }
 
+  // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
+  lazy private val rowsCreated = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.created")
+  lazy private val rowsRead = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.read")
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
@@ -54,9 +60,14 @@ class RawTableRelation(apiKey: String,
     }
   }
 
+  private def countItems(items: CdpConnector.DataItemsWithCursor[_]): Unit = {
+    rowsRead.inc(items.data.items.length)
+  }
+
   private def readRows(limit: Option[Int]): RDD[Row] = {
     val url = RawTableRelation.baseRawTableURL(project, database, table).build()
-    val result = CdpConnector.get[RawItem](apiKey, url, batchSize, limit)
+    val result = CdpConnector.get[RawItem](apiKey, url, batchSize, limit,
+      batchCompletedCallback = if (collectMetrics) Some(countItems) else None)
       .map(item => Row(item.key, item.columns.asJson.noSpaces))
     sqlContext.sparkContext.parallelize(result.toStream)
   }
@@ -100,6 +111,9 @@ class RawTableRelation(apiKey: String,
       .build()
 
     CdpConnector.post(apiKey, url, items)
+    if (collectMetrics) {
+      rowsCreated.inc(items.length)
+    }
   }
 }
 
