@@ -43,7 +43,13 @@ class DefaultSource extends RelationProvider
       case "tables" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
+
+        val metricsPrefix = parameters.get("metricsPrefix") match {
+          case Some(prefix) => s"${prefix}."
+          case None => ""
         }
+        val collectMetrics = toBoolean(parameters.get("collectMetrics"))
+
         val inferSchema = toBoolean(parameters.get("inferSchema"))
         val inferSchemaLimit = try {
           Some(parameters("inferSchemaLimit").toInt)
@@ -53,7 +59,8 @@ class DefaultSource extends RelationProvider
         }
 
         new RawTableRelation(apiKey, project, database, tableName, Option(schema), limit,
-          inferSchema, inferSchemaLimit, batchSize)(sqlContext)
+          inferSchema, inferSchemaLimit, batchSize,
+          metricsPrefix, collectMetrics)(sqlContext)
       case "assets" =>
         val assetsPath = parameters.get("assetsPath")
         if (assetsPath.isDefined && !AssetsTableRelation.isValidAssetsPath(assetsPath.get)) {
