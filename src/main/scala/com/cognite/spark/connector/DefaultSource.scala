@@ -14,6 +14,14 @@ class DefaultSource extends RelationProvider
     createRelation(sqlContext, parameters, null)
   }
 
+  private def toBoolean(booleanString: Option[String]): Boolean = {
+    booleanString match {
+      case Some("true") => true
+      case Some("false") => false
+      case Some(_) => sys.error("inferSchema must be 'true' or 'false'")
+      case None => false
+    }
+  }
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
     val project = parameters.getOrElse("project", sys.error("Project must be specified"))
@@ -35,18 +43,15 @@ class DefaultSource extends RelationProvider
       case "tables" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
-        val inferSchema = parameters.get("inferSchema") match {
-          case Some("true") => true
-          case Some("false") => false
-          case Some(_) => sys.error("inferSchema must be 'true' or 'false'")
-          case None => false
         }
+        val inferSchema = toBoolean(parameters.get("inferSchema"))
         val inferSchemaLimit = try {
-          Some(parameters.get("inferSchemaLimit").get.toInt)
+          Some(parameters("inferSchemaLimit").toInt)
         } catch {
           case _: NumberFormatException => sys.error("inferSchemaLimit must be an integer")
           case _: NoSuchElementException => None
         }
+
         new RawTableRelation(apiKey, project, database, tableName, Option(schema), limit,
           inferSchema, inferSchemaLimit, batchSize)(sqlContext)
       case "assets" =>
