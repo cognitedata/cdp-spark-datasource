@@ -14,14 +14,20 @@ class DefaultSource extends RelationProvider
     createRelation(sqlContext, parameters, null)
   }
 
-  private def toBoolean(booleanString: Option[String]): Boolean = {
-    booleanString match {
-      case Some("true") => true
-      case Some("false") => false
-      case Some(_) => sys.error("inferSchema must be 'true' or 'false'")
+  private def toBoolean(parameters: Map[String, String], parameterName: String): Boolean = {
+    parameters.get(parameterName) match {
+      case Some(string) =>
+        if (string.equalsIgnoreCase("true")) {
+          true
+        } else if (string.equalsIgnoreCase("false")) {
+          false
+        } else {
+          sys.error("$parameterName must be 'true' or 'false'")
+        }
       case None => false
     }
   }
+
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
     val project = parameters.getOrElse("project", sys.error("Project must be specified"))
@@ -45,12 +51,12 @@ class DefaultSource extends RelationProvider
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
 
         val metricsPrefix = parameters.get("metricsPrefix") match {
-          case Some(prefix) => s"${prefix}."
+          case Some(prefix) => s"$prefix."
           case None => ""
         }
-        val collectMetrics = toBoolean(parameters.get("collectMetrics"))
+        val collectMetrics = toBoolean(parameters, "collectMetrics")
 
-        val inferSchema = toBoolean(parameters.get("inferSchema"))
+        val inferSchema = toBoolean(parameters, "inferSchema")
         val inferSchemaLimit = try {
           Some(parameters("inferSchemaLimit").toInt)
         } catch {
