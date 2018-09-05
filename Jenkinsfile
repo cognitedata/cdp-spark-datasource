@@ -35,7 +35,7 @@ podTemplate(label: label,
             }
             if (env.BRANCH_NAME == 'master') {
                 stage('Deploy') {
-                    sh('mvn deploy')
+                    sh('mvn deploy -DskipTests')
                 }
             }
         }
