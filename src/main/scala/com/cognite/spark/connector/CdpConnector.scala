@@ -38,7 +38,9 @@ object CdpConnector {
     .writeTimeout(2, TimeUnit.MINUTES)
     .build()
 
-  def get[A](apiKey: String, url: HttpUrl, batchSize: Int, limit: Option[Int])(implicit decoder: Decoder[A]): Iterator[A] = {
+  def get[A](apiKey: String, url: HttpUrl, batchSize: Int, limit: Option[Int],
+             batchCompletedCallback: Option[DataItemsWithCursor[A] => Unit] = None)
+            (implicit decoder: Decoder[A]): Iterator[A] = {
     Batch.withCursor(batchSize, limit) { (chunkSize, cursor: Option[String]) =>
       val nextUrl = url.newBuilder().addQueryParameter("limit", chunkSize.toString)
       cursor.foreach(cur => nextUrl.addQueryParameter("cursor", cur))
@@ -51,7 +53,10 @@ object CdpConnector {
 
         val d = response.body().string()
         decode[DataItemsWithCursor[A]](d) match {
-          case Right(r) => (r.data.items, r.data.nextCursor)
+          case Right(r) => {
+            batchCompletedCallback.foreach(callback => callback(r))
+            (r.data.items, r.data.nextCursor)
+          }
           case Left(e) => throw new RuntimeException("Failed to deserialize", e)
         }
       } finally {
