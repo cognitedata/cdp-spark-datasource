@@ -58,8 +58,7 @@ class RawTableRelation(apiKey: String,
     val url = RawTableRelation.baseRawTableURL(project, database, table).build()
     val result = CdpConnector.get[RawItem](apiKey, url, batchSize, limit)
       .map(item => Row(item.key, item.columns.asJson.noSpaces))
-      .toList
-    sqlContext.sparkContext.parallelize(result)
+    sqlContext.sparkContext.parallelize(result.toStream)
   }
 
   override def buildScan(): RDD[Row] = {
