@@ -7,7 +7,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
-case class EventItem(id: Long,
+case class EventItem(id: Option[Long],
                       startTime: Option[Long],
                       endTime: Option[Long],
                       description: Option[String],
@@ -59,9 +59,10 @@ class EventsRelation(apiKey: String,
 
   def postEvent(rows: Seq[Row]): Unit = {
     val eventItems = rows.map(r =>
-      EventItem(r.getLong(0), Some(r.getLong(1)), Some(r.getLong(2)), Some(r.getString(3)),
-        Some(r.getString(4)), Some(r.getString(5)), Some(r.getAs[Map[String, String]](6)),
-        Some(r.getSeq(7)), Some(r.getString(8)), Some(r.getString(9))))
+      EventItem(Option(r.getAs(0)), Option(r.getAs(1)), Option(r.getAs(2)), Option(r.getString(3)),
+        Option(r.getAs(4)), Option(r.getAs(5)), Option(r.getAs(6)),
+        Option(r.getAs(7)), Option(r.getAs(8)), Option(r.getAs(9)))
+    )
     CdpConnector.post(apiKey, EventsRelation.baseEventsURL(project).build(), eventItems)
   }
 }
