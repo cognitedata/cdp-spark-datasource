@@ -7,7 +7,7 @@ import okhttp3._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import io.circe.generic.auto._
 import io.circe.syntax._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
@@ -47,13 +47,36 @@ class RawTableRelation(apiKey: String,
   lazy private val rowsCreated = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.created")
   lazy private val rowsRead = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.read")
 
+  private val keyColumnPattern = """^_*key$""".r
+
+  private def keyColumns(schema: StructType): Array[String] = {
+    schema.fieldNames.filter(keyColumnPattern.findFirstIn(_).isDefined)
+  }
+
+  private def schemaWithoutRenamedKeyColumns(schema: StructType) = {
+    StructType.apply(schema.fields.map(field => {
+      if (keyColumnPattern.findFirstIn(field.name).isDefined) {
+        field.copy(name = field.name.replaceFirst("_", ""))
+      } else {
+        field
+      }
+    }))
+  }
+
+  private def renameKeyColumns(df: DataFrame): DataFrame = {
+    val columnsToRename = keyColumns(df.schema)
+    columnsToRename.sorted.foldLeft(df) { (df, keyColumn) =>
+      df.withColumnRenamed(keyColumn, s"_$keyColumn")
+    }
+  }
+
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
       val rdd = readRows(inferSchemaLimit)
 
       import sqlContext.sparkSession.implicits._
       val df = sqlContext.createDataFrame(rdd, defaultSchema)
-      val jsonDf = sqlContext.sparkSession.read.json(df.select($"columns").as[String])
+      val jsonDf = renameKeyColumns(sqlContext.sparkSession.read.json(df.select($"columns").as[String]))
       StructType(StructField("key", DataTypes.StringType) +: jsonDf.schema.fields)
     } else {
       defaultSchema
@@ -77,12 +100,19 @@ class RawTableRelation(apiKey: String,
     if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
       rdd
     } else {
-      val jsonFields = StructType.apply(schema.tail)
+      val jsonFields = schemaWithoutRenamedKeyColumns(StructType.apply(schema.tail))
       val df = sqlContext.sparkSession.createDataFrame(rdd, defaultSchema)
       import sqlContext.implicits.StringToColumn
-      import org.apache.spark.sql.functions._
+      import org.apache.spark.sql.functions.from_json
       val dfWithSchema = df.select($"key", from_json($"columns", jsonFields).alias("columns"))
-      val flatDf = dfWithSchema.select("key", "columns.*")
+      val flatDf = if (keyColumns(jsonFields).isEmpty) {
+        dfWithSchema.select("key", "columns.*")
+      } else {
+        val temporaryKeyName = s"TrE85tFQPCb2fEUZ"
+        val dfWithKeyRenamed = dfWithSchema.withColumnRenamed("key", temporaryKeyName)
+        val temporaryFlatDf = renameKeyColumns(dfWithKeyRenamed.select(temporaryKeyName, "columns.*"))
+        temporaryFlatDf.withColumnRenamed(temporaryKeyName, "key")
+      }
       flatDf.rdd
     }
   }
