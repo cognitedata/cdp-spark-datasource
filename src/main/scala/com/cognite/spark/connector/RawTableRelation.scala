@@ -65,8 +65,17 @@ class RawTableRelation(apiKey: String,
 
   private def renameKeyColumns(df: DataFrame): DataFrame = {
     val columnsToRename = keyColumns(df.schema)
+    // rename key columns starting with the longest one first, to avoid creating a column with the same name
     columnsToRename.sorted.foldLeft(df) { (df, keyColumn) =>
       df.withColumnRenamed(keyColumn, s"_$keyColumn")
+    }
+  }
+
+  private def unRenameKeyColumns(df: DataFrame): DataFrame = {
+    val columnsToRename = keyColumns(df.schema)
+    // when renaming them back we instead start with the shortest key column name, for similar reasons
+    columnsToRename.sortWith(_ > _).foldLeft(df) { (df, keyColumn) =>
+      df.withColumnRenamed(keyColumn, keyColumn.substring(1))
     }
   }
 
@@ -95,6 +104,8 @@ class RawTableRelation(apiKey: String,
     sqlContext.sparkContext.parallelize(result.toStream)
   }
 
+  private val temporaryKeyName = s"TrE85tFQPCb2fEUZ"
+
   override def buildScan(): RDD[Row] = {
     val rdd = readRows(limit)
     if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
@@ -108,7 +119,6 @@ class RawTableRelation(apiKey: String,
       val flatDf = if (keyColumns(jsonFields).isEmpty) {
         dfWithSchema.select("key", "columns.*")
       } else {
-        val temporaryKeyName = s"TrE85tFQPCb2fEUZ"
         val dfWithKeyRenamed = dfWithSchema.withColumnRenamed("key", temporaryKeyName)
         val temporaryFlatDf = renameKeyColumns(dfWithKeyRenamed.select(temporaryKeyName, "columns.*"))
         temporaryFlatDf.withColumnRenamed(temporaryKeyName, "key")
@@ -118,20 +128,21 @@ class RawTableRelation(apiKey: String,
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
-    // TODO: make it possible to configure the name of the column to be used as the key
     if (!df.columns.contains("key")) {
       throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column")
     }
 
-    val columnNames = df.columns.filter(!_.equals("key"))
-    df.foreachPartition(rows => {
+    val dfWithKeyRenamed = df.withColumnRenamed("key", temporaryKeyName)
+    val dfWithUnRenamedKeyColumns = unRenameKeyColumns(dfWithKeyRenamed)
+    val columnNames = dfWithUnRenamedKeyColumns.columns.filter(!_.equals(temporaryKeyName))
+    dfWithUnRenamedKeyColumns.foreachPartition(rows => {
       rows.grouped(batchSize).foreach(postRows(columnNames, _))
     })
   }
 
   private def postRows(nonKeyColumnNames: Array[String], rows: Seq[Row]) = {
     val items = rows.map(row => RawItem(
-      row.getString(row.fieldIndex("key")),
+      row.getString(row.fieldIndex(temporaryKeyName)),
       io.circe.parser.decode[JsonObject](
         mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames))).right.get
       ))
