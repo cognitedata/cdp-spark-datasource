@@ -85,25 +85,27 @@ class RawTableRelation(apiKey: String,
     }
   }
 
-  override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
+  override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
     if (!df.columns.contains("key")) {
       throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column")
     }
 
-    val dfWithKeyRenamed = df.withColumnRenamed("key", temporaryKeyName)
-    val dfWithUnRenamedKeyColumns = unRenameKeyColumns(dfWithKeyRenamed)
-    val columnNames = dfWithUnRenamedKeyColumns.columns.filter(!_.equals(temporaryKeyName))
+    val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df)
     dfWithUnRenamedKeyColumns.foreachPartition(rows => {
       rows.grouped(batchSize).foreach(postRows(columnNames, _))
     })
   }
 
-  private def postRows(nonKeyColumnNames: Array[String], rows: Seq[Row]) = {
-    val items = rows.map(row => RawItem(
+  private def rowsToRawItems(nonKeyColumnNames: Seq[String], rows: Seq[Row]): Seq[RawItem] = {
+    rows.map(row => RawItem(
       row.getString(row.fieldIndex(temporaryKeyName)),
       io.circe.parser.decode[JsonObject](
         mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames))).right.get
-      ))
+    ))
+  }
+
+  private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]) = {
+    val items = rowsToRawItems(nonKeyColumnNames, rows)
 
     val url = baseRawTableURL(project, database, table)
       .addPathSegment("create")
@@ -163,6 +165,13 @@ object RawTableRelation {
       val temporaryFlatDf = renameKeyColumns(dfWithKeyRenamed.select(temporaryKeyName, "columns.*"))
       temporaryFlatDf.withColumnRenamed(temporaryKeyName, "key")
     }
+  }
+
+  def prepareForInsert(df: DataFrame): (Seq[String], DataFrame) = {
+    val dfWithKeyRenamed = df.withColumnRenamed("key", temporaryKeyName)
+    val dfWithUnRenamedKeyColumns = unRenameKeyColumns(dfWithKeyRenamed)
+    val columnNames = dfWithUnRenamedKeyColumns.columns.filter(!_.equals(temporaryKeyName))
+    (columnNames, dfWithUnRenamedKeyColumns)
   }
 
   def baseRawTableURL(project: String, database: String, table: String): HttpUrl.Builder = {
