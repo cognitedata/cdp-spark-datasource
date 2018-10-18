@@ -11,6 +11,7 @@ podTemplate(label: label,
                                            resourceLimitMemory: '3000Mi',
                                            ttyEnabled: true,
                                            command: '/bin/cat -')],
+            envVars: [envVar(key: 'MAVEN_OPTS', value: '-Dmaven.artifact.threads=30')],
             volumes: [secretVolume(secretName: 'maven-credentials', mountPath: '/maven-credentials')]) {
 
     node(label) {
