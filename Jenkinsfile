@@ -31,11 +31,11 @@ podTemplate(label: label,
                 //sh('mvn test || true')
                 //junit(allowEmptyResults: false, testResults: '**/target/surefire-reports/*.xml')
                 //summarizeTestResults()
-                sh('mvn verify -DskipTests')
+                sh('mvn -B verify -DskipTests')
             }
             if (env.BRANCH_NAME == 'master') {
                 stage('Deploy') {
-                    sh('mvn deploy -DskipTests')
+                    sh('mvn -B deploy -DskipTests')
                 }
             }
         }
