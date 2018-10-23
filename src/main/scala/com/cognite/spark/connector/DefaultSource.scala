@@ -63,10 +63,11 @@ class DefaultSource extends RelationProvider
           case _: NumberFormatException => sys.error("inferSchemaLimit must be an integer")
           case _: NoSuchElementException => None
         }
+        val collectSchemaInferenceMetrics = toBoolean(parameters, "collectSchemaInferenceMetrics")
 
         new RawTableRelation(apiKey, project, database, tableName, Option(schema), limit,
           inferSchema, inferSchemaLimit, batchSize,
-          metricsPrefix, collectMetrics)(sqlContext)
+          metricsPrefix, collectMetrics, collectSchemaInferenceMetrics)(sqlContext)
       case "assets" =>
         val assetsPath = parameters.get("assetsPath")
         if (assetsPath.isDefined && !AssetsTableRelation.isValidAssetsPath(assetsPath.get)) {

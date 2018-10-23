@@ -24,7 +24,8 @@ class RawTableRelation(apiKey: String,
                        inferSchemaLimit: Option[Int],
                        batchSizeOption: Option[Int],
                        metricsPrefix: String,
-                       collectMetrics: Boolean)(val sqlContext: SQLContext)
+                       collectMetrics: Boolean,
+                       collectSchemaInferenceMetrics: Boolean)(val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
@@ -51,7 +52,7 @@ class RawTableRelation(apiKey: String,
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
-      val rdd = readRows(inferSchemaLimit)
+      val rdd = readRows(inferSchemaLimit, collectSchemaInferenceMetrics)
 
       import sqlContext.sparkSession.implicits._
       val df = sqlContext.createDataFrame(rdd, defaultSchema)
@@ -66,7 +67,7 @@ class RawTableRelation(apiKey: String,
     rowsRead.inc(items.data.items.length)
   }
 
-  private def readRows(limit: Option[Int]): RDD[Row] = {
+  private def readRows(limit: Option[Int], collectMetrics: Boolean = collectMetrics): RDD[Row] = {
     val url = baseRawTableURL(project, database, table).build()
     val result = CdpConnector.get[RawItem](apiKey, url, batchSize, limit,
       batchCompletedCallback = if (collectMetrics) Some(countItems) else None)
