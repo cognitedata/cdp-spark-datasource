@@ -1,5 +1,7 @@
 package com.cognite.spark.connector
 
+import java.io.IOException
+
 import okhttp3._
 import java.util.concurrent.TimeUnit
 
@@ -38,25 +40,35 @@ object CdpConnector {
     .writeTimeout(2, TimeUnit.MINUTES)
     .build()
 
+  def callWithRetries(call: Call, maxRetries: Int): Response = {
+    var callAttempt = 0
+    var response = call.execute()
+    while (callAttempt < maxRetries && isServerError(response)) {
+      response = call.execute()
+      callAttempt += 1
+    }
+    response
+  }
+
   def get[A](apiKey: String, url: HttpUrl, batchSize: Int, limit: Option[Int],
-             batchCompletedCallback: Option[DataItemsWithCursor[A] => Unit] = None)
+             batchCompletedCallback: Option[DataItemsWithCursor[A] => Unit] = None, maxRetries: Int = 5)
             (implicit decoder: Decoder[A]): Iterator[A] = {
     Batch.withCursor(batchSize, limit) { (chunkSize, cursor: Option[String]) =>
       val nextUrl = url.newBuilder().addQueryParameter("limit", chunkSize.toString)
       cursor.foreach(cur => nextUrl.addQueryParameter("cursor", cur))
       val requestBuilder = CdpConnector.baseRequest(apiKey)
-      val response = client.newCall(requestBuilder.url(nextUrl.build()).build()).execute()
+      val response = callWithRetries(client.newCall(requestBuilder.url(nextUrl.build()).build()), maxRetries)
+      if (!response.isSuccessful) {
+        reportResponseFailure(url, s"received ${response.code()} (${response.message()})")
+      }
       try {
-        if (!response.isSuccessful) {
-          throw new RuntimeException("Non-200 status when querying API")
-        }
-
         val d = response.body().string()
         decode[DataItemsWithCursor[A]](d) match {
-          case Right(r) => {
-            batchCompletedCallback.foreach(callback => callback(r))
+          case Right(r) =>
+            batchCompletedCallback.foreach(callback => {
+              callback(r)
+            })
             (r.data.items, r.data.nextCursor)
-          }
           case Left(e) => throw new RuntimeException("Failed to deserialize", e)
         }
       } finally {
@@ -65,20 +77,46 @@ object CdpConnector {
     }
   }
 
-  def post[A](apiKey: String, url: HttpUrl, items: Seq[A])(implicit encoder : Encoder[A]): Unit = {
+  private def reportResponseFailure(url: HttpUrl, reason: String) = {
+    throw new RuntimeException(s"Non-200 status when posting to $url, $reason.")
+  }
+
+  private def isServerError(response: Response): Boolean = 500 until 600 contains response.code()
+
+  def post[A](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5)
+             (implicit encoder : Encoder[A]): Unit = {
     val dataItems = Items(items)
     val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
     val requestBody = RequestBody.create(jsonMediaType, dataItems.asJson.noSpaces)
 
-    val response = client.newCall(
+    val call = client.newCall(
       CdpConnector.baseRequest(apiKey)
         .url(url)
         .post(requestBody)
         .build()
-    ).execute()
+    )
 
-    if (!response.isSuccessful) {
-      throw new RuntimeException(s"Non-200 status when posting to $url, received ${response.code()} (${response.message()}).")
+    if (wantAsync) {
+      call.enqueue(new Callback {
+        override def onFailure(call: Call, e: IOException): Unit = {
+          if (maxRetries > 0) {
+            post(apiKey, url, items, wantAsync, maxRetries - 1)
+          } else {
+            reportResponseFailure(url, e.getCause.getMessage)
+          }
+        }
+
+        override def onResponse(call: Call, response: Response): Unit = response.close()
+      })
+    } else {
+      val response = callWithRetries(call, maxRetries)
+      try {
+        if (!response.isSuccessful) {
+          reportResponseFailure(url, s"received ${response.code()} (${response.message()})")
+        }
+      } finally {
+        response.close()
+      }
     }
   }
 }
