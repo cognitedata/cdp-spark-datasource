@@ -111,7 +111,7 @@ class RawTableRelation(apiKey: String,
       .addPathSegment("create")
       .build()
 
-    CdpConnector.post(apiKey, url, items)
+    CdpConnector.post(apiKey, url, items, true)
     if (collectMetrics) {
       rowsCreated.inc(items.length)
     }
