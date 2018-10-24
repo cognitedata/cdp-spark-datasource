@@ -10,6 +10,8 @@ import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax._
 
+import scala.util.Random
+
 case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
 case class Items[A](items: Seq[A])
@@ -40,10 +42,22 @@ object CdpConnector {
     .writeTimeout(2, TimeUnit.MINUTES)
     .build()
 
+  // exponential backoff as described here:
+  // https://developers.google.com/api-client-library/java/google-http-java-client/backoff
+  private val randomizationFactor = 0.5
+  private val retryMultiplier = 1.5
+
+  private val random = new Random()
+  private def exponentialBackoffSleep(interval: Double) =
+    Thread.sleep(1000 * (interval * (1.0 + (random.nextDouble() - 0.5) * 2.0 * randomizationFactor)).toLong)
+
   def callWithRetries(call: Call, maxRetries: Int): Response = {
     var callAttempt = 0
     var response = call.execute()
+    var retryInterval = 0.5
     while (callAttempt < maxRetries && isServerError(response)) {
+      exponentialBackoffSleep(retryInterval)
+      retryInterval = retryInterval * retryMultiplier
       response = call.execute()
       callAttempt += 1
     }
@@ -83,7 +97,8 @@ object CdpConnector {
 
   private def isServerError(response: Response): Boolean = 500 until 600 contains response.code()
 
-  def post[A](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5)
+  def post[A](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5,
+             retryInterval: Double = 0.5)
              (implicit encoder : Encoder[A]): Unit = {
     val dataItems = Items(items)
     val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
@@ -100,7 +115,8 @@ object CdpConnector {
       call.enqueue(new Callback {
         override def onFailure(call: Call, e: IOException): Unit = {
           if (maxRetries > 0) {
-            post(apiKey, url, items, wantAsync, maxRetries - 1)
+            exponentialBackoffSleep(retryInterval)
+            post(apiKey, url, items, wantAsync, maxRetries - 1, retryInterval * retryMultiplier)
           } else {
             reportResponseFailure(url, e.getCause.getMessage)
           }
