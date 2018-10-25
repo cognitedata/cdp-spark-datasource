@@ -5,6 +5,7 @@ def label = "cdp-spark-${UUID.randomUUID().toString().substring(0, 5)}"
 podTemplate(label: label,
             containers: [containerTemplate(name: 'maven',
                                            image: 'maven:3.5.2-jdk-8',
+                                           envVars: [secretEnvVar(key: 'TEST_API_KEY', secretName: 'jetfire-test-api-key', secretKey: 'jetfireTestApiKey.txt')],
                                            resourceRequestCpu: '100m',
                                            resourceLimitCpu: '2000m',
                                            resourceRequestMemory: '3000Mi',
@@ -42,15 +43,11 @@ podTemplate(label: label,
                 sh('cp /maven-credentials/settings.xml /root/.m2')
             }
             stage('Test') {
-                // TODO: mock out server responses so we don't need a real API key to run tests
-                //sh('mvn test || true')
-                //junit(allowEmptyResults: false, testResults: '**/target/surefire-reports/*.xml')
-                //summarizeTestResults()
-                sh('mvn -B verify -DskipTests')
+                sh('mvn -B verify')
             }
             if (env.BRANCH_NAME == 'master') {
                 stage('Deploy') {
-                    sh('mvn -B deploy -DskipTests')
+                    sh('mvn -B deploy')
                 }
             }
         }

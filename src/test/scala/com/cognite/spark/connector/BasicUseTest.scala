@@ -8,13 +8,13 @@ import org.scalatest.junit.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
 class BasicUseTest extends FunSuite with DataFrameSuiteBase {
-  val apiKey = System.getenv("COGNITE_API_KEY")
+  val apiKey = System.getenv("TEST_API_KEY")
   test("Use our own custom format for timeseries") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
-      .option("project", "akerbp")
+      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
-      .option("tagId", "00ADD0002/B1/5mMid")
+      .option("tagId", "Bitbay USD")
       .load()
     assert(df.schema.length == 3)
 
@@ -25,67 +25,66 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
 
   test("Iterate over period longer than limit") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
-      .option("project", "akerbp")
+      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
-      .option("batchSize", "100")
-      .option("limit", "1000")
-      .option("tagId", "00ADD0002/B1/5mMid")
+      .option("batchSize", "40")
+      .option("limit", "100")
+      .option("tagId", "Bitbay USD")
       .load()
       .where("timestamp > 0 and timestamp < 1790902000001")
-    assert(df.count() == 1000)
+    assert(df.count() == 100)
   }
 
   test("test that we handle initial data set below batch size.") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
-      .option("project", "akerbp")
+      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
       .option("batchSize", "2000")
-      .option("limit", "1000")
-      .option("tagId", "00ADD0002/B1/5mMid")
+      .option("limit", "100")
+      .option("tagId", "Bitbay USD")
       .load()
-    assert(df.count() == 1000)
+    assert(df.count() == 100)
   }
 
   test("test that we handle initial data set with the same size as the batch size.") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
-      .option("project", "akerbp")
+      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
-      .option("batchSize", "1000")
-      .option("limit", "1000")
-      .option("tagId", "00ADD0002/B1/5mMid")
+      .option("batchSize", "100")
+      .option("limit", "100")
+      .option("tagId", "Bitbay USD")
       .load()
-      .where("timestamp >= 0 and timestamp <= 1390902000001")
-    assert(df.count() == 1000)
+      .where("timestamp >= 0 and timestamp <= 1790902000001")
+    assert(df.count() == 100)
   }
 
   test("smoke test assets") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
-      .option("project", "akerbp")
+      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "assets")
       .option("batchSize", "1000")
       .option("limit", "1000")
-      .option("assetsPath", "[\"IAA\"]")
       .load()
 
     df.createTempView("assets")
     val res = sqlContext.sql("select * from assets")
       .collect()
-    assert(res.length == 1000)
+    assert(res.length == 6)
   }
 
   test("smoke test tables") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
-      .option("project", "akerbp")
+      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "tables")
       .option("batchSize", "1000")
       .option("limit", "1000")
-      .option("database", "cow")
-      .option("table", "Workpermit")
+      .option("database", "testdb")
+      .option("table", "cryptoAssets")
       .option("inferSchema", "true")
       .option("inferSchemaLimit", "100")
       .load()
@@ -98,7 +97,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
 
   test("smoke test events") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
-      .option("project", "akerbp")
+      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "events")
       .option("batchSize", "500")
