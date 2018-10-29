@@ -1,5 +1,6 @@
 package com.cognite.spark.connector
 
+import com.cognite.spark.connector.CdpConnector.{DataItemsWithCursor, callWithRetries, client, reportResponseFailure}
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.circe.JsonObject
@@ -9,6 +10,7 @@ import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import io.circe.generic.auto._
+import io.circe.parser.decode
 import io.circe.syntax._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 
@@ -63,16 +65,71 @@ class RawTableRelation(apiKey: String,
     }
   }
 
-  private def countItems(items: CdpConnector.DataItemsWithCursor[_]): Unit = {
-    rowsRead.inc(items.data.items.length)
+  private def getRows(requestBuilder: Request.Builder, collectMetrics: Boolean) = {
+    val response = callWithRetries(client.newCall(requestBuilder.build()), 5)
+    if (!response.isSuccessful) {
+      reportResponseFailure(requestBuilder.build().url(), s"received ${response.code()} (${response.message()})")
+    }
+    try {
+      val d = response.body().string()
+      decode[DataItemsWithCursor[RawItem]](d) match {
+        case Right(r) =>
+          if (collectMetrics) {
+            rowsRead.inc(r.data.items.length)
+          }
+          r.data.items
+        case Left(e) => throw new RuntimeException("Failed to deserialize", e)
+      }
+    } finally {
+      response.close()
+    }
   }
 
   private def readRows(limit: Option[Int], collectMetrics: Boolean = collectMetrics): RDD[Row] = {
-    val url = baseRawTableURL(project, database, table).build()
-    val result = CdpConnector.get[RawItem](apiKey, url, batchSize, limit,
-      batchCompletedCallback = if (collectMetrics) Some(countItems) else None)
-      .map(item => Row(item.key, item.columns.asJson.noSpaces))
-    sqlContext.sparkContext.parallelize(result.toStream)
+    val url = baseRawTableURL(project, database, table).addQueryParameter("columns", ",").build()
+    var moreKeys = true
+    var cursor: Option[String] = None
+    var cursors = List[(Option[String], Int)]()
+    var itemsRemaining = limit
+
+    while (moreKeys && itemsRemaining.forall(_ > 0)) {
+      val limitValue = itemsRemaining.map(Math.min(batchSize, _)).getOrElse(batchSize)
+      val nextUrl = url.newBuilder().addQueryParameter("limit", limitValue.toString)
+      cursor.foreach(cur => nextUrl.addQueryParameter("cursor", cur))
+      val requestBuilder = CdpConnector.baseRequest(apiKey)
+      val response = callWithRetries(client.newCall(requestBuilder.url(nextUrl.build()).build()), 5)
+      try {
+        val d = response.body().string()
+        decode[DataItemsWithCursor[RawItem]](d) match {
+          case Right(r) =>
+            cursors = (cursor, r.data.items.length) :: cursors
+            itemsRemaining = itemsRemaining.map(_ - r.data.items.length)
+            r.data.nextCursor match {
+              case nextCursor @ Some(_) => cursor = nextCursor
+              case None => moreKeys = false
+            }
+          case Left(e) => throw new RuntimeException("Failed to deserialize", e)
+        }
+      } finally {
+        response.close()
+      }
+    }
+
+    val keysRdd = sqlContext.sparkContext.parallelize(scala.util.Random.shuffle(cursors))
+    keysRdd.flatMap(key =>
+      getRows(CdpConnector.baseRequest(apiKey)
+        .url(key match {
+          case (Some(cursor), numItems) =>
+            baseRawTableURL(project, database, table)
+              .addQueryParameter("limit", numItems.toString)
+              .addQueryParameter("cursor", cursor)
+              .build()
+          case (None, numItems) =>
+            baseRawTableURL(project, database, table)
+              .addQueryParameter("limit", numItems.toString)
+              .build()
+        }), collectMetrics
+      ).map(item => Row(item.key, item.columns.asJson.noSpaces)))
   }
 
   override def buildScan(): RDD[Row] = {

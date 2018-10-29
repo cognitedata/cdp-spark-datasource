@@ -91,7 +91,7 @@ object CdpConnector {
     }
   }
 
-  private def reportResponseFailure(url: HttpUrl, reason: String) = {
+  def reportResponseFailure(url: HttpUrl, reason: String) = {
     throw new RuntimeException(s"Non-200 status when posting to $url, $reason.")
   }
 
