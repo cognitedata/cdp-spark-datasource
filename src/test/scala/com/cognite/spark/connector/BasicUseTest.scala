@@ -81,7 +81,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "tables")
-      .option("batchSize", "1000")
+      .option("batchSize", "100")
       .option("limit", "1000")
       .option("database", "testdb")
       .option("table", "cryptoAssets")
