@@ -20,6 +20,7 @@ podTemplate(label: label,
                                            command: '/bin/cat -',
                                            ttyEnabled: true)],
             envVars: [envVar(key: 'MAVEN_OPTS', value: '-Dmaven.artifact.threads=30')],
+            nodeSelector: 'cloud.google.com/gke-local-ssd=true',
             volumes: [secretVolume(secretName: 'maven-credentials', mountPath: '/maven-credentials'),
                       hostPathVolume(hostPath: '/mnt/disks/ssd0/m2repository', mountPath: '/root/.m2/repository'),]) {
     properties([buildDiscarder(logRotator(daysToKeepStr: '30', numToKeepStr: '20'))])
