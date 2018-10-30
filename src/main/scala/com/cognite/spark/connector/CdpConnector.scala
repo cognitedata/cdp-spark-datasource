@@ -91,8 +91,8 @@ object CdpConnector {
     }
   }
 
-  def reportResponseFailure(url: HttpUrl, reason: String) = {
-    throw new RuntimeException(s"Non-200 status when posting to $url, $reason.")
+  def reportResponseFailure(url: HttpUrl, reason: String, method: String = "GET") = {
+    throw new RuntimeException(s"Non-200 status response to $method $url, $reason.")
   }
 
   private def isServerError(response: Response): Boolean = 500 until 600 contains response.code()
@@ -118,7 +118,7 @@ object CdpConnector {
             exponentialBackoffSleep(retryInterval)
             post(apiKey, url, items, wantAsync, maxRetries - 1, retryInterval * retryMultiplier)
           } else {
-            reportResponseFailure(url, e.getCause.getMessage)
+            reportResponseFailure(url, e.getCause.getMessage, "POST")
           }
         }
 
@@ -128,7 +128,7 @@ object CdpConnector {
       val response = callWithRetries(call, maxRetries)
       try {
         if (!response.isSuccessful) {
-          reportResponseFailure(url, s"received ${response.code()} (${response.message()})")
+          reportResponseFailure(url, s"received ${response.code()} (${response.message()})", "POST")
         }
       } finally {
         response.close()
