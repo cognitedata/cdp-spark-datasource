@@ -89,7 +89,7 @@ class TimeSeriesRelation(apiKey: String,
     val url = new HttpUrl.Builder()
       .scheme("https")
       .host("api.cognitedata.com")
-      .addPathSegments("api/0.4/projects")
+      .addPathSegments("api/0.5/projects")
       .addPathSegment(project)
       .addPathSegments("timeseries/latest")
       .addPathSegment(path)
@@ -233,7 +233,7 @@ class TimeSeriesRelation(apiKey: String,
 
 object TimeSeriesRelation {
   def baseTimeSeriesURL(project: String, start: Option[Long] = None, stop: Option[Long] = None): HttpUrl.Builder = {
-    val builder = CdpConnector.baseUrl(project, "0.4")
+    val builder = CdpConnector.baseUrl(project, "0.5")
       .addPathSegments("timeseries/data")
     start.map(q => builder.addQueryParameter("start", q.toString))
     stop.map(q => builder.addQueryParameter("end", q.toString))
