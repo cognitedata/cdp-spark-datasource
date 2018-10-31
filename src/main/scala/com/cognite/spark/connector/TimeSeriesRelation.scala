@@ -10,7 +10,6 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
 case class TimeSeriesDataItems[A](items: Seq[A])
@@ -123,11 +122,10 @@ class TimeSeriesRelation(apiKey: String,
     }
     val maxTimestamp: Long = timestampUpperLimit match {
       case Some(i) => i
-      case None => {
+      case None =>
         getLatestDatapoint()
           .getOrElse(sys.error("Failed to get latest datapoint for " + path))
           .timestamp + 1
-      }
     }
 
     val requiredColumnToIndex = Map("tagId" -> 0, "timestamp" -> 1, "value" -> 2)

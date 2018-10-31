@@ -79,9 +79,9 @@ object CdpConnector {
         val d = response.body().string()
         decode[DataItemsWithCursor[A]](d) match {
           case Right(r) =>
-            batchCompletedCallback.foreach(callback => {
+            for (callback <- batchCompletedCallback) {
               callback(r)
-            })
+            }
             (r.data.items, r.data.nextCursor)
           case Left(e) => throw new RuntimeException("Failed to deserialize", e)
         }
