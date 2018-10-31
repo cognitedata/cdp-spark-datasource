@@ -1,5 +1,7 @@
 package com.cognite.spark.connector
 
+import java.util.concurrent.{CountDownLatch, TimeUnit}
+
 import com.cognite.spark.connector.CdpConnector.DataItemsWithCursor
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
@@ -68,20 +70,26 @@ class AssetsTableRelation(apiKey: String,
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
     df.foreachPartition(rows => {
-      rows.grouped(batchSize).foreach(postRows)
+      val batches = rows.grouped(batchSize).toSeq
+      val remainingRequests = new CountDownLatch(batches.length)
+      batches.foreach(postRows(_, remainingRequests))
+      remainingRequests.await(5, TimeUnit.MINUTES)
     })
   }
 
-  private def postRows(rows: Seq[Row]) = {
+  private def postRows(rows: Seq[Row], remainingRequests: CountDownLatch) = {
     val assetItems = rows.map(r =>
       PostAssetsItem(r.getString(0), r.getString(2), r.getAs[Map[String, String]](3)))
     CdpConnector.post(apiKey, AssetsTableRelation.baseAssetsURL(project).build(), assetItems, true,
       // have to specify maxRetries and retryInterval to make circe happy, for some reason
-      5, 0.5, if (collectMetrics) {
-        Some(_ => assetsCreated.inc(rows.length))
-      } else {
-        None
-      })
+      5, 0.5,
+      Some(_ => {
+        if (collectMetrics) {
+          assetsCreated.inc(rows.length)
+        }
+        remainingRequests.countDown()
+      }),
+      Some(_ => remainingRequests.countDown()))
   }
 }
 

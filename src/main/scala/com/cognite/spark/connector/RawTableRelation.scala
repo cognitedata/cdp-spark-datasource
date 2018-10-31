@@ -1,5 +1,7 @@
 package com.cognite.spark.connector
 
+import java.util.concurrent.{CountDownLatch, TimeUnit}
+
 import com.cognite.spark.connector.CdpConnector.{DataItemsWithCursor, callWithRetries, client, reportResponseFailure}
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
@@ -150,7 +152,10 @@ class RawTableRelation(apiKey: String,
 
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df)
     dfWithUnRenamedKeyColumns.foreachPartition(rows => {
-      rows.grouped(batchSize).foreach(postRows(columnNames, _))
+      val batches = rows.grouped(batchSize).toSeq
+      val remainingRequests = new CountDownLatch(batches.length)
+      batches.foreach(postRows(columnNames, _, remainingRequests))
+      remainingRequests.await(10, TimeUnit.SECONDS)
     })
   }
 
@@ -162,7 +167,7 @@ class RawTableRelation(apiKey: String,
     ))
   }
 
-  private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]) = {
+  private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row], remainingRequests: CountDownLatch) = {
     val items = rowsToRawItems(nonKeyColumnNames, rows)
 
     val url = baseRawTableURL(project, database, table)
@@ -170,11 +175,14 @@ class RawTableRelation(apiKey: String,
       .build()
 
     CdpConnector.post(apiKey, url, items, true,
-      successCallback = if (collectMetrics) {
-        Some(_ => rowsCreated.inc(rows.length))
-      } else {
-        None
-      })
+      successCallback =  Some(_ => {
+        if (collectMetrics) {
+          rowsCreated.inc(rows.length)
+        }
+        remainingRequests.countDown()
+      }),
+      failureCallback = Some(_ => remainingRequests.countDown())
+    )
   }
 }
 
