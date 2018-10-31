@@ -98,7 +98,7 @@ object CdpConnector {
   private def isServerError(response: Response): Boolean = 500 until 600 contains response.code()
 
   def post[A](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5,
-             retryInterval: Double = 0.5)
+              retryInterval: Double = 0.5, successCallback: Option[Response => Unit] = None)
              (implicit encoder : Encoder[A]): Unit = {
     val dataItems = Items(items)
     val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
@@ -116,19 +116,31 @@ object CdpConnector {
         override def onFailure(call: Call, e: IOException): Unit = {
           if (maxRetries > 0) {
             exponentialBackoffSleep(retryInterval)
-            post(apiKey, url, items, wantAsync, maxRetries - 1, retryInterval * retryMultiplier)
+            post(apiKey, url, items, wantAsync, maxRetries - 1, retryInterval * retryMultiplier, successCallback)
           } else {
             reportResponseFailure(url, e.getCause.getMessage, "POST")
           }
         }
 
-        override def onResponse(call: Call, response: Response): Unit = response.close()
+        override def onResponse(call: Call, response: Response): Unit = {
+          try {
+            for (callback <- successCallback) {
+              callback(response)
+            }
+          } finally {
+            response.close()
+          }
+        }
       })
     } else {
       val response = callWithRetries(call, maxRetries)
       try {
         if (!response.isSuccessful) {
           reportResponseFailure(url, s"received ${response.code()} (${response.message()})", "POST")
+        } else {
+          for (callback <- successCallback) {
+            callback(response)
+          }
         }
       } finally {
         response.close()

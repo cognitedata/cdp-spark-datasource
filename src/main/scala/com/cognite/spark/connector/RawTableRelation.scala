@@ -169,10 +169,12 @@ class RawTableRelation(apiKey: String,
       .addPathSegment("create")
       .build()
 
-    CdpConnector.post(apiKey, url, items, true)
-    if (collectMetrics) {
-      rowsCreated.inc(items.length)
-    }
+    CdpConnector.post(apiKey, url, items, true,
+      successCallback = if (collectMetrics) {
+        Some(_ => rowsCreated.inc(rows.length))
+      } else {
+        None
+      })
   }
 }
 
