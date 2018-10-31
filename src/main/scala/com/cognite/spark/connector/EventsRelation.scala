@@ -1,5 +1,7 @@
 package com.cognite.spark.connector
 
+import java.util.concurrent.{CountDownLatch, TimeUnit}
+
 import com.cognite.spark.connector.CdpConnector.DataItemsWithCursor
 import io.circe.generic.auto._
 import okhttp3.HttpUrl
@@ -53,7 +55,10 @@ class EventsRelation(apiKey: String,
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     data.foreachPartition(rows => {
-      rows.grouped(batchSize).foreach(postEvent)
+      val batches = rows.grouped(batchSize).toSeq
+      val remainingRequests = new CountDownLatch(batches.length)
+      batches.foreach(postEvent(_, remainingRequests))
+      remainingRequests.await(5, TimeUnit.MINUTES)
     })
   }
 
@@ -70,7 +75,7 @@ class EventsRelation(apiKey: String,
     sqlContext.sparkContext.parallelize(finalRows)
   }
 
-  def postEvent(rows: Seq[Row]): Unit = {
+  def postEvent(rows: Seq[Row], remainingRequests: CountDownLatch): Unit = {
     val eventItems = rows.map(r =>
       EventItem(Option(r.getAs(0)), Option(r.getAs(1)), Option(r.getAs(2)), Option(r.getString(3)),
         Option(r.getAs(4)), Option(r.getAs(5)), Option(r.getAs(6)),
@@ -78,11 +83,15 @@ class EventsRelation(apiKey: String,
     )
     CdpConnector.post(apiKey, EventsRelation.baseEventsURL(project).build(), eventItems, true,
       // have to specify maxRetries and retryInterval to make circe happy, for some reason
-      5, 0.5, successCallback = if (collectMetrics) {
-        Some(_ => eventsCreated.inc(rows.length))
-      } else {
-        None
-      })
+      5, 0.5,
+      Some(_ => {
+        if (collectMetrics) {
+          eventsCreated.inc(rows.length)
+        }
+        remainingRequests.countDown()
+      }),
+      Some(_ => remainingRequests.countDown())
+    )
   }
 }
 

@@ -98,7 +98,8 @@ object CdpConnector {
   private def isServerError(response: Response): Boolean = 500 until 600 contains response.code()
 
   def post[A](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5,
-              retryInterval: Double = 0.5, successCallback: Option[Response => Unit] = None)
+              retryInterval: Double = 0.5, successCallback: Option[Response => Unit] = None,
+              failureCallback: Option[Call => Unit] = None)
              (implicit encoder : Encoder[A]): Unit = {
     val dataItems = Items(items)
     val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
@@ -118,6 +119,9 @@ object CdpConnector {
             exponentialBackoffSleep(retryInterval)
             post(apiKey, url, items, wantAsync, maxRetries - 1, retryInterval * retryMultiplier, successCallback)
           } else {
+            for (callback <- failureCallback) {
+              callback(call)
+            }
             reportResponseFailure(url, e.getCause.getMessage, "POST")
           }
         }
