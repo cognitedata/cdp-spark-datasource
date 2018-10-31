@@ -1,7 +1,9 @@
 package com.cognite.spark.connector
 
+import com.cognite.spark.connector.CdpConnector.DataItemsWithCursor
 import io.circe.generic.auto._
 import okhttp3.HttpUrl
+import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
@@ -19,15 +21,21 @@ case class EventItem(id: Option[Long],
                       sourceId: Option[String])
 
 class EventsRelation(apiKey: String,
-                     project: String,
-                     limit: Option[Int],
-                     batchSizeOption: Option[Int])(@transient val sqlContext: SQLContext)
+                      project: String,
+                      limit: Option[Int],
+                      batchSizeOption: Option[Int],
+                      metricsPrefix: String,
+                      collectMetrics: Boolean)
+                    (@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
     with Serializable {
 
   @transient lazy val batchSize: Int = batchSizeOption.getOrElse(10000)
+
+  lazy private val eventsCreated = UserMetricsSystem.counter(s"${metricsPrefix}events.created")
+  lazy private val eventsRead = UserMetricsSystem.counter(s"${metricsPrefix}events.read")
 
   override def schema: StructType = {
     StructType(Seq(
@@ -50,7 +58,12 @@ class EventsRelation(apiKey: String,
   }
 
   override def buildScan(): RDD[Row] = {
-    val finalRows = CdpConnector.get[EventItem](apiKey, EventsRelation.baseEventsURL(project).build(), batchSize, limit)
+    val finalRows = CdpConnector.get[EventItem](apiKey, EventsRelation.baseEventsURL(project).build(), batchSize, limit,
+      batchCompletedCallback = if (collectMetrics) {
+        Some((items: DataItemsWithCursor[_]) => eventsRead.inc(items.data.items.length))
+      } else {
+        None
+      })
       .map(item => Row(item.id, item.startTime, item.endTime, item.description,
         item.`type`, item.subtype, item.metadata, item.assetIds, item.source, item.sourceId))
       .toList
@@ -63,7 +76,13 @@ class EventsRelation(apiKey: String,
         Option(r.getAs(4)), Option(r.getAs(5)), Option(r.getAs(6)),
         Option(r.getAs(7)), Option(r.getAs(8)), Option(r.getAs(9)))
     )
-    CdpConnector.post(apiKey, EventsRelation.baseEventsURL(project).build(), eventItems)
+    CdpConnector.post(apiKey, EventsRelation.baseEventsURL(project).build(), eventItems, true,
+      // have to specify maxRetries and retryInterval to make circe happy, for some reason
+      5, 0.5, successCallback = if (collectMetrics) {
+        Some(_ => eventsCreated.inc(rows.length))
+      } else {
+        None
+      })
   }
 }
 

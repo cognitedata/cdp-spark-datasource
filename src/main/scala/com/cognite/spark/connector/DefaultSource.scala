@@ -42,19 +42,18 @@ class DefaultSource extends RelationProvider
     } catch {
       case _: NumberFormatException => None
     }
+    val metricsPrefix = parameters.get("metricsPrefix") match {
+      case Some(prefix) => s"$prefix."
+      case None => ""
+    }
+    val collectMetrics = toBoolean(parameters, "collectMetrics")
     resourceType match {
       case "timeseries" =>
         val tagId = parameters.getOrElse("tagId", sys.error("tagId must be specified"))
-        new TimeSeriesRelation(apiKey, project, tagId, schema, limit, batchSize)(sqlContext)
+        new TimeSeriesRelation(apiKey, project, tagId, schema, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
       case "tables" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
-
-        val metricsPrefix = parameters.get("metricsPrefix") match {
-          case Some(prefix) => s"$prefix."
-          case None => ""
-        }
-        val collectMetrics = toBoolean(parameters, "collectMetrics")
 
         val inferSchema = toBoolean(parameters, "inferSchema")
         val inferSchemaLimit = try {
@@ -73,9 +72,9 @@ class DefaultSource extends RelationProvider
         if (assetsPath.isDefined && !AssetsTableRelation.isValidAssetsPath(assetsPath.get)) {
           sys.error("Invalid assets path: " + assetsPath.get)
         }
-        new AssetsTableRelation(apiKey, project, assetsPath, limit, batchSize)(sqlContext)
+        new AssetsTableRelation(apiKey, project, assetsPath, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
       case "events" =>
-        new EventsRelation(apiKey, project, limit, batchSize)(sqlContext)
+        new EventsRelation(apiKey, project, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }

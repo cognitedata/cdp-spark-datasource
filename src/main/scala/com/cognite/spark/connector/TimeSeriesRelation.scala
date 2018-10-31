@@ -4,6 +4,7 @@ import com.cognite.data.api.v1.{NumericDatapoint, NumericTimeseriesData, Timeser
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import okhttp3._
+import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, TableScan, _}
 import org.apache.spark.sql.types._
@@ -39,7 +40,9 @@ class TimeSeriesRelation(apiKey: String,
                          path: String,
                          suppliedSchema: StructType,
                          limit: Option[Int],
-                         batchSizeOption: Option[Int])(@transient val sqlContext: SQLContext)
+                         batchSizeOption: Option[Int],
+                         metricsPrefix: String,
+                         collectMetrics: Boolean)(@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
@@ -52,6 +55,9 @@ class TimeSeriesRelation(apiKey: String,
     mapper.registerModule(DefaultScalaModule)
     mapper
   }
+
+  lazy private val datapointsCreated = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.created")
+  lazy private val datapointsRead = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.read")
 
   override def schema: StructType = {
     if (suppliedSchema != null) {
@@ -146,6 +152,9 @@ class TimeSeriesRelation(apiKey: String,
       val tags = getTag(Some(cursor.getOrElse(next)), Some(maxTimestamp), thisBatchSize)
       val rows = for (dataPoint <- tags)
         yield Row.fromSeq(toColumns(dataPoint).flatten)
+      if (collectMetrics) {
+        datapointsRead.inc(rows.length)
+      }
       (rows, tags.lastOption.map(_.getTimestamp + 1))
     }.toList
     sqlContext.sparkContext.parallelize(finalRows)
@@ -197,9 +206,6 @@ class TimeSeriesRelation(apiKey: String,
   private def postTimeSeries(tagId: String, data: TimeseriesData) = {
     val protobufMediaType = MediaType.parse("application/protobuf")
     val requestBody = RequestBody.create(protobufMediaType, data.toByteArray)
-    println("post to " + TimeSeriesRelation.baseTimeSeriesURL(project)
-      .addPathSegment(tagId)
-      .build())
     var response: Response = null
     try {
       response = client.newCall(
@@ -212,6 +218,10 @@ class TimeSeriesRelation(apiKey: String,
       ).execute()
       if (!response.isSuccessful) {
         throw new RuntimeException("Non-200 status when posting to raw API, received " + response.code() + "(" + response.message() + ")")
+      } else {
+        if (collectMetrics) {
+          datapointsCreated.inc(data.getNumericData.getPointsCount)
+        }
       }
     } finally {
       if (response != null) {
