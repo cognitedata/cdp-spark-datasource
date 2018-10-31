@@ -235,7 +235,7 @@ object RawTableRelation {
   }
 
   def baseRawTableURL(project: String, database: String, table: String): HttpUrl.Builder = {
-    CdpConnector.baseUrl(project, "0.4")
+    CdpConnector.baseUrl(project, "0.5")
       .addPathSegment("raw")
       .addPathSegment(database)
       .addPathSegment(table)

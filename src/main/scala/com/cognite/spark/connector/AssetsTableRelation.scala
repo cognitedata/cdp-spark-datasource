@@ -95,7 +95,7 @@ object AssetsTableRelation {
   }
 
   def baseAssetsURL(project: String): HttpUrl.Builder = {
-    CdpConnector.baseUrl(project, "0.4")
+    CdpConnector.baseUrl(project, "0.5")
       .addPathSegment("assets")
   }
 
