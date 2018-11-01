@@ -1,17 +1,8 @@
 # Spark data source for CDP API
 
-Very rough prototype to wrap the CDP API so that it looks like a spark
-data source. This version is currently reverted to the prototype stage
-again to make it possible to use it.
-
-A lot of features are missing and there are multiple performance fixes
-that should go in asap. Especially limiting is that the datasources
-API does not expose partitions, which means that a single worker will
-be responsible for loading the data from the API. By fixing the
-partitions, we should be able to scale up downloads to whatever number
-of workers configured.
-
-**New version is imminent!**
+Supports read and write for raw and clean data types.
+Raw tables will be read in parallel. Writes to all types are done in parallel
+through asynchronous writes.
 
 ## How to use:
 
@@ -48,39 +39,21 @@ scala> df.count()
 res0: Long = 1000
 ```
 
-(the same should work for spark-submit, although you may have to
-distribute the jar in a mesos style cluster or put it on hdfs - this
-is not specific for our code)
-
 ## Why mvn test is failing
 
-Currently, the tests run against production akerbp tags. This is
-temporary (and only read) until we get a nice local test to run against.
-
 To make the tests pass, set the environment variable `COGNITE_API_KEY`
-to an API key with access to the production akerbp tags.
-It is highly recommended that you use an API key with *read-only* access.
-
-The goal is of course to avoid this.
+to an API key with access to the `jetfiretest2` project.
 
 ## So how to build it?
 
-```mvn -DskipTests package```
+```mvn package```
 
 will give you a jar, ```cdp-spark-connector-jar-with-dependencies.jar```
 
 ## Short-term list of missing features:
 
 - Multi-tags (finally figured out how to best do it)
-- Better schema handling
-- better error handling
-- retry on error
-- (maybe) support magical date format (-2w)
 - implement logging according to the standard spark way
-- expose partitions to allow for multi-worker-downloads
-- write support (partial support in place)
-- use protobuf apis for improved performance
 - streaming support
 - figure out how to expose metadata
-- figure out how to expose aggregators in a logical way
-
+- figure out how to expose aggregates in a good way
