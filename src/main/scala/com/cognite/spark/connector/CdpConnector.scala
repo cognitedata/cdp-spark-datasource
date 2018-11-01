@@ -19,6 +19,14 @@ case class Items[A](items: Seq[A])
 object CdpConnector {
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
 
+  // Need to hack this to get access to protected "clone" method. It really should be public.
+  implicit class CallCloneExtension(c: Call) {
+    def makeClone(): Call = {
+      // IntelliJ claims asInstanceOf is redundant here, but the Scala 2.11.12 compiler disagrees
+      c.clone().asInstanceOf[Call]
+    }
+  }
+
   def baseUrl(project: String, version: String = "0.5"): HttpUrl.Builder = {
     new HttpUrl.Builder()
       .scheme("https")
@@ -58,7 +66,7 @@ object CdpConnector {
     while (callAttempt < maxRetries && isServerError(response)) {
       exponentialBackoffSleep(retryInterval)
       retryInterval = retryInterval * retryMultiplier
-      response = call.execute()
+      response = call.makeClone().execute()
       callAttempt += 1
     }
     response
