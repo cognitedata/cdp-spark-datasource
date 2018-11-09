@@ -63,7 +63,7 @@ object CdpConnector {
     var callAttempt = 0
     var response = call.execute()
     var retryInterval = 0.5
-    while (callAttempt < maxRetries && isServerError(response)) {
+    while (callAttempt < maxRetries && shouldRetry(response)) {
       exponentialBackoffSleep(retryInterval)
       retryInterval = retryInterval * retryMultiplier
       response = call.makeClone().execute()
@@ -103,7 +103,21 @@ object CdpConnector {
     throw new RuntimeException(s"Non-200 status response to $method $url, $reason.")
   }
 
-  private def isServerError(response: Response): Boolean = 500 until 600 contains response.code()
+  private def shouldRetry(response: Response): Boolean = !response.isSuccessful && (response.code() match {
+    // @larscognite: Retry on 429,
+    case 429 => true
+    // and I would like to say never on other 4xx, but we give 401 when we can't authenticate because
+    // we lose connection to db, so 401 can be transient
+    case 401 => true
+    // 500 is hard to say, but we should avoid having those in the api
+    //case 500 => false // let's not retry them for now
+    // 502 and 503 are usually transient.
+    case 502 => true
+    case 503 => true
+
+    // do not retry other responses.
+    case _ => false
+  })
 
   def post[A](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5,
               retryInterval: Double = 0.5, successCallback: Option[Response => Unit] = None,
@@ -122,19 +136,28 @@ object CdpConnector {
 
     if (wantAsync) {
       call.enqueue(new Callback {
-        override def onFailure(call: Call, e: IOException): Unit = {
+        private def tryAgainOrFail(errorMessage: String): Unit = {
           if (maxRetries > 0) {
             exponentialBackoffSleep(retryInterval)
-            post(apiKey, url, items, wantAsync, maxRetries - 1, retryInterval * retryMultiplier, successCallback)
+            post(apiKey, url, items, wantAsync, maxRetries - 1, retryInterval * retryMultiplier,
+              successCallback, failureCallback)
           } else {
             for (callback <- failureCallback) {
               callback(call)
             }
-            reportResponseFailure(url, e.getCause.getMessage, "POST")
+            reportResponseFailure(url, errorMessage, "POST")
           }
         }
 
+        override def onFailure(call: Call, e: IOException): Unit = {
+          tryAgainOrFail(e.getCause.getMessage)
+        }
+
         override def onResponse(call: Call, response: Response): Unit = {
+          if (shouldRetry(response)) {
+            tryAgainOrFail(s"response code ${response.code()}")
+          }
+
           try {
             for (callback <- successCallback) {
               callback(response)
