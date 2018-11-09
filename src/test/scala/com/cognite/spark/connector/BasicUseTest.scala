@@ -60,7 +60,17 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .where("timestamp >= 0 and timestamp <= 1790902000001")
     assert(df.count() == 100)
   }
-
+  test("test that start/stop time are handled correctly for timeseries") {
+    val df = sqlContext.read.format("com.cognite.spark.connector")
+      .option("project", "jetfiretest2")
+      .option("apiKey", apiKey)
+      .option("type", "timeseries")
+      .option("batchSize", "100")
+      .option("limit", "100")
+      .option("tagId", "stopTimeTest")
+      .load()
+    assert(df.count() == 2)
+  }
   test("smoke test assets") {
     val df = sqlContext.read.format("com.cognite.spark.connector")
       .option("project", "jetfiretest2")

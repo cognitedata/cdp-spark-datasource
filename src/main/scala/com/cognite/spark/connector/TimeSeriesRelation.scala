@@ -162,18 +162,23 @@ class TimeSeriesRelation(apiKey: String,
 
   // Should be rewritten to use async queries
   def getTag(start: Option[Long], stop: Option[Long], limit: Int): Seq[NumericDatapoint] = {
-    val url = TimeSeriesRelation.baseTimeSeriesURL(project, start, stop)
-      .addPathSegment(path)
-      .addQueryParameter("limit", limit.toString)
-      .build()
-    val response = client.newCall(CdpConnector.baseRequest(apiKey)
-      .header("Accept", "application/protobuf")
-      .url(url)
-      .build()).execute()
-    if (!response.isSuccessful) {
-      throw new RuntimeException("Non-200 status when querying API, received " + response.code() + "(" + response.message() + ")")
+    (start, stop) match {
+      case(Some(startTime), Some(stopTime)) if startTime >= stopTime =>
+          Seq()
+      case _ =>
+        val url = TimeSeriesRelation.baseTimeSeriesURL(project, start, stop)
+          .addPathSegment(path)
+          .addQueryParameter("limit", limit.toString)
+          .build()
+        val response = client.newCall(CdpConnector.baseRequest(apiKey)
+          .header("Accept", "application/protobuf")
+          .url(url)
+          .build()).execute()
+        if (!response.isSuccessful) {
+          throw new RuntimeException("Non-200 status when querying API, received " + response.code() + " Body: " + response.body() + "(" + response.message() + ")")
+        }
+        parseResult(response)
     }
-    parseResult(response)
   }
 
   def parseResult(response: Response): Seq[NumericDatapoint] = {
