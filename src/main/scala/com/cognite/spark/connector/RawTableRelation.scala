@@ -68,11 +68,12 @@ class RawTableRelation(apiKey: String,
   }
 
   private def getRows(requestBuilder: Request.Builder, collectMetrics: Boolean) = {
-    val response = callWithRetries(client.newCall(requestBuilder.build()), 5)
-    if (!response.isSuccessful) {
-      reportResponseFailure(requestBuilder.build().url(), s"received ${response.code()} (${response.message()})")
-    }
+    var response: Response = null
     try {
+      response = callWithRetries(client.newCall(requestBuilder.build()), 5)
+      if (!response.isSuccessful) {
+        reportResponseFailure(requestBuilder.build().url(), s"received ${response.code()} (${response.message()})")
+      }
       val d = response.body().string()
       decode[DataItemsWithCursor[RawItem]](d) match {
         case Right(r) =>
@@ -83,7 +84,9 @@ class RawTableRelation(apiKey: String,
         case Left(e) => throw new RuntimeException("Failed to deserialize", e)
       }
     } finally {
-      response.close()
+      if (response != null) {
+        response.close()
+      }
     }
   }
 
@@ -99,8 +102,12 @@ class RawTableRelation(apiKey: String,
       val nextUrl = url.newBuilder().addQueryParameter("limit", limitValue.toString)
       cursor.foreach(cur => nextUrl.addQueryParameter("cursor", cur))
       val requestBuilder = CdpConnector.baseRequest(apiKey)
-      val response = callWithRetries(client.newCall(requestBuilder.url(nextUrl.build()).build()), 5)
+      var response: Response = null
       try {
+        response = callWithRetries(client.newCall(requestBuilder.url(nextUrl.build()).build()), 5)
+        if (!response.isSuccessful) {
+          reportResponseFailure(requestBuilder.build().url(), s"received ${response.code()} (${response.message()})")
+        }
         val d = response.body().string()
         decode[DataItemsWithCursor[RawItem]](d) match {
           case Right(r) =>
@@ -113,7 +120,9 @@ class RawTableRelation(apiKey: String,
           case Left(e) => throw new RuntimeException("Failed to deserialize", e)
         }
       } finally {
-        response.close()
+        if (response != null) {
+          response.close()
+        }
       }
     }
 

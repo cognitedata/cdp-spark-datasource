@@ -168,8 +168,9 @@ object CdpConnector {
         }
       })
     } else {
-      val response = callWithRetries(call, maxRetries)
+      var response: Response = null
       try {
+        response = callWithRetries(call, maxRetries)
         if (!response.isSuccessful) {
           reportResponseFailure(url, s"received ${response.code()} (${response.message()})", "POST")
         } else {
@@ -178,7 +179,9 @@ object CdpConnector {
           }
         }
       } finally {
-        response.close()
+        if (response != null) {
+          response.close()
+        }
       }
     }
   }
