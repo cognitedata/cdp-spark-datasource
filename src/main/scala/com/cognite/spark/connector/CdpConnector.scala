@@ -121,11 +121,19 @@ object CdpConnector {
 
   def post[A](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5,
               retryInterval: Double = 0.5, successCallback: Option[Response => Unit] = None,
-              failureCallback: Option[Call => Unit] = None)
+              failureCallback: Option[Option[Response] => Unit] = None)
              (implicit encoder : Encoder[A]): Unit = {
     val dataItems = Items(items)
     val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
     val requestBody = RequestBody.create(jsonMediaType, dataItems.asJson.noSpaces)
+
+    def handleFailure(response: Response) = {
+      for (callback <- failureCallback) {
+        callback(Some(response))
+      }
+      reportResponseFailure(url,
+        s"received (${response.code()}): ${response.body().string()}", "POST")
+    }
 
     val call = client.newCall(
       CdpConnector.baseRequest(apiKey)
@@ -143,7 +151,7 @@ object CdpConnector {
               successCallback, failureCallback)
           } else {
             for (callback <- failureCallback) {
-              callback(call)
+              callback(None)
             }
             reportResponseFailure(url, errorMessage, "POST")
           }
@@ -159,8 +167,12 @@ object CdpConnector {
           }
 
           try {
-            for (callback <- successCallback) {
-              callback(response)
+            if (!response.isSuccessful) {
+              handleFailure(response)
+            } else {
+              for (callback <- successCallback) {
+                callback(response)
+              }
             }
           } finally {
             response.close()
@@ -172,7 +184,7 @@ object CdpConnector {
       try {
         response = callWithRetries(call, maxRetries)
         if (!response.isSuccessful) {
-          reportResponseFailure(url, s"received ${response.code()} (${response.message()})", "POST")
+          handleFailure(response)
         } else {
           for (callback <- successCallback) {
             callback(response)
