@@ -3,9 +3,12 @@ package com.cognite.spark.connector
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types._
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 import org.scalatest.{FlatSpec, Matchers}
 
-class RawTableRelationSpec extends FlatSpec with Matchers with DataFrameSuiteBase {
+@RunWith(classOf[JUnitRunner])
+class RawTableRelationTest extends FlatSpec with Matchers with DataFrameSuiteBase {
   import RawTableRelation._
   import spark.implicits._
 
