@@ -104,7 +104,7 @@ class TimeSeriesRelation(apiKey: String,
       }
 
       val r: TimeSeriesLatestDataPoint = mapper.readValue(response.body().string(), classOf[TimeSeriesLatestDataPoint])
-      Option(r.data.items.head)
+      r.data.items.headOption
     } finally {
       if (response != null) {
         response.close()
