@@ -1,6 +1,7 @@
 package com.cognite.spark.connector
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.junit.runner.RunWith
 import org.scalatest.FunSuite
@@ -108,5 +109,98 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     val res = sqlContext.sql("select * from events")
       .collect()
     assert(res.length == 1000)
+  }
+
+  test("smoke test pushing of events and upsert") {
+    val sourceDf = sqlContext.read.format("com.cognite.spark.connector")
+      .option("project", "jetfiretest2")
+      .option("apiKey", apiKey)
+      .option("type", "tables")
+      .option("limit", "1000")
+      .option("database", "testdb")
+      .option("table", "future-event")
+      .option("inferSchemaLimit", "10")
+      .option("inferSchema", "true")
+      .load()
+
+    val destinationDf = sqlContext.read.format("com.cognite.spark.connector")
+      .option("project", "jetfiretest2")
+      .option("apiKey", apiKey)
+      .option("type", "events")
+      .load()
+    destinationDf.createTempView("destinationEvent")
+
+    val source = "test"
+    sourceDf.createTempView("sourceEvent")
+    sourceDf.cache()
+
+    def eventDescriptions() = sqlContext.sql(s"""select description, source from destinationEvent where source = "$source"""")
+      .select(col("description"))
+      .collect()
+
+    // Cleanup events
+    cleanupEvents(source)
+    assert(eventDescriptions().isEmpty)
+
+    // Post new events
+    sqlContext.sql(s"""
+       |select "bar" as description,
+       |to_unix_timestamp(startTime, 'yyyy-MM-dd') as startTime,
+       |to_unix_timestamp(endTime, 'yyyy-MM-dd') as endTime,
+       |type,
+       |subtype,
+       |null as assetIds,
+       |bigint(0) as id,
+       |map() as metadata,
+       |"$source" as source,
+       |sourceId
+       |from sourceEvent
+     """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationEvent")
+
+    // Check if post worked
+    assert(eventDescriptions().map(_.getString(0)).forall(_ == "bar"))
+
+    // Update events
+    sqlContext.sql(s"""
+                      |select "foo" as description,
+                      |to_unix_timestamp(startTime, 'yyyy-MM-dd') as startTime,
+                      |to_unix_timestamp(endTime, 'yyyy-MM-dd') as endTime,
+                      |type,
+                      |subtype,
+                      |null as assetIds,
+                      |bigint(0) as id,
+                      |map() as metadata,
+                      |"$source" as source,
+                      |sourceId
+                      |from sourceEvent
+     """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationEvent")
+
+    // Check if upsert worked
+    assert(eventDescriptions().map(_.getString(0)).forall(_ == "foo"))
+  }
+
+  def cleanupEvents(source: String): Unit = {
+    import io.circe.generic.auto._
+    val events = CdpConnector.get[EventItem](
+      apiKey,
+      EventsRelation.baseEventsURL("jetfiretest2").addQueryParameter("source", source).build(),
+      batchSize = 1000,
+      limit = None)
+
+    val eventIdsChunks = events.flatMap(_.id).grouped(1000)
+    for (eventIds <- eventIdsChunks) {
+      CdpConnector.post(
+        apiKey,
+        EventsRelation.baseEventsURL("jetfiretest2").addPathSegment("delete").build(),
+        eventIds,
+        wantAsync = false
+      )
+    }
   }
 }

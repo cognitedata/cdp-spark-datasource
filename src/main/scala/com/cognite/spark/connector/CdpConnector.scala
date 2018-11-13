@@ -16,7 +16,13 @@ case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
 case class Items[A](items: Seq[A])
 
+object FailureCallbackStatus extends Enumeration {
+  type FailureCallbackStatus = Value
+  val Handled, Unhandled = Value
+}
+
 object CdpConnector {
+  import FailureCallbackStatus._
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
 
   // Need to hack this to get access to protected "clone" method. It really should be public.
@@ -119,28 +125,29 @@ object CdpConnector {
     case _ => false
   })
 
-  def post[A](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5,
-              retryInterval: Double = 0.5, successCallback: Option[Response => Unit] = None,
-              failureCallback: Option[Option[Response] => Unit] = None)
-             (implicit encoder : Encoder[A]): Unit = {
+  def post[A : Encoder](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5,
+                   retryInterval: Double = 0.5, successCallback: Option[Response => Unit] = None,
+                   failureCallback: Option[Option[Response] => FailureCallbackStatus] = None): Unit = {
     val dataItems = Items(items)
     val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
     val requestBody = RequestBody.create(jsonMediaType, dataItems.asJson.noSpaces)
 
-    def handleFailure(response: Response) = {
+    def handleFailure(response: Response): Unit = {
+      var reportFailure = true
       for (callback <- failureCallback) {
-        callback(Some(response))
+        reportFailure = callback(Some(response)) == FailureCallbackStatus.Unhandled
       }
-      reportResponseFailure(url,
-        s"received (${response.code()}): ${response.body().string()}", "POST")
+
+      if (reportFailure) {
+        reportResponseFailure(url,
+          s"received (${response.code()}): ${response.body().string()}", "POST")
+      }
     }
 
-    val call = client.newCall(
-      CdpConnector.baseRequest(apiKey)
-        .url(url)
-        .post(requestBody)
-        .build()
-    )
+    val call = client.newCall(CdpConnector.baseRequest(apiKey)
+      .url(url)
+      .post(requestBody)
+      .build())
 
     if (wantAsync) {
       call.enqueue(new Callback {
