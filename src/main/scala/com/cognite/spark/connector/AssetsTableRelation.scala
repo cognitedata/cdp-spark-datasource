@@ -89,7 +89,10 @@ class AssetsTableRelation(apiKey: String,
         }
         remainingRequests.countDown()
       }),
-      Some(_ => remainingRequests.countDown()))
+      Some(_ => {
+        remainingRequests.countDown()
+        FailureCallbackStatus.Unhandled
+      }))
   }
 }
 

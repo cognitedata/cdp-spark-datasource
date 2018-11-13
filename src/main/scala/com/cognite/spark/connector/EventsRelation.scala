@@ -3,13 +3,16 @@ package com.cognite.spark.connector
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
 import com.cognite.spark.connector.CdpConnector.DataItemsWithCursor
-import io.circe.generic.auto._
-import okhttp3.HttpUrl
+import io.circe.Encoder
+import okhttp3.{HttpUrl, Response}
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import io.circe.generic.auto._
+import io.circe.parser._
+import FailureCallbackStatus._
 
 case class EventItem(id: Option[Long],
                       startTime: Option[Long],
@@ -21,6 +24,10 @@ case class EventItem(id: Option[Long],
                       assetIds: Option[Seq[Long]],
                       source: Option[String],
                       sourceId: Option[String])
+
+case class SourceWithResourceId(id: Long, source: String, sourceId: String)
+case class Error[A](error: A)
+case class EventConflict(duplicates: Seq[SourceWithResourceId])
 
 class EventsRelation(apiKey: String,
                       project: String,
@@ -81,22 +88,82 @@ class EventsRelation(apiKey: String,
         Option(r.getAs(4)), Option(r.getAs(5)), Option(r.getAs(6)),
         Option(r.getAs(7)), Option(r.getAs(8)), Option(r.getAs(9)))
     )
-    CdpConnector.post(apiKey, EventsRelation.baseEventsURL(project).build(), eventItems, true,
-      // have to specify maxRetries and retryInterval to make circe happy, for some reason
-      5, 0.5,
-      Some(_ => {
+
+    CdpConnector.post(apiKey, EventsRelation.baseEventsURL(project).build(),
+      items=eventItems,
+      wantAsync = true,
+      successCallback = Some(_ => {
         if (collectMetrics) {
           eventsCreated.inc(rows.length)
         }
         remainingRequests.countDown()
       }),
-      Some(_ => remainingRequests.countDown())
-    )
+      failureCallback = Some(response => handleFailure(eventItems, response, remainingRequests))
+    )(Encoder[EventItem])
+  }
+
+  def handleFailure(eventItems: Seq[EventItem], response: Option[Response], remainingRequests: CountDownLatch): FailureCallbackStatus = {
+    val conflict = response.filter(_.code() == 409)
+    for (someResponse <- conflict) {
+      decode[Error[EventConflict]](someResponse.body().string()) match {
+        case Right(eventConflict) => resolveConflict(eventItems, eventConflict.error, remainingRequests)
+        case Left(e) =>
+          remainingRequests.countDown()
+          throw new RuntimeException(s"Failed to decode conflict response (${someResponse.code()}): ${e.getMessage}")
+      }
+    }
+    if (conflict.isEmpty) {
+      remainingRequests.countDown()
+    }
+
+    conflict.map(_ => FailureCallbackStatus.Handled)
+      .getOrElse(FailureCallbackStatus.Unhandled)
+  }
+
+  def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict, remainingRequests: CountDownLatch): Unit = {
+    val duplicateEventMap = eventConflict.duplicates
+      .map(conflict => (conflict.source, conflict.sourceId) -> conflict.id)
+      .toMap
+
+    val conflictingEvents: Seq[EventItem] = for {
+      event <- eventItems
+      source <- event.source
+      sourceId <- event.sourceId
+      conflictingId <- duplicateEventMap.get((source, sourceId))
+      updatedEvent = event.copy(id = Some(conflictingId))
+    } yield updatedEvent
+
+    if (conflictingEvents.isEmpty) {
+      // Early out
+      return
+    }
+
+    CdpConnector.post(apiKey,
+      EventsRelation.baseEventsURLOld(project).addPathSegment("update").build(),
+      items=conflictingEvents,
+      wantAsync=true,
+      successCallback = Some(_ => {
+        if (collectMetrics) {
+          eventsCreated.inc(eventItems.length)
+        }
+        remainingRequests.countDown()
+      }),
+      failureCallback = Some(_ => {
+        remainingRequests.countDown()
+        FailureCallbackStatus.Unhandled
+      }))(Encoder[EventItem])
   }
 }
 
 object EventsRelation {
   def baseEventsURL(project: String): HttpUrl.Builder = {
+    CdpConnector.baseUrl(project, "0.6")
+      .addPathSegment("events")
+  }
+
+  def baseEventsURLOld(project: String): HttpUrl.Builder = {
+    // TODO: API is failing with "Invalid field - items[0].starttime - expected an object but got number" in 0.6
+    // That's why we need 0.5 support, however should be removed when fixed
     CdpConnector.baseUrl(project, "0.5")
       .addPathSegment("events")
   }

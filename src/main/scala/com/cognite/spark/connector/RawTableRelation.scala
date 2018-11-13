@@ -190,7 +190,10 @@ class RawTableRelation(apiKey: String,
         }
         remainingRequests.countDown()
       }),
-      failureCallback = Some(_ => remainingRequests.countDown())
+      failureCallback = Some(_ => {
+        remainingRequests.countDown()
+        FailureCallbackStatus.Unhandled
+      })
     )
   }
 }
