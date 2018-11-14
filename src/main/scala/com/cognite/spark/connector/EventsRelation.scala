@@ -65,7 +65,7 @@ class EventsRelation(apiKey: String,
       val batches = rows.grouped(batchSize).toSeq
       val remainingRequests = new CountDownLatch(batches.length)
       batches.foreach(postEvent(_, remainingRequests))
-      remainingRequests.await(5, TimeUnit.MINUTES)
+      remainingRequests.await(10, TimeUnit.MINUTES)
     })
   }
 
