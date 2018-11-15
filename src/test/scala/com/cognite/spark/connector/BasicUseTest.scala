@@ -165,13 +165,16 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
        |"$source" as source,
        |sourceId
        |from sourceEvent
+       |limit 100
      """.stripMargin)
       .select(destinationDf.columns.map(col): _*)
       .write
       .insertInto("destinationEvent")
 
     // Check if post worked
-    assert(eventDescriptions().map(_.getString(0)).forall(_ == "bar"))
+    val descriptionsAfterPost = eventDescriptions()
+    assert(descriptionsAfterPost.length == 100)
+    assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "bar"))
 
     // Update events
     sqlContext.sql(s"""
@@ -192,7 +195,9 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .insertInto("destinationEvent")
 
     // Check if upsert worked
-    assert(eventDescriptions().map(_.getString(0)).forall(_ == "foo"))
+    val descriptionsAfterUpdate = eventDescriptions()
+    assert(descriptionsAfterUpdate.length == 1000)
+    assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "foo"))
   }
 
   def cleanupEvents(source: String): Unit = {
