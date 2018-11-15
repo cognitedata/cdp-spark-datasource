@@ -14,6 +14,7 @@
     <scala.compat.version>2.11</scala.compat.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <circe.version>0.9.3</circe.version>
+    <http4s.version>0.18.18</http4s.version>
   </properties>
 
   <dependencies>
@@ -59,19 +60,47 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
+      <groupId>org.http4s</groupId>
+      <artifactId>http4s-blaze-client_${scala.compat.version}</artifactId>
+      <version>${http4s.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.http4s</groupId>
+      <artifactId>http4s-circe_${scala.compat.version}</artifactId>
+      <version>${http4s.version}</version>
+    </dependency>
+    <dependency>
       <groupId>io.circe</groupId>
       <artifactId>circe-core_${scala.compat.version}</artifactId>
       <version>${circe.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.typelevel</groupId>
+          <artifactId>cats-core_${scala.compat.version}</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.circe</groupId>
       <artifactId>circe-generic_${scala.compat.version}</artifactId>
       <version>${circe.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.typelevel</groupId>
+          <artifactId>cats-core_${scala.compat.version}</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.circe</groupId>
       <artifactId>circe-parser_${scala.compat.version}</artifactId>
       <version>${circe.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.typelevel</groupId>
+          <artifactId>cats-core_${scala.compat.version}</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.cognite.data</groupId>
