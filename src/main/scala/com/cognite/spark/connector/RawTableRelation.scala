@@ -2,7 +2,8 @@ package com.cognite.spark.connector
 
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
-import com.cognite.spark.connector.CdpConnector.{DataItemsWithCursor, callWithRetries, client, reportResponseFailure}
+import cats.effect.IO
+import com.cognite.spark.connector.CdpConnector.DataItemsWithCursor
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.circe.JsonObject
@@ -15,6 +16,11 @@ import io.circe.generic.auto._
 import io.circe.parser.decode
 import io.circe.syntax._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
+import com.cognite.spark.connector.Tap._
+import cats.implicits._
+
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 case class RawItem(key: String, columns: JsonObject)
 
@@ -67,80 +73,21 @@ class RawTableRelation(apiKey: String,
     }
   }
 
-  private def getRows(requestBuilder: Request.Builder, collectMetrics: Boolean) = {
-    var response: Response = null
-    try {
-      response = callWithRetries(client.newCall(requestBuilder.build()), 5)
-      if (!response.isSuccessful) {
-        reportResponseFailure(requestBuilder.build().url(), s"received ${response.code()} (${response.message()})")
-      }
-      val d = response.body().string()
-      decode[DataItemsWithCursor[RawItem]](d) match {
-        case Right(r) =>
-          if (collectMetrics) {
-            rowsRead.inc(r.data.items.length)
-          }
-          r.data.items
-        case Left(e) => throw new RuntimeException("Failed to deserialize", e)
-      }
-    } finally {
-      if (response != null) {
-        response.close()
-      }
-    }
-  }
-
   private def readRows(limit: Option[Int], collectMetrics: Boolean = collectMetrics): RDD[Row] = {
     val url = baseRawTableURL(project, database, table).addQueryParameter("columns", ",").build()
-    var moreKeys = true
-    var cursor: Option[String] = None
-    var cursors = List[(Option[String], Int)]()
-    var itemsRemaining = limit
-
-    while (moreKeys && itemsRemaining.forall(_ > 0)) {
-      val limitValue = itemsRemaining.map(Math.min(batchSize, _)).getOrElse(batchSize)
-      val nextUrl = url.newBuilder().addQueryParameter("limit", limitValue.toString)
-      cursor.foreach(cur => nextUrl.addQueryParameter("cursor", cur))
-      val requestBuilder = CdpConnector.baseRequest(apiKey)
-      var response: Response = null
-      try {
-        response = callWithRetries(client.newCall(requestBuilder.url(nextUrl.build()).build()), 5)
-        if (!response.isSuccessful) {
-          reportResponseFailure(requestBuilder.build().url(), s"received ${response.code()} (${response.message()})")
-        }
-        val d = response.body().string()
-        decode[DataItemsWithCursor[RawItem]](d) match {
-          case Right(r) =>
-            cursors = (cursor, r.data.items.length) :: cursors
-            itemsRemaining = itemsRemaining.map(_ - r.data.items.length)
-            r.data.nextCursor match {
-              case nextCursor @ Some(_) => cursor = nextCursor
-              case None => moreKeys = false
-            }
-          case Left(e) => throw new RuntimeException("Failed to deserialize", e)
-        }
-      } finally {
-        if (response != null) {
-          response.close()
-        }
-      }
-    }
+    val cursors = CdpConnector.getWithCursor[RawItem](apiKey, url, batchSize, limit)
+      .map(chunkWithCursor => (chunkWithCursor.chunk.length, chunkWithCursor.cursor))
+      .toSeq
 
     val keysRdd = sqlContext.sparkContext.parallelize(scala.util.Random.shuffle(cursors))
-    keysRdd.flatMap(key =>
-      getRows(CdpConnector.baseRequest(apiKey)
-        .url(key match {
-          case (Some(cursor), numItems) =>
-            baseRawTableURL(project, database, table)
-              .addQueryParameter("limit", numItems.toString)
-              .addQueryParameter("cursor", cursor)
-              .build()
-          case (None, numItems) =>
-            baseRawTableURL(project, database, table)
-              .addQueryParameter("limit", numItems.toString)
-              .build()
-        }), collectMetrics
-      ).map(item => Row(item.key, item.columns.asJson.noSpaces)))
+    keysRdd.flatMap { key =>
+      CdpConnector.get[RawItem](apiKey, baseRawTableURL(project, database, table).build(),
+        batchSize, limit = Some(key._1), initialCursor = key._2)
+        .map(tap(_ => if (collectMetrics) {
+          rowsRead.inc()
+        }))
+        .map(item => Row(item.key, item.columns.asJson.noSpaces))
+    }
   }
 
   override def buildScan(): RDD[Row] = {
@@ -161,10 +108,9 @@ class RawTableRelation(apiKey: String,
 
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df)
     dfWithUnRenamedKeyColumns.foreachPartition(rows => {
-      val batches = rows.grouped(batchSize).toSeq
-      val remainingRequests = new CountDownLatch(batches.length)
-      batches.foreach(postRows(columnNames, _, remainingRequests))
-      remainingRequests.await(10, TimeUnit.SECONDS)
+      val batches = rows.grouped(batchSize).toVector
+      val batchPosts = fs2.async.parallelTraverse(batches)(postRows(columnNames, _))
+      batchPosts.unsafeRunSync()
     })
   }
 
@@ -176,25 +122,19 @@ class RawTableRelation(apiKey: String,
     ))
   }
 
-  private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row], remainingRequests: CountDownLatch) = {
+  private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]): IO[Unit] = {
     val items = rowsToRawItems(nonKeyColumnNames, rows)
 
     val url = baseRawTableURL(project, database, table)
       .addPathSegment("create")
       .build()
 
-    CdpConnector.post(apiKey, url, items, true,
-      successCallback =  Some(_ => {
+    CdpConnector.post(apiKey, url, items)
+      .map(tap(_ =>
         if (collectMetrics) {
           rowsCreated.inc(rows.length)
         }
-        remainingRequests.countDown()
-      }),
-      failureCallback = Some(_ => {
-        remainingRequests.countDown()
-        FailureCallbackStatus.Unhandled
-      })
-    )
+      ))
   }
 }
 

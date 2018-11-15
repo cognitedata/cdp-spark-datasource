@@ -213,9 +213,8 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       CdpConnector.post(
         apiKey,
         EventsRelation.baseEventsURL("jetfiretest2").addPathSegment("delete").build(),
-        eventIds,
-        wantAsync = false
-      )
+        eventIds
+      ).unsafeRunSync()
     }
   }
 }

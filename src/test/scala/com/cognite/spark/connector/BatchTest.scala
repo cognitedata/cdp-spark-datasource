@@ -91,4 +91,24 @@ class BatchTest extends FlatSpec with Matchers {
     numCalls should be (1)
     result should have length 100
   }
+
+  "Batch chunks" should "have correct cursors" in {
+    var numCalls = 0
+    val chunks = Batch.chunksWithCursor(100, limit=Some(400)) { (chunkSize, cursor: Option[Int]) =>
+      val curs = cursor.getOrElse(0)
+      val upper = chunkSize + curs
+      val chunk = curs until upper
+      numCalls += 1
+      (chunk, Some(upper))
+    }.toList
+
+    numCalls should be (400 / 100)
+    chunks.flatMap(_.chunk) should be (0 until 400)
+    chunks.map(_.cursor) should contain only(
+      None,
+      Some(100),
+      Some(200),
+      Some(300)
+    )
+  }
 }
