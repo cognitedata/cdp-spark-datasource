@@ -11,6 +11,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.http4s.Status.Conflict
 import org.http4s.circe.CirceEntityCodec._
+import com.cognite.spark.connector.Tap._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
@@ -64,21 +65,19 @@ class EventsRelation(apiKey: String,
     data.foreachPartition(rows => {
       val batches = rows.grouped(batchSize).toVector
       val batchPosts = fs2.async.parallelTraverse(batches)(postEvent)
-      if (batchPosts.unsafeRunTimed(10.minutes).isEmpty) {
-        throw new RuntimeException("Posting events timed out after 10 minutes.")
-      }
+      batchPosts.unsafeRunSync()
     })
   }
 
   override def buildScan(): RDD[Row] = {
-    val finalRows = CdpConnectorV2.get[EventItem](apiKey, EventsRelation.baseEventsURL(project).build(), batchSize, limit)
+    val finalRows = CdpConnector.get[EventItem](apiKey, EventsRelation.baseEventsURL(project).build(), batchSize, limit)
       .map(item => Row(item.id, item.startTime, item.endTime, item.description,
           item.`type`, item.subtype, item.metadata, item.assetIds, item.source, item.sourceId))
-      .map(tap(_ => {
+      .map(tap(_ =>
         if (collectMetrics) {
           eventsRead.inc()
         }
-      }))
+      ))
     sqlContext.sparkContext.parallelize(finalRows.toStream)
   }
 
@@ -89,15 +88,15 @@ class EventsRelation(apiKey: String,
         Option(r.getAs(7)), Option(r.getAs(8)), Option(r.getAs(9)))
     )
 
-    CdpConnectorV2.postOr(apiKey, EventsRelation.baseEventsURL(project).build(), items = eventItems) {
+    CdpConnector.postOr(apiKey, EventsRelation.baseEventsURL(project).build(), items = eventItems) {
       case Conflict(resp) => resp.as[Error[EventConflict]]
         .flatMap(conflict => resolveConflict(eventItems, conflict.error))
     }
-    .map(tap(_ => {
+    .map(tap(_ =>
       if (collectMetrics) {
         eventsCreated.inc(rows.length)
       }
-    }))
+    ))
   }
 
   def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict): IO[Unit] = {
@@ -117,22 +116,17 @@ class EventsRelation(apiKey: String,
       // Do nothing
       IO.unit
     } else {
-      CdpConnectorV2.post(apiKey,
+      CdpConnector.post(apiKey,
         EventsRelation.baseEventsURLOld(project).addPathSegment("update").build(),
         items = conflictingEvents)
     }
 
-    val postNewItems = CdpConnectorV2.post(apiKey,
+    val postNewItems = CdpConnector.post(apiKey,
       EventsRelation.baseEventsURL(project).build(),
       items = eventItems.map(_.copy(id = None))
         .diff(conflictingEvents.map(_.copy(id = None))))
 
     (postUpdate, postNewItems).parMapN((_, _) => ())
-  }
-
-  def tap[A](effect: A => Unit)(x: A): A = {
-    effect(x)
-    x
   }
 }
 

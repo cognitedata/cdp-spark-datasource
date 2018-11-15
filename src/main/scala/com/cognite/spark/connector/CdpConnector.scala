@@ -1,37 +1,37 @@
 package com.cognite.spark.connector
 
-import java.io.IOException
-
-import okhttp3._
-import java.util.concurrent.TimeUnit
-
-import io.circe._
+import cats.MonadError
+import cats.effect.{IO, Timer}
+import io.circe.{Decoder, Encoder}
+import org.http4s.{EntityDecoder, Header, Headers, Method, Request, Response, Uri}
+import org.http4s.client.blaze.Http1Client
+import cats.implicits._
 import io.circe.generic.auto._
-import io.circe.parser._
-import io.circe.syntax._
+import okhttp3.HttpUrl
+import org.http4s.Status.Successful
+import org.http4s.circe.CirceEntityCodec._
+import org.http4s.client.Client
+import org.http4s.util.CaseInsensitiveString
 
-import scala.util.Random
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.duration._
+import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.ExecutionContext.Implicits.global
 
 case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
 case class Items[A](items: Seq[A])
+case class CdpApiErrorPayload(code: Int, message: String)
+case class Error[A](error: A)
 
-object FailureCallbackStatus extends Enumeration {
-  type FailureCallbackStatus = Value
-  val Handled, Unhandled = Value
+case class CdpApiException(url: Uri, code: Int, message: String)
+  extends Throwable(s"Request to ${url.renderString} failed with status $code: $message") {
 }
 
 object CdpConnector {
-  import FailureCallbackStatus._
+  val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync()
+  type CdpApiError = Error[CdpApiErrorPayload]
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
-
-  // Need to hack this to get access to protected "clone" method. It really should be public.
-  implicit class CallCloneExtension(c: Call) {
-    def makeClone(): Call = {
-      // IntelliJ claims asInstanceOf is redundant here, but the Scala 2.11.12 compiler disagrees
-      c.clone().asInstanceOf[Call]
-    }
-  }
 
   def baseUrl(project: String, version: String = "0.5"): HttpUrl.Builder = {
     new HttpUrl.Builder()
@@ -43,73 +43,72 @@ object CdpConnector {
       .addPathSegment(project)
   }
 
-  def baseRequest(apiKey: String): Request.Builder = {
-    new Request.Builder()
-      .header("Content-Type", "application/json")
-      .header("Accept", "application/json")
-      .header("Accept-Charset", "utf-8")
-      .header("api-key", apiKey)
+  def get[A : Decoder](apiKey: String, url: HttpUrl, batchSize: Int,
+                       limit: Option[Int], maxRetries: Int = 10,
+                       initialCursor: Option[String] = None): Iterator[A] = {
+    getWithCursor(apiKey, url, batchSize, limit, maxRetries, initialCursor)
+      .flatMap(_.chunk)
   }
 
-  @transient lazy val client: OkHttpClient = new OkHttpClient.Builder()
-    .readTimeout(2, TimeUnit.MINUTES)
-    .writeTimeout(2, TimeUnit.MINUTES)
-    .build()
+  def getWithCursor[A : Decoder](apiKey: String, url: HttpUrl, batchSize: Int,
+                        limit: Option[Int], maxRetries: Int = 10,
+                        initialCursor: Option[String] = None): Iterator[Chunk[A, String]] = {
+    Batch.chunksWithCursor(batchSize, limit, initialCursor) { (chunkSize, cursor: Option[String]) =>
+      val baseUrl = Uri.unsafeFromString(url.toString).withQueryParam("limit", chunkSize)
+      val getUrl = cursor.fold(baseUrl)(cursor => baseUrl.withQueryParam("cursor", cursor))
 
-  // exponential backoff as described here:
-  // https://developers.google.com/api-client-library/java/google-http-java-client/backoff
-  private val randomizationFactor = 0.5
-  private val retryMultiplier = 1.5
+      val request = Request[IO](Method.GET, getUrl,
+        headers = Headers(Header.Raw(CaseInsensitiveString("api-key"), apiKey)))
 
-  private val random = new Random()
-  private def exponentialBackoffSleep(interval: Double) =
-    Thread.sleep(1000 * (interval * (1.0 + (random.nextDouble() - 0.5) * 2.0 * randomizationFactor)).toLong)
-
-  def callWithRetries(call: Call, maxRetries: Int): Response = {
-    var callAttempt = 0
-    var response = call.execute()
-    var retryInterval = 0.5
-    while (callAttempt < maxRetries && shouldRetry(response)) {
-      exponentialBackoffSleep(retryInterval)
-      retryInterval = retryInterval * retryMultiplier
-      response = call.makeClone().execute()
-      callAttempt += 1
+      val result = httpClient.expectOr[DataItemsWithCursor[A]](request)(onError(getUrl, _))
+      val dataWithCursor = retryWithBackoff(result, 100.millis, maxRetries)
+        .unsafeRunSync()
+        .data
+      (dataWithCursor.items, dataWithCursor.nextCursor)
     }
-    response
   }
 
-  def get[A](apiKey: String, url: HttpUrl, batchSize: Int, limit: Option[Int],
-             batchCompletedCallback: Option[DataItemsWithCursor[A] => Unit] = None, maxRetries: Int = 5)
-            (implicit decoder: Decoder[A]): Iterator[A] = {
-    Batch.withCursor(batchSize, limit) { (chunkSize, cursor: Option[String]) =>
-      val nextUrl = url.newBuilder().addQueryParameter("limit", chunkSize.toString)
-      cursor.foreach(cur => nextUrl.addQueryParameter("cursor", cur))
-      val requestBuilder = CdpConnector.baseRequest(apiKey)
-      val response = callWithRetries(client.newCall(requestBuilder.url(nextUrl.build()).build()), maxRetries)
-      if (!response.isSuccessful) {
-        reportResponseFailure(url, s"received ${response.code()} (${response.message()})")
-      }
-      try {
-        val d = response.body().string()
-        decode[DataItemsWithCursor[A]](d) match {
-          case Right(r) =>
-            for (callback <- batchCompletedCallback) {
-              callback(r)
-            }
-            (r.data.items, r.data.nextCursor)
-          case Left(e) => throw new RuntimeException("Failed to deserialize", e)
+  def post[A : Encoder](apiKey: String, url: HttpUrl, items: Seq[A], maxRetries: Int = 10): IO[Unit] = {
+    postOr(apiKey, url, items, maxRetries)(Map.empty)
+  }
+
+  def postOr[A : Encoder](apiKey: String, url: HttpUrl, items: Seq[A], maxRetries: Int = 10)
+                       (onResponse: PartialFunction[Response[IO], IO[Unit]]): IO[Unit] = {
+    val postUrl = Uri.unsafeFromString(url.toString)
+    val request = Request[IO](Method.POST, postUrl,
+      headers = Headers(Header.Raw(CaseInsensitiveString("api-key"), apiKey)))
+      .withBody(Items(items))
+    val defaultHandling: PartialFunction[Response[IO], IO[Unit]] = {
+      case Successful(_) => IO.unit
+      case failedResponse => onError(postUrl, failedResponse).flatMap(IO.raiseError)
+    }
+    val singlePost = httpClient.fetch(request) (onResponse orElse defaultHandling)
+    retryWithBackoff(singlePost, 100.millis, maxRetries)
+  }
+
+  def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int)
+                                 (implicit timer: Timer[IO]): IO[A] = {
+    ioa.handleErrorWith {
+      case cdpError: CdpApiException =>
+        if (shouldRetry(cdpError.code) && maxRetries > 0) {
+          IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
+        } else {
+          IO.raiseError(cdpError)
         }
-      } finally {
-        response.close()
-      }
+      case error => IO.raiseError(error)
     }
   }
 
-  def reportResponseFailure(url: HttpUrl, reason: String, method: String = "GET") = {
-    throw new RuntimeException(s"Non-200 status response to $method $url, $reason.")
+  def onError[F[_]](url: Uri, response: Response[F])
+                             (implicit F: MonadError[F, Throwable], decoder: EntityDecoder[F, CdpApiError]): F[Throwable] = {
+    val error = response.as[CdpApiError]
+    error.map[Throwable](e => CdpApiException(url, e.error.code, e.error.message))
+      .handleError(e => {
+        CdpApiException(url, response.status.code, e.getMessage)
+      })
   }
 
-  private def shouldRetry(response: Response): Boolean = !response.isSuccessful && (response.code() match {
+  private def shouldRetry(status: Int): Boolean = status match {
     // @larscognite: Retry on 429,
     case 429 => true
     // and I would like to say never on other 4xx, but we give 401 when we can't authenticate because
@@ -123,85 +122,14 @@ object CdpConnector {
 
     // do not retry other responses.
     case _ => false
-  })
+  }
 
-  def post[A : Encoder](apiKey: String, url: HttpUrl, items: Seq[A], wantAsync: Boolean = false, maxRetries: Int = 5,
-                   retryInterval: Double = 0.5, successCallback: Option[Response => Unit] = None,
-                   failureCallback: Option[Option[Response] => FailureCallbackStatus] = None): Unit = {
-    val dataItems = Items(items)
-    val jsonMediaType = MediaType.parse("application/json; charset=utf-8")
-    val requestBody = RequestBody.create(jsonMediaType, dataItems.asJson.noSpaces)
-
-    def handleFailure(response: Response): Unit = {
-      var reportFailure = true
-      for (callback <- failureCallback) {
-        reportFailure = callback(Some(response)) == FailureCallbackStatus.Unhandled
-      }
-
-      if (reportFailure) {
-        reportResponseFailure(url,
-          s"received (${response.code()}): ${response.body().string()}", "POST")
-      }
-    }
-
-    val call = client.newCall(CdpConnector.baseRequest(apiKey)
-      .url(url)
-      .post(requestBody)
-      .build())
-
-    if (wantAsync) {
-      call.enqueue(new Callback {
-        private def tryAgainOrFail(errorMessage: String): Unit = {
-          if (maxRetries > 0) {
-            exponentialBackoffSleep(retryInterval)
-            post(apiKey, url, items, wantAsync, maxRetries - 1, retryInterval * retryMultiplier,
-              successCallback, failureCallback)
-          } else {
-            for (callback <- failureCallback) {
-              callback(None)
-            }
-            reportResponseFailure(url, errorMessage, "POST")
-          }
-        }
-
-        override def onFailure(call: Call, e: IOException): Unit = {
-          tryAgainOrFail(e.getCause.getMessage)
-        }
-
-        override def onResponse(call: Call, response: Response): Unit = {
-          if (shouldRetry(response)) {
-            tryAgainOrFail(s"response code ${response.code()}")
-          }
-
-          try {
-            if (!response.isSuccessful) {
-              handleFailure(response)
-            } else {
-              for (callback <- successCallback) {
-                callback(response)
-              }
-            }
-          } finally {
-            response.close()
-          }
-        }
-      })
-    } else {
-      var response: Response = null
-      try {
-        response = callWithRetries(call, maxRetries)
-        if (!response.isSuccessful) {
-          handleFailure(response)
-        } else {
-          for (callback <- successCallback) {
-            callback(response)
-          }
-        }
-      } finally {
-        if (response != null) {
-          response.close()
-        }
-      }
-    }
+  // Legacy
+  def baseRequest(apiKey: String): okhttp3.Request.Builder = {
+    new okhttp3.Request.Builder()
+      .header("Content-Type", "application/json")
+      .header("Accept", "application/json")
+      .header("Accept-Charset", "utf-8")
+      .header("api-key", apiKey)
   }
 }

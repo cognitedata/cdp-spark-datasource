@@ -2,7 +2,8 @@ package com.cognite.spark.connector
 
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
-import com.cognite.spark.connector.CdpConnector.DataItemsWithCursor
+import cats.effect.IO
+import cats.implicits._
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
@@ -13,6 +14,10 @@ import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import io.circe.generic.auto._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
+import com.cognite.spark.connector.Tap._
+
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 case class PostAssetsDataItems[A](items: Seq[A])
 
@@ -56,43 +61,35 @@ class AssetsTableRelation(apiKey: String,
   override def buildScan(): RDD[Row] = {
     val urlBuilder = AssetsTableRelation.baseAssetsURL(project)
     assetPath.foreach(path => urlBuilder.addQueryParameter("path", path))
-    val result = CdpConnector.get[AssetsItem](apiKey, urlBuilder.build(), batchSize, limit,
-      batchCompletedCallback = if (collectMetrics) {
-        Some((items: DataItemsWithCursor[_]) => assetsRead.inc(items.data.items.length))
-      } else {
-        None
-      })
+    val result = CdpConnector.get[AssetsItem](apiKey, urlBuilder.build(), batchSize, limit)
       .map(item => Row(item.name, item.parentId, item.description, item.metadata, item.id))
-      .toList
+      .map(tap(_ =>
+        if (collectMetrics) {
+          assetsRead.inc()
+        }
+      ))
+      .toStream
 
     sqlContext.sparkContext.parallelize(result)
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
     df.foreachPartition(rows => {
-      val batches = rows.grouped(batchSize).toSeq
-      val remainingRequests = new CountDownLatch(batches.length)
-      batches.foreach(postRows(_, remainingRequests))
-      remainingRequests.await(5, TimeUnit.MINUTES)
+      val batches = rows.grouped(batchSize).toVector
+      val batchPosts = fs2.async.parallelTraverse(batches)(postRows)
+      batchPosts.unsafeRunSync()
     })
   }
 
-  private def postRows(rows: Seq[Row], remainingRequests: CountDownLatch) = {
+  private def postRows(rows: Seq[Row]): IO[Unit] = {
     val assetItems = rows.map(r =>
       PostAssetsItem(r.getString(0), r.getString(2), r.getAs[Map[String, String]](3)))
-    CdpConnector.post(apiKey, AssetsTableRelation.baseAssetsURL(project).build(), assetItems, true,
-      // have to specify maxRetries and retryInterval to make circe happy, for some reason
-      5, 0.5,
-      Some(_ => {
+    CdpConnector.post(apiKey, AssetsTableRelation.baseAssetsURL(project).build(), assetItems)
+      .map(tap(_ =>
         if (collectMetrics) {
           assetsCreated.inc(rows.length)
         }
-        remainingRequests.countDown()
-      }),
-      Some(_ => {
-        remainingRequests.countDown()
-        FailureCallbackStatus.Unhandled
-      }))
+      ))
   }
 }
 
