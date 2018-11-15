@@ -113,14 +113,21 @@ class EventsRelation(apiKey: String,
       updatedEvent = event.copy(id = Some(conflictingId))
     } yield updatedEvent
 
-    if (conflictingEvents.isEmpty) {
-      // Early out
+    val postUpdate = if (conflictingEvents.isEmpty) {
+      // Do nothing
       IO.unit
     } else {
       CdpConnectorV2.post(apiKey,
         EventsRelation.baseEventsURLOld(project).addPathSegment("update").build(),
         items = conflictingEvents)
     }
+
+    val postNewItems = CdpConnectorV2.post(apiKey,
+      EventsRelation.baseEventsURL(project).build(),
+      items = eventItems.map(_.copy(id = None))
+        .diff(conflictingEvents.map(_.copy(id = None))))
+
+    (postUpdate, postNewItems).parMapN((_, _) => ())
   }
 
   def tap[A](effect: A => Unit)(x: A): A = {
