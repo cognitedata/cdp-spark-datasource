@@ -18,7 +18,8 @@ import scala.concurrent.duration._
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case class CdpApiError(code: Int, message: String)
+case class CdpApiErrorPayload(code: Int, message: String)
+case class Error[A](error: A)
 
 case class CdpApiException(url: Uri, code: Int, message: String)
   extends Throwable(s"Request to ${url.renderString} failed with status $code: $message") {
@@ -26,6 +27,7 @@ case class CdpApiException(url: Uri, code: Int, message: String)
 
 object CdpConnectorV2 {
   val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync()
+  type CdpApiError = Error[CdpApiErrorPayload]
 
   def get[A : Decoder](apiKey: String, url: HttpUrl, batchSize: Int,
                        limit: Option[Int], maxRetries: Int = 10): Iterator[A] = {
@@ -81,7 +83,7 @@ object CdpConnectorV2 {
   def onError[F[_]](url: Uri, response: Response[F])
                              (implicit F: MonadError[F, Throwable], decoder: EntityDecoder[F, CdpApiError]): F[Throwable] = {
     val error = response.as[CdpApiError]
-    error.map[Throwable](e => CdpApiException(url, e.code, e.message))
+    error.map[Throwable](e => CdpApiException(url, e.error.code, e.error.message))
       .handleError(e => {
         CdpApiException(url, response.status.code, e.getMessage)
       })
