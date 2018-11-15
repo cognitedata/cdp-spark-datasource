@@ -1,18 +1,19 @@
 package com.cognite.spark.connector
 
-import java.util.concurrent.{CountDownLatch, TimeUnit}
-
-import com.cognite.spark.connector.CdpConnector.DataItemsWithCursor
-import io.circe.Encoder
-import okhttp3.{HttpUrl, Response}
+import cats.effect.IO
+import cats.implicits._
+import io.circe.generic.auto._
+import okhttp3.HttpUrl
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import io.circe.generic.auto._
-import io.circe.parser._
-import FailureCallbackStatus._
+import org.http4s.Status.Conflict
+import org.http4s.circe.CirceEntityCodec._
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
 case class EventItem(id: Option[Long],
                       startTime: Option[Long],
@@ -26,7 +27,6 @@ case class EventItem(id: Option[Long],
                       sourceId: Option[String])
 
 case class SourceWithResourceId(id: Long, source: String, sourceId: String)
-case class Error[A](error: A)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
 
 class EventsRelation(apiKey: String,
@@ -62,65 +62,45 @@ class EventsRelation(apiKey: String,
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     data.foreachPartition(rows => {
-      val batches = rows.grouped(batchSize).toSeq
-      val remainingRequests = new CountDownLatch(batches.length)
-      batches.foreach(postEvent(_, remainingRequests))
-      remainingRequests.await(10, TimeUnit.MINUTES)
+      val batches = rows.grouped(batchSize).toVector
+      val batchPosts = fs2.async.parallelTraverse(batches)(postEvent)
+      if (batchPosts.unsafeRunTimed(10.minutes).isEmpty) {
+        throw new RuntimeException("Posting events timed out after 10 minutes.")
+      }
     })
   }
 
   override def buildScan(): RDD[Row] = {
-    val finalRows = CdpConnector.get[EventItem](apiKey, EventsRelation.baseEventsURL(project).build(), batchSize, limit,
-      batchCompletedCallback = if (collectMetrics) {
-        Some((items: DataItemsWithCursor[_]) => eventsRead.inc(items.data.items.length))
-      } else {
-        None
-      })
+    val finalRows = CdpConnectorV2.get[EventItem](apiKey, EventsRelation.baseEventsURL(project).build(), batchSize, limit)
       .map(item => Row(item.id, item.startTime, item.endTime, item.description,
-        item.`type`, item.subtype, item.metadata, item.assetIds, item.source, item.sourceId))
-      .toList
-    sqlContext.sparkContext.parallelize(finalRows)
+          item.`type`, item.subtype, item.metadata, item.assetIds, item.source, item.sourceId))
+      .map(tap(_ => {
+        if (collectMetrics) {
+          eventsRead.inc()
+        }
+      }))
+    sqlContext.sparkContext.parallelize(finalRows.toStream)
   }
 
-  def postEvent(rows: Seq[Row], remainingRequests: CountDownLatch): Unit = {
+  def postEvent(rows: Seq[Row]): IO[Unit] = {
     val eventItems = rows.map(r =>
       EventItem(Option(r.getAs(0)), Option(r.getAs(1)), Option(r.getAs(2)), Option(r.getString(3)),
         Option(r.getAs(4)), Option(r.getAs(5)), Option(r.getAs(6)),
         Option(r.getAs(7)), Option(r.getAs(8)), Option(r.getAs(9)))
     )
 
-    CdpConnector.post(apiKey, EventsRelation.baseEventsURL(project).build(),
-      items=eventItems,
-      wantAsync = true,
-      successCallback = Some(_ => {
-        if (collectMetrics) {
-          eventsCreated.inc(rows.length)
-        }
-        remainingRequests.countDown()
-      }),
-      failureCallback = Some(response => handleFailure(eventItems, response, remainingRequests))
-    )(Encoder[EventItem])
-  }
-
-  def handleFailure(eventItems: Seq[EventItem], response: Option[Response], remainingRequests: CountDownLatch): FailureCallbackStatus = {
-    val conflict = response.filter(_.code() == 409)
-    for (someResponse <- conflict) {
-      decode[Error[EventConflict]](someResponse.body().string()) match {
-        case Right(eventConflict) => resolveConflict(eventItems, eventConflict.error, remainingRequests)
-        case Left(e) =>
-          remainingRequests.countDown()
-          throw new RuntimeException(s"Failed to decode conflict response (${someResponse.code()}): ${e.getMessage}")
+    CdpConnectorV2.postOr(apiKey, EventsRelation.baseEventsURL(project).build(), items = eventItems) {
+      case Conflict(resp) => resp.as[Error[EventConflict]]
+        .flatMap(conflict => resolveConflict(eventItems, conflict.error))
+    }
+    .map(tap(_ => {
+      if (collectMetrics) {
+        eventsCreated.inc(rows.length)
       }
-    }
-    if (conflict.isEmpty) {
-      remainingRequests.countDown()
-    }
-
-    conflict.map(_ => FailureCallbackStatus.Handled)
-      .getOrElse(FailureCallbackStatus.Unhandled)
+    }))
   }
 
-  def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict, remainingRequests: CountDownLatch): Unit = {
+  def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict): IO[Unit] = {
     val duplicateEventMap = eventConflict.duplicates
       .map(conflict => (conflict.source, conflict.sourceId) -> conflict.id)
       .toMap
@@ -135,23 +115,17 @@ class EventsRelation(apiKey: String,
 
     if (conflictingEvents.isEmpty) {
       // Early out
-      return
+      IO.unit
+    } else {
+      CdpConnectorV2.post(apiKey,
+        EventsRelation.baseEventsURLOld(project).addPathSegment("update").build(),
+        items = conflictingEvents)
     }
+  }
 
-    CdpConnector.post(apiKey,
-      EventsRelation.baseEventsURLOld(project).addPathSegment("update").build(),
-      items=conflictingEvents,
-      wantAsync=true,
-      successCallback = Some(_ => {
-        if (collectMetrics) {
-          eventsCreated.inc(eventItems.length)
-        }
-        remainingRequests.countDown()
-      }),
-      failureCallback = Some(_ => {
-        remainingRequests.countDown()
-        FailureCallbackStatus.Unhandled
-      }))(Encoder[EventItem])
+  def tap[A](effect: A => Unit)(x: A): A = {
+    effect(x)
+    x
   }
 }
 
