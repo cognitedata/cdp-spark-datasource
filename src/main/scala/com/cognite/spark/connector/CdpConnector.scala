@@ -4,7 +4,7 @@ import cats.MonadError
 import cats.effect.{IO, Timer}
 import io.circe.{Decoder, Encoder}
 import org.http4s.{EntityDecoder, Header, Headers, Method, Request, Response, Uri}
-import org.http4s.client.blaze.Http1Client
+import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
 import cats.implicits._
 import io.circe.generic.auto._
 import okhttp3.HttpUrl
@@ -29,7 +29,9 @@ case class CdpApiException(url: Uri, code: Int, message: String)
 }
 
 object CdpConnector {
-  val httpClient: Client[IO] = Http1Client[IO]().unsafeRunSync()
+  val httpClient: Client[IO] = Http1Client[IO](
+    BlazeClientConfig.defaultConfig.copy(responseHeaderTimeout = 60.seconds))
+    .unsafeRunSync()
   type CdpApiError = Error[CdpApiErrorPayload]
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
 
