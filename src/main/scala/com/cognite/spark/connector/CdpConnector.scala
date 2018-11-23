@@ -1,5 +1,8 @@
 package com.cognite.spark.connector
 
+import java.io.IOException
+import java.util.concurrent.TimeoutException
+
 import cats.MonadError
 import cats.effect.{IO, Timer}
 import io.circe.{Decoder, Encoder}
@@ -17,6 +20,7 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration._
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.TimeoutException
 
 case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
@@ -97,6 +101,8 @@ object CdpConnector {
         } else {
           IO.raiseError(cdpError)
         }
+      case _:TimeoutException | _:IOException =>
+        IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
       case error => IO.raiseError(error)
     }
   }
