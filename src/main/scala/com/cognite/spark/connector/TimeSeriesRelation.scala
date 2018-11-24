@@ -38,7 +38,7 @@ case class Max(value: Long) extends Limit
 class TimeSeriesRelation(apiKey: String,
                          project: String,
                          path: String,
-                         suppliedSchema: StructType,
+                         suppliedSchema: Option[StructType],
                          limit: Option[Int],
                          batchSizeOption: Option[Int],
                          metricsPrefix: String,
@@ -60,14 +60,10 @@ class TimeSeriesRelation(apiKey: String,
   lazy private val datapointsRead = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.read")
 
   override def schema: StructType = {
-    if (suppliedSchema != null) {
-      suppliedSchema
-    } else {
-      StructType(Seq(
-        StructField("tagId", StringType),
-        StructField("timestamp", LongType),
-        StructField("value", DoubleType)))
-    }
+    suppliedSchema.getOrElse(StructType(Seq(
+      StructField("tagId", StringType),
+      StructField("timestamp", LongType),
+      StructField("value", DoubleType))))
   }
 
   private def isTimestamp(s: String): Boolean = s.compareToIgnoreCase("timestamp") == 0
@@ -94,21 +90,21 @@ class TimeSeriesRelation(apiKey: String,
       .addPathSegments("timeseries/latest")
       .addPathSegment(path)
       .build()
-    var response: Response = null
+    var response: Option[Response] = None
     try {
-      response = client.newCall(CdpConnector.baseRequest(apiKey)
+      response = Some(client.newCall(CdpConnector.baseRequest(apiKey)
         .url(url)
-        .build()).execute()
-      if (!response.isSuccessful) {
-        throw new RuntimeException("Non-200 status when querying API, received " + response.code() + "(" + response.message() + ")")
+        .build()).execute())
+      if (!response.get.isSuccessful) {
+        throw new RuntimeException("Non-200 status when querying API, received " + response.get.code()
+          + "(" + response.get.message() + ")")
       }
 
-      val r: TimeSeriesLatestDataPoint = mapper.readValue(response.body().string(), classOf[TimeSeriesLatestDataPoint])
+      val r: TimeSeriesLatestDataPoint = mapper.readValue(
+        response.get.body().string(), classOf[TimeSeriesLatestDataPoint])
       r.data.items.headOption
     } finally {
-      if (response != null) {
-        response.close()
-      }
+      response.foreach(_.close)
     }
   }
 
@@ -211,27 +207,26 @@ class TimeSeriesRelation(apiKey: String,
   private def postTimeSeries(tagId: String, data: TimeseriesData) = {
     val protobufMediaType = MediaType.parse("application/protobuf")
     val requestBody = RequestBody.create(protobufMediaType, data.toByteArray)
-    var response: Response = null
+    var response: Option[Response] = None
     try {
-      response = client.newCall(
+      response = Some(client.newCall(
         CdpConnector.baseRequest(apiKey)
           .url(TimeSeriesRelation.baseTimeSeriesURL(project)
             .addPathSegment(tagId)
             .build())
           .post(requestBody)
           .build()
-      ).execute()
-      if (!response.isSuccessful) {
-        throw new RuntimeException("Non-200 status when posting to raw API, received " + response.code() + "(" + response.message() + ")")
+      ).execute())
+      if (!response.get.isSuccessful) {
+        throw new RuntimeException("Non-200 status when posting to raw API, received " + response.get.code()
+          + "(" + response.get.message() + ")")
       } else {
         if (collectMetrics) {
           datapointsCreated.inc(data.getNumericData.getPointsCount)
         }
       }
     } finally {
-      if (response != null) {
-        response.close()
-      }
+      response.foreach(_.close)
     }
   }
 }

@@ -50,7 +50,7 @@ class DefaultSource extends RelationProvider
     resourceType match {
       case "timeseries" =>
         val tagId = parameters.getOrElse("tagId", sys.error("tagId must be specified"))
-        new TimeSeriesRelation(apiKey, project, tagId, schema, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
+        new TimeSeriesRelation(apiKey, project, tagId, Option(schema), limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
       case "tables" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
