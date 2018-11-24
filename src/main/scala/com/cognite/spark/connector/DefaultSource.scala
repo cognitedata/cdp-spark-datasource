@@ -11,7 +11,7 @@ class DefaultSource extends RelationProvider
   override def shortName(): String = "cognite"
 
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation = {
-    createRelation(sqlContext, parameters, null)
+    createRelation(sqlContext, parameters, null) // scalastyle:off null
   }
 
   private def toBoolean(parameters: Map[String, String], parameterName: String): Boolean = {
@@ -28,6 +28,7 @@ class DefaultSource extends RelationProvider
     }
   }
 
+  // scalastyle:off cyclomatic.complexity
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
     val project = parameters.getOrElse("project", sys.error("Project must be specified"))
@@ -78,4 +79,5 @@ class DefaultSource extends RelationProvider
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
+  // scalastyle:on cyclomatic.complexity
 }

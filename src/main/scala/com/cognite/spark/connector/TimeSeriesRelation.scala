@@ -68,6 +68,7 @@ class TimeSeriesRelation(apiKey: String,
 
   private def isTimestamp(s: String): Boolean = s.compareToIgnoreCase("timestamp") == 0
 
+  // scalastyle:off cyclomatic.complexity
   def getTimestampLimit(filter: Filter): Seq[Limit] = {
     filter match {
       case LessThan(attribute, value) if isTimestamp(attribute) => Seq(Max(value.toString.toLong))
@@ -80,6 +81,7 @@ class TimeSeriesRelation(apiKey: String,
       case _ => Seq.empty
     }
   }
+  // scalastyle:on cyclomatic.complexity
 
   def getLatestDatapoint(): Option[TimeSeriesDataPoint] = {
     val url = new HttpUrl.Builder()
@@ -175,7 +177,8 @@ class TimeSeriesRelation(apiKey: String,
           .url(url)
           .build()).execute()
         if (!response.isSuccessful) {
-          throw new RuntimeException("Non-200 status when querying API, received " + response.code() + " Body: " + response.body() + "(" + response.message() + ")")
+          throw new RuntimeException("Non-200 status when querying API, received " + response.code()
+            + " Body: " + response.body() + "(" + response.message() + ")")
         }
         parseResult(response)
     }
