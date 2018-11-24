@@ -1,4 +1,4 @@
-package com.cognite.spark.connector
+package com.cognite.spark.datasource
 
 import java.io.IOException
 import java.util.concurrent.TimeoutException

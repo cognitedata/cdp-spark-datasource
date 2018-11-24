@@ -1,4 +1,4 @@
-package com.cognite.spark.connector
+package com.cognite.spark.datasource
 
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
@@ -14,7 +14,7 @@ import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import io.circe.generic.auto._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
-import com.cognite.spark.connector.Tap._
+import com.cognite.spark.datasource.Tap._
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global

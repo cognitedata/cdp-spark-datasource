@@ -9,7 +9,7 @@ through asynchronous writes.
 To use it with spark-shell:
 
 ```
-$> spark-shell --jars ~/path-to-repo/target/cdp-spark-connector-jar-with-dependencies.jar
+$> spark-shell --jars ~/path-to-repo/target/cdp-spark-datasource-jar-with-dependencies.jar
 Spark context Web UI available at http://192.168.20.102:4040
 Spark context available as 'sc' (master = local[*], app id = local-1513307936323).
 Spark session available as 'spark'.
@@ -24,7 +24,7 @@ Type in expressions to have them evaluated.
 Type :help for more information.
 
 scala> val apiKey="secret-key-you-have"
-scala> val df = spark.sqlContext.read.format("com.cognite.spark.connector")
+scala> val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
   .option("project", "akerbp")
   .option("apiKey", apiKey)
   .option("batchSize", "1000")
@@ -41,14 +41,14 @@ res0: Long = 1000
 
 ## Why mvn test is failing
 
-To make the tests pass, set the environment variable `COGNITE_API_KEY`
+To make the tests pass, set the environment variable `TEST_API_KEY`
 to an API key with access to the `jetfiretest2` project.
 
 ## So how to build it?
 
 ```mvn package```
 
-will give you a jar, ```cdp-spark-connector-jar-with-dependencies.jar```
+will give you a jar, ```cdp-spark-datasource-jar-with-dependencies.jar```
 
 ## Short-term list of missing features:
 

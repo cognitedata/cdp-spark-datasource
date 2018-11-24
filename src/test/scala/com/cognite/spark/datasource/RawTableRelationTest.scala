@@ -1,4 +1,4 @@
-package com.cognite.spark.connector
+package com.cognite.spark.datasource
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.DataFrame

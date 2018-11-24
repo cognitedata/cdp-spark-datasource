@@ -1,4 +1,4 @@
-package com.cognite.spark.connector
+package com.cognite.spark.datasource
 
 import com.cognite.data.api.v1.{NumericDatapoint, NumericTimeseriesData, TimeseriesData}
 import com.fasterxml.jackson.databind.ObjectMapper
