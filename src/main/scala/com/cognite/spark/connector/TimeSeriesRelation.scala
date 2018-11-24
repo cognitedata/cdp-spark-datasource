@@ -110,6 +110,32 @@ class TimeSeriesRelation(apiKey: String,
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
+  private val requiredColumnToIndex = Map("tagId" -> 0, "timestamp" -> 1, "value" -> 2)
+  private def toColumns(requiredColumns: Array[String], dataPoint: NumericDatapoint): Seq[Option[Any]] = {
+    val requiredColumnIndexes = requiredColumns.map(requiredColumnToIndex)
+    for (index <- requiredColumnIndexes)
+      yield index match {
+        case 0 => Some(path)
+        case 1 => Some(dataPoint.getTimestamp)
+        case 2 => Some(dataPoint.getValue)
+        case _ =>
+          sys.error("Invalid required column index " + index.toString)
+          None
+      }
+  }
+
+  private def getRows(minTimestamp: Long, maxTimestamp: Long, requiredColumns: Array[String]) = {
+    Batch.withCursor(batchSize, limit) { (thisBatchSize, cursor: Option[Long]) =>
+      val tags = getTag(Some(cursor.getOrElse(minTimestamp)), Some(maxTimestamp), thisBatchSize)
+      val rows = for (dataPoint <- tags)
+        yield Row.fromSeq(toColumns(requiredColumns, dataPoint).flatten)
+      if (collectMetrics) {
+        datapointsRead.inc(rows.length)
+      }
+      (rows, tags.lastOption.map(_.getTimestamp + 1))
+    }
+  }
+
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val timestampLimits = filters.flatMap(getTimestampLimit)
     val timestampLowerLimit: Option[Long] = Try(timestampLimits.filter(_.isInstanceOf[Min]).min)
@@ -129,30 +155,8 @@ class TimeSeriesRelation(apiKey: String,
           .getOrElse(sys.error("Failed to get latest datapoint for " + path))
           .timestamp + 1
     }
-
-    val requiredColumnToIndex = Map("tagId" -> 0, "timestamp" -> 1, "value" -> 2)
-    val requiredColumnIndexes = requiredColumns.map(requiredColumnToIndex)
-    val toColumns: NumericDatapoint => Seq[Option[Any]] = dataPoint =>
-      for (index <- requiredColumnIndexes)
-        yield index match {
-          case 0 => Some(path)
-          case 1 => Some(dataPoint.getTimestamp)
-          case 2 => Some(dataPoint.getValue)
-          case _ =>
-            sys.error("Invalid required column index " + index.toString)
-            None
-        }
-
-    val next = timestampLowerLimit.getOrElse(maxTimestamp - 1000 * 60 * 60 * 24 * 14)
-    val finalRows = Batch.withCursor(batchSize, limit) { (thisBatchSize, cursor: Option[Long]) =>
-      val tags = getTag(Some(cursor.getOrElse(next)), Some(maxTimestamp), thisBatchSize)
-      val rows = for (dataPoint <- tags)
-        yield Row.fromSeq(toColumns(dataPoint).flatten)
-      if (collectMetrics) {
-        datapointsRead.inc(rows.length)
-      }
-      (rows, tags.lastOption.map(_.getTimestamp + 1))
-    }.toList
+    val finalRows = getRows(timestampLowerLimit.getOrElse(maxTimestamp - 1000 * 60 * 60 * 24 * 14), maxTimestamp, requiredColumns)
+      .toList
     sqlContext.sparkContext.parallelize(finalRows)
   }
 
