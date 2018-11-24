@@ -1,4 +1,4 @@
-package com.cognite.spark.connector
+package com.cognite.spark.datasource
 
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider, SchemaRelationProvider}

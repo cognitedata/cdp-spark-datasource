@@ -1,4 +1,4 @@
-package com.cognite.spark.connector
+package com.cognite.spark.datasource
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.functions.col
@@ -11,7 +11,7 @@ import org.scalatest.junit.JUnitRunner
 class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   val apiKey = System.getenv("TEST_API_KEY")
   test("Use our own custom format for timeseries") {
-    val df = sqlContext.read.format("com.cognite.spark.connector")
+    val df = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -25,7 +25,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   }
 
   test("Iterate over period longer than limit") {
-    val df = sqlContext.read.format("com.cognite.spark.connector")
+    val df = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -38,7 +38,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   }
 
   test("test that we handle initial data set below batch size.") {
-    val df = sqlContext.read.format("com.cognite.spark.connector")
+    val df = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -50,7 +50,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   }
 
   test("test that we handle initial data set with the same size as the batch size.") {
-    val df = sqlContext.read.format("com.cognite.spark.connector")
+    val df = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -62,7 +62,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     assert(df.count() == 100)
   }
   test("test that start/stop time are handled correctly for timeseries") {
-    val df = sqlContext.read.format("com.cognite.spark.connector")
+    val df = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -73,7 +73,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     assert(df.count() == 2)
   }
   test("smoke test assets") {
-    val df = sqlContext.read.format("com.cognite.spark.connector")
+    val df = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "assets")
@@ -88,7 +88,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   }
 
   test("smoke test tables") {
-    val df = sqlContext.read.format("com.cognite.spark.connector")
+    val df = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "tables")
@@ -107,7 +107,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   }
 
   test("smoke test events") {
-    val df = sqlContext.read.format("com.cognite.spark.connector")
+    val df = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "events")
@@ -122,7 +122,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   }
 
   test("smoke test pushing of events and upsert") {
-    val sourceDf = sqlContext.read.format("com.cognite.spark.connector")
+    val sourceDf = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "tables")
@@ -133,7 +133,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .option("inferSchema", "true")
       .load()
 
-    val destinationDf = sqlContext.read.format("com.cognite.spark.connector")
+    val destinationDf = sqlContext.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "events")

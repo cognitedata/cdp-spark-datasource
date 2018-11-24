@@ -1,4 +1,4 @@
-package com.cognite.spark.connector
+package com.cognite.spark.datasource
 
 import cats.effect.IO
 import cats.implicits._
@@ -11,7 +11,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.http4s.Status.Conflict
 import org.http4s.circe.CirceEntityCodec._
-import com.cognite.spark.connector.Tap._
+import com.cognite.spark.datasource.Tap._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._

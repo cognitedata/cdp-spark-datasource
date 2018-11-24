@@ -1,9 +1,9 @@
-package com.cognite.spark.connector
+package com.cognite.spark.datasource
 
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
 import cats.effect.IO
-import com.cognite.spark.connector.CdpConnector.DataItemsWithCursor
+import com.cognite.spark.datasource.CdpConnector.DataItemsWithCursor
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.circe.JsonObject
@@ -16,7 +16,7 @@ import io.circe.generic.auto._
 import io.circe.parser.decode
 import io.circe.syntax._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
-import com.cognite.spark.connector.Tap._
+import com.cognite.spark.datasource.Tap._
 import cats.implicits._
 
 import scala.concurrent.duration._

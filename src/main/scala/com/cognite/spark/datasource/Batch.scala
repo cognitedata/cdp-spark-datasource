@@ -1,4 +1,4 @@
-package com.cognite.spark.connector
+package com.cognite.spark.datasource
 
 case class Chunk[A,B](chunk: Seq[A], cursor: Option[B])
 

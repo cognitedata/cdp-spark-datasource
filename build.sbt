@@ -41,7 +41,6 @@ lazy val root = (project in file("."))
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
       "com.holdenkarau" %% "spark-testing-base" % s"${sparkVersion}_0.10.0" % Test,
 
-      "com.cognite.spark.connector" % "cdp-spark-connector" % "0.1.1" % Provided,
       "com.groupon.dse" % "spark-metrics" % "2.1.0-cognite" % Provided,
       // TODO: check if we really need spark-hive
       "org.apache.spark" %% "spark-hive" % sparkVersion % Provided
