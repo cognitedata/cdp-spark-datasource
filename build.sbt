@@ -30,11 +30,11 @@ lazy val root = (project in file("."))
       "com.squareup.okhttp3" % "okhttp" % "3.9.1",
 
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
-      "io.circe" %% "circe-core" % circeVersion exclude("org.typelevel", "cats-core"),
-      "io.circe" %% "circe-generic" % circeVersion exclude("org.typelevel", "cats-core"),
-      "io.circe" %% "circe-parser" % circeVersion exclude("org.typelevel", "cats-core"),
-      "io.circe" %% "circe-literal" % circeVersion exclude("org.typelevel", "cats-core"),
-      "io.circe" %% "circe-generic-extras" % circeVersion exclude("org.typelevel", "cats-core"),
+      "io.circe" %% "circe-core" % circeVersion,
+      "io.circe" %% "circe-generic" % circeVersion,
+      "io.circe" %% "circe-parser" % circeVersion,
+      "io.circe" %% "circe-literal" % circeVersion,
+      "io.circe" %% "circe-generic-extras" % circeVersion,
 
       "com.cognite.data" % "cognite-data" % "0.24",
 
@@ -55,7 +55,7 @@ lazy val root = (project in file("."))
 assemblyShadeRules in assembly := Seq(
   ShadeRule.rename("com.google.protobuf.**" -> "repackaged.com.google.protobuf.@1").inAll,
   ShadeRule.rename("io.circe.**" -> "repackaged.io.circe.@1").inAll,
-  ShadeRule.rename("cats.**" -> "repackaged.cats.@1").inAll
+  //ShadeRule.rename("cats.**" -> "repackaged.cats.@1").inAll
 )
 
 artifact in (Compile, assembly) := {
