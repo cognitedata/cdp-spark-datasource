@@ -70,15 +70,7 @@ class EventsRelation(apiKey: String,
   }
 
   override def buildScan(): RDD[Row] = {
-    val finalRows = CdpConnector.get[EventItem](apiKey, EventsRelation.baseEventsURL(project).build(), batchSize, limit)
-      .map(item => Row(item.id, item.startTime, item.endTime, item.description,
-          item.`type`, item.subtype, item.metadata, item.assetIds, item.source, item.sourceId))
-      .map(tap(_ =>
-        if (collectMetrics) {
-          eventsRead.inc()
-        }
-      ))
-    sqlContext.sparkContext.parallelize(finalRows.toStream)
+    new CdpRdd(sqlContext.sparkContext, apiKey, project, batchSize, limit)
   }
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {
