@@ -4,7 +4,7 @@ val Http4sVersion = "0.18.18"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 
-resolvers += "releases" at artifactory + "libs-release/"
+resolvers += "libs-release" at artifactory + "libs-release/"
 publishTo := {
   if (isSnapshot.value)
     Some("snapshots" at artifactory + "libs-snapshot-local/")
