@@ -16,7 +16,7 @@ lazy val root = (project in file("."))
   .settings(
     organization := "com.cognite.spark.datasource",
     name := "cdp-spark-datasource",
-    version := "0.1.4",
+    version := "0.1.5",
     assemblyJarName in assembly := s"${normalizedName.value}-${version.value}-jar-with-dependencies.jar",
     scalaVersion := "2.11.12",
     scalastyleFailOnWarning := true,
@@ -57,6 +57,12 @@ assemblyShadeRules in assembly := Seq(
   ShadeRule.rename("io.circe.**" -> "repackaged.io.circe.@1").inAll,
   ShadeRule.rename("cats.**" -> "repackaged.cats.@1").inAll
 )
+
+artifact in (Compile, assembly) := {
+  val art = (artifact in (Compile, assembly)).value
+  art.withClassifier(Some("assembly"))
+}
+addArtifact(artifact in (Compile, assembly), assembly)
 
 fork in Test := true
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
