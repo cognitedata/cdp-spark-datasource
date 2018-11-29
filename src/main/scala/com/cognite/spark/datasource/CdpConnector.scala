@@ -101,6 +101,13 @@ object CdpConnector {
         } else {
           IO.raiseError(cdpError)
         }
+      case malformedMessageBodyFailure:org.http4s.MalformedMessageBodyFailure =>
+        val failureBody = malformedMessageBodyFailure.toHttpResponse[IO](org.http4s.HttpVersion.`HTTP/1.1`)
+          .unsafeRunSync()
+          .bodyAsText
+          .compile.fold(List.empty[String]) { case (acc, str) => str :: acc }
+        println(s"Failed to parse ${failureBody}")
+        IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
       case _:TimeoutException | _:IOException =>
         IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
       case error => IO.raiseError(error)
