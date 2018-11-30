@@ -19,8 +19,8 @@ import org.apache.spark.groupon.metrics.UserMetricsSystem
 import com.cognite.spark.datasource.Tap._
 import cats.implicits._
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
 
 case class RawItem(key: String, columns: JsonObject)
 
@@ -101,6 +101,7 @@ class RawTableRelation(apiKey: String,
     }
   }
 
+  private implicit val contextShift = IO.contextShift(ExecutionContext.global)
   override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
     if (!df.columns.contains("key")) {
       throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column")
@@ -109,8 +110,7 @@ class RawTableRelation(apiKey: String,
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df)
     dfWithUnRenamedKeyColumns.foreachPartition(rows => {
       val batches = rows.grouped(batchSize).toVector
-      val batchPosts = fs2.async.parallelTraverse(batches)(postRows(columnNames, _))
-      batchPosts.unsafeRunSync()
+      batches.parTraverse(postRows(columnNames, _)).unsafeRunSync()
     })
   }
 

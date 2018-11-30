@@ -13,7 +13,7 @@ import org.http4s.Status.Conflict
 import org.http4s.circe.CirceEntityCodec._
 import com.cognite.spark.datasource.Tap._
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 case class EventItem(id: Option[Long],
@@ -61,11 +61,11 @@ class EventsRelation(apiKey: String,
       StructField("sourceId", StringType)))
   }
 
+  private implicit val contextShift = IO.contextShift(ExecutionContext.global)
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     data.foreachPartition(rows => {
       val batches = rows.grouped(batchSize).toVector
-      val batchPosts = fs2.async.parallelTraverse(batches)(postEvent)
-      batchPosts.unsafeRunSync()
+      batches.parTraverse(postEvent).unsafeRunSync()
     })
   }
 

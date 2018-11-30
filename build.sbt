@@ -1,8 +1,17 @@
 val sparkVersion = "2.3.0"
 val circeVersion = "0.9.3"
-val Http4sVersion = "0.18.18"
+val Http4sVersion = "0.19.0"
+//val Http4sVersion = "0.20.0-M3"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
+
+assemblyMergeStrategy in assembly := {
+  case "io.netty.versions.properties" => MergeStrategy.first
+  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+  case x =>
+    val oldStrategy = (assemblyMergeStrategy in assembly).value
+    oldStrategy(x)
+}
 
 resolvers += "libs-release" at artifactory + "libs-release/"
 publishTo := {
@@ -28,6 +37,9 @@ lazy val root = (project in file("."))
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
 
       "com.squareup.okhttp3" % "okhttp" % "3.9.1",
+      "com.softwaremill.sttp" %% "core" % "1.5.0",
+      "com.softwaremill.sttp" %% "circe" % "1.5.0",
+      "com.softwaremill.sttp" %% "async-http-client-backend-cats" % "1.5.0",
 
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
       "io.circe" %% "circe-core" % circeVersion,
@@ -68,3 +80,4 @@ fork in Test := true
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
 assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false)
 
+scalacOptions += "-Ypartial-unification"
