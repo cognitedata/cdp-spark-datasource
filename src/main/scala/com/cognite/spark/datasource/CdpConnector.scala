@@ -7,15 +7,15 @@ import cats.MonadError
 import cats.effect.{Effect, IO, Timer}
 import io.circe.{Decoder, Encoder}
 import org.http4s.{EntityDecoder, Header, Headers, Method, Request, Response, Uri}
-import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
-import org.http4s.client.JavaNetClientBuilder
+//import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
+//import org.http4s.client.JavaNetClientBuilder
 
 import cats.implicits._
 import io.circe.generic.auto._
 import okhttp3.HttpUrl
 import org.http4s.Status.Successful
 import org.http4s.circe.CirceEntityCodec._
-import org.http4s.client.Client
+//import org.http4s.client.Client
 import org.http4s.util.CaseInsensitiveString
 
 import scala.concurrent.duration._
@@ -45,9 +45,9 @@ object CdpConnector {
 //  val httpClient: Client[IO] = Http1Client(
 //    BlazeClientConfig.defaultConfig.copy(responseHeaderTimeout = 60.seconds))
 //    .unsafeRunSync()
-  val blockingEC = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(5))
-  private implicit val contextShift = IO.contextShift(ExecutionContext.global)
-  val httpClient: Client[IO] = JavaNetClientBuilder(blockingEC).create
+  //val blockingEC = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(5))
+  //private implicit val contextShift = IO.contextShift(ExecutionContext.global)
+  //val httpClient: Client[IO] = JavaNetClientBuilder(blockingEC).create
   type CdpApiError = Error[CdpApiErrorPayload]
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
 
@@ -80,15 +80,15 @@ object CdpConnector {
       println(s"Getting from ${getUrl.toString()}")
       val request = Request[IO](Method.GET, getUrl,
         headers = Headers(Header.Raw(CaseInsensitiveString("api-key"), apiKey)))
-      val result = httpClient.expectOr[DataItemsWithCursor[A]](request)(onError(getUrl, _))
+//      val result = httpClient.expectOr[DataItemsWithCursor[A]](request)(onError(getUrl, _))
 
-//      val result = sttp.header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[A]])
-//        .parseResponseIf(_ => true)
-//        .send()
-//        .map(r => r.unsafeBody match {
-//          case Left(error) => throw new RuntimeException(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
-//          case Right(items) => items
-//        })
+      val result = sttp.header("api-key", apiKey).get(uri"${getUrl.toString()}").response(asJson[DataItemsWithCursor[A]])
+        .parseResponseIf(_ => true)
+        .send()
+        .map(r => r.unsafeBody match {
+          case Left(error) => throw new RuntimeException(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
+          case Right(items) => items
+        })
       val dataWithCursor = retryWithBackoff(result, 30.millis, maxRetries)
         .unsafeRunSync()
         .data
@@ -111,7 +111,18 @@ object CdpConnector {
       case Successful(_) => ().asInstanceOf
       case failedResponse => onError(postUrl, failedResponse).flatMap(IO.raiseError)
     }
-    val singlePost = httpClient.fetch(request) (onResponse orElse defaultHandling)
+//    val request = sttp
+//      // send the body as form data (x-www-form-urlencoded)
+//      .body(Map("name" -> "John", "surname" -> "doe"))
+//      // use an optional parameter in the URI
+//      .post(uri"https://httpbin.org/post?signup=$signup")
+    val singlePost = sttp.body(Items(items))
+      .header("api-key", apiKey)
+      .post(uri"${postUrl.toString()}")
+      .send()
+      .map(_ => ())
+
+    //val singlePost = httpClient.fetch(request) (onResponse orElse defaultHandling)
     retryWithBackoff(singlePost, 30.millis, maxRetries)
   }
 
