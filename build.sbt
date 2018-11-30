@@ -31,8 +31,8 @@ lazy val root = (project in file("."))
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
     libraryDependencies ++= Seq(
-      "org.http4s" %% "http4s-blaze-client" % Http4sVersion
-        exclude("org.slf4j", "slf4j-api"),
+      // "org.http4s" %% "http4s-blaze-client" % Http4sVersion
+      //   exclude("org.slf4j", "slf4j-api"),
       "org.http4s" %% "http4s-circe" % Http4sVersion,
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
 
