@@ -1,13 +1,15 @@
 package com.cognite.spark.datasource
 
 import java.io.IOException
-import java.util.concurrent.TimeoutException
+import java.util.concurrent.Executors
 
 import cats.MonadError
-import cats.effect.{IO, Timer}
+import cats.effect.{Effect, IO, Timer}
 import io.circe.{Decoder, Encoder}
 import org.http4s.{EntityDecoder, Header, Headers, Method, Request, Response, Uri}
 import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
+import org.http4s.client.JavaNetClientBuilder
+
 import cats.implicits._
 import io.circe.generic.auto._
 import okhttp3.HttpUrl
@@ -16,11 +18,12 @@ import org.http4s.circe.CirceEntityCodec._
 import org.http4s.client.Client
 import org.http4s.util.CaseInsensitiveString
 
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration._
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.TimeoutException
+import cats.effect.IO.timer
+
+import scala.concurrent.ExecutionContext
 
 case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
@@ -28,17 +31,27 @@ case class Items[A](items: Seq[A])
 case class CdpApiErrorPayload(code: Int, message: String)
 case class Error[A](error: A)
 
+import com.softwaremill.sttp._
+import com.softwaremill.sttp.circe._
+import com.softwaremill.sttp.asynchttpclient.cats._
+
 case class CdpApiException(url: Uri, code: Int, message: String)
   extends Throwable(s"Request to ${url.renderString} failed with status $code: $message") {
 }
 
 object CdpConnector {
-  val httpClient: Client[IO] = Http1Client[IO](
-    BlazeClientConfig.defaultConfig.copy(responseHeaderTimeout = 60.seconds))
-    .unsafeRunSync()
+  implicit val timer = cats.effect.IO.timer(ExecutionContext.global)
+  implicit val sttpBackend = AsyncHttpClientCatsBackend[IO]()
+//  val httpClient: Client[IO] = Http1Client(
+//    BlazeClientConfig.defaultConfig.copy(responseHeaderTimeout = 60.seconds))
+//    .unsafeRunSync()
+  val blockingEC = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(5))
+  private implicit val contextShift = IO.contextShift(ExecutionContext.global)
+  val httpClient: Client[IO] = JavaNetClientBuilder(blockingEC).create
   type CdpApiError = Error[CdpApiErrorPayload]
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
 
+  //private implicit val timer = Timer.derive
   def baseUrl(project: String, version: String = "0.5"): HttpUrl.Builder = {
     new HttpUrl.Builder()
       .scheme("https")
@@ -62,14 +75,24 @@ object CdpConnector {
     Batch.chunksWithCursor(batchSize, limit, initialCursor) { (chunkSize, cursor: Option[String]) =>
       val baseUrl = Uri.unsafeFromString(url.toString).withQueryParam("limit", chunkSize)
       val getUrl = cursor.fold(baseUrl)(cursor => baseUrl.withQueryParam("cursor", cursor))
+      //val getUrl = uri"${cursor.fold(baseUrl)(cursor => baseUrl.withQueryParam("cursor", cursor)).toString()}"
 
+      println(s"Getting from ${getUrl.toString()}")
       val request = Request[IO](Method.GET, getUrl,
         headers = Headers(Header.Raw(CaseInsensitiveString("api-key"), apiKey)))
-
       val result = httpClient.expectOr[DataItemsWithCursor[A]](request)(onError(getUrl, _))
-      val dataWithCursor = retryWithBackoff(result, 100.millis, maxRetries)
+
+//      val result = sttp.header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[A]])
+//        .parseResponseIf(_ => true)
+//        .send()
+//        .map(r => r.unsafeBody match {
+//          case Left(error) => throw new RuntimeException(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
+//          case Right(items) => items
+//        })
+      val dataWithCursor = retryWithBackoff(result, 30.millis, maxRetries)
         .unsafeRunSync()
         .data
+      //println(s"got data: ${dataWithCursor.toString}")
       (dataWithCursor.items, dataWithCursor.nextCursor)
     }
   }
@@ -85,11 +108,11 @@ object CdpConnector {
       headers = Headers(Header.Raw(CaseInsensitiveString("api-key"), apiKey)))
       .withBody(Items(items))
     val defaultHandling: PartialFunction[Response[IO], IO[Unit]] = {
-      case Successful(_) => IO.unit
+      case Successful(_) => ().asInstanceOf
       case failedResponse => onError(postUrl, failedResponse).flatMap(IO.raiseError)
     }
     val singlePost = httpClient.fetch(request) (onResponse orElse defaultHandling)
-    retryWithBackoff(singlePost, 100.millis, maxRetries)
+    retryWithBackoff(singlePost, 30.millis, maxRetries)
   }
 
   def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int)
@@ -110,7 +133,9 @@ object CdpConnector {
         IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
       case _:TimeoutException | _:IOException =>
         IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
-      case error => IO.raiseError(error)
+      case error =>
+        println(s"woops: ${error.getCause.getClass.toString}")
+        IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
     }
   }
 
