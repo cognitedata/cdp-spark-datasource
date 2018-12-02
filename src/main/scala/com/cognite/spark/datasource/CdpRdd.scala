@@ -24,7 +24,9 @@ class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchS
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     println("COMPUTE")
     val split = _split.asInstanceOf[CdpRddPartition]
-    val cdpRows = CdpConnector.get[EventItem](apiKey, EventsRelation.baseEventsURL(project).build(), batchSize, Some(batchSize))
+    val cdpRows = CdpConnector.get[EventItem](apiKey,
+      EventsRelation.baseEventsURL(project).build(),
+      batchSize, Some(batchSize), 10, Some(split.cursor))
       .map(item => {
         Row(item.id, item.startTime, item.endTime, item.description, item.`type`, item.subtype,
           item.metadata, item.assetIds, item.source, item.sourceId)
