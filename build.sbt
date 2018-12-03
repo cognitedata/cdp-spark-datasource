@@ -1,7 +1,5 @@
 val sparkVersion = "2.3.0"
 val circeVersion = "0.9.3"
-val Http4sVersion = "0.19.0"
-//val Http4sVersion = "0.20.0-M3"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 
@@ -31,9 +29,6 @@ lazy val root = (project in file("."))
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
     libraryDependencies ++= Seq(
-      // "org.http4s" %% "http4s-blaze-client" % Http4sVersion
-      //   exclude("org.slf4j", "slf4j-api"),
-      "org.http4s" %% "http4s-circe" % Http4sVersion,
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
 
       "com.squareup.okhttp3" % "okhttp" % "3.9.1",
@@ -67,7 +62,7 @@ lazy val root = (project in file("."))
 assemblyShadeRules in assembly := Seq(
   ShadeRule.rename("com.google.protobuf.**" -> "repackaged.com.google.protobuf.@1").inAll,
   ShadeRule.rename("io.circe.**" -> "repackaged.io.circe.@1").inAll,
-  //ShadeRule.rename("cats.**" -> "repackaged.cats.@1").inAll
+  ShadeRule.rename("cats.**" -> "repackaged.cats.@1").inAll
 )
 
 artifact in (Compile, assembly) := {
@@ -79,5 +74,3 @@ addArtifact(artifact in (Compile, assembly), assembly)
 fork in Test := true
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
 assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false)
-
-scalacOptions += "-Ypartial-unification"

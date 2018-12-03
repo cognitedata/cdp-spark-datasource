@@ -6,7 +6,6 @@ import io.circe.generic.auto._
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.http4s.Uri
 import com.softwaremill.sttp._
 import com.softwaremill.sttp.circe._
 import com.softwaremill.sttp.asynchttpclient.cats._
@@ -19,48 +18,59 @@ case class CdpRddPartition(cursor: Option[String], size: Option[Int], index: Int
 class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchSize: Int, limit: Option[Int])
   extends RDD[Row](sparkContext, Nil) {
 
-  implicit val timer = cats.effect.IO.timer(ExecutionContext.global)
-  implicit val sttpBackend = AsyncHttpClientCatsBackend[IO]()
-  private val maxRetries = 10
+  @transient implicit val timer = cats.effect.IO.timer(ExecutionContext.global)
+  @transient implicit val sttpBackend = AsyncHttpClientCatsBackend[IO]()
+  private val maxRetries = 3
 
   private def cursors(url: Uri): Iterator[(Option[String], Option[Int])] = {
     new Iterator[(Option[String], Option[Int])] {
+      private var nItemsRead = 0
       private var nextCursor = Option.empty[String]
       private var isFirst = true
+      private var thereIsMore = true
       override def hasNext: Boolean = {
         if (isFirst) {
           isFirst = false
           true
         } else {
-          nextCursor.isDefined
+          nextCursor.isDefined && thereIsMore && limit.fold(true)(_ > nItemsRead)
         }
       }
 
       override def next(): (Option[String], Option[Int]) = {
         val next = nextCursor
-        val getUrl = nextCursor.fold(url)(cursor => url.withQueryParam("cursor", cursor))
-        val result = sttp.header("api-key", apiKey).get(uri"${getUrl.toString()}").response(asJson[DataItemsWithCursor[EventItem]])
+        val thisBatchSize = math.min(batchSize, limit.map(_ - nItemsRead).getOrElse(batchSize))
+        val urlWithLimit = url.param("limit", thisBatchSize.toString)
+        val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
+        println(s"cursors next getting from ${getUrl.toString()}")
+        val result = sttp.header("Accept", "application/json")
+          .header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[EventItem]])
           .parseResponseIf(_ => true)
           .send()
           .map(r => r.unsafeBody match {
-            case Left(error) => throw new RuntimeException(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
+            case Left(error) =>
+              //println(s"KABOOM on ${getUrl.toString()}")
+              throw new RuntimeException(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
             case Right(items) => items
           })
         val dataWithCursor = retryWithBackoff(result, 30.millis, maxRetries)
           .unsafeRunSync()
           .data
         nextCursor = dataWithCursor.nextCursor
-        (next, nextCursor.map(_ => batchSize))
+        nItemsRead += thisBatchSize
+        (next, nextCursor.map(_ => thisBatchSize))
       }
     }
   }
 
   override def getPartitions: Array[Partition] = {
-    val url = EventsRelation.baseEventsURL(project).addQueryParameter("onlyCursors", "true").build()
+
+    val url = EventsRelation.baseEventsURL(project)
+    //println(s"GETTING PARTITIONS for $project using uri ${url.toString()}")
 //    val parts = CdpConnector.getWithCursor[EventItem](apiKey, url, batchSize, limit)
 //      .filter(_.cursor.isDefined)
 //      .map(chunk => chunk.cursor.get)
-    scala.util.Random.shuffle(cursors(Uri.unsafeFromString(url.toString).withQueryParam("onlyCursors", "true")))
+    scala.util.Random.shuffle(cursors(url.param("onlyCursors", "true")))
       .toIndexedSeq
       .zipWithIndex
       .map { case ((cursor, size), index) => CdpRddPartition(cursor, size, index) }
@@ -68,12 +78,12 @@ class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchS
   }
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
-    println("COMPUTE")
-    val url = EventsRelation.baseEventsURL(project)
+    //println("COMPUTE")
     val split = _split.asInstanceOf[CdpRddPartition]
-    val getUrl = split.cursor.fold(url)(cursor => url.addQueryParameter("cursor", cursor))
+    val getUrl = EventsRelation.baseEventsURL(project)
+    println(s"Compute getting from ${getUrl.toString()}")
     val cdpRows = CdpConnector.get[EventItem](apiKey,
-      getUrl.build(),
+      getUrl,
       batchSize, split.size, 10, split.cursor)
       .map(item => {
         Row(item.id, item.startTime, item.endTime, item.description, item.`type`, item.subtype,

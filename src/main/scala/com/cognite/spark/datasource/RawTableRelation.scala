@@ -1,26 +1,22 @@
 package com.cognite.spark.datasource
 
-import java.util.concurrent.{CountDownLatch, TimeUnit}
-
 import cats.effect.IO
 import com.cognite.spark.datasource.CdpConnector.DataItemsWithCursor
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.softwaremill.sttp._
 import io.circe.JsonObject
-import okhttp3._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import io.circe.generic.auto._
-import io.circe.parser.decode
 import io.circe.syntax._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import com.cognite.spark.datasource.Tap._
 import cats.implicits._
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
 
 case class RawItem(key: String, columns: JsonObject)
 
@@ -74,14 +70,14 @@ class RawTableRelation(apiKey: String,
   }
 
   private def readRows(limit: Option[Int], collectMetrics: Boolean = collectMetrics): RDD[Row] = {
-    val url = baseRawTableURL(project, database, table).addQueryParameter("columns", ",").build()
+    val url = baseRawTableURL(project, database, table).param("columns", ",")
     val cursors = CdpConnector.getWithCursor[RawItem](apiKey, url, batchSize, limit)
       .map(chunkWithCursor => (chunkWithCursor.chunk.length, chunkWithCursor.cursor))
       .toSeq
 
     val keysRdd = sqlContext.sparkContext.parallelize(scala.util.Random.shuffle(cursors))
     keysRdd.flatMap { key =>
-      CdpConnector.get[RawItem](apiKey, baseRawTableURL(project, database, table).build(),
+      CdpConnector.get[RawItem](apiKey, baseRawTableURL(project, database, table),
         batchSize, limit = Some(key._1), initialCursor = key._2)
         .map(tap(_ => if (collectMetrics) {
           rowsRead.inc()
@@ -101,7 +97,7 @@ class RawTableRelation(apiKey: String,
     }
   }
 
-  private implicit val contextShift = IO.contextShift(ExecutionContext.global)
+  @transient private implicit val contextShift = IO.contextShift(ExecutionContext.global)
   override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
     if (!df.columns.contains("key")) {
       throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column")
@@ -125,9 +121,7 @@ class RawTableRelation(apiKey: String,
   private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]): IO[Unit] = {
     val items = rowsToRawItems(nonKeyColumnNames, rows)
 
-    val url = baseRawTableURL(project, database, table)
-      .addPathSegment("create")
-      .build()
+    val url = uri"${baseRawTableURL(project, database, table)}/create"
 
     CdpConnector.post(apiKey, url, items)
       .map(tap(_ =>
@@ -194,10 +188,7 @@ object RawTableRelation {
     (columnNames, dfWithUnRenamedKeyColumns)
   }
 
-  def baseRawTableURL(project: String, database: String, table: String): HttpUrl.Builder = {
-    CdpConnector.baseUrl(project, "0.5")
-      .addPathSegment("raw")
-      .addPathSegment(database)
-      .addPathSegment(table)
+  def baseRawTableURL(project: String, database: String, table: String): Uri = {
+    uri"${CdpConnector.baseUrl(project, "0.5")}/raw/$database/$table"
   }
 }

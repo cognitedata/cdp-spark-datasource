@@ -1,15 +1,15 @@
 package com.cognite.spark.datasource
 
-import cats.Parallel
-import cats.effect.{ConcurrentEffect, IO}
-import cats.effect._
+
+import cats.effect.IO
 import cats.implicits._
-import com.cognite.spark.datasource.Tap._
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.softwaremill.sttp._
+
 import io.circe.generic.auto._
-import okhttp3._
+
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
@@ -58,9 +58,11 @@ class AssetsTableRelation(apiKey: String,
     StructField("id", DataTypes.LongType)))
 
   override def buildScan(): RDD[Row] = {
-    val urlBuilder = AssetsTableRelation.baseAssetsURL(project)
-    assetPath.foreach(path => urlBuilder.addQueryParameter("path", path))
-    val result = CdpConnector.get[AssetsItem](apiKey, urlBuilder.build(), batchSize, limit)
+    val url = AssetsTableRelation.baseAssetsURL(project)
+
+    val getUrl = assetPath.fold(url)(url.param("path", _))
+    //println(s"scanning with url $url and getUrl $getUrl")
+    val result = CdpConnector.get[AssetsItem](apiKey, getUrl, batchSize, limit)
       .map(item => {
         if (collectMetrics) {
           assetsRead.inc()
@@ -72,7 +74,7 @@ class AssetsTableRelation(apiKey: String,
     sqlContext.sparkContext.parallelize(result)
   }
 
-  private implicit val contextShift = IO.contextShift(ExecutionContext.global)
+  @transient private implicit val contextShift = IO.contextShift(ExecutionContext.global)
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
     df.foreachPartition(rows => {
       val batches = rows.grouped(batchSize).toVector
@@ -83,7 +85,7 @@ class AssetsTableRelation(apiKey: String,
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val assetItems = rows.map(r =>
       PostAssetsItem(r.getString(0), r.getString(2), r.getAs[Map[String, String]](3)))
-    CdpConnector.post(apiKey, AssetsTableRelation.baseAssetsURL(project).build(), assetItems)
+    CdpConnector.post(apiKey, AssetsTableRelation.baseAssetsURL(project), assetItems)
       .map(item => {
         if (collectMetrics) {
           assetsCreated.inc(rows.length)
@@ -102,9 +104,8 @@ object AssetsTableRelation {
     mapper
   }
 
-  def baseAssetsURL(project: String): HttpUrl.Builder = {
-    CdpConnector.baseUrl(project, "0.5")
-      .addPathSegment("assets")
+  def baseAssetsURL(project: String, version: String = "0.5"): Uri = {
+    uri"https://api.cognitedata.com/api/$version/projects/$project/assets"
   }
 
   val validPathComponentTypes = Seq(

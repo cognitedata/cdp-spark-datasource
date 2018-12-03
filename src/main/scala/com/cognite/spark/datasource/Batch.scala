@@ -14,7 +14,7 @@ object Batch {
         val thisBatchSize = scala.math.min(nRowsRemaining.getOrElse(chunkSize), chunkSize)
         val (chunk, newCursor) = processChunk(thisBatchSize, cursor)
         val rowsRemaining = nRowsRemaining.map(_ - chunk.length)
-        val continue = rowsRemaining.forall(_ > 0) && newCursor.isDefined
+        val continue = chunk.nonEmpty && rowsRemaining.forall(_ > 0) && newCursor.isDefined
         lastChunk = Iterator.single(Chunk(chunk, cursor))
         lastCursor = cursor
         (rowsRemaining, continue, chunk, newCursor)

@@ -3,15 +3,15 @@ package com.cognite.spark.datasource
 import cats.effect.IO
 import cats.implicits._
 import io.circe.generic.auto._
-import okhttp3.HttpUrl
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import org.http4s.Status.Conflict
-import org.http4s.circe.CirceEntityCodec._
+import io.circe.parser.decode
 import com.cognite.spark.datasource.Tap._
+import com.softwaremill.sttp.{Response, Uri}
+import com.softwaremill.sttp._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -61,11 +61,15 @@ class EventsRelation(apiKey: String,
       StructField("sourceId", StringType)))
   }
 
-  private implicit val contextShift = IO.contextShift(ExecutionContext.global)
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     data.foreachPartition(rows => {
+      implicit val contextShift = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
-      batches.parTraverse(postEvent).unsafeRunSync()
+      batches.foreach(rows => {
+        //println(s"posting rows:${rows.map(_.toString).mkString(", ")}")
+        postEvent(rows).unsafeRunSync()
+      })
+      //batches.parTraverse(postEvent).unsafeRunSync()
     })
   }
 
@@ -80,11 +84,14 @@ class EventsRelation(apiKey: String,
         Option(r.getAs(7)), Option(r.getAs(8)), Option(r.getAs(9)))
     )
 
-    CdpConnector.postOr(apiKey, EventsRelation.baseEventsURL(project).build(), items = eventItems) {
-      case Conflict(resp) => resp.as[Error[EventConflict]]
-        .flatMap(conflict => resolveConflict(eventItems, conflict.error))
-    }
-    .map(tap(_ =>
+    CdpConnector.postOr(apiKey, EventsRelation.baseEventsURL(project), items = eventItems) {
+      case r @ Response(Right(body), StatusCodes.Conflict, _, _, _) =>
+        //println(s"DECODING THE THING ${r.body.toString}")
+        decode[Error[EventConflict]](body) match {
+          case Right(conflict) => resolveConflict(eventItems, conflict.error)
+          case Left(error) => throw error
+        }
+      }.map(tap(_ =>
       if (collectMetrics) {
         eventsCreated.inc(rows.length)
       }
@@ -92,6 +99,7 @@ class EventsRelation(apiKey: String,
   }
 
   def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict): IO[Unit] = {
+    implicit val contextShift = IO.contextShift(ExecutionContext.global)
     val duplicateEventMap = eventConflict.duplicates
       .map(conflict => (conflict.source, conflict.sourceId) -> conflict.id)
       .toMap
@@ -108,30 +116,33 @@ class EventsRelation(apiKey: String,
       // Do nothing
       IO.unit
     } else {
+      //println(s"resolving conflict for ${conflictingEvents.map(_.toString).mkString(",")}")
       CdpConnector.post(apiKey,
-        EventsRelation.baseEventsURLOld(project).addPathSegment("update").build(),
+        uri"${EventsRelation.baseEventsURLOld(project)}/update",
         items = conflictingEvents)
     }
 
-    val postNewItems = CdpConnector.post(apiKey,
-      EventsRelation.baseEventsURL(project).build(),
-      items = eventItems.map(_.copy(id = None))
-        .diff(conflictingEvents.map(_.copy(id = None))))
+    val newEvents = eventItems.map(_.copy(id = None)).diff(conflictingEvents.map(_.copy(id = None)))
+    val postNewItems = if (newEvents.isEmpty) {
+      IO.unit
+    } else {
+      CdpConnector.post(apiKey,
+        EventsRelation.baseEventsURL(project),
+        items = newEvents)
+    }
 
     (postUpdate, postNewItems).parMapN((_, _) => ())
   }
 }
 
 object EventsRelation {
-  def baseEventsURL(project: String): HttpUrl.Builder = {
-    CdpConnector.baseUrl(project, "0.6")
-      .addPathSegment("events")
+  def baseEventsURL(project: String, version: String = "0.6"): Uri = {
+    uri"https://api.cognitedata.com/api/$version/projects/$project/events"
   }
 
-  def baseEventsURLOld(project: String): HttpUrl.Builder = {
+  def baseEventsURLOld(project: String): Uri = {
     // TODO: API is failing with "Invalid field - items[0].starttime - expected an object but got number" in 0.6
     // That's why we need 0.5 support, however should be removed when fixed
-    CdpConnector.baseUrl(project, "0.5")
-      .addPathSegment("events")
+    uri"https://api.cognitedata.com/api/0.5/projects/$project/events"
   }
 }
