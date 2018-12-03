@@ -1,17 +1,25 @@
 package com.cognite.spark.datasource
 
+import cats.effect.IO
+import cats.implicits._
+import io.circe.generic.auto._
+
 import com.cognite.data.api.v1.{NumericDatapoint, NumericTimeseriesData, TimeseriesData}
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import okhttp3._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, TableScan, _}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
+import com.softwaremill.sttp._
+import com.softwaremill.sttp.circe._
+import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
 import scala.util.Try
+import scala.concurrent.duration._
 
 case class TimeSeriesDataItems[A](items: Seq[A])
 
@@ -49,7 +57,7 @@ class TimeSeriesRelation(apiKey: String,
     with PrunedFilteredScan
     with Serializable {
   @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
-  @transient lazy val client: OkHttpClient = new OkHttpClient()
+  //@transient lazy val client: OkHttpClient = new OkHttpClient()
   @transient lazy val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
@@ -58,6 +66,9 @@ class TimeSeriesRelation(apiKey: String,
 
   lazy private val datapointsCreated = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.created")
   lazy private val datapointsRead = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.read")
+
+  @transient implicit val timer = cats.effect.IO.timer(ExecutionContext.global)
+  @transient implicit val sttpBackend = AsyncHttpClientCatsBackend[IO]()
 
   override def schema: StructType = {
     suppliedSchema.getOrElse(StructType(Seq(
@@ -83,31 +94,19 @@ class TimeSeriesRelation(apiKey: String,
   }
   // scalastyle:on cyclomatic.complexity
 
-  def getLatestDatapoint(): Option[TimeSeriesDataPoint] = {
-    val url = new HttpUrl.Builder()
-      .scheme("https")
-      .host("api.cognitedata.com")
-      .addPathSegments("api/0.5/projects")
-      .addPathSegment(project)
-      .addPathSegments("timeseries/latest")
-      .addPathSegment(path)
-      .build()
-    var response: Option[Response] = None
-    try {
-      response = Some(client.newCall(CdpConnector.baseRequest(apiKey)
-        .url(url)
-        .build()).execute())
-      if (!response.get.isSuccessful) {
-        throw new RuntimeException("Non-200 status when querying API, received " + response.get.code()
-          + "(" + response.get.message() + ")")
-      }
-
-      val r: TimeSeriesLatestDataPoint = mapper.readValue(
-        response.get.body().string(), classOf[TimeSeriesLatestDataPoint])
-      r.data.items.headOption
-    } finally {
-      response.foreach(_.close)
-    }
+  def getLatestDatapoint: Option[TimeSeriesDataPoint] = {
+    val url = uri"https://api.cognitedata.com/api/0.5/projects/$project/timeseries/latest/$path"
+    //println(s"getlatestdatapoint from ${url.toString()}")
+    val getLatest = sttp.header("Accept", "application/json")
+      .header("api-key", apiKey)
+      .response(asJson[TimeSeriesLatestDataPoint])
+      .get(url)
+      .send()
+    CdpConnector.retryWithBackoff(getLatest, 30.millis, maxRetries)
+      .unsafeRunSync()
+      .unsafeBody
+      .toOption
+      .flatMap(_.data.items.headOption)
   }
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
@@ -153,7 +152,7 @@ class TimeSeriesRelation(apiKey: String,
     val maxTimestamp: Long = timestampUpperLimit match {
       case Some(i) => i
       case None =>
-        getLatestDatapoint()
+        getLatestDatapoint
           .getOrElse(sys.error("Failed to get latest datapoint for " + path))
           .timestamp + 1
     }
@@ -162,37 +161,28 @@ class TimeSeriesRelation(apiKey: String,
     sqlContext.sparkContext.parallelize(finalRows)
   }
 
-  // Should be rewritten to use async queries
-  def getTag(start: Option[Long], stop: Option[Long], limit: Int): Seq[NumericDatapoint] = {
-    (start, stop) match {
-      case(Some(startTime), Some(stopTime)) if startTime >= stopTime =>
+  def getTag(start: Option[Long], end: Option[Long], limit: Int): Seq[NumericDatapoint] = {
+    (start, end) match {
+      case(Some(startTime), Some(endTime)) if startTime >= endTime =>
           Seq()
       case _ =>
-        val url = TimeSeriesRelation.baseTimeSeriesURL(project, start, stop)
-          .addPathSegment(path)
-          .addQueryParameter("limit", limit.toString)
-          .build()
-        val response = client.newCall(CdpConnector.baseRequest(apiKey)
-          .header("Accept", "application/protobuf")
-          .url(url)
-          .build()).execute()
-        if (!response.isSuccessful) {
-          throw new RuntimeException("Non-200 status when querying API, received " + response.code()
-            + " Body: " + response.body() + "(" + response.message() + ")")
-        }
-        parseResult(response)
+        val url = uri"${TimeSeriesRelation.baseTimeSeriesURL(project)}/$path?limit=$limit&start=$start&end=$end"
+        //println(s"gettag from ${url.toString()}")
+        val get = sttp.header("Accept", "application/protobuf")
+          .header("api-key", apiKey)
+          .response(asByteArray)
+          .get(url)
+          .send()
+          .map(parseResult)
+        CdpConnector.retryWithBackoff(get, 30.millis, maxRetries).unsafeRunSync()
     }
   }
 
-  def parseResult(response: Response): Seq[NumericDatapoint] = {
-    try {
-      val body = response.body()
-      val tsData = TimeseriesData.parseFrom(body.byteStream())
-      //TODO: handle string timeseries
-      if (tsData.hasNumericData) tsData.getNumericData.getPointsList.asScala else Seq.empty
-    } finally {
-      response.close()
-    }
+  def parseResult(response: Response[Array[Byte]]): Seq[NumericDatapoint] = {
+    val body = response.unsafeBody
+    val tsData = TimeseriesData.parseFrom(body)
+    //TODO: handle string timeseries
+    if (tsData.hasNumericData) tsData.getNumericData.getPointsList.asScala else Seq.empty
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
@@ -201,49 +191,45 @@ class TimeSeriesRelation(apiKey: String,
     })
   }
 
-  private def postRows(rows: Seq[Row]) = {
+  @transient private implicit val contextShift = IO.contextShift(ExecutionContext.global)
+  private def postRows(rows: Seq[Row]): Unit = {
     val tsDataByTagId = rows.groupBy(r => r.getAs[String](0))
-      .mapValues(rs => NumericTimeseriesData.newBuilder().addAllPoints(rs.map(r =>
-        NumericDatapoint.newBuilder().setTimestamp(r.getLong(1)).setValue(r.getDouble(2)).build()
-      ).asJava))
-    for ((tagId, dataPointBuilder) <- tsDataByTagId) {
-      postTimeSeries(tagId, TimeseriesData.newBuilder().setNumericData(dataPointBuilder).build())
-    }
+      .mapValues(rs =>
+        TimeseriesData.newBuilder()
+          .setNumericData(
+            NumericTimeseriesData.newBuilder()
+              .addAllPoints(rs.map(r =>
+                NumericDatapoint.newBuilder()
+                  .setTimestamp(r.getLong(1))
+                  .setValue(r.getDouble(2))
+                  .build()).asJava)
+              .build())
+          .build()).toVector
+    tsDataByTagId.parTraverse(t => postTimeSeries(t._1, t._2)).unsafeRunSync()
   }
 
-  private def postTimeSeries(tagId: String, data: TimeseriesData) = {
-    val protobufMediaType = MediaType.parse("application/protobuf")
-    val requestBody = RequestBody.create(protobufMediaType, data.toByteArray)
-    var response: Option[Response] = None
-    try {
-      response = Some(client.newCall(
-        CdpConnector.baseRequest(apiKey)
-          .url(TimeSeriesRelation.baseTimeSeriesURL(project)
-            .addPathSegment(tagId)
-            .build())
-          .post(requestBody)
-          .build()
-      ).execute())
-      if (!response.get.isSuccessful) {
-        throw new RuntimeException("Non-200 status when posting to raw API, received " + response.get.code()
-          + "(" + response.get.message() + ")")
-      } else {
+  private val maxRetries = 3
+  private def postTimeSeries(tagId: String, data: TimeseriesData): IO[Unit] = {
+    val url = uri"${TimeSeriesRelation.baseTimeSeriesURL(project)}/$tagId"
+    //println(s"posting to ${url.toString()}")
+    val postDataPoints = sttp.header("Accept", "application/protobuf")
+      .header("api-key", apiKey)
+      .contentType("application/protobuf")
+      .body(data.toByteArray)
+      .post(url)
+      .send()
+    CdpConnector.retryWithBackoff(postDataPoints, 30.millis, maxRetries)
+      .map(r => {
         if (collectMetrics) {
           datapointsCreated.inc(data.getNumericData.getPointsCount)
         }
-      }
-    } finally {
-      response.foreach(_.close)
-    }
+        r
+      }).flatMap(_ => IO.unit)
   }
 }
 
 object TimeSeriesRelation {
-  def baseTimeSeriesURL(project: String, start: Option[Long] = None, stop: Option[Long] = None): HttpUrl.Builder = {
-    val builder = CdpConnector.baseUrl(project, "0.5")
-      .addPathSegments("timeseries/data")
-    start.map(q => builder.addQueryParameter("start", q.toString))
-    stop.map(q => builder.addQueryParameter("end", q.toString))
-    builder
+  def baseTimeSeriesURL(project: String): Uri = {
+    uri"${CdpConnector.baseUrl(project, "0.5")}/timeseries/data"
   }
 }

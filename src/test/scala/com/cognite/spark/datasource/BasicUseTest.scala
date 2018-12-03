@@ -1,6 +1,7 @@
 package com.cognite.spark.datasource
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
+import com.softwaremill.sttp._
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.junit.runner.RunWith
@@ -204,7 +205,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     import io.circe.generic.auto._
     val events = CdpConnector.get[EventItem](
       apiKey,
-      EventsRelation.baseEventsURL("jetfiretest2").addQueryParameter("source", source).build(),
+      uri"${EventsRelation.baseEventsURL("jetfiretest2")}?source=$source",
       batchSize = 1000,
       limit = None)
 
@@ -212,7 +213,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     for (eventIds <- eventIdsChunks) {
       CdpConnector.post(
         apiKey,
-        EventsRelation.baseEventsURL("jetfiretest2").addPathSegment("delete").build(),
+        uri"${EventsRelation.baseEventsURL("jetfiretest2")}/delete",
         eventIds
       ).unsafeRunSync()
     }
