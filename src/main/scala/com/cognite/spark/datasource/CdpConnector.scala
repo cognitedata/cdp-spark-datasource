@@ -1,6 +1,7 @@
 package com.cognite.spark.datasource
 
 import java.io.IOException
+import java.util.concurrent.Executors
 
 import cats.MonadError
 import cats.effect.{IO, Timer}
@@ -29,7 +30,7 @@ case class CdpApiException(url: Uri, code: Int, message: String)
 }
 
 object CdpConnector {
-  @transient implicit val timer = cats.effect.IO.timer(ExecutionContext.global)
+  @transient implicit val timer = IO.timer(ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(50)))
   @transient implicit val sttpBackend = AsyncHttpClientCatsBackend[IO]()
   type CdpApiError = Error[CdpApiErrorPayload]
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
