@@ -1,10 +1,9 @@
 package com.cognite.spark.datasource
 
 import java.io.IOException
-import java.util.concurrent.Executors
 
 import cats.MonadError
-import cats.effect.{Effect, IO, Timer}
+import cats.effect.{IO, Timer}
 import io.circe.{Decoder, Encoder}
 import org.http4s.{EntityDecoder, Header, Headers, Method, Request, Response, Uri}
 //import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
@@ -21,7 +20,6 @@ import org.http4s.util.CaseInsensitiveString
 import scala.concurrent.duration._
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.TimeoutException
-import cats.effect.IO.timer
 
 import scala.concurrent.ExecutionContext
 
@@ -78,8 +76,8 @@ object CdpConnector {
       //val getUrl = uri"${cursor.fold(baseUrl)(cursor => baseUrl.withQueryParam("cursor", cursor)).toString()}"
 
       println(s"Getting from ${getUrl.toString()}")
-      val request = Request[IO](Method.GET, getUrl,
-        headers = Headers(Header.Raw(CaseInsensitiveString("api-key"), apiKey)))
+//      val request = Request[IO](Method.GET, getUrl,
+//        headers = Headers(Header.Raw(CaseInsensitiveString("api-key"), apiKey)))
 //      val result = httpClient.expectOr[DataItemsWithCursor[A]](request)(onError(getUrl, _))
 
       val result = sttp.header("api-key", apiKey).get(uri"${getUrl.toString()}").response(asJson[DataItemsWithCursor[A]])
@@ -145,7 +143,12 @@ object CdpConnector {
       case _:TimeoutException | _:IOException =>
         IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
       case error =>
-        println(s"woops: ${error.getCause.getClass.toString}")
+        for {
+          maybeError <- Option(error)
+          cause <- Option(maybeError.getCause)
+        } {
+          println(s"woops: ${cause.getCause.toString}")
+        }
         IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
     }
   }
