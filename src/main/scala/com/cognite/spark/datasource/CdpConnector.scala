@@ -3,7 +3,6 @@ package com.cognite.spark.datasource
 import java.io.IOException
 import java.util.concurrent.Executors
 
-import cats.MonadError
 import cats.effect.{IO, Timer}
 import io.circe.{Decoder, Encoder}
 import cats.implicits._
@@ -52,10 +51,6 @@ object CdpConnector {
     Batch.chunksWithCursor(batchSize, limit, initialCursor) { (chunkSize, cursor: Option[String]) =>
       val urlWithLimit = url.param("limit", chunkSize.toString)
       val getUrl = cursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
-      //url.queryFragments(QueryFragment)
-
-
-      //println(s"Getting from ${getUrl.toString()} url ${url.toString()} with batchSize $batchSize chunkSize $chunkSize limit ${limit.map(_.toString).getOrElse("none")} cursor ${cursor.getOrElse("none")}")
 
       val result = sttp.header("Accept", "application/json")
         .header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[A]])
@@ -63,14 +58,12 @@ object CdpConnector {
         .send()
         .map(r => r.unsafeBody match {
           case Left(error) =>
-            //println(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
             throw new RuntimeException(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
           case Right(items) => items
         })
       val dataWithCursor = retryWithBackoff(result, 30.millis, maxRetries)
         .unsafeRunSync()
         .data
-        //println(s"got data: ${dataWithCursor.toString}")
       (dataWithCursor.items, dataWithCursor.nextCursor)
     }
   }
@@ -81,14 +74,9 @@ object CdpConnector {
 
   def postOr[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int = 3)
                        (onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
-//    val postUrl = Uri.unsafeFromString(url.toString)
-//    val request = Request[IO](Method.POST, postUrl,
-//      headers = Headers(Header.Raw(CaseInsensitiveString("api-key"), apiKey)))
-//      .withBody(Items(items))
     val defaultHandling: PartialFunction[Response[String], IO[Unit]] = {
       case response if response.isSuccess => IO.unit
       case failedResponse =>
-        //println(s"failed response is ${failedResponse.toString()}")
         IO.raiseError(onError(url, failedResponse))
     }
     val singlePost = sttp.header("Accept", "application/json")
@@ -98,8 +86,6 @@ object CdpConnector {
       .post(url)
       .send()
       .flatMap(onResponse orElse defaultHandling)
-
-    //val singlePost = httpClient.fetch(request) (onResponse orElse defaultHandling)
     retryWithBackoff(singlePost, 30.millis, maxRetries)
   }
 
@@ -109,28 +95,18 @@ object CdpConnector {
     ioa.handleErrorWith {
       case cdpError: CdpApiException =>
         if (shouldRetry(cdpError.code) && maxRetries > 0) {
-          //println(s"retrying, cdp api exception caught, ${maxRetries} retries left")
           IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
         } else {
           IO.raiseError(cdpError)
         }
-//      case malformedMessageBodyFailure:org.http4s.MalformedMessageBodyFailure =>
-//        val failureBody = malformedMessageBodyFailure.toHttpResponse[IO](org.http4s.HttpVersion.`HTTP/1.1`)
-//          .unsafeRunSync()
-//          .bodyAsText
-//          .compile.fold(List.empty[String]) { case (acc, str) => str :: acc }
-//        println(s"Failed to parse ${failureBody}")
-//        IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
       case exception:IOException =>
         if (maxRetries > 0) {
-          //println(s"retrying, timeout exception or ioexception caught ${maxRetries} retries left")
           IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
         } else {
           IO.raiseError(exception)
         }
       case exception:TimeoutException =>
         if (maxRetries > 0) {
-          //println(s"retrying, timeout exception or ioexception caught ${maxRetries} retries left")
           IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
         } else {
           IO.raiseError(exception)

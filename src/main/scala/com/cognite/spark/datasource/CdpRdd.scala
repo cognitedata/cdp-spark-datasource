@@ -27,13 +27,13 @@ class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchS
       private var nItemsRead = 0
       private var nextCursor = Option.empty[String]
       private var isFirst = true
-      private var thereIsMore = true
+
       override def hasNext: Boolean = {
         if (isFirst) {
           isFirst = false
           true
         } else {
-          nextCursor.isDefined && thereIsMore && limit.fold(true)(_ > nItemsRead)
+          nextCursor.isDefined && limit.fold(true)(_ > nItemsRead)
         }
       }
 
@@ -42,14 +42,12 @@ class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchS
         val thisBatchSize = math.min(batchSize, limit.map(_ - nItemsRead).getOrElse(batchSize))
         val urlWithLimit = url.param("limit", thisBatchSize.toString)
         val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
-        println(s"cursors next getting from ${getUrl.toString()}")
         val result = sttp.header("Accept", "application/json")
           .header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[EventItem]])
           .parseResponseIf(_ => true)
           .send()
           .map(r => r.unsafeBody match {
             case Left(error) =>
-              //println(s"KABOOM on ${getUrl.toString()}")
               throw new RuntimeException(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
             case Right(items) => items
           })
@@ -64,12 +62,7 @@ class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchS
   }
 
   override def getPartitions: Array[Partition] = {
-
     val url = EventsRelation.baseEventsURL(project)
-    //println(s"GETTING PARTITIONS for $project using uri ${url.toString()}")
-//    val parts = CdpConnector.getWithCursor[EventItem](apiKey, url, batchSize, limit)
-//      .filter(_.cursor.isDefined)
-//      .map(chunk => chunk.cursor.get)
     scala.util.Random.shuffle(cursors(url.param("onlyCursors", "true")))
       .toIndexedSeq
       .zipWithIndex
@@ -78,10 +71,8 @@ class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchS
   }
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
-    //println("COMPUTE")
     val split = _split.asInstanceOf[CdpRddPartition]
     val getUrl = EventsRelation.baseEventsURL(project)
-    println(s"Compute getting from ${getUrl.toString()}")
     val cdpRows = CdpConnector.get[EventItem](apiKey,
       getUrl,
       batchSize, split.size, 10, split.cursor)

@@ -1,7 +1,6 @@
 package com.cognite.spark.datasource
 
 import cats.effect.IO
-import com.cognite.spark.datasource.CdpConnector.DataItemsWithCursor
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.softwaremill.sttp._
