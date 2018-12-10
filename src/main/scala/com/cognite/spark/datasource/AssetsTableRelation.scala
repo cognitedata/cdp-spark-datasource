@@ -61,7 +61,6 @@ class AssetsTableRelation(apiKey: String,
     val url = AssetsTableRelation.baseAssetsURL(project)
 
     val getUrl = assetPath.fold(url)(url.param("path", _))
-    //println(s"scanning with url $url and getUrl $getUrl")
     val result = CdpConnector.get[AssetsItem](apiKey, getUrl, batchSize, limit)
       .map(item => {
         if (collectMetrics) {

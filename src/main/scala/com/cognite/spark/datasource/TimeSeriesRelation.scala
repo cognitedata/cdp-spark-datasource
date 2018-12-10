@@ -95,7 +95,6 @@ class TimeSeriesRelation(apiKey: String,
 
   def getLatestDatapoint: Option[TimeSeriesDataPoint] = {
     val url = uri"https://api.cognitedata.com/api/0.5/projects/$project/timeseries/latest/$path"
-    //println(s"getlatestdatapoint from ${url.toString()}")
     val getLatest = sttp.header("Accept", "application/json")
       .header("api-key", apiKey)
       .response(asJson[TimeSeriesLatestDataPoint])
@@ -166,7 +165,6 @@ class TimeSeriesRelation(apiKey: String,
           Seq()
       case _ =>
         val url = uri"${TimeSeriesRelation.baseTimeSeriesURL(project)}/$path?limit=$limit&start=$start&end=$end"
-        //println(s"gettag from ${url.toString()}")
         val get = sttp.header("Accept", "application/protobuf")
           .header("api-key", apiKey)
           .response(asByteArray)
@@ -210,7 +208,6 @@ class TimeSeriesRelation(apiKey: String,
   private val maxRetries = 3
   private def postTimeSeries(tagId: String, data: TimeseriesData): IO[Unit] = {
     val url = uri"${TimeSeriesRelation.baseTimeSeriesURL(project)}/$tagId"
-    //println(s"posting to ${url.toString()}")
     val postDataPoints = sttp.header("Accept", "application/protobuf")
       .header("api-key", apiKey)
       .contentType("application/protobuf")

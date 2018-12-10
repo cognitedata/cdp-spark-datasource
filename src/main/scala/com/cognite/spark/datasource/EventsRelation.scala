@@ -14,7 +14,6 @@ import com.softwaremill.sttp.{Response, Uri}
 import com.softwaremill.sttp._
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
 
 case class EventItem(id: Option[Long],
                       startTime: Option[Long],
@@ -65,11 +64,7 @@ class EventsRelation(apiKey: String,
     data.foreachPartition(rows => {
       implicit val contextShift = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
-      batches.foreach(rows => {
-        //println(s"posting rows:${rows.map(_.toString).mkString(", ")}")
-        postEvent(rows).unsafeRunSync()
-      })
-      //batches.parTraverse(postEvent).unsafeRunSync()
+      batches.parTraverse(postEvent).unsafeRunSync()
     })
   }
 
@@ -86,7 +81,6 @@ class EventsRelation(apiKey: String,
 
     CdpConnector.postOr(apiKey, EventsRelation.baseEventsURL(project), items = eventItems) {
       case r @ Response(Right(body), StatusCodes.Conflict, _, _, _) =>
-        //println(s"DECODING THE THING ${r.body.toString}")
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
           case Left(error) => throw error
@@ -116,7 +110,6 @@ class EventsRelation(apiKey: String,
       // Do nothing
       IO.unit
     } else {
-      //println(s"resolving conflict for ${conflictingEvents.map(_.toString).mkString(",")}")
       CdpConnector.post(apiKey,
         uri"${EventsRelation.baseEventsURLOld(project)}/update",
         items = conflictingEvents)
