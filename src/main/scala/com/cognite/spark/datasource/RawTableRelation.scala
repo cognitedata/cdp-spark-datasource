@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.softwaremill.sttp._
@@ -38,12 +38,12 @@ class RawTableRelation(apiKey: String,
   import RawTableRelation._
 
   // TODO: make read/write timeouts configurable
-  @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
-  @transient lazy val defaultSchema = StructType(Seq(
+  @transient private lazy val batchSize = batchSizeOption.getOrElse(10000)
+  @transient private lazy val defaultSchema = StructType(Seq(
     StructField("key", DataTypes.StringType),
     StructField("columns", DataTypes.StringType)
   ))
-  @transient lazy val mapper: ObjectMapper = {
+  @transient private lazy val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
     mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -69,20 +69,15 @@ class RawTableRelation(apiKey: String,
   }
 
   private def readRows(limit: Option[Int], collectMetrics: Boolean = collectMetrics): RDD[Row] = {
-    val url = baseRawTableURL(project, database, table).param("columns", ",")
-    val cursors = CdpConnector.getWithCursor[RawItem](apiKey, url, batchSize, limit)
-      .map(chunkWithCursor => (chunkWithCursor.chunk.length, chunkWithCursor.cursor))
-      .toSeq
-
-    val keysRdd = sqlContext.sparkContext.parallelize(scala.util.Random.shuffle(cursors))
-    keysRdd.flatMap { key =>
-      CdpConnector.get[RawItem](apiKey, baseRawTableURL(project, database, table),
-        batchSize, limit = Some(key._1), initialCursor = key._2)
-        .map(tap(_ => if (collectMetrics) {
+    val baseUrl = baseRawTableURL(project, database, table)
+    CdpRdd[RawItem](sqlContext.sparkContext,
+      (item: RawItem) => {
+        if (collectMetrics) {
           rowsRead.inc()
-        }))
-        .map(item => Row(item.key, item.columns.asJson.noSpaces))
-    }
+        }
+        Row(item.key, item.columns.asJson.noSpaces)
+      },
+      baseUrl.param("columns", ","), baseUrl, apiKey, project, batchSize, limit)
   }
 
   override def buildScan(): RDD[Row] = {
@@ -96,7 +91,7 @@ class RawTableRelation(apiKey: String,
     }
   }
 
-  @transient private implicit val contextShift = IO.contextShift(ExecutionContext.global)
+  @transient private implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
   override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
     if (!df.columns.contains("key")) {
       throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column")

@@ -1,8 +1,10 @@
 package com.cognite.spark.datasource
 
-import cats.effect.IO
+import cats.effect.{IO, Timer}
 import com.cognite.spark.datasource.CdpConnector.{DataItemsWithCursor, retryWithBackoff}
 import io.circe.generic.auto._
+import io.circe.generic.decoding.DerivedDecoder
+import io.circe.generic.semiauto.deriveDecoder
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -15,12 +17,18 @@ import scala.concurrent.duration._
 
 case class CdpRddPartition(cursor: Option[String], size: Option[Int], index: Int) extends Partition
 
-class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchSize: Int, limit: Option[Int])
+case class CdpRdd[A : DerivedDecoder](@transient override val sparkContext: SparkContext,
+                                       toRow: A => Row,
+                                       getPartitionsBaseUri: Uri,
+                                       getSinglePartitionBaseUri: Uri,
+                                       apiKey: String,
+                                       project: String,
+                                       batchSize: Int,
+                                       limit: Option[Int])
   extends RDD[Row](sparkContext, Nil) {
-
-  @transient implicit val timer = cats.effect.IO.timer(ExecutionContext.global)
-  @transient implicit val sttpBackend = AsyncHttpClientCatsBackend[IO]()
-  private val maxRetries = 3
+  @transient implicit val timer: Timer[IO] = cats.effect.IO.timer(ExecutionContext.global)
+  @transient implicit val sttpBackend: SttpBackend[IO, Nothing] = AsyncHttpClientCatsBackend[IO]()
+  private val maxRetries = 10
 
   private def cursors(url: Uri): Iterator[(Option[String], Option[Int])] = {
     new Iterator[(Option[String], Option[Int])] {
@@ -29,21 +37,17 @@ class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchS
       private var isFirst = true
 
       override def hasNext: Boolean = {
-        if (isFirst) {
-          isFirst = false
-          true
-        } else {
-          nextCursor.isDefined && limit.fold(true)(_ > nItemsRead)
-        }
+        isFirst || nextCursor.isDefined && limit.fold(true)(_ > nItemsRead)
       }
 
       override def next(): (Option[String], Option[Int]) = {
+        isFirst = false
         val next = nextCursor
         val thisBatchSize = math.min(batchSize, limit.map(_ - nItemsRead).getOrElse(batchSize))
         val urlWithLimit = url.param("limit", thisBatchSize.toString)
         val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
         val result = sttp.header("Accept", "application/json")
-          .header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[EventItem]])
+          .header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[A]])
           .parseResponseIf(_ => true)
           .send()
           .map(r => r.unsafeBody match {
@@ -62,8 +66,7 @@ class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchS
   }
 
   override def getPartitions: Array[Partition] = {
-    val url = EventsRelation.baseEventsURL(project)
-    scala.util.Random.shuffle(cursors(url.param("onlyCursors", "true")))
+    scala.util.Random.shuffle(cursors(getPartitionsBaseUri))
       .toIndexedSeq
       .zipWithIndex
       .map { case ((cursor, size), index) => CdpRddPartition(cursor, size, index) }
@@ -72,14 +75,9 @@ class CdpRdd(sparkContext: SparkContext, apiKey: String, project: String, batchS
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdpRddPartition]
-    val getUrl = EventsRelation.baseEventsURL(project)
-    val cdpRows = CdpConnector.get[EventItem](apiKey,
-      getUrl,
-      batchSize, split.size, 10, split.cursor)
-      .map(item => {
-        Row(item.id, item.startTime, item.endTime, item.description, item.`type`, item.subtype,
-          item.metadata, item.assetIds, item.source, item.sourceId)
-      })
+    val cdpRows = CdpConnector
+      .get[A](apiKey, getSinglePartitionBaseUri, batchSize, split.size, maxRetries, split.cursor)
+      .map(toRow)
 
     new InterruptibleIterator(context, cdpRows)
   }
