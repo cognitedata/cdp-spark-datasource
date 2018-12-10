@@ -31,7 +31,6 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
 
-      "com.squareup.okhttp3" % "okhttp" % "3.9.1",
       "com.softwaremill.sttp" %% "core" % "1.5.0",
       "com.softwaremill.sttp" %% "circe" % "1.5.0",
       "com.softwaremill.sttp" %% "async-http-client-backend-cats" % "1.5.0",
