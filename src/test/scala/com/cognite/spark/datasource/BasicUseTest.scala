@@ -1,18 +1,14 @@
 package com.cognite.spark.datasource
 
-import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import com.softwaremill.sttp._
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
-import org.junit.runner.RunWith
 import org.scalatest.FunSuite
-import org.scalatest.junit.JUnitRunner
 
-@RunWith(classOf[JUnitRunner])
-class BasicUseTest extends FunSuite with DataFrameSuiteBase {
+class BasicUseTest extends FunSuite with SparkTest {
   val apiKey = System.getenv("TEST_API_KEY")
   test("Use our own custom format for timeseries") {
-    val df = sqlContext.read.format("com.cognite.spark.datasource")
+    val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -26,7 +22,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   }
 
   test("Iterate over period longer than limit") {
-    val df = sqlContext.read.format("com.cognite.spark.datasource")
+    val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -39,7 +35,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   }
 
   test("test that we handle initial data set below batch size.") {
-    val df = sqlContext.read.format("com.cognite.spark.datasource")
+    val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -51,7 +47,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
   }
 
   test("test that we handle initial data set with the same size as the batch size.") {
-    val df = sqlContext.read.format("com.cognite.spark.datasource")
+    val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -63,7 +59,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     assert(df.count() == 100)
   }
   test("test that start/stop time are handled correctly for timeseries") {
-    val df = sqlContext.read.format("com.cognite.spark.datasource")
+    val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
@@ -74,7 +70,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     assert(df.count() == 2)
   }
   test("smoke test assets") {
-    val df = sqlContext.read.format("com.cognite.spark.datasource")
+    val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "assets")
@@ -83,13 +79,13 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .load()
 
     df.createTempView("assets")
-    val res = sqlContext.sql("select * from assets")
+    val res = spark.sql("select * from assets")
       .collect()
     assert(res.length == 6)
   }
 
   test("smoke test tables") {
-    val df = sqlContext.read.format("com.cognite.spark.datasource")
+    val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "tables")
@@ -102,13 +98,13 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .load()
 
     df.createTempView("tables")
-    val res = sqlContext.sql("select * from tables")
+    val res = spark.sqlContext.sql("select * from tables")
         .collect()
     assert(res.length == 1000)
   }
 
   test("smoke test events") {
-    val df = sqlContext.read.format("com.cognite.spark.datasource")
+    val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "events")
@@ -117,13 +113,13 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .load()
 
     df.createTempView("events")
-    val res = sqlContext.sql("select * from events")
+    val res = spark.sqlContext.sql("select * from events")
       .collect()
     assert(res.length == 1000)
   }
 
   test("smoke test pushing of events and upsert") {
-    val sourceDf = sqlContext.read.format("com.cognite.spark.datasource")
+    val sourceDf = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "tables")
@@ -134,7 +130,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
       .option("inferSchema", "true")
       .load()
 
-    val destinationDf = sqlContext.read.format("com.cognite.spark.datasource")
+    val destinationDf = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "events")
@@ -145,7 +141,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     sourceDf.createTempView("sourceEvent")
     sourceDf.cache()
 
-    def eventDescriptions() = sqlContext.sql(s"""select description, source from destinationEvent where source = "$source"""")
+    def eventDescriptions() = spark.sql(s"""select description, source from destinationEvent where source = "$source"""")
       .select(col("description"))
       .collect()
 
@@ -154,7 +150,7 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     assert(eventDescriptions().isEmpty)
 
     // Post new events
-    sqlContext.sql(s"""
+    spark.sql(s"""
        |select "bar" as description,
        |to_unix_timestamp(startTime, 'yyyy-MM-dd') as startTime,
        |to_unix_timestamp(endTime, 'yyyy-MM-dd') as endTime,
@@ -178,18 +174,18 @@ class BasicUseTest extends FunSuite with DataFrameSuiteBase {
     assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "bar"))
 
     // Update events
-    sqlContext.sql(s"""
-                      |select "foo" as description,
-                      |to_unix_timestamp(startTime, 'yyyy-MM-dd') as startTime,
-                      |to_unix_timestamp(endTime, 'yyyy-MM-dd') as endTime,
-                      |type,
-                      |subtype,
-                      |null as assetIds,
-                      |bigint(0) as id,
-                      |map() as metadata,
-                      |"$source" as source,
-                      |sourceId
-                      |from sourceEvent
+    spark.sql(s"""
+         |select "foo" as description,
+         |to_unix_timestamp(startTime, 'yyyy-MM-dd') as startTime,
+         |to_unix_timestamp(endTime, 'yyyy-MM-dd') as endTime,
+         |type,
+         |subtype,
+         |null as assetIds,
+         |bigint(0) as id,
+         |map() as metadata,
+         |"$source" as source,
+         |sourceId
+         |from sourceEvent
      """.stripMargin)
       .select(destinationDf.columns.map(col): _*)
       .write

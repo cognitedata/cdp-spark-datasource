@@ -1,14 +1,10 @@
 package com.cognite.spark.datasource
 
-import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types._
-import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
 import org.scalatest.{FlatSpec, Matchers}
 
-@RunWith(classOf[JUnitRunner])
-class RawTableRelationTest extends FlatSpec with Matchers with DataFrameSuiteBase {
+class RawTableRelationTest extends FlatSpec with Matchers with SparkTest {
   import RawTableRelation._
   import spark.implicits._
 
@@ -42,18 +38,18 @@ class RawTableRelationTest extends FlatSpec with Matchers with DataFrameSuiteBas
 
   "A RawTableRelation" should "allow data columns named key, _key etc. but rename them to _key, __key etc." in {
     val dfWithoutKey = dfWithoutKeyData.toDF("key", "columns")
-    val processedWithoutKey = flattenAndRenameKeyColumns(sqlContext, dfWithoutKey, dfWithoutKeySchema)
+    val processedWithoutKey = flattenAndRenameKeyColumns(spark.sqlContext, dfWithoutKey, dfWithoutKeySchema)
     processedWithoutKey.schema.fieldNames.toSet should equal (Set("key", "notKey", "value"))
     collectToSet(processedWithoutKey.select($"key")) should equal (Set("key1", "key2"))
 
     val dfWithKey = dfWithKeyData.toDF("key", "columns")
-    val processedWithKey = flattenAndRenameKeyColumns(sqlContext, dfWithKey, dfWithKeySchema)
+    val processedWithKey = flattenAndRenameKeyColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
     processedWithKey.schema.fieldNames.toSet should equal (Set("key", "_key", "value"))
     collectToSet(processedWithKey.select($"key")) should equal (Set("key3", "key4"))
     collectToSet(processedWithKey.select($"_key")) should equal (Set("k1", "k2"))
 
     val dfWithManyKeys = dfWithManyKeysData.toDF("key", "columns")
-    val processedWithManyKeys = flattenAndRenameKeyColumns(sqlContext, dfWithManyKeys, dfWithManyKeysSchema)
+    val processedWithManyKeys = flattenAndRenameKeyColumns(spark.sqlContext, dfWithManyKeys, dfWithManyKeysSchema)
     processedWithManyKeys.schema.fieldNames.toSet should equal (Set("key", "____key", "___key", "_key", "value"))
 
     collectToSet(processedWithManyKeys.select($"key")) should equal (Set("key5", "key6"))
@@ -64,13 +60,13 @@ class RawTableRelationTest extends FlatSpec with Matchers with DataFrameSuiteBas
 
   it should "insert data with columns named _key, __key etc. as data columns key, _key, etc." in {
     val dfWithKey = dfWithKeyData.toDF("key", "columns")
-    val processedWithKey = flattenAndRenameKeyColumns(sqlContext, dfWithKey, dfWithKeySchema)
+    val processedWithKey = flattenAndRenameKeyColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
     val (columnNames1, unRenamed1) = prepareForInsert(processedWithKey)
     columnNames1.toSet should equal (Set("key", "value"))
     collectToSet(unRenamed1.select("key")) should equal (Set("k1", "k2"))
 
     val dfWithManyKeys = dfWithManyKeysData.toDF("key", "columns")
-    val processedWithManyKeys = flattenAndRenameKeyColumns(sqlContext, dfWithManyKeys, dfWithManyKeysSchema)
+    val processedWithManyKeys = flattenAndRenameKeyColumns(spark.sqlContext, dfWithManyKeys, dfWithManyKeysSchema)
     val (columnNames2, unRenamed2) = prepareForInsert(processedWithManyKeys)
     columnNames2.toSet should equal (Set("key", "__key", "___key", "value"))
     collectToSet(unRenamed2.select("key")) should equal (Set(null, "k2"))
