@@ -1,4 +1,4 @@
-val sparkVersion = "2.3.0"
+val sparkVersion = "2.4.0"
 val circeVersion = "0.9.3"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
@@ -45,7 +45,6 @@ lazy val root = (project in file("."))
       "com.cognite.data" % "cognite-data" % "0.24",
 
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
-      "com.holdenkarau" %% "spark-testing-base" % s"${sparkVersion}_0.10.0" % Test,
 
       "com.groupon.dse" % "spark-metrics" % "2.1.0-cognite" % Provided,
       // TODO: check if we really need spark-hive

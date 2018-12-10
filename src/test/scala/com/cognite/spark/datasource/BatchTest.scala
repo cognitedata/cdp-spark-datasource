@@ -1,11 +1,7 @@
 package com.cognite.spark.datasource
 
-import org.junit.runner.RunWith
-import org.scalatest.{FlatSpec, FunSuite, Matchers}
-import org.scalatest.junit.JUnitRunner
-import org.scalatest._
+import org.scalatest.{FlatSpec, Matchers}
 
-@RunWith(classOf[JUnitRunner])
 class BatchTest extends FlatSpec with Matchers {
   "Batch size " should "be limit if limit is smaller than batchSize" in {
     Batch.withCursor(1000, limit=Some(10)) { (thisBatchSize, _: Option[Unit]) =>
