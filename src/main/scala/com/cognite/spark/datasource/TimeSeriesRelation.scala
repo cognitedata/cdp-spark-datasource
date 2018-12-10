@@ -57,7 +57,6 @@ class TimeSeriesRelation(apiKey: String,
     with PrunedFilteredScan
     with Serializable {
   @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
-  //@transient lazy val client: OkHttpClient = new OkHttpClient()
   @transient lazy val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
