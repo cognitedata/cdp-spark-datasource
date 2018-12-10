@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import io.circe.generic.auto._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
@@ -62,14 +62,23 @@ class EventsRelation(apiKey: String,
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     data.foreachPartition(rows => {
-      implicit val contextShift = IO.contextShift(ExecutionContext.global)
+      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
       batches.parTraverse(postEvent).unsafeRunSync()
     })
   }
 
   override def buildScan(): RDD[Row] = {
-    new CdpRdd(sqlContext.sparkContext, apiKey, project, batchSize, limit)
+    val baseUrl = EventsRelation.baseEventsURL(project)
+    CdpRdd[EventItem](sqlContext.sparkContext,
+      (e: EventItem) => {
+        if (collectMetrics) {
+          eventsRead.inc()
+        }
+        Row(e.id, e.startTime, e.endTime, e.description,
+          e.`type`, e.subtype, e.metadata, e.assetIds, e.source, e.sourceId)
+      },
+      baseUrl.param("onlyCursors", "true"), baseUrl, apiKey, project, batchSize, limit)
   }
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {
@@ -80,7 +89,7 @@ class EventsRelation(apiKey: String,
     )
 
     CdpConnector.postOr(apiKey, EventsRelation.baseEventsURL(project), items = eventItems) {
-      case r @ Response(Right(body), StatusCodes.Conflict, _, _, _) =>
+      case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
           case Left(error) => throw error
@@ -93,7 +102,7 @@ class EventsRelation(apiKey: String,
   }
 
   def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict): IO[Unit] = {
-    implicit val contextShift = IO.contextShift(ExecutionContext.global)
+    implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     val duplicateEventMap = eventConflict.duplicates
       .map(conflict => (conflict.source, conflict.sourceId) -> conflict.id)
       .toMap

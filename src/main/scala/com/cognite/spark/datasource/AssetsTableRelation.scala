@@ -1,15 +1,13 @@
 package com.cognite.spark.datasource
 
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.softwaremill.sttp._
-
 import io.circe.generic.auto._
-
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
@@ -45,7 +43,7 @@ class AssetsTableRelation(apiKey: String,
     with TableScan
     with Serializable {
   // TODO: make read/write timeouts configurable
-  @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
+  @transient lazy private val batchSize = batchSizeOption.getOrElse(10000)
 
   lazy private val assetsCreated = UserMetricsSystem.counter(s"${metricsPrefix}assets.created")
   lazy private val assetsRead = UserMetricsSystem.counter(s"${metricsPrefix}assets.read")
@@ -59,21 +57,19 @@ class AssetsTableRelation(apiKey: String,
 
   override def buildScan(): RDD[Row] = {
     val url = AssetsTableRelation.baseAssetsURL(project)
-
     val getUrl = assetPath.fold(url)(url.param("path", _))
-    val result = CdpConnector.get[AssetsItem](apiKey, getUrl, batchSize, limit)
-      .map(item => {
+
+    CdpRdd[AssetsItem](sqlContext.sparkContext,
+      (a: AssetsItem) => {
         if (collectMetrics) {
           assetsRead.inc()
         }
-        Row(item.name, item.parentId, item.description, item.metadata, item.id)
-      })
-      .toStream
-
-    sqlContext.sparkContext.parallelize(result)
+        Row(a.name, a.parentId, a.description, a.metadata, a.id)
+      },
+      getUrl, getUrl, apiKey, project, batchSize, limit)
   }
 
-  @transient private implicit val contextShift = IO.contextShift(ExecutionContext.global)
+  @transient private implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
     df.foreachPartition(rows => {
       val batches = rows.grouped(batchSize).toVector
