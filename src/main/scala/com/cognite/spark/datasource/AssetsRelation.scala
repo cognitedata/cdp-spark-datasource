@@ -27,7 +27,7 @@ case class PostAssetsItem(name: String,
                           description: String,
                           metadata: Map[String, String])
 
-class AssetsTableRelation(apiKey: String,
+class AssetsRelation(apiKey: String,
                            project: String,
                            assetPath: Option[String],
                            limit: Option[Int],
@@ -40,11 +40,10 @@ class AssetsTableRelation(apiKey: String,
     with TableScan
     with CdpConnector
     with Serializable {
-  // TODO: make read/write timeouts configurable
   @transient lazy private val batchSize = batchSizeOption.getOrElse(10000)
 
-  lazy private val assetsCreated = UserMetricsSystem.counter(s"${metricsPrefix}assets.created")
-  lazy private val assetsRead = UserMetricsSystem.counter(s"${metricsPrefix}assets.read")
+  @transient lazy val assetsCreated = UserMetricsSystem.counter(s"${metricsPrefix}assets.created")
+  @transient lazy val assetsRead = UserMetricsSystem.counter(s"${metricsPrefix}assets.read")
 
   override def schema: StructType = StructType(Seq(
     StructField("name", DataTypes.StringType),
@@ -92,7 +91,7 @@ class AssetsTableRelation(apiKey: String,
   }
 }
 
-object AssetsTableRelation {
+object AssetsRelation {
   val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)

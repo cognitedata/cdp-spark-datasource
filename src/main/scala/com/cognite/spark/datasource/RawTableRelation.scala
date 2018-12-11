@@ -40,13 +40,12 @@ class RawTableRelation(apiKey: String,
     with Serializable {
   import RawTableRelation._
 
-  // TODO: make read/write timeouts configurable
-  @transient private lazy val batchSize = batchSizeOption.getOrElse(10000)
-  @transient private lazy val defaultSchema = StructType(Seq(
+  lazy val batchSize = batchSizeOption.getOrElse(10000)
+  @transient lazy val defaultSchema = StructType(Seq(
     StructField("key", DataTypes.StringType),
     StructField("columns", DataTypes.StringType)
   ))
-  @transient private lazy val mapper: ObjectMapper = {
+  @transient lazy val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
     mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -55,8 +54,8 @@ class RawTableRelation(apiKey: String,
   }
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-  lazy private val rowsCreated = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.created")
-  lazy private val rowsRead = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.read")
+  @transient lazy val rowsCreated = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.created")
+  @transient lazy val rowsRead = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.read")
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {

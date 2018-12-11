@@ -35,7 +35,7 @@ class DefaultSource extends RelationProvider
     }
   }
 
-  // scalastyle:off cyclomatic.complexity
+  // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
     val project = parameters.getOrElse("project", sys.error("Project must be specified"))
@@ -56,9 +56,11 @@ class DefaultSource extends RelationProvider
     }
     val collectMetrics = toBoolean(parameters, "collectMetrics")
     resourceType match {
-      case "timeseries" =>
+      case "datapoints" =>
         val tagId = parameters.getOrElse("tagId", sys.error("tagId must be specified"))
-        new TimeSeriesRelation(apiKey, project, tagId, Option(schema), limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
+        new DataPointsRelation(apiKey, project, tagId, Option(schema), limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
+      case "timeseries" =>
+        new TimeSeriesRelation(apiKey, project, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
       case "tables" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
@@ -77,14 +79,14 @@ class DefaultSource extends RelationProvider
           metricsPrefix, collectMetrics, collectSchemaInferenceMetrics)(sqlContext)
       case "assets" =>
         val assetsPath = parameters.get("assetsPath")
-        if (assetsPath.isDefined && !AssetsTableRelation.isValidAssetsPath(assetsPath.get)) {
+        if (assetsPath.isDefined && !AssetsRelation.isValidAssetsPath(assetsPath.get)) {
           sys.error("Invalid assets path: " + assetsPath.get)
         }
-        new AssetsTableRelation(apiKey, project, assetsPath, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
+        new AssetsRelation(apiKey, project, assetsPath, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
       case "events" =>
         new EventsRelation(apiKey, project, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
-  // scalastyle:on cyclomatic.complexity
+  // scalastyle:on cyclomatic.complexity method.length
 }
