@@ -43,8 +43,8 @@ class EventsRelation(apiKey: String,
 
   @transient lazy val batchSize: Int = batchSizeOption.getOrElse(10000)
 
-  lazy private val eventsCreated = UserMetricsSystem.counter(s"${metricsPrefix}events.created")
-  lazy private val eventsRead = UserMetricsSystem.counter(s"${metricsPrefix}events.read")
+  @transient lazy val eventsCreated = UserMetricsSystem.counter(s"${metricsPrefix}events.created")
+  @transient lazy val eventsRead = UserMetricsSystem.counter(s"${metricsPrefix}events.read")
 
   override def schema: StructType = {
     StructType(Seq(
