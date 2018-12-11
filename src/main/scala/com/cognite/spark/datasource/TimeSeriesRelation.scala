@@ -205,7 +205,7 @@ class TimeSeriesRelation(apiKey: String,
     tsDataByTagId.parTraverse(t => postTimeSeries(t._1, t._2)).unsafeRunSync()
   }
 
-  private val maxRetries = 3
+  private val maxRetries = 10
   private def postTimeSeries(tagId: String, data: TimeseriesData): IO[Unit] = {
     val url = uri"${TimeSeriesRelation.baseTimeSeriesURL(project)}/$tagId"
     val postDataPoints = sttp.header("Accept", "application/protobuf")
