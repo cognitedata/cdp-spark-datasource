@@ -102,6 +102,10 @@ class EventsRelation(apiKey: String,
   }
 
   def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict): IO[Unit] = {
+    // not totally sure if this needs to be here, instead of being a @transient private implicit val,
+    // but we saw some strange errors about it not being serializable (which should be fixed with the
+    // @transient annotation). leaving it here for now, but should double check this in the future.
+    // shouldn't do any harm to have it here, but it's a bit too unusual.
     implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     val duplicateEventMap = eventConflict.duplicates
       .map(conflict => (conflict.source, conflict.sourceId) -> conflict.id)
