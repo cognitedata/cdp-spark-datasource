@@ -29,8 +29,9 @@ case class CdpApiException(url: Uri, code: Int, message: String)
 }
 
 object CdpConnector {
-  @transient implicit val timer = IO.timer(ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(50)))
-  @transient implicit val sttpBackend = AsyncHttpClientCatsBackend[IO]()
+  @transient implicit private val timer: Timer[IO] = IO.timer(
+    ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(50)))
+  @transient implicit private val sttpBackend: SttpBackend[IO, Nothing] = AsyncHttpClientCatsBackend[IO]()
   type CdpApiError = Error[CdpApiErrorPayload]
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
 
@@ -99,24 +100,13 @@ object CdpConnector {
         } else {
           IO.raiseError(cdpError)
         }
-      case exception:IOException =>
+      case exception @ (_: TimeoutException | _: IOException) =>
         if (maxRetries > 0) {
           IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
         } else {
           IO.raiseError(exception)
         }
-      case exception:TimeoutException =>
-        if (maxRetries > 0) {
-          IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
-        } else {
-          IO.raiseError(exception)
-        }
-      case error =>
-        if (maxRetries > 0) {
-          IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
-        } else {
-          IO.raiseError(error)
-        }
+      case error => IO.raiseError(error)
     }
   }
   // scalastyle:on cyclomatic.complexity
