@@ -40,14 +40,14 @@ object CdpConnector {
   }
 
   def get[A : Decoder](apiKey: String, url: Uri, batchSize: Int,
-                       limit: Option[Int], maxRetries: Int = 3,
+                       limit: Option[Int], maxRetries: Int = 10,
                        initialCursor: Option[String] = None): Iterator[A] = {
     getWithCursor(apiKey, url, batchSize, limit, maxRetries, initialCursor)
       .flatMap(_.chunk)
   }
 
   def getWithCursor[A : Decoder](apiKey: String, url: Uri, batchSize: Int,
-                        limit: Option[Int], maxRetries: Int = 3,
+                        limit: Option[Int], maxRetries: Int = 10,
                         initialCursor: Option[String] = None): Iterator[Chunk[A, String]] = {
     Batch.chunksWithCursor(batchSize, limit, initialCursor) { (chunkSize, cursor: Option[String]) =>
       val urlWithLimit = url.param("limit", chunkSize.toString)
@@ -69,11 +69,11 @@ object CdpConnector {
     }
   }
 
-  def post[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int = 3): IO[Unit] = {
+  def post[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int = 10): IO[Unit] = {
     postOr(apiKey, url, items, maxRetries)(Map.empty)
   }
 
-  def postOr[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int = 3)
+  def postOr[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int = 10)
                        (onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
     val defaultHandling: PartialFunction[Response[String], IO[Unit]] = {
       case response if response.isSuccess => IO.unit
