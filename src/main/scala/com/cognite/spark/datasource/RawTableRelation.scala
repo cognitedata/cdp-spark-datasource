@@ -12,7 +12,6 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import io.circe.generic.auto._
 import io.circe.syntax._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
-import com.cognite.spark.datasource.Tap._
 import cats.implicits._
 
 import scala.concurrent.ExecutionContext
@@ -118,11 +117,13 @@ class RawTableRelation(apiKey: String,
     val url = uri"${baseRawTableURL(project, database, table)}/create"
 
     CdpConnector.post(apiKey, url, items)
-      .map(tap(_ =>
-        if (collectMetrics) {
-          rowsCreated.inc(rows.length)
+      .flatTap { _ =>
+        IO {
+          if (collectMetrics) {
+            rowsCreated.inc(rows.length)
+          }
         }
-      ))
+      }
   }
 }
 
