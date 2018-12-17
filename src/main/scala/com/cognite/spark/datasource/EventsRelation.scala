@@ -9,7 +9,6 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import io.circe.parser.decode
-import com.cognite.spark.datasource.Tap._
 import com.softwaremill.sttp.{Response, Uri}
 import com.softwaremill.sttp._
 
@@ -94,12 +93,13 @@ class EventsRelation(apiKey: String,
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
           case Left(error) => IO.raiseError(error)
         }
+      }.flatTap { _ =>
+        IO {
+          if (collectMetrics) {
+            eventsCreated.inc(rows.length)
+          }
         }
-      }.map(tap(_ =>
-      if (collectMetrics) {
-        eventsCreated.inc(rows.length)
       }
-    ))
   }
 
   def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict): IO[Unit] = {
