@@ -4,7 +4,7 @@ import java.io.IOException
 import java.util.concurrent.Executors
 
 import cats.effect.{IO, Timer}
-import io.circe.{Decoder, Encoder}
+import io.circe.{Decoder, DecodingFailure, Encoder}
 import cats.implicits._
 import io.circe.generic.auto._
 import io.circe.parser.decode
@@ -46,6 +46,18 @@ object CdpConnector {
       .flatMap(_.chunk)
   }
 
+  def onError[A, B](url: Uri): PartialFunction[Response[Either[B, A]], IO[A]] = {
+    case Response(Right(Right(data)), _, _, _, _) => IO.pure(data)
+    case Response(Left(bytes), statusCode, _, _, _) => parseCdpApiError(new String(bytes, "utf-8"), url, statusCode)
+  }
+
+  def parseCdpApiError(responseBody: String, url: Uri, statusCode: StatusCode): IO[Nothing] = {
+    decode[CdpApiError](responseBody) match {
+      case Right(cdpApiError) => IO.raiseError(CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message))
+      case Left(error) => IO.raiseError(CdpApiException(url, statusCode, error.getMessage))
+    }
+  }
+
   def getWithCursor[A : Decoder](apiKey: String, url: Uri, batchSize: Int,
                         limit: Option[Int], maxRetries: Int = 10,
                         initialCursor: Option[String] = None): Iterator[Chunk[A, String]] = {
@@ -57,11 +69,8 @@ object CdpConnector {
         .header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[A]])
         .parseResponseIf(_ => true)
         .send()
-        .map(r => r.unsafeBody match {
-          case Left(error) =>
-            throw new RuntimeException(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
-          case Right(items) => items
-        })
+        .flatMap(r => onError(getUrl)(r))
+
       val dataWithCursor = retryWithBackoff(result, 30.millis, maxRetries)
         .unsafeRunSync()
         .data
@@ -76,9 +85,9 @@ object CdpConnector {
   def postOr[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int = 10)
                        (onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
     val defaultHandling: PartialFunction[Response[String], IO[Unit]] = {
-      case response if response.isSuccess => IO.unit
-      case failedResponse =>
-        IO.raiseError(onError(url, failedResponse))
+      case r if r.isSuccess => IO.unit
+      case Response(Right(body), statusCode, _, _, _) => parseCdpApiError(body, url, statusCode)
+      case r => IO.raiseError(CdpApiException(url, r.code, "Failed to read request body as string"))
     }
     val singlePost = sttp.header("Accept", "application/json")
       .header("api-key", apiKey)
