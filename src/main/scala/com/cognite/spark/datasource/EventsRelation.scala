@@ -92,7 +92,8 @@ class EventsRelation(apiKey: String,
       case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
-          case Left(error) => throw error
+          case Left(error) => IO.raiseError(error)
+        }
         }
       }.map(tap(_ =>
       if (collectMetrics) {
