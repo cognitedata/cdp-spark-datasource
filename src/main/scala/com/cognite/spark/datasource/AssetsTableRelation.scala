@@ -28,8 +28,6 @@ case class PostAssetsItem(name: String,
                           description: String,
                           metadata: Map[String, String])
 
-// TODO: there's obviously a lot of copy-paste going on here at the moment,
-// and this should be refactored once we've identified some common patterns.
 class AssetsTableRelation(apiKey: String,
                            project: String,
                            assetPath: Option[String],
