@@ -46,16 +46,7 @@ case class CdpRdd[A : DerivedDecoder](@transient override val sparkContext: Spar
         val thisBatchSize = math.min(batchSize, limit.map(_ - nItemsRead).getOrElse(batchSize))
         val urlWithLimit = url.param("limit", thisBatchSize.toString)
         val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
-        val result = sttp.header("Accept", "application/json")
-          .header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[A]])
-          .parseResponseIf(_ => true)
-          .send()
-          .map(r => r.unsafeBody match {
-            case Left(error) =>
-              throw new RuntimeException(s"boom ${error.message}, ${r.statusText} ${r.code.toString} ${r.toString()}")
-            case Right(items) => items
-          })
-        val dataWithCursor = retryWithBackoff(result, 30.millis, maxRetries)
+        val dataWithCursor = CdpConnector.getJson[DataItemsWithCursor[A]](apiKey, getUrl)
           .unsafeRunSync()
           .data
         nextCursor = dataWithCursor.nextCursor
