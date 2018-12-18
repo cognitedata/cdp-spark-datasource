@@ -39,6 +39,16 @@ object CdpConnector {
     uri"https://api.cognitedata.com/api/$version/projects/$project"
   }
 
+  def getJson[A : Decoder](apiKey: String, url: Uri, maxRetries: Int = 10): IO[A] = {
+    val result = sttp.header("Accept", "application/json")
+      .header("api-key", apiKey).get(url).response(asJson[A])
+      .parseResponseIf(_ => true)
+      .send()
+      .flatMap(r => onError(url)(r))
+
+    retryWithBackoff(result, 30.millis, maxRetries)
+  }
+
   def get[A : Decoder](apiKey: String, url: Uri, batchSize: Int,
                        limit: Option[Int], maxRetries: Int = 10,
                        initialCursor: Option[String] = None): Iterator[A] = {
@@ -65,15 +75,7 @@ object CdpConnector {
       val urlWithLimit = url.param("limit", chunkSize.toString)
       val getUrl = cursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
 
-      val result = sttp.header("Accept", "application/json")
-        .header("api-key", apiKey).get(getUrl).response(asJson[DataItemsWithCursor[A]])
-        .parseResponseIf(_ => true)
-        .send()
-        .flatMap(r => onError(getUrl)(r))
-
-      val dataWithCursor = retryWithBackoff(result, 30.millis, maxRetries)
-        .unsafeRunSync()
-        .data
+      val dataWithCursor = getJson[DataItemsWithCursor[A]](apiKey, getUrl).unsafeRunSync().data
       (dataWithCursor.items, dataWithCursor.nextCursor)
     }
   }
