@@ -1,19 +1,11 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{IO, Timer}
-import com.cognite.spark.datasource.CdpConnector.{DataItemsWithCursor, retryWithBackoff}
+import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import io.circe.generic.decoding.DerivedDecoder
-import io.circe.generic.semiauto.deriveDecoder
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import com.softwaremill.sttp._
-import com.softwaremill.sttp.circe._
-import com.softwaremill.sttp.asynchttpclient.cats._
-
-import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
 
 case class CdpRddPartition(cursor: Option[String], size: Option[Int], index: Int) extends Partition
 
@@ -25,9 +17,8 @@ case class CdpRdd[A : DerivedDecoder](@transient override val sparkContext: Spar
                                        project: String,
                                        batchSize: Int,
                                        limit: Option[Int])
-  extends RDD[Row](sparkContext, Nil) {
-  @transient implicit val timer: Timer[IO] = cats.effect.IO.timer(ExecutionContext.global)
-  @transient implicit val sttpBackend: SttpBackend[IO, Nothing] = AsyncHttpClientCatsBackend[IO]()
+  extends RDD[Row](sparkContext, Nil)
+  with CdpConnector {
   private val maxRetries = 10
 
   private def cursors(url: Uri): Iterator[(Option[String], Option[Int])] = {
@@ -46,7 +37,7 @@ case class CdpRdd[A : DerivedDecoder](@transient override val sparkContext: Spar
         val thisBatchSize = math.min(batchSize, limit.map(_ - nItemsRead).getOrElse(batchSize))
         val urlWithLimit = url.param("limit", thisBatchSize.toString)
         val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
-        val dataWithCursor = CdpConnector.getJson[DataItemsWithCursor[A]](apiKey, getUrl)
+        val dataWithCursor = getJson[CdpConnector.DataItemsWithCursor[A]](apiKey, getUrl)
           .unsafeRunSync()
           .data
         nextCursor = dataWithCursor.nextCursor
@@ -66,8 +57,7 @@ case class CdpRdd[A : DerivedDecoder](@transient override val sparkContext: Spar
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdpRddPartition]
-    val cdpRows = CdpConnector
-      .get[A](apiKey, getSinglePartitionBaseUri, batchSize, split.size, maxRetries, split.cursor)
+    val cdpRows = get[A](apiKey, getSinglePartitionBaseUri, batchSize, split.size, maxRetries, split.cursor)
       .map(toRow)
 
     new InterruptibleIterator(context, cdpRows)

@@ -1,7 +1,6 @@
 package com.cognite.spark.datasource
 
-
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
@@ -39,6 +38,7 @@ class AssetsTableRelation(apiKey: String,
   extends BaseRelation
     with InsertableRelation
     with TableScan
+    with CdpConnector
     with Serializable {
   // TODO: make read/write timeouts configurable
   @transient lazy private val batchSize = batchSizeOption.getOrElse(10000)
@@ -54,7 +54,7 @@ class AssetsTableRelation(apiKey: String,
     StructField("id", DataTypes.LongType)))
 
   override def buildScan(): RDD[Row] = {
-    val url = AssetsTableRelation.baseAssetsURL(project)
+    val url = baseAssetsURL(project)
     val getUrl = assetPath.fold(url)(url.param("path", _))
 
     CdpRdd[AssetsItem](sqlContext.sparkContext,
@@ -78,13 +78,17 @@ class AssetsTableRelation(apiKey: String,
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val assetItems = rows.map(r =>
       PostAssetsItem(r.getString(0), r.getString(2), r.getAs[Map[String, String]](3)))
-    CdpConnector.post(apiKey, AssetsTableRelation.baseAssetsURL(project), assetItems)
+    post(apiKey, baseAssetsURL(project), assetItems)
       .map(item => {
         if (collectMetrics) {
           assetsCreated.inc(rows.length)
         }
         item
       })
+  }
+
+  def baseAssetsURL(project: String, version: String = "0.5"): Uri = {
+    uri"https://api.cognitedata.com/api/$version/projects/$project/assets"
   }
 }
 
@@ -95,10 +99,6 @@ object AssetsTableRelation {
     mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)
     mapper
-  }
-
-  def baseAssetsURL(project: String, version: String = "0.5"): Uri = {
-    uri"https://api.cognitedata.com/api/$version/projects/$project/assets"
   }
 
   val validPathComponentTypes = Seq(

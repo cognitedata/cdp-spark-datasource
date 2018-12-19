@@ -5,7 +5,7 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
-class BasicUseTest extends FunSuite with SparkTest {
+class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
   val apiKey = System.getenv("TEST_API_KEY")
   test("Use our own custom format for timeseries") {
     val df = spark.read.format("com.cognite.spark.datasource")
@@ -199,17 +199,18 @@ class BasicUseTest extends FunSuite with SparkTest {
 
   def cleanupEvents(source: String): Unit = {
     import io.circe.generic.auto._
-    val events = CdpConnector.get[EventItem](
+
+    val events = get[EventItem](
       apiKey,
-      uri"${EventsRelation.baseEventsURL("jetfiretest2")}?source=$source",
+      uri"https://api.cognitedata.com/api/0.6/projects/jetfiretest2/events?source=$source",
       batchSize = 1000,
       limit = None)
 
     val eventIdsChunks = events.flatMap(_.id).grouped(1000)
     for (eventIds <- eventIdsChunks) {
-      CdpConnector.post(
+      post(
         apiKey,
-        uri"${EventsRelation.baseEventsURL("jetfiretest2")}/delete",
+        uri"https://api.cognitedata.com/api/0.6/projects/jetfiretest2/events/delete",
         eventIds
       ).unsafeRunSync()
     }

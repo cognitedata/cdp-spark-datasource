@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import io.circe.generic.auto._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
@@ -38,6 +38,7 @@ class EventsRelation(apiKey: String,
   extends BaseRelation
     with InsertableRelation
     with TableScan
+    with CdpConnector
     with Serializable {
 
   @transient lazy val batchSize: Int = batchSizeOption.getOrElse(10000)
@@ -68,7 +69,7 @@ class EventsRelation(apiKey: String,
   }
 
   override def buildScan(): RDD[Row] = {
-    val baseUrl = EventsRelation.baseEventsURL(project)
+    val baseUrl = baseEventsURL(project)
     CdpRdd[EventItem](sqlContext.sparkContext,
       (e: EventItem) => {
         if (collectMetrics) {
@@ -87,7 +88,7 @@ class EventsRelation(apiKey: String,
         Option(r.getAs(7)), Option(r.getAs(8)), Option(r.getAs(9)))
     )
 
-    CdpConnector.postOr(apiKey, EventsRelation.baseEventsURL(project), items = eventItems) {
+    postOr(apiKey, baseEventsURL(project), items = eventItems) {
       case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
@@ -124,8 +125,8 @@ class EventsRelation(apiKey: String,
       // Do nothing
       IO.unit
     } else {
-      CdpConnector.post(apiKey,
-        uri"${EventsRelation.baseEventsURLOld(project)}/update",
+      post(apiKey,
+        uri"${baseEventsURLOld(project)}/update",
         items = conflictingEvents)
     }
 
@@ -133,16 +134,14 @@ class EventsRelation(apiKey: String,
     val postNewItems = if (newEvents.isEmpty) {
       IO.unit
     } else {
-      CdpConnector.post(apiKey,
-        EventsRelation.baseEventsURL(project),
+      post(apiKey,
+        baseEventsURL(project),
         items = newEvents)
     }
 
     (postUpdate, postNewItems).parMapN((_, _) => ())
   }
-}
 
-object EventsRelation {
   def baseEventsURL(project: String, version: String = "0.6"): Uri = {
     uri"https://api.cognitedata.com/api/$version/projects/$project/events"
   }
