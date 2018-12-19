@@ -1,8 +1,15 @@
 package com.cognite.spark.datasource
 
+import java.util.concurrent.Executors
+
+import cats.effect.{IO, Timer}
+import com.softwaremill.sttp.SttpBackend
+import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider, SchemaRelationProvider}
 import org.apache.spark.sql.types.StructType
+
+import scala.concurrent.ExecutionContext
 
 class DefaultSource extends RelationProvider
   with SchemaRelationProvider

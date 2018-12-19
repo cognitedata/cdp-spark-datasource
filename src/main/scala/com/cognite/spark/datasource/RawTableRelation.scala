@@ -1,6 +1,8 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{ContextShift, IO}
+import java.util.concurrent.Executors
+
+import cats.effect.{ContextShift, IO, Timer}
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.softwaremill.sttp._
@@ -13,6 +15,7 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import cats.implicits._
+import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import scala.concurrent.ExecutionContext
 
@@ -33,6 +36,7 @@ class RawTableRelation(apiKey: String,
   extends BaseRelation
     with InsertableRelation
     with TableScan
+    with CdpConnector
     with Serializable {
   import RawTableRelation._
 
@@ -116,7 +120,7 @@ class RawTableRelation(apiKey: String,
 
     val url = uri"${baseRawTableURL(project, database, table)}/create"
 
-    CdpConnector.post(apiKey, url, items)
+    post(apiKey, url, items)
       .flatTap { _ =>
         IO {
           if (collectMetrics) {
@@ -124,6 +128,10 @@ class RawTableRelation(apiKey: String,
           }
         }
       }
+  }
+
+  def baseRawTableURL(project: String, database: String, table: String): Uri = {
+    uri"${baseUrl(project, "0.5")}/raw/$database/$table"
   }
 }
 
@@ -181,9 +189,5 @@ object RawTableRelation {
     val dfWithUnRenamedKeyColumns = unRenameKeyColumns(dfWithKeyRenamed)
     val columnNames = dfWithUnRenamedKeyColumns.columns.filter(!_.equals(temporaryKeyName))
     (columnNames, dfWithUnRenamedKeyColumns)
-  }
-
-  def baseRawTableURL(project: String, database: String, table: String): Uri = {
-    uri"${CdpConnector.baseUrl(project, "0.5")}/raw/$database/$table"
   }
 }

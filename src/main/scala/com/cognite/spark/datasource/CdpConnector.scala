@@ -4,15 +4,14 @@ import java.io.IOException
 import java.util.concurrent.Executors
 
 import cats.effect.{IO, Timer}
-import io.circe.{Decoder, DecodingFailure, Encoder}
 import cats.implicits._
+import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import io.circe.generic.auto._
 import io.circe.parser.decode
+import io.circe.{Decoder, Encoder}
 
-import scala.concurrent.duration._
-import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.TimeoutException
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, TimeoutException}
+import scala.concurrent.duration.{FiniteDuration, _}
 
 case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
@@ -22,18 +21,17 @@ case class Error[A](error: A)
 
 import com.softwaremill.sttp._
 import com.softwaremill.sttp.circe._
-import com.softwaremill.sttp.asynchttpclient.cats._
 
 case class CdpApiException(url: Uri, code: Int, message: String)
   extends Throwable(s"Request to ${url.toString()} failed with status $code: $message") {
 }
 
-object CdpConnector {
-  @transient implicit private val timer: Timer[IO] = IO.timer(
+trait CdpConnector {
+  import CdpConnector._
+
+  @transient implicit lazy val timer: Timer[IO] = IO.timer(
     ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(50)))
-  @transient implicit private val sttpBackend: SttpBackend[IO, Nothing] = AsyncHttpClientCatsBackend[IO]()
-  type CdpApiError = Error[CdpApiErrorPayload]
-  type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
+  @transient implicit lazy val sttpBackend: SttpBackend[IO, Nothing] = AsyncHttpClientCatsBackend[IO]()
 
   def baseUrl(project: String, version: String = "0.5"): Uri = {
     uri"https://api.cognitedata.com/api/$version/projects/$project"
@@ -68,9 +66,9 @@ object CdpConnector {
     }
   }
 
-  def getWithCursor[A : Decoder](apiKey: String, url: Uri, batchSize: Int,
-                        limit: Option[Int], maxRetries: Int = 10,
-                        initialCursor: Option[String] = None): Iterator[Chunk[A, String]] = {
+  def getWithCursor[A: Decoder](apiKey: String, url: Uri, batchSize: Int,
+                                limit: Option[Int], maxRetries: Int = 10,
+                                initialCursor: Option[String] = None): Iterator[Chunk[A, String]] = {
     Batch.chunksWithCursor(batchSize, limit, initialCursor) { (chunkSize, cursor: Option[String]) =>
       val urlWithLimit = url.param("limit", chunkSize.toString)
       val getUrl = cursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
@@ -102,8 +100,7 @@ object CdpConnector {
   }
 
   // scalastyle:off cyclomatic.complexity
-  def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int)
-                                 (implicit timer: Timer[IO]): IO[A] = {
+  def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int): IO[A] = {
     ioa.handleErrorWith {
       case cdpError: CdpApiException =>
         if (shouldRetry(cdpError.code) && maxRetries > 0) {
@@ -143,4 +140,9 @@ object CdpConnector {
     // do not retry other responses.
     case _ => false
   }
+}
+
+object CdpConnector {
+  type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
+  type CdpApiError = Error[CdpApiErrorPayload]
 }
