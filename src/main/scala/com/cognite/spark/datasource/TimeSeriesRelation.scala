@@ -97,16 +97,9 @@ class TimeSeriesRelation(apiKey: String,
   implicit val backend = sttpBackend
   def getLatestDatapoint: Option[TimeSeriesDataPoint] = {
     val url = uri"https://api.cognitedata.com/api/0.5/projects/$project/timeseries/latest/$path"
-    val getLatest = sttp.header("Accept", "application/json")
-      .header("api-key", apiKey)
-      .response(asJson[TimeSeriesLatestDataPoint])
-      .get(url)
-      .send()
-    retryWithBackoff(getLatest, 30.millis, maxRetries)
-      .unsafeRunSync()
-      .unsafeBody
-      .toOption
-      .flatMap(_.data.items.headOption)
+    get[TimeSeriesDataPoint](apiKey, url, 10, None, maxRetries)
+      .toStream
+      .headOption
   }
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
@@ -161,6 +154,11 @@ class TimeSeriesRelation(apiKey: String,
     sqlContext.sparkContext.parallelize(finalRows)
   }
 
+  def onProtobufError(url: Uri): PartialFunction[Response[Array[Byte]], IO[Array[Byte]]] = {
+    case Response(Right(data), _, _, _, _) => IO.pure(data)
+    case Response(Left(bytes), statusCode, _, _, _) => parseCdpApiError(new String(bytes, "utf-8"), url, statusCode)
+  }
+
   def getTag(start: Option[Long], end: Option[Long], limit: Int): Seq[NumericDatapoint] = {
     (start, end) match {
       case(Some(startTime), Some(endTime)) if startTime >= endTime =>
@@ -169,16 +167,17 @@ class TimeSeriesRelation(apiKey: String,
         val url = uri"${baseTimeSeriesURL(project)}/$path?limit=$limit&start=$start&end=$end"
         val get = sttp.header("Accept", "application/protobuf")
           .header("api-key", apiKey)
+          .parseResponseIf(_ => true)
           .response(asByteArray)
           .get(url)
           .send()
+          .flatMap(r => onProtobufError(url)(r))
           .map(parseResult)
         retryWithBackoff(get, 30.millis, maxRetries).unsafeRunSync()
     }
   }
 
-  def parseResult(response: Response[Array[Byte]]): Seq[NumericDatapoint] = {
-    val body = response.unsafeBody
+  def parseResult(body: Array[Byte]): Seq[NumericDatapoint] = {
     val tsData = TimeseriesData.parseFrom(body)
     //TODO: handle string timeseries
     if (tsData.hasNumericData) tsData.getNumericData.getPointsList.asScala else Seq.empty
@@ -211,10 +210,13 @@ class TimeSeriesRelation(apiKey: String,
     val url = uri"${baseTimeSeriesURL(project)}/$tagId"
     val postDataPoints = sttp.header("Accept", "application/protobuf")
       .header("api-key", apiKey)
+      .parseResponseIf(_ => true)
       .contentType("application/protobuf")
       .body(data.toByteArray)
+      .response(asByteArray)
       .post(url)
       .send()
+      .flatMap(r => onProtobufError(url)(r))
     retryWithBackoff(postDataPoints, 30.millis, maxRetries)
       .map(r => {
         if (collectMetrics) {
