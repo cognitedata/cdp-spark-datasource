@@ -93,7 +93,6 @@ class RawTableRelation(apiKey: String,
     }
   }
 
-  @transient private implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
   override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
     if (!df.columns.contains("key")) {
       throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column")
@@ -101,6 +100,7 @@ class RawTableRelation(apiKey: String,
 
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df)
     dfWithUnRenamedKeyColumns.foreachPartition(rows => {
+      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
       batches.parTraverse(postRows(columnNames, _)).unsafeRunSync()
     })

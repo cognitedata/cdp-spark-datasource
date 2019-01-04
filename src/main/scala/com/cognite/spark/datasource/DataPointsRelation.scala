@@ -1,9 +1,8 @@
 package com.cognite.spark.datasource
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import io.circe.generic.auto._
-
 import com.cognite.data.api.v1.{NumericDatapoint, NumericTimeseriesData, TimeseriesData}
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
@@ -175,25 +174,23 @@ class DataPointsRelation(apiKey: String,
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
     df.foreachPartition(rows => {
-      rows.grouped(batchSize).foreach(postRows)
+      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+      rows.grouped(batchSize).foreach(batch => {
+        val tsDataByTagId = batch.groupBy(r => r.getAs[String](0))
+          .mapValues(rs =>
+            TimeseriesData.newBuilder()
+              .setNumericData(
+                NumericTimeseriesData.newBuilder()
+                  .addAllPoints(rs.map(r =>
+                    NumericDatapoint.newBuilder()
+                      .setTimestamp(r.getLong(1))
+                      .setValue(r.getDouble(2))
+                      .build()).asJava)
+                  .build())
+              .build()).toVector
+        tsDataByTagId.parTraverse(t => postTimeSeries(t._1, t._2)).unsafeRunSync()
+      })
     })
-  }
-
-  @transient private implicit val contextShift = IO.contextShift(ExecutionContext.global)
-  private def postRows(rows: Seq[Row]): Unit = {
-    val tsDataByTagId = rows.groupBy(r => r.getAs[String](0))
-      .mapValues(rs =>
-        TimeseriesData.newBuilder()
-          .setNumericData(
-            NumericTimeseriesData.newBuilder()
-              .addAllPoints(rs.map(r =>
-                NumericDatapoint.newBuilder()
-                  .setTimestamp(r.getLong(1))
-                  .setValue(r.getDouble(2))
-                  .build()).asJava)
-              .build())
-          .build()).toVector
-    tsDataByTagId.parTraverse(t => postTimeSeries(t._1, t._2)).unsafeRunSync()
   }
 
   private val maxRetries = 10
