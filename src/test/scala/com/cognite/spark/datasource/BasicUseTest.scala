@@ -58,7 +58,8 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .where("timestamp >= 0 and timestamp <= 1790902000001")
     assert(df.count() == 100)
   }
-  test("test that start/stop time are handled correctly for timeseries") {
+
+  test("test that start/stop time are handled correctly for data points") {
     val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
@@ -69,6 +70,16 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .load()
     assert(df.count() == 2)
   }
+
+  test("smoke test time series metadata") {
+    val df = spark.read.format("com.cognite.spark.datasource")
+      .option("project", "jetfiretest2")
+      .option("apiKey", apiKey)
+      .option("type", "timeseries")
+      .load()
+    assert(df.count() == 5)
+  }
+
   test("smoke test assets") {
     val df = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
