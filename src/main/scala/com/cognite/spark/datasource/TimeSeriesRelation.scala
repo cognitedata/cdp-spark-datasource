@@ -33,6 +33,7 @@ case class PostTimeSeriesItem(name: String,
                               metadata: Option[Map[String, String]],
                               unit: Option[String],
                               assetId: Option[Long],
+                              isStep: Boolean,
                               description: Option[String],
                               securityCategories: Option[Vector[Long]])
 
@@ -93,9 +94,14 @@ class TimeSeriesRelation(apiKey: String,
 
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesItems = rows.map(r =>
-      PostTimeSeriesItem(r.getString(0), r.getBoolean(1),
+      PostTimeSeriesItem(
+        r.getString(0),
+        r.getBoolean(1),
         Option(r.getAs[Map[String, String]](2)),
-        Option(r.getAs[String](3)), Option(r.getAs[Long](4)), Option(r.getAs[String](6)),
+        Option(r.getAs[String](3)),
+        Option(r.getAs[Long](4)),
+        r.getBoolean(5),
+        Option(r.getAs[String](6)),
         Option(r.getAs[Vector[Long]](7))))
     post(apiKey, baseTimeSeriesUrl(project), timeSeriesItems)
       .map(item => {
