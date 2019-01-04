@@ -7,7 +7,7 @@ podTemplate(label: label,
                                            image: 'eu.gcr.io/cognitedata/openjdk8-sbt:2018-09-18-d077396',
                                            resourceRequestCpu: '1000m',
                                            resourceLimitCpu: '3800m',
-                                           resourceLimitMemory: '2500Mi',
+                                           resourceLimitMemory: '3500Mi',
                                            envVars: [secretEnvVar(key: 'TEST_API_KEY', secretName: 'jetfire-test-api-key', secretKey: 'jetfireTestApiKey.txt'),
                                                      secretEnvVar(key: 'CODECOV_TOKEN', secretName: 'codecov-token-cdp-spark-connector', secretKey: 'token.txt'),
                                                      // /codecov-script/upload-report.sh relies on the following
