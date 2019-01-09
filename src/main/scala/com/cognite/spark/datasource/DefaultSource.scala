@@ -57,8 +57,7 @@ class DefaultSource extends RelationProvider
     val collectMetrics = toBoolean(parameters, "collectMetrics")
     resourceType match {
       case "datapoints" =>
-        val tagId = parameters.getOrElse("tagId", sys.error("tagId must be specified"))
-        new DataPointsRelation(apiKey, project, tagId, Option(schema), limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
+        new DataPointsRelation(apiKey, project, Option(schema), limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
       case "timeseries" =>
         new TimeSeriesRelation(apiKey, project, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
       case "tables" =>

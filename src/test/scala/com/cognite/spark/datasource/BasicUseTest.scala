@@ -12,13 +12,16 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
-      .option("tagId", "Bitbay USD")
       .load()
-    assert(df.schema.length == 3)
+      .where("name = 'Bitbay USD'")
+    assert(df.schema.length == 5)
 
-    assert(df.schema.fields.sameElements(Array(StructField("tagId", StringType, nullable = true),
-      StructField("timestamp", LongType, nullable = true),
-      StructField("value", DoubleType, nullable = true))))
+    assert(df.schema.fields.sameElements(Array(
+      StructField("name", StringType, nullable = false),
+      StructField("timestamp", LongType, nullable = false),
+      StructField("value", DoubleType, nullable = false),
+      StructField("aggregation", StringType, nullable = true),
+      StructField("granularity", StringType, nullable = true))))
   }
 
   test("Iterate over period longer than limit") {
@@ -28,9 +31,8 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("type", "datapoints")
       .option("batchSize", "40")
       .option("limit", "100")
-      .option("tagId", "Bitbay USD")
       .load()
-      .where("timestamp > 0 and timestamp < 1790902000001")
+      .where("timestamp > 0 and timestamp < 1790902000001 and name = 'Bitbay USD'")
     assert(df.count() == 100)
   }
 
@@ -41,8 +43,8 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("type", "datapoints")
       .option("batchSize", "2000")
       .option("limit", "100")
-      .option("tagId", "Bitbay USD")
       .load()
+      .where("name = 'Bitbay USD'")
     assert(df.count() == 100)
   }
 
@@ -53,9 +55,8 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("type", "datapoints")
       .option("batchSize", "100")
       .option("limit", "100")
-      .option("tagId", "Bitbay USD")
       .load()
-      .where("timestamp >= 0 and timestamp <= 1790902000001")
+      .where("timestamp >= 0 and timestamp <= 1790902000001 and name = 'Bitbay USD'")
     assert(df.count() == 100)
   }
 
@@ -66,8 +67,8 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("type", "datapoints")
       .option("batchSize", "100")
       .option("limit", "100")
-      .option("tagId", "stopTimeTest")
       .load()
+      .where("name = 'stopTimeTest'")
     assert(df.count() == 2)
   }
 
