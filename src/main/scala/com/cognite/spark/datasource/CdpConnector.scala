@@ -29,10 +29,6 @@ case class CdpApiException(url: Uri, code: Int, message: String)
 trait CdpConnector {
   import CdpConnector._
 
-  @transient implicit lazy val timer: Timer[IO] = IO.timer(
-    ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(50)))
-  @transient implicit lazy val sttpBackend: SttpBackend[IO, Nothing] = AsyncHttpClientCatsBackend[IO]()
-
   def baseUrl(project: String, version: String = "0.5"): Uri = {
     uri"https://api.cognitedata.com/api/$version/projects/$project"
   }
@@ -43,6 +39,22 @@ trait CdpConnector {
       .parseResponseIf(_ => true)
       .send()
       .flatMap(r => onError(url)(r))
+
+    retryWithBackoff(result, 30.millis, maxRetries)
+  }
+
+  def getProtobuf[A](apiKey: String, url: Uri,
+                     parseResult: Response[Array[Byte]] => Response[A],
+                     maxRetries: Int = 10): IO[A] = {
+    val result = sttp.header("Accept", "application/protobuf")
+      .header("api-key", apiKey).get(url).response(asByteArray)
+      .parseResponseIf(_ => true)
+      .send()
+      .map(parseResult)
+      .flatMap(r => r.body match {
+        case Right(body) => IO.pure(body)
+        case Left(error) => IO.raiseError(CdpApiException(url, r.code, error))
+      })
 
     retryWithBackoff(result, 30.millis, maxRetries)
   }
@@ -143,6 +155,9 @@ trait CdpConnector {
 }
 
 object CdpConnector {
+  @transient implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
+  @transient implicit lazy val sttpBackend: SttpBackend[IO, Nothing] = AsyncHttpClientCatsBackend[IO]()
+
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
   type CdpApiError = Error[CdpApiErrorPayload]
 }
