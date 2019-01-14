@@ -60,7 +60,8 @@ lazy val root = (project in file("."))
 assemblyShadeRules in assembly := Seq(
   ShadeRule.rename("com.google.protobuf.**" -> "repackaged.cognite_spark_datasource.com.google.protobuf.@1").inAll,
   ShadeRule.rename("io.circe.**" -> "repackaged.cognite_spark_datasource.io.circe.@1").inAll,
-  ShadeRule.rename("cats.**" -> "repackaged.cognite_spark_datasource.cats.@1").inAll
+  ShadeRule.rename("cats.**" -> "repackaged.cognite_spark_datasource.cats.@1").inAll,
+  ShadeRule.rename("shapeless.**" -> "repackaged.cognite_spark_datasource.shapeless.@1").inAll
 )
 
 artifact in (Compile, assembly) := {
