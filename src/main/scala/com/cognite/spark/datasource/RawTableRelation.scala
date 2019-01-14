@@ -64,7 +64,7 @@ class RawTableRelation(apiKey: String,
       import sqlContext.sparkSession.implicits._
       val df = sqlContext.createDataFrame(rdd, defaultSchema)
       val jsonDf = renameKeyColumns(sqlContext.sparkSession.read.json(df.select($"columns").as[String]))
-      StructType(StructField("key", DataTypes.StringType) +: jsonDf.schema.fields)
+      StructType(StructField("key", DataTypes.StringType, false) +: jsonDf.schema.fields)
     } else {
       defaultSchema
     }
