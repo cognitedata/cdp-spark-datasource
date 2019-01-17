@@ -34,15 +34,11 @@ case class DataPointsRdd(@transient override val sparkContext: SparkContext,
           .param("start", start.toString)
           .param("end", maxTimestamp.toString)
           .param("limit", thisBatchSize.toString)
-        val uriWithAggregations = aggregation.fold(uri) { agg =>
-          val g = granularity.getOrElse(sys.error("Aggregation requested, but no granularity specified"))
-          uri.param("aggregates", s"${agg.aggregation}").param("granularity", s"${g.amount}${g.unit}")
-        }
         val dataPoints = aggregation match {
           case Some(aggregationFilter) =>
             val g = granularity.getOrElse(sys.error("Aggregation requested, but no granularity specified"))
             val uriWithAggregation = uri.param("aggregates", s"${aggregationFilter.aggregation}")
-              .param("granularity", s"${g.amount}${g.unit}")
+              .param("granularity", s"${g.amount.getOrElse("")}${g.unit}")
             getJson[CdpConnector.DataItemsWithCursor[DataPointsItem]](apiKey, uriWithAggregation, maxRetries)
               .unsafeRunSync()
               .data.items
