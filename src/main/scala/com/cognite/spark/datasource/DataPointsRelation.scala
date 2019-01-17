@@ -54,7 +54,7 @@ sealed case class Max(value: Long) extends Limit
 sealed case class NameFilter(name: String)
 
 // TODO: make case classes / enums for each valid granularity
-sealed case class GranularityFilter(amount: Long, unit: String)
+sealed case class GranularityFilter(amount: Option[Long], unit: String)
 
 // TODO: make case classes / enums for each valid aggregation
 sealed case class AggregationFilter(aggregation: String)
@@ -168,7 +168,8 @@ class DataPointsRelation(apiKey: String,
     // day/d, hour/h, minute/m, second/s
     val granularityPattern = raw"(\d+)?(day|d|hour|h|minute|m|second|s)".r
     granularity match {
-      case granularityPattern(amount, unit) => GranularityFilter(amount.toInt, unit)
+      case granularityPattern(null, unit) => GranularityFilter(None, unit) // scalastyle:ignore null
+      case granularityPattern(amount, unit) => GranularityFilter(Some(amount.toInt), unit)
       case _ => sys.error(s"Invalid granularity $granularity")
     }
   }
@@ -267,7 +268,7 @@ class DataPointsRelation(apiKey: String,
       }
       DataPointsRdd(sqlContext.sparkContext,
         parseResult,
-        toRow(name, aggregation.map(_.aggregation), granularity.map(g => s"${g.amount}${g.unit}"), requiredColumns),
+        toRow(name, aggregation.map(_.aggregation), granularity.map(g => s"${g.amount.getOrElse("")}${g.unit}"), requiredColumns),
         aggregation, granularity,
         timestampLowerLimit.getOrElse(0),
         maxTimestamp,
