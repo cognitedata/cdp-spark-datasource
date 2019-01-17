@@ -68,6 +68,7 @@ trait CdpConnector {
 
   def onError[A, B](url: Uri): PartialFunction[Response[Either[B, A]], IO[A]] = {
     case Response(Right(Right(data)), _, _, _, _) => IO.pure(data)
+    case Response(Right(Left(DeserializationError(original, _, _))), statusCode, _, _, _) => parseCdpApiError(original, url, statusCode)
     case Response(Left(bytes), statusCode, _, _, _) => parseCdpApiError(new String(bytes, "utf-8"), url, statusCode)
   }
 
