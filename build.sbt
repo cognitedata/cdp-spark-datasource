@@ -23,7 +23,7 @@ lazy val root = (project in file("."))
   .settings(
     organization := "com.cognite.spark.datasource",
     name := "cdp-spark-datasource",
-    version := "0.2.0",
+    version := "0.2.1",
     assemblyJarName in assembly := s"${normalizedName.value}-${version.value}-jar-with-dependencies.jar",
     scalaVersion := "2.11.12",
     scalastyleFailOnWarning := true,
