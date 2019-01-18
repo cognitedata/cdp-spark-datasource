@@ -25,7 +25,6 @@ case class DataPointsRdd(@transient override val sparkContext: SparkContext,
     with CdpConnector {
   private val maxRetries = 10
 
-  // scalastyle:off
   private def getRows(minTimestamp: Long, maxTimestamp: Long) = {
     Batch.withCursor(batchSize, limit) { (thisBatchSize, cursor: Option[Long]) =>
       val start = cursor.getOrElse(minTimestamp)
@@ -44,28 +43,9 @@ case class DataPointsRdd(@transient override val sparkContext: SparkContext,
               .data.items
               .flatMap(dataPoints =>
                 dataPoints.datapoints.map(dataPoint => {
-                  val value = aggregation match {
-                    // TODO: make this properly typed
-                    case Some(AggregationFilter("average")) | Some(AggregationFilter("avg")) =>
-                      dataPoint.average.get
-                    case Some(AggregationFilter("max")) => dataPoint.max.get
-                    case Some(AggregationFilter("min")) => dataPoint.min.get
-                    case Some(AggregationFilter("count")) => dataPoint.count.get
-                    case Some(AggregationFilter("sum")) => dataPoint.sum.get
-                    case Some(AggregationFilter("stepinterpolation")) | Some(AggregationFilter("step")) =>
-                      dataPoint.stepInterpolation.get
-                    case Some(AggregationFilter("continuousvariance")) | Some(AggregationFilter("cv")) =>
-                      dataPoint.continuousVariance.get
-                    case Some(AggregationFilter("discretevariance")) | Some(AggregationFilter("dv")) =>
-                      dataPoint.discreteVariance.get
-                    case Some(AggregationFilter("totalvariation")) | Some(AggregationFilter("tv")) =>
-                      dataPoint.totalVariation.get
-                    case None => dataPoint.value.get
-                    case _ => dataPoint.value.get
-                  }
                   NumericDatapoint.newBuilder()
                     .setTimestamp(dataPoint.timestamp)
-                    .setValue(value)
+                    .setValue(getAggregationValue(dataPoint, aggregationFilter))
                     .build()
                 }))
           case None =>
@@ -80,6 +60,26 @@ case class DataPointsRdd(@transient override val sparkContext: SparkContext,
       } else {
         (Seq.empty, None)
       }
+    }
+  }
+
+  private def getAggregationValue(dataPoint: DataPoint, aggregation: AggregationFilter): Double = {
+    aggregation match {
+      // TODO: make this properly typed
+      case AggregationFilter("average") | AggregationFilter("avg") =>
+        dataPoint.average.get
+      case AggregationFilter("max") => dataPoint.max.get
+      case AggregationFilter("min") => dataPoint.min.get
+      case AggregationFilter("count") => dataPoint.count.get
+      case AggregationFilter("sum") => dataPoint.sum.get
+      case AggregationFilter("stepinterpolation") | AggregationFilter("step") =>
+        dataPoint.stepInterpolation.get
+      case AggregationFilter("continuousvariance") | AggregationFilter("cv") =>
+        dataPoint.continuousVariance.get
+      case AggregationFilter("discretevariance") | AggregationFilter("dv") =>
+        dataPoint.discreteVariance.get
+      case AggregationFilter("totalvariation") | AggregationFilter("tv") =>
+        dataPoint.totalVariation.get
     }
   }
 
