@@ -1,9 +1,10 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import io.circe.generic.auto._
-import com.cognite.data.api.v1.{NumericDatapoint, NumericTimeseriesData, TimeseriesData}
+import com.cognite.data.api.v1.{NumericDatapoint, TimeseriesData}
+import com.cognite.data.api.v2.{MultiNamedTimeseriesData, NamedTimeseriesData, NumericTimeseriesData, NumericDatapoint => NumericDataPointV2}
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, TableScan, _}
@@ -298,27 +299,30 @@ class DataPointsRelation(apiKey: String,
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
       batches.parTraverse(batch => {
-        val tsDataByName = batch.groupBy(r => r.getAs[String](0))
-          .mapValues(rs =>
-            TimeseriesData.newBuilder()
-              .setNumericData(
-                NumericTimeseriesData.newBuilder()
-                  .addAllPoints(rs.map(r =>
-                    NumericDatapoint.newBuilder()
-                      .setTimestamp(r.getLong(1))
-                      .setValue(r.getDouble(2))
-                      .build()).asJava)
-                  .build())
-              .build()).toVector
-        tsDataByName.parTraverse(t => postTimeSeries(t._1, t._2))
-      })
+        val timeSeriesData = MultiNamedTimeseriesData.newBuilder()
+        batch.groupBy(r => r.getAs[String](0))
+          .foreach { case (name, timeseriesRows) => {
+            val d = timeseriesRows.foldLeft(NumericTimeseriesData.newBuilder())((builder, row) =>
+              builder.addPoints(NumericDataPointV2.newBuilder()
+                .setTimestamp(row.getLong(1))
+                .setValue(row.getDouble(2))))
+
+            timeSeriesData.addNamedTimeseriesData(
+              NamedTimeseriesData.newBuilder()
+                .setName(name)
+                .setNumericData(d.build())
+                .build()
+            )
+          }}
+        postTimeSeries(timeSeriesData.build())
+      }).unsafeRunSync
     })
   }
 
   private val maxRetries = 10
-  private def postTimeSeries(timeSeriesName: String, data: TimeseriesData): IO[Unit] = {
-    val url = uri"${baseDataPointsUrl(project)}/$timeSeriesName"
-    val postDataPoints = sttp.header("Accept", "application/protobuf")
+  private def postTimeSeries(data: MultiNamedTimeseriesData): IO[Unit] = {
+    val url = uri"${baseDataPointsUrl(project)}"
+    val postDataPoints = sttp.header("Accept", "application/json")
       .header("api-key", apiKey)
       .contentType("application/protobuf")
       .body(data.toByteArray)
@@ -327,7 +331,10 @@ class DataPointsRelation(apiKey: String,
     retryWithBackoff(postDataPoints, 30.millis, maxRetries)
       .map(r => {
         if (collectMetrics) {
-          datapointsCreated.inc(data.getNumericData.getPointsCount)
+          val numPoints = data.getNamedTimeseriesDataList.asScala
+            .map(_.getNumericData.getPointsCount)
+            .sum
+          datapointsCreated.inc(numPoints)
         }
         r
       }).flatMap(_ => IO.unit)
