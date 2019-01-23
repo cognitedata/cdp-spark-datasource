@@ -53,7 +53,7 @@ podTemplate(label: label,
                 }
                 if (env.BRANCH_NAME == 'master') {
                     stage('Deploy') {
-                        sh('sbt -Dsbt.log.noformat=true publish')
+                        sh('sbt -Dsbt.log.noformat=true library/publish fatJar/publish')
                     }
                 }
             }
