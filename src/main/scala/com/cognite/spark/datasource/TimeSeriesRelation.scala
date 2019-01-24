@@ -84,7 +84,6 @@ class TimeSeriesRelation(apiKey: String,
       getUrl, getUrl, apiKey, project, batchSize, limit)
   }
 
-  @transient private implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
