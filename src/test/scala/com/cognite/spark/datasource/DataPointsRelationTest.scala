@@ -1,7 +1,10 @@
 package com.cognite.spark.datasource
 
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField}
 import org.scalatest.{FlatSpec, FunSuite, Matchers}
+import org.apache.spark.SparkException
+import com.cognite.spark.datasource.CdpApiException
 
 class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   val apiKey = System.getenv("TEST_API_KEY")
@@ -160,5 +163,28 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .where(s"aggregation in ('min') and granularity = '$granularity' and name = 'Bitbay USD'")
       assert(df.count() == 1)
     }
+  }
+
+  it should "be an error to specify an invalid (timeseries) name" in {
+    val destinationDf = spark.read.format("com.cognite.spark.datasource")
+      .option("project", "jetfiretest2")
+      .option("apiKey", apiKey)
+      .option("type", "datapoints")
+      .load()
+    destinationDf.createTempView("destinationDatapoints")
+
+    val e = intercept[SparkException] {
+      spark.sql(s"""
+                   |select "timeseries_does_not_exist" as name,
+                   |bigint(123456789) as timestamp,
+                   |double(1) as value,
+                   |"aggregation" as aggregation,
+                   |"granularity" as granularity
+      """.stripMargin)
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationDatapoints")
+    }
+    e.getCause shouldBe a[CdpApiException]
   }
 }

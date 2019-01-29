@@ -324,10 +324,16 @@ class DataPointsRelation(apiKey: String,
     val url = uri"${baseDataPointsUrl(project)}"
     val postDataPoints = sttp.header("Accept", "application/json")
       .header("api-key", apiKey)
+      .parseResponseIf(_ => true)
       .contentType("application/protobuf")
       .body(data.toByteArray)
       .post(url)
       .send()
+      .flatMap({
+        case r if r.isSuccess => IO.unit
+        case Response(Right(body), statusCode, _, _, _) => parseCdpApiError(body, url, statusCode)
+        case r => IO.raiseError(CdpApiException(url, r.code, "Failed to read request body as string"))
+      })
     retryWithBackoff(postDataPoints, 30.millis, maxRetries)
       .map(r => {
         if (collectMetrics) {
