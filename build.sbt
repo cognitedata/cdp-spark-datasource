@@ -4,18 +4,17 @@ val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 
 resolvers += "libs-release" at artifactory + "libs-release/"
-publishTo := {
-  if (isSnapshot.value)
-    Some("snapshots" at artifactory + "libs-snapshot-local/")
-  else
-    Some("releases"  at artifactory + "libs-release-local/")
-}
-
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   version := "0.3.2",
   scalaVersion := "2.11.12",
-  fork in Test := true
+  fork in Test := true,
+  publishTo := {
+    if (isSnapshot.value)
+      Some("snapshots" at artifactory + "libs-snapshot-local/")
+    else
+      Some("releases"  at artifactory + "libs-release-local/")
+  }
 )
 
 lazy val library = (project in file("."))
