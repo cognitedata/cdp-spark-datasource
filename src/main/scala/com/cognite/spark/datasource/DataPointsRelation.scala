@@ -329,11 +329,7 @@ class DataPointsRelation(apiKey: String,
       .body(data.toByteArray)
       .post(url)
       .send()
-      .flatMap({
-        case r if r.isSuccess => IO.unit
-        case Response(Right(body), statusCode, _, _, _) => parseCdpApiError(body, url, statusCode)
-        case r => IO.raiseError(CdpApiException(url, r.code, "Failed to read request body as string"))
-      })
+      .flatMap(defaultHandling(url))
     retryWithBackoff(postDataPoints, 30.millis, maxRetries)
       .map(r => {
         if (collectMetrics) {

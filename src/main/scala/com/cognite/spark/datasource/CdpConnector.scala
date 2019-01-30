@@ -79,6 +79,12 @@ trait CdpConnector {
     }
   }
 
+  def defaultHandling(url: Uri): PartialFunction[Response[String], IO[Unit]] = {
+    case r if r.isSuccess => IO.unit
+    case Response(Right(body), statusCode, _, _, _) => parseCdpApiError(body, url, statusCode)
+    case r => IO.raiseError(CdpApiException(url, r.code, "Failed to read request body as string"))
+  }
+
   def getWithCursor[A: Decoder](apiKey: String, url: Uri, batchSize: Int,
                                 limit: Option[Int], maxRetries: Int = 10,
                                 initialCursor: Option[String] = None): Iterator[Chunk[A, String]] = {
@@ -97,18 +103,13 @@ trait CdpConnector {
 
   def postOr[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int = 10)
                        (onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
-    val defaultHandling: PartialFunction[Response[String], IO[Unit]] = {
-      case r if r.isSuccess => IO.unit
-      case Response(Right(body), statusCode, _, _, _) => parseCdpApiError(body, url, statusCode)
-      case r => IO.raiseError(CdpApiException(url, r.code, "Failed to read request body as string"))
-    }
     val singlePost = sttp.header("Accept", "application/json")
       .header("api-key", apiKey)
       .parseResponseIf(_ => true)
       .body(Items(items))
       .post(url)
       .send()
-      .flatMap(onResponse orElse defaultHandling)
+      .flatMap(onResponse orElse defaultHandling(url))
     retryWithBackoff(singlePost, 30.millis, maxRetries)
   }
 
