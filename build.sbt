@@ -4,6 +4,7 @@ val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 
 resolvers += "libs-release" at artifactory + "libs-release/"
+resolvers += "cognite" at "https://repository.dev.cognite.ai/repository/all-releases/"
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   version := "0.3.3",
