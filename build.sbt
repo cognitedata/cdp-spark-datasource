@@ -13,7 +13,7 @@ publishTo := {
 
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
-  version := "0.3.1",
+  version := "0.3.2",
   scalaVersion := "2.11.12",
   fork in Test := true
 )
@@ -43,7 +43,7 @@ lazy val library = (project in file("."))
 
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
 
-      "com.groupon.dse" % "spark-metrics" % "2.1.0-cognite" % Provided,
+      "com.groupon.dse" % "spark-metrics" % "2.4.0-cognite" % Provided,
       // TODO: check if we really need spark-hive
       "org.apache.spark" %% "spark-hive" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
