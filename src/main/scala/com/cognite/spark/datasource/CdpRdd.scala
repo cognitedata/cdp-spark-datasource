@@ -19,7 +19,7 @@ case class CdpRdd[A : DerivedDecoder](@transient override val sparkContext: Spar
                                        limit: Option[Int])
   extends RDD[Row](sparkContext, Nil)
   with CdpConnector {
-  private val maxRetries = 10
+  private val maxRetries = Constants.DefaultMaxRetries
 
   private def cursors(url: Uri): Iterator[(Option[String], Option[Int])] = {
     new Iterator[(Option[String], Option[Int])] {

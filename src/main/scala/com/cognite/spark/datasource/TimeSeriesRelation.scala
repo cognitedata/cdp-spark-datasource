@@ -50,7 +50,7 @@ class TimeSeriesRelation(apiKey: String,
     with CdpConnector
     with Serializable {
 
-  @transient lazy val batchSize = batchSizeOption.getOrElse(10000)
+  @transient lazy val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
 
   @transient lazy val timeSeriesCreated = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.created")
   @transient lazy val timeSeriesRead = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.read")

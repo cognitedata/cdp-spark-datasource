@@ -23,7 +23,7 @@ case class DataPointsRdd(@transient override val sparkContext: SparkContext,
                          batchSize: Int)
   extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
-  private val maxRetries = 10
+  private val maxRetries = Constants.DefaultMaxRetries
 
   private def getRows(minTimestamp: Long, maxTimestamp: Long) = {
     Batch.withCursor(batchSize, limit) { (thisBatchSize, cursor: Option[Long]) =>
