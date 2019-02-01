@@ -40,7 +40,7 @@ class RawTableRelation(apiKey: String,
     with Serializable {
   import RawTableRelation._
 
-  lazy val batchSize = batchSizeOption.getOrElse(10000)
+  lazy val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
   @transient lazy val defaultSchema = StructType(Seq(
     StructField("key", DataTypes.StringType),
     StructField("columns", DataTypes.StringType)

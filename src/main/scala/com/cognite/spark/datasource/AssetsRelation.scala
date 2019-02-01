@@ -40,7 +40,7 @@ class AssetsRelation(apiKey: String,
     with TableScan
     with CdpConnector
     with Serializable {
-  @transient lazy private val batchSize = batchSizeOption.getOrElse(10000)
+  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
 
   @transient lazy val assetsCreated = UserMetricsSystem.counter(s"${metricsPrefix}assets.created")
   @transient lazy val assetsRead = UserMetricsSystem.counter(s"${metricsPrefix}assets.read")

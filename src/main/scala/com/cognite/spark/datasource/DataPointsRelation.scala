@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import io.circe.generic.auto._
 import com.cognite.data.api.v1.{NumericDatapoint, TimeseriesData}
@@ -16,7 +16,6 @@ import com.softwaremill.sttp.circe._
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.util.Try
-import scala.concurrent.duration._
 
 sealed case class DataPointsDataItems[A](items: Seq[A])
 
@@ -75,7 +74,7 @@ class DataPointsRelation(apiKey: String,
     with Serializable {
   import CdpConnector._
 
-  @transient lazy val batchSize = batchSizeOption.getOrElse(100000)
+  @transient lazy val batchSize = batchSizeOption.getOrElse(Constants.DefaultDataPointsBatchSize)
 
   @transient lazy val datapointsCreated = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.created")
   @transient lazy val datapointsRead = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.read")
@@ -201,7 +200,7 @@ class DataPointsRelation(apiKey: String,
       .response(asJson[LatestDataPoint])
       .get(url)
       .send()
-    retryWithBackoff(getLatest, 30.millis, maxRetries)
+    retryWithBackoff(getLatest, Constants.DefaultInitialRetryDelay, maxRetries)
       .unsafeRunSync()
       .unsafeBody
       .toOption
@@ -267,6 +266,9 @@ class DataPointsRelation(apiKey: String,
           getLatestDataPoint(name).map(_.timestamp + 1)
             .getOrElse(System.currentTimeMillis())
       }
+      val aggregationBatchSize = aggregation
+        .map(_ => math.min(batchSize, Constants.DefaultDataPointsAggregationBatchSize))
+        .getOrElse(batchSize)
       DataPointsRdd(sqlContext.sparkContext,
         parseResult,
         toRow(name, aggregation.map(_.aggregation), granularity.map(g => s"${g.amount.getOrElse("")}${g.unit}"), requiredColumns),
@@ -274,7 +276,7 @@ class DataPointsRelation(apiKey: String,
         timestampLowerLimit.getOrElse(0),
         maxTimestamp,
         uri"${baseDataPointsUrl(project)}/$name",
-        apiKey, project, limit, aggregation.map(_ => 10000).getOrElse(batchSize))
+        apiKey, project, limit, aggregationBatchSize)
     }
     rdds1.foldLeft(sqlContext.sparkContext.emptyRDD[Row])((a, b) => a.union(b))
   }
@@ -319,7 +321,7 @@ class DataPointsRelation(apiKey: String,
     })
   }
 
-  private val maxRetries = 10
+  private val maxRetries = Constants.DefaultMaxRetries
   private def postTimeSeries(data: MultiNamedTimeseriesData): IO[Unit] = {
     val url = uri"${baseDataPointsUrl(project)}"
     val postDataPoints = sttp.header("Accept", "application/json")
@@ -330,7 +332,7 @@ class DataPointsRelation(apiKey: String,
       .post(url)
       .send()
       .flatMap(defaultHandling(url))
-    retryWithBackoff(postDataPoints, 30.millis, maxRetries)
+    retryWithBackoff(postDataPoints, Constants.DefaultInitialRetryDelay, maxRetries)
       .map(r => {
         if (collectMetrics) {
           val numPoints = data.getNamedTimeseriesDataList.asScala

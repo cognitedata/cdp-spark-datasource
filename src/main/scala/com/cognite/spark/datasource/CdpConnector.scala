@@ -1,26 +1,24 @@
 package com.cognite.spark.datasource
 
 import java.io.IOException
-import java.util.concurrent.Executors
 
 import cats.effect.{IO, Timer}
 import cats.implicits._
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import com.softwaremill.sttp._
+import com.softwaremill.sttp.circe._
 import io.circe.generic.auto._
 import io.circe.parser.decode
 import io.circe.{Decoder, Encoder}
 
 import scala.concurrent.{ExecutionContext, TimeoutException}
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration.FiniteDuration
 
 case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
 case class Items[A](items: Seq[A])
 case class CdpApiErrorPayload(code: Int, message: String)
 case class Error[A](error: A)
-
-import com.softwaremill.sttp._
-import com.softwaremill.sttp.circe._
 
 case class CdpApiException(url: Uri, code: Int, message: String)
   extends Throwable(s"Request to ${url.toString()} failed with status $code: $message") {
@@ -33,14 +31,14 @@ trait CdpConnector {
     uri"https://api.cognitedata.com/api/$version/projects/$project"
   }
 
-  def getJson[A : Decoder](apiKey: String, url: Uri, maxRetries: Int = 10): IO[A] = {
+  def getJson[A : Decoder](apiKey: String, url: Uri, maxRetries: Int = Constants.DefaultMaxRetries): IO[A] = {
     val result = sttp.header("Accept", "application/json")
       .header("api-key", apiKey).get(url).response(asJson[A])
       .parseResponseIf(_ => true)
       .send()
       .flatMap(r => onError(url)(r))
 
-    retryWithBackoff(result, 30.millis, maxRetries)
+    retryWithBackoff(result, Constants.DefaultInitialRetryDelay, maxRetries)
   }
 
   def getProtobuf[A](apiKey: String, url: Uri,
@@ -56,7 +54,7 @@ trait CdpConnector {
         case Left(error) => IO.raiseError(CdpApiException(url, r.code, error))
       })
 
-    retryWithBackoff(result, 30.millis, maxRetries)
+    retryWithBackoff(result, Constants.DefaultInitialRetryDelay, maxRetries)
   }
 
   def get[A : Decoder](apiKey: String, url: Uri, batchSize: Int,
@@ -110,7 +108,7 @@ trait CdpConnector {
       .post(url)
       .send()
       .flatMap(onResponse orElse defaultHandling(url))
-    retryWithBackoff(singlePost, 30.millis, maxRetries)
+    retryWithBackoff(singlePost, Constants.DefaultInitialRetryDelay, maxRetries)
   }
 
   // scalastyle:off cyclomatic.complexity
