@@ -1,6 +1,7 @@
 package com.cognite.spark.datasource
 
 import com.softwaremill.sttp._
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
@@ -66,6 +67,45 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
     assert(res.length == 1000)
   }
 
+  def eventDescriptions(source: String): Array[Row] = spark.sql(s"""select description, source from destinationEvent where source = "$source"""")
+    .select(col("description"))
+    .collect()
+
+  test("that all fields are nullable for events") {
+    val destinationDf = spark.read.format("com.cognite.spark.datasource")
+      .option("project", "jetfiretest2")
+      .option("apiKey", apiKey)
+      .option("type", "events")
+      .load()
+    destinationDf.createOrReplaceTempView("destinationEvent")
+
+    val source = "nulltest"
+    cleanupEvents(source)
+    assert(eventDescriptions(source).isEmpty)
+
+    spark.sql(s"""
+              select
+                 |null as id,
+                 |null as startTime,
+                 |null as endTime,
+                 |null as description,
+                 |null as type,
+                 |null as subtype,
+                 |map('foo', 'bar', 'nullValue', null) as metadata,
+                 |null as assetIds,
+                 |'nulltest' as source,
+                 |null as sourceId
+     """.stripMargin)
+      .write
+      .insertInto("destinationEvent")
+
+    val rows = spark.sql(s"""select * from destinationEvent where source = "$source"""")
+    assert(rows.count() == 1)
+    val storedMetadata = rows.head.getAs[Map[String, String]](6)
+    assert(storedMetadata.size == 1)
+    assert(storedMetadata.get("foo").contains("bar"))
+  }
+
   test("smoke test pushing of events and upsert") {
     val sourceDf = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
@@ -83,19 +123,15 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("apiKey", apiKey)
       .option("type", "events")
       .load()
-    destinationDf.createTempView("destinationEvent")
+    destinationDf.createOrReplaceTempView("destinationEvent")
 
     val source = "test"
     sourceDf.createTempView("sourceEvent")
     sourceDf.cache()
 
-    def eventDescriptions() = spark.sql(s"""select description, source from destinationEvent where source = "$source"""")
-      .select(col("description"))
-      .collect()
-
     // Cleanup events
     cleanupEvents(source)
-    assert(eventDescriptions().isEmpty)
+    assert(eventDescriptions(source).isEmpty)
 
     // Post new events
     spark.sql(s"""
@@ -117,7 +153,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .insertInto("destinationEvent")
 
     // Check if post worked
-    val descriptionsAfterPost = eventDescriptions()
+    val descriptionsAfterPost = eventDescriptions(source)
     assert(descriptionsAfterPost.length == 100)
     assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "bar"))
 
@@ -140,7 +176,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .insertInto("destinationEvent")
 
     // Check if upsert worked
-    val descriptionsAfterUpdate = eventDescriptions()
+    val descriptionsAfterUpdate = eventDescriptions(source)
     assert(descriptionsAfterUpdate.length == 1000)
     assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "foo"))
   }

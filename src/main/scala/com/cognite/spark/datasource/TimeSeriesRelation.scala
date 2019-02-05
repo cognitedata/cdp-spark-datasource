@@ -97,12 +97,12 @@ class TimeSeriesRelation(apiKey: String,
       PostTimeSeriesItem(
         r.getString(0),
         r.getBoolean(1),
-        Option(r.getAs[Map[String, String]](2)),
-        Option(r.getAs[String](3)),
-        Option(r.getAs[Long](4)),
+        Option(r.getAs(2)),
+        Option(r.getAs(3)),
+        Option(r.getAs(4)),
         r.getBoolean(5),
-        Option(r.getAs[String](6)),
-        Option(r.getAs[Vector[Long]](7))))
+        Option(r.getAs(6)),
+        Option(r.getAs(7))))
     post(apiKey, baseTimeSeriesUrl(project), timeSeriesItems)
       .map(item => {
         if (collectMetrics) {
