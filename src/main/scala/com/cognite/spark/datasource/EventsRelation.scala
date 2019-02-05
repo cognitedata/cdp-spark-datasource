@@ -46,7 +46,7 @@ class EventsRelation(apiKey: String,
   @transient lazy val eventsCreated = UserMetricsSystem.counter(s"${metricsPrefix}events.created")
   @transient lazy val eventsRead = UserMetricsSystem.counter(s"${metricsPrefix}events.read")
 
-  override def schema: StructType = {
+  override val schema: StructType =
     StructType(Seq(
       StructField("id", LongType),
       StructField("startTime", LongType),
@@ -54,11 +54,10 @@ class EventsRelation(apiKey: String,
       StructField("description", StringType),
       StructField("type", StringType),
       StructField("subtype", StringType),
-      StructField("metadata", MapType(DataTypes.StringType, DataTypes.StringType)),
+      StructField("metadata", MapType(DataTypes.StringType, DataTypes.StringType, valueContainsNull = true)),
       StructField("assetIds", ArrayType(LongType)),
       StructField("source", StringType),
       StructField("sourceId", StringType)))
-  }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     data.foreachPartition(rows => {
@@ -83,9 +82,21 @@ class EventsRelation(apiKey: String,
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {
     val eventItems = rows.map(r =>
-      EventItem(Option(r.getAs(0)), Option(r.getAs(1)), Option(r.getAs(2)), Option(r.getString(3)),
-        Option(r.getAs(4)), Option(r.getAs(5)), Option(r.getAs(6)),
-        Option(r.getAs(7)), Option(r.getAs(8)), Option(r.getAs(9)))
+      EventItem(
+        Option(r.getAs(0)),
+        Option(r.getAs(1)),
+        Option(r.getAs(2)),
+        Option(r.getAs(3)),
+        Option(r.getAs(4)),
+        Option(r.getAs(5)),
+        Option(r.getAs[Map[String, String]](6)
+          // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
+          // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
+          // Since null keys don't make sense to CDP either, remove them as well.
+          .filter { case (k, v) => k != null && v != null }), // scalastyle:ignore null
+        Option(r.getAs(7)),
+        Option(r.getAs(8)),
+        Option(r.getAs(9)))
     )
 
     postOr(apiKey, baseEventsURL(project), items = eventItems) {
