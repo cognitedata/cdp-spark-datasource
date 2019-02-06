@@ -9,6 +9,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
+import SparkSchemaHelper._
 
 import scala.concurrent.ExecutionContext
 
@@ -16,7 +17,7 @@ case class PostTimeSeriesDataItems[A](items: Seq[A])
 
 case class TimeSeriesItem(name: String,
                           isString: Boolean,
-                          metadata: Option[Map[String, String]],
+                          metadata: Option[Map[String, Option[String]]],
                           unit: Option[String],
                           assetId: Option[Long],
                           isStep: Boolean,
@@ -57,20 +58,7 @@ class TimeSeriesRelation(apiKey: String,
   @transient lazy private val timeSeriesCreated = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.created")
   @transient lazy private val timeSeriesRead = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.read")
 
-  override def schema: StructType = {
-    StructType(Seq(
-      StructField("name", StringType, false),
-      StructField("isString", BooleanType, false),
-      StructField("metadata", DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType), true),
-      StructField("unit", StringType, true),
-      StructField("assetId", LongType, true),
-      StructField("isStep", BooleanType, false),
-      StructField("description", StringType, true),
-      StructField("securityCategories", DataTypes.createArrayType(LongType), true),
-      StructField("id", LongType, false),
-      StructField("createdTime", LongType, false),
-      StructField("lastUpdatedTime", LongType, false)))
-  }
+  override def schema: StructType = structType[TimeSeriesItem]
 
   override def buildScan(): RDD[Row] = {
     val getUrl = baseTimeSeriesUrl(project)
@@ -80,8 +68,7 @@ class TimeSeriesRelation(apiKey: String,
         if (collectMetrics) {
           timeSeriesRead.inc()
         }
-        Row(ts.name, ts.isString, ts.metadata, ts.unit, ts.assetId, ts.isStep, ts.description,
-          ts.securityCategories, ts.id, ts.createdTime, ts.lastUpdatedTime)
+        asRow(ts)
       },
       getUrl, getUrl, apiKey, project, batchSize, maxRetries, limit)
   }
@@ -95,16 +82,7 @@ class TimeSeriesRelation(apiKey: String,
   }
 
   private def postRows(rows: Seq[Row]): IO[Unit] = {
-    val timeSeriesItems = rows.map(r =>
-      PostTimeSeriesItem(
-        r.getString(0),
-        r.getBoolean(1),
-        Option(r.getAs(2)),
-        Option(r.getAs(3)),
-        Option(r.getAs(4)),
-        r.getBoolean(5),
-        Option(r.getAs(6)),
-        Option(r.getAs(7))))
+    val timeSeriesItems = rows.map(r => fromRow[PostTimeSeriesItem](r))
     post(apiKey, baseTimeSeriesUrl(project), timeSeriesItems, maxRetries)
       .map(item => {
         if (collectMetrics) {

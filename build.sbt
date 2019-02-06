@@ -5,6 +5,7 @@ val artifactory = "https://cognite.jfrog.io/cognite/"
 
 resolvers += "libs-release" at artifactory + "libs-release/"
 resolvers += "cognite" at "https://repository.dev.cognite.ai/repository/all-releases/"
+
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   version := "0.3.7-SNAPSHOT",
@@ -22,7 +23,19 @@ PB.targets in Compile := Seq(
   scalapb.gen() -> (sourceManaged in Compile).value
 )
 
+// Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
+lazy val macroSub = (project in file("macro"))
+  .settings(
+    commonSettings,
+    publish := {},
+    publishLocal := {},
+    libraryDependencies ++= Seq(
+      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided)
+  )
+
 lazy val library = (project in file("."))
+  .dependsOn(macroSub)
   .settings(
     commonSettings,
     name := "cdp-spark-datasource",
@@ -70,7 +83,9 @@ lazy val library = (project in file("."))
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(x)
     },
-    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false)
+    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
+    mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
+    mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value
   )
 
 lazy val fatJar = project.settings(
