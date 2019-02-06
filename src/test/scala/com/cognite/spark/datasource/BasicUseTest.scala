@@ -136,7 +136,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
        |subtype,
        |null as assetIds,
        |bigint(0) as id,
-       |map() as metadata,
+       |map("foo", null, "bar", "test") as metadata,
        |"$source" as source,
        |sourceId
        |from sourceEvent

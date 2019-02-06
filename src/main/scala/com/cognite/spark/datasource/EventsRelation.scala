@@ -10,6 +10,10 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import io.circe.parser.decode
+import com.softwaremill.sttp.{Response, Uri}
+import com.softwaremill.sttp._
+import SparkSchemaHelper._
 
 import scala.concurrent.ExecutionContext
 
@@ -19,7 +23,7 @@ case class EventItem(id: Option[Long],
                       description: Option[String],
                       `type`: Option[String],
                       subtype: Option[String],
-                      metadata: Option[Map[String, String]],
+                      metadata: Option[Map[String, Option[String]]],
                       assetIds: Option[Seq[Long]],
                       source: Option[String],
                       sourceId: Option[String])
@@ -47,18 +51,7 @@ class EventsRelation(apiKey: String,
   @transient lazy private val eventsCreated = UserMetricsSystem.counter(s"${metricsPrefix}events.created")
   @transient lazy private val eventsRead = UserMetricsSystem.counter(s"${metricsPrefix}events.read")
 
-  override val schema: StructType =
-    StructType(Seq(
-      StructField("id", LongType),
-      StructField("startTime", LongType),
-      StructField("endTime", LongType),
-      StructField("description", StringType),
-      StructField("type", StringType),
-      StructField("subtype", StringType),
-      StructField("metadata", MapType(DataTypes.StringType, DataTypes.StringType, valueContainsNull = true)),
-      StructField("assetIds", ArrayType(LongType)),
-      StructField("source", StringType),
-      StructField("sourceId", StringType)))
+  override def schema: StructType = structType[EventItem]
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     data.foreachPartition(rows => {
@@ -75,30 +68,13 @@ class EventsRelation(apiKey: String,
         if (collectMetrics) {
           eventsRead.inc()
         }
-        Row(e.id, e.startTime, e.endTime, e.description,
-          e.`type`, e.subtype, e.metadata, e.assetIds, e.source, e.sourceId)
+        asRow(e)
       },
       baseUrl.param("onlyCursors", "true"), baseUrl, apiKey, project, batchSize, maxRetries, limit)
   }
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {
-    val eventItems = rows.map(r =>
-      EventItem(
-        Option(r.getAs(0)),
-        Option(r.getAs(1)),
-        Option(r.getAs(2)),
-        Option(r.getAs(3)),
-        Option(r.getAs(4)),
-        Option(r.getAs(5)),
-        Option(r.getAs[Map[String, String]](6)
-          // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
-          // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
-          // Since null keys don't make sense to CDP either, remove them as well.
-          .filter { case (k, v) => k != null && v != null }), // scalastyle:ignore null
-        Option(r.getAs(7)),
-        Option(r.getAs(8)),
-        Option(r.getAs(9)))
-    )
+    val eventItems = rows.map(r => fromRow[EventItem](r))
 
     postOr(apiKey, baseEventsURL(project), eventItems, maxRetries) {
       case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
