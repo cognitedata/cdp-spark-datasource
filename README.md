@@ -6,10 +6,14 @@ through asynchronous writes.
 
 ## Build the project with sbt:
 
-The project runs some tests against jetfire, to make them pass set the environment
+The project runs some tests against the jetfiretest2 project, to make them pass set the environment
 variable `TEST_API_KEY` to an API key with access to the `jetfiretest2` project.
 
-Run ``` sbt assembly ``` to create ```cdp-spark-datasource-*-jar-with-dependencies.jar``` .
+For more information about Jetfire see https://cognitedata.atlassian.net/wiki/spaces/cybertron/pages/575602824/Jetfire 
+and https://docs.google.com/presentation/d/11oM_Z-NbFAl-ULOvBzG6YmSVRYbPCDuFOnjLed8IuwM
+or go to https://jetfire.cogniteapp.com/ to try it out.
+
+Run `sbt assembly` to create `~/path-to-repo/target/scala-2.11/cdp-spark-datasource-*-jar-with-dependencies.jar`.
 
 
 ## Run it with spark-shell
