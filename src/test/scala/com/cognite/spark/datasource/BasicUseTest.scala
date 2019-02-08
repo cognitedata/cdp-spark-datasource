@@ -1,7 +1,6 @@
 package com.cognite.spark.datasource
 
 import com.softwaremill.sttp._
-import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
@@ -79,7 +78,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("inferSchema", "true")
       .load()
 
-    val destinationDf: DataFrame = spark.read.format("com.cognite.spark.datasource")
+    val destinationDf = spark.read.format("com.cognite.spark.datasource")
       .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "events")
@@ -90,8 +89,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
     sourceDf.createTempView("sourceEvent")
     sourceDf.cache()
 
-    def eventDescriptions(): Array[Row] =
-      spark.sql(s"""select description, source from destinationEvent where source = "$source"""")
+    def eventDescriptions() = spark.sql(s"""select description, source from destinationEvent where source = "$source"""")
       .select(col("description"))
       .collect()
 

@@ -54,6 +54,155 @@ scala> df.count
 res0: Long = 1000
 ```
 
+## Reading from, and writing to, a Datasource:
+
+cdp-spark-datasource supports reads from, and writes to, assets, timeseries, tables, datapoints and events.
+
+To read from the different Datasources you need to provide three things:
+an API-key, a project name and the Datasource type. To read from a table you should also specify the database name and table name.
+
+To write to a Datasource you'll need to register a DataFrame that was read from
+that Datasource as a temporary view. Since Open Industrial Data is read only you'll
+need a project where you have write access and replace `desinationProject` and `destApiKey`
+in the examples below.
+
+### Assets
+
+```
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "publicdata")
+  .option("apiKey", apiKey)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "assets")
+  .load()
+  
+val destinationDf = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", <destinationProject>)
+  .option("apiKey", <destApiKey>)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "assets")
+  .load()
+
+destinationDf.createTempView("destination")
+
+df.select(destinationDf.columns.map(col):_*)
+.write
+.insertInto("destination")
+```
+
+### Timeseries
+
+```
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "publicdata")
+  .option("apiKey", apiKey)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "timeseries")
+  .load()
+  
+val destinationDf = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", <destinationProject>)
+  .option("apiKey", <destApiKey>)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "timeseries")
+  .load()
+
+destinationDf.createTempView("destination")
+
+df.select(destinationDf.columns.map(col):_*)
+.write
+.insertInto("destination")
+```
+
+### Datapoints
+
+```
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "publicdata")
+  .option("apiKey", apiKey)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "datapoints")
+  .load()
+  
+val destinationDf = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", <destinationProject>)
+  .option("apiKey", <destApiKey>)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "datapoints")
+  .load()
+
+destinationDf.createTempView("destination")
+
+df.select(destinationDf.columns.map(col):_*)
+.write
+.insertInto("destination")
+```
+
+### Events
+
+```
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "publicdata")
+  .option("apiKey", apiKey)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "events")
+  .load()
+  
+val destinationDf = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", <destinationProject>)
+  .option("apiKey", <destApiKey>)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "events")
+  .load()
+
+destinationDf.createTempView("destination")
+
+df.select(destinationDf.columns.map(col):_*)
+.write
+.insertInto("destination")
+```
+
+### Raw table
+
+Since the Open Industrial Data publicdata project does not contain any tables we will use the playground project.
+```
+val apiKey = <playground-api-key>
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "playground")
+  .option("apiKey", apiKey)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "tables")
+  .option("database","workorders")
+  .option("table","workorders1")
+  .load()
+  
+val destinationDf = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", <destinationProject>)
+  .option("apiKey", <destApiKey>)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "tables")
+  .option("database",<targetDB>)
+  .option("table",<targetTable>)  
+  .load()
+
+destinationDf.createTempView("destination")
+
+df.select(destinationDf.columns.map(col):_*)
+.write
+.insertInto("destination")
+```
+
+
 ## Short-term list of missing features:
 
 - Multi-tags (finally figured out how to best do it)
