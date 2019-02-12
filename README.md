@@ -9,7 +9,7 @@ through asynchronous writes.
 The project runs some tests against the jetfiretest2 project, to make them pass set the environment
 variable `TEST_API_KEY` to an API key with access to the `jetfiretest2` project.
 
-For more information about Jetfire see https://cognitedata.atlassian.net/wiki/spaces/cybertron/pages/575602824/Jetfire 
+For more information about Jetfire see https://cognitedata.atlassian.net/wiki/spaces/cybertron/pages/575602824/Jetfire
 and https://docs.google.com/presentation/d/11oM_Z-NbFAl-ULOvBzG6YmSVRYbPCDuFOnjLed8IuwM
 or go to https://jetfire.cogniteapp.com/ to try it out.
 
@@ -54,24 +54,28 @@ scala> df.count
 res0: Long = 1000
 ```
 
-## Reading and writing CEP resource types:
+## Reading and writing Cognite Data Platform resource types:
 
 cdp-spark-datasource supports reads from, and writes to, assets, time series, tables, data points and events.
 
-### Reading 
+### Reading
+
 To read from CDP resource types you need to provide three things:
 an API-key, a project name and the resource type. To read from a table you should also specify the database name and table name.
 
 ### Writing
+
 To write to a resource you'll need to register a DataFrame that was read from
-that resource as a temporary view. You'll need a project where you have write access 
-and replace `myproject` and `myApiKey` in the examples below. 
+that resource as a temporary view. You'll need a project where you have write access
+and replace `myproject` and `myApiKey` in the examples below.
 
 Your schema will have to match that of the target exactly. A convenient way to ensure
-this is to copy the schema from the DataFrame you read into with `df.columns.map(col):_*`, see time series example.
+this is to copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`, see time series example.
 
 ### Assets
+
 https://doc.cognitedata.com/concepts/#assets
+
 ```scala
 // Read assets from your project into a DataFrame
 val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
@@ -84,16 +88,17 @@ val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
 df.createTempView("assets")
 
 // Create a new asset and write to CDP
-val someAsset = Seq(("99-BB-99999",99L,"This is another asset",Map("source system"->"more metadata"),99L))
+val someAsset = Seq(("99-BB-99999",99L,"This is another asset",Map("sourceSystem"->"MySparkJob"),99L))
 val someAssetDf = someAsset.toDF("name", "parentID", "description","metadata","id")
 someAssetDf
  .write
  .insertInto("assets")
-
 ```
 
 ### Time series
+
 https://doc.cognitedata.com/concepts/#time-series
+
 ```scala
 // Get all the time series from your project
 val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
@@ -116,6 +121,7 @@ timeSeriesDf.select(destinationDf.columns.map(col):_*)
 ```
 
 ### Data points
+
 https://doc.cognitedata.com/concepts/#data-points
 
 Data points are always related to a time series. To read datapoints you will need to filter by a valid time series name.
@@ -152,7 +158,9 @@ s"and aggregation = 'min' and granularity = '1d'")
 ```
 
 ### Events
+
 https://doc.cognitedata.com/concepts/#events
+
 ```scala
 // Read events from `publicdata`
 val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
@@ -173,10 +181,10 @@ myProjectDf.createTempView("events")
 df.filter($"subtype" === "Valhall")
   .write
   .insertInto("events")
-
 ```
 
 ### Raw table
+
 https://doc.cognitedata.com/api/0.5/#tag/Raw
 
 Raw tables are organized in databases and tables so you'll need to provide these as options to the DataFrameReader.
