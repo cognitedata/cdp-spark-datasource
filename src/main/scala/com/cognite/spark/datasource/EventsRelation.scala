@@ -1,16 +1,15 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
+import com.softwaremill.sttp.{Response, Uri, _}
 import io.circe.generic.auto._
+import io.circe.parser.decode
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import io.circe.parser.decode
-import com.softwaremill.sttp.{Response, Uri}
-import com.softwaremill.sttp._
 
 import scala.concurrent.ExecutionContext
 
@@ -29,11 +28,12 @@ case class SourceWithResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
 
 class EventsRelation(apiKey: String,
-                      project: String,
-                      limit: Option[Int],
-                      batchSizeOption: Option[Int],
-                      metricsPrefix: String,
-                      collectMetrics: Boolean)
+                     project: String,
+                     limit: Option[Int],
+                     batchSizeOption: Option[Int],
+                     maxRetriesOption: Option[Int],
+                     metricsPrefix: String,
+                     collectMetrics: Boolean)
                     (@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
@@ -41,10 +41,11 @@ class EventsRelation(apiKey: String,
     with CdpConnector
     with Serializable {
 
-  @transient lazy val batchSize: Int = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val batchSize: Int = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy val eventsCreated = UserMetricsSystem.counter(s"${metricsPrefix}events.created")
-  @transient lazy val eventsRead = UserMetricsSystem.counter(s"${metricsPrefix}events.read")
+  @transient lazy private val eventsCreated = UserMetricsSystem.counter(s"${metricsPrefix}events.created")
+  @transient lazy private val eventsRead = UserMetricsSystem.counter(s"${metricsPrefix}events.read")
 
   override val schema: StructType =
     StructType(Seq(
@@ -77,7 +78,7 @@ class EventsRelation(apiKey: String,
         Row(e.id, e.startTime, e.endTime, e.description,
           e.`type`, e.subtype, e.metadata, e.assetIds, e.source, e.sourceId)
       },
-      baseUrl.param("onlyCursors", "true"), baseUrl, apiKey, project, batchSize, limit)
+      baseUrl.param("onlyCursors", "true"), baseUrl, apiKey, project, batchSize, maxRetries, limit)
   }
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {
@@ -99,7 +100,7 @@ class EventsRelation(apiKey: String,
         Option(r.getAs(9)))
     )
 
-    postOr(apiKey, baseEventsURL(project), items = eventItems) {
+    postOr(apiKey, baseEventsURL(project), eventItems, maxRetries) {
       case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
@@ -136,18 +137,14 @@ class EventsRelation(apiKey: String,
       // Do nothing
       IO.unit
     } else {
-      post(apiKey,
-        uri"${baseEventsURLOld(project)}/update",
-        items = conflictingEvents)
+      post(apiKey, uri"${baseEventsURLOld(project)}/update", conflictingEvents, maxRetries)
     }
 
     val newEvents = eventItems.map(_.copy(id = None)).diff(conflictingEvents.map(_.copy(id = None)))
     val postNewItems = if (newEvents.isEmpty) {
       IO.unit
     } else {
-      post(apiKey,
-        baseEventsURL(project),
-        items = newEvents)
+      post(apiKey, baseEventsURL(project), newEvents, maxRetries)
     }
 
     (postUpdate, postNewItems).parMapN((_, _) => ())

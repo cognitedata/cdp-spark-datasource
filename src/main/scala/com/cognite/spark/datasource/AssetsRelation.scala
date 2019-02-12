@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
@@ -28,19 +28,21 @@ case class PostAssetsItem(name: String,
                           metadata: Map[String, String])
 
 class AssetsRelation(apiKey: String,
-                           project: String,
-                           assetPath: Option[String],
-                           limit: Option[Int],
-                           batchSizeOption: Option[Int],
-                           metricsPrefix: String,
-                           collectMetrics: Boolean)
-                         (@transient val sqlContext: SQLContext)
+                     project: String,
+                     assetPath: Option[String],
+                     limit: Option[Int],
+                     batchSizeOption: Option[Int],
+                     maxRetriesOption: Option[Int],
+                     metricsPrefix: String,
+                     collectMetrics: Boolean)
+                    (@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
     with CdpConnector
     with Serializable {
   @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
 
   @transient lazy val assetsCreated = UserMetricsSystem.counter(s"${metricsPrefix}assets.created")
   @transient lazy val assetsRead = UserMetricsSystem.counter(s"${metricsPrefix}assets.read")
@@ -63,7 +65,7 @@ class AssetsRelation(apiKey: String,
         }
         Row(a.name, a.parentId, a.description, a.metadata, a.id)
       },
-      getUrl, getUrl, apiKey, project, batchSize, limit)
+      getUrl, getUrl, apiKey, project, batchSize, maxRetries, limit)
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
@@ -77,7 +79,7 @@ class AssetsRelation(apiKey: String,
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val assetItems = rows.map(r =>
       PostAssetsItem(r.getString(0), r.getString(2), r.getAs[Map[String, String]](3)))
-    post(apiKey, baseAssetsURL(project), assetItems)
+    post(apiKey, baseAssetsURL(project), assetItems, maxRetries)
       .map(item => {
         if (collectMetrics) {
           assetsCreated.inc(rows.length)

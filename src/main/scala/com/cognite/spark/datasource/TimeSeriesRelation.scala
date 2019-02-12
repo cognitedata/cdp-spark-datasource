@@ -41,6 +41,7 @@ class TimeSeriesRelation(apiKey: String,
                          project: String,
                          limit: Option[Int],
                          batchSizeOption: Option[Int],
+                         maxRetriesOption: Option[Int],
                          metricsPrefix: String,
                          collectMetrics: Boolean)
                         (@transient val sqlContext: SQLContext)
@@ -50,10 +51,11 @@ class TimeSeriesRelation(apiKey: String,
     with CdpConnector
     with Serializable {
 
-  @transient lazy val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy val timeSeriesCreated = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.created")
-  @transient lazy val timeSeriesRead = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.read")
+  @transient lazy private val timeSeriesCreated = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.created")
+  @transient lazy private val timeSeriesRead = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.read")
 
   override def schema: StructType = {
     StructType(Seq(
@@ -81,7 +83,7 @@ class TimeSeriesRelation(apiKey: String,
         Row(ts.name, ts.isString, ts.metadata, ts.unit, ts.assetId, ts.isStep, ts.description,
           ts.securityCategories, ts.id, ts.createdTime, ts.lastUpdatedTime)
       },
-      getUrl, getUrl, apiKey, project, batchSize, limit)
+      getUrl, getUrl, apiKey, project, batchSize, maxRetries, limit)
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
@@ -103,7 +105,7 @@ class TimeSeriesRelation(apiKey: String,
         r.getBoolean(5),
         Option(r.getAs(6)),
         Option(r.getAs(7))))
-    post(apiKey, baseTimeSeriesUrl(project), timeSeriesItems)
+    post(apiKey, baseTimeSeriesUrl(project), timeSeriesItems, maxRetries)
       .map(item => {
         if (collectMetrics) {
           timeSeriesCreated.inc(rows.length)

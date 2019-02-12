@@ -188,14 +188,16 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       apiKey,
       uri"https://api.cognitedata.com/api/0.6/projects/jetfiretest2/events?source=$source",
       batchSize = 1000,
-      limit = None)
+      limit = None,
+      maxRetries = 10)
 
     val eventIdsChunks = events.flatMap(_.id).grouped(1000)
     for (eventIds <- eventIdsChunks) {
       post(
         apiKey,
         uri"https://api.cognitedata.com/api/0.6/projects/jetfiretest2/events/delete",
-        eventIds
+        eventIds,
+        10
       ).unsafeRunSync()
     }
   }
