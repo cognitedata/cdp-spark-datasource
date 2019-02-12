@@ -35,21 +35,24 @@ class DefaultSource extends RelationProvider
     }
   }
 
+  private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] = {
+    parameters.get(parameterName).map { intString =>
+      val intValue = intString.toInt
+      if (intValue <= 0) {
+        sys.error(s"$parameterName must be greater than 0")
+      }
+      intValue
+    }
+  }
+
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
     val project = parameters.getOrElse("project", sys.error("Project must be specified"))
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
-    val batchSize = try {
-      parameters.get("batchSize").map(_.toInt)
-    } catch {
-      case _: NumberFormatException => None
-    }
-    val limit = try {
-      parameters.get("limit").map(_.toInt)
-    } catch {
-      case _: NumberFormatException => None
-    }
+    val batchSize = toPositiveInt(parameters, "batchSize")
+    val limit = toPositiveInt(parameters, "limit")
+    val maxRetries = toPositiveInt(parameters, "maxRetries")
     val metricsPrefix = parameters.get("metricsPrefix") match {
       case Some(prefix) => s"$prefix."
       case None => ""
@@ -57,9 +60,9 @@ class DefaultSource extends RelationProvider
     val collectMetrics = toBoolean(parameters, "collectMetrics")
     resourceType match {
       case "datapoints" =>
-        new DataPointsRelation(apiKey, project, Option(schema), limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
+        new DataPointsRelation(apiKey, project, Option(schema), limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case "timeseries" =>
-        new TimeSeriesRelation(apiKey, project, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
+        new TimeSeriesRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case "tables" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
@@ -74,16 +77,16 @@ class DefaultSource extends RelationProvider
         val collectSchemaInferenceMetrics = toBoolean(parameters, "collectSchemaInferenceMetrics")
 
         new RawTableRelation(apiKey, project, database, tableName, Option(schema), limit,
-          inferSchema, inferSchemaLimit, batchSize,
+          inferSchema, inferSchemaLimit, batchSize, maxRetries,
           metricsPrefix, collectMetrics, collectSchemaInferenceMetrics)(sqlContext)
       case "assets" =>
         val assetsPath = parameters.get("assetsPath")
         if (assetsPath.isDefined && !AssetsRelation.isValidAssetsPath(assetsPath.get)) {
           sys.error("Invalid assets path: " + assetsPath.get)
         }
-        new AssetsRelation(apiKey, project, assetsPath, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
+        new AssetsRelation(apiKey, project, assetsPath, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case "events" =>
-        new EventsRelation(apiKey, project, limit, batchSize, metricsPrefix, collectMetrics)(sqlContext)
+        new EventsRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }

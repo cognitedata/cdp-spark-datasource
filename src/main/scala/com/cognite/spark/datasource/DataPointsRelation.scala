@@ -64,6 +64,7 @@ class DataPointsRelation(apiKey: String,
                          suppliedSchema: Option[StructType],
                          limit: Option[Int],
                          batchSizeOption: Option[Int],
+                         maxRetriesOption: Option[Int],
                          metricsPrefix: String,
                          collectMetrics: Boolean)(@transient val sqlContext: SQLContext)
   extends BaseRelation
@@ -74,10 +75,11 @@ class DataPointsRelation(apiKey: String,
     with Serializable {
   import CdpConnector._
 
-  @transient lazy val batchSize = batchSizeOption.getOrElse(Constants.DefaultDataPointsBatchSize)
+  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultDataPointsBatchSize)
+  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy val datapointsCreated = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.created")
-  @transient lazy val datapointsRead = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.read")
+  @transient lazy private val datapointsCreated = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.created")
+  @transient lazy private val datapointsRead = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.read")
 
   override def schema: StructType = {
     suppliedSchema.getOrElse(StructType(Seq(
@@ -321,7 +323,6 @@ class DataPointsRelation(apiKey: String,
     })
   }
 
-  private val maxRetries = Constants.DefaultMaxRetries
   private def postTimeSeries(data: MultiNamedTimeseriesData): IO[Unit] = {
     val url = uri"${baseDataPointsUrl(project)}"
     val postDataPoints = sttp.header("Accept", "application/json")

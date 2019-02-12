@@ -9,17 +9,17 @@ import org.apache.spark.sql.Row
 
 case class CdpRddPartition(cursor: Option[String], size: Option[Int], index: Int) extends Partition
 
-case class CdpRdd[A : DerivedDecoder](@transient override val sparkContext: SparkContext,
-                                       toRow: A => Row,
-                                       getPartitionsBaseUri: Uri,
-                                       getSinglePartitionBaseUri: Uri,
-                                       apiKey: String,
-                                       project: String,
-                                       batchSize: Int,
-                                       limit: Option[Int])
+case class CdpRdd[A: DerivedDecoder](@transient override val sparkContext: SparkContext,
+                                     toRow: A => Row,
+                                     getPartitionsBaseUri: Uri,
+                                     getSinglePartitionBaseUri: Uri,
+                                     apiKey: String,
+                                     project: String,
+                                     batchSize: Int,
+                                     maxRetries: Int,
+                                     limit: Option[Int])
   extends RDD[Row](sparkContext, Nil)
   with CdpConnector {
-  private val maxRetries = Constants.DefaultMaxRetries
 
   private def cursors(url: Uri): Iterator[(Option[String], Option[Int])] = {
     new Iterator[(Option[String], Option[Int])] {
@@ -37,7 +37,7 @@ case class CdpRdd[A : DerivedDecoder](@transient override val sparkContext: Spar
         val thisBatchSize = math.min(batchSize, limit.map(_ - nItemsRead).getOrElse(batchSize))
         val urlWithLimit = url.param("limit", thisBatchSize.toString)
         val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
-        val dataWithCursor = getJson[CdpConnector.DataItemsWithCursor[A]](apiKey, getUrl)
+        val dataWithCursor = getJson[CdpConnector.DataItemsWithCursor[A]](apiKey, getUrl, maxRetries)
           .unsafeRunSync()
           .data
         nextCursor = dataWithCursor.nextCursor

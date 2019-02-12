@@ -31,7 +31,7 @@ trait CdpConnector {
     uri"https://api.cognitedata.com/api/$version/projects/$project"
   }
 
-  def getJson[A : Decoder](apiKey: String, url: Uri, maxRetries: Int = Constants.DefaultMaxRetries): IO[A] = {
+  def getJson[A : Decoder](apiKey: String, url: Uri, maxRetries: Int): IO[A] = {
     val result = sttp.header("Accept", "application/json")
       .header("api-key", apiKey).get(url).response(asJson[A])
       .parseResponseIf(_ => true)
@@ -43,7 +43,7 @@ trait CdpConnector {
 
   def getProtobuf[A](apiKey: String, url: Uri,
                      parseResult: Response[Array[Byte]] => Response[A],
-                     maxRetries: Int = 10): IO[A] = {
+                     maxRetries: Int): IO[A] = {
     val result = sttp.header("Accept", "application/protobuf")
       .header("api-key", apiKey).get(url).response(asByteArray)
       .parseResponseIf(_ => true)
@@ -58,7 +58,7 @@ trait CdpConnector {
   }
 
   def get[A : Decoder](apiKey: String, url: Uri, batchSize: Int,
-                       limit: Option[Int], maxRetries: Int = 10,
+                       limit: Option[Int], maxRetries: Int,
                        initialCursor: Option[String] = None): Iterator[A] = {
     getWithCursor(apiKey, url, batchSize, limit, maxRetries, initialCursor)
       .flatMap(_.chunk)
@@ -84,22 +84,22 @@ trait CdpConnector {
   }
 
   def getWithCursor[A: Decoder](apiKey: String, url: Uri, batchSize: Int,
-                                limit: Option[Int], maxRetries: Int = 10,
+                                limit: Option[Int], maxRetries: Int,
                                 initialCursor: Option[String] = None): Iterator[Chunk[A, String]] = {
     Batch.chunksWithCursor(batchSize, limit, initialCursor) { (chunkSize, cursor: Option[String]) =>
       val urlWithLimit = url.param("limit", chunkSize.toString)
       val getUrl = cursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
 
-      val dataWithCursor = getJson[DataItemsWithCursor[A]](apiKey, getUrl).unsafeRunSync().data
+      val dataWithCursor = getJson[DataItemsWithCursor[A]](apiKey, getUrl, maxRetries).unsafeRunSync().data
       (dataWithCursor.items, dataWithCursor.nextCursor)
     }
   }
 
-  def post[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int = 10): IO[Unit] = {
+  def post[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int): IO[Unit] = {
     postOr(apiKey, url, items, maxRetries)(Map.empty)
   }
 
-  def postOr[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int = 10)
+  def postOr[A : Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int)
                        (onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
     val singlePost = sttp.header("Accept", "application/json")
       .header("api-key", apiKey)

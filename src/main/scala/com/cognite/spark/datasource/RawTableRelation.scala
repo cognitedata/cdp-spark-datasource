@@ -30,6 +30,7 @@ class RawTableRelation(apiKey: String,
                        inferSchema: Boolean,
                        inferSchemaLimit: Option[Int],
                        batchSizeOption: Option[Int],
+                       maxRetriesOption: Option[Int],
                        metricsPrefix: String,
                        collectMetrics: Boolean,
                        collectSchemaInferenceMetrics: Boolean)(val sqlContext: SQLContext)
@@ -40,7 +41,9 @@ class RawTableRelation(apiKey: String,
     with Serializable {
   import RawTableRelation._
 
-  lazy val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
+
   @transient lazy val defaultSchema = StructType(Seq(
     StructField("key", DataTypes.StringType),
     StructField("columns", DataTypes.StringType)
@@ -54,8 +57,8 @@ class RawTableRelation(apiKey: String,
   }
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-  @transient lazy val rowsCreated = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.created")
-  @transient lazy val rowsRead = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.read")
+  @transient private lazy val rowsCreated = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.created")
+  @transient private lazy val rowsRead = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.read")
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
@@ -79,7 +82,7 @@ class RawTableRelation(apiKey: String,
         }
         Row(item.key, item.columns.asJson.noSpaces)
       },
-      baseUrl.param("columns", ","), baseUrl, apiKey, project, batchSize, limit)
+      baseUrl.param("columns", ","), baseUrl, apiKey, project, batchSize, maxRetries, limit)
   }
 
   override def buildScan(): RDD[Row] = {
@@ -119,7 +122,7 @@ class RawTableRelation(apiKey: String,
 
     val url = uri"${baseRawTableURL(project, database, table)}/create"
 
-    post(apiKey, url, items)
+    post(apiKey, url, items, maxRetries)
       .flatTap { _ =>
         IO {
           if (collectMetrics) {
