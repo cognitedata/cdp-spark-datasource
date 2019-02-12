@@ -12,7 +12,8 @@ import io.circe.parser.decode
 import io.circe.{Decoder, Encoder}
 
 import scala.concurrent.{ExecutionContext, TimeoutException}
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
+import scala.util.Random
 
 case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
@@ -113,16 +114,19 @@ trait CdpConnector {
 
   // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int): IO[A] = {
+    val exponentialDelay = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2)
+    val randomDelayScale = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
+    val nextDelay = Random.nextInt(randomDelayScale.toInt).millis + exponentialDelay
     ioa.handleErrorWith {
       case cdpError: CdpApiException =>
         if (shouldRetry(cdpError.code) && maxRetries > 0) {
-          IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
+          IO.sleep(initialDelay) *> retryWithBackoff(ioa, nextDelay, maxRetries - 1)
         } else {
           IO.raiseError(cdpError)
         }
       case exception @ (_: TimeoutException | _: IOException) =>
         if (maxRetries > 0) {
-          IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
+          IO.sleep(initialDelay) *> retryWithBackoff(ioa, nextDelay, maxRetries - 1)
         } else {
           IO.raiseError(exception)
         }
