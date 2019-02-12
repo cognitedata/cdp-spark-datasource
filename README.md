@@ -9,7 +9,7 @@ through asynchronous writes.
 The project runs some tests against the jetfiretest2 project, to make them pass set the environment
 variable `TEST_API_KEY` to an API key with access to the `jetfiretest2` project.
 
-For more information about Jetfire see https://cognitedata.atlassian.net/wiki/spaces/cybertron/pages/575602824/Jetfire 
+For more information about Jetfire see https://cognitedata.atlassian.net/wiki/spaces/cybertron/pages/575602824/Jetfire
 and https://docs.google.com/presentation/d/11oM_Z-NbFAl-ULOvBzG6YmSVRYbPCDuFOnjLed8IuwM
 or go to https://jetfire.cogniteapp.com/ to try it out.
 
@@ -52,6 +52,155 @@ df: org.apache.spark.sql.DataFrame = [name: string, parentId: bigint ... 3 more 
 
 scala> df.count
 res0: Long = 1000
+```
+
+## Reading and writing Cognite Data Platform resource types:
+
+cdp-spark-datasource supports reads from, and writes to, assets, time series, tables, data points and events.
+
+### Reading
+
+To read from CDP resource types you need to provide three things:
+an API-key, a project name and the resource type. To read from a table you should also specify the database name and table name.
+
+### Writing
+
+To write to a resource you'll need to register a DataFrame that was read from
+that resource as a temporary view. You'll need a project where you have write access
+and replace `myproject` and `myApiKey` in the examples below.
+
+Your schema will have to match that of the target exactly. A convenient way to ensure
+this is to copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`, see time series example.
+
+### Assets
+
+https://doc.cognitedata.com/concepts/#assets
+
+```scala
+// Read assets from your project into a DataFrame
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+ .option("project", "myproject")
+ .option("apiKey", "myApiKey")
+ .option("type", "assets")
+ .load()
+
+// Register your assets in a temporary view
+df.createTempView("assets")
+
+// Create a new asset and write to CDP
+val someAsset = Seq(("99-BB-99999",99L,"This is another asset",Map("sourceSystem"->"MySparkJob"),99L))
+val someAssetDf = someAsset.toDF("name", "parentID", "description","metadata","id")
+someAssetDf
+ .write
+ .insertInto("assets")
+```
+
+### Time series
+
+https://doc.cognitedata.com/concepts/#time-series
+
+```scala
+// Get all the time series from your project
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "myproject")
+  .option("apiKey", "myApiKey")
+  .option("type", "timeseries")
+  .load()
+destinationDf.createTempView("timeseries")
+
+// Read some new time series data from a csv-file
+val timeSeriesDf = spark.sqlContext.read.format("csv")
+  .option("header", "true")
+  .load("timeseries.csv)
+
+// Ensure correct schema by copying the columns in the DataFrame read from the project.
+// Note that the timeseries must already exist in the project before data can be written to it, based on the ´name´ column.
+timeSeriesDf.select(destinationDf.columns.map(col):_*)
+  .write
+  .insertInto("timeseries")
+```
+
+### Data points
+
+https://doc.cognitedata.com/concepts/#data-points
+
+Data points are always related to a time series. To read datapoints you will need to filter by a valid time series name.
+You can also request aggregated data by filtering by aggregation and granularity.
+
+`aggregation`: Numerical data points can be aggregated before they are retrieved from CDP. 
+This allows for faster queries by reducing the amount of data transferred. 
+You can aggregate data points by specifying one or more aggregates (e.g. average, minimum, maximum) 
+as well as the time granularity over which the aggregates should be applied (e.g. “1h” for one hour).
+If the aggregate option is NULL, or not set, data points will return the raw time series data.
+
+`granularity`: Aggregates are aligned to the start time modulo the granularity unit. 
+For example, if you ask for daily average temperatures since monday afternoon last week, 
+the first aggregated data point will contain averages for monday, the second for tuesday, etc.
+
+```scala
+// Get the datapoints from publicdata
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "publicdata")
+  .option("apiKey", "publicdataApiKey")
+  .option("type", "datapoints")
+  .load()
+  
+// Create the view to enable spark-sql syntax
+df.createTempView("datapoints")
+
+// Read the raw datapoints from the VAL_23-ESDV-92501A-PST:VALUE time series.
+val timeseriesName = "VAL_23-ESDV-92501A-PST:VALUE"
+val timeseries = spark.sql(s"select * from datapoints where name = '$timeseriesName'")
+
+// Read aggregate data from the same time series
+val timeseriesAggregated = spark.sql(s"select * from datapoints where name = '$timeseriesName'" +
+s"and aggregation = 'min' and granularity = '1d'")
+```
+
+### Events
+
+https://doc.cognitedata.com/concepts/#events
+
+```scala
+// Read events from `publicdata`
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "publicdata")
+  .option("apiKey", <publicdata-api-key>)
+  .option("type", "events")
+  .load()
+
+// Get a reference to the events in your project
+val myProjectDf = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "myproject")
+  .option("apiKey", "myApiKey")
+  .option("type", "events")
+  .load()
+myProjectDf.createTempView("events")
+
+// Copy the Valhall events to your project
+df.filter($"subtype" === "Valhall")
+  .write
+  .insertInto("events")
+```
+
+### Raw table
+
+https://doc.cognitedata.com/api/0.5/#tag/Raw
+
+Raw tables are organized in databases and tables so you'll need to provide these as options to the DataFrameReader.
+`publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
+```scala
+val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("project", "myproject")
+  .option("apiKey", "myApiKey")
+  .option("type", "tables")
+  .option("database", <database-name>) // a raw database in "myproject"
+  .option("table", <table-name>) // name of a table in <database-name>
+  .load()
+df.createTempView("tablename")
+
+// Insert some new values
+spark.sql("""insert into tablename values ("key", "values")""")
 ```
 
 ## Short-term list of missing features:
