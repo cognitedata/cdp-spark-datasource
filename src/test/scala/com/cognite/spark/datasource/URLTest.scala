@@ -3,10 +3,18 @@ package com.cognite.spark.datasource
 import org.scalatest.FunSuite
 
 class URLTest extends FunSuite with SparkTest with CdpConnector {
+
+  val apiKey = System.getenv("TEST_API_KEY")
+
   test("verify path encoding of base url") {
     val dataPointsRelation = new DataPointsRelation("", "statøil",
       None, None, None, None, "", false)(spark.sqlContext) // scalastyle:ignore null
     assert("https://api.cognitedata.com/api/0.5/projects/stat%C3%B8il/timeseries/data" == dataPointsRelation.baseDataPointsUrl("statøil").toString)
+  }
+
+  test("verify that correct project is retrieved from TEST_API_KEY"){
+    val project = getProject(apiKey, Constants.DefaultMaxRetries)
+    assert(project == "jetfiretest2")
   }
 }
 

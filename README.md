@@ -41,7 +41,6 @@ Type :help for more information.
 
 scala> val apiKey="secret-key-you-have"
 scala> val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
-  .option("project", "publicdata")
   .option("apiKey", apiKey)
   .option("batchSize", "1000")
   .option("limit", "1000")
@@ -60,14 +59,14 @@ cdp-spark-datasource supports reads from, and writes to, assets, time series, ta
 
 ### Reading
 
-To read from CDP resource types you need to provide three things:
-an API-key, a project name and the resource type. To read from a table you should also specify the database name and table name.
+To read from CDP resource types you need to provide two things:
+an API-key and the resource type. To read from a table you should also specify the database name and table name.
 
 ### Writing
 
 To write to a resource you'll need to register a DataFrame that was read from
 that resource as a temporary view. You'll need a project where you have write access
-and replace `myproject` and `myApiKey` in the examples below.
+and replace `myApiKey` in the examples below.
 
 Your schema will have to match that of the target exactly. A convenient way to ensure
 this is to copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`, see time series example.
@@ -79,7 +78,6 @@ https://doc.cognitedata.com/concepts/#assets
 ```scala
 // Read assets from your project into a DataFrame
 val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
- .option("project", "myproject")
  .option("apiKey", "myApiKey")
  .option("type", "assets")
  .load()
@@ -102,7 +100,6 @@ https://doc.cognitedata.com/concepts/#time-series
 ```scala
 // Get all the time series from your project
 val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
-  .option("project", "myproject")
   .option("apiKey", "myApiKey")
   .option("type", "timeseries")
   .load()
@@ -140,7 +137,6 @@ the first aggregated data point will contain averages for monday, the second for
 ```scala
 // Get the datapoints from publicdata
 val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
-  .option("project", "publicdata")
   .option("apiKey", "publicdataApiKey")
   .option("type", "datapoints")
   .load()
@@ -164,14 +160,12 @@ https://doc.cognitedata.com/concepts/#events
 ```scala
 // Read events from `publicdata`
 val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
-  .option("project", "publicdata")
-  .option("apiKey", <publicdata-api-key>)
+  .option("apiKey", "publicdataApiKey")
   .option("type", "events")
   .load()
 
 // Get a reference to the events in your project
 val myProjectDf = spark.sqlContext.read.format("com.cognite.spark.datasource")
-  .option("project", "myproject")
   .option("apiKey", "myApiKey")
   .option("type", "events")
   .load()
@@ -191,11 +185,10 @@ Raw tables are organized in databases and tables so you'll need to provide these
 `publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
 ```scala
 val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
-  .option("project", "myproject")
   .option("apiKey", "myApiKey")
   .option("type", "tables")
-  .option("database", <database-name>) // a raw database in "myproject"
-  .option("table", <table-name>) // name of a table in <database-name>
+  .option("database", "database-name") // a raw database from your project
+  .option("table", "table-name") // name of a table in "database-name"
   .load()
 df.createTempView("tablename")
 

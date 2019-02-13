@@ -11,7 +11,6 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
   test("smoke test time series metadata") {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "timeseries")
       .load()
@@ -20,7 +19,6 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
   test("smoke test assets") {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "assets")
       .option("batchSize", "1000")
@@ -35,7 +33,6 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
   test("smoke test tables") {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "tables")
       .option("batchSize", "100")
@@ -54,7 +51,6 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
   test("smoke test events") {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "events")
       .option("batchSize", "500")
@@ -108,7 +104,6 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
   test("smoke test pushing of events and upsert") {
     val sourceDf = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "tables")
       .option("limit", "1000")
@@ -119,7 +114,6 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .load()
 
     val destinationDf = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "events")
       .load()

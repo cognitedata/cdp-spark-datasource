@@ -20,6 +20,7 @@ case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
 case class Items[A](items: Seq[A])
 case class CdpApiErrorPayload(code: Int, message: String)
 case class Error[A](error: A)
+case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
 
 case class CdpApiException(url: Uri, code: Int, message: String)
   extends Throwable(s"Request to ${url.toString()} failed with status $code: $message") {
@@ -27,6 +28,12 @@ case class CdpApiException(url: Uri, code: Int, message: String)
 
 trait CdpConnector {
   import CdpConnector._
+
+  def getProject(apiKey: String, maxRetries: Int): String = {
+    val loginStatusUrl = uri"https://api.cognitedata.com/login/status"
+    val jsonResult = getJson[Data[Login]](apiKey, loginStatusUrl, maxRetries)
+    jsonResult.unsafeRunSync().data.project
+  }
 
   def baseUrl(project: String, version: String = "0.5"): Uri = {
     uri"https://api.cognitedata.com/api/$version/projects/$project"
