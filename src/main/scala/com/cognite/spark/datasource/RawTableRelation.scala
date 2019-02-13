@@ -98,7 +98,7 @@ class RawTableRelation(apiKey: String,
 
   override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
     if (!df.columns.contains("key")) {
-      throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column")
+      throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column.")
     }
 
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df)
@@ -109,16 +109,8 @@ class RawTableRelation(apiKey: String,
     })
   }
 
-  private def rowsToRawItems(nonKeyColumnNames: Seq[String], rows: Seq[Row]): Seq[RawItem] = {
-    rows.map(row => RawItem(
-      row.getString(row.fieldIndex(temporaryKeyName)),
-      io.circe.parser.decode[JsonObject](
-        mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames))).right.get
-    ))
-  }
-
   private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]): IO[Unit] = {
-    val items = rowsToRawItems(nonKeyColumnNames, rows)
+    val items = rowsToRawItems(nonKeyColumnNames, rows, mapper)
 
     val url = uri"${baseRawTableURL(project, database, table)}/create"
 
@@ -142,6 +134,15 @@ object RawTableRelation {
 
   private def keyColumns(schema: StructType): Array[String] = {
     schema.fieldNames.filter(keyColumnPattern.findFirstIn(_).isDefined)
+  }
+
+  def rowsToRawItems(nonKeyColumnNames: Seq[String], rows: Seq[Row], mapper: ObjectMapper): Seq[RawItem] = {
+    rows.map(row => RawItem(
+      Option(row.getString(row.fieldIndex(temporaryKeyName)))
+        .getOrElse(throw new IllegalArgumentException("\"key\" can not be null.")),
+      io.circe.parser.decode[JsonObject](
+        mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames))).right.get
+    ))
   }
 
   private def schemaWithoutRenamedKeyColumns(schema: StructType) = {
