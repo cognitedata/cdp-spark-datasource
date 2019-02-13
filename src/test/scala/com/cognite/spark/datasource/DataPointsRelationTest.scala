@@ -10,7 +10,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   val apiKey = System.getenv("TEST_API_KEY")
   "DataPointsRelation" should "use our own schema for data points" in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .load()
@@ -27,7 +26,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "iterate over period longer than limit" in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .option("batchSize", "40")
@@ -39,7 +37,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle initial data set below batch size" in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .option("batchSize", "2000")
@@ -51,7 +48,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle initial data set with the same size as the batch size" in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
@@ -63,7 +59,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "test that start/stop time are handled correctly for data points" in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
@@ -75,7 +70,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "support aggregations" in {
     val df1 = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
@@ -85,7 +79,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         " and aggregation = 'avg' and granularity = '30d' and name = 'Bitbay USD'")
     assert(df1.count() == 49)
     val df2 = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
@@ -98,7 +91,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "be possible to specify multiple aggregation types in one query" in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
@@ -121,7 +113,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "be an error to specify an aggregation without specifying a granularity" in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .load()
@@ -131,7 +122,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "be an error to specify a granularity without specifying an aggregation" in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .load()
@@ -142,7 +132,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "be an error to specify an invalid granularity" in {
     for (granularity <- Seq("30", "dd", "d30", "1", "0", "1.2d", "1.4y", "1.4seconds")) {
       val df = spark.read.format("com.cognite.spark.datasource")
-        .option("project", "jetfiretest2")
         .option("apiKey", apiKey)
         .option("type", "datapoints")
         .load()
@@ -154,7 +143,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "accept valid granularity specifications" in {
     for (granularity <- Seq("d", "day", "h", "hour", "m", "minute", "1hour", "2h", "20d", "13day", "7m", "7minute")) {
       val df = spark.read.format("com.cognite.spark.datasource")
-        .option("project", "jetfiretest2")
         .option("apiKey", apiKey)
         .option("type", "datapoints")
         .option("batchSize", "1")
@@ -167,7 +155,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "be an error to specify an invalid (timeseries) name" in {
     val destinationDf = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
       .option("apiKey", apiKey)
       .option("type", "datapoints")
       .load()

@@ -13,7 +13,8 @@ import scala.concurrent.ExecutionContext
 
 class DefaultSource extends RelationProvider
   with SchemaRelationProvider
-  with DataSourceRegister {
+  with DataSourceRegister
+  with CdpConnector {
 
   override def shortName(): String = "cognite"
 
@@ -47,12 +48,12 @@ class DefaultSource extends RelationProvider
 
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
+    val maxRetries = toPositiveInt(parameters, "maxRetries")
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
-    val project = parameters.getOrElse("project", sys.error("Project must be specified"))
+    val project = getProject(apiKey, maxRetries.getOrElse(Constants.DefaultMaxRetries))
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limit = toPositiveInt(parameters, "limit")
-    val maxRetries = toPositiveInt(parameters, "maxRetries")
     val metricsPrefix = parameters.get("metricsPrefix") match {
       case Some(prefix) => s"$prefix."
       case None => ""
