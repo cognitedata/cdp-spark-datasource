@@ -148,7 +148,7 @@ trait CdpConnector {
     // we lose connection to db, so 401 can be transient
     case 401 => true
     // 500 is hard to say, but we should avoid having those in the api
-    //case 500 => false // let's not retry them for now
+    case 500 => true // we get random and transient 500 responses often enough that it's worth retrying them.
     // 502 and 503 are usually transient.
     case 502 => true
     case 503 => true
