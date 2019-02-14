@@ -1,11 +1,12 @@
 package com.cognite.spark.datasource
 
-import com.cognite.data.api.v1.NumericDatapoint
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+
+import com.cognite.data.api.v2.DataPoints.NumericDatapoint
 
 case class DataPointsRddPartition(startTime: Long, endTime: Long, index: Int) extends Partition
 
@@ -43,19 +44,17 @@ case class DataPointsRdd(@transient override val sparkContext: SparkContext,
               .data.items
               .flatMap(dataPoints =>
                 dataPoints.datapoints.map(dataPoint => {
-                  NumericDatapoint.newBuilder()
-                    .setTimestamp(dataPoint.timestamp)
-                    .setValue(getAggregationValue(dataPoint, aggregationFilter))
-                    .build()
+                  NumericDatapoint(dataPoint.timestamp,
+                    getAggregationValue(dataPoint, aggregationFilter))
                 }))
           case None =>
             getProtobuf[Seq[NumericDatapoint]](apiKey, uri, parseResult, maxRetries)
               .unsafeRunSync()
         }
-        if (dataPoints.lastOption.fold(true)(_.getTimestamp < start)) {
+        if (dataPoints.lastOption.fold(true)(_.timestamp < start)) {
           (Seq.empty, None)
         } else {
-          (dataPoints.map(toRow), dataPoints.lastOption.map(_.getTimestamp + 1))
+          (dataPoints.map(toRow), dataPoints.lastOption.map(_.timestamp + 1))
         }
       } else {
         (Seq.empty, None)
