@@ -1,5 +1,8 @@
 package com.cognite.spark.datasource
 
+import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
@@ -24,6 +27,10 @@ class RawTableRelationTest extends FlatSpec with Matchers with SparkTest {
     StructField("value", IntegerType, false)))
   private val dfWithKeyData = Seq(
     ("key3", """{ "key": "k1", "value": 1 }"""),
+    ("key4", """{ "key": "k2", "value": 2 }""")
+  )
+  private val dfWithNullKeyData = Seq(
+    (null, """{ "key": "k1", "value": 1 }"""),
     ("key4", """{ "key": "k2", "value": 2 }""")
   )
   private val dfWithManyKeysSchema = StructType(Seq(
@@ -73,4 +80,35 @@ class RawTableRelationTest extends FlatSpec with Matchers with SparkTest {
     collectToSet(unRenamed2.select("__key")) should equal (Set("__k1", "__k2"))
     collectToSet(unRenamed2.select("___key")) should equal (Set("___k1", "___k2"))
   }
+
+  val mapper: ObjectMapper = {
+    val mapper = new ObjectMapper()
+    mapper.registerModule(DefaultScalaModule)
+    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+    mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
+    mapper
+  }
+
+  "rowsToRawItems" should "return RawItems from Rows" in {
+    val dfWithKey = dfWithKeyData.toDF("key", "columns")
+    val processedWithKey = flattenAndRenameKeyColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
+    val (columnNames, unRenamed) = prepareForInsert(processedWithKey)
+    val rawItems = rowsToRawItems(columnNames, unRenamed.collect.toSeq, mapper)
+    rawItems.map(_.key.toString).toSet should equal(Set("key3", "key4"))
+
+    val expectedResult: Seq[JsonObject] = Seq[JsonObject](
+        JsonObject( ("key", Json.fromString("k1")), ("value", Json.fromInt(1))),
+        JsonObject( ("key", Json.fromString("k2")), ("value", Json.fromInt(2)))
+    )
+
+  rawItems.map(_.columns) should equal (expectedResult)
+  }
+
+  it should "throw an IllegalArgumentException when DataFrame has null key" in {
+    val dfWithKey = dfWithNullKeyData.toDF("key", "columns")
+    val processedWithKey = flattenAndRenameKeyColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
+    val (columnNames, unRenamed) = prepareForInsert(processedWithKey)
+    an [IllegalArgumentException] should be thrownBy rowsToRawItems(columnNames, unRenamed.collect.toSeq, mapper)
+  }
+
 }
