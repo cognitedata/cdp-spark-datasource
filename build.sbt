@@ -18,6 +18,10 @@ lazy val commonSettings = Seq(
   }
 )
 
+PB.targets in Compile := Seq(
+  scalapb.gen() -> (sourceManaged in Compile).value
+)
+
 lazy val library = (project in file("."))
   .settings(
     commonSettings,
@@ -26,6 +30,8 @@ lazy val library = (project in file("."))
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
     libraryDependencies ++= Seq(
+      "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
+  
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
 
       "com.softwaremill.sttp" %% "core" % "1.5.0",
@@ -38,9 +44,7 @@ lazy val library = (project in file("."))
       "io.circe" %% "circe-parser" % circeVersion,
       "io.circe" %% "circe-literal" % circeVersion,
       "io.circe" %% "circe-generic-extras" % circeVersion,
-
-      "com.cognite.data" % "cognite-data" % "0.24",
-
+      
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
 
       "com.groupon.dse" % "spark-metrics" % "2.4.0-cognite" % Provided,

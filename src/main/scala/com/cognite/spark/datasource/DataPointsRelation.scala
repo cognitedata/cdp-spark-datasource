@@ -3,8 +3,6 @@ package com.cognite.spark.datasource
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import io.circe.generic.auto._
-import com.cognite.data.api.v1.{NumericDatapoint, TimeseriesData}
-import com.cognite.data.api.v2.{MultiNamedTimeseriesData, NamedTimeseriesData, NumericTimeseriesData, NumericDatapoint => NumericDataPointV2}
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, TableScan, _}
@@ -13,9 +11,10 @@ import org.apache.spark.sql.{Row, SQLContext}
 import com.softwaremill.sttp._
 import com.softwaremill.sttp.circe._
 
-import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.util.Try
+
+import com.cognite.data.api.v2.DataPoints._
 
 sealed case class DataPointsDataItems[A](items: Seq[A])
 
@@ -218,8 +217,8 @@ class DataPointsRelation(apiKey: String,
     for (index <- requiredColumnIndexes)
       yield index match {
         case 0 => Some(name)
-        case 1 => Some(dataPoint.getTimestamp)
-        case 2 => Some(dataPoint.getValue)
+        case 1 => Some(dataPoint.timestamp)
+        case 2 => Some(dataPoint.value)
         case 3 => aggregation
         case 4 => granularity
         case _ =>
@@ -288,8 +287,8 @@ class DataPointsRelation(apiKey: String,
     //TODO: handle string timeseries
     val r = Either.catchNonFatal {
       val timeSeriesData = TimeseriesData.parseFrom(response.unsafeBody)
-      if (timeSeriesData.hasNumericData) {
-        timeSeriesData.getNumericData.getPointsList.asScala
+      if (timeSeriesData.data.isNumericData) {
+        timeSeriesData.getNumericData.points
       } else {
         Seq.empty
       }
@@ -303,22 +302,17 @@ class DataPointsRelation(apiKey: String,
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
       batches.parTraverse(batch => {
-        val timeSeriesData = MultiNamedTimeseriesData.newBuilder()
+        val timeSeriesData = MultiNamedTimeseriesData()
         batch.groupBy(r => r.getAs[String](0))
           .foreach { case (name, timeseriesRows) => {
-            val d = timeseriesRows.foldLeft(NumericTimeseriesData.newBuilder())((builder, row) =>
-              builder.addPoints(NumericDataPointV2.newBuilder()
-                .setTimestamp(row.getLong(1))
-                .setValue(row.getDouble(2))))
+            val d = timeseriesRows.foldLeft(NumericTimeseriesData())((builder, row) =>
+              builder.addPoints(NumericDatapoint(row.getLong(1), row.getDouble(2))))
 
             timeSeriesData.addNamedTimeseriesData(
-              NamedTimeseriesData.newBuilder()
-                .setName(name)
-                .setNumericData(d.build())
-                .build()
+              NamedTimeseriesData(name, NamedTimeseriesData.Data.NumericData(d))
             )
           }}
-        postTimeSeries(timeSeriesData.build())
+        postTimeSeries(timeSeriesData)
       }).unsafeRunSync
     })
   }
@@ -336,8 +330,8 @@ class DataPointsRelation(apiKey: String,
     retryWithBackoff(postDataPoints, Constants.DefaultInitialRetryDelay, maxRetries)
       .map(r => {
         if (collectMetrics) {
-          val numPoints = data.getNamedTimeseriesDataList.asScala
-            .map(_.getNumericData.getPointsCount)
+          val numPoints = data.namedTimeseriesData
+            .map(_.getNumericData.points.length)
             .sum
           datapointsCreated.inc(numPoints)
         }

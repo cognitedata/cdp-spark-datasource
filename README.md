@@ -13,7 +13,8 @@ For more information about Jetfire see https://cognitedata.atlassian.net/wiki/sp
 and https://docs.google.com/presentation/d/11oM_Z-NbFAl-ULOvBzG6YmSVRYbPCDuFOnjLed8IuwM
 or go to https://jetfire.cogniteapp.com/ to try it out.
 
-Run `sbt assembly` to create `~/path-to-repo/target/scala-2.11/cdp-spark-datasource-*-jar-with-dependencies.jar`.
+First run `sbt compile` to generate Scala sources for protobuf.
+Then run `sbt assembly` to create `~/path-to-repo/target/scala-2.11/cdp-spark-datasource-*-jar-with-dependencies.jar`.
 
 
 ## Run it with spark-shell
