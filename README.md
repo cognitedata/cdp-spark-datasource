@@ -22,15 +22,30 @@ See instructions below for examples using different resource types.
 
 ## Build the project with sbt:
 
-The project runs some tests against the jetfiretest2 project, to make them pass set the environment
-variable `TEST_API_KEY` to an API key with access to the `jetfiretest2` project.
-
-For more information about Jetfire see https://cognitedata.atlassian.net/wiki/spaces/cybertron/pages/575602824/Jetfire
-and https://docs.google.com/presentation/d/11oM_Z-NbFAl-ULOvBzG6YmSVRYbPCDuFOnjLed8IuwM
-or go to https://jetfire.cogniteapp.com/ to try it out.
+The project runs read-only integration tests against the Open Industrial Data project. Head over to 
+https://openindustrialdata.com/ to get an API key and store it in the environment variable `TEST_API_KEY_READ`. 
+To run the write integration tests you'll also need to set the environment variable `TEST_API_KEY_WRITE` 
+to an API key to a project where you have write access.
 
 First run `sbt compile` to generate Scala sources for protobuf.
-Then run `sbt assembly` to create `~/path-to-repo/target/scala-2.11/cdp-spark-datasource-*-jar-with-dependencies.jar`.
+
+To run all tests run `sbt test`.
+
+To run groups of tests enter sbt shell mode `sbt>`
+
+To run only the read-only tests run `sbt> testOnly -- -n ReadTest`
+
+To run only the write tests run `sbt> testOnly -- -n WriteTest`
+
+To run all tests except the write tests run `sbt> testOnly -- -l WriteTest`
+
+Run `sbt assembly` to create `~/path-to-repo/target/scala-2.11/cdp-spark-datasource-*-jar-with-dependencies.jar`.
+
+To skip the read/write tests in assembly you can add `test in assembly := {}` to build.sbt, or run:
+
+Windows: `sbt "set test in assembly := {}" assembly`
+
+Linux/macos: `sbt 'set test in assembly := {}' assembly`
 
 
 ## Run it with spark-shell

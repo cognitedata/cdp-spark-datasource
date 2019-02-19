@@ -5,15 +5,20 @@ import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField
 import org.scalatest.{FlatSpec, FunSuite, Matchers}
 import org.apache.spark.SparkException
 import com.cognite.spark.datasource.CdpApiException
+import org.apache.spark.sql.Row
 
 class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
-  val apiKey = System.getenv("TEST_API_KEY")
-  "DataPointsRelation" should "use our own schema for data points" in {
+  val readApiKey = System.getenv("TEST_API_KEY_READ")
+  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
+
+  val valhallTimeSeries = "'VAL_23-FT-92537-04:X.Value'"
+
+  "DataPointsRelation" should "use our own schema for data points" taggedAs(ReadTest) in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .load()
-      .where("name = 'Bitbay USD'")
+      .where(s"name = $valhallTimeSeries")
     assert(df.schema.length == 5)
 
     assert(df.schema.fields.sameElements(Array(
@@ -24,138 +29,135 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       StructField("granularity", StringType, nullable = true))))
   }
 
-  it should "iterate over period longer than limit" in {
+  it should "iterate over period longer than limit" taggedAs(ReadTest) in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .option("batchSize", "40")
       .option("limit", "100")
       .load()
-      .where("timestamp > 0 and timestamp < 1790902000001 and name = 'Bitbay USD'")
+      .where(s"timestamp > 0 and timestamp < 1790902000001 and name = $valhallTimeSeries")
     assert(df.count() == 100)
   }
 
-  it should "handle initial data set below batch size" in {
+  it should "handle initial data set below batch size" taggedAs(ReadTest) in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .option("batchSize", "2000")
       .option("limit", "100")
       .load()
-      .where("name = 'Bitbay USD'")
+      .where(s"name = $valhallTimeSeries")
     assert(df.count() == 100)
   }
 
-  it should "handle initial data set with the same size as the batch size" in {
+  it should "handle initial data set with the same size as the batch size" taggedAs(ReadTest) in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
       .option("limit", "100")
       .load()
-      .where("timestamp >= 0 and timestamp <= 1790902000001 and name = 'Bitbay USD'")
+      .where(s"timestamp >= 0 and timestamp <= 1790902000001 and name = $valhallTimeSeries")
     assert(df.count() == 100)
   }
 
-  it should "test that start/stop time are handled correctly for data points" in {
+  it should "test that start/stop time are handled correctly for data points" taggedAs(ReadTest) in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
       .option("limit", "100")
       .load()
-      .where("name = 'stopTimeTest'")
-    assert(df.count() == 2)
+      .where(s"timestamp > 1509528850000 and timestamp < 1509528860000 and name = $valhallTimeSeries")
+    assert(df.count() == 9)
   }
 
-  it should "support aggregations" in {
+  it should "support aggregations" taggedAs(ReadTest) in {
     val df1 = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
       .option("limit", "100")
       .load()
-      .where("timestamp >= 0 and timestamp <= 1790902000001" +
-        " and aggregation = 'avg' and granularity = '30d' and name = 'Bitbay USD'")
-    assert(df1.count() == 49)
+      .where(s"aggregation = 'avg' and granularity = '30d' and name = $valhallTimeSeries")
+    assert(df1.count() == 16)
     val df2 = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
       .option("limit", "100")
       .load()
-      .where("timestamp >= 0 and timestamp <= 1790902000001" +
-        " and aggregation = 'avg' and granularity = '60d' and name = 'Bitbay USD'")
-    assert(df2.count() == 25)
+      .where(s"aggregation = 'avg' and granularity = '60d' and name = $valhallTimeSeries")
+    assert(df2.count() == 8)
   }
 
-  it should "be possible to specify multiple aggregation types in one query" in {
+  it should "be possible to specify multiple aggregation types in one query" taggedAs(ReadTest) in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .option("batchSize", "100")
       .option("limit", "1")
       .load()
-      .where("timestamp >= 0 and timestamp <= 1790902000001" +
-        " and aggregation in ('min', 'avg', 'max') and granularity = '30d' and name = 'Bitbay USD'")
+      .where(s"aggregation in ('min', 'avg', 'max') and granularity = '30d' and name = $valhallTimeSeries")
     assert(df.count() == 3)
-    val results = df.collect()
+    val results: Array[Row] = df.collect()
     val Array(min, avg, max) = results
-    assert(min.getString(0) == "Bitbay USD")
-    assert(avg.getString(0) == "Bitbay USD")
-    assert(max.getString(0) == "Bitbay USD")
-    assert(min.getLong(1) == 1399680000000L)
-    assert(avg.getLong(1) == 1399680000000L)
-    assert(max.getLong(1) == 1399680000000L)
+    val timeSeriesName = valhallTimeSeries.replace("'","")
+    assert(min.getString(0) == timeSeriesName)
+    assert(avg.getString(0) == timeSeriesName)
+    assert(max.getString(0) == timeSeriesName)
+    assert(min.getLong(1) == 1508544000000L)
+    assert(max.getLong(1) == 1508544000000L)
     assert(min.getDouble(2) < avg.getDouble(2))
     assert(avg.getDouble(2) < max.getDouble(2))
   }
 
-  it should "be an error to specify an aggregation without specifying a granularity" in {
+  it should "be an error to specify an aggregation without specifying a granularity" taggedAs(ReadTest) in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .load()
-      .where("aggregation in ('min') and name = 'Bitbay USD'")
+      .where(s"aggregation in ('min') and name = $valhallTimeSeries")
     a[RuntimeException] should be thrownBy df.count()
   }
 
-  it should "be an error to specify a granularity without specifying an aggregation" in {
+  it should "be an error to specify a granularity without specifying an aggregation" taggedAs(ReadTest) in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .load()
-      .where("granularity = '30d' and name = 'Bitbay USD'")
+      .where(s"granularity = '30d' and name = $valhallTimeSeries")
     a[RuntimeException] should be thrownBy df.count()
   }
 
-  it should "be an error to specify an invalid granularity" in {
+  it should "be an error to specify an invalid granularity" taggedAs(ReadTest) in {
     for (granularity <- Seq("30", "dd", "d30", "1", "0", "1.2d", "1.4y", "1.4seconds")) {
       val df = spark.read.format("com.cognite.spark.datasource")
-        .option("apiKey", apiKey)
+        .option("apiKey", readApiKey)
         .option("type", "datapoints")
         .load()
-        .where(s"aggregation in ('min') and granularity = '$granularity' and name = 'Bitbay USD'")
+        .where(s"aggregation in ('min') and granularity = '$granularity' and name = $valhallTimeSeries")
       a[RuntimeException] should be thrownBy df.count()
     }
   }
 
-  it should "accept valid granularity specifications" in {
+  it should "accept valid granularity specifications" taggedAs(ReadTest) in {
     for (granularity <- Seq("d", "day", "h", "hour", "m", "minute", "1hour", "2h", "20d", "13day", "7m", "7minute")) {
       val df = spark.read.format("com.cognite.spark.datasource")
-        .option("apiKey", apiKey)
+        .option("apiKey", readApiKey)
         .option("type", "datapoints")
         .option("batchSize", "1")
         .option("limit", "1")
         .load()
-        .where(s"aggregation in ('min') and granularity = '$granularity' and name = 'Bitbay USD'")
+        .where(s"aggregation in ('min') and granularity = '$granularity' and name = $valhallTimeSeries")
       assert(df.count() == 1)
     }
   }
 
-  it should "be an error to specify an invalid (timeseries) name" in {
+  it should "be an error to specify an invalid (timeseries) name" taggedAs(WriteTest) in {
     val destinationDf = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "datapoints")
       .load()
     destinationDf.createTempView("destinationDatapoints")
