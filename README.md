@@ -209,6 +209,20 @@ df.filter($"subtype" === "Valhall")
   .insertInto("events")
 ```
 
+### Files metadata
+
+https://doc.cognitedata.com/api/0.6/#operation/getFiles
+
+```scala
+// Read files metadata from publicdata
+val df = spark.read.format("com.cognite.spark.datasource")
+  .option("apiKey", "myApiKey")
+  .option("type", "files")
+  .load()
+
+df.groupBy("fileType").count().show()
+```
+
 ### Raw tables
 
 https://doc.cognitedata.com/api/0.5/#tag/Raw
