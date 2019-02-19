@@ -2,9 +2,8 @@ package com.cognite.spark.datasource
 
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField}
-import org.scalatest.{FlatSpec, FunSuite, Matchers}
+import org.scalatest.{FlatSpec, Matchers}
 import org.apache.spark.SparkException
-import com.cognite.spark.datasource.CdpApiException
 import org.apache.spark.sql.Row
 
 class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
