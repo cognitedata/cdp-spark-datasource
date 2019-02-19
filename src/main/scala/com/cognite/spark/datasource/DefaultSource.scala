@@ -88,6 +88,19 @@ class DefaultSource extends RelationProvider
         new AssetsRelation(apiKey, project, assetsPath, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case "events" =>
         new EventsRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+      case "3dmodels" =>
+        new ThreeDModelsRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+      case "3dmodelrevisions" =>
+        val modelId = parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
+        new ThreeDModelRevisionsRelation(apiKey, project, modelId, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+      case "3dmodelrevisionmappings" =>
+        val modelId = parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
+        val revisionId = parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
+        new ThreeDModelRevisionMappingsRelation(apiKey, project, modelId, revisionId, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+      case "3dmodelrevisionnodes" =>
+        val modelId = parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
+        val revisionId = parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
+        new ThreeDModelRevisionNodesRelation(apiKey, project, modelId, revisionId, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
