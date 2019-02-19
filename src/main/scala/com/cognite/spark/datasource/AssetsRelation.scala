@@ -61,7 +61,7 @@ class AssetsRelation(apiKey: String,
         }
         asRow(a)
       },
-      getUrl, getUrl, apiKey, project, batchSize, maxRetries, limit)
+      getUrl.param("onlyCursors", "true"), getUrl, apiKey, project, batchSize, maxRetries, limit)
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
@@ -83,7 +83,7 @@ class AssetsRelation(apiKey: String,
       })
   }
 
-  def baseAssetsURL(project: String, version: String = "0.5"): Uri = {
+  def baseAssetsURL(project: String, version: String = "0.6"): Uri = {
     uri"https://api.cognitedata.com/api/$version/projects/$project/assets"
   }
 }

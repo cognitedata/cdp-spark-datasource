@@ -31,6 +31,17 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
     assert(res.length == 6)
   }
 
+  test("assets with very small batchSize") {
+    val df = spark.read.format("com.cognite.spark.datasource")
+      .option("apiKey", apiKey)
+      .option("type", "assets")
+      .option("batchSize", "1")
+      .option("limit", "1000")
+      .load()
+
+    assert(df.count() == 6)
+  }
+
   test("smoke test raw") {
     val df = spark.read.format("com.cognite.spark.datasource")
       .option("apiKey", apiKey)
