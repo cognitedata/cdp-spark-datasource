@@ -22,9 +22,9 @@ See instructions below for examples using different resource types.
 
 ## Build the project with sbt:
 
-The project runs read-only integration tests against the Open Industrial Data project. Head over to 
-https://openindustrialdata.com/ to get an API key and store it in the environment variable `TEST_API_KEY_READ`. 
-To run the write integration tests you'll also need to set the environment variable `TEST_API_KEY_WRITE` 
+The project runs read-only integration tests against the Open Industrial Data project. Head over to
+https://openindustrialdata.com/ to get an API key and store it in the environment variable `TEST_API_KEY_READ`.
+To run the write integration tests you'll also need to set the environment variable `TEST_API_KEY_WRITE`
 to an API key to a project where you have write access.
 
 First run `sbt compile` to generate Scala sources for protobuf.
@@ -156,14 +156,14 @@ https://doc.cognitedata.com/concepts/#data-points
 Data points are always related to a time series. To read datapoints you will need to filter by a valid time series name.
 You can also request aggregated data by filtering by aggregation and granularity.
 
-`aggregation`: Numerical data points can be aggregated before they are retrieved from CDP. 
-This allows for faster queries by reducing the amount of data transferred. 
-You can aggregate data points by specifying one or more aggregates (e.g. average, minimum, maximum) 
+`aggregation`: Numerical data points can be aggregated before they are retrieved from CDP.
+This allows for faster queries by reducing the amount of data transferred.
+You can aggregate data points by specifying one or more aggregates (e.g. average, minimum, maximum)
 as well as the time granularity over which the aggregates should be applied (e.g. “1h” for one hour).
 If the aggregate option is NULL, or not set, data points will return the raw time series data.
 
-`granularity`: Aggregates are aligned to the start time modulo the granularity unit. 
-For example, if you ask for daily average temperatures since monday afternoon last week, 
+`granularity`: Aggregates are aligned to the start time modulo the granularity unit.
+For example, if you ask for daily average temperatures since monday afternoon last week,
 the first aggregated data point will contain averages for monday, the second for tuesday, etc.
 
 ```scala
@@ -172,8 +172,8 @@ val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
   .option("apiKey", "publicdataApiKey")
   .option("type", "datapoints")
   .load()
-  
-// Create the view to enable spark-sql syntax
+
+// Create the view to enable SQL syntax
 df.createTempView("datapoints")
 
 // Read the raw datapoints from the VAL_23-ESDV-92501A-PST:VALUE time series.
@@ -209,7 +209,7 @@ df.filter($"subtype" === "Valhall")
   .insertInto("events")
 ```
 
-### Raw table
+### Raw tables
 
 https://doc.cognitedata.com/api/0.5/#tag/Raw
 
