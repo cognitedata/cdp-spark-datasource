@@ -31,13 +31,7 @@ case class EventItem(id: Option[Long],
 case class SourceWithResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
 
-class EventsRelation(apiKey: String,
-                     project: String,
-                     limit: Option[Int],
-                     batchSizeOption: Option[Int],
-                     maxRetriesOption: Option[Int],
-                     metricsPrefix: String,
-                     collectMetrics: Boolean)
+class EventsRelation(config: RelationConfig)
                     (@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
@@ -45,11 +39,11 @@ class EventsRelation(apiKey: String,
     with CdpConnector
     with Serializable {
 
-  @transient lazy private val batchSize: Int = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize: Int = config.batchSize.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val eventsCreated = UserMetricsSystem.counter(s"${metricsPrefix}events.created")
-  @transient lazy private val eventsRead = UserMetricsSystem.counter(s"${metricsPrefix}events.read")
+  @transient lazy private val eventsCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}events.created")
+  @transient lazy private val eventsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}events.read")
 
   override def schema: StructType = structType[EventItem]
 
@@ -62,21 +56,22 @@ class EventsRelation(apiKey: String,
   }
 
   override def buildScan(): RDD[Row] = {
-    val baseUrl = baseEventsURL(project)
+    val baseUrl = baseEventsURL(config.project)
     CdpRdd[EventItem](sqlContext.sparkContext,
       (e: EventItem) => {
-        if (collectMetrics) {
+        if (config.collectMetrics) {
           eventsRead.inc()
         }
         asRow(e)
       },
-      baseUrl.param("onlyCursors", "true"), baseUrl, apiKey, project, batchSize, maxRetries, limit)
+      baseUrl.param("onlyCursors", "true"), baseUrl, config.apiKey,
+        config.project, batchSize, maxRetries, config.limit)
   }
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {
     val eventItems = rows.map(r => fromRow[EventItem](r))
 
-    postOr(apiKey, baseEventsURL(project), eventItems, maxRetries) {
+    postOr(config.apiKey, baseEventsURL(config.project), eventItems, maxRetries) {
       case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
@@ -84,7 +79,7 @@ class EventsRelation(apiKey: String,
         }
       }.flatTap { _ =>
         IO {
-          if (collectMetrics) {
+          if (config.collectMetrics) {
             eventsCreated.inc(rows.length)
           }
         }
@@ -113,14 +108,14 @@ class EventsRelation(apiKey: String,
       // Do nothing
       IO.unit
     } else {
-      post(apiKey, uri"${baseEventsURLOld(project)}/update", conflictingEvents, maxRetries)
+      post(config.apiKey, uri"${baseEventsURLOld(config.project)}/update", conflictingEvents, maxRetries)
     }
 
     val newEvents = eventItems.map(_.copy(id = None)).diff(conflictingEvents.map(_.copy(id = None)))
     val postNewItems = if (newEvents.isEmpty) {
       IO.unit
     } else {
-      post(apiKey, baseEventsURL(project), newEvents, maxRetries)
+      post(config.apiKey, baseEventsURL(config.project), newEvents, maxRetries)
     }
 
     (postUpdate, postNewItems).parMapN((_, _) => ())

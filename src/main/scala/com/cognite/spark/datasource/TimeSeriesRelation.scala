@@ -38,13 +38,7 @@ case class PostTimeSeriesItem(name: String,
                               description: Option[String],
                               securityCategories: Option[Vector[Long]])
 
-class TimeSeriesRelation(apiKey: String,
-                         project: String,
-                         limit: Option[Int],
-                         batchSizeOption: Option[Int],
-                         maxRetriesOption: Option[Int],
-                         metricsPrefix: String,
-                         collectMetrics: Boolean)
+class TimeSeriesRelation(config: RelationConfig)
                         (@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
@@ -52,25 +46,25 @@ class TimeSeriesRelation(apiKey: String,
     with CdpConnector
     with Serializable {
 
-  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val timeSeriesCreated = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.created")
-  @transient lazy private val timeSeriesRead = UserMetricsSystem.counter(s"${metricsPrefix}timeseries.read")
+  @transient lazy private val timeSeriesCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}timeseries.created")
+  @transient lazy private val timeSeriesRead = UserMetricsSystem.counter(s"${config.metricsPrefix}timeseries.read")
 
   override def schema: StructType = structType[TimeSeriesItem]
 
   override def buildScan(): RDD[Row] = {
-    val getUrl = baseTimeSeriesUrl(project)
+    val getUrl = baseTimeSeriesUrl(config.project)
 
     CdpRdd[TimeSeriesItem](sqlContext.sparkContext,
       (ts: TimeSeriesItem) => {
-        if (collectMetrics) {
+        if (config.collectMetrics) {
           timeSeriesRead.inc()
         }
         asRow(ts)
       },
-      getUrl, getUrl, apiKey, project, batchSize, maxRetries, limit)
+      getUrl, getUrl, config.apiKey, config.project, batchSize, maxRetries, config.limit)
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
@@ -83,9 +77,9 @@ class TimeSeriesRelation(apiKey: String,
 
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesItems = rows.map(r => fromRow[PostTimeSeriesItem](r))
-    post(apiKey, baseTimeSeriesUrl(project), timeSeriesItems, maxRetries)
+    post(config.apiKey, baseTimeSeriesUrl(config.project), timeSeriesItems, maxRetries)
       .map(item => {
-        if (collectMetrics) {
+        if (config.collectMetrics) {
           timeSeriesCreated.inc(rows.length)
         }
         item

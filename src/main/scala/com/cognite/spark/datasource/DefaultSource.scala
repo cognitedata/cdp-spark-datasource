@@ -1,15 +1,16 @@
 package com.cognite.spark.datasource
 
-import java.util.concurrent.Executors
-
-import cats.effect.{IO, Timer}
-import com.softwaremill.sttp.SttpBackend
-import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider, SchemaRelationProvider}
 import org.apache.spark.sql.types.StructType
 
-import scala.concurrent.ExecutionContext
+case class RelationConfig(apiKey: String,
+                          project: String,
+                          batchSize: Option[Int],
+                          limit: Option[Int],
+                          maxRetries: Option[Int],
+                          collectMetrics: Boolean,
+                          metricsPrefix: String)
 
 class DefaultSource extends RelationProvider
   with SchemaRelationProvider
@@ -46,12 +47,10 @@ class DefaultSource extends RelationProvider
     }
   }
 
-  // scalastyle:off cyclomatic.complexity method.length
-  override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
+  def parseRelationConfig(parameters: Map[String, String]): RelationConfig = {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
     val project = getProject(apiKey, maxRetries.getOrElse(Constants.DefaultMaxRetries))
-    val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limit = toPositiveInt(parameters, "limit")
     val metricsPrefix = parameters.get("metricsPrefix") match {
@@ -59,11 +58,18 @@ class DefaultSource extends RelationProvider
       case None => ""
     }
     val collectMetrics = toBoolean(parameters, "collectMetrics")
+    RelationConfig(apiKey, project, batchSize, limit, maxRetries, collectMetrics, metricsPrefix)
+  }
+
+  // scalastyle:off cyclomatic.complexity method.length
+  override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
+    val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
+    val config = parseRelationConfig(parameters)
     resourceType match {
       case "datapoints" =>
-        new DataPointsRelation(apiKey, project, Option(schema), limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+        new DataPointsRelation(config, Option(schema))(sqlContext)
       case "timeseries" =>
-        new TimeSeriesRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+        new TimeSeriesRelation(config)(sqlContext)
       case "raw" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
@@ -77,17 +83,16 @@ class DefaultSource extends RelationProvider
         }
         val collectSchemaInferenceMetrics = toBoolean(parameters, "collectSchemaInferenceMetrics")
 
-        new RawTableRelation(apiKey, project, database, tableName, Option(schema), limit,
-          inferSchema, inferSchemaLimit, batchSize, maxRetries,
-          metricsPrefix, collectMetrics, collectSchemaInferenceMetrics)(sqlContext)
+        new RawTableRelation(config, database, tableName, Option(schema),
+          inferSchema, inferSchemaLimit, collectSchemaInferenceMetrics)(sqlContext)
       case "assets" =>
         val assetsPath = parameters.get("assetsPath")
         if (assetsPath.isDefined && !AssetsRelation.isValidAssetsPath(assetsPath.get)) {
           sys.error("Invalid assets path: " + assetsPath.get)
         }
-        new AssetsRelation(apiKey, project, assetsPath, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+        new AssetsRelation(config, assetsPath)(sqlContext)
       case "events" =>
-        new EventsRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+        new EventsRelation(config)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
