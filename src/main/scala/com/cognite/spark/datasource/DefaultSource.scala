@@ -1,8 +1,13 @@
 package com.cognite.spark.datasource
 
-import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider, SchemaRelationProvider}
+import cats.effect.{ContextShift, IO}
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
+import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
+import cats.implicits._
+
+import scala.concurrent.ExecutionContext
 
 case class RelationConfig(apiKey: String,
                           project: String,
@@ -14,6 +19,7 @@ case class RelationConfig(apiKey: String,
 
 class DefaultSource extends RelationProvider
   with SchemaRelationProvider
+  with CreatableRelationProvider
   with DataSourceRegister
   with CdpConnector {
 
@@ -97,4 +103,20 @@ class DefaultSource extends RelationProvider
     }
   }
   // scalastyle:on cyclomatic.complexity method.length
+  override def createRelation(sqlContext: SQLContext, mode: SaveMode, parameters: Map[String, String], data: DataFrame): BaseRelation = {
+    val config = parseRelationConfig(parameters)
+    val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
+    val insertion = resourceType match {
+      case "events" =>
+        EventInsertion(config)
+    }
+
+    data.foreachPartition(rows => {
+      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+      val batches = rows.grouped(Constants.DefaultBatchSize).toVector
+      batches.parTraverse(insertion.insert).unsafeRunSync()
+    })
+
+    createRelation(sqlContext, parameters, null) // scalastyle:off null
+  }
 }

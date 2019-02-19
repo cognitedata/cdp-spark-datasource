@@ -2,14 +2,12 @@ package com.cognite.spark.datasource
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.softwaremill.sttp.{Response, Uri, _}
 import io.circe.generic.auto._
-import io.circe.parser.decode
 import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.{Row, SQLContext}
 import io.circe.parser.decode
 import com.softwaremill.sttp.{Response, Uri}
 import com.softwaremill.sttp._
@@ -26,7 +24,20 @@ case class EventItem(id: Option[Long],
                       metadata: Option[Map[String, Option[String]]],
                       assetIds: Option[Seq[Long]],
                       source: Option[String],
-                      sourceId: Option[String])
+                      sourceId: Option[String],
+                      createdTime: Long,
+                      lastUpdatedTime: Long)
+
+case class PostEventItem(id: Option[Long],
+                     startTime: Option[Long],
+                     endTime: Option[Long],
+                     description: Option[String],
+                     `type`: Option[String],
+                     subtype: Option[String],
+                     metadata: Option[Map[String, Option[String]]],
+                     assetIds: Option[Seq[Long]],
+                     source: Option[String],
+                     sourceId: Option[String])
 
 case class SourceWithResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
@@ -34,7 +45,6 @@ case class EventConflict(duplicates: Seq[SourceWithResourceId])
 class EventsRelation(config: RelationConfig)
                     (@transient val sqlContext: SQLContext)
   extends BaseRelation
-    with InsertableRelation
     with TableScan
     with CdpConnector
     with Serializable {
@@ -42,21 +52,12 @@ class EventsRelation(config: RelationConfig)
   @transient lazy private val batchSize: Int = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val eventsCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}events.created")
   @transient lazy private val eventsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}events.read")
 
   override def schema: StructType = structType[EventItem]
 
-  override def insert(data: DataFrame, overwrite: Boolean): Unit = {
-    data.foreachPartition(rows => {
-      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val batches = rows.grouped(batchSize).toVector
-      batches.parTraverse(postEvent).unsafeRunSync()
-    })
-  }
-
   override def buildScan(): RDD[Row] = {
-    val baseUrl = baseEventsURL(config.project)
+    val baseUrl = EventsRelation.baseEventsURL(config.project)
     CdpRdd[EventItem](sqlContext.sparkContext,
       (e: EventItem) => {
         if (config.collectMetrics) {
@@ -67,11 +68,35 @@ class EventsRelation(config: RelationConfig)
       baseUrl.param("onlyCursors", "true"), baseUrl, config.apiKey,
         config.project, batchSize, maxRetries, config.limit)
   }
+}
 
-  def postEvent(rows: Seq[Row]): IO[Unit] = {
-    val eventItems = rows.map(r => fromRow[EventItem](r))
+object EventsRelation {
+  def baseEventsURL(project: String, version: String = "0.6"): Uri = {
+    uri"https://api.cognitedata.com/api/$version/projects/$project/events"
+  }
 
-    postOr(config.apiKey, baseEventsURL(config.project), eventItems, maxRetries) {
+  def baseEventsURLOld(project: String): Uri = {
+    // TODO: API is failing with "Invalid field - items[0].starttime - expected an object but got number" in 0.6
+    // That's why we need 0.5 support, however should be removed when fixed
+    uri"https://api.cognitedata.com/api/0.5/projects/$project/events"
+  }
+}
+
+trait CreateRelation extends CdpConnector {
+  def insert(rows: Seq[Row]): IO[Unit]
+  def schema: StructType
+}
+
+case class EventInsertion(config: RelationConfig) extends CreateRelation {
+  private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val eventsCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}events.created")
+
+  override def schema: StructType = structType[PostEventItem]
+
+  override def insert(rows: Seq[Row]): IO[Unit] = {
+    val eventItems = rows.map(r => fromRow[PostEventItem](r))
+
+    postOr(config.apiKey, EventsRelation.baseEventsURL(config.project), eventItems, maxRetries) {
       case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
@@ -86,7 +111,7 @@ class EventsRelation(config: RelationConfig)
       }
   }
 
-  def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict): IO[Unit] = {
+  def resolveConflict(eventItems: Seq[PostEventItem], eventConflict: EventConflict): IO[Unit] = {
     // not totally sure if this needs to be here, instead of being a @transient private implicit val,
     // but we saw some strange errors about it not being serializable (which should be fixed with the
     // @transient annotation). leaving it here for now, but should double check this in the future.
@@ -96,7 +121,7 @@ class EventsRelation(config: RelationConfig)
       .map(conflict => (conflict.source, conflict.sourceId) -> conflict.id)
       .toMap
 
-    val conflictingEvents: Seq[EventItem] = for {
+    val conflictingEvents: Seq[PostEventItem] = for {
       event <- eventItems
       source <- event.source
       sourceId <- event.sourceId
@@ -108,26 +133,16 @@ class EventsRelation(config: RelationConfig)
       // Do nothing
       IO.unit
     } else {
-      post(config.apiKey, uri"${baseEventsURLOld(config.project)}/update", conflictingEvents, maxRetries)
+      post(config.apiKey, uri"${EventsRelation.baseEventsURLOld(config.project)}/update", conflictingEvents, maxRetries)
     }
 
     val newEvents = eventItems.map(_.copy(id = None)).diff(conflictingEvents.map(_.copy(id = None)))
     val postNewItems = if (newEvents.isEmpty) {
       IO.unit
     } else {
-      post(config.apiKey, baseEventsURL(config.project), newEvents, maxRetries)
+      post(config.apiKey, EventsRelation.baseEventsURL(config.project), newEvents, maxRetries)
     }
 
     (postUpdate, postNewItems).parMapN((_, _) => ())
-  }
-
-  def baseEventsURL(project: String, version: String = "0.6"): Uri = {
-    uri"https://api.cognitedata.com/api/$version/projects/$project/events"
-  }
-
-  def baseEventsURLOld(project: String): Uri = {
-    // TODO: API is failing with "Invalid field - items[0].starttime - expected an object but got number" in 0.6
-    // That's why we need 0.5 support, however should be removed when fixed
-    uri"https://api.cognitedata.com/api/0.5/projects/$project/events"
   }
 }

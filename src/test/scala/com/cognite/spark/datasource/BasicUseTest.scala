@@ -104,7 +104,10 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
                  |null as sourceId
      """.stripMargin)
       .write
-      .insertInto("destinationEvent")
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", apiKey)
+      .option("type", "events")
+      .save()
 
     val rows = spark.sql(s"""select * from destinationEvent where source = "$source"""")
     assert(rows.count() == 1)
@@ -153,9 +156,11 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
        |from sourceEvent
        |limit 100
      """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
       .write
-      .insertInto("destinationEvent")
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", apiKey)
+      .option("type", "events")
+      .save()
 
     // Check if post worked
     val descriptionsAfterPost = eventDescriptions(source)
@@ -176,10 +181,11 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
          |sourceId
          |from sourceEvent
      """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
       .write
-      .insertInto("destinationEvent")
-
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", apiKey)
+      .option("type", "events")
+      .save()
     // Check if upsert worked
     val descriptionsAfterUpdate = eventDescriptions(source)
     assert(descriptionsAfterUpdate.length == 1000)
