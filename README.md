@@ -1,8 +1,8 @@
 # Spark data source for CDP API
 
 Supports read and write for raw and clean data types.
-Raw tables will be read in parallel. Writes to all types are done in parallel
-through asynchronous writes.
+Reads are done in parallel after retrieving the cursors for paging through results.
+Writes to all types are done in parallel through asynchronous writes.
 
 ## Build the project with sbt:
 
