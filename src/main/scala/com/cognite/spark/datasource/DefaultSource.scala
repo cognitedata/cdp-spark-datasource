@@ -88,6 +88,8 @@ class DefaultSource extends RelationProvider
         new AssetsRelation(apiKey, project, assetsPath, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case "events" =>
         new EventsRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+      case "files" =>
+        new FilesRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case "3dmodels" =>
         new ThreeDModelsRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case "3dmodelrevisions" =>
