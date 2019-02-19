@@ -64,7 +64,7 @@ class DefaultSource extends RelationProvider
         new DataPointsRelation(apiKey, project, Option(schema), limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case "timeseries" =>
         new TimeSeriesRelation(apiKey, project, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
-      case "tables" =>
+      case "raw" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
 

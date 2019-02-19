@@ -31,10 +31,10 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
     assert(res.length == 6)
   }
 
-  test("smoke test tables") {
+  test("smoke test raw") {
     val df = spark.read.format("com.cognite.spark.datasource")
       .option("apiKey", apiKey)
-      .option("type", "tables")
+      .option("type", "raw")
       .option("batchSize", "100")
       .option("limit", "1000")
       .option("database", "testdb")
@@ -43,8 +43,8 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("inferSchemaLimit", "100")
       .load()
 
-    df.createTempView("tables")
-    val res = spark.sqlContext.sql("select * from tables")
+    df.createTempView("raw")
+    val res = spark.sqlContext.sql("select * from raw")
         .collect()
     assert(res.length == 1000)
   }
@@ -105,7 +105,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
   test("smoke test pushing of events and upsert") {
     val sourceDf = spark.read.format("com.cognite.spark.datasource")
       .option("apiKey", apiKey)
-      .option("type", "tables")
+      .option("type", "raw")
       .option("limit", "1000")
       .option("database", "testdb")
       .option("table", "future-event")

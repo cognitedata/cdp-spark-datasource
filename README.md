@@ -56,7 +56,7 @@ res0: Long = 1000
 
 ## Reading and writing Cognite Data Platform resource types:
 
-cdp-spark-datasource supports reads from, and writes to, assets, time series, tables, data points and events.
+cdp-spark-datasource supports reads from, and writes to, assets, time series, raw tables, data points and events.
 
 ### Reading
 
@@ -187,7 +187,7 @@ Raw tables are organized in databases and tables so you'll need to provide these
 ```scala
 val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
   .option("apiKey", "myApiKey")
-  .option("type", "tables")
+  .option("type", "raw")
   .option("database", "database-name") // a raw database from your project
   .option("table", "table-name") // name of a table in "database-name"
   .load()
