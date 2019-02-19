@@ -8,7 +8,8 @@ podTemplate(label: label,
                                            resourceRequestCpu: '1000m',
                                            resourceLimitCpu: '3800m',
                                            resourceLimitMemory: '3500Mi',
-                                           envVars: [secretEnvVar(key: 'TEST_API_KEY', secretName: 'jetfire-test-api-key', secretKey: 'jetfireTestApiKey.txt'),
+                                           envVars: [secretEnvVar(key: 'TEST_API_KEY_WRITE', secretName: 'jetfire-test-api-key', secretKey: 'jetfireTestApiKey.txt'),
+                                                     secretEnvVar(key: 'TEST_API_KEY_READ', secretName: 'jetfire-test-api-key', secretKey: 'publicDataApiKey'),
                                                      secretEnvVar(key: 'CODECOV_TOKEN', secretName: 'codecov-token-cdp-spark-connector', secretKey: 'token.txt'),
                                                      // /codecov-script/upload-report.sh relies on the following
                                                      // Jenkins and GitHub environment variables.

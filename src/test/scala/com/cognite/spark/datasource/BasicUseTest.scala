@@ -7,44 +7,46 @@ import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
 class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
-  val apiKey = System.getenv("TEST_API_KEY")
 
-  test("smoke test time series metadata") {
+  val readApiKey = System.getenv("TEST_API_KEY_READ")
+  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
+
+  test("smoke test time series metadata", ReadTest) {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "timeseries")
+      .option("limit", "100")
       .load()
-    assert(df.count() == 5)
+    assert(df.count() == 100)
   }
 
-  test("smoke test assets") {
+  test("smoke test assets", ReadTest) {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "assets")
-      .option("batchSize", "1000")
       .option("limit", "1000")
       .load()
 
     df.createTempView("assets")
     val res = spark.sql("select * from assets")
       .collect()
-    assert(res.length == 6)
+    assert(res.length == 1000)
   }
 
-  test("assets with very small batchSize") {
+  test("assets with very small batchSize", ReadTest) {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "assets")
       .option("batchSize", "1")
-      .option("limit", "1000")
+      .option("limit", "10")
       .load()
 
-    assert(df.count() == 6)
+    assert(df.count() == 10)
   }
-
+  //@TODO This uses jetfire2 until we have tables in publicdata
   test("smoke test raw") {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "raw")
       .option("batchSize", "100")
       .option("limit", "1000")
@@ -60,9 +62,9 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
     assert(res.length == 1000)
   }
 
-  test("smoke test events") {
+  test("smoke test events", ReadTest) {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("batchSize", "500")
       .option("limit", "1000")
@@ -78,10 +80,9 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
     .select(col("description"))
     .collect()
 
-  test("that all fields are nullable for events") {
+  test("that all fields are nullable for events", WriteTest) {
     val destinationDf = spark.read.format("com.cognite.spark.datasource")
-      .option("project", "jetfiretest2")
-      .option("apiKey", apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .load()
     destinationDf.createOrReplaceTempView("destinationEvent")
@@ -113,19 +114,15 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
     assert(storedMetadata.get("foo").contains("bar"))
   }
 
-  test("smoke test pushing of events and upsert") {
+  test("smoke test pushing of events and upsert", WriteTest) {
     val sourceDf = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
-      .option("type", "raw")
+      .option("apiKey", readApiKey)
+      .option("type", "events")
       .option("limit", "1000")
-      .option("database", "testdb")
-      .option("table", "future-event")
-      .option("inferSchemaLimit", "10")
-      .option("inferSchema", "true")
       .load()
 
     val destinationDf = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .load()
     destinationDf.createOrReplaceTempView("destinationEvent")
@@ -141,8 +138,8 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
     // Post new events
     spark.sql(s"""
        |select "bar" as description,
-       |to_unix_timestamp(startTime, 'yyyy-MM-dd') as startTime,
-       |to_unix_timestamp(endTime, 'yyyy-MM-dd') as endTime,
+       |startTime,
+       |endTime,
        |type,
        |subtype,
        |null as assetIds,
@@ -164,17 +161,17 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
     // Update events
     spark.sql(s"""
-         |select "foo" as description,
-         |to_unix_timestamp(startTime, 'yyyy-MM-dd') as startTime,
-         |to_unix_timestamp(endTime, 'yyyy-MM-dd') as endTime,
-         |type,
-         |subtype,
-         |null as assetIds,
-         |bigint(0) as id,
-         |map() as metadata,
-         |"$source" as source,
-         |sourceId
-         |from sourceEvent
+       |select "foo" as description,
+       |startTime,
+       |endTime,
+       |type,
+       |subtype,
+       |null as assetIds,
+       |bigint(0) as id,
+       |metadata,
+       |"$source" as source,
+       |sourceId
+       |from sourceEvent
      """.stripMargin)
       .select(destinationDf.columns.map(col): _*)
       .write
@@ -189,9 +186,11 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
   def cleanupEvents(source: String): Unit = {
     import io.circe.generic.auto._
 
+    val project = getProject(writeApiKey, Constants.DefaultMaxRetries)
+
     val events = get[EventItem](
-      apiKey,
-      uri"https://api.cognitedata.com/api/0.6/projects/jetfiretest2/events?source=$source",
+      writeApiKey,
+      uri"https://api.cognitedata.com/api/0.6/projects/$project/events?source=$source",
       batchSize = 1000,
       limit = None,
       maxRetries = 10)
@@ -199,8 +198,8 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
     val eventIdsChunks = events.flatMap(_.id).grouped(1000)
     for (eventIds <- eventIdsChunks) {
       post(
-        apiKey,
-        uri"https://api.cognitedata.com/api/0.6/projects/jetfiretest2/events/delete",
+        writeApiKey,
+        uri"https://api.cognitedata.com/api/0.6/projects/$project/events/delete",
         eventIds,
         10
       ).unsafeRunSync()

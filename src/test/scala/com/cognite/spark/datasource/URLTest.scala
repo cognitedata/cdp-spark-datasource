@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 
 class URLTest extends FunSuite with SparkTest with CdpConnector {
 
-  val apiKey = System.getenv("TEST_API_KEY")
+  val readApiKey = System.getenv("TEST_API_KEY_READ")
 
   test("verify path encoding of base url") {
     val dataPointsRelation = new DataPointsRelation("", "statøil",
@@ -13,8 +13,8 @@ class URLTest extends FunSuite with SparkTest with CdpConnector {
   }
 
   test("verify that correct project is retrieved from TEST_API_KEY"){
-    val project = getProject(apiKey, Constants.DefaultMaxRetries)
-    assert(project == "jetfiretest2")
+    val project = getProject(readApiKey, Constants.DefaultMaxRetries)
+    assert(project == "publicdata")
   }
 }
 

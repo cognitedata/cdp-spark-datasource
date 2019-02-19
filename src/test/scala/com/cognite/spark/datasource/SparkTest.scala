@@ -1,6 +1,10 @@
 package com.cognite.spark.datasource
 
 import org.apache.spark.sql.SparkSession
+import org.scalatest.Tag
+
+object ReadTest extends Tag("ReadTest")
+object WriteTest extends Tag("WriteTest")
 
 trait SparkTest {
   val spark: SparkSession = SparkSession.builder()
