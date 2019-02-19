@@ -1,8 +1,24 @@
 # Spark data source for CDP API
 
 Supports read and write for raw and clean data types.
-Reads are done in parallel after retrieving the cursors for paging through results.
-Writes to all types are done in parallel through asynchronous writes.
+
+Reads and writes are done in parallel using asynchronous calls.
+Reads will start only after all cursors have been retrieved, which can take a while
+if there are many items.
+
+See instructions below for examples using different resource types.
+
+## Changelog
+
+### 0.4.0
+
+- *Breaking change* `"tables"` renamed to `"raw"`.
+- Improved performance for assets.
+- Validation of `key` column for raw tables, null values are not allowed.
+- Retries on error code 500 responses.
+- New `maxRetries` option for all resource types to set the number of retries.
+- Improved back off algorithm for retries.
+- `project` is no longer a necessary option, it will be retrieved from the API key.
 
 ## Build the project with sbt:
 
