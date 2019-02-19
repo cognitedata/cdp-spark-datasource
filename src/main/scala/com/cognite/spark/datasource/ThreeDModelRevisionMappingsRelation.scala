@@ -14,38 +14,32 @@ case class ModelRevisionMappingItem(nodeId: Long,
                                     treeIndex: Option[Long],
                                     subtreeSize: Option[Long])
 
-class ThreeDModelRevisionMappingsRelation(apiKey: String,
-                                          project: String,
+class ThreeDModelRevisionMappingsRelation(config: RelationConfig,
                                           modelId: Long,
-                                          revisionId: Long,
-                                          limit: Option[Int],
-                                          batchSizeOption: Option[Int],
-                                          maxRetriesOption: Option[Int],
-                                          metricsPrefix: String,
-                                          collectMetrics: Boolean)
+                                          revisionId: Long)
                                          (@transient val sqlContext: SQLContext)
   extends BaseRelation
     with TableScan
     with CdpConnector
     with Serializable {
-  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
   @transient lazy private val modelRevisionMappingsRead =
-    UserMetricsSystem.counter(s"${metricsPrefix}3dmodelrevisionmappings.read")
+    UserMetricsSystem.counter(s"${config.metricsPrefix}3dmodelrevisionmappings.read")
 
   override def schema: StructType = structType[ModelRevisionMappingItem]
 
   override def buildScan(): RDD[Row] = {
-    val baseUrl = base3dModelRevisionMappingsUrl(project)
+    val baseUrl = base3dModelRevisionMappingsUrl(config.project)
     CdpRdd[ModelRevisionMappingItem](sqlContext.sparkContext,
       (e: ModelRevisionMappingItem) => {
-        if (collectMetrics) {
+        if (config.collectMetrics) {
           modelRevisionMappingsRead.inc()
         }
         asRow(e)
       },
-      baseUrl, baseUrl, apiKey, project, batchSize, maxRetries, limit)
+      baseUrl, baseUrl, config.apiKey, config.project, batchSize, maxRetries, config.limit)
   }
 
   def base3dModelRevisionMappingsUrl(project: String, version: String = "0.6"): Uri = {

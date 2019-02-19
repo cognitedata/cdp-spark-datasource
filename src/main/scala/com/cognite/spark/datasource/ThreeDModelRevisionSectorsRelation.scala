@@ -16,39 +16,33 @@ case class ThreeDModelRevisionSectorsItem(id: Int,
                                           threedFileId: Long,
                                           threedFiles: Seq[Map[String, Long]])
 
-class ThreeDModelRevisionSectorsRelation(apiKey: String,
-                                         project: String,
+class ThreeDModelRevisionSectorsRelation(config: RelationConfig,
                                          modelId: Long,
-                                         revisionId: Long,
-                                         limit: Option[Int],
-                                         batchSizeOption: Option[Int],
-                                         maxRetriesOption: Option[Int],
-                                         metricsPrefix: String,
-                                         collectMetrics: Boolean)
+                                         revisionId: Long)
                                         (@transient val sqlContext: SQLContext)
   extends BaseRelation
     with CdpConnector
     with TableScan
     with Serializable {
-  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val threeDModelRevisionSectorsRead = UserMetricsSystem.counter(s"${metricsPrefix}assets.read")
+  @transient lazy private val threeDModelRevisionSectorsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}assets.read")
 
   import SparkSchemaHelper._
 
   override val schema: StructType = structType[ThreeDModelRevisionSectorsItem]
 
   override def buildScan(): RDD[Row] = {
-    val baseUrl = baseThreeDModelReviewSectorsUrl(project)
+    val baseUrl = baseThreeDModelReviewSectorsUrl(config.project)
     CdpRdd[ThreeDModelRevisionSectorsItem](sqlContext.sparkContext,
       (tds: ThreeDModelRevisionSectorsItem) => {
-        if (collectMetrics) {
+        if (config.collectMetrics) {
           threeDModelRevisionSectorsRead.inc()
         }
         asRow(tds)
       },
-      baseUrl, baseUrl, apiKey, project, batchSize, maxRetries, limit)
+      baseUrl, baseUrl, config.apiKey, config.project, batchSize, maxRetries, config.limit)
   }
 
   def baseThreeDModelReviewSectorsUrl(project: String, version: String = "0.6"): Uri = {

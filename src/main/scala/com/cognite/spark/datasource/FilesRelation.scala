@@ -22,35 +22,29 @@ case class FileItem(id: Option[Long],
                     createdTime: Option[Long],
                     lastUpdatedTime: Option[Long])
 
-class FilesRelation(apiKey: String,
-                    project: String,
-                    limit: Option[Int],
-                    batchSizeOption: Option[Int],
-                    maxRetriesOption: Option[Int],
-                    metricsPrefix: String,
-                    collectMetrics: Boolean)
+class FilesRelation(config: RelationConfig)
                    (@transient val sqlContext: SQLContext)
   extends BaseRelation
     with TableScan
     with CdpConnector
     with Serializable {
-  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val filesRead = UserMetricsSystem.counter(s"${metricsPrefix}files.read")
+  @transient lazy private val filesRead = UserMetricsSystem.counter(s"${config.metricsPrefix}files.read")
 
   override def schema: StructType = structType[FileItem]
 
   override def buildScan(): RDD[Row] = {
-    val baseUrl = baseFilesUrl(project)
+    val baseUrl = baseFilesUrl(config.project)
     CdpRdd[FileItem](sqlContext.sparkContext,
       (e: FileItem) => {
-        if (collectMetrics) {
+        if (config.collectMetrics) {
           filesRead.inc()
         }
         asRow(e)
       },
-      baseUrl, baseUrl, apiKey, project, batchSize, maxRetries, limit)
+      baseUrl, baseUrl, config.apiKey, config.project, batchSize, maxRetries, config.limit)
   }
 
   def baseFilesUrl(project: String, version: String = "0.6"): Uri = {

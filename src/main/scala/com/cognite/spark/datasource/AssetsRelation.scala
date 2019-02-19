@@ -28,40 +28,34 @@ case class PostAssetsItem(name: String,
                           description: String,
                           metadata: Map[String, String])
 
-class AssetsRelation(apiKey: String,
-                     project: String,
-                     assetPath: Option[String],
-                     limit: Option[Int],
-                     batchSizeOption: Option[Int],
-                     maxRetriesOption: Option[Int],
-                     metricsPrefix: String,
-                     collectMetrics: Boolean)
+class AssetsRelation(config: RelationConfig, assetPath: Option[String])
                     (@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
     with CdpConnector
     with Serializable {
-  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy val assetsCreated = UserMetricsSystem.counter(s"${metricsPrefix}assets.created")
-  @transient lazy val assetsRead = UserMetricsSystem.counter(s"${metricsPrefix}assets.read")
+  @transient lazy val assetsCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}assets.created")
+  @transient lazy val assetsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}assets.read")
 
   override def schema: StructType = structType[AssetsItem]
 
   override def buildScan(): RDD[Row] = {
-    val url = baseAssetsURL(project)
+    val url = baseAssetsURL(config.project)
     val getUrl = assetPath.fold(url)(url.param("path", _))
 
     CdpRdd[AssetsItem](sqlContext.sparkContext,
       (a: AssetsItem) => {
-        if (collectMetrics) {
+        if (config.collectMetrics) {
           assetsRead.inc()
         }
         asRow(a)
       },
-      getUrl.param("onlyCursors", "true"), getUrl, apiKey, project, batchSize, maxRetries, limit)
+      getUrl.param("onlyCursors", "true"), getUrl, config.apiKey,
+        config.project, batchSize, maxRetries, config.limit)
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
@@ -74,9 +68,9 @@ class AssetsRelation(apiKey: String,
 
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val assetItems = rows.map(r => fromRow[PostAssetsItem](r))
-    post(apiKey, baseAssetsURL(project), assetItems, maxRetries)
+    post(config.apiKey, baseAssetsURL(config.project), assetItems, maxRetries)
       .map(item => {
-        if (collectMetrics) {
+        if (config.collectMetrics) {
           assetsCreated.inc(rows.length)
         }
         item
