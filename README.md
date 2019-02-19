@@ -131,14 +131,14 @@ https://doc.cognitedata.com/concepts/#time-series
 
 ```scala
 // Get all the time series from your project
-val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("com.cognite.spark.datasource")
   .option("apiKey", "myApiKey")
   .option("type", "timeseries")
   .load()
 destinationDf.createTempView("timeseries")
 
 // Read some new time series data from a csv-file
-val timeSeriesDf = spark.sqlContext.read.format("csv")
+val timeSeriesDf = spark.read.format("csv")
   .option("header", "true")
   .load("timeseries.csv)
 
@@ -168,7 +168,7 @@ the first aggregated data point will contain averages for monday, the second for
 
 ```scala
 // Get the datapoints from publicdata
-val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("com.cognite.spark.datasource")
   .option("apiKey", "publicdataApiKey")
   .option("type", "datapoints")
   .load()
@@ -191,13 +191,13 @@ https://doc.cognitedata.com/concepts/#events
 
 ```scala
 // Read events from `publicdata`
-val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("com.cognite.spark.datasource")
   .option("apiKey", "publicdataApiKey")
   .option("type", "events")
   .load()
 
 // Get a reference to the events in your project
-val myProjectDf = spark.sqlContext.read.format("com.cognite.spark.datasource")
+val myProjectDf = spark.read.format("com.cognite.spark.datasource")
   .option("apiKey", "myApiKey")
   .option("type", "events")
   .load()
@@ -216,7 +216,7 @@ https://doc.cognitedata.com/api/0.5/#tag/Raw
 Raw tables are organized in databases and tables so you'll need to provide these as options to the DataFrameReader.
 `publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
 ```scala
-val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("com.cognite.spark.datasource")
   .option("apiKey", "myApiKey")
   .option("type", "raw")
   .option("database", "database-name") // a raw database from your project
