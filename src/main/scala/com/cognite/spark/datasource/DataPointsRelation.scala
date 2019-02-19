@@ -58,14 +58,7 @@ sealed case class GranularityFilter(amount: Option[Long], unit: String)
 // TODO: make case classes / enums for each valid aggregation
 sealed case class AggregationFilter(aggregation: String)
 
-class DataPointsRelation(apiKey: String,
-                         project: String,
-                         suppliedSchema: Option[StructType],
-                         limit: Option[Int],
-                         batchSizeOption: Option[Int],
-                         maxRetriesOption: Option[Int],
-                         metricsPrefix: String,
-                         collectMetrics: Boolean)(@transient val sqlContext: SQLContext)
+class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructType])(@transient val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
     with TableScan
@@ -74,11 +67,11 @@ class DataPointsRelation(apiKey: String,
     with Serializable {
   import CdpConnector._
 
-  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultDataPointsBatchSize)
-  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)
+  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val datapointsCreated = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.created")
-  @transient lazy private val datapointsRead = UserMetricsSystem.counter(s"${metricsPrefix}datapoints.read")
+  @transient lazy private val datapointsCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}datapoints.created")
+  @transient lazy private val datapointsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}datapoints.read")
 
   override def schema: StructType = {
     suppliedSchema.getOrElse(StructType(Seq(
@@ -195,9 +188,9 @@ class DataPointsRelation(apiKey: String,
   }
 
   def getLatestDataPoint(timeSeriesName: String): Option[DataPoint] = {
-    val url = uri"https://api.cognitedata.com/api/0.5/projects/$project/timeseries/latest/$timeSeriesName"
+    val url = uri"https://api.cognitedata.com/api/0.5/projects/${config.project}/timeseries/latest/$timeSeriesName"
     val getLatest = sttp.header("Accept", "application/json")
-      .header("api-key", apiKey)
+      .header("api-key", config.apiKey)
       .response(asJson[LatestDataPoint])
       .get(url)
       .send()
@@ -276,8 +269,8 @@ class DataPointsRelation(apiKey: String,
         aggregation, granularity,
         timestampLowerLimit.getOrElse(0),
         maxTimestamp,
-        uri"${baseDataPointsUrl(project)}/$name",
-        apiKey, project, limit, aggregationBatchSize)
+        uri"${baseDataPointsUrl(config.project)}/$name",
+        config.apiKey, config.project, config.limit, aggregationBatchSize)
     }
     rdds1.foldLeft(sqlContext.sparkContext.emptyRDD[Row])((a, b) => a.union(b))
   }
@@ -318,9 +311,9 @@ class DataPointsRelation(apiKey: String,
   }
 
   private def postTimeSeries(data: MultiNamedTimeseriesData): IO[Unit] = {
-    val url = uri"${baseDataPointsUrl(project)}"
+    val url = uri"${baseDataPointsUrl(config.project)}"
     val postDataPoints = sttp.header("Accept", "application/json")
-      .header("api-key", apiKey)
+      .header("api-key", config.apiKey)
       .parseResponseIf(_ => true)
       .contentType("application/protobuf")
       .body(data.toByteArray)
@@ -329,7 +322,7 @@ class DataPointsRelation(apiKey: String,
       .flatMap(defaultHandling(url))
     retryWithBackoff(postDataPoints, Constants.DefaultInitialRetryDelay, maxRetries)
       .map(r => {
-        if (collectMetrics) {
+        if (config.collectMetrics) {
           val numPoints = data.namedTimeseriesData
             .map(_.getNumericData.points.length)
             .sum

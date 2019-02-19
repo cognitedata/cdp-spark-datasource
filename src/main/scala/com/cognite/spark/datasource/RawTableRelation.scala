@@ -21,18 +21,12 @@ import scala.concurrent.ExecutionContext
 
 case class RawItem(key: String, columns: JsonObject)
 
-class RawTableRelation(apiKey: String,
-                       project: String,
+class RawTableRelation(config: RelationConfig,
                        database: String,
                        table: String,
                        userSchema: Option[StructType],
-                       limit: Option[Int],
                        inferSchema: Boolean,
                        inferSchemaLimit: Option[Int],
-                       batchSizeOption: Option[Int],
-                       maxRetriesOption: Option[Int],
-                       metricsPrefix: String,
-                       collectMetrics: Boolean,
                        collectSchemaInferenceMetrics: Boolean)(val sqlContext: SQLContext)
   extends BaseRelation
     with InsertableRelation
@@ -41,8 +35,8 @@ class RawTableRelation(apiKey: String,
     with Serializable {
   import RawTableRelation._
 
-  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
   @transient lazy val defaultSchema = StructType(Seq(
     StructField("key", DataTypes.StringType),
@@ -57,8 +51,8 @@ class RawTableRelation(apiKey: String,
   }
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-  @transient private lazy val rowsCreated = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.created")
-  @transient private lazy val rowsRead = UserMetricsSystem.counter(s"${metricsPrefix}raw.$database.$table.rows.read")
+  @transient private lazy val rowsCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}raw.$database.$table.rows.created")
+  @transient private lazy val rowsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}raw.$database.$table.rows.read")
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
@@ -73,8 +67,8 @@ class RawTableRelation(apiKey: String,
     }
   }
 
-  private def readRows(limit: Option[Int], collectMetrics: Boolean = collectMetrics): RDD[Row] = {
-    val baseUrl = baseRawTableURL(project, database, table)
+  private def readRows(limit: Option[Int], collectMetrics: Boolean = config.collectMetrics): RDD[Row] = {
+    val baseUrl = baseRawTableURL(config.project, database, table)
     CdpRdd[RawItem](sqlContext.sparkContext,
       (item: RawItem) => {
         if (collectMetrics) {
@@ -82,11 +76,11 @@ class RawTableRelation(apiKey: String,
         }
         Row(item.key, item.columns.asJson.noSpaces)
       },
-      baseUrl.param("columns", ","), baseUrl, apiKey, project, batchSize, maxRetries, limit)
+      baseUrl.param("columns", ","), baseUrl, config.apiKey, config.project, batchSize, maxRetries, limit)
   }
 
   override def buildScan(): RDD[Row] = {
-    val rdd = readRows(limit)
+    val rdd = readRows(config.limit)
     if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
       rdd
     } else {
@@ -112,12 +106,12 @@ class RawTableRelation(apiKey: String,
   private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]): IO[Unit] = {
     val items = rowsToRawItems(nonKeyColumnNames, rows, mapper)
 
-    val url = uri"${baseRawTableURL(project, database, table)}/create"
+    val url = uri"${baseRawTableURL(config.project, database, table)}/create"
 
-    post(apiKey, url, items, maxRetries)
+    post(config.apiKey, url, items, maxRetries)
       .flatTap { _ =>
         IO {
-          if (collectMetrics) {
+          if (config.collectMetrics) {
             rowsCreated.inc(rows.length)
           }
         }
