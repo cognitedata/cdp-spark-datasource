@@ -45,7 +45,7 @@ class EventsRelation(apiKey: String,
     with CdpConnector
     with Serializable {
 
-  @transient lazy private val batchSize: Int = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
 
   @transient lazy private val eventsCreated = UserMetricsSystem.counter(s"${metricsPrefix}events.created")
