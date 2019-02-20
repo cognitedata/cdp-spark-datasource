@@ -33,7 +33,7 @@ class ThreeDModelRevisionNodesRelation(apiKey: String,
     with TableScan
     with CdpConnector
     with Serializable {
-  @transient lazy private val batchSize: Int = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
+  @transient lazy private val batchSize = batchSizeOption.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = maxRetriesOption.getOrElse(Constants.DefaultMaxRetries)
 
   @transient lazy private val modelRevisionNodesRead =
