@@ -7,6 +7,6 @@ object Constants {
   val DefaultMaxRetries = 10
   val DefaultDataPointsBatchSize = 100000
   val DefaultDataPointsAggregationBatchSize = 10000
-  val DefaultInitialRetryDelay = 30.millis
+  val DefaultInitialRetryDelay = 150.millis
   val DefaultMaxBackoffDelay = 120.seconds
 }
