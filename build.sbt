@@ -8,7 +8,7 @@ resolvers += "cognite" at "https://repository.dev.cognite.ai/repository/all-rele
 
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
-  version := "0.4.0",
+  version := "0.4.1",
   scalaVersion := "2.11.12",
   fork in Test := true,
   publishTo := {
@@ -44,7 +44,7 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     libraryDependencies ++= Seq(
       "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
-  
+
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
 
       "com.softwaremill.sttp" %% "core" % "1.5.0",
@@ -57,7 +57,7 @@ lazy val library = (project in file("."))
       "io.circe" %% "circe-parser" % circeVersion,
       "io.circe" %% "circe-literal" % circeVersion,
       "io.circe" %% "circe-generic-extras" % circeVersion,
-      
+
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
 
       "com.groupon.dse" % "spark-metrics" % "2.4.0-cognite" % Provided,
