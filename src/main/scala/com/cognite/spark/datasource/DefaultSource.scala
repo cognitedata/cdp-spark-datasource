@@ -103,6 +103,10 @@ class DefaultSource extends RelationProvider
         val modelId = parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
         val revisionId = parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
         new ThreeDModelRevisionNodesRelation(apiKey, project, modelId, revisionId, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
+      case "3dmodelrevisionsectors" =>
+        val modelId = parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
+        val revisionId = parameters.getOrElse("revisionId", sys.error("Model id must be specified")).toLong
+        new ThreeDModelRevisionSectorsRelation(apiKey, project, modelId, revisionId, limit, batchSize, maxRetries, metricsPrefix, collectMetrics)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
