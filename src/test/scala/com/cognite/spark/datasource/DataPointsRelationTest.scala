@@ -77,19 +77,17 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     val df1 = spark.read.format("com.cognite.spark.datasource")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
-      .option("batchSize", "100")
       .option("limit", "100")
       .load()
-      .where(s"aggregation = 'avg' and granularity = '30d' and name = $valhallTimeSeries")
-    assert(df1.count() == 16)
+      .where(s"timestamp > 1509490000000 and aggregation = 'avg' and granularity = '1d' and name = $valhallTimeSeries")
+    assert(df1.count() == 100)
     val df2 = spark.read.format("com.cognite.spark.datasource")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
-      .option("batchSize", "100")
       .option("limit", "100")
       .load()
-      .where(s"aggregation = 'avg' and granularity = '60d' and name = $valhallTimeSeries")
-    assert(df2.count() == 8)
+      .where(s"timestamp > 1509490000000 and timestamp < 1541030400000 and aggregation = 'avg' and granularity = '60d' and name = $valhallTimeSeries")
+    assert(df2.count() == 6)
   }
 
   it should "be possible to specify multiple aggregation types in one query" taggedAs(ReadTest) in {
@@ -99,7 +97,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("batchSize", "100")
       .option("limit", "1")
       .load()
-      .where(s"aggregation in ('min', 'avg', 'max') and granularity = '30d' and name = $valhallTimeSeries")
+      .where(s"timestamp >= 1508544000000 and aggregation in ('min', 'avg', 'max') and granularity = '30d' and name = $valhallTimeSeries")
     assert(df.count() == 3)
     val results: Array[Row] = df.collect()
     val Array(min, avg, max) = results
@@ -150,7 +148,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("batchSize", "1")
         .option("limit", "1")
         .load()
-        .where(s"aggregation in ('min') and granularity = '$granularity' and name = $valhallTimeSeries")
+        .where(s"timestamp > 1409490000000 and aggregation in ('min') and granularity = '$granularity' and name = $valhallTimeSeries")
       assert(df.count() == 1)
     }
   }
