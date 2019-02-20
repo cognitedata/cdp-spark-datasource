@@ -10,6 +10,11 @@ See instructions below for examples using different resource types.
 
 ## Changelog
 
+### 0.4.1
+
+- Read-only support for files metadata.
+- Initial read-only support for 3D data (should be considered an *alpha feature, may not work*).
+
 ### 0.4.0
 
 - *Breaking change* `"tables"` renamed to `"raw"`.
