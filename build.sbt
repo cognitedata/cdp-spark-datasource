@@ -8,7 +8,7 @@ resolvers += "cognite" at "https://repository.dev.cognite.ai/repository/all-rele
 
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
-  version := "0.4.1",
+  version := "0.4.2-SNAPSHOT",
   scalaVersion := "2.11.12",
   fork in Test := true,
   publishTo := {
