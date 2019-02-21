@@ -32,7 +32,13 @@ https://openindustrialdata.com/ to get an API key and store it in the environmen
 To run the write integration tests you'll also need to set the environment variable `TEST_API_KEY_WRITE`
 to an API key to a project where you have write access.
 
+### Setting up
 First run `sbt compile` to generate Scala sources for protobuf.
+
+If you have set `TEST_API_KEY_WRITE` run the Python file `scripts/createThreeDData.py` (you'll need to install cognite-sdk-python).
+This will upload a 3D model to your project which is used for testing.
+
+### Running the tests 
 
 To run all tests run `sbt test`.
 
@@ -44,13 +50,15 @@ To run only the write tests run `sbt> testOnly -- -n WriteTest`
 
 To run all tests except the write tests run `sbt> testOnly -- -l WriteTest`
 
-Run `sbt assembly` to create `~/path-to-repo/target/scala-2.11/cdp-spark-datasource-*-jar-with-dependencies.jar`.
-
 To skip the read/write tests in assembly you can add `test in assembly := {}` to build.sbt, or run:
 
 Windows: `sbt "set test in assembly := {}" assembly`
 
 Linux/macos: `sbt 'set test in assembly := {}' assembly`
+
+### Building the .jar
+
+Run `sbt assembly` to create `~/path-to-repo/target/scala-2.11/cdp-spark-datasource-*-jar-with-dependencies.jar`.
 
 
 ## Run it with spark-shell
