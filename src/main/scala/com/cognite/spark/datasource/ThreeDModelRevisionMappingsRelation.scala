@@ -11,8 +11,8 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 case class ModelRevisionMappingItem(nodeId: Long,
                                     assetId: Long,
-                                    treeIndex: Long,
-                                    subtreeSize: Long)
+                                    treeIndex: Option[Long],
+                                    subtreeSize: Option[Long])
 
 class ThreeDModelRevisionMappingsRelation(apiKey: String,
                                           project: String,
