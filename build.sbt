@@ -60,7 +60,7 @@ lazy val library = (project in file("."))
 
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
 
-      "com.groupon.dse" % "spark-metrics" % "2.4.0-cognite" % Provided,
+      "org.eclipse.jetty" % "jetty-servlet" % "9.3.24.v20180605" % Provided,
       // TODO: check if we really need spark-hive
       "org.apache.spark" %% "spark-hive" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),

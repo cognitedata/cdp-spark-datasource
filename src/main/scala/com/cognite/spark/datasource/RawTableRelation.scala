@@ -13,9 +13,8 @@ import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import io.circe.generic.auto._
 import io.circe.syntax._
-import org.apache.spark.groupon.metrics.UserMetricsSystem
 import cats.implicits._
-import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import org.apache.spark.datasource._
 
 import scala.concurrent.ExecutionContext
 
@@ -53,10 +52,12 @@ class RawTableRelation(
   }
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-  @transient private lazy val rowsCreated =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}raw.$database.$table.rows.created")
-  @transient private lazy val rowsRead =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}raw.$database.$table.rows.read")
+
+  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
+  @transient lazy private val rowsCreated =
+    metricsSource.getOrCreateCounter(s"raw.$database.$table.rows.created")
+  @transient lazy private val rowsRead =
+    metricsSource.getOrCreateCounter(s"raw.$database.$table.rows.read")
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {

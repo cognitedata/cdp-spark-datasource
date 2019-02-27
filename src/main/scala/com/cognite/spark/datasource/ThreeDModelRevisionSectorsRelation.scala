@@ -1,12 +1,12 @@
 package com.cognite.spark.datasource
 
 import com.softwaremill.sttp._
-import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import io.circe.generic.auto._
+import org.apache.spark.datasource.MetricsSource
 
 case class ThreeDModelRevisionSectorsItem(
     id: Int,
@@ -18,7 +18,7 @@ case class ThreeDModelRevisionSectorsItem(
     threedFiles: Seq[Map[String, Long]])
 
 class ThreeDModelRevisionSectorsRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
-    @transient val sqlContext: SQLContext)
+    val sqlContext: SQLContext)
     extends BaseRelation
     with CdpConnector
     with TableScan
@@ -26,8 +26,9 @@ class ThreeDModelRevisionSectorsRelation(config: RelationConfig, modelId: Long, 
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
+  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
   @transient lazy private val threeDModelRevisionSectorsRead =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}assets.read")
+    metricsSource.getOrCreateCounter(s"assets.read")
 
   import SparkSchemaHelper._
 

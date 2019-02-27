@@ -5,7 +5,6 @@ import cats.implicits._
 import com.softwaremill.sttp.{Response, Uri, _}
 import io.circe.generic.auto._
 import io.circe.parser.decode
-import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
@@ -14,6 +13,7 @@ import io.circe.parser.decode
 import com.softwaremill.sttp.{Response, Uri}
 import com.softwaremill.sttp._
 import SparkSchemaHelper._
+import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 
@@ -42,10 +42,9 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val eventsCreated =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}events.created")
-  @transient lazy private val eventsRead =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}events.read")
+  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
+  @transient lazy private val eventsCreated = metricsSource.getOrCreateCounter(s"events.created")
+  @transient lazy private val eventsRead = metricsSource.getOrCreateCounter(s"events.read")
 
   override def schema: StructType = structType[EventItem]
 

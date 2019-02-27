@@ -7,12 +7,12 @@ import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
-import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import SparkSchemaHelper._
+import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 
@@ -27,8 +27,7 @@ case class AssetsItem(
 
 case class PostAssetsItem(name: String, description: String, metadata: Map[String, String])
 
-class AssetsRelation(config: RelationConfig, assetPath: Option[String])(
-    @transient val sqlContext: SQLContext)
+class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlContext: SQLContext)
     extends BaseRelation
     with InsertableRelation
     with TableScan
@@ -37,9 +36,9 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy val assetsCreated =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}assets.created")
-  @transient lazy val assetsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}assets.read")
+  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
+  @transient lazy private val assetsCreated = metricsSource.getOrCreateCounter(s"assets.created")
+  @transient lazy private val assetsRead = metricsSource.getOrCreateCounter(s"assets.read")
 
   override def schema: StructType = structType[AssetsItem]
 
