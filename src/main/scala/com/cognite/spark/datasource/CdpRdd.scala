@@ -9,27 +9,27 @@ import org.apache.spark.sql.Row
 
 case class CdpRddPartition(cursor: Option[String], size: Option[Int], index: Int) extends Partition
 
-case class CdpRdd[A: DerivedDecoder](@transient override val sparkContext: SparkContext,
-                                     toRow: A => Row,
-                                     getPartitionsBaseUri: Uri,
-                                     getSinglePartitionBaseUri: Uri,
-                                     apiKey: String,
-                                     project: String,
-                                     batchSize: Int,
-                                     maxRetries: Int,
-                                     limit: Option[Int])
-  extends RDD[Row](sparkContext, Nil)
-  with CdpConnector {
+case class CdpRdd[A: DerivedDecoder](
+    @transient override val sparkContext: SparkContext,
+    toRow: A => Row,
+    getPartitionsBaseUri: Uri,
+    getSinglePartitionBaseUri: Uri,
+    apiKey: String,
+    project: String,
+    batchSize: Int,
+    maxRetries: Int,
+    limit: Option[Int])
+    extends RDD[Row](sparkContext, Nil)
+    with CdpConnector {
 
-  private def cursors(url: Uri): Iterator[(Option[String], Option[Int])] = {
+  private def cursors(url: Uri): Iterator[(Option[String], Option[Int])] =
     new Iterator[(Option[String], Option[Int])] {
       private var nItemsRead = 0
       private var nextCursor = Option.empty[String]
       private var isFirst = true
 
-      override def hasNext: Boolean = {
+      override def hasNext: Boolean =
         isFirst || nextCursor.isDefined && limit.fold(true)(_ > nItemsRead)
-      }
 
       override def next(): (Option[String], Option[Int]) = {
         isFirst = false
@@ -37,28 +37,29 @@ case class CdpRdd[A: DerivedDecoder](@transient override val sparkContext: Spark
         val thisBatchSize = math.min(batchSize, limit.map(_ - nItemsRead).getOrElse(batchSize))
         val urlWithLimit = url.param("limit", thisBatchSize.toString)
         val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
-        val dataWithCursor = getJson[CdpConnector.DataItemsWithCursor[A]](apiKey, getUrl, maxRetries)
-          .unsafeRunSync()
-          .data
+        val dataWithCursor =
+          getJson[CdpConnector.DataItemsWithCursor[A]](apiKey, getUrl, maxRetries)
+            .unsafeRunSync()
+            .data
         nextCursor = dataWithCursor.nextCursor
         nItemsRead += thisBatchSize
         (next, nextCursor.map(_ => thisBatchSize))
       }
     }
-  }
 
-  override def getPartitions: Array[Partition] = {
-    scala.util.Random.shuffle(cursors(getPartitionsBaseUri))
+  override def getPartitions: Array[Partition] =
+    scala.util.Random
+      .shuffle(cursors(getPartitionsBaseUri))
       .toIndexedSeq
       .zipWithIndex
       .map { case ((cursor, size), index) => CdpRddPartition(cursor, size, index) }
       .toArray
-  }
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdpRddPartition]
-    val cdpRows = get[A](apiKey, getSinglePartitionBaseUri, batchSize, split.size, maxRetries, split.cursor)
-      .map(toRow)
+    val cdpRows =
+      get[A](apiKey, getSinglePartitionBaseUri, batchSize, split.size, maxRetries, split.cursor)
+        .map(toRow)
 
     new InterruptibleIterator(context, cdpRows)
   }

@@ -10,23 +10,24 @@ import com.cognite.data.api.v2.DataPoints.NumericDatapoint
 
 case class DataPointsRddPartition(startTime: Long, endTime: Long, index: Int) extends Partition
 
-case class DataPointsRdd(@transient override val sparkContext: SparkContext,
-                         parseResult: Response[Array[Byte]] => Response[Seq[NumericDatapoint]],
-                         toRow: NumericDatapoint => Row,
-                         aggregation: Option[AggregationFilter],
-                         granularity: Option[GranularityFilter],
-                         minTimestamp: Long,
-                         maxTimestamp: Long,
-                         getSinglePartitionBaseUri: Uri,
-                         apiKey: String,
-                         project: String,
-                         limit: Option[Int],
-                         batchSize: Int)
-  extends RDD[Row](sparkContext, Nil)
+case class DataPointsRdd(
+    @transient override val sparkContext: SparkContext,
+    parseResult: Response[Array[Byte]] => Response[Seq[NumericDatapoint]],
+    toRow: NumericDatapoint => Row,
+    aggregation: Option[AggregationFilter],
+    granularity: Option[GranularityFilter],
+    minTimestamp: Long,
+    maxTimestamp: Long,
+    getSinglePartitionBaseUri: Uri,
+    apiKey: String,
+    project: String,
+    limit: Option[Int],
+    batchSize: Int)
+    extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
   private val maxRetries = Constants.DefaultMaxRetries
 
-  private def getRows(minTimestamp: Long, maxTimestamp: Long) = {
+  private def getRows(minTimestamp: Long, maxTimestamp: Long) =
     Batch.withCursor(batchSize, limit) { (thisBatchSize, cursor: Option[Long]) =>
       val start = cursor.getOrElse(minTimestamp)
       if (start < maxTimestamp) {
@@ -36,15 +37,22 @@ case class DataPointsRdd(@transient override val sparkContext: SparkContext,
           .param("limit", thisBatchSize.toString)
         val dataPoints = aggregation match {
           case Some(aggregationFilter) =>
-            val g = granularity.getOrElse(sys.error("Aggregation requested, but no granularity specified"))
-            val uriWithAggregation = uri.param("aggregates", s"${aggregationFilter.aggregation}")
+            val g = granularity.getOrElse(
+              sys.error("Aggregation requested, but no granularity specified"))
+            val uriWithAggregation = uri
+              .param("aggregates", s"${aggregationFilter.aggregation}")
               .param("granularity", s"${g.amount.getOrElse("")}${g.unit}")
-            getJson[CdpConnector.DataItemsWithCursor[DataPointsItem]](apiKey, uriWithAggregation, maxRetries)
+            getJson[CdpConnector.DataItemsWithCursor[DataPointsItem]](
+              apiKey,
+              uriWithAggregation,
+              maxRetries)
               .unsafeRunSync()
-              .data.items
+              .data
+              .items
               .flatMap(dataPoints =>
                 dataPoints.datapoints.map(dataPoint => {
-                  NumericDatapoint(dataPoint.timestamp,
+                  NumericDatapoint(
+                    dataPoint.timestamp,
                     getAggregationValue(dataPoint, aggregationFilter))
                 }))
           case None =>
@@ -60,9 +68,8 @@ case class DataPointsRdd(@transient override val sparkContext: SparkContext,
         (Seq.empty, None)
       }
     }
-  }
 
-  private def getAggregationValue(dataPoint: DataPoint, aggregation: AggregationFilter): Double = {
+  private def getAggregationValue(dataPoint: DataPoint, aggregation: AggregationFilter): Double =
     aggregation match {
       // TODO: make this properly typed
       case AggregationFilter("average") | AggregationFilter("avg") =>
@@ -80,11 +87,9 @@ case class DataPointsRdd(@transient override val sparkContext: SparkContext,
       case AggregationFilter("totalvariation") | AggregationFilter("tv") =>
         dataPoint.totalVariation.get
     }
-  }
 
-  override def getPartitions: Array[Partition] = {
+  override def getPartitions: Array[Partition] =
     Array(DataPointsRddPartition(minTimestamp, maxTimestamp, 0))
-  }
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[DataPointsRddPartition]

@@ -17,23 +17,23 @@ import SparkSchemaHelper._
 
 import scala.concurrent.ExecutionContext
 
-case class EventItem(id: Option[Long],
-                      startTime: Option[Long],
-                      endTime: Option[Long],
-                      description: Option[String],
-                      `type`: Option[String],
-                      subtype: Option[String],
-                      metadata: Option[Map[String, Option[String]]],
-                      assetIds: Option[Seq[Long]],
-                      source: Option[String],
-                      sourceId: Option[String])
+case class EventItem(
+    id: Option[Long],
+    startTime: Option[Long],
+    endTime: Option[Long],
+    description: Option[String],
+    `type`: Option[String],
+    subtype: Option[String],
+    metadata: Option[Map[String, Option[String]]],
+    assetIds: Option[Seq[Long]],
+    source: Option[String],
+    sourceId: Option[String])
 
 case class SourceWithResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
 
-class EventsRelation(config: RelationConfig)
-                    (@transient val sqlContext: SQLContext)
-  extends BaseRelation
+class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLContext)
+    extends BaseRelation
     with InsertableRelation
     with TableScan
     with CdpConnector
@@ -42,30 +42,38 @@ class EventsRelation(config: RelationConfig)
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val eventsCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}events.created")
-  @transient lazy private val eventsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}events.read")
+  @transient lazy private val eventsCreated =
+    UserMetricsSystem.counter(s"${config.metricsPrefix}events.created")
+  @transient lazy private val eventsRead =
+    UserMetricsSystem.counter(s"${config.metricsPrefix}events.read")
 
   override def schema: StructType = structType[EventItem]
 
-  override def insert(data: DataFrame, overwrite: Boolean): Unit = {
+  override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
       batches.parTraverse(postEvent).unsafeRunSync()
     })
-  }
 
   override def buildScan(): RDD[Row] = {
     val baseUrl = baseEventsURL(config.project)
-    CdpRdd[EventItem](sqlContext.sparkContext,
+    CdpRdd[EventItem](
+      sqlContext.sparkContext,
       (e: EventItem) => {
         if (config.collectMetrics) {
           eventsRead.inc()
         }
         asRow(e)
       },
-      baseUrl.param("onlyCursors", "true"), baseUrl, config.apiKey,
-        config.project, batchSize, maxRetries, config.limit)
+      baseUrl.param("onlyCursors", "true"),
+      baseUrl,
+      config.apiKey,
+      config.project,
+      batchSize,
+      maxRetries,
+      config.limit
+    )
   }
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {
@@ -77,13 +85,13 @@ class EventsRelation(config: RelationConfig)
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
           case Left(error) => IO.raiseError(error)
         }
-      }.flatTap { _ =>
-        IO {
-          if (config.collectMetrics) {
-            eventsCreated.inc(rows.length)
-          }
+    }.flatTap { _ =>
+      IO {
+        if (config.collectMetrics) {
+          eventsCreated.inc(rows.length)
         }
       }
+    }
   }
 
   def resolveConflict(eventItems: Seq[EventItem], eventConflict: EventConflict): IO[Unit] = {
@@ -108,7 +116,11 @@ class EventsRelation(config: RelationConfig)
       // Do nothing
       IO.unit
     } else {
-      post(config.apiKey, uri"${baseEventsURLOld(config.project)}/update", conflictingEvents, maxRetries)
+      post(
+        config.apiKey,
+        uri"${baseEventsURLOld(config.project)}/update",
+        conflictingEvents,
+        maxRetries)
     }
 
     val newEvents = eventItems.map(_.copy(id = None)).diff(conflictingEvents.map(_.copy(id = None)))
@@ -121,13 +133,11 @@ class EventsRelation(config: RelationConfig)
     (postUpdate, postNewItems).parMapN((_, _) => ())
   }
 
-  def baseEventsURL(project: String, version: String = "0.6"): Uri = {
+  def baseEventsURL(project: String, version: String = "0.6"): Uri =
     uri"https://api.cognitedata.com/api/$version/projects/$project/events"
-  }
 
-  def baseEventsURLOld(project: String): Uri = {
+  def baseEventsURLOld(project: String): Uri =
     // TODO: API is failing with "Invalid field - items[0].starttime - expected an object but got number" in 0.6
     // That's why we need 0.5 support, however should be removed when fixed
     uri"https://api.cognitedata.com/api/0.5/projects/$project/events"
-  }
 }

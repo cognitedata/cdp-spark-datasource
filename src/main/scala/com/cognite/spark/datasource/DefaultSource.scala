@@ -1,29 +1,37 @@
 package com.cognite.spark.datasource
 
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider, SchemaRelationProvider}
+import org.apache.spark.sql.sources.{
+  BaseRelation,
+  DataSourceRegister,
+  RelationProvider,
+  SchemaRelationProvider
+}
 import org.apache.spark.sql.types.StructType
 
-case class RelationConfig(apiKey: String,
-                          project: String,
-                          batchSize: Option[Int],
-                          limit: Option[Int],
-                          maxRetries: Option[Int],
-                          collectMetrics: Boolean,
-                          metricsPrefix: String)
+case class RelationConfig(
+    apiKey: String,
+    project: String,
+    batchSize: Option[Int],
+    limit: Option[Int],
+    maxRetries: Option[Int],
+    collectMetrics: Boolean,
+    metricsPrefix: String)
 
-class DefaultSource extends RelationProvider
-  with SchemaRelationProvider
-  with DataSourceRegister
-  with CdpConnector {
+class DefaultSource
+    extends RelationProvider
+    with SchemaRelationProvider
+    with DataSourceRegister
+    with CdpConnector {
 
   override def shortName(): String = "cognite"
 
-  override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation = {
+  override def createRelation(
+      sqlContext: SQLContext,
+      parameters: Map[String, String]): BaseRelation =
     createRelation(sqlContext, parameters, null) // scalastyle:off null
-  }
 
-  private def toBoolean(parameters: Map[String, String], parameterName: String): Boolean = {
+  private def toBoolean(parameters: Map[String, String], parameterName: String): Boolean =
     parameters.get(parameterName) match {
       case Some(string) =>
         if (string.equalsIgnoreCase("true")) {
@@ -35,9 +43,8 @@ class DefaultSource extends RelationProvider
         }
       case None => false
     }
-  }
 
-  private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] = {
+  private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
     parameters.get(parameterName).map { intString =>
       val intValue = intString.toInt
       if (intValue <= 0) {
@@ -45,7 +52,6 @@ class DefaultSource extends RelationProvider
       }
       intValue
     }
-  }
 
   def parseRelationConfig(parameters: Map[String, String]): RelationConfig = {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
@@ -62,7 +68,10 @@ class DefaultSource extends RelationProvider
   }
 
   // scalastyle:off cyclomatic.complexity method.length
-  override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
+  override def createRelation(
+      sqlContext: SQLContext,
+      parameters: Map[String, String],
+      schema: StructType): BaseRelation = {
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
     val config = parseRelationConfig(parameters)
     resourceType match {
@@ -83,8 +92,14 @@ class DefaultSource extends RelationProvider
         }
         val collectSchemaInferenceMetrics = toBoolean(parameters, "collectSchemaInferenceMetrics")
 
-        new RawTableRelation(config, database, tableName, Option(schema),
-          inferSchema, inferSchemaLimit, collectSchemaInferenceMetrics)(sqlContext)
+        new RawTableRelation(
+          config,
+          database,
+          tableName,
+          Option(schema),
+          inferSchema,
+          inferSchemaLimit,
+          collectSchemaInferenceMetrics)(sqlContext)
       case "assets" =>
         val assetsPath = parameters.get("assetsPath")
         if (assetsPath.isDefined && !AssetsRelation.isValidAssetsPath(assetsPath.get)) {
@@ -98,19 +113,26 @@ class DefaultSource extends RelationProvider
       case "3dmodels" =>
         new ThreeDModelsRelation(config)(sqlContext)
       case "3dmodelrevisions" =>
-        val modelId = parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
+        val modelId =
+          parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
         new ThreeDModelRevisionsRelation(config, modelId)(sqlContext)
       case "3dmodelrevisionmappings" =>
-        val modelId = parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
-        val revisionId = parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
+        val modelId =
+          parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
+        val revisionId =
+          parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
         new ThreeDModelRevisionMappingsRelation(config, modelId, revisionId)(sqlContext)
       case "3dmodelrevisionnodes" =>
-        val modelId = parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
-        val revisionId = parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
+        val modelId =
+          parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
+        val revisionId =
+          parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
         new ThreeDModelRevisionNodesRelation(config, modelId, revisionId)(sqlContext)
       case "3dmodelrevisionsectors" =>
-        val modelId = parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
-        val revisionId = parameters.getOrElse("revisionId", sys.error("Model id must be specified")).toLong
+        val modelId =
+          parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
+        val revisionId =
+          parameters.getOrElse("revisionId", sys.error("Model id must be specified")).toLong
         new ThreeDModelRevisionSectorsRelation(config, modelId, revisionId)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
