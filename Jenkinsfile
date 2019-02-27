@@ -44,7 +44,7 @@ podTemplate(label: label,
                     sh('cp /sbt-credentials/repositories /root/.sbt/')
                 }
                 stage('Run tests') {
-                    sh('sbt -Dsbt.log.noformat=true compile scalastyle coverage test coverageReport')
+                    sh('sbt -Dsbt.log.noformat=true compile scalastyle scalafmtCheck coverage test coverageReport')
                 }
                 stage("Upload report to codecov.io") {
                     sh('bash </codecov-script/upload-report.sh')
