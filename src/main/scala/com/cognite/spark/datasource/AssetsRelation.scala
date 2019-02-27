@@ -18,19 +18,18 @@ import scala.concurrent.ExecutionContext
 
 case class PostAssetsDataItems[A](items: Seq[A])
 
-case class AssetsItem(name: String,
-                      parentId: Option[Long],
-                      description: Option[String],
-                      metadata: Option[Map[String, Option[String]]],
-                      id: Long)
+case class AssetsItem(
+    name: String,
+    parentId: Option[Long],
+    description: Option[String],
+    metadata: Option[Map[String, Option[String]]],
+    id: Long)
 
-case class PostAssetsItem(name: String,
-                          description: String,
-                          metadata: Map[String, String])
+case class PostAssetsItem(name: String, description: String, metadata: Map[String, String])
 
-class AssetsRelation(config: RelationConfig, assetPath: Option[String])
-                    (@transient val sqlContext: SQLContext)
-  extends BaseRelation
+class AssetsRelation(config: RelationConfig, assetPath: Option[String])(
+    @transient val sqlContext: SQLContext)
+    extends BaseRelation
     with InsertableRelation
     with TableScan
     with CdpConnector
@@ -38,7 +37,8 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy val assetsCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}assets.created")
+  @transient lazy val assetsCreated =
+    UserMetricsSystem.counter(s"${config.metricsPrefix}assets.created")
   @transient lazy val assetsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}assets.read")
 
   override def schema: StructType = structType[AssetsItem]
@@ -47,24 +47,30 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])
     val url = baseAssetsURL(config.project)
     val getUrl = assetPath.fold(url)(url.param("path", _))
 
-    CdpRdd[AssetsItem](sqlContext.sparkContext,
+    CdpRdd[AssetsItem](
+      sqlContext.sparkContext,
       (a: AssetsItem) => {
         if (config.collectMetrics) {
           assetsRead.inc()
         }
         asRow(a)
       },
-      getUrl.param("onlyCursors", "true"), getUrl, config.apiKey,
-        config.project, batchSize, maxRetries, config.limit)
+      getUrl.param("onlyCursors", "true"),
+      getUrl,
+      config.apiKey,
+      config.project,
+      batchSize,
+      maxRetries,
+      config.limit
+    )
   }
 
-  override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
+  override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
       batches.parTraverse(postRows).unsafeRunSync()
     })
-  }
 
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val assetItems = rows.map(r => fromRow[PostAssetsItem](r))
@@ -77,9 +83,8 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])
       })
   }
 
-  def baseAssetsURL(project: String, version: String = "0.6"): Uri = {
+  def baseAssetsURL(project: String, version: String = "0.6"): Uri =
     uri"https://api.cognitedata.com/api/$version/projects/$project/assets"
-  }
 }
 
 object AssetsRelation {
@@ -91,17 +96,14 @@ object AssetsRelation {
     mapper
   }
 
-  val validPathComponentTypes = Seq(
-    classOf[java.lang.Integer],
-    classOf[java.lang.Long],
-    classOf[java.lang.String])
+  val validPathComponentTypes =
+    Seq(classOf[java.lang.Integer], classOf[java.lang.Long], classOf[java.lang.String])
 
-  def isValidAssetsPath(path: String): Boolean = {
+  def isValidAssetsPath(path: String): Boolean =
     try {
       val pathComponents = mapper.readValue(path, classOf[Seq[Any]])
       pathComponents.forall(c => validPathComponentTypes.contains(c.getClass))
     } catch {
       case _: JsonParseException => false
     }
-  }
 }

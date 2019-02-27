@@ -15,32 +15,33 @@ import scala.concurrent.ExecutionContext
 
 case class PostTimeSeriesDataItems[A](items: Seq[A])
 
-case class TimeSeriesItem(name: String,
-                          isString: Boolean,
-                          metadata: Option[Map[String, Option[String]]],
-                          unit: Option[String],
-                          assetId: Option[Long],
-                          isStep: Boolean,
-                          description: Option[String],
-                         // need to use Vector to avoid this error:
-                         // Caused by: java.io.NotSerializableException: scala.Array$$anon$2
-                          securityCategories: Option[Vector[Long]],
-                          id: Long,
-                          createdTime: Long,
-                          lastUpdatedTime: Long)
+case class TimeSeriesItem(
+    name: String,
+    isString: Boolean,
+    metadata: Option[Map[String, Option[String]]],
+    unit: Option[String],
+    assetId: Option[Long],
+    isStep: Boolean,
+    description: Option[String],
+    // need to use Vector to avoid this error:
+    // Caused by: java.io.NotSerializableException: scala.Array$$anon$2
+    securityCategories: Option[Vector[Long]],
+    id: Long,
+    createdTime: Long,
+    lastUpdatedTime: Long)
 
-case class PostTimeSeriesItem(name: String,
-                              isString: Boolean,
-                              metadata: Option[Map[String, String]],
-                              unit: Option[String],
-                              assetId: Option[Long],
-                              isStep: Boolean,
-                              description: Option[String],
-                              securityCategories: Option[Vector[Long]])
+case class PostTimeSeriesItem(
+    name: String,
+    isString: Boolean,
+    metadata: Option[Map[String, String]],
+    unit: Option[String],
+    assetId: Option[Long],
+    isStep: Boolean,
+    description: Option[String],
+    securityCategories: Option[Vector[Long]])
 
-class TimeSeriesRelation(config: RelationConfig)
-                        (@transient val sqlContext: SQLContext)
-  extends BaseRelation
+class TimeSeriesRelation(config: RelationConfig)(@transient val sqlContext: SQLContext)
+    extends BaseRelation
     with InsertableRelation
     with TableScan
     with CdpConnector
@@ -49,31 +50,40 @@ class TimeSeriesRelation(config: RelationConfig)
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val timeSeriesCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}timeseries.created")
-  @transient lazy private val timeSeriesRead = UserMetricsSystem.counter(s"${config.metricsPrefix}timeseries.read")
+  @transient lazy private val timeSeriesCreated =
+    UserMetricsSystem.counter(s"${config.metricsPrefix}timeseries.created")
+  @transient lazy private val timeSeriesRead =
+    UserMetricsSystem.counter(s"${config.metricsPrefix}timeseries.read")
 
   override def schema: StructType = structType[TimeSeriesItem]
 
   override def buildScan(): RDD[Row] = {
     val getUrl = baseTimeSeriesUrl(config.project)
 
-    CdpRdd[TimeSeriesItem](sqlContext.sparkContext,
+    CdpRdd[TimeSeriesItem](
+      sqlContext.sparkContext,
       (ts: TimeSeriesItem) => {
         if (config.collectMetrics) {
           timeSeriesRead.inc()
         }
         asRow(ts)
       },
-      getUrl, getUrl, config.apiKey, config.project, batchSize, maxRetries, config.limit)
+      getUrl,
+      getUrl,
+      config.apiKey,
+      config.project,
+      batchSize,
+      maxRetries,
+      config.limit
+    )
   }
 
-  override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit = {
+  override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
       batches.parTraverse(postRows).unsafeRunSync()
     })
-  }
 
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesItems = rows.map(r => fromRow[PostTimeSeriesItem](r))
@@ -86,7 +96,6 @@ class TimeSeriesRelation(config: RelationConfig)
       })
   }
 
-  def baseTimeSeriesUrl(project: String): Uri = {
+  def baseTimeSeriesUrl(project: String): Uri =
     uri"${baseUrl(project)}/timeseries"
-  }
 }

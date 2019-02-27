@@ -21,14 +21,15 @@ import scala.concurrent.ExecutionContext
 
 case class RawItem(key: String, columns: JsonObject)
 
-class RawTableRelation(config: RelationConfig,
-                       database: String,
-                       table: String,
-                       userSchema: Option[StructType],
-                       inferSchema: Boolean,
-                       inferSchemaLimit: Option[Int],
-                       collectSchemaInferenceMetrics: Boolean)(val sqlContext: SQLContext)
-  extends BaseRelation
+class RawTableRelation(
+    config: RelationConfig,
+    database: String,
+    table: String,
+    userSchema: Option[StructType],
+    inferSchema: Boolean,
+    inferSchemaLimit: Option[Int],
+    collectSchemaInferenceMetrics: Boolean)(val sqlContext: SQLContext)
+    extends BaseRelation
     with InsertableRelation
     with TableScan
     with CdpConnector
@@ -38,10 +39,11 @@ class RawTableRelation(config: RelationConfig,
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy val defaultSchema = StructType(Seq(
-    StructField("key", DataTypes.StringType),
-    StructField("columns", DataTypes.StringType)
-  ))
+  @transient lazy val defaultSchema = StructType(
+    Seq(
+      StructField("key", DataTypes.StringType),
+      StructField("columns", DataTypes.StringType)
+    ))
   @transient lazy val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
@@ -51,8 +53,10 @@ class RawTableRelation(config: RelationConfig,
   }
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-  @transient private lazy val rowsCreated = UserMetricsSystem.counter(s"${config.metricsPrefix}raw.$database.$table.rows.created")
-  @transient private lazy val rowsRead = UserMetricsSystem.counter(s"${config.metricsPrefix}raw.$database.$table.rows.read")
+  @transient private lazy val rowsCreated =
+    UserMetricsSystem.counter(s"${config.metricsPrefix}raw.$database.$table.rows.created")
+  @transient private lazy val rowsRead =
+    UserMetricsSystem.counter(s"${config.metricsPrefix}raw.$database.$table.rows.read")
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
@@ -60,23 +64,34 @@ class RawTableRelation(config: RelationConfig,
 
       import sqlContext.sparkSession.implicits._
       val df = sqlContext.createDataFrame(rdd, defaultSchema)
-      val jsonDf = renameKeyColumns(sqlContext.sparkSession.read.json(df.select($"columns").as[String]))
+      val jsonDf =
+        renameKeyColumns(sqlContext.sparkSession.read.json(df.select($"columns").as[String]))
       StructType(StructField("key", DataTypes.StringType, false) +: jsonDf.schema.fields)
     } else {
       defaultSchema
     }
   }
 
-  private def readRows(limit: Option[Int], collectMetrics: Boolean = config.collectMetrics): RDD[Row] = {
+  private def readRows(
+      limit: Option[Int],
+      collectMetrics: Boolean = config.collectMetrics): RDD[Row] = {
     val baseUrl = baseRawTableURL(config.project, database, table)
-    CdpRdd[RawItem](sqlContext.sparkContext,
+    CdpRdd[RawItem](
+      sqlContext.sparkContext,
       (item: RawItem) => {
         if (collectMetrics) {
           rowsRead.inc()
         }
         Row(item.key, item.columns.asJson.noSpaces)
       },
-      baseUrl.param("columns", ","), baseUrl, config.apiKey, config.project, batchSize, maxRetries, limit)
+      baseUrl.param("columns", ","),
+      baseUrl,
+      config.apiKey,
+      config.project,
+      batchSize,
+      maxRetries,
+      limit
+    )
   }
 
   override def buildScan(): RDD[Row] = {
@@ -92,7 +107,8 @@ class RawTableRelation(config: RelationConfig,
 
   override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
     if (!df.columns.contains("key")) {
-      throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column.")
+      throw new IllegalArgumentException(
+        "The dataframe used for insertion must have a \"key\" column.")
     }
 
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df)
@@ -118,28 +134,32 @@ class RawTableRelation(config: RelationConfig,
       }
   }
 
-  def baseRawTableURL(project: String, database: String, table: String): Uri = {
+  def baseRawTableURL(project: String, database: String, table: String): Uri =
     uri"${baseUrl(project, "0.5")}/raw/$database/$table"
-  }
 }
 
 object RawTableRelation {
   private val keyColumnPattern = """^_*key$""".r
 
-  private def keyColumns(schema: StructType): Array[String] = {
+  private def keyColumns(schema: StructType): Array[String] =
     schema.fieldNames.filter(keyColumnPattern.findFirstIn(_).isDefined)
-  }
 
-  def rowsToRawItems(nonKeyColumnNames: Seq[String], rows: Seq[Row], mapper: ObjectMapper): Seq[RawItem] = {
-    rows.map(row => RawItem(
-      Option(row.getString(row.fieldIndex(temporaryKeyName)))
-        .getOrElse(throw new IllegalArgumentException("\"key\" can not be null.")),
-      io.circe.parser.decode[JsonObject](
-        mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames))).right.get
-    ))
-  }
+  def rowsToRawItems(
+      nonKeyColumnNames: Seq[String],
+      rows: Seq[Row],
+      mapper: ObjectMapper): Seq[RawItem] =
+    rows.map(
+      row =>
+        RawItem(
+          Option(row.getString(row.fieldIndex(temporaryKeyName)))
+            .getOrElse(throw new IllegalArgumentException("\"key\" can not be null.")),
+          io.circe.parser
+            .decode[JsonObject](mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames)))
+            .right
+            .get
+      ))
 
-  private def schemaWithoutRenamedKeyColumns(schema: StructType) = {
+  private def schemaWithoutRenamedKeyColumns(schema: StructType) =
     StructType.apply(schema.fields.map(field => {
       if (keyColumnPattern.findFirstIn(field.name).isDefined) {
         field.copy(name = field.name.replaceFirst("_", ""))
@@ -147,7 +167,6 @@ object RawTableRelation {
         field
       }
     }))
-  }
 
   private def renameKeyColumns(df: DataFrame): DataFrame = {
     val columnsToRename = keyColumns(df.schema)
@@ -167,7 +186,10 @@ object RawTableRelation {
 
   private val temporaryKeyName = s"TrE85tFQPCb2fEUZ"
 
-  def flattenAndRenameKeyColumns(sqlContext: SQLContext, df: DataFrame, jsonFieldsSchema: StructType): DataFrame = {
+  def flattenAndRenameKeyColumns(
+      sqlContext: SQLContext,
+      df: DataFrame,
+      jsonFieldsSchema: StructType): DataFrame = {
     import sqlContext.implicits.StringToColumn
     import org.apache.spark.sql.functions.from_json
     val dfWithSchema = df.select($"key", from_json($"columns", jsonFieldsSchema).alias("columns"))
