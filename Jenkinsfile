@@ -43,18 +43,43 @@ podTemplate(label: label,
                     sh('mkdir -p /root/.sbt/1.0 && cp /sbt-credentials/credentials.sbt /root/.sbt/1.0/credentials.sbt')
                     sh('cp /sbt-credentials/repositories /root/.sbt/')
                 }
-                stage('Run tests') {
-                    sh('sbt -Dsbt.log.noformat=true compile scalastyle coverage test coverageReport')
-                }
-                stage("Upload report to codecov.io") {
-                    sh('bash </codecov-script/upload-report.sh')
-                }
-                stage('Build JAR file') {
-                    sh('sbt -Dsbt.log.noformat=true "set test in assembly := {}" assembly')
-                }
-                if (env.BRANCH_NAME == 'master') {
-                    stage('Deploy') {
-                        sh('sbt -Dsbt.log.noformat=true library/publish fatJar/publish')
+                parallel startSbt: {
+                    stage('start sbt') {
+                        sh('sbt')
+                    }
+                },
+                build: {
+                    stage('Wait for SBT to startup') {
+                        sh('while [ ! -f project/target/active.json ] ; do sleep 1; done')
+                    }
+                    stage('Compile protobuf') {
+                        sh('sbt -client -Dsbt.log.noformat=true compile')
+                    }
+                    stage('Run scalastyle') {
+                        sh('sbt -client -Dsbt.log.noformat=true scalastyle')
+                    }
+                    stage('Run tests') {
+                        sh('sbt -client -Dsbt.log.noformat=true coverage')
+                    }
+                    stage('Run tests') {
+                        sh('sbt -client -Dsbt.log.noformat=true test')
+                    }
+                    stage('Run tests') {
+                        sh('sbt -client -Dsbt.log.noformat=true coverageReport')
+                    }
+                    stage("Upload report to codecov.io") {
+                        sh('bash </codecov-script/upload-report.sh')
+                    }
+                    stage('Build JAR file') {
+                        sh('sbt -client -Dsbt.log.noformat=true "set test in assembly := {}" assembly')
+                    }
+                    if (env.BRANCH_NAME == 'master') {
+                        stage('Deploy') {
+                            sh('sbt -client -Dsbt.log.noformat=true library/publish fatJar/publish')
+                        }
+                    }
+                    stage('end sbt session') {
+                        sh('sbt -client shutdown')
                     }
                 }
             }
