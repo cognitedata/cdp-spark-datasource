@@ -3,7 +3,7 @@ package com.cognite.spark.datasource
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp.{Uri, _}
 import io.circe.generic.auto._
-import org.apache.spark.groupon.metrics.UserMetricsSystem
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
@@ -24,7 +24,7 @@ case class ModelRevisionItem(
     createdTime: Long)
 
 class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(
-    @transient val sqlContext: SQLContext)
+    val sqlContext: SQLContext)
     extends BaseRelation
     with TableScan
     with CdpConnector
@@ -32,8 +32,9 @@ class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
+  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
   @transient lazy private val modelRevisionsRead =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}3dmodelrevisions.read")
+    metricsSource.getOrCreateCounter(s"3dmodelrevisions.read")
 
   override def schema: StructType = structType[ModelRevisionItem]
 

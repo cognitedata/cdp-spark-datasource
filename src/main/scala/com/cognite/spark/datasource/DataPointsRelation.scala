@@ -3,7 +3,6 @@ package com.cognite.spark.datasource
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import io.circe.generic.auto._
-import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, TableScan, _}
 import org.apache.spark.sql.types._
@@ -13,8 +12,8 @@ import com.softwaremill.sttp.circe._
 
 import scala.concurrent.ExecutionContext
 import scala.util.Try
-
 import com.cognite.data.api.v2.DataPoints._
+import org.apache.spark.datasource.MetricsSource
 
 sealed case class DataPointsDataItems[A](items: Seq[A])
 
@@ -61,7 +60,7 @@ sealed case class GranularityFilter(amount: Option[Long], unit: String)
 sealed case class AggregationFilter(aggregation: String)
 
 class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructType])(
-    @transient val sqlContext: SQLContext)
+    val sqlContext: SQLContext)
     extends BaseRelation
     with InsertableRelation
     with TableScan
@@ -74,10 +73,10 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
     config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
+  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
   @transient lazy private val datapointsCreated =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}datapoints.created")
-  @transient lazy private val datapointsRead =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}datapoints.read")
+    metricsSource.getOrCreateCounter(s"datapoints.created")
+  @transient lazy private val datapointsRead = metricsSource.getOrCreateCounter(s"datapoints.read")
 
   override def schema: StructType =
     suppliedSchema.getOrElse(

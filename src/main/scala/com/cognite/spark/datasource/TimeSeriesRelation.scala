@@ -4,12 +4,12 @@ import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
-import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import SparkSchemaHelper._
+import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 
@@ -40,7 +40,7 @@ case class PostTimeSeriesItem(
     description: Option[String],
     securityCategories: Option[Vector[Long]])
 
-class TimeSeriesRelation(config: RelationConfig)(@transient val sqlContext: SQLContext)
+class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends BaseRelation
     with InsertableRelation
     with TableScan
@@ -50,10 +50,10 @@ class TimeSeriesRelation(config: RelationConfig)(@transient val sqlContext: SQLC
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
+  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
   @transient lazy private val timeSeriesCreated =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}timeseries.created")
-  @transient lazy private val timeSeriesRead =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}timeseries.read")
+    metricsSource.getOrCreateCounter(s"timeseries.created")
+  @transient lazy private val timeSeriesRead = metricsSource.getOrCreateCounter(s"timeseries.read")
 
   override def schema: StructType = structType[TimeSeriesItem]
 

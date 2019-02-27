@@ -1,13 +1,14 @@
 package com.cognite.spark.datasource
 
+import com.codahale.metrics.Counter
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp.{Uri, _}
 import io.circe.generic.auto._
-import org.apache.spark.groupon.metrics.UserMetricsSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.datasource.MetricsSource
 
 case class FileItem(
     id: Option[Long],
@@ -23,7 +24,7 @@ case class FileItem(
     createdTime: Option[Long],
     lastUpdatedTime: Option[Long])
 
-class FilesRelation(config: RelationConfig)(@transient val sqlContext: SQLContext)
+class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends BaseRelation
     with TableScan
     with CdpConnector
@@ -31,8 +32,8 @@ class FilesRelation(config: RelationConfig)(@transient val sqlContext: SQLContex
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
   @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
 
-  @transient lazy private val filesRead =
-    UserMetricsSystem.counter(s"${config.metricsPrefix}files.read")
+  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
+  @transient lazy private val filesRead = metricsSource.getOrCreateCounter("files.read")
 
   override def schema: StructType = structType[FileItem]
 

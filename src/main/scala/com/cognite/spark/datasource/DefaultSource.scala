@@ -1,5 +1,6 @@
 package com.cognite.spark.datasource
 
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.{
   BaseRelation,
@@ -8,6 +9,7 @@ import org.apache.spark.sql.sources.{
   SchemaRelationProvider
 }
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.datasource.MetricsSource
 
 case class RelationConfig(
     apiKey: String,
