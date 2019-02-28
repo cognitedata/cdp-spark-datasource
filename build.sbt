@@ -85,7 +85,8 @@ lazy val library = (project in file("."))
     },
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
     mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
-    mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value
+    mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,
+    coverageExcludedPackages := "com.cognite.data.*"
   )
 
 lazy val fatJar = project.settings(
