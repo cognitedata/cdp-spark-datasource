@@ -201,7 +201,7 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
 
   def getLatestDataPoint(timeSeriesName: String): Option[DataPoint] = {
     val url =
-      uri"https://api.cognitedata.com/api/0.5/projects/${config.project}/timeseries/latest/$timeSeriesName"
+      uri"${config.baseUrl}/api/0.5/projects/${config.project}/timeseries/latest/$timeSeriesName"
     val getLatest = sttp
       .header("Accept", "application/json")
       .header("api-key", config.apiKey)
@@ -379,5 +379,5 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
   }
 
   def baseDataPointsUrl(project: String): Uri =
-    uri"${baseUrl(project, "0.5")}/timeseries/data"
+    uri"${baseUrl(project, "0.5", Constants.DefaultBaseUrl)}/timeseries/data"
 }

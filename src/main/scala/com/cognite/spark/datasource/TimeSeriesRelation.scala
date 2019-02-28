@@ -97,5 +97,5 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   def baseTimeSeriesUrl(project: String): Uri =
-    uri"${baseUrl(project)}/timeseries"
+    uri"${baseUrl(project, "0.5", config.baseUrl)}/timeseries"
 }

@@ -133,10 +133,10 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   }
 
   def baseEventsURL(project: String, version: String = "0.6"): Uri =
-    uri"https://api.cognitedata.com/api/$version/projects/$project/events"
+    uri"${config.baseUrl}/api/$version/projects/$project/events"
 
   def baseEventsURLOld(project: String): Uri =
     // TODO: API is failing with "Invalid field - items[0].starttime - expected an object but got number" in 0.6
     // That's why we need 0.5 support, however should be removed when fixed
-    uri"https://api.cognitedata.com/api/0.5/projects/$project/events"
+    uri"${config.baseUrl}/api/0.5/projects/$project/events"
 }

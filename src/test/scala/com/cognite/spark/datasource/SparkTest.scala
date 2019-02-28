@@ -7,6 +7,7 @@ import org.scalatest.Tag
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
+object GreenfieldTest extends Tag("GreenfieldTest")
 
 trait SparkTest extends CdpConnector {
   val spark: SparkSession = SparkSession.builder()
@@ -16,7 +17,7 @@ trait SparkTest extends CdpConnector {
     .getOrCreate()
 
   def getThreeDModelIdAndRevisionId(apiKey: String): (String, String) = {
-    val project = getProject(apiKey, 10)
+    val project = getProject(apiKey, 10, Constants.DefaultBaseUrl)
 
     val modelUrl = uri"https://api.cognitedata.com/api/0.6/projects/$project/3d/models"
     val models = getJson[Data[Items[ModelItem]]](apiKey, modelUrl, 10).unsafeRunSync()

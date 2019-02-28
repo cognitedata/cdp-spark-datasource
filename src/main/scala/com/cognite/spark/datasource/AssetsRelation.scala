@@ -83,7 +83,7 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
   }
 
   def baseAssetsURL(project: String, version: String = "0.6"): Uri =
-    uri"https://api.cognitedata.com/api/$version/projects/$project/assets"
+    uri"${config.baseUrl}/api/$version/projects/$project/assets"
 }
 
 object AssetsRelation {

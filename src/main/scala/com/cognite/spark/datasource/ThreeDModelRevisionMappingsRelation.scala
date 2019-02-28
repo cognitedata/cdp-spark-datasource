@@ -51,5 +51,5 @@ class ThreeDModelRevisionMappingsRelation(config: RelationConfig, modelId: Long,
   }
 
   def base3dModelRevisionMappingsUrl(project: String, version: String = "0.6"): Uri =
-    uri"https://api.cognitedata.com/api/$version/projects/$project/3d/models/$modelId/revisions/$revisionId/mappings"
+    uri"${config.baseUrl}/api/$version/projects/$project/3d/models/$modelId/revisions/$revisionId/mappings"
 }

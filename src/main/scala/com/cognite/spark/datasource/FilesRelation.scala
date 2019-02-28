@@ -58,5 +58,5 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   def baseFilesUrl(project: String, version: String = "0.6"): Uri =
-    uri"https://api.cognitedata.com/api/$version/projects/$project/files"
+    uri"${config.baseUrl}/api/$version/projects/$project/files"
 }

@@ -18,7 +18,8 @@ case class RelationConfig(
     limit: Option[Int],
     maxRetries: Option[Int],
     collectMetrics: Boolean,
-    metricsPrefix: String)
+    metricsPrefix: String,
+    baseUrl: String)
 
 class DefaultSource
     extends RelationProvider
@@ -57,8 +58,10 @@ class DefaultSource
 
   def parseRelationConfig(parameters: Map[String, String]): RelationConfig = {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
+    val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
-    val project = getProject(apiKey, maxRetries.getOrElse(Constants.DefaultMaxRetries))
+    val project =
+      getProject(apiKey, maxRetries.getOrElse(Constants.DefaultMaxRetries), baseUrl)
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limit = toPositiveInt(parameters, "limit")
     val metricsPrefix = parameters.get("metricsPrefix") match {
@@ -66,7 +69,15 @@ class DefaultSource
       case None => ""
     }
     val collectMetrics = toBoolean(parameters, "collectMetrics")
-    RelationConfig(apiKey, project, batchSize, limit, maxRetries, collectMetrics, metricsPrefix)
+    RelationConfig(
+      apiKey,
+      project,
+      batchSize,
+      limit,
+      maxRetries,
+      collectMetrics,
+      metricsPrefix,
+      baseUrl)
   }
 
   // scalastyle:off cyclomatic.complexity method.length

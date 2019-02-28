@@ -9,4 +9,5 @@ object Constants {
   val DefaultDataPointsAggregationBatchSize = 10000
   val DefaultInitialRetryDelay = 150.millis
   val DefaultMaxBackoffDelay = 120.seconds
+  val DefaultBaseUrl = "https://api.cognitedata.com"
 }
