@@ -136,7 +136,7 @@ class RawTableRelation(
   }
 
   def baseRawTableURL(project: String, database: String, table: String): Uri =
-    uri"${baseUrl(project, "0.5")}/raw/$database/$table"
+    uri"${baseUrl(project, "0.5", config.baseUrl)}/raw/$database/$table"
 }
 
 object RawTableRelation {

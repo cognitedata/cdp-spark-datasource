@@ -8,12 +8,13 @@ class URLTest extends FunSuite with SparkTest with CdpConnector {
 
   test("verify path encoding of base url") {
     val dataPointsRelation = new DataPointsRelation(RelationConfig("", "statøil", None, None,
-      None, false, ""), None)(spark.sqlContext)
-    assert("https://api.cognitedata.com/api/0.5/projects/stat%C3%B8il/timeseries/data" == dataPointsRelation.baseDataPointsUrl("statøil").toString)
+      None, false, "","https://api.cognitedata.com"), None)(spark.sqlContext)
+    assert("https://api.cognitedata.com/api/0.5/projects/stat%C3%B8il/timeseries/data"
+      == dataPointsRelation.baseDataPointsUrl("statøil").toString)
   }
 
   test("verify that correct project is retrieved from TEST_API_KEY"){
-    val project = getProject(readApiKey, Constants.DefaultMaxRetries)
+    val project = getProject(readApiKey, Constants.DefaultMaxRetries, Constants.DefaultBaseUrl)
     assert(project == "publicdata")
   }
 }

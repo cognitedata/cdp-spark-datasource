@@ -28,14 +28,14 @@ case class CdpApiException(url: Uri, code: Int, message: String)
 trait CdpConnector {
   import CdpConnector._
 
-  def getProject(apiKey: String, maxRetries: Int): String = {
-    val loginStatusUrl = uri"https://api.cognitedata.com/login/status"
+  def getProject(apiKey: String, maxRetries: Int, baseUrl: String): String = {
+    val loginStatusUrl = uri"$baseUrl/login/status"
     val jsonResult = getJson[Data[Login]](apiKey, loginStatusUrl, maxRetries)
     jsonResult.unsafeRunSync().data.project
   }
 
-  def baseUrl(project: String, version: String = "0.5"): Uri =
-    uri"https://api.cognitedata.com/api/$version/projects/$project"
+  def baseUrl(project: String, version: String, baseUrl: String): Uri =
+    uri"$baseUrl/api/$version/projects/$project"
 
   def getJson[A: Decoder](apiKey: String, url: Uri, maxRetries: Int): IO[A] = {
     val result = sttp

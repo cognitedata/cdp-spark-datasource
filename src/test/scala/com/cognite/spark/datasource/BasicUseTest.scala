@@ -210,7 +210,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
   def cleanupEvents(source: String): Unit = {
     import io.circe.generic.auto._
 
-    val project = getProject(writeApiKey, Constants.DefaultMaxRetries)
+    val project = getProject(writeApiKey, Constants.DefaultMaxRetries, Constants.DefaultBaseUrl)
 
     val events = get[EventItem](
       writeApiKey,

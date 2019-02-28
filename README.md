@@ -32,7 +32,8 @@ See instructions below for examples using different resource types.
 The project runs read-only integration tests against the Open Industrial Data project. Head over to
 https://openindustrialdata.com/ to get an API key and store it in the environment variable `TEST_API_KEY_READ`.
 To run the write integration tests you'll also need to set the environment variable `TEST_API_KEY_WRITE`
-to an API key to a project where you have write access.
+to an API key to a project where you have write access. To run tests against greenfield set the environment
+variable `TEST_API_KEY_GREENFIELD` to an API key with read access to the project cdp-spark-datasource-test. 
 
 ### Setting up
 First run `sbt compile` to generate Scala sources for protobuf.
@@ -49,6 +50,8 @@ To run groups of tests enter sbt shell mode `sbt>`
 To run only the read-only tests run `sbt> testOnly -- -n ReadTest`
 
 To run only the write tests run `sbt> testOnly -- -n WriteTest`
+
+To run only the greenfield tests run `sbt> testOnly -- -n GreenfieldTest`
 
 To run all tests except the write tests run `sbt> testOnly -- -l WriteTest`
 

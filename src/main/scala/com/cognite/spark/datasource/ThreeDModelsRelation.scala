@@ -45,5 +45,5 @@ class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   def base3dModelsUrl(project: String, version: String = "0.6"): Uri =
-    uri"https://api.cognitedata.com/api/$version/projects/$project/3d/models"
+    uri"${config.baseUrl}/api/$version/projects/$project/3d/models"
 }
