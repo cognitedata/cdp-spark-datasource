@@ -44,13 +44,17 @@ podTemplate(label: label,
                     sh('cp /sbt-credentials/repositories /root/.sbt/')
                 }
                 stage('Run tests') {
-                    sh('sbt -Dsbt.log.noformat=true compile scalastyle scalafmtCheck coverage test coverageReport')
+                    sh('sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage test coverageReport')
                 }
                 stage("Upload report to codecov.io") {
                     sh('bash </codecov-script/upload-report.sh')
                 }
                 stage('Build JAR file') {
-                    sh('sbt -Dsbt.log.noformat=true "set test in assembly := {}" assembly')
+                    sh('sbt -Dsbt.log.noformat=true'
+                       + ' "set test in assembly := {}"'
+                       + ' "set compile/skip := true"'
+                       + ' "set macroSub/skip := true"'
+                       + ' assembly')
                 }
                 if (env.BRANCH_NAME == 'master') {
                     stage('Deploy') {
