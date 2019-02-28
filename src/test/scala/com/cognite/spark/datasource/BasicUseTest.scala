@@ -1,10 +1,13 @@
 package com.cognite.spark.datasource
 
+import cats.effect.IO
 import com.softwaremill.sttp._
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
+
+import scala.concurrent.TimeoutException
 
 class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
@@ -89,7 +92,9 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
     val source = "nulltest"
     cleanupEvents(source)
-    assert(eventDescriptions(source).isEmpty)
+    val eventDescriptionsAfterCleanup = retryUntil[Array[Row]](eventDescriptions(source),
+      rows => rows.nonEmpty)
+    assert(eventDescriptionsAfterCleanup.isEmpty)
 
     spark.sql(s"""
               select
@@ -107,7 +112,9 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .write
       .insertInto("destinationEvent")
 
-    val rows = spark.sql(s"""select * from destinationEvent where source = "$source"""")
+    val rows = retryUntil[DataFrame](
+      spark.sql(s"""select * from destinationEvent where source = "$source""""),
+      rows => rows.count == 0)
     assert(rows.count() == 1)
     val storedMetadata = rows.head.getAs[Map[String, String]](6)
     assert(storedMetadata.size == 1)
@@ -133,7 +140,9 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
     // Cleanup events
     cleanupEvents(source)
-    assert(eventDescriptions(source).isEmpty)
+    val eventDescriptionsReturned = retryUntil[Array[Row]](eventDescriptions(source),
+      rows => rows.nonEmpty)
+    assert(eventDescriptionsReturned.isEmpty)
 
     // Post new events
     spark.sql(s"""
@@ -155,7 +164,8 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .insertInto("destinationEvent")
 
     // Check if post worked
-    val descriptionsAfterPost = eventDescriptions(source)
+    val descriptionsAfterPost = retryUntil[Array[Row]](eventDescriptions(source),
+      rows => rows.length < 100)
     assert(descriptionsAfterPost.length == 100)
     assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "bar"))
 
@@ -178,10 +188,24 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .insertInto("destinationEvent")
 
     // Check if upsert worked
-    val descriptionsAfterUpdate = eventDescriptions(source)
+    val descriptionsAfterUpdate = retryUntil[Array[Row]](eventDescriptions(source),
+      rows => rows.length < 1000)
     assert(descriptionsAfterUpdate.length == 1000)
     assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "foo"))
   }
+
+  def retryUntil[A](action: => A, shouldRetry: A => Boolean): A =
+    retryWithBackoff(
+      IO {
+        val actionValue = action
+        if (shouldRetry(actionValue)) {
+          throw new TimeoutException("Retry")
+        }
+        actionValue
+      },
+      Constants.DefaultInitialRetryDelay,
+      Constants.DefaultMaxRetries
+    ).unsafeRunSync()
 
   def cleanupEvents(source: String): Unit = {
     import io.circe.generic.auto._
