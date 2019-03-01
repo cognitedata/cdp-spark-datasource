@@ -134,7 +134,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .load()
     destinationDf.createOrReplaceTempView("destinationEvent")
 
-    val source = "test"
+    val source = "spark-events-test"
     sourceDf.createTempView("sourceEvent")
     sourceDf.cache()
 
