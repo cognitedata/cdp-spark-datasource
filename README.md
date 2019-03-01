@@ -1,4 +1,6 @@
-# Spark data source for CDP API
+# Spark data source for the Cognite Data Platform API
+
+A [Spark](https://spark.apache.org/) data source for the [Cognite Data Platform](https://doc.cognitedata.com/).
 
 Supports read and write for raw and clean data types.
 
@@ -254,11 +256,3 @@ df.createTempView("tablename")
 // Insert some new values
 spark.sql("""insert into tablename values ("key", "values")""")
 ```
-
-## Short-term list of missing features:
-
-- Multi-tags (finally figured out how to best do it)
-- implement logging according to the standard spark way
-- streaming support
-- figure out how to expose metadata
-- figure out how to expose aggregates in a good way
