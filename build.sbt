@@ -5,17 +5,36 @@ val artifactory = "https://cognite.jfrog.io/cognite/"
 
 resolvers += "libs-release" at artifactory + "libs-release/"
 
+lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
+
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
+  organizationName := "Cognite",
+  organizationHomepage := Some(url("https://cognite.com")),
   version := "0.4.2-SNAPSHOT",
   scalaVersion := "2.11.12",
-  fork in Test := true,
+  description := "Spark data source for the Cognite Data Platform.",
+  licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
+  homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
+  scmInfo := Some(
+    ScmInfo(
+      url("https://github.com/cognitedata/cdp-spark-datasource"),
+      "scm:git@github.com:cognitedata/cdp-spark-datasource.git"
+    )
+  ),
+  // Remove all additional repository other than Maven Central from POM
+  pomIncludeRepository := { _ => false },
   publishTo := {
-    if (isSnapshot.value)
-      Some("snapshots" at artifactory + "libs-snapshot-local/")
-    else
-      Some("releases"  at artifactory + "libs-release-local/")
-  }
+    val nexus = "https://oss.sonatype.org/"
+    if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
+    else Some("releases" at nexus + "service/local/staging/deploy/maven2")
+  },
+  publishMavenStyle := true,
+  pgpPassphrase := {
+    if (gpgPass.isDefined) gpgPass.map(_.toCharArray)
+    else None
+  },
+  fork in Test := true
 )
 
 PB.targets in Compile := Seq(
@@ -60,9 +79,6 @@ lazy val library = (project in file("."))
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
 
       "org.eclipse.jetty" % "jetty-servlet" % "9.3.24.v20180605" % Provided,
-      // TODO: check if we really need spark-hive
-      "org.apache.spark" %% "spark-hive" % sparkVersion % Provided
-        exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
