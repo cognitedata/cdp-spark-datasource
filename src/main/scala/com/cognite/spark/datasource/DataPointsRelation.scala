@@ -244,8 +244,12 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
       name: String,
       aggregation: Option[String],
       granularity: Option[String],
-      requiredColumns: Array[String])(dataPoint: NumericDatapoint): Row =
+      requiredColumns: Array[String])(dataPoint: NumericDatapoint): Row = {
+    if (config.collectMetrics) {
+      datapointsRead.inc()
+    }
     Row.fromSeq(toColumns(name, aggregation, granularity, requiredColumns, dataPoint))
+  }
 
   private def getTimestampLimits(filters: Array[Filter]) = {
     val timestampLimits = filters.flatMap(getTimestampLimit)
