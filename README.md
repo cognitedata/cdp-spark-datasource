@@ -33,7 +33,7 @@ The project runs read-only integration tests against the Open Industrial Data pr
 https://openindustrialdata.com/ to get an API key and store it in the environment variable `TEST_API_KEY_READ`.
 To run the write integration tests you'll also need to set the environment variable `TEST_API_KEY_WRITE`
 to an API key to a project where you have write access. To run tests against greenfield set the environment
-variable `TEST_API_KEY_GREENFIELD` to an API key with read access to the project cdp-spark-datasource-test. 
+variable `TEST_API_KEY_GREENFIELD` to an API key with read access to the project cdp-spark-datasource-test.
 
 ### Setting up
 First run `sbt compile` to generate Scala sources for protobuf.
@@ -41,7 +41,7 @@ First run `sbt compile` to generate Scala sources for protobuf.
 If you have set `TEST_API_KEY_WRITE` run the Python file `scripts/createThreeDData.py` (you'll need to install cognite-sdk-python).
 This will upload a 3D model to your project which is used for testing.
 
-### Running the tests 
+### Running the tests
 
 To run all tests run `sbt test`.
 
