@@ -107,6 +107,20 @@ res0: Long = 1000
 
 cdp-spark-datasource supports reads from, and writes to, assets, time series, raw tables, data points and events.
 
+### Common options
+
+Some options are common to all resource types, and can be set with
+`spark.read.format("com.cognite.spark.datasource").option("nameOfOption", "value")`.
+
+The common options are:
+- `apiKey`: *REQUIRED* The Cognite Data Platform [API key](https://doc.cognitedata.com/concepts/#authentication) to be used.
+- `type`: *REQUIRED* The Cognite Data Platform resource type. See below for more information.
+- `maxRetries`: The maximum number of retries to be made when a request fails. The default value is 10.
+- `limit`: The number of items to fetch for this resource type to create the DataFrame. Note that this is different
+from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for the items to be fetched from
+the data platform, *before* filtering and other transformations are applied to limit the number of results.
+- `batchSize`: Maximum number of items to read/write per API call.
+
 ### Reading
 
 To read from CDP resource types you need to provide two things:
@@ -247,6 +261,19 @@ https://doc.cognitedata.com/api/0.5/#tag/Raw
 
 Raw tables are organized in databases and tables so you'll need to provide these as options to the DataFrameReader.
 `publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
+
+Two additonal options are required:
+- `database`: The name of the database in Cognite Data Platform's "raw" storage to use.
+It must exist, and will not be created if it does not.
+- `table`: The name of the table in Cognite Data Platform's "raw" storage to use.
+It must exist in the given `database` option, and will not be created if it does not.
+
+You can optionally have Spark infer the DataFrame schema with the following options:
+- `inferSchema`: Set this to `"true"` to enable schema inference.
+The inferred schema can also be used for inserting new rows.
+- `inferSchemaLimit`: The number of rows to use for inferring the schema of this table.
+The default is to read all rows.
+
 ```scala
 val df = spark.read.format("com.cognite.spark.datasource")
   .option("apiKey", "myApiKey")
