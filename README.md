@@ -12,6 +12,12 @@ See instructions below for examples using different resource types.
 
 ## Changelog
 
+### 0.4.2
+
+- `baseUrl` option to use a different prefix than https://api.cognitedata.com for all Cognite Data Platform API calls
+- Bugfix for `3dmodelrevisionmappings` (treeIndex and subtreeSize are optional)
+- First public release
+
 ### 0.4.1
 
 - Read-only support for files metadata.
@@ -120,6 +126,7 @@ The common options are:
 from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for the items to be fetched from
 the data platform, *before* filtering and other transformations are applied to limit the number of results.
 - `batchSize`: Maximum number of items to read/write per API call.
+- `baseUrl`: Set the prefix to be used for all CDP API calls. The default is https://api.cognitedata.com
 
 ### Reading
 
