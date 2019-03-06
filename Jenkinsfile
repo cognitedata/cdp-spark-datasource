@@ -44,7 +44,7 @@ podTemplate(label: label,
                 stage('Install SBT config and credentials') {
                     sh('mkdir -p /root/.sbt/1.0 && cp /sbt-credentials/credentials.sbt /root/.sbt/1.0/credentials.sbt')
                     sh('cp /sbt-credentials/repositories /root/.sbt/')
-                    sh('mkdir -p /root/.sbt/gpg && cp /sbt-credentials/pubring.asc /root/.sbt/gpg/pubring.asc')
+                    sh('mkdir -p /root/.sbt/gpg && cp /sbt-credentials/pubring.asc /sbt-credentials/secring.asc /root/.sbt/gpg/')
                 }
                 stage('Run tests') {
                     sh('sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage test coverageReport')
