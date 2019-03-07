@@ -16,6 +16,26 @@ lazy val commonSettings = Seq(
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
+  developers := List(
+    Developer(
+      id = "wjoel",
+      name = "Joel Wilsson",
+      email = "joel.wilsson@cognite.com",
+      url = url("https://wjoel.com")
+    ),
+    Developer(
+      id = "hakontro",
+      name = "Håkon Trømborg",
+      email = "hakon.tromborg@cognite.com",
+      url = url("https://github.com/hakontro")
+    ),
+    Developer(
+      id = "tapped",
+      name = "Emil Sandstø",
+      email = "emil.sandsto@cognite.com",
+      url = url("https://github.com/tapped")
+    )
+  ),
   scmInfo := Some(
     ScmInfo(
       url("https://github.com/cognitedata/cdp-spark-datasource"),
