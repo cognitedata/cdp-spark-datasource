@@ -127,7 +127,7 @@ lazy val library = (project in file("."))
 lazy val fatJar = project.settings(
   commonSettings,
   name := "cdp-spark-datasource-fat",
-  packageBin in Compile := (assembly in (library, Compile)).value
+  packageBin in Compile := (packageBin in (library, Compile)).value
 )
 
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
