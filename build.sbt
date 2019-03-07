@@ -87,7 +87,8 @@ lazy val library = (project in file("."))
 
       "com.softwaremill.sttp" %% "core" % "1.5.0",
       "com.softwaremill.sttp" %% "circe" % "1.5.0",
-      "com.softwaremill.sttp" %% "async-http-client-backend-cats" % "1.5.0",
+      "com.softwaremill.sttp" %% "async-http-client-backend-cats" % "1.5.0"
+        exclude("io.netty", "netty-transport-native-epoll"),
 
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
       "io.circe" %% "circe-core" % circeVersion,
@@ -127,7 +128,9 @@ lazy val library = (project in file("."))
 lazy val fatJar = project.settings(
   commonSettings,
   name := "cdp-spark-datasource-fat",
-  packageBin in Compile := (packageBin in (library, Compile)).value
+  mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
+  mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,
+  packageBin in Compile := (assembly in (library, Compile)).value
 )
 
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
