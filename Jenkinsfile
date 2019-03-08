@@ -54,14 +54,14 @@ podTemplate(label: label,
                 }
                 stage('Build JAR file') {
                     sh('sbt -Dsbt.log.noformat=true'
-                       + ' "set test in assembly := {}"'
+                       + ' "set test in library := {}"'
                        + ' "set compile/skip := true"'
                        + ' "set macroSub/skip := true"'
-                       + ' assembly')
+                       + ' library/package')
                 }
                 if (env.BRANCH_NAME == 'master') {
                     stage('Deploy') {
-                        sh('sbt -Dsbt.log.noformat=true library/publishSigned fatJar/publishSigned')
+                        sh('sbt -Dsbt.log.noformat=true library/publishSigned')
                     }
                 }
             }
