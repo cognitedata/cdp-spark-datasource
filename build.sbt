@@ -77,7 +77,6 @@ lazy val library = (project in file("."))
   .settings(
     commonSettings,
     name := "cdp-spark-datasource",
-    assemblyJarName in assembly := s"${normalizedName.value}-${version.value}-jar-with-dependencies.jar",
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
     libraryDependencies ++= Seq(
@@ -105,32 +104,9 @@ lazy val library = (project in file("."))
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject")
     ),
-    assemblyShadeRules in assembly := Seq(
-      ShadeRule.rename("com.google.protobuf.**" -> "repackaged.cognite_spark_datasource.com.google.protobuf.@1").inAll,
-      ShadeRule.rename("io.circe.**" -> "repackaged.cognite_spark_datasource.io.circe.@1").inAll,
-      ShadeRule.rename("cats.**" -> "repackaged.cognite_spark_datasource.cats.@1").inAll,
-      ShadeRule.rename("shapeless.**" -> "repackaged.cognite_spark_datasource.shapeless.@1").inAll,
-      ShadeRule.rename("jawn.**" -> "repackaged.cognite_spark_datasource.jawn.@1").inAll
-    ),
-    assemblyMergeStrategy in assembly := {
-      case "io.netty.versions.properties" => MergeStrategy.first
-      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-      case x =>
-        val oldStrategy = (assemblyMergeStrategy in assembly).value
-        oldStrategy(x)
-    },
-    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
     mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
     mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,
     coverageExcludedPackages := "com.cognite.data.*"
   )
-
-lazy val fatJar = project.settings(
-  commonSettings,
-  name := "cdp-spark-datasource-fat",
-  mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
-  mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,
-  packageBin in Compile := (assembly in (library, Compile)).value
-)
 
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
