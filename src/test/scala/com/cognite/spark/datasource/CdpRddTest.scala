@@ -13,9 +13,10 @@ import io.circe.parser.decode
 case class Number(number: Int)
 
 class CdpRddTest extends FlatSpec with Matchers with SparkTest {
+
   class TestRdd(batchSize: Int, limit: Option[Int]) extends CdpRdd[Number](spark.sparkContext, (n: Number) => Row(n.number),
     uri"http://localhost/api", uri"http://localhost/api",
-    "apikey", "project", batchSize, 10, limit) {
+    RelationConfig("apiKey", "project", batchSize, limit, 10, collectMetrics = false, "", "https://api.cognitedata.com")) {
   }
 
   case class NumberedItems(nextCursor: Iterator[String]) extends Iterator[String] {

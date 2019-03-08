@@ -14,11 +14,7 @@ case class CdpRdd[A: DerivedDecoder](
     toRow: A => Row,
     getPartitionsBaseUri: Uri,
     getSinglePartitionBaseUri: Uri,
-    apiKey: String,
-    project: String,
-    batchSize: Int,
-    maxRetries: Int,
-    limit: Option[Int])
+    config: RelationConfig)
     extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
 
@@ -29,16 +25,20 @@ case class CdpRdd[A: DerivedDecoder](
       private var isFirst = true
 
       override def hasNext: Boolean =
-        isFirst || nextCursor.isDefined && limit.fold(true)(_ > nItemsRead)
+        isFirst || nextCursor.isDefined && config.limit.fold(true)(_ > nItemsRead)
 
       override def next(): (Option[String], Option[Int]) = {
         isFirst = false
         val next = nextCursor
-        val thisBatchSize = math.min(batchSize, limit.map(_ - nItemsRead).getOrElse(batchSize))
+        val thisBatchSize = math.min(
+          config.batchSize,
+          config.limit
+            .map(_ - nItemsRead)
+            .getOrElse(config.batchSize))
         val urlWithLimit = url.param("limit", thisBatchSize.toString)
         val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
         val dataWithCursor =
-          getJson[CdpConnector.DataItemsWithCursor[A]](apiKey, getUrl, maxRetries)
+          getJson[CdpConnector.DataItemsWithCursor[A]](config.apiKey, getUrl, config.maxRetries)
             .unsafeRunSync()
             .data
         nextCursor = dataWithCursor.nextCursor
@@ -58,7 +58,13 @@ case class CdpRdd[A: DerivedDecoder](
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdpRddPartition]
     val cdpRows =
-      get[A](apiKey, getSinglePartitionBaseUri, batchSize, split.size, maxRetries, split.cursor)
+      get[A](
+        config.apiKey,
+        getSinglePartitionBaseUri,
+        config.batchSize,
+        split.size,
+        config.maxRetries,
+        split.cursor)
         .map(toRow)
 
     new InterruptibleIterator(context, cdpRows)

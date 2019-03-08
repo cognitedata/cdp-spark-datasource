@@ -1,12 +1,10 @@
 package com.cognite.spark.datasource
 
+import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.sql.sources.{BaseRelation, TableScan}
-import org.apache.spark.sql.types.{DataTypes, StructType}
+import org.apache.spark.sql.types._
 import io.circe.generic.auto._
-import org.apache.spark.datasource.MetricsSource
 
 case class ThreeDModelRevisionSectorsItem(
     id: Int,
@@ -19,41 +17,11 @@ case class ThreeDModelRevisionSectorsItem(
 
 class ThreeDModelRevisionSectorsRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
     val sqlContext: SQLContext)
-    extends BaseRelation
-    with CdpConnector
-    with TableScan
-    with Serializable {
-  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
+    extends CdpRelation[ThreeDModelRevisionSectorsItem](config, "3dmodelrevisionsectors") {
+  override def schema: StructType = structType[ThreeDModelRevisionSectorsItem]
 
-  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
-  @transient lazy private val threeDModelRevisionSectorsRead =
-    metricsSource.getOrCreateCounter(s"assets.read")
+  override def toRow(t: ThreeDModelRevisionSectorsItem): Row = asRow(t)
 
-  import SparkSchemaHelper._
-
-  override val schema: StructType = structType[ThreeDModelRevisionSectorsItem]
-
-  override def buildScan(): RDD[Row] = {
-    val baseUrl = baseThreeDModelReviewSectorsUrl(config.project)
-    CdpRdd[ThreeDModelRevisionSectorsItem](
-      sqlContext.sparkContext,
-      (tds: ThreeDModelRevisionSectorsItem) => {
-        if (config.collectMetrics) {
-          threeDModelRevisionSectorsRead.inc()
-        }
-        asRow(tds)
-      },
-      baseUrl,
-      baseUrl,
-      config.apiKey,
-      config.project,
-      batchSize,
-      maxRetries,
-      config.limit
-    )
-  }
-
-  def baseThreeDModelReviewSectorsUrl(project: String, version: String = "0.6"): Uri =
-    uri"${config.baseUrl}/api/$version/projects/$project/3d/models/$modelId/revisions/$revisionId/sectors"
+  override def listUrl(relationConfig: RelationConfig): Uri =
+    uri"${config.baseUrl}/api/0.6/projects/${config.project}/3d/models/$modelId/revisions/$revisionId/sectors"
 }

@@ -35,8 +35,8 @@ class RawTableRelation(
     with Serializable {
   import RawTableRelation._
 
-  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize = config.batchSize
+  @transient lazy private val maxRetries = config.maxRetries
 
   @transient lazy val defaultSchema = StructType(
     Seq(
@@ -87,11 +87,7 @@ class RawTableRelation(
       },
       baseUrl.param("columns", ","),
       baseUrl,
-      config.apiKey,
-      config.project,
-      batchSize,
-      maxRetries,
-      limit
+      config
     )
   }
 
