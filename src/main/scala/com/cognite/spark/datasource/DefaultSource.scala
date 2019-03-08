@@ -14,9 +14,9 @@ import org.apache.spark.datasource.MetricsSource
 case class RelationConfig(
     apiKey: String,
     project: String,
-    batchSize: Option[Int],
+    batchSize: Int,
     limit: Option[Int],
-    maxRetries: Option[Int],
+    maxRetries: Int,
     collectMetrics: Boolean,
     metricsPrefix: String,
     baseUrl: String)
@@ -58,11 +58,11 @@ class DefaultSource
 
   def parseRelationConfig(parameters: Map[String, String]): RelationConfig = {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
+      .getOrElse(Constants.DefaultMaxRetries)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
-    val project =
-      getProject(apiKey, maxRetries.getOrElse(Constants.DefaultMaxRetries), baseUrl)
-    val batchSize = toPositiveInt(parameters, "batchSize")
+    val project = getProject(apiKey, maxRetries, baseUrl)
+    val batchSize = toPositiveInt(parameters, "batchSize").getOrElse(Constants.DefaultBatchSize)
     val limit = toPositiveInt(parameters, "limit")
     val metricsPrefix = parameters.get("metricsPrefix") match {
       case Some(prefix) => s"$prefix."

@@ -25,39 +25,11 @@ case class ModelRevisionItem(
 
 class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(
     val sqlContext: SQLContext)
-    extends BaseRelation
-    with TableScan
-    with CdpConnector
-    with Serializable {
-  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
-
-  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
-  @transient lazy private val modelRevisionsRead =
-    metricsSource.getOrCreateCounter(s"3dmodelrevisions.read")
-
+    extends CdpRelation[ModelRevisionItem](config, "3dmodelrevision") {
   override def schema: StructType = structType[ModelRevisionItem]
 
-  override def buildScan(): RDD[Row] = {
-    val baseUrl = base3dModelRevisionsUrl(config.project)
-    CdpRdd[ModelRevisionItem](
-      sqlContext.sparkContext,
-      (e: ModelRevisionItem) => {
-        if (config.collectMetrics) {
-          modelRevisionsRead.inc()
-        }
-        asRow(e)
-      },
-      baseUrl,
-      baseUrl,
-      config.apiKey,
-      config.project,
-      batchSize,
-      maxRetries,
-      config.limit
-    )
-  }
+  override def toRow(t: ModelRevisionItem): Row = asRow(t)
 
-  def base3dModelRevisionsUrl(project: String, version: String = "0.6"): Uri =
-    uri"${config.baseUrl}/api/$version/projects/$project/3d/models/$modelId/revisions"
+  override def listUrl(relationConfig: RelationConfig): Uri =
+    uri"${config.baseUrl}/api/0.6/projects/${config.project}/3d/models/$modelId/revisions"
 }

@@ -4,12 +4,10 @@ import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import SparkSchemaHelper._
-import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 
@@ -41,53 +39,23 @@ case class PostTimeSeriesItem(
     securityCategories: Option[Vector[Long]])
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends BaseRelation
+    extends CdpRelation[TimeSeriesItem](config, "3dmodelrevisionnodes")
     with InsertableRelation
-    with TableScan
-    with CdpConnector
-    with Serializable {
+    with CdpConnector {
 
-  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
-
-  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
   @transient lazy private val timeSeriesCreated =
     metricsSource.getOrCreateCounter(s"timeseries.created")
-  @transient lazy private val timeSeriesRead = metricsSource.getOrCreateCounter(s"timeseries.read")
-
-  override def schema: StructType = structType[TimeSeriesItem]
-
-  override def buildScan(): RDD[Row] = {
-    val getUrl = baseTimeSeriesUrl(config.project)
-
-    CdpRdd[TimeSeriesItem](
-      sqlContext.sparkContext,
-      (ts: TimeSeriesItem) => {
-        if (config.collectMetrics) {
-          timeSeriesRead.inc()
-        }
-        asRow(ts)
-      },
-      getUrl,
-      getUrl,
-      config.apiKey,
-      config.project,
-      batchSize,
-      maxRetries,
-      config.limit
-    )
-  }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val batches = rows.grouped(batchSize).toVector
+      val batches = rows.grouped(config.batchSize).toVector
       batches.parTraverse(postRows).unsafeRunSync()
     })
 
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesItems = rows.map(r => fromRow[PostTimeSeriesItem](r))
-    post(config.apiKey, baseTimeSeriesUrl(config.project), timeSeriesItems, maxRetries)
+    post(config.apiKey, baseTimeSeriesUrl(config.project), timeSeriesItems, config.maxRetries)
       .map(item => {
         if (config.collectMetrics) {
           timeSeriesCreated.inc(rows.length)
@@ -98,4 +66,11 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   def baseTimeSeriesUrl(project: String): Uri =
     uri"${baseUrl(project, "0.5", config.baseUrl)}/timeseries"
+
+  override def schema: StructType = structType[TimeSeriesItem]
+
+  override def toRow(t: TimeSeriesItem): Row = asRow(t)
+
+  override def listUrl(relationConfig: RelationConfig): Uri =
+    uri"${config.baseUrl}/api/0.5/projects/${config.project}/timeseries"
 }

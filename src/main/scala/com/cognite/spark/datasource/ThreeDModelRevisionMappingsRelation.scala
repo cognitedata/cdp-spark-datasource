@@ -1,13 +1,10 @@
 package com.cognite.spark.datasource
 
-import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp.{Uri, _}
 import io.circe.generic.auto._
-import org.apache.spark.datasource.MetricsSource
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.types.{DataTypes, StructType}
+import SparkSchemaHelper._
 
 case class ModelRevisionMappingItem(
     nodeId: Long,
@@ -17,39 +14,11 @@ case class ModelRevisionMappingItem(
 
 class ThreeDModelRevisionMappingsRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
     val sqlContext: SQLContext)
-    extends BaseRelation
-    with TableScan
-    with CdpConnector
-    with Serializable {
-  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
-
-  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
-  @transient lazy private val modelRevisionMappingsRead =
-    metricsSource.getOrCreateCounter(s"3dmodelrevisionmappings.read")
-
+    extends CdpRelation[ModelRevisionMappingItem](config, "3dmodelrevisionmappings") {
   override def schema: StructType = structType[ModelRevisionMappingItem]
 
-  override def buildScan(): RDD[Row] = {
-    val baseUrl = base3dModelRevisionMappingsUrl(config.project)
-    CdpRdd[ModelRevisionMappingItem](
-      sqlContext.sparkContext,
-      (e: ModelRevisionMappingItem) => {
-        if (config.collectMetrics) {
-          modelRevisionMappingsRead.inc()
-        }
-        asRow(e)
-      },
-      baseUrl,
-      baseUrl,
-      config.apiKey,
-      config.project,
-      batchSize,
-      maxRetries,
-      config.limit
-    )
-  }
+  override def toRow(t: ModelRevisionMappingItem): Row = asRow(t)
 
-  def base3dModelRevisionMappingsUrl(project: String, version: String = "0.6"): Uri =
-    uri"${config.baseUrl}/api/$version/projects/$project/3d/models/$modelId/revisions/$revisionId/mappings"
+  override def listUrl(relationConfig: RelationConfig): Uri =
+    uri"${config.baseUrl}/api/0.6/projects/${config.project}/3d/models/$modelId/revisions/$revisionId/mappings"
 }

@@ -33,52 +33,22 @@ case class SourceWithResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
 
 class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLContext)
-    extends BaseRelation
+    extends CdpRelation[EventItem](config, "events")
     with InsertableRelation
-    with TableScan
-    with CdpConnector
-    with Serializable {
-
-  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
-
-  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
+    with CdpConnector {
   @transient lazy private val eventsCreated = metricsSource.getOrCreateCounter(s"events.created")
-  @transient lazy private val eventsRead = metricsSource.getOrCreateCounter(s"events.read")
-
-  override def schema: StructType = structType[EventItem]
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val batches = rows.grouped(batchSize).toVector
+      val batches = rows.grouped(config.batchSize).toVector
       batches.parTraverse(postEvent).unsafeRunSync()
     })
-
-  override def buildScan(): RDD[Row] = {
-    val baseUrl = baseEventsURL(config.project)
-    CdpRdd[EventItem](
-      sqlContext.sparkContext,
-      (e: EventItem) => {
-        if (config.collectMetrics) {
-          eventsRead.inc()
-        }
-        asRow(e)
-      },
-      baseUrl.param("onlyCursors", "true"),
-      baseUrl,
-      config.apiKey,
-      config.project,
-      batchSize,
-      maxRetries,
-      config.limit
-    )
-  }
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {
     val eventItems = rows.map(r => fromRow[EventItem](r))
 
-    postOr(config.apiKey, baseEventsURL(config.project), eventItems, maxRetries) {
+    postOr(config.apiKey, baseEventsURL(config.project), eventItems, config.maxRetries) {
       case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
@@ -119,14 +89,14 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
         config.apiKey,
         uri"${baseEventsURLOld(config.project)}/update",
         conflictingEvents,
-        maxRetries)
+        config.maxRetries)
     }
 
     val newEvents = eventItems.map(_.copy(id = None)).diff(conflictingEvents.map(_.copy(id = None)))
     val postNewItems = if (newEvents.isEmpty) {
       IO.unit
     } else {
-      post(config.apiKey, baseEventsURL(config.project), newEvents, maxRetries)
+      post(config.apiKey, baseEventsURL(config.project), newEvents, config.maxRetries)
     }
 
     (postUpdate, postNewItems).parMapN((_, _) => ())
@@ -139,4 +109,14 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     // TODO: API is failing with "Invalid field - items[0].starttime - expected an object but got number" in 0.6
     // That's why we need 0.5 support, however should be removed when fixed
     uri"${config.baseUrl}/api/0.5/projects/$project/events"
+
+  override def schema: StructType = structType[EventItem]
+
+  override def toRow(t: EventItem): Row = asRow(t)
+
+  override def listUrl(relationConfig: RelationConfig): Uri =
+    uri"${config.baseUrl}/api/0.6/projects/${config.project}/events"
+
+  override def cursorsUrl(relationConfig: RelationConfig): Uri =
+    listUrl(relationConfig).param("onlyCursors", "true")
 }

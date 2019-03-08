@@ -13,6 +13,7 @@ import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import SparkSchemaHelper._
 import org.apache.spark.datasource.MetricsSource
+import StructTypeEncoder._
 
 import scala.concurrent.ExecutionContext
 
@@ -28,52 +29,21 @@ case class AssetsItem(
 case class PostAssetsItem(name: String, description: String, metadata: Map[String, String])
 
 class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlContext: SQLContext)
-    extends BaseRelation
+    extends CdpRelation[AssetsItem](config, "assets")
     with InsertableRelation
-    with TableScan
-    with CdpConnector
-    with Serializable {
-  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
-  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
-
-  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
+    with CdpConnector {
   @transient lazy private val assetsCreated = metricsSource.getOrCreateCounter(s"assets.created")
-  @transient lazy private val assetsRead = metricsSource.getOrCreateCounter(s"assets.read")
-
-  override def schema: StructType = structType[AssetsItem]
-
-  override def buildScan(): RDD[Row] = {
-    val url = baseAssetsURL(config.project)
-    val getUrl = assetPath.fold(url)(url.param("path", _))
-
-    CdpRdd[AssetsItem](
-      sqlContext.sparkContext,
-      (a: AssetsItem) => {
-        if (config.collectMetrics) {
-          assetsRead.inc()
-        }
-        asRow(a)
-      },
-      getUrl.param("onlyCursors", "true"),
-      getUrl,
-      config.apiKey,
-      config.project,
-      batchSize,
-      maxRetries,
-      config.limit
-    )
-  }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val batches = rows.grouped(batchSize).toVector
+      val batches = rows.grouped(config.batchSize).toVector
       batches.parTraverse(postRows).unsafeRunSync()
     })
 
   private def postRows(rows: Seq[Row]): IO[Unit] = {
     val assetItems = rows.map(r => fromRow[PostAssetsItem](r))
-    post(config.apiKey, baseAssetsURL(config.project), assetItems, maxRetries)
+    post(config.apiKey, baseAssetsURL(config.project), assetItems, config.maxRetries)
       .map(item => {
         if (config.collectMetrics) {
           assetsCreated.inc(rows.length)
@@ -84,6 +54,16 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
 
   def baseAssetsURL(project: String, version: String = "0.6"): Uri =
     uri"${config.baseUrl}/api/$version/projects/$project/assets"
+
+  override def schema: StructType = structType[AssetsItem]
+
+  override def toRow(t: AssetsItem): Row = asRow(t)
+
+  override def listUrl(relationConfig: RelationConfig): Uri =
+    uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets"
+
+  override def cursorsUrl(relationConfig: RelationConfig): Uri =
+    listUrl(relationConfig).param("onlyCursors", "true")
 }
 
 object AssetsRelation {

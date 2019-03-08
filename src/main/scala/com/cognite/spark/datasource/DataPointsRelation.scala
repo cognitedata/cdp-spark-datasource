@@ -69,9 +69,8 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
     with Serializable {
   import CdpConnector._
 
-  @transient lazy private val batchSize =
-    config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)
-  @transient lazy private val maxRetries = config.maxRetries.getOrElse(Constants.DefaultMaxRetries)
+  @transient lazy private val batchSize = config.batchSize
+  @transient lazy private val maxRetries = config.maxRetries
 
   @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
   @transient lazy private val datapointsCreated =
