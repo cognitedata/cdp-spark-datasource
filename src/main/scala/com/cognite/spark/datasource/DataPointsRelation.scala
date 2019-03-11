@@ -341,19 +341,15 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
       batches
         .parTraverse(batch => {
           val timeSeriesData = MultiNamedTimeseriesData()
-          batch
+          val namedTimeseriesData = batch
             .groupBy(r => r.getAs[String](0))
-            .foreach {
-              case (name, timeseriesRows) => {
+            .map {
+              case (name, timeseriesRows) =>
                 val d = timeseriesRows.foldLeft(NumericTimeseriesData())((builder, row) =>
                   builder.addPoints(NumericDatapoint(row.getLong(1), row.getDouble(2))))
-
-                timeSeriesData.addNamedTimeseriesData(
-                  NamedTimeseriesData(name, NamedTimeseriesData.Data.NumericData(d))
-                )
-              }
+                NamedTimeseriesData(name, NamedTimeseriesData.Data.NumericData(d))
             }
-          postTimeSeries(timeSeriesData)
+          postTimeSeries(timeSeriesData.addAllNamedTimeseriesData(namedTimeseriesData))
         })
         .unsafeRunSync
     })
