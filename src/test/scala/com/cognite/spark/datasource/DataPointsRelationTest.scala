@@ -172,5 +172,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .insertInto("destinationDatapoints")
     }
     e.getCause shouldBe a[CdpApiException]
+    val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+    assert(cdpApiException.code == 404)
   }
 }
