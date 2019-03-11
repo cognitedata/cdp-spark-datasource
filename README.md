@@ -182,7 +182,7 @@ val timeSeriesDf = spark.read.format("csv")
   .load("timeseries.csv)
 
 // Ensure correct schema by copying the columns in the DataFrame read from the project.
-// Note that the timeseries must already exist in the project before data can be written to it, based on the ´name´ column.
+// Note that the time series must already exist in the project before data can be written to it, based on the ´name´ column.
 timeSeriesDf.select(destinationDf.columns.map(col):_*)
   .write
   .insertInto("timeseries")
