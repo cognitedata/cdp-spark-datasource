@@ -156,11 +156,11 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
         sys.error(
           s"Filtering using 'string starts with' not allowed for data points, attempted for ${value.toString}")
       case StringEndsWith("name", value) =>
-        // TODO: add support for this using the timeseries search endpoint
+        // TODO: add support for this using the time series search endpoint
         sys.error(
           s"Filtering using 'string ends with' not allowed for data points, attempted for ${value.toString}")
       case StringContains("name", value) =>
-        // TODO: add support using the timeseries search endpoint
+        // TODO: add support using the time series search endpoint
         sys.error(
           s"Filtering using 'string contains' not allowed for data points, attempted for ${value.toString}")
       case _ =>
@@ -321,7 +321,7 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
   }
 
   def parseResult(response: Response[Array[Byte]]): Response[Seq[NumericDatapoint]] = {
-    //TODO: handle string timeseries
+    // TODO: handle string time series
     val r = Either.catchNonFatal {
       val timeSeriesData = TimeseriesData.parseFrom(response.unsafeBody)
       if (timeSeriesData.data.isNumericData) {

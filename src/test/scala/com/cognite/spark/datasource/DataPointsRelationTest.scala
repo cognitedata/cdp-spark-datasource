@@ -152,7 +152,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     }
   }
 
-  it should "be an error to specify an invalid (timeseries) name" taggedAs(WriteTest) in {
+  it should "be an error to specify an invalid (time series) name" taggedAs(WriteTest) in {
     val destinationDf = spark.read.format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey)
       .option("type", "datapoints")
