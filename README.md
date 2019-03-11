@@ -10,29 +10,6 @@ if there are many items.
 
 See instructions below for examples using different resource types.
 
-## Changelog
-
-### 0.4.2
-
-- `baseUrl` option to use a different prefix than https://api.cognitedata.com for all Cognite Data Platform API calls
-- Bugfix for `3dmodelrevisionmappings` (treeIndex and subtreeSize are optional)
-- First public release
-
-### 0.4.1
-
-- Read-only support for files metadata.
-- Initial read-only support for 3D data (should be considered an *alpha feature, may not work*).
-
-### 0.4.0
-
-- *Breaking change* `"tables"` renamed to `"raw"`.
-- Improved performance for assets.
-- Validation of `key` column for raw tables, null values are not allowed.
-- Retries on error code 500 responses.
-- New `maxRetries` option for all resource types to set the number of retries.
-- Improved back off algorithm for retries.
-- `project` is no longer a necessary option, it will be retrieved from the API key.
-
 ## Build the project with sbt:
 
 The project runs read-only integration tests against the Open Industrial Data project. Head over to
