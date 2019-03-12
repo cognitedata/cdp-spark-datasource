@@ -91,7 +91,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
     val source = "nulltest"
     cleanupEvents(source)
-    val eventDescriptionsAfterCleanup = retryUntil[Array[Row]](eventDescriptions(source),
+    val eventDescriptionsAfterCleanup = retryWhile[Array[Row]](eventDescriptions(source),
       rows => rows.nonEmpty)
     assert(eventDescriptionsAfterCleanup.isEmpty)
 
@@ -111,7 +111,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .write
       .insertInto("destinationEvent")
 
-    val rows = retryUntil[DataFrame](
+    val rows = retryWhile[DataFrame](
       spark.sql(s"""select * from destinationEvent where source = "$source""""),
       rows => rows.count == 0)
     assert(rows.count() == 1)
@@ -139,7 +139,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
 
     // Cleanup events
     cleanupEvents(source)
-    val eventDescriptionsReturned = retryUntil[Array[Row]](eventDescriptions(source),
+    val eventDescriptionsReturned = retryWhile[Array[Row]](eventDescriptions(source),
       rows => rows.nonEmpty)
     assert(eventDescriptionsReturned.isEmpty)
 
@@ -163,7 +163,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .insertInto("destinationEvent")
 
     // Check if post worked
-    val descriptionsAfterPost = retryUntil[Array[Row]](eventDescriptions(source),
+    val descriptionsAfterPost = retryWhile[Array[Row]](eventDescriptions(source),
       rows => rows.length < 100)
     assert(descriptionsAfterPost.length == 100)
     assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "bar"))
@@ -187,24 +187,11 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .insertInto("destinationEvent")
 
     // Check if upsert worked
-    val descriptionsAfterUpdate = retryUntil[Array[Row]](eventDescriptions(source),
+    val descriptionsAfterUpdate = retryWhile[Array[Row]](eventDescriptions(source),
       rows => rows.length < 1000)
     assert(descriptionsAfterUpdate.length == 1000)
     assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "foo"))
   }
-
-  def retryUntil[A](action: => A, shouldRetry: A => Boolean): A =
-    retryWithBackoff(
-      IO {
-        val actionValue = action
-        if (shouldRetry(actionValue)) {
-          throw new TimeoutException("Retry")
-        }
-        actionValue
-      },
-      Constants.DefaultInitialRetryDelay,
-      Constants.DefaultMaxRetries
-    ).unsafeRunSync()
 
   def cleanupEvents(source: String): Unit = {
     import io.circe.generic.auto._

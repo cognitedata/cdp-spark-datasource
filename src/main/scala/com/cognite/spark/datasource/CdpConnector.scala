@@ -135,6 +135,37 @@ trait CdpConnector {
     retryWithBackoff(singlePost, Constants.DefaultInitialRetryDelay, maxRetries)
   }
 
+  def put[A: Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int): IO[Unit] =
+    putOr(apiKey, url, items, maxRetries)(Map.empty)
+
+  def putOr[A: Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int)(
+      onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
+    val singlePost = sttp
+      .header("Accept", "application/json")
+      .header("api-key", apiKey)
+      .parseResponseIf(_ => true)
+      .body(Items(items))
+      .put(url)
+      .send()
+      .flatMap(onResponse.orElse(defaultHandling(url)))
+    retryWithBackoff(singlePost, Constants.DefaultInitialRetryDelay, maxRetries)
+  }
+
+  def delete(apiKey: String, url: Uri, maxRetries: Int): IO[Unit] =
+    deleteOr(apiKey, url, maxRetries)(Map.empty)
+
+  def deleteOr(apiKey: String, url: Uri, maxRetries: Int)(
+      onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
+    val singleDelete = sttp
+      .header("Accept", "application/json")
+      .header("api-key", apiKey)
+      .parseResponseIf(_ => true)
+      .delete(url)
+      .send()
+      .flatMap(onResponse.orElse(defaultHandling(url)))
+    retryWithBackoff(singleDelete, Constants.DefaultInitialRetryDelay, maxRetries)
+  }
+
   // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int): IO[A] = {
     val exponentialDelay = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2)

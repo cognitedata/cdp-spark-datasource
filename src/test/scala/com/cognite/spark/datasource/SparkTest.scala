@@ -1,9 +1,12 @@
 package com.cognite.spark.datasource
 
+import cats.effect.IO
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import org.apache.spark.sql.SparkSession
 import org.scalatest.Tag
+
+import scala.concurrent.TimeoutException
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
@@ -29,4 +32,17 @@ trait SparkTest extends CdpConnector {
 
     (modelId, revisionId)
   }
+
+  def retryWhile[A](action: => A, shouldRetry: A => Boolean): A =
+    retryWithBackoff(
+      IO {
+        val actionValue = action
+        if (shouldRetry(actionValue)) {
+          throw new TimeoutException("Retry")
+        }
+        actionValue
+      },
+      Constants.DefaultInitialRetryDelay,
+      Constants.DefaultMaxRetries
+    ).unsafeRunSync()
 }
