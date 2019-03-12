@@ -5,7 +5,7 @@ import cats.implicits._
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import SparkSchemaHelper._
 

@@ -7,13 +7,10 @@ import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
-import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
+import org.apache.spark.sql.sources.InsertableRelation
+import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-import SparkSchemaHelper._
-import org.apache.spark.datasource.MetricsSource
-import StructTypeEncoder._
+import com.cognite.spark.datasource.SparkSchemaHelper._
 
 import scala.concurrent.ExecutionContext
 

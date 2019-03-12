@@ -4,7 +4,6 @@ import cats.effect.IO
 import com.softwaremill.sttp._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
 import scala.concurrent.TimeoutException
