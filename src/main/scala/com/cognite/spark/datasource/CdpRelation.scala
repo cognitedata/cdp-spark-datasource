@@ -39,14 +39,14 @@ abstract class CdpRelation[T: DerivedDecoder: TypeTag: ClassTag](
         }
         toRow(e)
       },
-      cursorsUrl(config),
-      listUrl(config),
-      config
+      listUrl(),
+      config,
+      cursors()
     )
 
   def toRow(t: T): Row
 
-  def listUrl(relationConfig: RelationConfig): Uri
+  def listUrl(): Uri
 
-  def cursorsUrl(relationConfig: RelationConfig): Uri = listUrl(relationConfig)
+  def cursors(): Iterator[(Option[String], Option[Int])] = NextCursorIterator(listUrl(), config)
 }

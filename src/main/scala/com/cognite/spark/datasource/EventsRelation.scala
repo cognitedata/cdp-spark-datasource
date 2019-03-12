@@ -207,7 +207,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
       eventType <- if (types.isEmpty) { Array(None) } else { types.map(Some(_)) }
       eventSubType <- if (subTypes.isEmpty) { Array(None) } else { subTypes.map(Some(_)) }
     } yield {
-      val urlWithType = eventType.fold(listUrl(config))(listUrl(config).param("type", _))
+      val urlWithType = eventType.fold(listUrl())(listUrl().param("type", _))
       val urlWithTypeAndSubType = eventSubType.fold(urlWithType)(urlWithType.param("subtype", _))
 
       CdpRdd[EventItem](
@@ -218,9 +218,9 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
           }
           toRow(e, requiredColumns)
         },
-        urlWithTypeAndSubType.param("onlyCursors", "true"),
         urlWithTypeAndSubType,
-        config
+        config,
+        cursors()
       )
     }
 
@@ -240,9 +240,11 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
 
     Row.fromSeq(requiredColumns.map(eventMap(_)).toSeq)
   }
-  override def listUrl(relationConfig: RelationConfig): Uri =
+
+  override def listUrl(): Uri =
     uri"${config.baseUrl}/api/0.6/projects/${config.project}/events"
 
-  override def cursorsUrl(relationConfig: RelationConfig): Uri =
-    listUrl(relationConfig).param("onlyCursors", "true")
+  private val cursorsUrl = uri"${config.baseUrl}/api/0.6/projects/${config.project}/events/cursors"
+  override def cursors(): Iterator[(Option[String], Option[Int])] =
+    CursorsCursorIterator(cursorsUrl.param("divisions", config.partitions.toString), config)
 }

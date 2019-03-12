@@ -85,9 +85,9 @@ class RawTableRelation(
         }
         Row(item.key, item.columns.asJson.noSpaces)
       },
-      baseUrl.param("columns", ","),
       baseUrl,
-      config
+      config,
+      new NextCursorIterator[RawItem](baseUrl.param("columns", ","), config)
     )
   }
 

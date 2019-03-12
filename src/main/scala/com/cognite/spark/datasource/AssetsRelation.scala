@@ -83,11 +83,16 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
 
   override def toRow(t: AssetsItem): Row = asRow(t)
 
-  override def listUrl(relationConfig: RelationConfig): Uri =
-    uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets"
+  // TODO: As of 2019-03-22 the normal /assets endpoint doesn't work on some projects when
+  // using cursors retrieved from /assets/cursors, but the cursors do work with /assets/list.
+  // This is ok as long as we don't support predicate pushdown for assets, as we don't need
+  // the search capabilities of /assets, but this should be removed once /assets works as expected.
+  override def listUrl(): Uri =
+    uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets/list"
 
-  override def cursorsUrl(relationConfig: RelationConfig): Uri =
-    listUrl(relationConfig).param("onlyCursors", "true")
+  private val cursorsUrl = uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets/cursors"
+  override def cursors(): Iterator[(Option[String], Option[Int])] =
+    CursorsCursorIterator(cursorsUrl.param("divisions", config.partitions.toString), config)
 }
 
 object AssetsRelation {

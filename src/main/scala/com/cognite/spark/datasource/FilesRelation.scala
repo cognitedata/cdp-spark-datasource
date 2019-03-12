@@ -25,6 +25,6 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def toRow(t: FileItem): Row = asRow(t)
 
-  override def listUrl(relationConfig: RelationConfig): Uri =
+  override def listUrl(): Uri =
     uri"${config.baseUrl}/api/0.6/projects/${config.project}/files"
 }

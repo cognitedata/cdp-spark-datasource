@@ -155,6 +155,6 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def toRow(t: TimeSeriesItem): Row = asRow(t)
 
-  override def listUrl(relationConfig: RelationConfig): Uri =
+  override def listUrl(): Uri =
     uri"${config.baseUrl}/api/0.5/projects/${config.project}/timeseries"
 }
