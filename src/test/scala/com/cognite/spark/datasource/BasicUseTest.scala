@@ -21,6 +21,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("apiKey", readApiKey)
       .option("type", "assets")
       .option("limit", "1000")
+      .option("partitions", "1")
       .load()
 
     df.createTempView("assets")
@@ -35,6 +36,7 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
       .option("type", "assets")
       .option("batchSize", "1")
       .option("limit", "10")
+      .option("partitions", "1")
       .load()
 
     assert(df.count() == 10)

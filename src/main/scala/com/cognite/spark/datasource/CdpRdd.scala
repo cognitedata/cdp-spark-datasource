@@ -12,50 +12,22 @@ case class CdpRddPartition(cursor: Option[String], size: Option[Int], index: Int
 case class CdpRdd[A: DerivedDecoder](
     @transient override val sparkContext: SparkContext,
     toRow: A => Row,
-    getPartitionsBaseUri: Uri,
     getSinglePartitionBaseUri: Uri,
-    config: RelationConfig)
+    config: RelationConfig,
+    cursors: Iterator[(Option[String], Option[Int])])
     extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
 
-  private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
-
-  private def cursors(url: Uri): Iterator[(Option[String], Option[Int])] =
-    new Iterator[(Option[String], Option[Int])] {
-      private var nItemsRead = 0
-      private var nextCursor = Option.empty[String]
-      private var isFirst = true
-
-      override def hasNext: Boolean =
-        isFirst || nextCursor.isDefined && config.limit.fold(true)(_ > nItemsRead)
-
-      override def next(): (Option[String], Option[Int]) = {
-        isFirst = false
-        val next = nextCursor
-        val thisBatchSize = math.min(
-          batchSize,
-          config.limit
-            .map(_ - nItemsRead)
-            .getOrElse(batchSize))
-        val urlWithLimit = url.param("limit", thisBatchSize.toString)
-        val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
-        val dataWithCursor =
-          getJson[CdpConnector.DataItemsWithCursor[A]](config.apiKey, getUrl, config.maxRetries)
-            .unsafeRunSync()
-            .data
-        nextCursor = dataWithCursor.nextCursor
-        nItemsRead += thisBatchSize
-        (next, nextCursor.map(_ => thisBatchSize))
-      }
-    }
-
   override def getPartitions: Array[Partition] =
-    scala.util.Random
-      .shuffle(cursors(getPartitionsBaseUri))
-      .toIndexedSeq
-      .zipWithIndex
-      .map { case ((cursor, size), index) => CdpRddPartition(cursor, size, index) }
-      .toArray
+    cursors.toIndexedSeq.zipWithIndex.map {
+      case ((cursor, size), index) =>
+        val partitionSize = (config.limit, size) match {
+          case (None, s) => s
+          case (Some(l), Some(s)) => Some(scala.math.min(l, s))
+          case (l, None) => l
+        }
+        CdpRddPartition(cursor, partitionSize, index)
+    }.toArray
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdpRddPartition]
@@ -63,7 +35,7 @@ case class CdpRdd[A: DerivedDecoder](
       get[A](
         config.apiKey,
         getSinglePartitionBaseUri,
-        batchSize,
+        config.batchSize.getOrElse(Constants.DefaultBatchSize),
         split.size,
         config.maxRetries,
         split.cursor)

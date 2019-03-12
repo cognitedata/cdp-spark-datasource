@@ -26,6 +26,6 @@ class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(
 
   override def toRow(t: ModelRevisionItem): Row = asRow(t)
 
-  override def listUrl(relationConfig: RelationConfig): Uri =
+  override def listUrl(): Uri =
     uri"${config.baseUrl}/api/0.6/projects/${config.project}/3d/models/$modelId/revisions"
 }

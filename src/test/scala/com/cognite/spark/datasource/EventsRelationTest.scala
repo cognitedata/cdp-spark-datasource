@@ -14,6 +14,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "events")
       .option("batchSize", "500")
       .option("limit", "1000")
+      .option("partitions", "1")
       .load()
 
     df.createTempView("events")
@@ -116,11 +117,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", readApiKey)
       .option("type", "events")
       .option("limit", "1000")
+      .option("partitions", "1")
       .load()
 
     val destinationDf = spark.read.format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey)
       .option("type", "events")
+      .option("partitions", "1")
       .load()
     destinationDf.createOrReplaceTempView("destinationEvent")
 

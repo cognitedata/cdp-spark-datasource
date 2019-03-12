@@ -1,6 +1,5 @@
 package com.cognite.spark.datasource
 
-import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.{
   BaseRelation,
@@ -9,13 +8,13 @@ import org.apache.spark.sql.sources.{
   SchemaRelationProvider
 }
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.datasource.MetricsSource
 
 case class RelationConfig(
     apiKey: String,
     project: String,
     batchSize: Option[Int],
     limit: Option[Int],
+    partitions: Int,
     maxRetries: Int,
     collectMetrics: Boolean,
     metricsPrefix: String,
@@ -64,6 +63,8 @@ class DefaultSource
     val project = getProject(apiKey, maxRetries, baseUrl)
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limit = toPositiveInt(parameters, "limit")
+    val partitions = toPositiveInt(parameters, "partitions")
+      .getOrElse(Constants.DefaultPartitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
       case Some(prefix) => s"$prefix"
       case None => ""
@@ -74,6 +75,7 @@ class DefaultSource
       project,
       batchSize,
       limit,
+      partitions,
       maxRetries,
       collectMetrics,
       metricsPrefix,
