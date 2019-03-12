@@ -1,10 +1,9 @@
 package com.cognite.spark.datasource
 
-import com.softwaremill.sttp.{Uri, _}
-import io.circe.generic.auto._
+import com.cognite.spark.datasource.SparkSchemaHelper._
+import com.softwaremill.sttp._
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.sql.types.{DataTypes, StructType}
-import SparkSchemaHelper._
 
 case class FileItem(
     id: Option[Long],

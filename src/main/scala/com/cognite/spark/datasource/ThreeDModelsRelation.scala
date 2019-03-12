@@ -1,9 +1,8 @@
 package com.cognite.spark.datasource
 
 import com.cognite.spark.datasource.SparkSchemaHelper._
-import com.softwaremill.sttp.{Uri, _}
-import io.circe.generic.auto._
-import org.apache.spark.sql.types._
+import com.softwaremill.sttp._
+import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 case class ModelItem(id: Long, name: String, createdTime: Long)
