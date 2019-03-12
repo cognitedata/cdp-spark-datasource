@@ -2,18 +2,13 @@ package com.cognite.spark.datasource
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.softwaremill.sttp.{Response, Uri, _}
 import io.circe.generic.auto._
-import io.circe.parser.decode
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import io.circe.parser.decode
-import com.softwaremill.sttp.{Response, Uri}
 import com.softwaremill.sttp._
 import SparkSchemaHelper._
-import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 

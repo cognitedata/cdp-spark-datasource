@@ -2,9 +2,8 @@ package com.cognite.spark.datasource
 
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
-import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
-import io.circe.generic.auto._
+import org.apache.spark.sql.{Row, SQLContext}
 
 case class ThreeDModelRevisionSectorsItem(
     id: Int,
