@@ -1,5 +1,5 @@
 val sparkVersion = "2.4.0"
-val circeVersion = "0.9.3"
+val circeVersion = "0.10.1"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 
