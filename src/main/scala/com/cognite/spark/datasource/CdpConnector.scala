@@ -1,6 +1,7 @@
 package com.cognite.spark.datasource
 
 import java.io.IOException
+import java.util.concurrent.Executors
 
 import cats.effect.{IO, Timer}
 import cats.implicits._

@@ -59,7 +59,7 @@ sealed case class GranularityFilter(amount: Option[Long], unit: String)
 // TODO: make case classes / enums for each valid aggregation
 sealed case class AggregationFilter(aggregation: String)
 
-class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructType])(
+class DataPointsRelation(config: RelationConfig, numPartitions: Int, suppliedSchema: Option[StructType])(
     val sqlContext: SQLContext)
     extends BaseRelation
     with InsertableRelation
@@ -68,8 +68,6 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
     with CdpConnector
     with Serializable {
   import CdpConnector._
-
-  @transient lazy private val batchSize = config.batchSize
   @transient lazy private val maxRetries = config.maxRetries
 
   @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
@@ -295,8 +293,10 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
             .getOrElse(System.currentTimeMillis())
       }
       val aggregationBatchSize = aggregation
-        .map(_ => math.min(batchSize, Constants.DefaultDataPointsAggregationBatchSize))
-        .getOrElse(batchSize)
+        .map(_ => math.min(
+          config.batchSize.getOrElse(Constants.DefaultDataPointsAggregationBatchSize),
+          Constants.DefaultDataPointsAggregationBatchSize))
+        .getOrElse(config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize))
       DataPointsRdd(
         sqlContext.sparkContext,
         parseResult,
@@ -305,15 +305,13 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
           aggregation.map(_.aggregation),
           granularity.map(g => s"${g.amount.getOrElse("")}${g.unit}"),
           requiredColumns),
+        numPartitions,
         aggregation,
         granularity,
         timestampLowerLimit.getOrElse(0),
         maxTimestamp,
         uri"${baseDataPointsUrl(config.project)}/$name",
-        config.apiKey,
-        config.project,
-        config.limit,
-        aggregationBatchSize
+        config.copy(batchSize = Some(aggregationBatchSize))
       )
     }
     rdds.foldLeft(sqlContext.sparkContext.emptyRDD[Row])((a, b) => a.union(b))
@@ -336,7 +334,7 @@ class DataPointsRelation(config: RelationConfig, suppliedSchema: Option[StructTy
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val batches = rows.grouped(batchSize).toVector
+      val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)).toVector
       batches
         .parTraverse(batch => {
           val timeSeriesData = MultiNamedTimeseriesData()
