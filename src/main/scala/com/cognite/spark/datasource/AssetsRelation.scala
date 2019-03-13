@@ -52,7 +52,7 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val batches = rows.grouped(config.batchSize).toVector
+      val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.parTraverse(postRows).unsafeRunSync()
     })
 

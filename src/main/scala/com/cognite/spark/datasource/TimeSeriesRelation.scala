@@ -80,7 +80,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val timeSeriesItems = rows.map(r => fromRow[PostTimeSeriesItem](r))
-      val batches = timeSeriesItems.grouped(config.batchSize).toVector
+      val batches = timeSeriesItems.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.parTraverse(updateOrPostTimeSeries).unsafeRunSync()
     })
 
