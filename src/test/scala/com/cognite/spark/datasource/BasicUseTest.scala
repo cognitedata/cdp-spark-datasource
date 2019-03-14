@@ -106,7 +106,9 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
                  |map('foo', 'bar', 'nullValue', null) as metadata,
                  |null as assetIds,
                  |'nulltest' as source,
-                 |null as sourceId
+                 |null as sourceId,
+                 |0 as createdTime,
+                 |0 as lastUpdatedTime
      """.stripMargin)
       .write
       .insertInto("destinationEvent")
@@ -154,7 +156,9 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
        |bigint(0) as id,
        |map("foo", null, "bar", "test") as metadata,
        |"$source" as source,
-       |sourceId
+       |sourceId,
+       |createdTime,
+       |lastUpdatedTime
        |from sourceEvent
        |limit 100
      """.stripMargin)
@@ -179,7 +183,9 @@ class BasicUseTest extends FunSuite with SparkTest with CdpConnector {
        |bigint(0) as id,
        |metadata,
        |"$source" as source,
-       |sourceId
+       |sourceId,
+       |createdTime,
+       |lastUpdatedTime
        |from sourceEvent
      """.stripMargin)
       .select(destinationDf.columns.map(col): _*)

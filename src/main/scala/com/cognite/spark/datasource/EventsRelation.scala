@@ -22,8 +22,37 @@ case class EventItem(
     metadata: Option[Map[String, Option[String]]],
     assetIds: Option[Seq[Long]],
     source: Option[String],
-    sourceId: Option[String])
+    sourceId: Option[String],
+    createdTime: Long,
+    lastUpdatedTime: Long)
 
+case class UpdateEventItem(
+    id: Option[Long],
+    startTime: Option[Setter[Long]],
+    endTime: Option[Setter[Long]],
+    description: Option[Setter[String]],
+    `type`: Option[Setter[String]],
+    subType: Option[Setter[String]],
+    metadata: Option[Setter[Map[String, Option[String]]]],
+    assetIds: Option[Setter[Seq[Long]]],
+    source: Option[Setter[String]],
+    sourceId: Option[Setter[String]]
+)
+object UpdateEventItem {
+  def apply(eventItem: EventItem): UpdateEventItem =
+    new UpdateEventItem(
+      eventItem.id,
+      Setter[Long](eventItem.startTime),
+      Setter[Long](eventItem.endTime),
+      Setter[String](eventItem.description),
+      Setter[String](eventItem.`type`),
+      Setter[String](eventItem.subtype),
+      Setter[Map[String, Option[String]]](eventItem.metadata),
+      Setter[Seq[Long]](eventItem.assetIds),
+      Setter[String](eventItem.source),
+      Setter[String](eventItem.sourceId)
+    )
+}
 case class SourceWithResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
 
@@ -80,10 +109,11 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
       // Do nothing
       IO.unit
     } else {
+      val updateEventItems = conflictingEvents.map(e => UpdateEventItem(e))
       post(
         config.apiKey,
-        uri"${baseEventsURLOld(config.project)}/update",
-        conflictingEvents,
+        uri"${baseEventsURL(config.project)}/update",
+        updateEventItems,
         config.maxRetries)
     }
 
@@ -99,11 +129,6 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
 
   def baseEventsURL(project: String, version: String = "0.6"): Uri =
     uri"${config.baseUrl}/api/$version/projects/$project/events"
-
-  def baseEventsURLOld(project: String): Uri =
-    // TODO: API is failing with "Invalid field - items[0].starttime - expected an object but got number" in 0.6
-    // That's why we need 0.5 support, however should be removed when fixed
-    uri"${config.baseUrl}/api/0.5/projects/$project/events"
 
   override def schema: StructType = structType[EventItem]
 
