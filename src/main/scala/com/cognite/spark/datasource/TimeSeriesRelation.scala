@@ -15,14 +15,6 @@ import scala.concurrent.ExecutionContext
 case class PostTimeSeriesDataItems[A](items: Seq[A])
 case class TimeSeriesConflict(notFound: Seq[Long])
 case class TimeSeriesNotFound(notFound: Seq[String])
-case class Setter[A](set: A, setNull: Boolean)
-object Setter {
-  def apply[A](set: Option[A]): Option[Setter[A]] =
-    set match {
-      case None => None
-      case _ => Some(new Setter(set.get, false))
-    }
-}
 
 case class TimeSeriesItem(
     name: String,
