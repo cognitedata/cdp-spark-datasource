@@ -81,7 +81,8 @@ abstract class DataPointsRelation(
       case GreaterThanOrEqual("timestamp", value) => Seq(Min(value.toString.toLong))
       case And(f1, f2) => getTimestampLimit(f1) ++ getTimestampLimit(f2)
       // case Or(f1, f2) => we might possibly want to do something clever with joining an "or" clause
-      //                    with timestamp limits on each side; just ignore them for now
+      //                    with timestamp limits on each side (including replacing "max of Min's" with the less strict
+      //                    "min of Min's" when aggregating filters on the same side); just ignore them for now
       case _ => Seq.empty
     }
 
@@ -161,8 +162,10 @@ abstract class DataPointsRelation(
     }
 
     Tuple2(
-      Try(timestampLimits.filter(_.isInstanceOf[Min]).min).toOption.map(_.value),
-      Try(timestampLimits.filter(_.isInstanceOf[Max]).max).toOption.map(_.value))
+      // Note that this way of aggregating filters will not work with "Or" predicates.
+      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption.map(_.value),
+      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption.map(_.value)
+    )
   }
 
   def postTimeSeries(data: MultiNamedTimeseriesData): IO[Unit] = {
