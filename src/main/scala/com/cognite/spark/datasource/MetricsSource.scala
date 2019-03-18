@@ -49,7 +49,7 @@ class MetricsSource(val metricNamespace: String) {
     val env = SparkEnv.get
     env.metricsSystem.registerSource(
       new Source {
-        override val sourceName = s"${env.conf.getAppId}.$metricNamespace.${env.executorId}."
+        override val sourceName = s"${env.conf.getAppId}.$metricNamespace.${env.executorId}"
         override def metricRegistry: MetricRegistry = {
           val metrics = new MetricRegistry
           metrics.register(metricName, metric)
