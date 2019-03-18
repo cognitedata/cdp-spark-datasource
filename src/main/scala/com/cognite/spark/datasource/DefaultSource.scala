@@ -65,7 +65,7 @@ class DefaultSource
     val batchSize = toPositiveInt(parameters, "batchSize").getOrElse(Constants.DefaultBatchSize)
     val limit = toPositiveInt(parameters, "limit")
     val metricsPrefix = parameters.get("metricsPrefix") match {
-      case Some(prefix) => s"$prefix."
+      case Some(prefix) => s"$prefix"
       case None => ""
     }
     val collectMetrics = toBoolean(parameters, "collectMetrics")
