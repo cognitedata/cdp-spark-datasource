@@ -75,7 +75,9 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
       // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
       // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
       // Since null keys don't make sense to CDP either, remove them as well.
-      val filteredMetadata = eventItem.metadata.map(_.filter { case (k, v) => k != null && v != null })
+      val filteredMetadata = eventItem.metadata.map(_.filter {
+        case (k, v) => k != null && v != null
+      })
       eventItem.copy(metadata = filteredMetadata)
     }
 

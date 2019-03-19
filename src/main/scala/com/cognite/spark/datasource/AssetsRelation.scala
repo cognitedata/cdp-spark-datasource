@@ -62,7 +62,9 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
       // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
       // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
       // Since null keys don't make sense to CDP either, remove them as well.
-      val filteredMetadata = assetItem.metadata.map(_.filter { case (k, v) => k != null && v != null })
+      val filteredMetadata = assetItem.metadata.map(_.filter {
+        case (k, v) => k != null && v != null
+      })
       assetItem.copy(metadata = filteredMetadata)
     }
     post(config.apiKey, baseAssetsURL(config.project), assetItems, config.maxRetries)
