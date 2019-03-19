@@ -19,7 +19,7 @@ case class EventItem(
     description: Option[String],
     `type`: Option[String],
     subtype: Option[String],
-    metadata: Option[Map[String, Option[String]]],
+    metadata: Option[Map[String, String]],
     assetIds: Option[Seq[Long]],
     source: Option[String],
     sourceId: Option[String],
@@ -33,7 +33,7 @@ case class UpdateEventItem(
     description: Option[Setter[String]],
     `type`: Option[Setter[String]],
     subType: Option[Setter[String]],
-    metadata: Option[Setter[Map[String, Option[String]]]],
+    metadata: Option[Setter[Map[String, String]]],
     assetIds: Option[Setter[Seq[Long]]],
     source: Option[Setter[String]],
     sourceId: Option[Setter[String]]
@@ -47,7 +47,7 @@ object UpdateEventItem {
       Setter[String](eventItem.description),
       Setter[String](eventItem.`type`),
       Setter[String](eventItem.subtype),
-      Setter[Map[String, Option[String]]](eventItem.metadata),
+      Setter[Map[String, String]](eventItem.metadata),
       Setter[Seq[Long]](eventItem.assetIds),
       Setter[String](eventItem.source),
       Setter[String](eventItem.sourceId)
@@ -70,7 +70,14 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     })
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {
-    val eventItems = rows.map(r => fromRow[EventItem](r))
+    val eventItems = rows.map { r =>
+      val eventItem = fromRow[EventItem](r)
+      // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
+      // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
+      // Since null keys don't make sense to CDP either, remove them as well.
+      val filteredMetadata = eventItem.metadata.map(_.filter { case (k, v) => k != null && v != null })
+      eventItem.copy(metadata = filteredMetadata)
+    }
 
     postOr(config.apiKey, baseEventsURL(config.project), eventItems, config.maxRetries) {
       case Response(Right(body), StatusCodes.Conflict, _, _, _) =>

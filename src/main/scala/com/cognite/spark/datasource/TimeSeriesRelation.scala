@@ -19,7 +19,7 @@ case class TimeSeriesNotFound(notFound: Seq[String])
 case class TimeSeriesItem(
     name: String,
     isString: Boolean,
-    metadata: Option[Map[String, Option[String]]],
+    metadata: Option[Map[String, String]],
     unit: Option[String],
     assetId: Option[Long],
     isStep: Boolean,
@@ -79,7 +79,14 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val timeSeriesItems = rows.map(r => fromRow[PostTimeSeriesItem](r))
+      val timeSeriesItems = rows.map { r =>
+        val postTimeSeriesItem = fromRow[PostTimeSeriesItem](r)
+        // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
+        // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
+        // Since null keys don't make sense to CDP either, remove them as well.
+        val filteredMetadata = postTimeSeriesItem.metadata.map(_.filter { case (k, v) => k != null && v != null })
+        postTimeSeriesItem.copy(metadata = filteredMetadata)
+      }
       val batches = timeSeriesItems.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.parTraverse(updateOrPostTimeSeries).unsafeRunSync()
     })
