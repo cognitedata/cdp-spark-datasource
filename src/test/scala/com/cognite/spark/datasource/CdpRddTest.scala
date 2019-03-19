@@ -16,7 +16,7 @@ class CdpRddTest extends FlatSpec with Matchers with SparkTest {
 
   class TestRdd(batchSize: Int, limit: Option[Int]) extends CdpRdd[Number](spark.sparkContext, (n: Number) => Row(n.number),
     uri"http://localhost/api", uri"http://localhost/api",
-    RelationConfig("apiKey", "project", batchSize, limit, 10, collectMetrics = false, "", "https://api.cognitedata.com")) {
+    RelationConfig("apiKey", "project", Some(batchSize), limit, 10, collectMetrics = false, "", "https://api.cognitedata.com")) {
   }
 
   case class NumberedItems(nextCursor: Iterator[String]) extends Iterator[String] {

@@ -169,13 +169,20 @@ timeSeriesDf.select(destinationDf.columns.map(col):_*)
 
 https://doc.cognitedata.com/concepts/#data-points
 
-Data points are always related to a time series. To read datapoints you will need to filter by a valid time series name.
+Data points are always related to a time series. To read datapoints you will need to filter by a valid time series name,
+otherwise an empty DataFrame will be returned. For this reason it is important to be careful when using caching with
+this resource type.
+
+One additional option is supported:
+- `partitions`: The data source will split the time range into this many partitions (20 by default)
+time intervals.
+
 You can also request aggregated data by filtering by aggregation and granularity.
 
 `aggregation`: Numerical data points can be aggregated before they are retrieved from CDP.
 This allows for faster queries by reducing the amount of data transferred.
 You can aggregate data points by specifying one or more aggregates (e.g. average, minimum, maximum)
-as well as the time granularity over which the aggregates should be applied (e.g. “1h” for one hour).
+as well as the time granularity over which the aggregates should be applied (e.g. "1h" for one hour).
 If the aggregate option is NULL, or not set, data points will return the raw time series data.
 
 `granularity`: Aggregates are aligned to the start time modulo the granularity unit.
