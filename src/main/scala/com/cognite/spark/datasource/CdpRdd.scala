@@ -18,6 +18,8 @@ case class CdpRdd[A: DerivedDecoder](
     extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
 
+  private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
+
   private def cursors(url: Uri): Iterator[(Option[String], Option[Int])] =
     new Iterator[(Option[String], Option[Int])] {
       private var nItemsRead = 0
@@ -31,10 +33,10 @@ case class CdpRdd[A: DerivedDecoder](
         isFirst = false
         val next = nextCursor
         val thisBatchSize = math.min(
-          config.batchSize,
+          batchSize,
           config.limit
             .map(_ - nItemsRead)
-            .getOrElse(config.batchSize))
+            .getOrElse(batchSize))
         val urlWithLimit = url.param("limit", thisBatchSize.toString)
         val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
         val dataWithCursor =
@@ -61,7 +63,7 @@ case class CdpRdd[A: DerivedDecoder](
       get[A](
         config.apiKey,
         getSinglePartitionBaseUri,
-        config.batchSize,
+        batchSize,
         split.size,
         config.maxRetries,
         split.cursor)

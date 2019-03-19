@@ -12,7 +12,7 @@ case class FileItem(
     source: Option[String],
     sourceId: Option[String],
     fileType: Option[String],
-    metadata: Option[Map[String, Option[String]]],
+    metadata: Option[Map[String, String]],
     assetIds: Option[Seq[Long]],
     uploaded: Option[Boolean],
     uploadedAt: Option[Long],

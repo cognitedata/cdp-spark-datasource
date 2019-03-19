@@ -14,7 +14,7 @@ import org.apache.spark.datasource.MetricsSource
 case class RelationConfig(
     apiKey: String,
     project: String,
-    batchSize: Int,
+    batchSize: Option[Int],
     limit: Option[Int],
     maxRetries: Int,
     collectMetrics: Boolean,
@@ -62,7 +62,7 @@ class DefaultSource
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
     val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
     val project = getProject(apiKey, maxRetries, baseUrl)
-    val batchSize = toPositiveInt(parameters, "batchSize").getOrElse(Constants.DefaultBatchSize)
+    val batchSize = toPositiveInt(parameters, "batchSize")
     val limit = toPositiveInt(parameters, "limit")
     val metricsPrefix = parameters.get("metricsPrefix") match {
       case Some(prefix) => s"$prefix."
@@ -89,7 +89,9 @@ class DefaultSource
     val config = parseRelationConfig(parameters)
     resourceType match {
       case "datapoints" =>
-        new DataPointsRelation(config, Option(schema))(sqlContext)
+        val numPartitions =
+          toPositiveInt(parameters, "partitions").getOrElse(Constants.DefaultDataPointsPartitions)
+        new DataPointsRelation(config, numPartitions, Option(schema))(sqlContext)
       case "timeseries" =>
         new TimeSeriesRelation(config)(sqlContext)
       case "raw" =>

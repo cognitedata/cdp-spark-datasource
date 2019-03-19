@@ -23,7 +23,7 @@ case class AssetsItem(
     name: Option[String],
     parentId: Option[Long],
     description: Option[String],
-    metadata: Option[Map[String, Option[String]]],
+    metadata: Option[Map[String, String]],
     source: Option[String],
     sourceId: Option[String],
     createdTime: Long,
@@ -38,7 +38,7 @@ case class PostAssetsItem(
     description: Option[String],
     source: Option[String],
     sourceId: Option[String],
-    metadata: Option[Map[String, Option[String]]],
+    metadata: Option[Map[String, String]],
     createdTime: Long,
     lastUpdatedTime: Long
 )
@@ -52,12 +52,21 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val batches = rows.grouped(config.batchSize).toVector
+      val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.parTraverse(postRows).unsafeRunSync()
     })
 
   private def postRows(rows: Seq[Row]): IO[Unit] = {
-    val assetItems = rows.map(r => fromRow[PostAssetsItem](r))
+    val assetItems = rows.map { r =>
+      val assetItem = fromRow[PostAssetsItem](r)
+      // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
+      // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
+      // Since null keys don't make sense to CDP either, remove them as well.
+      val filteredMetadata = assetItem.metadata.map(_.filter {
+        case (k, v) => k != null && v != null
+      })
+      assetItem.copy(metadata = filteredMetadata)
+    }
     post(config.apiKey, baseAssetsURL(config.project), assetItems, config.maxRetries)
       .map(item => {
         if (config.collectMetrics) {
