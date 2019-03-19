@@ -59,8 +59,10 @@ sealed case class GranularityFilter(amount: Option[Long], unit: String)
 // TODO: make case classes / enums for each valid aggregation
 sealed case class AggregationFilter(aggregation: String)
 
-class DataPointsRelation(config: RelationConfig, numPartitions: Int, suppliedSchema: Option[StructType])(
-    val sqlContext: SQLContext)
+class DataPointsRelation(
+    config: RelationConfig,
+    numPartitions: Int,
+    suppliedSchema: Option[StructType])(val sqlContext: SQLContext)
     extends BaseRelation
     with InsertableRelation
     with TableScan
@@ -293,9 +295,11 @@ class DataPointsRelation(config: RelationConfig, numPartitions: Int, suppliedSch
             .getOrElse(System.currentTimeMillis())
       }
       val aggregationBatchSize = aggregation
-        .map(_ => math.min(
-          config.batchSize.getOrElse(Constants.DefaultDataPointsAggregationBatchSize),
-          Constants.DefaultDataPointsAggregationBatchSize))
+        .map(
+          _ =>
+            math.min(
+              config.batchSize.getOrElse(Constants.DefaultDataPointsAggregationBatchSize),
+              Constants.DefaultDataPointsAggregationBatchSize))
         .getOrElse(config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize))
       DataPointsRdd(
         sqlContext.sparkContext,
@@ -334,7 +338,8 @@ class DataPointsRelation(config: RelationConfig, numPartitions: Int, suppliedSch
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)).toVector
+      val batches =
+        rows.grouped(config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)).toVector
       batches
         .parTraverse(batch => {
           val timeSeriesData = MultiNamedTimeseriesData()

@@ -89,7 +89,8 @@ class DefaultSource
     val config = parseRelationConfig(parameters)
     resourceType match {
       case "datapoints" =>
-        val numPartitions = toPositiveInt(parameters, "partitions").getOrElse(Constants.DefaultDataPointsPartitions)
+        val numPartitions =
+          toPositiveInt(parameters, "partitions").getOrElse(Constants.DefaultDataPointsPartitions)
         new DataPointsRelation(config, numPartitions, Option(schema))(sqlContext)
       case "timeseries" =>
         new TimeSeriesRelation(config)(sqlContext)

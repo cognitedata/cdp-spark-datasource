@@ -87,11 +87,13 @@ case class DataPointsRdd(
         dataPoint.totalVariation.get
     }
 
-  private val unitMilliseconds = DataPointsRdd.granularityMilliseconds(granularity.map(_.copy(amount = Some(1))))
+  private val unitMilliseconds =
+    DataPointsRdd.granularityMilliseconds(granularity.map(_.copy(amount = Some(1))))
   override def getPartitions: Array[Partition] = {
     val min = DataPointsRdd.floorToNearest(minTimestamp, unitMilliseconds)
     val max = DataPointsRdd.ceilToNearest(maxTimestamp, unitMilliseconds)
-    val partitions = DataPointsRdd.intervalPartitions(min, max, granularityMilliseconds, numPartitions)
+    val partitions =
+      DataPointsRdd.intervalPartitions(min, max, granularityMilliseconds, numPartitions)
     partitions.asInstanceOf[Array[Partition]]
   }
 
@@ -116,7 +118,9 @@ object DataPointsRdd {
   )
 
   private def granularityMilliseconds(granularity: Option[GranularityFilter]): Long =
-    granularity.map(g => granularityUnitToMilliseconds(g.unit) * g.amount.getOrElse(1L)).getOrElse(1)
+    granularity
+      .map(g => granularityUnitToMilliseconds(g.unit) * g.amount.getOrElse(1L))
+      .getOrElse(1)
 
   private def floorToNearest(x: Long, base: Double) =
     (base * math.floor(x.toDouble / base)).toLong
@@ -129,15 +133,23 @@ object DataPointsRdd {
 
   // This is based on the same logic used in the Cognite Python SDK:
   // https://github.com/cognitedata/cognite-sdk-python/blob/8028c80fd5df4415365ce5e50ccae04a5acb0251/cognite/client/_utils.py#L153
-  def intervalPartitions(start: Long, stop: Long, granularityMilliseconds: Long, numPartitions: Int): Array[DataPointsRddPartition] = {
+  def intervalPartitions(
+      start: Long,
+      stop: Long,
+      granularityMilliseconds: Long,
+      numPartitions: Int): Array[DataPointsRddPartition] = {
     val intervalLength = stop - start
     val steps = math.min(numPartitions, math.max(1, intervalLength / granularityMilliseconds))
     val stepSize = roundToNearest((intervalLength.toDouble / steps).toLong, granularityMilliseconds)
 
-    0.until(steps.toInt).map { index =>
-      val beginning = start + stepSize * index
-      val end = beginning + stepSize
-      DataPointsRddPartition(beginning, if (index == steps-1) { math.max(end, stop) } else { end }, index)
-    }.toArray
+    0.until(steps.toInt)
+      .map { index =>
+        val beginning = start + stepSize * index
+        val end = beginning + stepSize
+        DataPointsRddPartition(beginning, if (index == steps - 1) { math.max(end, stop) } else {
+          end
+        }, index)
+      }
+      .toArray
   }
 }
