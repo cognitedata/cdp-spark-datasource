@@ -1,3 +1,17 @@
+# 0.4.5
+
+## Bugfixes
+* Writes for non-data points resource types work again.
+
+## Enhancements
+* All fields for all resource types should be present. In particular, many asset fields were previously not included.
+
+* Upsert is now supported for time series metadata, based on the time series id.
+
+* `partitions` can be used to control the partitions created for the `datapoints` resource type.
+The time interval will be split into the given number of partitions and fetched in parallel.
+
+
 # 0.4.4
 
 ## Bugfixes
