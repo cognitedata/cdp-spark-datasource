@@ -22,6 +22,51 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(res.length == 1000)
   }
 
+  it should "apply a single pushdown filter" taggedAs WriteTest in {
+    val df = spark.read.format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .load()
+      .where(s"type = 'alert'")
+    assert(df.count == 8)
+  }
+
+  it should "apply multiple pushdown filters" taggedAs WriteTest in {
+    val df = spark.read.format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .load()
+      .where(s"type = 'maintenance' and subtype = 'new'")
+    assert(df.count == 2)
+  }
+
+  it should "handle or conditions" taggedAs WriteTest in {
+    val df = spark.read.format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .load()
+      .where(s"type = 'maintenance' or type = 'upgrade'")
+    assert(df.count == 9)
+  }
+
+  it should "handle in() conditions" taggedAs WriteTest in {
+    val df = spark.read.format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .load()
+      .where(s"type in('alert','replacement')")
+    assert(df.count == 12)
+  }
+
+  it should "handle and, or and in() in one query" taggedAs WriteTest in {
+    val df = spark.read.format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .load()
+      .where(s"(type = 'maintenance' or type = 'upgrade') and subtype in('manual', 'automatic')")
+    assert(df.count == 4)
+  }
+
   def eventDescriptions(source: String): Array[Row] = spark.sql(s"""select description, source from destinationEvent where source = "$source"""")
     .select(col("description"))
     .collect()
