@@ -13,4 +13,5 @@ object Constants {
   val DefaultInitialRetryDelay: FiniteDuration = 150.millis
   val DefaultMaxBackoffDelay: FiniteDuration = 120.seconds
   val DefaultBaseUrl = "https://api.cognitedata.com"
+  val MetadataValuePostMaxLength = 512
 }
