@@ -26,13 +26,38 @@ case class EventItem(
     createdTime: Long,
     lastUpdatedTime: Long)
 
+case class PostEventItem(
+    startTime: Option[Long],
+    endTime: Option[Long],
+    description: Option[String],
+    `type`: Option[String],
+    subtype: Option[String],
+    metadata: Option[Map[String, String]],
+    assetIds: Option[Seq[Long]],
+    source: Option[String],
+    sourceId: Option[String]
+)
+object PostEventItem {
+  def apply(eventItem: EventItem): PostEventItem =
+    new PostEventItem(
+      eventItem.startTime,
+      eventItem.endTime,
+      eventItem.description,
+      eventItem.`type`,
+      eventItem.subtype,
+      eventItem.metadata,
+      eventItem.assetIds,
+      eventItem.source,
+      eventItem.sourceId
+    )
+}
 case class UpdateEventItem(
     id: Option[Long],
     startTime: Option[Setter[Long]],
     endTime: Option[Setter[Long]],
     description: Option[Setter[String]],
     `type`: Option[Setter[String]],
-    subType: Option[Setter[String]],
+    subtype: Option[Setter[String]],
     metadata: Option[Setter[Map[String, String]]],
     assetIds: Option[Setter[Seq[Long]]],
     source: Option[Setter[String]],
@@ -81,7 +106,9 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
       eventItem.copy(metadata = filteredMetadata)
     }
 
-    postOr(config.apiKey, baseEventsURL(config.project), eventItems, config.maxRetries) {
+    val postEventItems = eventItems.map(e => PostEventItem(e))
+
+    postOr(config.apiKey, baseEventsURL(config.project), postEventItems, config.maxRetries) {
       case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
@@ -130,7 +157,8 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     val postNewItems = if (newEvents.isEmpty) {
       IO.unit
     } else {
-      post(config.apiKey, baseEventsURL(config.project), newEvents, config.maxRetries)
+      val newPostEventItems = newEvents.map(e => PostEventItem(e))
+      post(config.apiKey, baseEventsURL(config.project), newPostEventItems, config.maxRetries)
     }
 
     (postUpdate, postNewItems).parMapN((_, _) => ())
