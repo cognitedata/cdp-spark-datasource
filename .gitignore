@@ -4,5 +4,5 @@ target/
 *~
 **/*.class
 src/test/scala/com/cognite/spark/connector/package.scala
-derby.log
+*.log
 metastore_db/
