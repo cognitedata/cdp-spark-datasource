@@ -100,13 +100,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   def postEvent(rows: Seq[Row]): IO[Unit] = {
     val eventItems = rows.map { r =>
       val eventItem = fromRow[EventItem](r)
-      // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
-      // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
-      // Since null keys don't make sense to CDP either, remove them as well.
-      val filteredMetadata = eventItem.metadata.map(_.filter {
-        case (k, v) => k != null && v != null
-      })
-      eventItem.copy(metadata = filteredMetadata)
+      eventItem.copy(metadata = filterMetadata(eventItem.metadata))
     }
 
     val postEventItems = eventItems.map(e => PostEventItem(e))
