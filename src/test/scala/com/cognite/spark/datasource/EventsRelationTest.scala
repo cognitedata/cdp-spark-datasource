@@ -123,7 +123,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |endTime,
                  |type,
                  |subtype,
-                 |null as assetIds,
+                 |array(2091657868296883) as assetIds,
                  |bigint(0) as id,
                  |metadata,
                  |"$source" as source,
@@ -141,6 +141,11 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       rows => rows.length < 1000)
     assert(descriptionsAfterUpdate.length == 1000)
     assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "foo"))
+
+    val dfWithCorrectAssetIds = retryWhile[DataFrame](
+      spark.sql("select * from destinationEvent where assetIds = array(2091657868296883)"),
+      rows => rows.count < 1000)
+    assert(dfWithCorrectAssetIds.count == 1000)
   }
 
   def cleanupEvents(source: String): Unit = {

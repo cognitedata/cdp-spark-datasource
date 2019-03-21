@@ -59,7 +59,7 @@ case class UpdateEventItem(
     `type`: Option[Setter[String]],
     subtype: Option[Setter[String]],
     metadata: Option[Setter[Map[String, String]]],
-    assetIds: Option[Setter[Seq[Long]]],
+    assetIds: Option[Map[String, Seq[Long]]],
     source: Option[Setter[String]],
     sourceId: Option[Setter[String]]
 )
@@ -73,7 +73,7 @@ object UpdateEventItem {
       Setter[String](eventItem.`type`),
       Setter[String](eventItem.subtype),
       Setter[Map[String, String]](eventItem.metadata),
-      Setter[Seq[Long]](eventItem.assetIds),
+      eventItem.assetIds.map(a => Map("set" -> a)),
       Setter[String](eventItem.source),
       Setter[String](eventItem.sourceId)
     )
