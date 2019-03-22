@@ -93,7 +93,11 @@ class DefaultSource
       case "datapoints" =>
         val numPartitions =
           toPositiveInt(parameters, "partitions").getOrElse(Constants.DefaultDataPointsPartitions)
-        new DataPointsRelation(config, numPartitions, Option(schema))(sqlContext)
+        new NumericDataPointsRelation(config, numPartitions, Option(schema))(sqlContext)
+      case "stringdatapoints" =>
+        val numPartitions =
+          toPositiveInt(parameters, "partitions").getOrElse(Constants.DefaultDataPointsPartitions)
+        new StringDataPointsRelation(config, numPartitions, Option(schema))(sqlContext)
       case "timeseries" =>
         new TimeSeriesRelation(config)(sqlContext)
       case "raw" =>
