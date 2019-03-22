@@ -38,6 +38,16 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
       .where(s"timestamp > 0 and timestamp < 1790902000001 and name = $valhallTimeSeries")
     assert(df.count() == 100)
+
+    val df2 = spark.read.format("com.cognite.spark.datasource")
+      .option("apiKey", readApiKey)
+      .option("type", "datapoints")
+      .option("batchSize", "40")
+      .option("limit", "100")
+      .option("partitions", "1")
+      .load()
+      .where(s"timestamp < 1790902000001 and name = $valhallTimeSeries")
+    assert(df2.count() == 100)
   }
 
   it should "handle initial data set below batch size" taggedAs(ReadTest) in {

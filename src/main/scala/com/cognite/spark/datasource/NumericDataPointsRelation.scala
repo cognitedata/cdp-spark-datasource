@@ -43,22 +43,15 @@ class NumericDataPointsRelation(
         )))
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    val (timestampLowerLimit, timestampUpperLimit) = getTimestampLimits(filters)
+    val filterTimestampLimits = filtersToTimestampLimits(filters)
     val (aggregations, granularities) = getAggregationSettings(filters)
     val names = filters.flatMap(getNameFilters).map(_.name).distinct
-
+    val timestampLimits = getTimestampLimits(names, filterTimestampLimits)
     val rdds = for {
       name <- names
       aggregation <- if (aggregations.isEmpty) { Array(None) } else { aggregations }
       granularity <- if (granularities.isEmpty) { Array(None) } else { granularities }
     } yield {
-      val maxTimestamp = timestampUpperLimit match {
-        case Some(i) => i
-        case None =>
-          getLatestDataPoint(name)
-            .map(_.timestamp + 1)
-            .getOrElse(System.currentTimeMillis())
-      }
       val aggregationBatchSize = aggregation
         .map(
           _ =>
@@ -76,8 +69,8 @@ class NumericDataPointsRelation(
         numPartitions,
         aggregation,
         granularity,
-        timestampLowerLimit.getOrElse(0),
-        maxTimestamp,
+        scala.math.max(timestampLimits(name)._1 - aggregation.map(_ => 0).getOrElse(1), 0),
+        timestampLimits(name)._2 + aggregation.map(_ => 0).getOrElse(1),
         uri"${baseDataPointsUrl(config.project)}/$name",
         config.copy(batchSize = Some(aggregationBatchSize))
       )

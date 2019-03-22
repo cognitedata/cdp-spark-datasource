@@ -33,6 +33,13 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
       .load()
       .where(s"timestamp >= 1395666380600 and timestamp <= 1552604342000 and name = $valhallTimeSeries")
     assert(df.count() == 1925)
+
+    val df2 = spark.read.format("com.cognite.spark.datasource")
+      .option("apiKey", readApiKey)
+      .option("type", "stringdatapoints")
+      .load()
+      .where(s"timestamp <= 1552604342000 and name = $valhallTimeSeries")
+    assert(df2.count() == 1925)
   }
 
   it should "iterate over period longer than limit" taggedAs ReadTest in {

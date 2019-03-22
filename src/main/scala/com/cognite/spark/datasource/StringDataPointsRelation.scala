@@ -32,22 +32,16 @@ class StringDataPointsRelation(
         )))
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    val (timestampLowerLimit, timestampUpperLimit) = getTimestampLimits(filters)
+    val filterTimestampLimits = filtersToTimestampLimits(filters)
     val names = filters.flatMap(getNameFilters).map(_.name).distinct
+    val timestampLimits = getTimestampLimits(names, filterTimestampLimits)
     val rdds = names.map { name =>
-      val maxTimestamp = timestampUpperLimit match {
-        case Some(i) => i + 1
-        case None =>
-          getLatestDataPoint(name)
-            .map(_.timestamp + 1)
-            .getOrElse(System.currentTimeMillis())
-      }
       new StringDataPointsRdd(
         sqlContext.sparkContext,
         toRow(name, requiredColumns),
         numPartitions,
-        timestampLowerLimit.map(lowerLimit => scala.math.max(lowerLimit - 1, 0)).getOrElse(0),
-        maxTimestamp,
+        scala.math.max(timestampLimits(name)._1 - 1, 0),
+        timestampLimits(name)._2 + 1,
         uri"${baseDataPointsUrl(config.project)}/$name",
         config.copy(batchSize = Some(batchSize))
       )
