@@ -36,6 +36,10 @@ sealed case class DataPoint(
     totalVariation: Option[Double])
     extends Serializable
 
+sealed case class DataPointsTimestampItem(name: String, datapoints: Array[DataPointTimestamp])
+
+sealed case class DataPointTimestamp(timestamp: Long)
+
 object Limit extends Enumeration with Serializable {
   val Max, Min = Value
 }
@@ -110,7 +114,7 @@ abstract class DataPointsRelation(
     }
   // scalastyle:on cyclomatic.complexity
 
-  def getLatestDataPoint(timeSeriesName: String): Option[DataPoint] = {
+  private def getLatestDataPointTimestamp(timeSeriesName: String): Long = {
     val url =
       uri"${config.baseUrl}/api/0.5/projects/${config.project}/timeseries/latest/$timeSeriesName"
     val getLatest = sttp
@@ -124,11 +128,37 @@ abstract class DataPointsRelation(
       .unsafeBody
       .toOption
       .flatMap(_.data.items.headOption)
+      .map(_.timestamp)
+      .getOrElse(System.currentTimeMillis())
   }
+
+  private def getFirstDataPointTimestamp(timeSeriesName: String): Long =
+    getJson[DataItemsWithCursor[DataPointsTimestampItem]](
+      config.apiKey,
+      uri"${baseDataPointsUrl(config.project)}/$timeSeriesName"
+        .param("limit", "1")
+        .param("start", "0"),
+      config.maxRetries)
+      .unsafeRunSync()
+      .data
+      .items
+      .headOption
+      .map(_.datapoints.headOption.map(_.timestamp).getOrElse(0L))
+      .getOrElse(0L)
+
+  def getTimestampLimits(
+      timeSeriesNames: Seq[String],
+      hardLimits: (Option[Long], Option[Long])): Map[String, (Long, Long)] =
+    timeSeriesNames.map { name =>
+      name -> (
+        hardLimits._1.getOrElse(getFirstDataPointTimestamp(name)),
+        hardLimits._2.getOrElse(getLatestDataPointTimestamp(name))
+      )
+    }.toMap
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
-  def getTimestampLimits(filters: Array[Filter]): (Option[Long], Option[Long]) = {
+  def filtersToTimestampLimits(filters: Array[Filter]): (Option[Long], Option[Long]) = {
     val timestampLimits = filters.flatMap(getTimestampLimit)
 
     if (timestampLimits.exists(_.value < 0)) {
