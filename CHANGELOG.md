@@ -1,6 +1,23 @@
+# 0.4.6
+
+## Fixes
+* Creating events works again.
+
+* Metadata values are truncated to 512 characters, which is now the limit set by Cognite.
+
+## Enhancements
+* Filters on "type" and "subtype" columns of `events` will be used to retrieve only events of matching type and subtype.
+
+* Parallel cursors are used for reading `events` and `assets`.
+
+* String data points are now supported using the `stringdatapoints` resource type.
+
+* First and last data points available will be used to set timestamp limits if not given,
+improving the performance of `datapoints` parallelization for most use cases.
+
 # 0.4.5
 
-## Bugfixes
+## Fixes
 * Writes for non-data points resource types work again.
 
 ## Enhancements
@@ -14,20 +31,20 @@ The time interval will be split into the given number of partitions and fetched 
 
 # 0.4.4
 
-## Bugfixes
-* Bugfix for `datapoints` writes.
+## Fixes
+* `datapoints` writes work again.
 
 
 # 0.4.3
 
-## Bugfixes
+## Fixes
 * Fixed dependencies in .jar, removed "fat" jar from release.
 
 
 # 0.4.2
 
-## Bugfixes
-* Bugfix for `3dmodelrevisionmappings` (treeIndex and subtreeSize are optional).
+## Fixes
+* Fix for `3dmodelrevisionmappings` (treeIndex and subtreeSize are optional).
 
 ## Enhancements
 * `baseUrl` option to use a different prefix than https://api.cognitedata.com for all Cognite Data Platform API calls.
@@ -45,7 +62,7 @@ The time interval will be split into the given number of partitions and fetched 
 ## Breaking changes
 * *Breaking change* `"tables"` renamed to `"raw"`.
 
-## Bugfixes
+## Fixes
 * Validation of `key` column for raw tables, null values are not allowed.
 
 ## Enhancements
