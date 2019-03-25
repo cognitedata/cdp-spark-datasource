@@ -94,7 +94,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val updateTimeSeriesUrl =
       uri"${baseUrl(config.project, "0.6", config.baseUrl)}/timeseries/update"
     postOr(config.apiKey, updateTimeSeriesUrl, updateTimeSeriesItems, config.maxRetries) {
-      case Response(Right(body), StatusCodes.BadRequest, _, _, _) =>
+      case response @ Response(Right(body), StatusCodes.BadRequest, _, _, _) =>
         decode[Error[TimeSeriesConflict]](body) match {
           case Right(conflict) =>
             resolveConflict(
@@ -103,7 +103,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
               updateTimeSeriesItems,
               updateTimeSeriesUrl,
               conflict.error)
-          case Left(error) => IO.raiseError(error)
+          case Left(_) => IO.raiseError(onError(updateTimeSeriesUrl, response))
         }
     }
   }
@@ -121,7 +121,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val putItems = if (timeSeriesToUpdate.isEmpty) {
       IO.unit
     } else {
-      put(config.apiKey, updateTimeSeriesUrl, timeSeriesToUpdate, config.maxRetries)
+      post(config.apiKey, updateTimeSeriesUrl, timeSeriesToUpdate, config.maxRetries)
     }
 
     val timeSeriesToCreate = timeSeriesItems.filter(p => notFound.contains(p.id))
