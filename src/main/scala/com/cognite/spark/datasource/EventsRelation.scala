@@ -106,10 +106,10 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     val postEventItems = eventItems.map(e => PostEventItem(e))
 
     postOr(config.apiKey, baseEventsURL(config.project), postEventItems, config.maxRetries) {
-      case Response(Right(body), StatusCodes.Conflict, _, _, _) =>
+      case response @ Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
-          case Left(error) => IO.raiseError(error)
+          case Left(_) => IO.raiseError(onError(baseEventsURL(config.project), response))
         }
     }.flatTap { _ =>
       IO {
