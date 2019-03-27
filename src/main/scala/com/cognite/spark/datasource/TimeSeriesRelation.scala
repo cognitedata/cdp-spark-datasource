@@ -69,7 +69,7 @@ object UpdateTimeSeriesItem {
 }
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends CdpRelation[TimeSeriesItem](config, "3dmodelrevisionnodes")
+    extends CdpRelation[TimeSeriesItem](config, "timeseries")
     with InsertableRelation
     with CdpConnector {
 
@@ -99,7 +99,6 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
           case Right(conflict) =>
             resolveConflict(
               timeSeriesItems,
-              //uri"${baseUrl(config.project, "0.6", config.baseUrl)}/timeseries",
               baseTimeSeriesUrl(config.project),
               updateTimeSeriesItems,
               updateTimeSeriesUrl,
