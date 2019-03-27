@@ -24,9 +24,9 @@ case class TimeSeriesItem(
     assetId: Option[Long],
     isStep: Boolean,
     description: Option[String],
-    // need to use Vector to avoid this error:
-    // Caused by: java.io.NotSerializableException: scala.Array$$anon$2
-    securityCategories: Option[Vector[Long]],
+    // Change this to Option[Vector[Long]] if we start seeing this exception:
+    // java.io.NotSerializableException: scala.Array$$anon$2
+    securityCategories: Option[Seq[Long]],
     id: Long,
     createdTime: Long,
     lastUpdatedTime: Long)
@@ -39,7 +39,7 @@ case class PostTimeSeriesItem(
     assetId: Option[Long],
     isStep: Boolean,
     description: Option[String],
-    securityCategories: Option[Vector[Long]],
+    securityCategories: Option[Seq[Long]],
     id: Long)
 
 case class UpdateTimeSeriesItem(
@@ -49,7 +49,7 @@ case class UpdateTimeSeriesItem(
     unit: Option[Setter[String]],
     assetId: Option[Setter[Long]],
     description: Option[Setter[String]],
-    securityCategories: Option[Map[String, Option[Vector[Long]]]],
+    securityCategories: Option[Map[String, Option[Seq[Long]]]],
     isString: Option[Setter[Boolean]],
     isStep: Option[Setter[Boolean]]
 )
@@ -99,6 +99,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
           case Right(conflict) =>
             resolveConflict(
               timeSeriesItems,
+              //uri"${baseUrl(config.project, "0.6", config.baseUrl)}/timeseries",
               baseTimeSeriesUrl(config.project),
               updateTimeSeriesItems,
               updateTimeSeriesUrl,
