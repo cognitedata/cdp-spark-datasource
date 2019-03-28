@@ -21,7 +21,8 @@ variable `TEST_API_KEY_GREENFIELD` to an API key with read access to the project
 ### Setting up
 First run `sbt compile` to generate Scala sources for protobuf.
 
-If you have set `TEST_API_KEY_WRITE` run the Python file `scripts/createThreeDData.py` (you'll need to install cognite-sdk-python).
+If you have set `TEST_API_KEY_WRITE` run the Python files `scripts/createThreeDData.py` and `scripts/createFilesMetaData.py`
+(you'll need to install cognite-sdk-python and set the environment variables `PROJECT` and `TEST_API_KEY_WRITE`).
 This will upload a 3D model to your project which is used for testing.
 
 ### Running the tests
