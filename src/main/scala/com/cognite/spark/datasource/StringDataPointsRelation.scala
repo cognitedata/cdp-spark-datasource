@@ -17,9 +17,9 @@ class StringDataPointsRelation(
     suppliedSchema: Option[StructType])(override val sqlContext: SQLContext)
     extends DataPointsRelation(config, numPartitions, suppliedSchema)(sqlContext) {
   @transient override val datapointsCreated =
-    metricsSource.getOrCreateCounter(s"stringdatapoints.created")
+    config.metricsSource.getOrCreateCounter(s"stringdatapoints.created")
   @transient override val datapointsRead =
-    metricsSource.getOrCreateCounter(s"stringdatapoints.read")
+    config.metricsSource.getOrCreateCounter(s"stringdatapoints.read")
 
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)
   override def schema: StructType =

@@ -28,8 +28,9 @@ class NumericDataPointsRelation(
     suppliedSchema: Option[StructType])(override val sqlContext: SQLContext)
     extends DataPointsRelation(config, numPartitions, suppliedSchema)(sqlContext) {
   @transient override val datapointsCreated =
-    metricsSource.getOrCreateCounter(s"datapoints.created")
-  @transient override val datapointsRead = metricsSource.getOrCreateCounter(s"datapoints.read")
+    config.metricsSource.getOrCreateCounter(s"datapoints.created")
+  @transient override val datapointsRead =
+    config.metricsSource.getOrCreateCounter(s"datapoints.read")
 
   override def schema: StructType =
     suppliedSchema.getOrElse(

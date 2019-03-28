@@ -47,7 +47,8 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
     extends CdpRelation[AssetsItem](config, "assets")
     with InsertableRelation
     with CdpConnector {
-  @transient lazy private val assetsCreated = metricsSource.getOrCreateCounter(s"assets.created")
+  @transient lazy private val assetsCreated =
+    config.metricsSource.getOrCreateCounter(s"assets.created")
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {

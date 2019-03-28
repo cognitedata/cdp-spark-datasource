@@ -14,7 +14,6 @@ import com.softwaremill.sttp.circe._
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 import com.cognite.data.api.v2.DataPoints._
-import org.apache.spark.datasource.MetricsSource
 
 sealed case class DataPointsDataItems[A](items: Seq[A])
 
@@ -70,8 +69,6 @@ abstract class DataPointsRelation(
     with Serializable {
   import CdpConnector._
   @transient lazy private val maxRetries = config.maxRetries
-
-  @transient val metricsSource = new MetricsSource(config.metricsPrefix)
 
   val datapointsCreated: Counter
   val datapointsRead: Counter

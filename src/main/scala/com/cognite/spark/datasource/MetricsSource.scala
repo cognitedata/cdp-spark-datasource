@@ -1,34 +1,20 @@
 package org.apache.spark.datasource
 
 import scala.collection.JavaConverters._
-import java.util.concurrent.ConcurrentHashMap
 
 import com.codahale.metrics._
 import org.apache.spark._
 
-class MetricsSource(val metricNamespace: String) {
+class MetricsSource(val metricNamespace: String) extends Serializable {
+  def getOrElseUpdate(metricName: String, metric: Metric): Metric = {
+    val sources = SparkEnv.get.metricsSystem.getSourcesByName(metricNamespace)
+    val x = sources.map(_.metricRegistry.getCounters.asScala.get(metricName)).flatten
 
-  class LazyWrapper[T](wrapped: => T) {
-    lazy val value = wrapped
-  }
-
-  private def wrap[T](value: => T): LazyWrapper[T] =
-    new LazyWrapper[T](value)
-
-  private def unwrap[T](lazyWrapper: LazyWrapper[T]): T =
-    lazyWrapper.value
-
-  // Keeps track of all the Metric instances that are being published
-  val metricsMap = new ConcurrentHashMap[String, LazyWrapper[Metric]]().asScala
-
-  def getOrElseUpdate(metricName: String, metric: => Metric): Metric = {
-    val wrapped = wrap(metric)
-    metricsMap.putIfAbsent(metricName, wrapped) match {
-      case Some(wrappedMetric) => wrappedMetric.value
-      case None => {
-        registerMetricSource(metricName, wrapped.value)
-        wrapped.value
-      }
+    if (x.isEmpty) {
+      registerMetricSource(metricName, metric)
+      metric
+    } else {
+      x.head
     }
   }
 

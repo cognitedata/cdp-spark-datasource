@@ -1,5 +1,6 @@
 package com.cognite.spark.datasource
 
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.{
   BaseRelation,
@@ -17,7 +18,7 @@ case class RelationConfig(
     partitions: Int,
     maxRetries: Int,
     collectMetrics: Boolean,
-    metricsPrefix: String,
+    metricsSource: MetricsSource,
     baseUrl: String)
 
 class DefaultSource
@@ -78,7 +79,7 @@ class DefaultSource
       partitions,
       maxRetries,
       collectMetrics,
-      metricsPrefix,
+      new MetricsSource(metricsPrefix),
       baseUrl)
   }
 

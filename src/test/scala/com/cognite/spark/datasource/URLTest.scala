@@ -1,5 +1,6 @@
 package com.cognite.spark.datasource
 
+import org.apache.spark.datasource.MetricsSource
 import org.scalatest.FunSuite
 
 class URLTest extends FunSuite with SparkTest with CdpConnector {
@@ -8,7 +9,7 @@ class URLTest extends FunSuite with SparkTest with CdpConnector {
 
   test("verify path encoding of base url") {
     val dataPointsRelation = new NumericDataPointsRelation(RelationConfig("", "statøil", Some(100), None, 1, 10,
-      collectMetrics = false, "","https://api.cognitedata.com"), 1, None)(spark.sqlContext)
+      collectMetrics = false, new MetricsSource(""),"https://api.cognitedata.com"), 1, None)(spark.sqlContext)
     assert("https://api.cognitedata.com/api/0.5/projects/stat%C3%B8il/timeseries/data"
       == dataPointsRelation.baseDataPointsUrl("statøil").toString)
   }

@@ -87,8 +87,9 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     with InsertableRelation
     with PrunedFilteredScan
     with CdpConnector {
-  @transient lazy private val eventsCreated = metricsSource.getOrCreateCounter(s"events.created")
-  @transient lazy private val eventsRead = metricsSource.getOrCreateCounter(s"events.read")
+  @transient lazy private val eventsCreated =
+    config.metricsSource.getOrCreateCounter(s"events.created")
+  @transient lazy private val eventsRead = config.metricsSource.getOrCreateCounter(s"events.read")
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition(rows => {

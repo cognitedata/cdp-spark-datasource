@@ -7,13 +7,13 @@ import io.circe.syntax._
 import io.circe.generic.auto._
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
-
 import io.circe.parser.decode
+import org.apache.spark.datasource.MetricsSource
 
 case class Number(number: Int)
 
 class CdpRddTest extends FlatSpec with Matchers with SparkTest {
-  val defaultConfig = RelationConfig("apiKey", "project", None, None, 1, 2, collectMetrics = false, "", "https://api.cognitedata.com")
+  val defaultConfig = RelationConfig("apiKey", "project", None, None, 1, 2, collectMetrics = false, new MetricsSource(""), "https://api.cognitedata.com")
   class TestRdd(config: RelationConfig, nextCursorIterator: Iterator[(Option[String], Option[Int])])
     extends CdpRdd[Number](spark.sparkContext, (n: Number) => Row(n.number),
     uri"http://localhost/api",
