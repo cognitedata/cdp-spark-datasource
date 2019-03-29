@@ -53,11 +53,10 @@ class RawTableRelation(
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
 
-  @transient lazy private val metricsSource = new MetricsSource(config.metricsPrefix)
   @transient lazy private val rowsCreated =
-    metricsSource.getOrCreateCounter(s"raw.$database.$table.rows.created")
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.created")
   @transient lazy private val rowsRead =
-    metricsSource.getOrCreateCounter(s"raw.$database.$table.rows.read")
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.read")
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {

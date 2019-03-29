@@ -4,6 +4,7 @@ import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.cognite.data.api.v2.DataPoints._
 import com.softwaremill.sttp._
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
@@ -16,10 +17,10 @@ class StringDataPointsRelation(
     numPartitions: Int,
     suppliedSchema: Option[StructType])(override val sqlContext: SQLContext)
     extends DataPointsRelation(config, numPartitions, suppliedSchema)(sqlContext) {
-  @transient override val datapointsCreated =
-    metricsSource.getOrCreateCounter(s"stringdatapoints.created")
-  @transient override val datapointsRead =
-    metricsSource.getOrCreateCounter(s"stringdatapoints.read")
+  @transient lazy override val datapointsCreated =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"stringdatapoints.created")
+  @transient lazy override val datapointsRead =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"stringdatapoints.read")
 
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)
   override def schema: StructType =

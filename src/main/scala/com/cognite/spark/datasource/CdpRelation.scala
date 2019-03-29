@@ -1,9 +1,9 @@
 package com.cognite.spark.datasource
-import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
 import io.circe.generic.auto._
 import io.circe.generic.decoding.DerivedDecoder
 import com.softwaremill.sttp.Uri
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -25,8 +25,8 @@ abstract class CdpRelation[T: DerivedDecoder: TypeTag: ClassTag](
     extends BaseRelation
     with TableScan
     with Serializable {
-  @transient lazy val metricsSource = new MetricsSource(config.metricsPrefix)
-  @transient lazy private val itemsRead = metricsSource.getOrCreateCounter(s"$shortName.read")
+  @transient lazy private val itemsRead =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
 
   val sqlContext: SQLContext
 

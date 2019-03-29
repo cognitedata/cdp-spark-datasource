@@ -9,6 +9,7 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import io.circe.parser.decode
 import com.softwaremill.sttp._
 import SparkSchemaHelper._
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 
 import scala.concurrent.ExecutionContext
@@ -87,8 +88,10 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     with InsertableRelation
     with PrunedFilteredScan
     with CdpConnector {
-  @transient lazy private val eventsCreated = metricsSource.getOrCreateCounter(s"events.created")
-  @transient lazy private val eventsRead = metricsSource.getOrCreateCounter(s"events.read")
+  @transient lazy private val eventsCreated =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"events.created")
+  @transient lazy private val eventsRead =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"events.read")
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition(rows => {
