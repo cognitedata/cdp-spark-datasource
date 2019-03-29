@@ -13,7 +13,7 @@ import io.circe.parser.decode
 case class Number(number: Int)
 
 class CdpRddTest extends FlatSpec with Matchers with SparkTest {
-  val defaultConfig = RelationConfig("apiKey", "project", None, None, 1, 2, collectMetrics = false, "", "https://api.cognitedata.com")
+  val defaultConfig = RelationConfig("apiKey", "project", None, None, 1, 2, collectMetrics = false, "", "https://api.cognitedata.com", OnConflict.ABORT)
   class TestRdd(config: RelationConfig, nextCursorIterator: Iterator[(Option[String], Option[Int])])
     extends CdpRdd[Number](spark.sparkContext, (n: Number) => Row(n.number),
     uri"http://localhost/api",

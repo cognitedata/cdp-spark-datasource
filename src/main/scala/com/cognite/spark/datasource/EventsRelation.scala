@@ -93,6 +93,24 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   @transient lazy private val eventsRead =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"events.read")
 
+  override def insert(rows: Seq[Row]): IO[Unit] = {
+    val postEventItems = rows.map(r => fromRow[PostEventItem](r))
+    post(config.apiKey, baseEventsURL(config.project), postEventItems, config.maxRetries)
+  }
+
+  override def upsert(rows: Seq[Row]): IO[Unit] = postEvent(rows)
+
+  override def update(rows: Seq[Row]): IO[Unit] = {
+    val eventItems = rows.map(r => fromRow[EventItem](r))
+    val updateEventItems = eventItems.map(e => UpdateEventItem(e))
+
+    post(
+      config.apiKey,
+      uri"${baseEventsURL(config.project)}/update",
+      updateEventItems,
+      config.maxRetries)
+  }
+
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)

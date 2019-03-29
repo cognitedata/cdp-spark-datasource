@@ -127,6 +127,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
       .load()
     destinationDf.createTempView("destinationStringDatapoints")
 
+    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
     val e = intercept[SparkException] {
       spark.sql(s"""
                    |select "timeseries_does_not_exist" as name,
@@ -140,5 +141,6 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
     e.getCause shouldBe a[CdpApiException]
     val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
     assert(cdpApiException.code == 404)
+    spark.sparkContext.setLogLevel("WARN")
   }
 }

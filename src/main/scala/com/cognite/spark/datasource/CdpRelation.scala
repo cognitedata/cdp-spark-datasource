@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
+import cats.effect.IO
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
-import io.circe.generic.auto._
 import io.circe.generic.decoding.DerivedDecoder
 import com.softwaremill.sttp.Uri
 import org.apache.spark.datasource.MetricsSource
@@ -49,4 +49,21 @@ abstract class CdpRelation[T: DerivedDecoder: TypeTag: ClassTag](
   def listUrl(): Uri
 
   def cursors(): Iterator[(Option[String], Option[Int])] = NextCursorIterator(listUrl(), config)
+
+  def insert(rows: Seq[Row]): IO[Unit] =
+    throw new IllegalArgumentException(
+      s"""${shortName} does not support the "onconflict" option "abort".""")
+
+  def upsert(rows: Seq[Row]): IO[Unit] =
+    throw new IllegalArgumentException(
+      s"""${shortName} does not support the "onconflict" option "upsert".""")
+
+  def update(rows: Seq[Row]): IO[Unit] =
+    throw new IllegalArgumentException(
+      s"""${shortName} does not support the "onconflict" option "update".""")
+
+  def delete(rows: Seq[Row]): IO[Unit] =
+    throw new IllegalArgumentException(
+      s"""${shortName} does not support the "onconflict" option "delete".""")
+
 }
