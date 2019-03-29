@@ -40,8 +40,20 @@ case class PostTimeSeriesItem(
     assetId: Option[Long],
     isStep: Boolean,
     description: Option[String],
-    securityCategories: Option[Seq[Long]],
-    id: Long)
+    securityCategories: Option[Seq[Long]])
+object PostTimeSeriesItem {
+  def apply(timeSeriesItem: TimeSeriesItem): PostTimeSeriesItem =
+    new PostTimeSeriesItem(
+      timeSeriesItem.name,
+      timeSeriesItem.isString,
+      timeSeriesItem.metadata,
+      timeSeriesItem.unit,
+      timeSeriesItem.assetId,
+      timeSeriesItem.isStep,
+      timeSeriesItem.description,
+      timeSeriesItem.securityCategories
+    )
+}
 
 case class UpdateTimeSeriesItem(
     id: Long,
@@ -55,17 +67,17 @@ case class UpdateTimeSeriesItem(
     isStep: Option[Setter[Boolean]]
 )
 object UpdateTimeSeriesItem {
-  def apply(postTimeSeriesItem: PostTimeSeriesItem): UpdateTimeSeriesItem =
+  def apply(timeSeriesItem: TimeSeriesItem): UpdateTimeSeriesItem =
     new UpdateTimeSeriesItem(
-      postTimeSeriesItem.id,
-      Setter[String](Some(postTimeSeriesItem.name)),
-      Setter[Map[String, String]](postTimeSeriesItem.metadata),
-      Setter[String](postTimeSeriesItem.unit),
-      Setter[Long](postTimeSeriesItem.assetId),
-      Setter[String](postTimeSeriesItem.description),
-      securityCategories = postTimeSeriesItem.securityCategories.map(a => Map("set" -> Option(a))),
-      Setter[Boolean](Some(postTimeSeriesItem.isString)),
-      Setter[Boolean](Some(postTimeSeriesItem.isStep))
+      timeSeriesItem.id,
+      Setter[String](Some(timeSeriesItem.name)),
+      Setter[Map[String, String]](timeSeriesItem.metadata),
+      Setter[String](timeSeriesItem.unit),
+      Setter[Long](timeSeriesItem.assetId),
+      Setter[String](timeSeriesItem.description),
+      securityCategories = timeSeriesItem.securityCategories.map(a => Map("set" -> Option(a))),
+      Setter[Boolean](Some(timeSeriesItem.isString)),
+      Setter[Boolean](Some(timeSeriesItem.isStep))
     )
 }
 
@@ -77,19 +89,43 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   @transient lazy private val timeSeriesCreated =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"timeseries.created")
 
+  override def insert(rows: Seq[Row]): IO[Unit] = {
+    val postTimeSeriesItems = rows.map { r =>
+      val postTimeSeriesItem = fromRow[PostTimeSeriesItem](r)
+      postTimeSeriesItem.copy(metadata = filterMetadata(postTimeSeriesItem.metadata))
+    }
+    post(config.apiKey, baseTimeSeriesUrl(config.project), postTimeSeriesItems, config.maxRetries)
+  }
+
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
+    val timeSeriesItems = rows.map(r => fromRow[TimeSeriesItem](r))
+    updateOrPostTimeSeries(timeSeriesItems)
+  }
+
+  override def update(rows: Seq[Row]): IO[Unit] = {
+    val timeSeriesItems = rows.map(r => fromRow[TimeSeriesItem](r))
+    val updateTimeSeriesItems = timeSeriesItems.map(t => UpdateTimeSeriesItem(t))
+
+    post(
+      config.apiKey,
+      uri"${baseTimeSeriesUrl(config.project)}/update",
+      updateTimeSeriesItems,
+      config.maxRetries)
+  }
+
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val timeSeriesItems = rows.map { r =>
-        val postTimeSeriesItem = fromRow[PostTimeSeriesItem](r)
-        postTimeSeriesItem.copy(metadata = filterMetadata(postTimeSeriesItem.metadata))
+        val timeSeriesItem = fromRow[TimeSeriesItem](r)
+        timeSeriesItem.copy(metadata = filterMetadata(timeSeriesItem.metadata))
       }
       val batches =
         timeSeriesItems.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.parTraverse(updateOrPostTimeSeries).unsafeRunSync()
     })
 
-  private def updateOrPostTimeSeries(timeSeriesItems: Seq[PostTimeSeriesItem]): IO[Unit] = {
+  private def updateOrPostTimeSeries(timeSeriesItems: Seq[TimeSeriesItem]): IO[Unit] = {
     val updateTimeSeriesItems =
       timeSeriesItems.map(i => UpdateTimeSeriesItem(i))
     val updateTimeSeriesUrl =
@@ -110,7 +146,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   def resolveConflict(
-      timeSeriesItems: Seq[PostTimeSeriesItem],
+      timeSeriesItems: Seq[TimeSeriesItem],
       timeSeriesUrl: Uri,
       updateTimeSeriesItems: Seq[UpdateTimeSeriesItem],
       updateTimeSeriesUrl: Uri,
@@ -126,14 +162,15 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
 
     val timeSeriesToCreate = timeSeriesItems.filter(p => notFound.contains(p.id))
+    val postTimeSeriesToCreate = timeSeriesToCreate.map(t => PostTimeSeriesItem(t))
     val postItems = if (timeSeriesToCreate.isEmpty) {
       IO.unit
     } else {
-      post(config.apiKey, timeSeriesUrl, timeSeriesToCreate, config.maxRetries)
+      post(config.apiKey, timeSeriesUrl, postTimeSeriesToCreate, config.maxRetries)
         .flatTap { _ =>
           IO {
             if (config.collectMetrics) {
-              timeSeriesCreated.inc(timeSeriesToCreate.length)
+              timeSeriesCreated.inc(postTimeSeriesToCreate.length)
             }
           }
         }

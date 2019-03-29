@@ -1,13 +1,18 @@
 package com.cognite.spark.datasource
 
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import org.apache.spark.sql.sources.{
   BaseRelation,
+  CreatableRelationProvider,
   DataSourceRegister,
   RelationProvider,
   SchemaRelationProvider
 }
 import org.apache.spark.sql.types.StructType
+import cats.effect.{ContextShift, IO}
+import cats.implicits._
+
+import scala.concurrent.ExecutionContext
 
 case class RelationConfig(
     apiKey: String,
@@ -18,10 +23,17 @@ case class RelationConfig(
     maxRetries: Int,
     collectMetrics: Boolean,
     metricsPrefix: String,
-    baseUrl: String)
+    baseUrl: String,
+    onConflict: OnConflict.Value)
+
+object OnConflict extends Enumeration {
+  type Mode = Value
+  val ABORT, UPDATE, UPSERT, DELETE = Value
+}
 
 class DefaultSource
     extends RelationProvider
+    with CreatableRelationProvider
     with SchemaRelationProvider
     with DataSourceRegister
     with CdpConnector {
@@ -70,6 +82,8 @@ class DefaultSource
       case None => ""
     }
     val collectMetrics = toBoolean(parameters, "collectMetrics")
+    val saveMode =
+      OnConflict.withName(parameters.getOrElse("onconflict", "ABORT").toUpperCase())
     RelationConfig(
       apiKey,
       project,
@@ -79,7 +93,8 @@ class DefaultSource
       maxRetries,
       collectMetrics,
       metricsPrefix,
-      baseUrl)
+      baseUrl,
+      saveMode)
   }
 
   // scalastyle:off cyclomatic.complexity method.length
@@ -158,5 +173,41 @@ class DefaultSource
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
-  // scalastyle:on cyclomatic.complexity method.length
+
+  override def createRelation(
+      sqlContext: SQLContext,
+      mode: SaveMode,
+      parameters: Map[String, String],
+      data: DataFrame): BaseRelation = {
+    val config = parseRelationConfig(parameters)
+    val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
+
+    val relation = resourceType match {
+      case "events" =>
+        new EventsRelation(config)(sqlContext) //.EventsInsertion(config)
+      case "timeseries" =>
+        new TimeSeriesRelation(config)(sqlContext)
+      case _ => sys.error(s"Resource type '$resourceType does not support save()")
+    }
+
+    data.foreachPartition(rows => {
+      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+      val batches = rows.grouped(Constants.DefaultBatchSize).toVector
+
+      config.onConflict match {
+        case OnConflict.ABORT =>
+          batches.parTraverse(relation.insert).unsafeRunSync()
+
+        case OnConflict.UPSERT =>
+          batches.parTraverse(relation.upsert).unsafeRunSync()
+
+        case OnConflict.UPDATE =>
+          batches.parTraverse(relation.update).unsafeRunSync()
+
+        case OnConflict.DELETE =>
+          batches.parTraverse(relation.delete).unsafeRunSync()
+      }
+    })
+    relation
+  }
 }
