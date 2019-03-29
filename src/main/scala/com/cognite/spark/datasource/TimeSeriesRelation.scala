@@ -9,6 +9,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import SparkSchemaHelper._
+import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 
@@ -74,7 +75,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with CdpConnector {
 
   @transient lazy private val timeSeriesCreated =
-    metricsSource.getOrCreateCounter(s"timeseries.created")
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"timeseries.created")
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {

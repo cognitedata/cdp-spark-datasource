@@ -11,6 +11,7 @@ import org.apache.spark.sql.sources.InsertableRelation
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import com.cognite.spark.datasource.SparkSchemaHelper._
+import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 
@@ -47,7 +48,8 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
     extends CdpRelation[AssetsItem](config, "assets")
     with InsertableRelation
     with CdpConnector {
-  @transient lazy private val assetsCreated = metricsSource.getOrCreateCounter(s"assets.created")
+  @transient lazy private val assetsCreated =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"assets.created")
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition(rows => {

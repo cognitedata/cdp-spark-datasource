@@ -9,6 +9,7 @@ import com.cognite.data.api.v2.DataPoints.{
   NumericTimeseriesData
 }
 import com.softwaremill.sttp._
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
@@ -27,9 +28,10 @@ class NumericDataPointsRelation(
     numPartitions: Int,
     suppliedSchema: Option[StructType])(override val sqlContext: SQLContext)
     extends DataPointsRelation(config, numPartitions, suppliedSchema)(sqlContext) {
-  @transient override val datapointsCreated =
-    metricsSource.getOrCreateCounter(s"datapoints.created")
-  @transient override val datapointsRead = metricsSource.getOrCreateCounter(s"datapoints.read")
+  @transient lazy override val datapointsCreated =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"datapoints.created")
+  @transient lazy override val datapointsRead =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"datapoints.read")
 
   override def schema: StructType =
     suppliedSchema.getOrElse(
