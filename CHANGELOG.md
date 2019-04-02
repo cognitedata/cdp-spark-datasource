@@ -1,3 +1,12 @@
+# 0.4.7
+
+## Fixes
+* Fix upserts on time series metadata with security categories.
+
+* Improved error messages when upserts fail.
+
+* Avoid registering the same Spark metric name more than once.
+
 # 0.4.6
 
 ## Fixes
