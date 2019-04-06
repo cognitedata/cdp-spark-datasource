@@ -18,7 +18,7 @@ import scala.concurrent.ExecutionContext
 case class PostAssetsDataItems[A](items: Seq[A])
 
 case class AssetsItem(
-    id: Long,
+    id: Option[Long],
     path: Option[Seq[Long]],
     depth: Option[Long],
     name: Option[String],
@@ -32,16 +32,11 @@ case class AssetsItem(
 
 case class PostAssetsItem(
     name: String,
-    refId: Option[String],
-    parentName: Option[String],
-    parentRefId: Option[String],
     parentId: Option[Long],
     description: Option[String],
     source: Option[String],
     sourceId: Option[String],
-    metadata: Option[Map[String, String]],
-    createdTime: Long,
-    lastUpdatedTime: Long
+    metadata: Option[Map[String, String]]
 )
 
 class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlContext: SQLContext)
