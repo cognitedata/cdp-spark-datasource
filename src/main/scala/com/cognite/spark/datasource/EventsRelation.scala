@@ -25,8 +25,8 @@ case class EventItem(
     assetIds: Option[Seq[Long]],
     source: Option[String],
     sourceId: Option[String],
-    createdTime: Long,
-    lastUpdatedTime: Long)
+    createdTime: Option[Long],
+    lastUpdatedTime: Option[Long])
 
 case class PostEventItem(
     startTime: Option[Long],
