@@ -43,7 +43,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
          |'' as assetId,
          |isStep,
          |cast(array() as array<long>) as securityCategories,
-         |id+1 as id,
+         |null as id,
          |createdTime,
          |lastUpdatedTime
          |from sourceTimeSeries
