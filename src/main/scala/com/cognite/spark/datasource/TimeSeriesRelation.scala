@@ -28,7 +28,7 @@ case class TimeSeriesItem(
     // Change this to Option[Vector[Long]] if we start seeing this exception:
     // java.io.NotSerializableException: scala.Array$$anon$2
     securityCategories: Option[Seq[Long]],
-    id: Long,
+    id: Option[Long],
     createdTime: Long,
     lastUpdatedTime: Long)
 
@@ -69,7 +69,7 @@ case class UpdateTimeSeriesItem(
 object UpdateTimeSeriesItem {
   def apply(timeSeriesItem: TimeSeriesItem): UpdateTimeSeriesItem =
     new UpdateTimeSeriesItem(
-      timeSeriesItem.id,
+      timeSeriesItem.id.get,
       Setter[String](Some(timeSeriesItem.name)),
       Setter[Map[String, String]](timeSeriesItem.metadata),
       Setter[String](timeSeriesItem.unit),
@@ -125,24 +125,50 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       batches.parTraverse(updateOrPostTimeSeries).unsafeRunSync()
     })
 
+  private val updateTimeSeriesUrl =
+    uri"${baseUrl(config.project, "0.6", config.baseUrl)}/timeseries/update"
+
   private def updateOrPostTimeSeries(timeSeriesItems: Seq[TimeSeriesItem]): IO[Unit] = {
+    implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+
     val updateTimeSeriesItems =
-      timeSeriesItems.map(i => UpdateTimeSeriesItem(i))
-    val updateTimeSeriesUrl =
-      uri"${baseUrl(config.project, "0.6", config.baseUrl)}/timeseries/update"
-    postOr(config.apiKey, updateTimeSeriesUrl, updateTimeSeriesItems, config.maxRetries) {
-      case response @ Response(Right(body), StatusCodes.BadRequest, _, _, _) =>
-        decode[Error[TimeSeriesConflict]](body) match {
-          case Right(conflict) =>
-            resolveConflict(
-              timeSeriesItems,
-              baseTimeSeriesUrl(config.project),
-              updateTimeSeriesItems,
-              updateTimeSeriesUrl,
-              conflict.error)
-          case Left(_) => IO.raiseError(onError(updateTimeSeriesUrl, response))
+      timeSeriesItems.filter(_.id.nonEmpty).map(i => UpdateTimeSeriesItem(i))
+    val postTimeSeriesToCreate =
+      timeSeriesItems.filter(_.id.isEmpty).map(i => PostTimeSeriesItem(i))
+    val postItems = if (postTimeSeriesToCreate.isEmpty) {
+      IO.unit
+    } else {
+      post(
+        config.apiKey,
+        baseTimeSeriesUrl(config.project),
+        postTimeSeriesToCreate,
+        config.maxRetries)
+        .flatTap { _ =>
+          IO {
+            if (config.collectMetrics) {
+              timeSeriesCreated.inc(postTimeSeriesToCreate.length)
+            }
+          }
         }
     }
+    val updateItems = if (updateTimeSeriesItems.isEmpty) {
+      IO.unit
+    } else {
+      postOr(config.apiKey, updateTimeSeriesUrl, updateTimeSeriesItems, config.maxRetries) {
+        case response @ Response(Right(body), StatusCodes.BadRequest, _, _, _) =>
+          decode[Error[TimeSeriesConflict]](body) match {
+            case Right(conflict) =>
+              resolveConflict(
+                timeSeriesItems,
+                baseTimeSeriesUrl(config.project),
+                updateTimeSeriesItems,
+                updateTimeSeriesUrl,
+                conflict.error)
+            case Left(_) => IO.raiseError(onError(updateTimeSeriesUrl, response))
+          }
+      }
+    }
+    (updateItems, postItems).parMapN((_, _) => ())
   }
 
   def resolveConflict(
@@ -161,7 +187,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       post(config.apiKey, updateTimeSeriesUrl, timeSeriesToUpdate, config.maxRetries)
     }
 
-    val timeSeriesToCreate = timeSeriesItems.filter(p => notFound.contains(p.id))
+    val timeSeriesToCreate = timeSeriesItems.filter(p => p.id.exists(notFound.contains(_)))
     val postTimeSeriesToCreate = timeSeriesToCreate.map(t => PostTimeSeriesItem(t))
     val postItems = if (timeSeriesToCreate.isEmpty) {
       IO.unit
