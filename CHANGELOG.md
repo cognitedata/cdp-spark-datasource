@@ -1,3 +1,11 @@
+# 0.4.8
+
+## Fixes
+* Allow `createdTime` and `lastUpdatedTime` to be "null" on inserts.
+
+* Allow time series id to be null on insert, and always attempt to create the time series
+if id is null.
+
 # 0.4.7
 
 ## Fixes
