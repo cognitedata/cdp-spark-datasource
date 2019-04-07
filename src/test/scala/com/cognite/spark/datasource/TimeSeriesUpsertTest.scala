@@ -44,8 +44,8 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
          |isStep,
          |cast(array() as array<long>) as securityCategories,
          |null as id,
-         |createdTime,
-         |lastUpdatedTime
+         |null as createdTime,
+         |null as lastUpdatedTime
          |from sourceTimeSeries
          |where unit = 'publicdata'
      """.stripMargin)
@@ -71,7 +71,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
          |isStep,
          |securityCategories,
          |id,
-         |createdTime,
+         |null as createdTime,
          |lastUpdatedTime
          |from sourceTimeSeries
          |where description = $initialDescription

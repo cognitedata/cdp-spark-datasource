@@ -29,8 +29,8 @@ case class TimeSeriesItem(
     // java.io.NotSerializableException: scala.Array$$anon$2
     securityCategories: Option[Seq[Long]],
     id: Option[Long],
-    createdTime: Long,
-    lastUpdatedTime: Long)
+    createdTime: Option[Long],
+    lastUpdatedTime: Option[Long])
 
 case class PostTimeSeriesItem(
     name: String,

@@ -27,8 +27,8 @@ case class AssetsItem(
     metadata: Option[Map[String, String]],
     source: Option[String],
     sourceId: Option[String],
-    createdTime: Long,
-    lastUpdatedTime: Long)
+    createdTime: Option[Long],
+    lastUpdatedTime: Option[Long])
 
 case class PostAssetsItem(
     name: String,

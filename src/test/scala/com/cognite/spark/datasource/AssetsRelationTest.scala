@@ -97,7 +97,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
          |'$assetsTestSource' as source,
          |id as sourceId,
          |createdTime,
-         |lastUpdatedTime
+         |null as lastUpdatedTime
          |from source_assets where id = 2675073401706610
       """.stripMargin)
       .write
