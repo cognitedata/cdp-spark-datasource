@@ -1,7 +1,13 @@
 package com.cognite.spark.datasource
 
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
-import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, DataSourceRegister, RelationProvider, SchemaRelationProvider}
+import org.apache.spark.sql.sources.{
+  BaseRelation,
+  CreatableRelationProvider,
+  DataSourceRegister,
+  RelationProvider,
+  SchemaRelationProvider
+}
 import org.apache.spark.sql.types.StructType
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
