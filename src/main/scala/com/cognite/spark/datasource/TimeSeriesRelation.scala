@@ -114,7 +114,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
-    df.foreachPartition(rows => {
+    df.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val timeSeriesItems = rows.map { r =>
         val timeSeriesItem = fromRow[TimeSeriesItem](r)
@@ -123,6 +123,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val batches =
         timeSeriesItems.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.parTraverse(updateOrPostTimeSeries).unsafeRunSync()
+      ()
     })
 
   private val updateTimeSeriesUrl =

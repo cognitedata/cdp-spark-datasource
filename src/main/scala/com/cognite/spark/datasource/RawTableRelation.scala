@@ -108,10 +108,11 @@ class RawTableRelation(
     }
 
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df)
-    dfWithUnRenamedKeyColumns.foreachPartition(rows => {
+    dfWithUnRenamedKeyColumns.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
       batches.parTraverse(postRows(columnNames, _)).unsafeRunSync()
+      ()
     })
   }
 
