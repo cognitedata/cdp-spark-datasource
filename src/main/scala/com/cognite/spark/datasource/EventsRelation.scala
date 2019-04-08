@@ -112,10 +112,11 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
-    data.foreachPartition(rows => {
+    data.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.parTraverse(postEvent).unsafeRunSync()
+      ()
     })
 
   def postEvent(rows: Seq[Row]): IO[Unit] = {

@@ -1,13 +1,7 @@
 package com.cognite.spark.datasource
 
-import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
-import org.apache.spark.sql.sources.{
-  BaseRelation,
-  CreatableRelationProvider,
-  DataSourceRegister,
-  RelationProvider,
-  SchemaRelationProvider
-}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
+import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, DataSourceRegister, RelationProvider, SchemaRelationProvider}
 import org.apache.spark.sql.types.StructType
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
@@ -190,7 +184,7 @@ class DefaultSource
       case _ => sys.error(s"Resource type '$resourceType does not support save()")
     }
 
-    data.foreachPartition(rows => {
+    data.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(Constants.DefaultBatchSize).toVector
 
@@ -207,6 +201,8 @@ class DefaultSource
         case OnConflict.DELETE =>
           batches.parTraverse(relation.delete).unsafeRunSync()
       }
+
+      ()
     })
     relation
   }

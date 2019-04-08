@@ -51,7 +51,7 @@ class StringDataPointsRelation(
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
-    df.foreachPartition(rows => {
+    df.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches =
         rows.grouped(config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)).toVector
@@ -69,6 +69,7 @@ class StringDataPointsRelation(
           postTimeSeries(timeSeriesData.addAllNamedTimeseriesData(namedTimeseriesData))
         })
         .unsafeRunSync
+      ()
     })
 
   private val requiredColumnToIndex =
