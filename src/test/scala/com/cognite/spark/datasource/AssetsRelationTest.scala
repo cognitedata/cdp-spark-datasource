@@ -120,7 +120,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       maxRetries = 10)
 
     val assetIdsChunks = assets.flatMap(_.id).grouped(1000)
-    val AssetIdNotFound = "^Asset ids not found.+".r
+    val AssetIdNotFound = "^(Asset ids not found).+".r
     for (assetIds <- assetIdsChunks) {
       try {
         post(
