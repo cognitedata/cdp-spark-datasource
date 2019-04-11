@@ -9,22 +9,19 @@ import org.apache.spark.sql.Row
 
 class NumericDataPointsRdd(
     @transient override val sparkContext: SparkContext,
-    toRow: NumericDatapoint => Row,
+    timestampLimits: Map[String, (Long, Long)],
+    toRow: (String, NumericDatapoint) => Row,
     numPartitions: Int,
     aggregation: Option[AggregationFilter],
     granularity: Option[GranularityFilter],
-    minTimestamp: Long,
-    maxTimestamp: Long,
     getSinglePartitionBaseUri: Uri,
     config: RelationConfig)
     extends DataPointsRdd(sparkContext, getSinglePartitionBaseUri, config) {
   private val granularityMilliseconds = granularityToMilliseconds(granularity)
   private val unitMilliseconds = granularityToMilliseconds(
     granularity.map(_.copy(amount = Some(1))))
-  override val timestampLimits: (Long, Long) =
-    (floorToNearest(minTimestamp, unitMilliseconds), ceilToNearest(maxTimestamp, unitMilliseconds))
 
-  override def getDataPointRows(uri: Uri, start: Long): (Seq[Row], Option[Long]) = {
+  override def getDataPointRows(name: String, uri: Uri, start: Long): (Seq[Row], Option[Long]) = {
     val dataPoints = aggregation match {
       case Some(aggregationFilter) =>
         val g =
@@ -52,7 +49,9 @@ class NumericDataPointsRdd(
     if (dataPoints.lastOption.fold(true)(_.timestamp < start)) {
       (Seq.empty, None)
     } else {
-      (dataPoints.map(toRow), dataPoints.lastOption.map(_.timestamp + granularityMilliseconds))
+      (
+        dataPoints.map(toRow(name, _)),
+        dataPoints.lastOption.map(_.timestamp + granularityMilliseconds))
     }
   }
 
@@ -100,13 +99,23 @@ class NumericDataPointsRdd(
     (base * math.ceil(x.toDouble / base)).toLong
 
   override def getPartitions: Array[Partition] =
-    DataPointsRdd
-      .intervalPartitions(
-        timestampLimits._1,
-        timestampLimits._2,
-        granularityMilliseconds,
-        numPartitions)
-      .asInstanceOf[Array[Partition]]
+    timestampLimits
+      .flatMap {
+        case (name, (lowerLimit, upperLimit)) =>
+          DataPointsRdd
+            .intervalPartitions(
+              name,
+              scala.math.max(
+                floorToNearest(lowerLimit, unitMilliseconds) - aggregation.map(_ => 0).getOrElse(1),
+                0),
+              ceilToNearest(upperLimit, unitMilliseconds) + aggregation.map(_ => 0).getOrElse(1),
+              granularityMilliseconds,
+              numPartitions
+            )
+      }
+      .zipWithIndex
+      .map { case (p, idx) => p.copy(index = idx) }
+      .toArray
 }
 
 object NumericDataPointsRdd {
