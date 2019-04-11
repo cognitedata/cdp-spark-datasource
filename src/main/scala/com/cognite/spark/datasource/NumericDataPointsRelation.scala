@@ -48,9 +48,8 @@ class NumericDataPointsRelation(
     val filterTimestampLimits = filtersToTimestampLimits(filters)
     val (aggregations, granularities) = getAggregationSettings(filters)
     val names = filters.flatMap(getNameFilters).map(_.name).distinct
-    val timestampLimits = getTimestampLimits(names, filterTimestampLimits)
+    val timestampLimits = getTimestampLimits(names.toVector, filterTimestampLimits)
     val rdds = for {
-      name <- names
       aggregation <- if (aggregations.isEmpty) { Array(None) } else { aggregations }
       granularity <- if (granularities.isEmpty) { Array(None) } else { granularities }
     } yield {
@@ -63,17 +62,15 @@ class NumericDataPointsRelation(
         .getOrElse(config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize))
       new NumericDataPointsRdd(
         sqlContext.sparkContext,
+        timestampLimits,
         toRow(
-          name,
           aggregation.map(_.aggregation),
           granularity.map(g => s"${g.amount.getOrElse("")}${g.unit}"),
           requiredColumns),
         numPartitions,
         aggregation,
         granularity,
-        scala.math.max(timestampLimits(name)._1 - aggregation.map(_ => 0).getOrElse(1), 0),
-        timestampLimits(name)._2 + aggregation.map(_ => 0).getOrElse(1),
-        uri"${baseDataPointsUrl(config.project)}/$name",
+        uri"${baseDataPointsUrl(config.project)}",
         config.copy(batchSize = Some(aggregationBatchSize))
       )
     }
@@ -126,10 +123,9 @@ class NumericDataPointsRelation(
   }
 
   private def toRow(
-      name: String,
       aggregation: Option[String],
       granularity: Option[String],
-      requiredColumns: Array[String])(dataPoint: NumericDatapoint): Row = {
+      requiredColumns: Array[String])(name: String, dataPoint: NumericDatapoint): Row = {
     if (config.collectMetrics) {
       datapointsRead.inc()
     }

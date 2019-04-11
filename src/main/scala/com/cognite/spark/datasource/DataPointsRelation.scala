@@ -112,7 +112,7 @@ abstract class DataPointsRelation(
     }
   // scalastyle:on cyclomatic.complexity
 
-  private def getLatestDataPointTimestamp(timeSeriesName: String): Long = {
+  private def getLatestDataPointTimestamp(timeSeriesName: String): IO[Long] = {
     val url =
       uri"${config.baseUrl}/api/0.5/projects/${config.project}/timeseries/latest/$timeSeriesName"
     val getLatest = sttp
@@ -122,37 +122,41 @@ abstract class DataPointsRelation(
       .get(url)
       .send()
     retryWithBackoff(getLatest, Constants.DefaultInitialRetryDelay, maxRetries)
-      .unsafeRunSync()
-      .unsafeBody
-      .toOption
-      .flatMap(_.data.items.headOption)
-      .map(_.timestamp)
-      .getOrElse(System.currentTimeMillis())
+      .map { response =>
+        response.unsafeBody.toOption
+          .flatMap(_.data.items.headOption)
+          .map(_.timestamp)
+          .getOrElse(System.currentTimeMillis())
+      }
   }
 
-  private def getFirstDataPointTimestamp(timeSeriesName: String): Long =
+  private def getFirstDataPointTimestamp(timeSeriesName: String): IO[Long] =
     getJson[DataItemsWithCursor[DataPointsTimestampItem]](
       config.auth,
       uri"${baseDataPointsUrl(config.project)}/$timeSeriesName"
         .param("limit", "1")
         .param("start", "0"),
       config.maxRetries)
-      .unsafeRunSync()
-      .data
-      .items
-      .headOption
-      .map(_.datapoints.headOption.map(_.timestamp).getOrElse(0L))
-      .getOrElse(0L)
+      .map { latest =>
+        latest.data.items.headOption
+          .map(_.datapoints.headOption.map(_.timestamp).getOrElse(0L))
+          .getOrElse(0L)
+      }
 
   def getTimestampLimits(
-      timeSeriesNames: Seq[String],
-      hardLimits: (Option[Long], Option[Long])): Map[String, (Long, Long)] =
-    timeSeriesNames.map { name =>
-      name -> (
-        hardLimits._1.getOrElse(getFirstDataPointTimestamp(name)),
-        hardLimits._2.getOrElse(getLatestDataPointTimestamp(name))
-      )
-    }.toMap
+      timeSeriesNames: Vector[String],
+      hardLimits: (Option[Long], Option[Long])): Map[String, (Long, Long)] = {
+    implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+    timeSeriesNames
+      .parTraverse { name =>
+        (
+          hardLimits._1.map(IO.pure).getOrElse(getFirstDataPointTimestamp(name)),
+          hardLimits._2.map(IO.pure).getOrElse(getLatestDataPointTimestamp(name))
+        ).parMapN((lower, upper) => name -> (lower, upper))
+      }
+      .map(_.toMap)
+      .unsafeRunSync()
+  }
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 

@@ -6,7 +6,8 @@ import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-case class DataPointsRddPartition(startTime: Long, endTime: Long, index: Int) extends Partition
+case class DataPointsRddPartition(name: String, startTime: Long, endTime: Long, index: Int)
+    extends Partition
 
 abstract case class DataPointsRdd(
     @transient override val sparkContext: SparkContext,
@@ -14,20 +15,19 @@ abstract case class DataPointsRdd(
     config: RelationConfig)
     extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
-  val timestampLimits: (Long, Long)
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)
 
-  def getDataPointRows(uri: Uri, start: Long): (Seq[Row], Option[Long])
+  def getDataPointRows(name: String, uri: Uri, start: Long): (Seq[Row], Option[Long])
 
-  private def getRows(minTimestamp: Long, maxTimestamp: Long): Iterator[Row] =
+  private def getRows(name: String, minTimestamp: Long, maxTimestamp: Long): Iterator[Row] =
     Batch.withCursor(batchSize, config.limit) { (thisBatchSize, cursor: Option[Long]) =>
       val start = cursor.getOrElse(minTimestamp)
       if (start < maxTimestamp) {
-        val uri = getSinglePartitionBaseUri
+        val uri = uri"$getSinglePartitionBaseUri/$name"
           .param("start", start.toString)
           .param("end", maxTimestamp.toString)
           .param("limit", thisBatchSize.toString)
-        getDataPointRows(uri, start)
+        getDataPointRows(name, uri, start)
       } else {
         (Seq.empty, None)
       }
@@ -35,7 +35,7 @@ abstract case class DataPointsRdd(
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[DataPointsRddPartition]
-    val rows = getRows(split.startTime, split.endTime)
+    val rows = getRows(split.name, split.startTime, split.endTime)
 
     new InterruptibleIterator(context, rows)
   }
@@ -48,6 +48,7 @@ object DataPointsRdd {
   // This is based on the same logic used in the Cognite Python SDK:
   // https://github.com/cognitedata/cognite-sdk-python/blob/8028c80fd5df4415365ce5e50ccae04a5acb0251/cognite/client/_utils.py#L153
   def intervalPartitions(
+      name: String,
       start: Long,
       stop: Long,
       granularityMilliseconds: Long,
@@ -60,9 +61,9 @@ object DataPointsRdd {
       .map { index =>
         val beginning = start + stepSize * index
         val end = beginning + stepSize
-        DataPointsRddPartition(beginning, if (index == steps - 1) { math.max(end, stop) } else {
-          end
-        }, index)
+        // make sure we read all the way to "stop" in the last partition.
+        val partitionEnd = if (index == steps - 1) { math.max(end, stop) } else { end }
+        DataPointsRddPartition(name, beginning, partitionEnd, index)
       }
       .toArray
   }

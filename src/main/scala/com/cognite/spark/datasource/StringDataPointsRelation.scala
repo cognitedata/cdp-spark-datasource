@@ -35,19 +35,15 @@ class StringDataPointsRelation(
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val filterTimestampLimits = filtersToTimestampLimits(filters)
     val names = filters.flatMap(getNameFilters).map(_.name).distinct
-    val timestampLimits = getTimestampLimits(names, filterTimestampLimits)
-    val rdds = names.map { name =>
-      new StringDataPointsRdd(
-        sqlContext.sparkContext,
-        toRow(name, requiredColumns),
-        numPartitions,
-        scala.math.max(timestampLimits(name)._1 - 1, 0),
-        timestampLimits(name)._2 + 1,
-        uri"${baseDataPointsUrl(config.project)}/$name",
-        config.copy(batchSize = Some(batchSize))
-      )
-    }
-    rdds.foldLeft(sqlContext.sparkContext.emptyRDD[Row])((a, b) => a.union(b))
+    val timestampLimits = getTimestampLimits(names.toVector, filterTimestampLimits)
+    new StringDataPointsRdd(
+      sqlContext.sparkContext,
+      timestampLimits,
+      toRow(requiredColumns),
+      numPartitions,
+      uri"${baseDataPointsUrl(config.project)}",
+      config.copy(batchSize = Some(batchSize))
+    )
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
@@ -91,8 +87,8 @@ class StringDataPointsRelation(
         }
   }
 
-  private def toRow(name: String, requiredColumns: Array[String])(
-      dataPoint: StringDatapoint): Row = {
+  private def toRow(
+      requiredColumns: Array[String])(name: String, dataPoint: StringDatapoint): Row = {
     if (config.collectMetrics) {
       datapointsRead.inc()
     }
