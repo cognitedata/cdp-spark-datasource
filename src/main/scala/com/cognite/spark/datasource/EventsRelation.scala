@@ -82,6 +82,7 @@ object UpdateEventItem {
 }
 case class SourceWithResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
+case class EventFilter(`type`: Option[String], subtype: Option[String])
 
 class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLContext)
     extends CdpRelation[EventItem](config, "events")
@@ -219,30 +220,17 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     val types = filters.flatMap(getFilter(_, "type")).map(_.column)
     val subTypes = filters.flatMap(getFilter(_, "subtype")).map(_.column)
 
-    val params = Map("type" -> types.toString, "subtype" -> subTypes.toString)
-
-    val rdds = for {
+    val eventFilters = for {
       eventType <- if (types.isEmpty) { Array(None) } else { types.map(Some(_)) }
       eventSubType <- if (subTypes.isEmpty) { Array(None) } else { subTypes.map(Some(_)) }
-    } yield {
-      val urlWithType = eventType.fold(listUrl())(listUrl().param("type", _))
-      val urlWithTypeAndSubType = eventSubType.fold(urlWithType)(urlWithType.param("subtype", _))
+    } yield EventFilter(eventType, eventSubType)
 
-      CdpRdd[EventItem](
-        sqlContext.sparkContext,
-        (e: EventItem) => {
-          if (config.collectMetrics) {
-            eventsRead.inc()
-          }
-          toRow(e, requiredColumns)
-        },
-        urlWithTypeAndSubType,
-        config,
-        cursors()
-      )
-    }
-
-    rdds.foldLeft(sqlContext.sparkContext.emptyRDD[Row])((a, b) => a.union(b))
+    EventsRdd(sqlContext.sparkContext, listUrl(), (e: EventItem) => {
+      if (config.collectMetrics) {
+        eventsRead.inc()
+      }
+      toRow(e, requiredColumns)
+    }, eventFilters, config, cursors())
   }
 
   def baseEventsURL(project: String, version: String = "0.6"): Uri =
