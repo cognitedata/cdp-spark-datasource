@@ -6,12 +6,12 @@ import org.apache.spark.SparkException
 import org.scalatest.{FlatSpec, Matchers}
 
 class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
-  val readApiKey = System.getenv("TEST_API_KEY_READ")
-  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
+  val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
+  val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
 
   "EventsRelation" should "allow simple reads" taggedAs ReadTest in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", readApiKey)
+      .option("apiKey", readApiKey.apiKey)
       .option("type", "events")
       .option("batchSize", "500")
       .option("limit", "1000")
@@ -26,7 +26,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "apply a single pushdown filter" taggedAs WriteTest in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
       .where(s"type = 'alert'")
@@ -35,7 +35,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "apply multiple pushdown filters" taggedAs WriteTest in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
       .where(s"type = 'maintenance' and subtype = 'new'")
@@ -44,7 +44,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle or conditions" taggedAs WriteTest in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
       .where(s"type = 'maintenance' or type = 'upgrade'")
@@ -53,7 +53,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle in() conditions" taggedAs WriteTest in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
       .where(s"type in('alert','replacement')")
@@ -62,7 +62,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle and, or and in() in one query" taggedAs WriteTest in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
       .where(s"(type = 'maintenance' or type = 'upgrade') and subtype in('manual', 'automatic')")
@@ -74,13 +74,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     .collect()
 
   val destinationDf: DataFrame = spark.read.format("com.cognite.spark.datasource")
-    .option("apiKey", writeApiKey)
+    .option("apiKey", writeApiKey.apiKey)
     .option("type", "events")
     .load()
   destinationDf.createOrReplaceTempView("destinationEvent")
 
   val sourceDf: DataFrame = spark.read.format("com.cognite.spark.datasource")
-    .option("apiKey", readApiKey)
+    .option("apiKey", readApiKey.apiKey)
     .option("type", "events")
     .option("limit", "1000")
     .option("partitions", "1")
@@ -219,7 +219,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .write
       .format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .save
 
@@ -251,7 +251,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
         .write
         .format("com.cognite.spark.datasource")
-        .option("apiKey", writeApiKey)
+        .option("apiKey", writeApiKey.apiKey)
         .option("type", "events")
         .save
     }
@@ -345,7 +345,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
         """.stripMargin)
       .write
       .format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .option("onconflict", "update")
       .save

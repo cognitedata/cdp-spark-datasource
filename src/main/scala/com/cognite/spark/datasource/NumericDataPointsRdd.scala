@@ -33,7 +33,7 @@ class NumericDataPointsRdd(
           .param("aggregates", s"${aggregationFilter.aggregation}")
           .param("granularity", s"${g.amount.getOrElse("")}${g.unit}")
         getJson[CdpConnector.DataItemsWithCursor[DataPointsItem]](
-          config.apiKey,
+          config.auth,
           uriWithAggregation,
           config.maxRetries)
           .unsafeRunSync()
@@ -46,7 +46,7 @@ class NumericDataPointsRdd(
                 getAggregationValue(dataPoint, aggregationFilter))
             }))
       case None =>
-        getProtobuf[Seq[NumericDatapoint]](config.apiKey, uri, parseResult, config.maxRetries)
+        getProtobuf[Seq[NumericDatapoint]](config.auth, uri, parseResult, config.maxRetries)
           .unsafeRunSync()
     }
     if (dataPoints.lastOption.fold(true)(_.timestamp < start)) {

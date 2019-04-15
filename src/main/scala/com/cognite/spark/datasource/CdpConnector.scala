@@ -14,6 +14,7 @@ import io.circe.{Decoder, Encoder}
 import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import scala.util.Random
+import com.cognite.spark.datasource.Auth._
 
 case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
@@ -28,19 +29,19 @@ case class CdpApiException(url: Uri, code: Int, message: String)
 trait CdpConnector {
   import CdpConnector._
 
-  def getProject(apiKey: String, maxRetries: Int, baseUrl: String): String = {
+  def getProject(auth: Auth, maxRetries: Int, baseUrl: String): String = {
     val loginStatusUrl = uri"$baseUrl/login/status"
-    val jsonResult = getJson[Data[Login]](apiKey, loginStatusUrl, maxRetries)
+    val jsonResult = getJson[Data[Login]](auth, loginStatusUrl, maxRetries)
     jsonResult.unsafeRunSync().data.project
   }
 
   def baseUrl(project: String, version: String, baseUrl: String): Uri =
     uri"$baseUrl/api/$version/projects/$project"
 
-  def getJson[A: Decoder](apiKey: String, url: Uri, maxRetries: Int): IO[A] = {
+  def getJson[A: Decoder](auth: Auth, url: Uri, maxRetries: Int): IO[A] = {
     val result = sttp
       .header("Accept", "application/json")
-      .header("api-key", apiKey)
+      .auth(auth)
       .get(url)
       .response(asJson[A])
       .parseResponseIf(_ => true)
@@ -51,13 +52,13 @@ trait CdpConnector {
   }
 
   def getProtobuf[A](
-      apiKey: String,
+      auth: Auth,
       url: Uri,
       parseResult: Response[Array[Byte]] => Response[A],
       maxRetries: Int): IO[A] = {
     val result = sttp
       .header("Accept", "application/protobuf")
-      .header("api-key", apiKey)
+      .auth(auth)
       .get(url)
       .response(asByteArray)
       .parseResponseIf(_ => true)
@@ -73,13 +74,13 @@ trait CdpConnector {
   }
 
   def get[A: Decoder](
-      apiKey: String,
+      auth: Auth,
       url: Uri,
       batchSize: Int,
       limit: Option[Int],
       maxRetries: Int,
       initialCursor: Option[String] = None): Iterator[A] =
-    getWithCursor(apiKey, url, batchSize, limit, maxRetries, initialCursor)
+    getWithCursor(auth, url, batchSize, limit, maxRetries, initialCursor)
       .flatMap(_.chunk)
 
   def onError[A, B](url: Uri): PartialFunction[Response[Either[B, A]], IO[A]] = {
@@ -104,7 +105,7 @@ trait CdpConnector {
   }
 
   def getWithCursor[A: Decoder](
-      apiKey: String,
+      auth: Auth,
       url: Uri,
       batchSize: Int,
       limit: Option[Int],
@@ -115,18 +116,18 @@ trait CdpConnector {
       val getUrl = cursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
 
       val dataWithCursor =
-        getJson[DataItemsWithCursor[A]](apiKey, getUrl, maxRetries).unsafeRunSync().data
+        getJson[DataItemsWithCursor[A]](auth, getUrl, maxRetries).unsafeRunSync().data
       (dataWithCursor.items, dataWithCursor.nextCursor)
     }
 
-  def post[A: Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int): IO[Unit] =
-    postOr(apiKey, url, items, maxRetries)(Map.empty)
+  def post[A: Encoder](auth: Auth, url: Uri, items: Seq[A], maxRetries: Int): IO[Unit] =
+    postOr(auth, url, items, maxRetries)(Map.empty)
 
-  def postOr[A: Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int)(
+  def postOr[A: Encoder](auth: Auth, url: Uri, items: Seq[A], maxRetries: Int)(
       onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
     val singlePost = sttp
       .header("Accept", "application/json")
-      .header("api-key", apiKey)
+      .auth(auth)
       .parseResponseIf(_ => true)
       .body(Items(items))
       .post(url)

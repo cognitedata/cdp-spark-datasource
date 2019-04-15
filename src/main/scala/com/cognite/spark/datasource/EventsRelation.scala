@@ -95,7 +95,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val postEventItems = rows.map(r => fromRow[PostEventItem](r))
-    post(config.apiKey, baseEventsURL(config.project), postEventItems, config.maxRetries)
+    post(config.auth, baseEventsURL(config.project), postEventItems, config.maxRetries)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = postEvent(rows)
@@ -105,7 +105,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     val updateEventItems = eventItems.map(e => UpdateEventItem(e))
 
     post(
-      config.apiKey,
+      config.auth,
       uri"${baseEventsURL(config.project)}/update",
       updateEventItems,
       config.maxRetries)
@@ -127,7 +127,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
 
     val postEventItems = eventItems.map(e => PostEventItem(e))
 
-    postOr(config.apiKey, baseEventsURL(config.project), postEventItems, config.maxRetries) {
+    postOr(config.auth, baseEventsURL(config.project), postEventItems, config.maxRetries) {
       case response @ Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
@@ -166,7 +166,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     } else {
       val updateEventItems = conflictingEvents.map(e => UpdateEventItem(e))
       post(
-        config.apiKey,
+        config.auth,
         uri"${baseEventsURL(config.project)}/update",
         updateEventItems,
         config.maxRetries)
@@ -177,7 +177,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
       IO.unit
     } else {
       val newPostEventItems = newEvents.map(e => PostEventItem(e))
-      post(config.apiKey, baseEventsURL(config.project), newPostEventItems, config.maxRetries)
+      post(config.auth, baseEventsURL(config.project), newPostEventItems, config.maxRetries)
     }
 
     (postUpdate, postNewItems).parMapN((_, _) => ())

@@ -8,12 +8,12 @@ import org.scalatest.{FlatSpec, Matchers}
 import cats.implicits._
 
 class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
-  val readApiKey = System.getenv("TEST_API_KEY_READ")
-  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
+  val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
+  val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
 
   it should "read assets" taggedAs ReadTest in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", readApiKey)
+      .option("apiKey", readApiKey.apiKey)
       .option("type", "assets")
       .option("limit", "1000")
       .option("partitions", "1")
@@ -27,7 +27,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "read assets with a small batchSize" taggedAs ReadTest in {
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", readApiKey)
+      .option("apiKey", readApiKey.apiKey)
       .option("type", "assets")
       .option("batchSize", "1")
       .option("limit", "10")
@@ -40,7 +40,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "be possible to create assets" taggedAs WriteTest in {
     val assetsTestSource = "assets-relation-test-create"
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "assets")
       .load()
     df.createOrReplaceTempView("assets")
@@ -72,12 +72,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "be possible to copy assets from one tenant to another" taggedAs WriteTest in {
     val assetsTestSource = "assets-relation-test-copy"
     val sourceDf = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", readApiKey)
+      .option("apiKey", readApiKey.apiKey)
       .option("type", "assets")
       .load()
     sourceDf.createOrReplaceTempView("source_assets")
     val df = spark.read.format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "assets")
       .load()
     df.createOrReplaceTempView("assets")

@@ -70,7 +70,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val updateFileItems = fileItems.map(f => UpdateFileItem(f))
 
     post(
-      config.apiKey,
+      config.auth,
       uri"$listUrl/update",
       updateFileItems,
       config.maxRetries

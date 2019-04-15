@@ -27,7 +27,7 @@ case class NextCursorIterator[A: DerivedDecoder](url: Uri, config: RelationConfi
     val urlWithLimit = url.param("limit", thisBatchSize.toString)
     val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
     val dataWithCursor =
-      getJson[CdpConnector.DataItemsWithCursor[A]](config.apiKey, getUrl, config.maxRetries)
+      getJson[CdpConnector.DataItemsWithCursor[A]](config.auth, getUrl, config.maxRetries)
         .unsafeRunSync()
         .data
     nextCursor = dataWithCursor.nextCursor
