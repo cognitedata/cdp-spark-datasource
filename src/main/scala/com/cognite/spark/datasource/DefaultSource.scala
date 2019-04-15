@@ -15,7 +15,7 @@ import cats.implicits._
 import scala.concurrent.ExecutionContext
 
 case class RelationConfig(
-    apiKey: String,
+    auth: Auth,
     project: String,
     batchSize: Option[Int],
     limit: Option[Int],
@@ -71,8 +71,18 @@ class DefaultSource
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
-    val apiKey = parameters.getOrElse("apiKey", sys.error("ApiKey must be specified."))
-    val project = getProject(apiKey, maxRetries, baseUrl)
+
+    val bearerToken = parameters
+      .get("bearerToken")
+      .map(bearerToken => BearerTokenAuth(bearerToken))
+    val apiKey = parameters
+      .get("apiKey")
+      .map(apiKey => ApiKeyAuth(apiKey))
+    val auth = apiKey
+      .orElse(bearerToken)
+      .getOrElse(sys.error("Either apiKey or bearerToken is required."))
+    val project = getProject(auth, maxRetries, baseUrl)
+
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limit = toPositiveInt(parameters, "limit")
     val partitions = toPositiveInt(parameters, "partitions")
@@ -85,7 +95,7 @@ class DefaultSource
     val saveMode =
       OnConflict.withName(parameters.getOrElse("onconflict", "ABORT").toUpperCase())
     RelationConfig(
-      apiKey,
+      auth,
       project,
       batchSize,
       limit,

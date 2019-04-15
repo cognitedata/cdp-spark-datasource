@@ -94,7 +94,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val postTimeSeriesItem = fromRow[PostTimeSeriesItem](r)
       postTimeSeriesItem.copy(metadata = filterMetadata(postTimeSeriesItem.metadata))
     }
-    post(config.apiKey, baseTimeSeriesUrl(config.project), postTimeSeriesItems, config.maxRetries)
+    post(config.auth, baseTimeSeriesUrl(config.project), postTimeSeriesItems, config.maxRetries)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
@@ -107,7 +107,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val updateTimeSeriesItems = timeSeriesItems.map(t => UpdateTimeSeriesItem(t))
 
     post(
-      config.apiKey,
+      config.auth,
       uri"${baseTimeSeriesUrl(config.project)}/update",
       updateTimeSeriesItems,
       config.maxRetries)
@@ -140,7 +140,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       IO.unit
     } else {
       post(
-        config.apiKey,
+        config.auth,
         baseTimeSeriesUrl(config.project),
         postTimeSeriesToCreate,
         config.maxRetries)
@@ -155,7 +155,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val updateItems = if (updateTimeSeriesItems.isEmpty) {
       IO.unit
     } else {
-      postOr(config.apiKey, updateTimeSeriesUrl, updateTimeSeriesItems, config.maxRetries) {
+      postOr(config.auth, updateTimeSeriesUrl, updateTimeSeriesItems, config.maxRetries) {
         case response @ Response(Right(body), StatusCodes.BadRequest, _, _, _) =>
           decode[Error[TimeSeriesConflict]](body) match {
             case Right(conflict) =>
@@ -185,7 +185,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val putItems = if (timeSeriesToUpdate.isEmpty) {
       IO.unit
     } else {
-      post(config.apiKey, updateTimeSeriesUrl, timeSeriesToUpdate, config.maxRetries)
+      post(config.auth, updateTimeSeriesUrl, timeSeriesToUpdate, config.maxRetries)
     }
 
     val timeSeriesToCreate = timeSeriesItems.filter(p => p.id.exists(notFound.contains(_)))
@@ -193,7 +193,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val postItems = if (timeSeriesToCreate.isEmpty) {
       IO.unit
     } else {
-      post(config.apiKey, timeSeriesUrl, postTimeSeriesToCreate, config.maxRetries)
+      post(config.auth, timeSeriesUrl, postTimeSeriesToCreate, config.maxRetries)
         .flatTap { _ =>
           IO {
             if (config.collectMetrics) {

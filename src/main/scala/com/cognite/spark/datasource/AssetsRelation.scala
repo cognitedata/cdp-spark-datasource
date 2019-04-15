@@ -59,7 +59,7 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
       val assetItem = fromRow[PostAssetsItem](r)
       assetItem.copy(metadata = filterMetadata(assetItem.metadata))
     }
-    post(config.apiKey, baseAssetsURL(config.project), assetItems, config.maxRetries)
+    post(config.auth, baseAssetsURL(config.project), assetItems, config.maxRetries)
       .map(item => {
         if (config.collectMetrics) {
           assetsCreated.inc(rows.length)

@@ -33,7 +33,7 @@ case class CdpRdd[A: DerivedDecoder](
     val split = _split.asInstanceOf[CdpRddPartition]
     val cdpRows =
       get[A](
-        config.apiKey,
+        config.auth,
         getSinglePartitionBaseUri,
         config.batchSize.getOrElse(Constants.DefaultBatchSize),
         split.size,

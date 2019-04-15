@@ -7,11 +7,11 @@ import com.softwaremill.sttp._
 import org.apache.spark.SparkException
 
 class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
-  val readApiKey = System.getenv("TEST_API_KEY_READ")
-  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
+  val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
+  val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
   val sourceDf = spark.read
     .format("com.cognite.spark.datasource")
-    .option("apiKey", writeApiKey)
+    .option("apiKey", writeApiKey.apiKey)
     .option("type", "timeseries")
     .load()
   sourceDf.createOrReplaceTempView("sourceTimeSeries")
@@ -120,7 +120,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .write
       .format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "timeseries")
       .save
 
@@ -150,7 +150,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
         .write
         .format("com.cognite.spark.datasource")
-        .option("apiKey", writeApiKey)
+        .option("apiKey", writeApiKey.apiKey)
         .option("type", "timeseries")
         .save
     }
@@ -182,7 +182,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .write
       .format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "timeseries")
       .option("onconflict", "update")
       .save
@@ -213,7 +213,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
         .write
         .format("com.cognite.spark.datasource")
-        .option("apiKey", writeApiKey)
+        .option("apiKey", writeApiKey.apiKey)
         .option("type", "timeseries")
         .option("onconflict", "update")
         .save
@@ -266,7 +266,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
     existingTimeSeriesDf.union(nonExistingTimeSeriesDf)
       .write
       .format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", writeApiKey.apiKey)
       .option("type", "timeseries")
       .option("onconflict", "upsert")
       .save
@@ -283,7 +283,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
 
     for (name <- names) {
       delete(
-        writeApiKey,
+        writeApiKey.apiKey,
         uri"${Constants.DefaultBaseUrl}/api/0.5/projects/$project/timeseries/$name",
         maxRetries = 5
       ).unsafeRunSync()

@@ -121,7 +121,7 @@ class RawTableRelation(
 
     val url = uri"${baseRawTableURL(config.project, database, table)}/create"
 
-    post(config.apiKey, url, items, maxRetries)
+    post(config.auth, url, items, maxRetries)
       .flatTap { _ =>
         IO {
           if (config.collectMetrics) {

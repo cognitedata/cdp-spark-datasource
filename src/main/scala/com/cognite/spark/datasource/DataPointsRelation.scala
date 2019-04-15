@@ -14,6 +14,7 @@ import com.softwaremill.sttp.circe._
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 import com.cognite.data.api.v2.DataPoints._
+import com.cognite.spark.datasource.Auth._
 
 sealed case class DataPointsDataItems[A](items: Seq[A])
 
@@ -116,7 +117,7 @@ abstract class DataPointsRelation(
       uri"${config.baseUrl}/api/0.5/projects/${config.project}/timeseries/latest/$timeSeriesName"
     val getLatest = sttp
       .header("Accept", "application/json")
-      .header("api-key", config.apiKey)
+      .auth(config.auth)
       .response(asJson[LatestDataPoint])
       .get(url)
       .send()
@@ -131,7 +132,7 @@ abstract class DataPointsRelation(
 
   private def getFirstDataPointTimestamp(timeSeriesName: String): Long =
     getJson[DataItemsWithCursor[DataPointsTimestampItem]](
-      config.apiKey,
+      config.auth,
       uri"${baseDataPointsUrl(config.project)}/$timeSeriesName"
         .param("limit", "1")
         .param("start", "0"),
@@ -171,7 +172,7 @@ abstract class DataPointsRelation(
     val url = uri"${baseDataPointsUrl(config.project)}"
     val postDataPoints = sttp
       .header("Accept", "application/json")
-      .header("api-key", config.apiKey)
+      .auth(config.auth)
       .parseResponseIf(_ => true)
       .contentType("application/protobuf")
       .body(data.toByteArray)
