@@ -97,7 +97,8 @@ Some options are common to all resource types, and can be set with
 `spark.read.format("com.cognite.spark.datasource").option("nameOfOption", "value")`.
 
 The common options are:
-- `apiKey`: *REQUIRED* The Cognite Data Platform [API key](https://doc.cognitedata.com/concepts/#authentication) to be used.
+- `apiKey`: *REQUIRED IF NO BEARER TOKEN* A Cognite Data Platform [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) to be used for authorization.
+- `bearerToken`: *REQUIRED IF NO API-KEY* A Cognite Data Platform [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) to be used for authorization.
 - `type`: *REQUIRED* The Cognite Data Platform resource type. See below for more information.
 - `maxRetries`: The maximum number of retries to be made when a request fails. The default value is 10.
 - `limit`: The number of items to fetch for this resource type to create the DataFrame. Note that this is different
