@@ -3,13 +3,12 @@ package com.cognite.spark.datasource
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.codahale.metrics.Counter
+import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, TableScan, _}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import com.softwaremill.sttp._
-import com.softwaremill.sttp.circe._
 
 import scala.concurrent.ExecutionContext
 import scala.util.Try
@@ -20,7 +19,7 @@ sealed case class DataPointsDataItems[A](items: Seq[A])
 
 sealed case class DataPointsItem(name: String, datapoints: Array[DataPoint])
 
-sealed case class LatestDataPoint(data: DataPointsDataItems[DataPoint])
+sealed case class LatestDataPoint(data: DataPointsDataItems[DataPointTimestamp])
 
 sealed case class DataPoint(
     timestamp: Long,
@@ -112,23 +111,16 @@ abstract class DataPointsRelation(
     }
   // scalastyle:on cyclomatic.complexity
 
-  private def getLatestDataPointTimestamp(timeSeriesName: String): IO[Long] = {
-    val url =
-      uri"${config.baseUrl}/api/0.5/projects/${config.project}/timeseries/latest/$timeSeriesName"
-    val getLatest = sttp
-      .header("Accept", "application/json")
-      .auth(config.auth)
-      .response(asJson[LatestDataPoint])
-      .get(url)
-      .send()
-    retryWithBackoff(getLatest, Constants.DefaultInitialRetryDelay, maxRetries)
-      .map { response =>
-        response.unsafeBody.toOption
-          .flatMap(_.data.items.headOption)
+  private def getLatestDataPointTimestamp(timeSeriesName: String): IO[Long] =
+    getJson[LatestDataPoint](
+      config.auth,
+      uri"${baseUrl(config.project, "0.5", Constants.DefaultBaseUrl)}/timeseries/latest/$timeSeriesName",
+      config.maxRetries)
+      .map { latest =>
+        latest.data.items.headOption
           .map(_.timestamp)
           .getOrElse(System.currentTimeMillis())
       }
-  }
 
   private def getFirstDataPointTimestamp(timeSeriesName: String): IO[Long] =
     getJson[DataItemsWithCursor[DataPointsTimestampItem]](
