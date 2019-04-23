@@ -95,7 +95,9 @@ trait CdpConnector {
     decode[CdpApiError](responseBody) match {
       case Right(cdpApiError) =>
         IO.raiseError(CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message))
-      case Left(error) => IO.raiseError(CdpApiException(url, statusCode, error.getMessage))
+      case Left(error) =>
+        IO.raiseError(
+          CdpApiException(url, statusCode, s"${error.getMessage} reading '${responseBody}'"))
     }
 
   def defaultHandling(url: Uri): PartialFunction[Response[String], IO[Unit]] = {
