@@ -2,14 +2,14 @@ package com.cognite.spark.datasource
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
+import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import io.circe.parser.decode
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-import SparkSchemaHelper._
-import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 
@@ -122,7 +122,9 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       }
       val batches =
         timeSeriesItems.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
-      batches.parTraverse(updateOrPostTimeSeries).unsafeRunSync()
+      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+        batchGroup.parTraverse(updateOrPostTimeSeries).unsafeRunSync()
+      }
       ()
     })
 

@@ -1,20 +1,18 @@
 package com.cognite.spark.datasource
 
-import java.util.concurrent.Executors
-
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO}
+import cats.implicits._
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.softwaremill.sttp._
 import io.circe.JsonObject
+import io.circe.generic.auto._
+import io.circe.syntax._
+import org.apache.spark.datasource._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import io.circe.generic.auto._
-import io.circe.syntax._
-import cats.implicits._
-import org.apache.spark.datasource._
 
 import scala.concurrent.ExecutionContext
 
@@ -111,7 +109,9 @@ class RawTableRelation(
     dfWithUnRenamedKeyColumns.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
-      batches.parTraverse(postRows(columnNames, _)).unsafeRunSync()
+      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+        batchGroup.parTraverse(postRows(columnNames, _)).unsafeRunSync()
+      }
       ()
     })
   }
@@ -187,8 +187,8 @@ object RawTableRelation {
       sqlContext: SQLContext,
       df: DataFrame,
       jsonFieldsSchema: StructType): DataFrame = {
-    import sqlContext.implicits.StringToColumn
     import org.apache.spark.sql.functions.from_json
+    import sqlContext.implicits.StringToColumn
     val dfWithSchema = df.select($"key", from_json($"columns", jsonFieldsSchema).alias("columns"))
 
     if (keyColumns(jsonFieldsSchema).isEmpty) {
