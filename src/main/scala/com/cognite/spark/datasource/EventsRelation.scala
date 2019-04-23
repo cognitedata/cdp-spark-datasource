@@ -2,15 +2,15 @@ package com.cognite.spark.datasource
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
+import com.cognite.spark.datasource.SparkSchemaHelper._
+import com.softwaremill.sttp._
 import io.circe.generic.auto._
+import io.circe.parser.decode
+import org.apache.spark.datasource.MetricsSource
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import io.circe.parser.decode
-import com.softwaremill.sttp._
-import SparkSchemaHelper._
-import org.apache.spark.datasource.MetricsSource
-import org.apache.spark.rdd.RDD
 
 import scala.concurrent.ExecutionContext
 
@@ -98,7 +98,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     post(config.auth, baseEventsURL(config.project), postEventItems, config.maxRetries)
   }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = postEvent(rows)
+  override def upsert(rows: Seq[Row]): IO[Unit] = postEvents(rows)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val eventItems = rows.map(r => fromRow[EventItem](r))
@@ -115,11 +115,13 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     data.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
-      batches.parTraverse(postEvent).unsafeRunSync()
+      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+        batchGroup.parTraverse(postEvents).unsafeRunSync()
+      }
       ()
     })
 
-  def postEvent(rows: Seq[Row]): IO[Unit] = {
+  def postEvents(rows: Seq[Row]): IO[Unit] = {
     val eventItems = rows.map { r =>
       val eventItem = fromRow[EventItem](r)
       eventItem.copy(metadata = filterMetadata(eventItem.metadata))

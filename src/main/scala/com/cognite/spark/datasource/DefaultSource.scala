@@ -1,16 +1,10 @@
 package com.cognite.spark.datasource
 
-import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
-import org.apache.spark.sql.sources.{
-  BaseRelation,
-  CreatableRelationProvider,
-  DataSourceRegister,
-  RelationProvider,
-  SchemaRelationProvider
-}
-import org.apache.spark.sql.types.StructType
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
+import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 
 import scala.concurrent.ExecutionContext
 
@@ -206,16 +200,24 @@ class DefaultSource
 
       config.onConflict match {
         case OnConflict.ABORT =>
-          batches.parTraverse(relation.insert).unsafeRunSync()
+          batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+            batchGroup.parTraverse(relation.insert).unsafeRunSync()
+          }
 
         case OnConflict.UPSERT =>
-          batches.parTraverse(relation.upsert).unsafeRunSync()
+          batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+            batchGroup.parTraverse(relation.upsert).unsafeRunSync()
+          }
 
         case OnConflict.UPDATE =>
-          batches.parTraverse(relation.update).unsafeRunSync()
+          batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+            batchGroup.parTraverse(relation.update).unsafeRunSync()
+          }
 
         case OnConflict.DELETE =>
-          batches.parTraverse(relation.delete).unsafeRunSync()
+          batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+            batchGroup.parTraverse(relation.delete).unsafeRunSync()
+          }
       }
 
       ()

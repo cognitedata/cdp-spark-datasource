@@ -50,7 +50,9 @@ class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlC
     df.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
-      batches.parTraverse(postRows).unsafeRunSync()
+      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+        batchGroup.parTraverse(postRows).unsafeRunSync()
+      }
       ()
     })
 

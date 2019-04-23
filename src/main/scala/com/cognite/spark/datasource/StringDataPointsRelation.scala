@@ -52,19 +52,22 @@ class StringDataPointsRelation(
       val batches =
         rows.grouped(config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)).toVector
       batches
-        .parTraverse(batch => {
-          val timeSeriesData = MultiNamedTimeseriesData()
-          val namedTimeseriesData = batch
-            .groupBy(r => r.getAs[String](0))
-            .map {
-              case (name, timeseriesRows) =>
-                val d = timeseriesRows.foldLeft(StringTimeseriesData())((builder, row) =>
-                  builder.addPoints(StringDatapoint(row.getLong(1), row.getString(2))))
-                NamedTimeseriesData(name, NamedTimeseriesData.Data.StringData(d))
-            }
-          postTimeSeries(timeSeriesData.addAllNamedTimeseriesData(namedTimeseriesData))
-        })
-        .unsafeRunSync
+        .grouped(Constants.MaxConcurrentRequests)
+        .foreach(batchGroup =>
+          batchGroup
+            .parTraverse(batch => {
+              val timeSeriesData = MultiNamedTimeseriesData()
+              val namedTimeseriesData = batch
+                .groupBy(r => r.getAs[String](0))
+                .map {
+                  case (name, timeseriesRows) =>
+                    val d = timeseriesRows.foldLeft(StringTimeseriesData())((builder, row) =>
+                      builder.addPoints(StringDatapoint(row.getLong(1), row.getString(2))))
+                    NamedTimeseriesData(name, NamedTimeseriesData.Data.StringData(d))
+                }
+              postTimeSeries(timeSeriesData.addAllNamedTimeseriesData(namedTimeseriesData))
+            })
+            .unsafeRunSync())
       ()
     })
 

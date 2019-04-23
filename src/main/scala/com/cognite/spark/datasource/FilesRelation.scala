@@ -2,10 +2,9 @@ package com.cognite.spark.datasource
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import io.circe.generic.auto._
-
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
+import io.circe.generic.auto._
 import org.apache.spark.sql.sources.InsertableRelation
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -57,7 +56,9 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     data.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
-      batches.parTraverse(postFiles).unsafeRunSync()
+      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+        batchGroup.parTraverse(postFiles).unsafeRunSync()
+      }
       ()
     })
 

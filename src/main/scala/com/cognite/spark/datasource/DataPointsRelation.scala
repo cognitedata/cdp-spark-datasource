@@ -148,14 +148,17 @@ abstract class DataPointsRelation(
       hardLimits: (Option[Long], Option[Long])): Map[String, (Long, Long)] = {
     implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     timeSeriesNames
-      .parTraverse { name =>
-        (
-          hardLimits._1.map(IO.pure).getOrElse(getFirstDataPointTimestamp(name)),
-          hardLimits._2.map(IO.pure).getOrElse(getLatestDataPointTimestamp(name))
-        ).parMapN((lower, upper) => name -> (lower, upper))
-      }
-      .map(_.toMap)
-      .unsafeRunSync()
+      .grouped(Constants.MaxConcurrentRequests / 2)
+      .flatMap(batchGroup =>
+        batchGroup
+          .parTraverse { name =>
+            (
+              hardLimits._1.map(IO.pure).getOrElse(getFirstDataPointTimestamp(name)),
+              hardLimits._2.map(IO.pure).getOrElse(getLatestDataPointTimestamp(name))
+            ).parMapN((lower, upper) => name -> (lower, upper))
+          }
+          .unsafeRunSync())
+      .toMap
   }
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)

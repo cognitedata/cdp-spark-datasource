@@ -83,19 +83,22 @@ class NumericDataPointsRelation(
       val batches =
         rows.grouped(config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)).toVector
       batches
-        .parTraverse(batch => {
-          val timeSeriesData = MultiNamedTimeseriesData()
-          val namedTimeseriesData = batch
-            .groupBy(r => r.getAs[String](0))
-            .map {
-              case (name, timeseriesRows) =>
-                val d = timeseriesRows.foldLeft(NumericTimeseriesData())((builder, row) =>
-                  builder.addPoints(NumericDatapoint(row.getLong(1), row.getDouble(2))))
-                NamedTimeseriesData(name, NamedTimeseriesData.Data.NumericData(d))
-            }
-          postTimeSeries(timeSeriesData.addAllNamedTimeseriesData(namedTimeseriesData))
-        })
-        .unsafeRunSync
+        .grouped(Constants.MaxConcurrentRequests)
+        .foreach(batchGroup =>
+          batchGroup
+            .parTraverse(batch => {
+              val timeSeriesData = MultiNamedTimeseriesData()
+              val namedTimeseriesData = batch
+                .groupBy(r => r.getAs[String](0))
+                .map {
+                  case (name, timeseriesRows) =>
+                    val d = timeseriesRows.foldLeft(NumericTimeseriesData())((builder, row) =>
+                      builder.addPoints(NumericDatapoint(row.getLong(1), row.getDouble(2))))
+                    NamedTimeseriesData(name, NamedTimeseriesData.Data.NumericData(d))
+                }
+              postTimeSeries(timeSeriesData.addAllNamedTimeseriesData(namedTimeseriesData))
+            })
+            .unsafeRunSync())
       ()
     })
 
