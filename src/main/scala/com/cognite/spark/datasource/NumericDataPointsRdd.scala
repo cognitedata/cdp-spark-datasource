@@ -68,6 +68,7 @@ class NumericDataPointsRdd(
     Response(rr, response.code, response.statusText, response.headers, response.history)
   }
 
+  // scalastyle:off cyclomatic.complexity
   private def getAggregationValue(dataPoint: DataPoint, aggregation: AggregationFilter): Double =
     aggregation match {
       // TODO: make this properly typed
@@ -85,7 +86,9 @@ class NumericDataPointsRdd(
         dataPoint.discreteVariance.get
       case AggregationFilter("totalvariation") | AggregationFilter("tv") =>
         dataPoint.totalVariation.get
+      case _ => sys.error(s"Invalid aggregation $aggregation")
     }
+  // scalastyle:on cyclomatic.complexity
 
   private def granularityToMilliseconds(granularity: Option[GranularityFilter]): Long =
     granularity
