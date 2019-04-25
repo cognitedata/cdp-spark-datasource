@@ -10,7 +10,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
 
   "EventsRelation" should "allow simple reads" taggedAs ReadTest in {
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", readApiKey.apiKey)
       .option("type", "events")
       .option("batchSize", "500")
@@ -19,13 +20,15 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
 
     df.createTempView("events")
-    val res = spark.sqlContext.sql("select * from events")
+    val res = spark.sqlContext
+      .sql("select * from events")
       .collect()
     assert(res.length == 1000)
   }
 
   it should "apply a single pushdown filter" taggedAs WriteTest in {
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
@@ -34,7 +37,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "apply multiple pushdown filters" taggedAs WriteTest in {
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
@@ -43,7 +47,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "handle or conditions" taggedAs WriteTest in {
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
@@ -52,7 +57,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "handle in() conditions" taggedAs WriteTest in {
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
@@ -61,7 +67,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "handle and, or and in() in one query" taggedAs WriteTest in {
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
       .load()
@@ -69,17 +76,20 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(df.count == 4)
   }
 
-  def eventDescriptions(source: String): Array[Row] = spark.sql(s"""select description, source from destinationEvent where source = "$source"""")
-    .select(col("description"))
-    .collect()
+  def eventDescriptions(source: String): Array[Row] =
+    spark
+      .sql(s"""select description from destinationEvent where source = "$source"""")
+      .collect()
 
-  val destinationDf: DataFrame = spark.read.format("com.cognite.spark.datasource")
+  val destinationDf: DataFrame = spark.read
+    .format("com.cognite.spark.datasource")
     .option("apiKey", writeApiKey.apiKey)
     .option("type", "events")
     .load()
   destinationDf.createOrReplaceTempView("destinationEvent")
 
-  val sourceDf: DataFrame = spark.read.format("com.cognite.spark.datasource")
+  val sourceDf: DataFrame = spark.read
+    .format("com.cognite.spark.datasource")
     .option("apiKey", readApiKey.apiKey)
     .option("type", "events")
     .option("limit", "1000")
@@ -92,11 +102,12 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     val source = "nulltest"
     cleanupEvents(source)
-    val eventDescriptionsAfterCleanup = retryWhile[Array[Row]](eventDescriptions(source),
-      rows => rows.nonEmpty)
+    val eventDescriptionsAfterCleanup =
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.nonEmpty)
     assert(eventDescriptionsAfterCleanup.isEmpty)
 
-    spark.sql(s"""
+    spark
+      .sql(s"""
               select
                  |null as id,
                  |null as startTime,
@@ -128,12 +139,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     // Cleanup events
     cleanupEvents(source)
-    val eventDescriptionsReturned = retryWhile[Array[Row]](eventDescriptions(source),
-      rows => rows.nonEmpty)
+    val eventDescriptionsReturned =
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.nonEmpty)
     assert(eventDescriptionsReturned.isEmpty)
 
     // Post new events
-    spark.sql(s"""
+    spark
+      .sql(s"""
                  |select "bar" as description,
                  |startTime,
                  |endTime,
@@ -154,13 +166,14 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .insertInto("destinationEvent")
 
     // Check if post worked
-    val descriptionsAfterPost = retryWhile[Array[Row]](eventDescriptions(source),
-      rows => rows.length < 100)
+    val descriptionsAfterPost =
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.length < 100)
     assert(descriptionsAfterPost.length == 100)
     assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "bar"))
 
     // Update events
-    spark.sql(s"""
+    spark
+      .sql(s"""
                  |select "foo" as description,
                  |startTime,
                  |endTime,
@@ -180,8 +193,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .insertInto("destinationEvent")
 
     // Check if upsert worked
-    val descriptionsAfterUpdate = retryWhile[Array[Row]](eventDescriptions(source),
-      rows => rows.length < 1000)
+    val descriptionsAfterUpdate =
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.length < 1000)
     assert(descriptionsAfterUpdate.length == 1000)
     assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "foo"))
 
@@ -196,12 +209,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     // Cleanup events
     cleanupEvents(source)
-    val eventDescriptionsReturned = retryWhile[Array[Row]](eventDescriptions(source),
-      rows => rows.nonEmpty)
+    val eventDescriptionsReturned =
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.nonEmpty)
     assert(eventDescriptionsReturned.isEmpty)
 
     // Test inserts
-    spark.sql(s"""
+    spark
+      .sql(s"""
                  |select "foo" as description,
                  |startTime,
                  |endTime,
@@ -221,7 +235,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
-      .save
+      .save()
 
     val dfWithSourceInsertTest = retryWhile[Array[Row]](
       spark.sql(s"select * from destinationEvent where source = '$source'").collect,
@@ -232,8 +246,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     // Trying to insert existing rows should throw a CdpApiException
     spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
     val e = intercept[SparkException] {
-      spark.sql(
-        s"""
+      spark
+        .sql(s"""
            |select "foo" as description,
            |startTime,
            |endTime,
@@ -253,7 +267,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
         .format("com.cognite.spark.datasource")
         .option("apiKey", writeApiKey.apiKey)
         .option("type", "events")
-        .save
+        .save()
     }
     e.getCause shouldBe a[CdpApiException]
     val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
@@ -261,19 +275,20 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
-  it should "allow updates in savemode" taggedAs WriteTest in {
+  it should "allow partial updates in savemode" taggedAs WriteTest in {
     val source = "spark-savemode-updates-test"
 
     // Cleanup old events
     cleanupEvents(source)
     val dfWithUpdatesAsSource = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationEvent where source = '$source'")collect,
+      spark.sql(s"select * from destinationEvent where source = '$source'").collect,
       df => df.length > 0)
     assert(dfWithUpdatesAsSource.length == 0)
 
     // Insert some test data
-    spark.sql(s"""
-             |select "bar" as description,
+    spark
+      .sql(s"""
+             |select "foo" as description,
              |startTime,
              |endTime,
              |type,
@@ -292,41 +307,51 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .write
       .insertInto("destinationEvent")
 
+    // Check if insert worked
+    val descriptionsAfterInsert =
+      retryWhile[Array[Row]](
+        spark
+          .sql(
+            s"select description from destinationEvent " +
+              s"where source = '$source' and description = 'foo'")
+          .collect,
+        df => df.length < 100)
+    assert(descriptionsAfterInsert.length == 100)
+    assert(descriptionsAfterInsert.map(_.getString(0)).forall(_ == "foo"))
+
     // Update the data
-    spark.sql(
-      s"""
+    spark
+      .sql(s"""
          |select "bar" as description,
-         |startTime,
-         |endTime,
-         |type,
-         |subtype,
-         |assetIds,
-         |id,
-         |metadata,
-         |source,
-         |sourceId,
-         |createdTime,
-         |null as lastUpdatedTime
+         |id
          |from destinationEvent
          |where source = '$source'
       """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
       .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
       .option("onconflict", "update")
-      .insertInto("destinationEvent")
+      .save()
 
     // Check if update worked
-    val descriptionsAfterUpdate = retryWhile[Array[Row]](eventDescriptions(source),
-      rows => rows.length < 100)
+    val descriptionsAfterUpdate =
+      retryWhile[Array[Row]](
+        spark
+          .sql(
+            s"select description from destinationEvent " +
+              s"where source = '$source' and description = 'bar'")
+          .collect,
+        df => df.length < 100)
     assert(descriptionsAfterUpdate.length == 100)
     assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
 
     // Trying to update non-existing ids should throw a 400 CdpApiException
     spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
     val e = intercept[SparkException] {
-    // Update the data
-    spark.sql(
-      s"""
+      // Update the data
+      spark
+        .sql(s"""
          |select "bar" as description,
          |startTime,
          |endTime,
@@ -343,17 +368,17 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
          |where source = '$source'
          |limit 1
         """.stripMargin)
-      .write
-      .format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey.apiKey)
-      .option("type", "events")
-      .option("onconflict", "update")
-      .save
-      }
-      e.getCause shouldBe a[CdpApiException]
-      val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
-      assert(cdpApiException.code == 400)
-      spark.sparkContext.setLogLevel("WARN")
+        .write
+        .format("com.cognite.spark.datasource")
+        .option("apiKey", writeApiKey.apiKey)
+        .option("type", "events")
+        .option("onconflict", "update")
+        .save()
+    }
+    e.getCause shouldBe a[CdpApiException]
+    val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+    assert(cdpApiException.code == 400)
+    spark.sparkContext.setLogLevel("WARN")
   }
 
   def cleanupEvents(source: String): Unit = {

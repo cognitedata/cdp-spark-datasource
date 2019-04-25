@@ -39,7 +39,7 @@ class SparkSchemaHelperImpl(val c: Context) {
         innerType
       }
 
-      val column = q"Option($r.getAs[$rowType]($name))"
+      val column = q"scala.util.Try(Option($r.getAs[$rowType]($name))).toOption.flatten"
       val (baseExpr, isOuterOption) = if (param.typeSignature <:< typeOf[Option[_]]) {
         (column, true)
       } else {

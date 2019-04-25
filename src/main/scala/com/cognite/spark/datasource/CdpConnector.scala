@@ -9,7 +9,7 @@ import com.softwaremill.sttp._
 import com.softwaremill.sttp.circe._
 import io.circe.generic.auto._
 import io.circe.parser.decode
-import io.circe.{Decoder, Encoder}
+import io.circe.{Decoder, Encoder, Printer}
 
 import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
@@ -28,6 +28,7 @@ case class CdpApiException(url: Uri, code: Int, message: String)
 
 trait CdpConnector {
   import CdpConnector._
+  implicit val customPrinter: Printer = Printer.noSpaces.copy(dropNullValues = true)
 
   def getProject(auth: Auth, maxRetries: Int, baseUrl: String): String = {
     val loginStatusUrl = uri"$baseUrl/login/status"

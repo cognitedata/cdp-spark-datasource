@@ -102,8 +102,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   override def upsert(rows: Seq[Row]): IO[Unit] = postEvents(rows)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val eventItems = rows.map(r => fromRow[EventItem](r))
-    val updateEventItems = eventItems.map(e => UpdateEventItem(e))
+    val updateEventItems = rows.map(r => UpdateEventItem(fromRow[EventItem](r)))
 
     post(
       config.auth,
