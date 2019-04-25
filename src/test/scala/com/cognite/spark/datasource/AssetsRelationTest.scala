@@ -1,11 +1,8 @@
 package com.cognite.spark.datasource
 
-import java.util.regex.Pattern
-
 import com.softwaremill.sttp._
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{Row}
 import org.scalatest.{FlatSpec, Matchers}
-import cats.implicits._
 
 class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
@@ -45,9 +42,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
     df.createOrReplaceTempView("assets")
     cleanupAssets(assetsTestSource)
-    retryWhile[DataFrame](
-      spark.sql(s"select * from assets where source = '$assetsTestSource'"),
-      rows => rows.count > 0)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+      rows => rows.length > 0)
     spark.sql(
       s"""
         |select null as id,
@@ -64,9 +61,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       """.stripMargin)
       .write
       .insertInto("assets")
-    retryWhile[DataFrame](
-      spark.sql(s"select * from assets where source = '$assetsTestSource'"),
-      rows => rows.count < 1)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+      rows => rows.length < 1)
   }
 
   it should "be possible to copy assets from one tenant to another" taggedAs WriteTest in {
@@ -82,9 +79,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
     df.createOrReplaceTempView("assets")
     cleanupAssets(assetsTestSource)
-    retryWhile[DataFrame](
-      spark.sql(s"select * from assets where source = '$assetsTestSource'"),
-      rows => rows.count > 0)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+      rows => rows.length > 0)
     spark.sql(
       s"""
          |select id,
@@ -102,9 +99,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       """.stripMargin)
       .write
       .insertInto("assets")
-    retryWhile[DataFrame](
-      spark.sql(s"select * from assets where source = '$assetsTestSource'"),
-      rows => rows.count < 1)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+      rows => rows.length < 1)
   }
 
   def cleanupAssets(source: String): Unit = {

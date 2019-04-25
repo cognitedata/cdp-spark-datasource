@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
 
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -71,10 +71,10 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
       .write
       .insertInto("filesSource")
 
-    val dfWithTestDirectory = retryWhile[DataFrame](
-      spark.sql(s"select * from filesSource where directory = '$firstDirectoryName'"),
-      rows => rows.count < 10)
-    assert(dfWithTestDirectory.count == 10)
+    val dfWithTestDirectory = retryWhile[Array[Row]](
+      spark.sql(s"select * from filesSource where directory = '$firstDirectoryName'").collect,
+      rows => rows.length < 10)
+    assert(dfWithTestDirectory.length == 10)
 
     spark.sql(s"""
                  |select id,
@@ -96,15 +96,15 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
       .write
       .insertInto("filesSource")
 
-    val dfWithUpdatedSource = retryWhile[DataFrame](
-      spark.sql(s"select * from filesSource where directory = '$secondDirectoryName'"),
-      rows => rows.count < 10)
-    assert(dfWithUpdatedSource.count == 10)
+    val dfWithUpdatedSource = retryWhile[Array[Row]](
+      spark.sql(s"select * from filesSource where directory = '$secondDirectoryName'").collect,
+      rows => rows.length < 10)
+    assert(dfWithUpdatedSource.length== 10)
 
-    val emptyDfWithTestDirectory = retryWhile[DataFrame](
-      spark.sql(s"select * from filesSource where directory = '$firstDirectoryName'"),
-      rows => rows.count > 0)
-    assert(emptyDfWithTestDirectory.count == 0)
+    val emptyDfWithTestDirectory = retryWhile[Array[Row]](
+      spark.sql(s"select * from filesSource where directory = '$firstDirectoryName'").collect,
+      rows => rows.length > 0)
+    assert(emptyDfWithTestDirectory.length == 0)
 
   }
 }
