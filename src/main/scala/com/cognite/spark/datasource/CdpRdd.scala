@@ -1,15 +1,14 @@
 package com.cognite.spark.datasource
 
 import com.softwaremill.sttp._
-import io.circe.generic.auto._
-import io.circe.generic.decoding.DerivedDecoder
+import io.circe.Decoder
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 case class CdpRddPartition(cursor: Option[String], size: Option[Int], index: Int) extends Partition
 
-case class CdpRdd[A: DerivedDecoder](
+case class CdpRdd[A: Decoder](
     @transient override val sparkContext: SparkContext,
     toRow: A => Row,
     getSinglePartitionBaseUri: Uri,

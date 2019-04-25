@@ -2,9 +2,9 @@ package com.cognite.spark.datasource
 
 import com.softwaremill.sttp.Uri
 import io.circe.generic.auto._
-import io.circe.generic.decoding.DerivedDecoder
+import io.circe.Decoder
 
-case class NextCursorIterator[A: DerivedDecoder](url: Uri, config: RelationConfig)
+case class NextCursorIterator[A: Decoder](url: Uri, config: RelationConfig)
     extends Iterator[(Option[String], Option[Int])]
     with CdpConnector {
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)

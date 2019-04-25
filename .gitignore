@@ -6,3 +6,4 @@ target/
 src/test/scala/com/cognite/spark/connector/package.scala
 *.log
 metastore_db/
+src/main/scripts/Pip*

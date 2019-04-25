@@ -17,61 +17,89 @@ class SparkSchemaHelperImpl(val c: Context) {
     c.Expr[Row](q"$row(..$params)")
   }
 
-  def fromRow[T: c.WeakTypeTag](r: c.Expr[Row]): c.Expr[T] = {
+  // scalastyle:off
+  def fromRow[T: c.WeakTypeTag](row: c.Expr[Row]): c.Expr[T] = {
     import c.universe._
+    val optionType = typeOf[Option[_]]
+    val optionSeq = typeOf[Seq[Option[_]]]
+    val optionMap = typeOf[Map[_, Option[_]]]
+    val seqAny = typeOf[Seq[Any]]
+    val mapAny = typeOf[Map[Any, Any]]
+    val seqRow = typeOf[Seq[Row]]
 
-    val constructor = weakTypeOf[T].decl(termNames.CONSTRUCTOR).asMethod
-    val params = constructor.paramLists.flatten.map((param: Symbol) => {
-      val name = param.name.toString
-      val innerType = if (param.typeSignature <:< typeOf[Option[_]]) {
-        param.typeSignature.typeArgs.head
-      } else {
-        param.typeSignature
-      }
-
-      val isSequenceWithOptionalVal = innerType <:< typeOf[Seq[Option[_]]]
-      val isMapWithOptionalVal = innerType <:< typeOf[Map[_, Option[_]]]
-      val rowType = if (isSequenceWithOptionalVal) {
-        typeOf[Seq[Any]]
-      } else if (isMapWithOptionalVal) {
-        typeOf[Map[Any, Any]]
-      } else {
-        innerType
-      }
-
-      val column = q"scala.util.Try(Option($r.getAs[$rowType]($name))).toOption.flatten"
-      val (baseExpr, isOuterOption) = if (param.typeSignature <:< typeOf[Option[_]]) {
-        (column, true)
-      } else {
-        (q"""$column.getOrElse(throw new IllegalArgumentException("Row is missing required column named '" + $name + "'."))""", false)
-      }
-
-      val resExpr = if (isMapWithOptionalVal) {
-        if (isOuterOption) {
-          q"$baseExpr.map(_.mapValues(Option(_)))"
+    def fromRowRecurse(structType: Type, r: c.Expr[Row]): c.Tree = {
+      val constructor = structType.decl(termNames.CONSTRUCTOR).asMethod
+      val params = constructor.paramLists.flatten.map((param: Symbol) => {
+        val name = param.name.toString
+        val isOuterOption = param.typeSignature <:< optionType
+        val innerType = if (isOuterOption) {
+          param.typeSignature.typeArgs.head
         } else {
-          q"$baseExpr.mapValues(Option(_))"
+          param.typeSignature
         }
-      } else if (isSequenceWithOptionalVal) {
-        if (isOuterOption) {
-          q"$baseExpr.map(_.map(Option(_)))"
+        val isSequenceWithOptionalVal = innerType <:< optionSeq
+        val isMapWithOptionalVal = innerType <:< optionMap
+        val isSequenceOfAny = innerType <:< seqAny
+        val isMapOfAny = innerType <:< mapAny
+
+        val rowType = if (isSequenceWithOptionalVal) {
+          seqAny
+        } else if (isSequenceOfAny) {
+          innerType.typeArgs.head match {
+            case x if x =:= typeOf[String] => seqAny
+            case x if x =:= typeOf[Int] => seqAny
+            case x if x =:= typeOf[Boolean] => seqAny
+            case x if x =:= typeOf[Long] => seqAny
+            case _ => seqRow
+          }
+        } else if (isMapOfAny || isMapWithOptionalVal) {
+          mapAny
         } else {
-          q"$baseExpr.map(Option(_))"
+          innerType
         }
-      } else {
-        baseExpr
-      }
-      q"$resExpr.asInstanceOf[${param.typeSignature}]"
-    })
-    c.Expr(q"new ${weakTypeOf[T]}(..$params)")
+
+        val column = q"scala.util.Try(Option($r.getAs[$rowType]($name))).toOption.flatten"
+        val baseExpr =
+          if (isOuterOption) { column } else {
+            q"""$column.getOrElse(throw new IllegalArgumentException("Row is missing required column named '" + $name + "'."))"""
+          }
+
+        val resExpr =
+          if (isMapWithOptionalVal) {
+            if (isOuterOption) {
+              q"$baseExpr.map(_.mapValues(Option(_)))"
+            } else {
+              q"$baseExpr.mapValues(Option(_))"
+            }
+          } else if (isSequenceWithOptionalVal) {
+            if (isOuterOption) {
+              q"$baseExpr.map(_.map(Option(_)))"
+            } else {
+              q"$baseExpr.map(Option(_))"
+            }
+          } else if (rowType <:< seqRow) {
+            val x = innerType.typeArgs.head
+            if (isOuterOption) {
+              q"$baseExpr.map(x => x.map(y => ${fromRowRecurse(x, c.Expr[Row](q"y"))}))"
+            } else {
+              q"$baseExpr.map(y => ${fromRowRecurse(x, c.Expr[Row](q"y"))})"
+            }
+          } else {
+            baseExpr
+          }
+        q"$resExpr.asInstanceOf[${param.typeSignature}]"
+      })
+      q"new ${structType}(..$params)"
+    }
+    c.Expr[T](fromRowRecurse(weakTypeOf[T], row))
   }
+  // scalastyle:on
 }
 
 object SparkSchemaHelper {
-  def structType[T]()(implicit encoder: StructTypeEncoder[T]): StructType = {
+  def structType[T]()(implicit encoder: StructTypeEncoder[T]): StructType =
     encoder.structType()
-  }
 
   def asRow[T](x: T): Row = macro SparkSchemaHelperImpl.asRow[T]
-  def fromRow[T](r: Row): T = macro SparkSchemaHelperImpl.fromRow[T]
+  def fromRow[T](row: Row): T = macro SparkSchemaHelperImpl.fromRow[T]
 }
