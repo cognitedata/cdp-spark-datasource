@@ -141,11 +141,7 @@ class DefaultSource
           inferSchemaLimit,
           collectSchemaInferenceMetrics)(sqlContext)
       case "assets" =>
-        val assetsPath = parameters.get("assetsPath")
-        if (assetsPath.isDefined && !AssetsRelation.isValidAssetsPath(assetsPath.get)) {
-          sys.error("Invalid assets path: " + assetsPath.get)
-        }
-        new AssetsRelation(config, assetsPath)(sqlContext)
+        new AssetsRelation(config)(sqlContext)
       case "events" =>
         new EventsRelation(config)(sqlContext)
       case "files" =>
@@ -191,6 +187,8 @@ class DefaultSource
         new EventsRelation(config)(sqlContext) //.EventsInsertion(config)
       case "timeseries" =>
         new TimeSeriesRelation(config)(sqlContext)
+      case "assets" =>
+        new AssetsRelation(config)(sqlContext)
       case _ => sys.error(s"Resource type '$resourceType does not support save()")
     }
 

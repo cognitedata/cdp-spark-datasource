@@ -122,7 +122,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
       .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "timeseries")
-      .save
+      .save()
 
     val dfWithDescriptionInsertTest = retryWhile[Array[Row]](
       spark.sql(s"select * from sourceTimeSeries where description = '$insertDescription'").collect,
@@ -152,7 +152,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
         .format("com.cognite.spark.datasource")
         .option("apiKey", writeApiKey.apiKey)
         .option("type", "timeseries")
-        .save
+        .save()
     }
     insertError.getCause shouldBe a[CdpApiException]
     val insertCdpApiException = insertError.getCause.asInstanceOf[CdpApiException]
@@ -160,23 +160,15 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
-  it should "support update in savemode" taggedAs WriteTest in {
+  it should "support partial update in savemode" taggedAs WriteTest in {
     val updateDescription = "spark-update-test"
     val saveModeUnit = "spark-savemode-test"
     // Update data with a new description
     spark.sql(
       s"""
          |select '$updateDescription' as description,
-         |isString,
-         |name,
-         |metadata,
-         |unit,
-         |assetId,
-         |isStep,
-         |securityCategories,
          |id,
-         |createdTime,
-         |lastUpdatedTime
+         |name
          |from sourceTimeSeries
          |where unit = '$saveModeUnit'
      """.stripMargin)
@@ -185,7 +177,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "timeseries")
       .option("onconflict", "update")
-      .save
+      .save()
 
     val dfWithDescriptionUpdateTest = retryWhile[Array[Row]](
       spark.sql(s"select * from sourceTimeSeries where description = '$updateDescription'").collect,
@@ -216,7 +208,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
         .option("apiKey", writeApiKey.apiKey)
         .option("type", "timeseries")
         .option("onconflict", "update")
-        .save
+        .save()
     }
     updateError.getCause shouldBe a[CdpApiException]
     val updateCdpApiException = updateError.getCause.asInstanceOf[CdpApiException]
@@ -269,7 +261,7 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "timeseries")
       .option("onconflict", "upsert")
-      .save
+      .save()
 
     val dfWithDescriptionUpsertTest = retryWhile[Array[Row]](
       spark.sql(s"select * from sourceTimeSeries where description = '$upsertDescription'").collect,

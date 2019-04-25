@@ -23,7 +23,7 @@ case class TimeSeriesItem(
     metadata: Option[Map[String, String]],
     unit: Option[String],
     assetId: Option[Long],
-    isStep: Boolean,
+    isStep: Option[Boolean],
     description: Option[String],
     // Change this to Option[Vector[Long]] if we start seeing this exception:
     // java.io.NotSerializableException: scala.Array$$anon$2
@@ -38,7 +38,7 @@ case class PostTimeSeriesItem(
     metadata: Option[Map[String, String]],
     unit: Option[String],
     assetId: Option[Long],
-    isStep: Boolean,
+    isStep: Option[Boolean],
     description: Option[String],
     securityCategories: Option[Seq[Long]])
 object PostTimeSeriesItem {
@@ -54,6 +54,21 @@ object PostTimeSeriesItem {
       timeSeriesItem.securityCategories
     )
 }
+
+// This class is needed to enable partial updates
+// since TimeSeriesItem has values that are not optional
+case class UpdateTimeSeriesBase(
+    name: Option[String],
+    isString: Option[Boolean],
+    metadata: Option[Map[String, String]],
+    unit: Option[String],
+    assetId: Option[Long],
+    isStep: Option[Boolean],
+    description: Option[String],
+    securityCategories: Option[Seq[Long]],
+    id: Option[Long],
+    createdTime: Option[Long],
+    lastUpdatedTime: Option[Long])
 
 case class UpdateTimeSeriesItem(
     id: Long,
@@ -77,7 +92,19 @@ object UpdateTimeSeriesItem {
       Setter[String](timeSeriesItem.description),
       securityCategories = timeSeriesItem.securityCategories.map(a => Map("set" -> Option(a))),
       Setter[Boolean](Some(timeSeriesItem.isString)),
-      Setter[Boolean](Some(timeSeriesItem.isStep))
+      Setter[Boolean](timeSeriesItem.isStep)
+    )
+  def apply(timeSeriesBase: UpdateTimeSeriesBase): UpdateTimeSeriesItem =
+    new UpdateTimeSeriesItem(
+      timeSeriesBase.id.get,
+      Setter[String](timeSeriesBase.name),
+      Setter[Map[String, String]](timeSeriesBase.metadata),
+      Setter[String](timeSeriesBase.unit),
+      Setter[Long](timeSeriesBase.assetId),
+      Setter[String](timeSeriesBase.description),
+      securityCategories = timeSeriesBase.securityCategories.map(a => Map("set" -> Option(a))),
+      Setter[Boolean](timeSeriesBase.isString),
+      Setter[Boolean](timeSeriesBase.isStep)
     )
 }
 
@@ -103,8 +130,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val timeSeriesItems = rows.map(r => fromRow[TimeSeriesItem](r))
-    val updateTimeSeriesItems = timeSeriesItems.map(t => UpdateTimeSeriesItem(t))
+    val updateTimeSeriesItems =
+      rows.map(r => UpdateTimeSeriesItem(fromRow[UpdateTimeSeriesBase](r)))
 
     post(
       config.auth,

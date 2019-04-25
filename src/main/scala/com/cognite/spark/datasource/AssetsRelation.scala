@@ -18,10 +18,10 @@ import scala.concurrent.ExecutionContext
 case class PostAssetsDataItems[A](items: Seq[A])
 
 case class AssetsItem(
-    id: Option[Long],
+    id: Long,
     path: Option[Seq[Long]],
     depth: Option[Long],
-    name: Option[String],
+    name: String,
     parentId: Option[Long],
     description: Option[String],
     metadata: Option[Map[String, String]],
@@ -39,12 +39,53 @@ case class PostAssetsItem(
     metadata: Option[Map[String, String]]
 )
 
-class AssetsRelation(config: RelationConfig, assetPath: Option[String])(val sqlContext: SQLContext)
+// This class is needed to enable partial updates
+// since AssetsItem has values that are not optional
+case class UpdateAssetsItemBase(
+    id: Option[Long],
+    name: Option[String],
+    description: Option[String],
+    metadata: Option[Map[String, String]],
+    source: Option[String],
+    sourceId: Option[String]
+)
+
+case class UpdateAssetsItem(
+    id: Option[Long],
+    name: Option[NonNullableSetter[String]],
+    description: Option[Setter[String]],
+    metadata: Option[Setter[Map[String, String]]],
+    source: Option[Setter[String]],
+    sourceId: Option[Setter[String]]
+)
+object UpdateAssetsItem {
+  def apply(assetItem: UpdateAssetsItemBase): UpdateAssetsItem =
+    new UpdateAssetsItem(
+      assetItem.id,
+      assetItem.name.map(NonNullableSetter(_)),
+      Setter[String](assetItem.description),
+      Setter[Map[String, String]](assetItem.metadata),
+      Setter[String](assetItem.source),
+      Setter[String](assetItem.sourceId)
+    )
+}
+
+class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdpRelation[AssetsItem](config, "assets")
     with InsertableRelation
     with CdpConnector {
   @transient lazy private val assetsCreated =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"assets.created")
+
+  override def update(rows: Seq[Row]): IO[Unit] = {
+    val updateAssetsItem = rows.map(r => UpdateAssetsItem(fromRow[UpdateAssetsItemBase](r)))
+
+    post(
+      config.auth,
+      uri"${baseAssetsURL(config.project)}/update",
+      updateAssetsItem,
+      config.maxRetries)
+  }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition((rows: Iterator[Row]) => {

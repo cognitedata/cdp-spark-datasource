@@ -135,7 +135,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "datapoints")
       .load()
       .where(s"timestamp >= 1520035200000 and timestamp <= 1571616000000 and aggregation = 'avg' and granularity = '60d' and name = $valhallTimeSeries")
-    assert(df2.count() == 7)
+    assert(df2.count() == 8)
     val df3 = spark.read.format("com.cognite.spark.datasource")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")

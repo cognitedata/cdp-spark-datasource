@@ -18,6 +18,7 @@ object Setter {
       case _ => Some(new Setter(set.get, false))
     }
 }
+case class NonNullableSetter[A](set: A)
 
 abstract class CdpRelation[T: DerivedDecoder: TypeTag: ClassTag](
     config: RelationConfig,
