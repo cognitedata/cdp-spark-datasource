@@ -1,14 +1,11 @@
 package com.cognite.spark.datasource
 import cats.effect.IO
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
-import io.circe.generic.decoding.DerivedDecoder
+import io.circe.Decoder
 import com.softwaremill.sttp.Uri
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
-
-import scala.reflect._
-import scala.reflect.runtime.universe._
 
 case class Setter[A](set: A, setNull: Boolean)
 object Setter {
@@ -20,9 +17,7 @@ object Setter {
 }
 case class NonNullableSetter[A](set: A)
 
-abstract class CdpRelation[T: DerivedDecoder: TypeTag: ClassTag](
-    config: RelationConfig,
-    shortName: String)
+abstract class CdpRelation[T: Decoder](config: RelationConfig, shortName: String)
     extends BaseRelation
     with TableScan
     with Serializable {
