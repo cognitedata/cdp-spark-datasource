@@ -156,7 +156,10 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   implicit val postFieldEncoder: Encoder[PostField] = new Encoder[PostField] {
     override def apply(field: PostField): Json = {
-      val valueType = fieldIdToValueTypeMap(field.id)
+      val valueType = fieldIdToValueTypeMap.getOrElse(
+        field.id,
+        throw new NoSuchElementException(s"${field.id} is not a valid asset type field id")
+      )
       val value: Json = valueType match {
         case "String" => Json.fromString(field.value)
         case "Long" => Json.fromLong(field.value.replace('.', ',').toLong)
