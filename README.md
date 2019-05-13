@@ -90,6 +90,7 @@ res0: Long = 1000
 ## Reading and writing Cognite Data Platform resource types:
 
 cdp-spark-datasource supports reads from, and writes to, assets, time series, raw tables, data points and events.
+You can also read files metadata and 3D-files metadata.
 
 ### Common options
 
@@ -114,12 +115,39 @@ an API-key and the resource type. To read from a table you should also specify t
 
 ### Writing
 
-To write to a resource you'll need to register a DataFrame that was read from
+There are two ways you can use cdp-spark-datasource to write to CDP: using `insertInto` or using the `save` function. 
+- `insertInto` - will check that all fields are present and in the correct order, and can be more convenient when
+working with Spark SQL tables.
+- `save` - will give you control over how to handle potential collisions with existing data,
+and allows updating a subset of fields in a row. 
+
+#### Writing with `.insertInto()`
+
+To write to a resource using the insert into pattern you'll need to register a DataFrame that was read from
 that resource as a temporary view. You'll need a project where you have write access
 and replace `myApiKey` in the examples below.
 
 Your schema will have to match that of the target exactly. A convenient way to ensure
 this is to copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`, see time series example.
+
+`.insertInto()` will do upsert, as in updating existing rows and inserting new rows, for events and time series. Events are matched on
+`source+sourceId` while time series are matched on `id`.
+It will do insert for assets, raw tables and data points, and throw an error if one or more rows already exist.
+
+#### Writing with `.save()`
+
+Writing with `.save()` is currently supported for assets, events and time series.
+
+You'll need to provide an API-key and the event type you'd like to write to. In addition you can specify
+the desired behaviour when rows in your Dataframe are present in CDF with the `.option("onconflict", value)`.
+
+The valid options for onconflict are
+- `abort` - will try to insert all rows in the Dataframe. An error will be thrown if the resource item already exists and no more rows will be written.
+- `update` - will look for all rows in the Dataframe in CDP and try to update them. If one or more rows do not exist no more rows will be updated and an error will be thrown.
+Supports partial updates.
+- `upsert` - will update rows that already exist, and insert new rows.
+
+See an example for using `.save()` under Events below.
 
 ### Assets
 
@@ -136,11 +164,54 @@ val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
 df.createTempView("assets")
 
 // Create a new asset and write to CDP
-val someAsset = Seq(("99-BB-99999",99L,"This is another asset",Map("sourceSystem"->"MySparkJob"),99L))
-val someAssetDf = someAsset.toDF("name", "parentID", "description","metadata","id")
-someAssetDf
- .write
- .insertInto("assets")
+// Note that parentId, asset type IDs and asset type field IDs have to exist
+val assetColumns = Seq("id", "path", "depth", "name", "parentId", "description",
+                   "types", "metadata", "source", "sourceId", "createdTime", "lastupdatedTime")
+val someAsset = Seq(
+(99L, Seq(0L), 99L, "99-BB-99999", 2231996316030451L, "This is another asset",
+Seq(), Map("sourceSystem"->"MySparkJob"), "some source", "some source id", 99L, 99L))
+val someAssetDf = someAsset.toDF(assetColumns:_*)
+
+// Write the new asset to CDF, ensuring correct schema by borrowing the schema of the df from CDF
+spark
+  .sqlContext
+  .createDataFrame(someAssetDf.rdd, df.schema)
+  .write
+  .insertInto("assets")
+```
+
+#### Asset types
+```scala
+// Assets have support for typed metadata for groups of assets such as wells or valves.
+// To manually create an asset of an existing type we write to the types field using Scala sequences
+val assetColumns = Seq("id", "path", "depth", "name", "parentId", "description",
+                   "types", "metadata", "source", "sourceId", "createdTime", "lastupdatedTime")
+val someAssetWithAssetType = Seq(
+  (
+  99L, Seq(0L), 99L, "99-BB-99999", 2231996316030451L, "This is an asset with an asset type",
+  Seq((100L, // asset type ID
+    "some asset type", // asset type name
+    Seq((200L, // asset type field ID
+      "some asset type field of type String", // field name
+      "String", // field valueType
+      "Some value" // field value
+    ))
+  )),
+  Map("sourceSystem"->"MySparkJob"),
+  "some source", "some source id",
+  99L,
+  99L
+  )
+)
+
+val someAssetWithAssetTypeDf = someAsset.toDF(assetColumns:_*)
+
+// Write to CDF
+spark
+  .sqlContext
+  .createDataFrame(someAssetWithAssetTypeDf.rdd, df.schema)
+  .write
+  .insertInto("assets")
 ```
 
 ### Time series
@@ -221,6 +292,14 @@ val df = spark.read.format("com.cognite.spark.datasource")
   .option("type", "events")
   .load()
 
+// Insert the events in your own project using .save()
+import org.apache.spark.sql.functions._
+df.withColumn("source", lit("publicdata"))
+  .write.format("com.cognite.spark.datasource")
+  .option("apiKey", "myApiKey")
+  .option("onconflict", "abort")
+  .save()
+
 // Get a reference to the events in your project
 val myProjectDf = spark.read.format("com.cognite.spark.datasource")
   .option("apiKey", "myApiKey")
@@ -228,10 +307,18 @@ val myProjectDf = spark.read.format("com.cognite.spark.datasource")
   .load()
 myProjectDf.createTempView("events")
 
-// Copy the Valhall events to your project
-df.filter($"subtype" === "Valhall")
-  .write
-  .insertInto("events")
+// Update the description of all events from Open Industrial Data
+spark.sql("""
+ |select 'Manually copied data from publicdata' as description,
+ |source,
+ |sourceId
+ |from events
+ |where source = 'publicdata'
+""".stripMargin)
+.write.format("com.cognite.spark.datasource")
+.option("apiKey", "myApiKey")
+.option("onconflict", "update")
+.save()
 ```
 
 ### Files metadata
@@ -246,6 +333,24 @@ val df = spark.read.format("com.cognite.spark.datasource")
   .load()
 
 df.groupBy("fileType").count().show()
+```
+
+### 3D models and revisions
+
+https://doc.cognitedata.com/api/0.6/#tag/3D
+
+Note that Open Industrial Data does not have 3D models in it, so to test this you'll need a project
+with existing 3D models. There are five options for listing metadata about 3D models:
+`3dmodels`, `3dmodelrevisions`, `3dmodelrevisionmappings`, `3dmodelrevisionnodes` and `3dmodelrevisionsectors`.
+
+```scala
+// Read 3D models metadata from a project with 3D models and revisions
+val df = spark.read.format("com.cognite.spark.datasource")
+  .option("apiKey", "apiKeyToProjectWith3dModels")
+  .option("type", "3dmodels")
+  .load()
+
+df.show()
 ```
 
 ### Raw tables
