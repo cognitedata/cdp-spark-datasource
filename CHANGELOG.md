@@ -1,3 +1,20 @@
+# 0.4.9
+
+## Fixes
+
+* Speed up time series and events by avoiding unions
+
+## Enhancements
+* Support Scala 2.12
+
+* New write mode using `.save()` allows specifying behaviour on conflicts
+
+* Partial updates now possible for assets, events and time series
+
+* Assets now support asset types
+
+* Bearer tokens can now be used for authentication
+
 # 0.4.8
 
 ## Fixes
