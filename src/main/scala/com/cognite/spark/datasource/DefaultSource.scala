@@ -189,7 +189,7 @@ class DefaultSource
         new TimeSeriesRelation(config)(sqlContext)
       case "assets" =>
         new AssetsRelation(config)(sqlContext)
-      case _ => sys.error(s"Resource type '$resourceType does not support save()")
+      case _ => sys.error(s"Resource type $resourceType does not support save()")
     }
 
     data.foreachPartition((rows: Iterator[Row]) => {
