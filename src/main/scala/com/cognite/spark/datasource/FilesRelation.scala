@@ -49,7 +49,6 @@ object UpdateFileItem {
 
 class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdpRelation[FileItem](config, "files")
-    with CdpConnector
     with InsertableRelation {
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit =

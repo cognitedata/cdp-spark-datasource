@@ -1,8 +1,9 @@
 package com.cognite.spark.datasource
 import cats.effect.IO
-import org.apache.spark.sql.sources.{BaseRelation, TableScan}
+import com.cognite.spark.datasource.SparkSchemaHelper._
+import com.softwaremill.sttp._
 import io.circe.Decoder
-import com.softwaremill.sttp.Uri
+import org.apache.spark.sql.sources.{BaseRelation, TableScan}
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
@@ -17,10 +18,15 @@ object Setter {
 }
 case class NonNullableSetter[A](set: A)
 
+case class DeleteItem(
+    id: Long
+)
+
 abstract class CdpRelation[T: Decoder](config: RelationConfig, shortName: String)
     extends BaseRelation
     with TableScan
-    with Serializable {
+    with Serializable
+    with CdpConnector {
   @transient lazy private val itemsRead =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
 
@@ -46,20 +52,29 @@ abstract class CdpRelation[T: Decoder](config: RelationConfig, shortName: String
   def cursors(): Iterator[(Option[String], Option[Int])] =
     NextCursorIterator(listUrl(), config)
 
+  def deleteItems(config: RelationConfig, baseUrl: Uri, rows: Seq[Row]): IO[Unit] = {
+    val deleteItems: Seq[Long] = rows.map(r => fromRow[DeleteItem](r).id)
+    post(
+      config,
+      uri"$baseUrl/delete",
+      deleteItems
+    )
+  }
+
   def insert(rows: Seq[Row]): IO[Unit] =
     throw new IllegalArgumentException(
-      s"""${shortName} does not support the "onconflict" option "abort".""")
+      s"""$shortName does not support the "onconflict" option "abort".""")
 
   def upsert(rows: Seq[Row]): IO[Unit] =
     throw new IllegalArgumentException(
-      s"""${shortName} does not support the "onconflict" option "upsert".""")
+      s"""$shortName does not support the "onconflict" option "upsert".""")
 
   def update(rows: Seq[Row]): IO[Unit] =
     throw new IllegalArgumentException(
-      s"""${shortName} does not support the "onconflict" option "update".""")
+      s"""$shortName does not support the "onconflict" option "update".""")
 
   def delete(rows: Seq[Row]): IO[Unit] =
     throw new IllegalArgumentException(
-      s"""${shortName} does not support the "onconflict" option "delete".""")
+      s"""$shortName does not support the "onconflict" option "delete".""")
 
 }

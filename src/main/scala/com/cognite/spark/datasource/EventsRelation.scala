@@ -80,6 +80,7 @@ object UpdateEventItem {
       Setter[String](eventItem.sourceId)
     )
 }
+
 case class SourceWithResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
 case class EventFilter(`type`: Option[String], subtype: Option[String])
@@ -87,8 +88,7 @@ case class EventFilter(`type`: Option[String], subtype: Option[String])
 class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLContext)
     extends CdpRelation[EventItem](config, "events")
     with InsertableRelation
-    with PrunedFilteredScan
-    with CdpConnector {
+    with PrunedFilteredScan {
   @transient lazy private val eventsCreated =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"events.created")
   @transient lazy private val eventsRead =
@@ -116,6 +116,9 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
       }
       ()
     })
+
+  override def delete(rows: Seq[Row]): IO[Unit] =
+    deleteItems(config, baseEventsURL(config.project), rows)
 
   def postEvents(rows: Seq[Row]): IO[Unit] = {
     val eventItems = rows.map { r =>

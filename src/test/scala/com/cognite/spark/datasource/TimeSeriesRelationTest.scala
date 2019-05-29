@@ -6,7 +6,7 @@ import org.apache.spark.sql.functions.col
 import com.softwaremill.sttp._
 import org.apache.spark.SparkException
 
-class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
+class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
   val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
   val sourceDf = spark.read
@@ -234,8 +234,8 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
               |where unit = '$saveModeUnit'
      """.stripMargin)
 
-  val nonExistingTimeSeriesDf =
-    spark.sql(s"""
+    val nonExistingTimeSeriesDf =
+      spark.sql(s"""
              |select '$upsertDescription' as description,
              |isString,
              |concat('UPSERTS_', name) as name,
@@ -250,7 +250,6 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
              |from sourceTimeSeries
              |where unit = '$saveModeUnit'
      """.stripMargin)
-
 
     existingTimeSeriesDf.union(nonExistingTimeSeriesDf)
       .write
@@ -267,6 +266,70 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
     assert(dfWithDescriptionUpsertTest.length == 10)
 
     cleanupTestData(saveModeUnit)
+  }
+
+  it should "support deletes in savemode" taggedAs WriteTest in {
+    val deleteDescription = "spark-delete-test"
+    val saveModeUnit = "spark-savemode-test"
+
+    // Clean up any old test data
+    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
+      cleanupTestData(saveModeUnit)
+      spark.sql(s"""select * from sourceTimeSeries where unit = '$saveModeUnit'""").collect
+    }, df => df.length > 0)
+    assert(testTimeSeriesAfterCleanup.length == 0)
+
+    // Insert new time series test data
+    spark
+      .sql(s"""
+              |select '$deleteDescription' as description,
+              |concat('TEST', name) as name,
+              |isString,
+              |metadata,
+              |'$saveModeUnit' as unit,
+              |'' as assetId,
+              |isStep,
+              |cast(array() as array<long>) as securityCategories,
+              |null as id,
+              |null as createdTime,
+              |null as lastUpdatedTime
+              |from sourceTimeSeries
+              |where unit = 'publicdata'
+     """.stripMargin)
+      .select(sourceDf.columns.map(col): _*)
+      .write
+      .insertInto("sourceTimeSeries")
+
+    // Check if post worked
+    val idsAfterPost = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select id from sourceTimeSeries where description = '$deleteDescription'""")
+        .collect,
+      df => df.length < 5)
+    assert(idsAfterPost.length == 5)
+
+    // Delete the data
+    spark
+      .sql(s"""
+              |select id
+              |from sourceTimeSeries
+              |where description = '$deleteDescription'
+      """.stripMargin)
+      .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "delete")
+      .save()
+
+    // Check if delete worked
+    val idsAfterDelete =
+      retryWhile[Array[Row]](
+        spark
+          .sql(s"select id from sourceTimeSeries where description = '$deleteDescription'")
+          .collect,
+        df => df.length > 0)
+    assert(idsAfterDelete.length == 0)
   }
 
   def cleanupTestData(testName: String): Unit = {

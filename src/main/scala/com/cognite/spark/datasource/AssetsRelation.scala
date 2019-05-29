@@ -89,8 +89,7 @@ import AssetsRelation.fieldDecoder
 
 class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdpRelation[AssetsItem](config, "assets")
-    with InsertableRelation
-    with CdpConnector {
+    with InsertableRelation {
   @transient lazy private val assetsCreated =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"assets.created")
 
@@ -107,6 +106,9 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val postAssetItems = rows.map(r => fromRow[PostAssetsItem](r))
     post(config, baseAssetsURL(config.project), postAssetItems)
   }
+
+  override def delete(rows: Seq[Row]): IO[Unit] =
+    deleteItems(config, baseAssetsURL(config.project), rows)
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
     df.foreachPartition((rows: Iterator[Row]) => {
