@@ -10,6 +10,20 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
   val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
 
+  val sourceDf = spark.read
+    .format("com.cognite.spark.datasource")
+    .option("apiKey", readApiKey.apiKey)
+    .option("type", "assets")
+    .load()
+  sourceDf.createTempView("sourceAssets")
+
+  val destinationDf = spark.read
+    .format("com.cognite.spark.datasource")
+    .option("apiKey", writeApiKey.apiKey)
+    .option("type", "assets")
+    .load()
+  destinationDf.createTempView("destinationAssets")
+
   it should "read assets" taggedAs ReadTest in {
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -136,20 +150,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "support some more partial updates" taggedAs WriteTest in {
     val source = "spark-assets-test"
-
-    val sourceDf = spark.read
-      .format("com.cognite.spark.datasource")
-      .option("apiKey", readApiKey.apiKey)
-      .option("type", "assets")
-      .load()
-    sourceDf.createTempView("sourceAssets")
-
-    val destinationDf = spark.read
-      .format("com.cognite.spark.datasource")
-      .option("apiKey", writeApiKey.apiKey)
-      .option("type", "assets")
-      .load()
-    destinationDf.createTempView("destinationAssets")
 
     // Cleanup assets
     cleanupAssets(source)
@@ -301,6 +301,70 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     assert(Set("Double", "Boolean", "String", "Long").subsetOf(valueTypes.map(_._1).toSet))
 
+  }
+
+  it should "allow deletes in savemode" taggedAs WriteTest in {
+    val source = "spark-savemode-asset-deletes-test"
+
+    cleanupAssets(source)
+    val dfWithDeletesAsSource = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
+      df => df.length > 0)
+    assert(dfWithDeletesAsSource.length == 0)
+
+    // Insert some test data
+    spark
+      .sql(s"""
+              |select id,
+              |path,
+              |depth,
+              |name,
+              |null as parentId,
+              |null as types,
+              |description,
+              |metadata,
+              |"$source" as source,
+              |sourceId,
+              |createdTime,
+              |lastUpdatedTime
+              |from sourceAssets
+              |limit 100
+     """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationAssets")
+
+    // Check if insert worked
+    val idsAfterInsert =
+      retryWhile[Array[Row]](
+        spark
+          .sql(s"select id from destinationAssets where source = '$source'")
+          .collect,
+        df => df.length < 100)
+    assert(idsAfterInsert.length == 100)
+
+    // Delete the data
+    spark
+      .sql(s"""
+         |select id
+         |from destinationAssets
+         |where source = '$source'
+       """.stripMargin)
+      .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "assets")
+      .option("onconflict", "delete")
+      .save()
+
+    // Check if delete worked
+    val idsAfterDelete =
+      retryWhile[Array[Row]](
+        spark
+          .sql(s"select id from destinationAssets where source = '$source'")
+          .collect,
+        df => df.length > 0)
+    assert(idsAfterDelete.isEmpty)
   }
 
   def cleanupAssets(source: String): Unit = {

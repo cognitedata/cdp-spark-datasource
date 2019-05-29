@@ -381,6 +381,71 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
+  it should "allow deletes in savemode" taggedAs WriteTest in {
+    val source = "spark-savemode-event-deletes-test"
+
+    // Cleanup old events
+    cleanupEvents(source)
+    val dfWithDeletesAsSource = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationEvent where source = '$source'").collect,
+      df => df.length > 0)
+    assert(dfWithDeletesAsSource.length == 0)
+
+    // Insert some test data
+    spark
+      .sql(s"""
+              |select "foo" as description,
+              |startTime,
+              |endTime,
+              |type,
+              |subtype,
+              |null as assetIds,
+              |bigint(0) as id,
+              |map("foo", null, "bar", "test") as metadata,
+              |"$source" as source,
+              |sourceId,
+              |null as createdTime,
+              |lastUpdatedTime
+              |from sourceEvent
+              |limit 100
+     """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationEvent")
+
+    // Check if insert worked
+    val idsAfterInsert =
+      retryWhile[Array[Row]](
+        spark
+          .sql(s"select id from destinationEvent where source = '$source'")
+          .collect,
+        df => df.length < 100)
+    assert(idsAfterInsert.length == 100)
+
+    // Delete the data
+    spark
+      .sql(s"""
+              |select id
+              |from destinationEvent
+              |where source = '$source'
+      """.stripMargin)
+      .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
+      .option("onconflict", "delete")
+      .save()
+
+    // Check if delete worked
+    val idsAfterDelete =
+      retryWhile[Array[Row]](
+        spark
+          .sql(s"select id from destinationEvent where source = '$source'")
+          .collect,
+        df => df.length > 0)
+    assert(idsAfterDelete.length == 0)
+  }
+
   def cleanupEvents(source: String): Unit = {
     import io.circe.generic.auto._
 
@@ -400,5 +465,4 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       ).unsafeRunSync()
     }
   }
-
 }

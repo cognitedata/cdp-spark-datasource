@@ -110,8 +110,7 @@ object UpdateTimeSeriesItem {
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdpRelation[TimeSeriesItem](config, "timeseries")
-    with InsertableRelation
-    with CdpConnector {
+    with InsertableRelation {
 
   @transient lazy private val timeSeriesCreated =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"timeseries.created")
@@ -154,6 +153,9 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       }
       ()
     })
+
+  override def delete(rows: Seq[Row]): IO[Unit] =
+    deleteItems(config, baseTimeSeriesUrl(config.project, "0.6"), rows)
 
   private val updateTimeSeriesUrl =
     uri"${baseUrl(config.project, "0.6", config.baseUrl)}/timeseries/update"
@@ -245,8 +247,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     (putItems, postItems).parMapN((_, _) => ())
   }
 
-  def baseTimeSeriesUrl(project: String): Uri =
-    uri"${baseUrl(project, "0.5", config.baseUrl)}/timeseries"
+  def baseTimeSeriesUrl(project: String, version: String = "0.5"): Uri =
+    uri"${baseUrl(project, version, config.baseUrl)}/timeseries"
 
   override def schema: StructType = structType[TimeSeriesItem]
 
