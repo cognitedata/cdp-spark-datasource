@@ -32,34 +32,49 @@ trait CdpConnector {
 
   def getProject(auth: Auth, maxRetries: Int, baseUrl: String): String = {
     val loginStatusUrl = uri"$baseUrl/login/status"
-    val jsonResult = getJson[Data[Login]](auth, loginStatusUrl, maxRetries)
-    jsonResult.unsafeRunSync().data.project
+
+    val result = sttp
+      .header("Accept", "application/json")
+      .auth(auth)
+      .get(loginStatusUrl)
+      .response(asJson[Data[Login]])
+      .parseResponseIf(_ => true)
+      .send()
+      .flatMap(r => onError(loginStatusUrl)(r))
+
+    retryWithBackoff(result, Constants.DefaultInitialRetryDelay, maxRetries)
+      .unsafeRunSync()
+      .data
+      .project
   }
 
   def baseUrl(project: String, version: String, baseUrl: String): Uri =
     uri"$baseUrl/api/$version/projects/$project"
 
-  def getJson[A: Decoder](auth: Auth, url: Uri, maxRetries: Int): IO[A] = {
+  def getJson[A: Decoder](config: RelationConfig, url: Uri): IO[A] = {
     val result = sttp
       .header("Accept", "application/json")
-      .auth(auth)
+      .header("x-cdp-sdk", Constants.SparkDatasourceVersion)
+      .header("x-cdp-app", config.applicationId)
+      .auth(config.auth)
       .get(url)
       .response(asJson[A])
       .parseResponseIf(_ => true)
       .send()
       .flatMap(r => onError(url)(r))
 
-    retryWithBackoff(result, Constants.DefaultInitialRetryDelay, maxRetries)
+    retryWithBackoff(result, Constants.DefaultInitialRetryDelay, config.maxRetries)
   }
 
   def getProtobuf[A](
-      auth: Auth,
+      config: RelationConfig,
       url: Uri,
-      parseResult: Response[Array[Byte]] => Response[A],
-      maxRetries: Int): IO[A] = {
+      parseResult: Response[Array[Byte]] => Response[A]): IO[A] = {
     val result = sttp
       .header("Accept", "application/protobuf")
-      .auth(auth)
+      .header("x-cdp-sdk", Constants.SparkDatasourceVersion)
+      .header("x-cdp-app", config.applicationId)
+      .auth(config.auth)
       .get(url)
       .response(asByteArray)
       .parseResponseIf(_ => true)
@@ -71,17 +86,14 @@ trait CdpConnector {
           case Left(error) => IO.raiseError(CdpApiException(url, r.code, error))
       })
 
-    retryWithBackoff(result, Constants.DefaultInitialRetryDelay, maxRetries)
+    retryWithBackoff(result, Constants.DefaultInitialRetryDelay, config.maxRetries)
   }
 
   def get[A: Decoder](
-      auth: Auth,
+      config: RelationConfig,
       url: Uri,
-      batchSize: Int,
-      limit: Option[Int],
-      maxRetries: Int,
       initialCursor: Option[String] = None): Iterator[A] =
-    getWithCursor(auth, url, batchSize, limit, maxRetries, initialCursor)
+    getWithCursor(config, url, initialCursor)
       .flatMap(_.chunk)
 
   def onError[A, B](url: Uri): PartialFunction[Response[Either[B, A]], IO[A]] = {
@@ -98,7 +110,7 @@ trait CdpConnector {
         IO.raiseError(CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message))
       case Left(error) =>
         IO.raiseError(
-          CdpApiException(url, statusCode, s"${error.getMessage} reading '${responseBody}'"))
+          CdpApiException(url, statusCode, s"${error.getMessage} reading '$responseBody'"))
     }
 
   def defaultHandling(url: Uri): PartialFunction[Response[String], IO[Unit]] = {
@@ -108,66 +120,74 @@ trait CdpConnector {
   }
 
   def getWithCursor[A: Decoder](
-      auth: Auth,
+      config: RelationConfig,
       url: Uri,
-      batchSize: Int,
-      limit: Option[Int],
-      maxRetries: Int,
       initialCursor: Option[String] = None): Iterator[Chunk[A, String]] =
-    Batch.chunksWithCursor(batchSize, limit, initialCursor) { (chunkSize, cursor: Option[String]) =>
+    Batch.chunksWithCursor(
+      config.batchSize.getOrElse(Constants.DefaultBatchSize),
+      config.limit,
+      initialCursor) { (chunkSize, cursor: Option[String]) =>
       val urlWithLimit = url.param("limit", chunkSize.toString)
       val getUrl = cursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
 
       val dataWithCursor =
-        getJson[DataItemsWithCursor[A]](auth, getUrl, maxRetries).unsafeRunSync().data
+        getJson[DataItemsWithCursor[A]](config, getUrl)
+          .unsafeRunSync()
+          .data
       (dataWithCursor.items, dataWithCursor.nextCursor)
     }
 
-  def post[A: Encoder](auth: Auth, url: Uri, items: Seq[A], maxRetries: Int): IO[Unit] =
-    postOr(auth, url, items, maxRetries)(Map.empty)
+  def post[A: Encoder](config: RelationConfig, url: Uri, items: Seq[A]): IO[Unit] =
+    postOr(config, url, items)(Map.empty)
 
-  def postOr[A: Encoder](auth: Auth, url: Uri, items: Seq[A], maxRetries: Int)(
+  def postOr[A: Encoder](config: RelationConfig, url: Uri, items: Seq[A])(
       onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
     val singlePost = sttp
       .header("Accept", "application/json")
-      .auth(auth)
+      .header("x-cdp-sdk", Constants.SparkDatasourceVersion)
+      .header("x-cdp-app", config.applicationId)
+      .auth(config.auth)
       .parseResponseIf(_ => true)
       .body(Items(items))
       .post(url)
       .send()
       .flatMap(onResponse.orElse(defaultHandling(url)))
-    retryWithBackoff(singlePost, Constants.DefaultInitialRetryDelay, maxRetries)
+    retryWithBackoff(singlePost, Constants.DefaultInitialRetryDelay, config.maxRetries)
   }
 
-  def put[A: Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int): IO[Unit] =
-    putOr(apiKey, url, items, maxRetries)(Map.empty)
+  def put[A: Encoder](config: RelationConfig, url: Uri, items: Seq[A]): IO[Unit] =
+    putOr(config, url, items)(Map.empty)
 
-  def putOr[A: Encoder](apiKey: String, url: Uri, items: Seq[A], maxRetries: Int)(
+  def putOr[A: Encoder](config: RelationConfig, url: Uri, items: Seq[A])(
       onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
     val singlePost = sttp
       .header("Accept", "application/json")
-      .header("api-key", apiKey)
+      .header("x-cdp-sdk", Constants.SparkDatasourceVersion)
+      .header("x-cdp-app", config.applicationId)
+      .auth(config.auth)
       .parseResponseIf(_ => true)
       .body(Items(items))
       .put(url)
       .send()
       .flatMap(onResponse.orElse(defaultHandling(url)))
-    retryWithBackoff(singlePost, Constants.DefaultInitialRetryDelay, maxRetries)
+    retryWithBackoff(singlePost, Constants.DefaultInitialRetryDelay, config.maxRetries)
   }
 
-  def delete(apiKey: String, url: Uri, maxRetries: Int): IO[Unit] =
-    deleteOr(apiKey, url, maxRetries)(Map.empty)
+  def delete(config: RelationConfig, url: Uri): IO[Unit] =
+    deleteOr(config, url)(Map.empty)
 
-  def deleteOr(apiKey: String, url: Uri, maxRetries: Int)(
+  def deleteOr(config: RelationConfig, url: Uri)(
       onResponse: PartialFunction[Response[String], IO[Unit]]): IO[Unit] = {
     val singleDelete = sttp
       .header("Accept", "application/json")
-      .header("api-key", apiKey)
+      .header("x-cdp-sdk", Constants.SparkDatasourceVersion)
+      .header("x-cdp-app", config.applicationId)
+      .auth(config.auth)
       .parseResponseIf(_ => true)
       .delete(url)
       .send()
       .flatMap(onResponse.orElse(defaultHandling(url)))
-    retryWithBackoff(singleDelete, Constants.DefaultInitialRetryDelay, maxRetries)
+    retryWithBackoff(singleDelete, Constants.DefaultInitialRetryDelay, config.maxRetries)
   }
 
   // scalastyle:off cyclomatic.complexity

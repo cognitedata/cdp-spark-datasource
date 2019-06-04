@@ -69,7 +69,7 @@ abstract class DataPointsRelation(
     with Serializable {
   import CdpConnector._
   @transient lazy private val maxRetries = config.maxRetries
-
+  private val applicationId = Some(sqlContext.sparkContext.applicationId)
   val datapointsCreated: Counter
   val datapointsRead: Counter
 
@@ -113,27 +113,25 @@ abstract class DataPointsRelation(
 
   private def getLatestDataPointTimestamp(timeSeriesName: String): IO[Long] =
     getJson[LatestDataPoint](
-      config.auth,
-      uri"${baseUrl(config.project, "0.5", Constants.DefaultBaseUrl)}/timeseries/latest/$timeSeriesName",
-      config.maxRetries)
-      .map { latest =>
-        latest.data.items.headOption
-          .map(_.timestamp)
-          .getOrElse(System.currentTimeMillis())
-      }
+      config,
+      uri"${baseUrl(config.project, "0.5", Constants.DefaultBaseUrl)}/timeseries/latest/$timeSeriesName"
+    ).map { latest =>
+      latest.data.items.headOption
+        .map(_.timestamp)
+        .getOrElse(System.currentTimeMillis())
+    }
 
   private def getFirstDataPointTimestamp(timeSeriesName: String): IO[Long] =
     getJson[DataItemsWithCursor[DataPointsTimestampItem]](
-      config.auth,
+      config,
       uri"${baseDataPointsUrl(config.project)}/$timeSeriesName"
         .param("limit", "1")
-        .param("start", "0"),
-      config.maxRetries)
-      .map { latest =>
-        latest.data.items.headOption
-          .map(_.datapoints.headOption.map(_.timestamp).getOrElse(0L))
-          .getOrElse(0L)
-      }
+        .param("start", "0")
+    ).map { latest =>
+      latest.data.items.headOption
+        .map(_.datapoints.headOption.map(_.timestamp).getOrElse(0L))
+        .getOrElse(0L)
+    }
 
   def getTimestampLimits(
       timeSeriesNames: Vector[String],
@@ -171,6 +169,8 @@ abstract class DataPointsRelation(
     val url = uri"${baseDataPointsUrl(config.project)}"
     val postDataPoints = sttp
       .header("Accept", "application/json")
+      .header("x-cdp-sdk", Constants.SparkDatasourceVersion)
+      .header("x-cdp-app", applicationId.getOrElse("Scala"))
       .auth(config.auth)
       .parseResponseIf(_ => true)
       .contentType("application/protobuf")

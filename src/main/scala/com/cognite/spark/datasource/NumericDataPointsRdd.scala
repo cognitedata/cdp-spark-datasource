@@ -20,7 +20,6 @@ class NumericDataPointsRdd(
   private val granularityMilliseconds = granularityToMilliseconds(granularity)
   private val unitMilliseconds = granularityToMilliseconds(
     granularity.map(_.copy(amount = Some(1))))
-
   override def getDataPointRows(name: String, uri: Uri, start: Long): (Seq[Row], Option[Long]) = {
     val dataPoints = aggregation match {
       case Some(aggregationFilter) =>
@@ -30,10 +29,9 @@ class NumericDataPointsRdd(
           .param("aggregates", s"${aggregationFilter.aggregation}")
           .param("granularity", s"${g.amount.getOrElse("")}${g.unit}")
         getJson[CdpConnector.DataItemsWithCursor[DataPointsItem]](
-          config.auth,
-          uriWithAggregation,
-          config.maxRetries)
-          .unsafeRunSync()
+          config,
+          uriWithAggregation
+        ).unsafeRunSync()
           .data
           .items
           .flatMap(dataPoints =>
@@ -43,8 +41,11 @@ class NumericDataPointsRdd(
                 getAggregationValue(dataPoint, aggregationFilter))
             }))
       case None =>
-        getProtobuf[Seq[NumericDatapoint]](config.auth, uri, parseResult, config.maxRetries)
-          .unsafeRunSync()
+        getProtobuf[Seq[NumericDatapoint]](
+          config,
+          uri,
+          parseResult
+        ).unsafeRunSync()
     }
     if (dataPoints.lastOption.fold(true)(_.timestamp < start)) {
       (Seq.empty, None)

@@ -96,7 +96,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val postEventItems = rows.map(r => fromRow[PostEventItem](r))
-    post(config.auth, baseEventsURL(config.project), postEventItems, config.maxRetries)
+    post(config, baseEventsURL(config.project), postEventItems)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = postEvents(rows)
@@ -104,11 +104,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   override def update(rows: Seq[Row]): IO[Unit] = {
     val updateEventItems = rows.map(r => UpdateEventItem(fromRow[EventItem](r)))
 
-    post(
-      config.auth,
-      uri"${baseEventsURL(config.project)}/update",
-      updateEventItems,
-      config.maxRetries)
+    post(config, uri"${baseEventsURL(config.project)}/update", updateEventItems)
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
@@ -129,7 +125,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
 
     val postEventItems = eventItems.map(e => PostEventItem(e))
 
-    postOr(config.auth, baseEventsURL(config.project), postEventItems, config.maxRetries) {
+    postOr(config, baseEventsURL(config.project), postEventItems) {
       case response @ Response(Right(body), StatusCodes.Conflict, _, _, _) =>
         decode[Error[EventConflict]](body) match {
           case Right(conflict) => resolveConflict(eventItems, conflict.error)
@@ -167,11 +163,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
       IO.unit
     } else {
       val updateEventItems = conflictingEvents.map(e => UpdateEventItem(e))
-      post(
-        config.auth,
-        uri"${baseEventsURL(config.project)}/update",
-        updateEventItems,
-        config.maxRetries)
+      post(config, uri"${baseEventsURL(config.project)}/update", updateEventItems)
     }
 
     val newEvents = eventItems.map(_.copy(id = None)).diff(conflictingEvents.map(_.copy(id = None)))
@@ -179,7 +171,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
       IO.unit
     } else {
       val newPostEventItems = newEvents.map(e => PostEventItem(e))
-      post(config.auth, baseEventsURL(config.project), newPostEventItems, config.maxRetries)
+      post(config, baseEventsURL(config.project), newPostEventItems)
     }
 
     (postUpdate, postNewItems).parMapN((_, _) => ())

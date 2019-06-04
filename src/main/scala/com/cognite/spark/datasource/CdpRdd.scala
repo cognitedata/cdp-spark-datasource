@@ -17,6 +17,9 @@ case class CdpRdd[A: Decoder](
     extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
 
+  // This needs to be broadcast here since compute will be called from the executors
+  // where the SparkContext is not available
+  val broadcastedApplicationId = sparkContext.broadcast(sparkContext.applicationId)
   override def getPartitions: Array[Partition] =
     cursors.toIndexedSeq.zipWithIndex.map {
       case ((cursor, size), index) =>
@@ -32,13 +35,10 @@ case class CdpRdd[A: Decoder](
     val split = _split.asInstanceOf[CdpRddPartition]
     val cdpRows =
       get[A](
-        config.auth,
+        config.copy(limit = split.size, applicationId = broadcastedApplicationId.value),
         getSinglePartitionBaseUri,
-        config.batchSize.getOrElse(Constants.DefaultBatchSize),
-        split.size,
-        config.maxRetries,
-        split.cursor)
-        .map(toRow)
+        split.cursor
+      ).map(toRow)
 
     new InterruptibleIterator(context, cdpRows)
   }

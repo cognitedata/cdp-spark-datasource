@@ -60,8 +60,12 @@ lazy val commonSettings = Seq(
   fork in Test := true
 )
 
+// Added this to fix a race condition between ProtoBuf and BuildInfo
+// https://github.com/sbt/sbt/issues/1583#issuecomment-262166588
+managedSourceDirectories in Compile += target.value / "protobuf-generated"
+
 PB.targets in Compile := Seq(
-  scalapb.gen() -> (sourceManaged in Compile).value
+  scalapb.gen() -> (target.value / "protobuf-generated")
 )
 
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
@@ -110,6 +114,12 @@ lazy val library = (project in file("."))
     mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
     mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,
     coverageExcludedPackages := "com.cognite.data.*"
+  )
+  .enablePlugins(
+    BuildInfoPlugin).
+  settings(
+    buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
+    buildInfoPackage := "BuildInfo"
   )
 
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")

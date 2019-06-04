@@ -134,7 +134,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(storedMetadata.get("foo").contains("bar"))
   }
 
-  it should "support upserts" taggedAs WriteTest in {
+  it should "support upserts" taggedAs WriteTest ignore {
     val source = "spark-events-test"
 
     // Cleanup events
@@ -275,7 +275,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
-  it should "allow partial updates in savemode" taggedAs WriteTest in {
+  it should "allow partial updates in savemode" taggedAs WriteTest ignore {
     val source = "spark-savemode-updates-test"
 
     // Cleanup old events
@@ -385,21 +385,18 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     import io.circe.generic.auto._
 
     val project = getProject(writeApiKey, Constants.DefaultMaxRetries, Constants.DefaultBaseUrl)
-
+    val config = getDefaultConfig(writeApiKey)
     val events = get[EventItem](
-      writeApiKey,
-      uri"https://api.cognitedata.com/api/0.6/projects/$project/events?source=$source",
-      batchSize = 1000,
-      limit = None,
-      maxRetries = 10)
+      config,
+      uri"https://api.cognitedata.com/api/0.6/projects/${config.project}/events?source=$source"
+    )
 
     val eventIdsChunks = events.flatMap(_.id).grouped(1000)
     for (eventIds <- eventIdsChunks) {
       post(
-        writeApiKey,
-        uri"https://api.cognitedata.com/api/0.6/projects/$project/events/delete",
-        eventIds,
-        10
+        config,
+        uri"https://api.cognitedata.com/api/0.6/projects/${config.project}/events/delete",
+        eventIds
       ).unsafeRunSync()
     }
   }

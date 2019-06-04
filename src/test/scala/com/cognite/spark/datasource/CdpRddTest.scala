@@ -13,10 +13,10 @@ import io.circe.parser.decode
 case class Number(number: Int)
 
 class CdpRddTest extends FlatSpec with Matchers with SparkTest {
-  val defaultConfig = RelationConfig(ApiKeyAuth("apiKey"), "project", None, None, 1, 2, collectMetrics = false, "", "https://api.cognitedata.com", OnConflict.ABORT)
+  val defaultConfig = getDefaultConfig(ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE")))
   class TestRdd(config: RelationConfig, nextCursorIterator: Iterator[(Option[String], Option[Int])])
     extends CdpRdd[Number](spark.sparkContext, (n: Number) => Row(n.number),
-    uri"http://localhost/api",
+      uri"http://localhost/api",
       config,
       nextCursorIterator)
 
@@ -41,12 +41,12 @@ class CdpRddTest extends FlatSpec with Matchers with SparkTest {
       0.until(nItems - 2).map(n => (Some(n.toString), config.batchSize))
     if (nItems == 1) {
       Iterator((Option.empty[String],
-      (config.batchSize, config.limit) match {
-        case (Some(batchSize), Some(limit)) => Some(scala.math.min(batchSize, limit))
-        case (None, Some(limit)) => Some(limit)
-        case (Some(batchSize), None) => Some(batchSize)
-        case (None, None) => None
-      }))
+        (config.batchSize, config.limit) match {
+          case (Some(batchSize), Some(limit)) => Some(scala.math.min(batchSize, limit))
+          case (None, Some(limit)) => Some(limit)
+          case (Some(batchSize), None) => Some(batchSize)
+          case (None, None) => None
+        }))
     } else if (nItems > 1) {
       iterator ++ Iterator((Some((nItems - 2).toString), None))
     } else {
@@ -61,7 +61,7 @@ class CdpRddTest extends FlatSpec with Matchers with SparkTest {
       val expectedCursors: Iterator[Option[String]] =
         Iterator(Option.empty[String]) ++ Stream.from(0).map(n => Some(n.toString)).toIterator
       val numberedItems = NumberedItems(Stream.from(0).map(_.toString).toIterator)
-      override def getJson[A: Decoder](auth: Auth, url: Uri, maxRetries: StatusCode): IO[A] = {
+      override def getJson[A: Decoder](config: RelationConfig, url: Uri): IO[A] = {
         url.paramsMap.get("limit") should be(Some("2"))
         url.paramsMap.get("cursor") should be(expectedCursors.next)
         IO.pure(decode(numberedItems.next).right.get)
@@ -78,7 +78,7 @@ class CdpRddTest extends FlatSpec with Matchers with SparkTest {
     val cursors = makeCursorIterator(config, 2)
     val rddInfiniteCursors: TestRdd = new TestRdd(config, cursors) {
       val numberedItems = NumberedItems(Stream.from(0).map(_.toString).toIterator)
-      override def getJson[A: Decoder](auth: Auth, url: Uri, maxRetries: StatusCode): IO[A] = {
+      override def getJson[A: Decoder](config: RelationConfig, url: Uri): IO[A] = {
         url.paramsMap.get("limit") should be(Some("5"))
         IO.pure(decode(numberedItems.next).right.get)
       }
@@ -92,7 +92,7 @@ class CdpRddTest extends FlatSpec with Matchers with SparkTest {
     val cursors1 = makeCursorIterator(config, 1)
     val rddLimit1: TestRdd = new TestRdd(config1, cursors1) {
       val numberedItems = NumberedItems(Stream.from(0).map(_.toString).toIterator)
-      override def getJson[A: Decoder](auth: Auth, url: Uri, maxRetries: StatusCode): IO[A] = {
+      override def getJson[A: Decoder](config: RelationConfig, url: Uri): IO[A] = {
         IO.pure(decode(numberedItems.next).right.get)
       }
     }
@@ -103,7 +103,7 @@ class CdpRddTest extends FlatSpec with Matchers with SparkTest {
     val cursorsFiveCursors = makeCursorIterator(config, 2)
     val rddFiveCursors: TestRdd = new TestRdd(config, cursorsFiveCursors) {
       val numberedItems = NumberedItems((1 to 5).map(_.toString).toIterator)
-      override def getJson[A: Decoder](auth: Auth, url: Uri, maxRetries: StatusCode): IO[A] = {
+      override def getJson[A: Decoder](config: RelationConfig, url: Uri): IO[A] = {
         IO.pure(decode(numberedItems.next).right.get)
       }
     }
@@ -117,7 +117,7 @@ class CdpRddTest extends FlatSpec with Matchers with SparkTest {
     val cursors = makeCursorIterator(config, 6)
     val rdd: TestRdd = new TestRdd(config, cursors) {
       val numberedItems = NumberedItems((1 to 5).map(_.toString).toIterator)
-      override def getJson[A: Decoder](auth: Auth, url: Uri, maxRetries: StatusCode): IO[A] = {
+      override def getJson[A: Decoder](config: RelationConfig, url: Uri): IO[A] = {
         IO.pure(decode(numberedItems.next).right.get)
       }
     }
@@ -133,7 +133,7 @@ class CdpRddTest extends FlatSpec with Matchers with SparkTest {
     val cursors = makeCursorIterator(config, 1)
     val rdd: TestRdd = new TestRdd(config, cursors) {
       val numberedItems = NumberedItems((1 to 5).map(_.toString).toIterator)
-      override def getJson[A: Decoder](auth: Auth, url: Uri, maxRetries: StatusCode): IO[A] = {
+      override def getJson[A: Decoder](config: RelationConfig, url: Uri): IO[A] = {
         IO.pure(decode(numberedItems.next).right.get)
       }
     }

@@ -1,5 +1,7 @@
 package com.cognite.spark.datasource
 
+import BuildInfo.BuildInfo
+
 import scala.concurrent.duration._
 
 object Constants {
@@ -15,4 +17,5 @@ object Constants {
   val DefaultBaseUrl = "https://api.cognitedata.com"
   val MetadataValuePostMaxLength = 512
   val MaxConcurrentRequests = 1000
+  val SparkDatasourceVersion = s"${BuildInfo.organization}-${BuildInfo.version}"
 }

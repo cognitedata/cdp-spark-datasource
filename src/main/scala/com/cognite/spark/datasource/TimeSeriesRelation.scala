@@ -121,7 +121,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val postTimeSeriesItem = fromRow[PostTimeSeriesItem](r)
       postTimeSeriesItem.copy(metadata = filterMetadata(postTimeSeriesItem.metadata))
     }
-    post(config.auth, baseTimeSeriesUrl(config.project), postTimeSeriesItems, config.maxRetries)
+    post(config, baseTimeSeriesUrl(config.project), postTimeSeriesItems)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
@@ -134,10 +134,10 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       rows.map(r => UpdateTimeSeriesItem(fromRow[UpdateTimeSeriesBase](r)))
 
     post(
-      config.auth,
+      config,
       uri"${baseTimeSeriesUrl(config.project)}/update",
-      updateTimeSeriesItems,
-      config.maxRetries)
+      updateTimeSeriesItems
+    )
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
@@ -169,22 +169,25 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       IO.unit
     } else {
       post(
-        config.auth,
+        config,
         baseTimeSeriesUrl(config.project),
-        postTimeSeriesToCreate,
-        config.maxRetries)
-        .flatTap { _ =>
-          IO {
-            if (config.collectMetrics) {
-              timeSeriesCreated.inc(postTimeSeriesToCreate.length)
-            }
+        postTimeSeriesToCreate
+      ).flatTap { _ =>
+        IO {
+          if (config.collectMetrics) {
+            timeSeriesCreated.inc(postTimeSeriesToCreate.length)
           }
         }
+      }
     }
     val updateItems = if (updateTimeSeriesItems.isEmpty) {
       IO.unit
     } else {
-      postOr(config.auth, updateTimeSeriesUrl, updateTimeSeriesItems, config.maxRetries) {
+      postOr(
+        config,
+        updateTimeSeriesUrl,
+        updateTimeSeriesItems
+      ) {
         case response @ Response(Right(body), StatusCodes.BadRequest, _, _, _) =>
           decode[Error[TimeSeriesConflict]](body) match {
             case Right(conflict) =>
@@ -214,7 +217,11 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val putItems = if (timeSeriesToUpdate.isEmpty) {
       IO.unit
     } else {
-      post(config.auth, updateTimeSeriesUrl, timeSeriesToUpdate, config.maxRetries)
+      post(
+        config,
+        updateTimeSeriesUrl,
+        timeSeriesToUpdate
+      )
     }
 
     val timeSeriesToCreate = timeSeriesItems.filter(p => p.id.exists(notFound.contains(_)))
@@ -222,14 +229,17 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val postItems = if (timeSeriesToCreate.isEmpty) {
       IO.unit
     } else {
-      post(config.auth, timeSeriesUrl, postTimeSeriesToCreate, config.maxRetries)
-        .flatTap { _ =>
-          IO {
-            if (config.collectMetrics) {
-              timeSeriesCreated.inc(postTimeSeriesToCreate.length)
-            }
+      post(
+        config,
+        timeSeriesUrl,
+        postTimeSeriesToCreate
+      ).flatTap { _ =>
+        IO {
+          if (config.collectMetrics) {
+            timeSeriesCreated.inc(postTimeSeriesToCreate.length)
           }
         }
+      }
     }
 
     (putItems, postItems).parMapN((_, _) => ())
