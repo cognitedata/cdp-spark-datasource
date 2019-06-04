@@ -100,16 +100,12 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val assetsItems = rows.map(r => fromRow[UpdateAssetsItemBase](r))
     val updateAssetsItem = assetsItems.map(a => UpdateAssetsItem(a))
 
-    post(
-      config.auth,
-      uri"${baseAssetsURL(config.project)}/update",
-      updateAssetsItem,
-      config.maxRetries)
+    post(config, uri"${baseAssetsURL(config.project)}/update", updateAssetsItem)
   }
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val postAssetItems = rows.map(r => fromRow[PostAssetsItem](r))
-    post(config.auth, baseAssetsURL(config.project), postAssetItems, config.maxRetries)
+    post(config, baseAssetsURL(config.project), postAssetItems)
   }
 
   override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
@@ -127,13 +123,16 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val assetItem = fromRow[PostAssetsItem](r)
       assetItem.copy(metadata = filterMetadata(assetItem.metadata))
     }
-    post(config.auth, baseAssetsURL(config.project), assetItems, config.maxRetries)
-      .map(item => {
-        if (config.collectMetrics) {
-          assetsCreated.inc(rows.length)
-        }
-        item
-      })
+    post(
+      config,
+      baseAssetsURL(config.project),
+      assetItems
+    ).map(item => {
+      if (config.collectMetrics) {
+        assetsCreated.inc(rows.length)
+      }
+      item
+    })
   }
 
   def baseAssetsURL(project: String, version: String = "0.6"): Uri =
@@ -152,7 +151,10 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   private val cursorsUrl = uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets/cursors"
   override def cursors(): Iterator[(Option[String], Option[Int])] =
-    CursorsCursorIterator(cursorsUrl.param("divisions", config.partitions.toString), config)
+    CursorsCursorIterator(
+      cursorsUrl.param("divisions", config.partitions.toString),
+      config
+    )
 
   implicit val postFieldEncoder: Encoder[PostField] = new Encoder[PostField] {
     override def apply(field: PostField): Json = {
@@ -182,11 +184,9 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   private val fieldIdToValueTypeMap: Map[Long, String] = {
     val assetTypesIterator =
       get[TypeDescription](
-        config.auth,
-        uri"${baseAssetsURL(config.project)}/types?",
-        batchSize,
-        config.limit,
-        config.maxRetries)
+        config,
+        uri"${baseAssetsURL(config.project)}/types?"
+      )
     assetTypesIterator.flatMap(_.fields).map(f => (f.id, f.valueType)).toMap
   }
 }
@@ -216,7 +216,7 @@ object AssetsRelation {
       } yield FieldData(id, name, valueType, value)
   }
 
-  val validPathComponentTypes =
+  private val validPathComponentTypes =
     Seq(classOf[java.lang.Integer], classOf[java.lang.Long], classOf[java.lang.String])
 
   def isValidAssetsPath(path: String): Boolean =

@@ -34,7 +34,6 @@ class RawTableRelation(
   import RawTableRelation._
 
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
-  @transient lazy private val maxRetries = config.maxRetries
 
   @transient lazy val defaultSchema = StructType(
     Seq(
@@ -84,7 +83,10 @@ class RawTableRelation(
       },
       baseUrl,
       config,
-      new NextCursorIterator[RawItem](baseUrl.param("columns", ","), config)
+      new NextCursorIterator[RawItem](
+        baseUrl.param("columns", ","),
+        config
+      )
     )
   }
 
@@ -121,7 +123,7 @@ class RawTableRelation(
 
     val url = uri"${baseRawTableURL(config.project, database, table)}/create"
 
-    post(config.auth, url, items, maxRetries)
+    post(config, url, items)
       .flatTap { _ =>
         IO {
           if (config.collectMetrics) {

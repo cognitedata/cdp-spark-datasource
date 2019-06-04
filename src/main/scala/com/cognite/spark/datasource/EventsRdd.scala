@@ -19,6 +19,7 @@ case class EventsRdd(
     extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
 
+  private val applicationId = Some(sparkContext.applicationId)
   override def getPartitions: Array[Partition] =
     (for {
       (cursor, _) <- cursors
@@ -36,13 +37,10 @@ case class EventsRdd(
       split.filter.subtype.fold(urlWithType)(urlWithType.param("subtype", _))
     val cdpRows: Iterator[Row] =
       get[EventItem](
-        config.auth,
+        config,
         urlWithTypeAndSubType,
-        config.batchSize.getOrElse(Constants.DefaultBatchSize),
-        config.limit,
-        config.maxRetries,
-        split.cursor)
-        .map(toRow)
+        split.cursor
+      ).map(toRow)
 
     new InterruptibleIterator(context, cdpRows)
   }

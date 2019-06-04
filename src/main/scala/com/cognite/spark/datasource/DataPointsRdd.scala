@@ -1,7 +1,6 @@
 package com.cognite.spark.datasource
 
 import com.softwaremill.sttp._
-import io.circe.generic.auto._
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -16,6 +15,8 @@ abstract case class DataPointsRdd(
     extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsBatchSize)
+
+  val applicationId = Some(sparkContext.applicationId)
 
   def getDataPointRows(name: String, uri: Uri, start: Long): (Seq[Row], Option[Long])
 

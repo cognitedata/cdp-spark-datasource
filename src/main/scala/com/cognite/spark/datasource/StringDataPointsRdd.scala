@@ -17,8 +17,11 @@ class StringDataPointsRdd(
 
   override def getDataPointRows(name: String, uri: Uri, start: Long): (Seq[Row], Option[Long]) = {
     val dataPoints =
-      getProtobuf[Seq[StringDatapoint]](config.auth, uri, parseResult, config.maxRetries)
-        .unsafeRunSync()
+      getProtobuf[Seq[StringDatapoint]](
+        config,
+        uri,
+        parseResult
+      ).unsafeRunSync()
     if (dataPoints.lastOption.fold(true)(_.timestamp < start)) {
       (Seq.empty, None)
     } else {

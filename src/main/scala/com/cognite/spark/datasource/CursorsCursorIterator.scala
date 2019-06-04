@@ -8,7 +8,8 @@ case class CursorsCursorIterator(url: Uri, config: RelationConfig)
     extends Iterator[(Option[String], Option[Int])]
     with CdpConnector {
   private val cursors = {
-    val cursors = get[String](config.auth, url, 100, None, config.maxRetries).toSeq
+    val cursors =
+      get[String](config.copy(limit = Some(100)), url).toSeq
     mutable.Queue(cursors: _*)
   }
 

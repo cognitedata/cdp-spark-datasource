@@ -18,7 +18,8 @@ case class RelationConfig(
     collectMetrics: Boolean,
     metricsPrefix: String,
     baseUrl: String,
-    onConflict: OnConflict.Value)
+    onConflict: OnConflict.Value,
+    applicationId: String)
 
 object OnConflict extends Enumeration {
   type Mode = Value
@@ -61,7 +62,9 @@ class DefaultSource
       intValue
     }
 
-  def parseRelationConfig(parameters: Map[String, String]): RelationConfig = {
+  def parseRelationConfig(
+      parameters: Map[String, String],
+      sqlContext: SQLContext): RelationConfig = {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
@@ -98,7 +101,8 @@ class DefaultSource
       collectMetrics,
       metricsPrefix,
       baseUrl,
-      saveMode)
+      saveMode,
+      sqlContext.sparkContext.applicationId)
   }
 
   // scalastyle:off cyclomatic.complexity method.length
@@ -107,7 +111,7 @@ class DefaultSource
       parameters: Map[String, String],
       schema: StructType): BaseRelation = {
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
-    val config = parseRelationConfig(parameters)
+    val config = parseRelationConfig(parameters, sqlContext)
     resourceType match {
       case "datapoints" =>
         val numPartitions =
@@ -179,7 +183,7 @@ class DefaultSource
       mode: SaveMode,
       parameters: Map[String, String],
       data: DataFrame): BaseRelation = {
-    val config = parseRelationConfig(parameters)
+    val config = parseRelationConfig(parameters, sqlContext)
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
 
     val relation = resourceType match {

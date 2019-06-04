@@ -276,14 +276,12 @@ class TimeSeriesUpsertTest extends FlatSpec with Matchers with SparkTest {
   }
 
   def cleanupTimeSeries(names: Array[String]): Unit = {
-    val project = getProject(writeApiKey, Constants.DefaultMaxRetries, Constants.DefaultBaseUrl)
-
+    val config = getDefaultConfig(writeApiKey)
     for (name <- names) {
       try {
         delete(
-          writeApiKey.apiKey,
-          uri"${Constants.DefaultBaseUrl}/api/0.5/projects/$project/timeseries/$name",
-          maxRetries = 5
+          config,
+          uri"${Constants.DefaultBaseUrl}/api/0.5/projects/${config.project}/timeseries/$name"
         ).unsafeRunSync()
       } catch {
         case CdpApiException(_, 404, _) => // ignore exceptions about already deleted items

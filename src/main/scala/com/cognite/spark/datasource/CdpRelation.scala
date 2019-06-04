@@ -25,7 +25,6 @@ abstract class CdpRelation[T: Decoder](config: RelationConfig, shortName: String
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
 
   val sqlContext: SQLContext
-
   override def buildScan(): RDD[Row] =
     CdpRdd[T](
       sqlContext.sparkContext,
@@ -44,7 +43,8 @@ abstract class CdpRelation[T: Decoder](config: RelationConfig, shortName: String
 
   def listUrl(): Uri
 
-  def cursors(): Iterator[(Option[String], Option[Int])] = NextCursorIterator(listUrl(), config)
+  def cursors(): Iterator[(Option[String], Option[Int])] =
+    NextCursorIterator(listUrl(), config)
 
   def insert(rows: Seq[Row]): IO[Unit] =
     throw new IllegalArgumentException(
