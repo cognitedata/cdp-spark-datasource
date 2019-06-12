@@ -1,6 +1,6 @@
-# Spark data source for the Cognite Data Platform API
+# Spark data source for the Cognite Data Fusion API
 
-A [Spark](https://spark.apache.org/) data source for the [Cognite Data Platform](https://doc.cognitedata.com/).
+A [Spark](https://spark.apache.org/) data source for the [Cognite Data Fusion](https://doc.cognitedata.com/).
 
 Supports read and write for raw and clean data types.
 
@@ -87,7 +87,7 @@ scala> df.count
 res0: Long = 1000
 ```
 
-## Reading and writing Cognite Data Platform resource types:
+## Reading and writing Cognite Data Fusion resource types:
 
 cdp-spark-datasource supports reads from, and writes to, assets, time series, raw tables, data points and events.
 You can also read files metadata and 3D-files metadata.
@@ -98,13 +98,13 @@ Some options are common to all resource types, and can be set with
 `spark.read.format("com.cognite.spark.datasource").option("nameOfOption", "value")`.
 
 The common options are:
-- `apiKey`: *REQUIRED IF NO BEARER TOKEN* A Cognite Data Platform [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) to be used for authorization.
-- `bearerToken`: *REQUIRED IF NO API-KEY* A Cognite Data Platform [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) to be used for authorization.
-- `type`: *REQUIRED* The Cognite Data Platform resource type. See below for more information.
+- `apiKey`: *REQUIRED IF NO BEARER TOKEN* A Cognite Data Fusion [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) to be used for authorization.
+- `bearerToken`: *REQUIRED IF NO API-KEY* A Cognite Data Fusion [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) to be used for authorization.
+- `type`: *REQUIRED* The Cognite Data Fusion resource type. See below for more information.
 - `maxRetries`: The maximum number of retries to be made when a request fails. The default value is 10.
 - `limit`: The number of items to fetch for this resource type to create the DataFrame. Note that this is different
 from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for the items to be fetched from
-the data platform, *before* filtering and other transformations are applied to limit the number of results.
+the data fusion, *before* filtering and other transformations are applied to limit the number of results.
 - `batchSize`: Maximum number of items to read/write per API call.
 - `baseUrl`: Set the prefix to be used for all CDP API calls. The default is https://api.cognitedata.com
 
@@ -361,9 +361,9 @@ Raw tables are organized in databases and tables so you'll need to provide these
 `publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
 
 Two additonal options are required:
-- `database`: The name of the database in Cognite Data Platform's "raw" storage to use.
+- `database`: The name of the database in Cognite Data Fusion's "raw" storage to use.
 It must exist, and will not be created if it does not.
-- `table`: The name of the table in Cognite Data Platform's "raw" storage to use.
+- `table`: The name of the table in Cognite Data Fusion's "raw" storage to use.
 It must exist in the given `database` option, and will not be created if it does not.
 
 You can optionally have Spark infer the DataFrame schema with the following options:
