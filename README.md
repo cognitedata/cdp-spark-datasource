@@ -103,19 +103,18 @@ The common options are:
 - `type`: *REQUIRED* The Cognite Data Fusion resource type. See below for more information.
 - `maxRetries`: The maximum number of retries to be made when a request fails. The default value is 10.
 - `limit`: The number of items to fetch for this resource type to create the DataFrame. Note that this is different
-from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for the items to be fetched from
-the data fusion, *before* filtering and other transformations are applied to limit the number of results.
+from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for the items to be fetched from CDF, *before* filtering and other transformations are applied to limit the number of results.
 - `batchSize`: Maximum number of items to read/write per API call.
-- `baseUrl`: Set the prefix to be used for all CDP API calls. The default is https://api.cognitedata.com
+- `baseUrl`: Set the prefix to be used for all CDF API calls. The default is https://api.cognitedata.com
 
 ### Reading
 
-To read from CDP resource types you need to provide two things:
+To read from CDF resource types you need to provide two things:
 an API-key and the resource type. To read from a table you should also specify the database name and table name.
 
 ### Writing
 
-There are two ways you can use cdp-spark-datasource to write to CDP: using `insertInto` or using the `save` function. 
+There are two ways you can use cdp-spark-datasource to write to CDF: using `insertInto` or using the `save` function. 
 - `insertInto` - will check that all fields are present and in the correct order, and can be more convenient when
 working with Spark SQL tables.
 - `save` - will give you control over how to handle potential collisions with existing data,
@@ -143,7 +142,7 @@ the desired behaviour when rows in your Dataframe are present in CDF with the `.
 
 The valid options for onconflict are
 - `abort` - will try to insert all rows in the Dataframe. An error will be thrown if the resource item already exists and no more rows will be written.
-- `update` - will look for all rows in the Dataframe in CDP and try to update them. If one or more rows do not exist no more rows will be updated and an error will be thrown.
+- `update` - will look for all rows in the Dataframe in CDF and try to update them. If one or more rows do not exist no more rows will be updated and an error will be thrown.
 Supports partial updates.
 - `upsert` - will update rows that already exist, and insert new rows.
 
@@ -163,7 +162,7 @@ val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
 // Register your assets in a temporary view
 df.createTempView("assets")
 
-// Create a new asset and write to CDP
+// Create a new asset and write to CDF
 // Note that parentId, asset type IDs and asset type field IDs have to exist
 val assetColumns = Seq("id", "path", "depth", "name", "parentId", "description",
                    "types", "metadata", "source", "sourceId", "createdTime", "lastupdatedTime")
@@ -252,7 +251,7 @@ time intervals.
 
 You can also request aggregated data by filtering by aggregation and granularity.
 
-`aggregation`: Numerical data points can be aggregated before they are retrieved from CDP.
+`aggregation`: Numerical data points can be aggregated before they are retrieved from CDF.
 This allows for faster queries by reducing the amount of data transferred.
 You can aggregate data points by specifying one or more aggregates (e.g. average, minimum, maximum)
 as well as the time granularity over which the aggregates should be applied (e.g. "1h" for one hour).
