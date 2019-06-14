@@ -1,19 +1,26 @@
+# 0.4.10
+
+## Enhancements
+* Support deleting time series, events and assets with `.save()`.
+
+* Set `x-cdp-sdk` header for all API calls.
+
 # 0.4.9
 
 ## Fixes
 
-* Speed up time series and events by avoiding unions
+* Speed up time series and events by avoiding unions.
 
 ## Enhancements
-* Support Scala 2.12
+* Support Scala 2.12.
 
-* New write mode using `.save()` allows specifying behaviour on conflicts
+* New write mode using `.save()` allows specifying behaviour on conflicts.
 
-* Partial updates now possible for assets, events and time series
+* Partial updates now possible for assets, events and time series.
 
-* Assets now support asset types
+* Assets now support asset types.
 
-* Bearer tokens can now be used for authentication
+* Bearer tokens can now be used for authentication.
 
 # 0.4.8
 

@@ -1,7 +1,7 @@
 val scala212 = "2.12.8"
 val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
-val sparkVersion = "2.4.0"
+val sparkVersion = "2.4.3"
 val circeVersion = "0.10.1"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
@@ -14,7 +14,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "0.4.10-SNAPSHOT",
+  version := "0.4.10",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
