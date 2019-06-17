@@ -114,7 +114,7 @@ abstract class DataPointsRelation(
   private def getLatestDataPointTimestamp(timeSeriesName: String): IO[Long] =
     getJson[LatestDataPoint](
       config,
-      uri"${baseUrl(config.project, "0.5", Constants.DefaultBaseUrl)}/timeseries/latest/$timeSeriesName"
+      uri"${baseUrl(config.project, "0.5", config.baseUrl)}/timeseries/latest/$timeSeriesName"
     ).map { latest =>
       latest.data.items.headOption
         .map(_.timestamp)
@@ -195,5 +195,5 @@ abstract class DataPointsRelation(
   }
 
   def baseDataPointsUrl(project: String): Uri =
-    uri"${baseUrl(project, "0.5", Constants.DefaultBaseUrl)}/timeseries/data"
+    uri"${baseUrl(project, "0.5", config.baseUrl)}/timeseries/data"
 }
