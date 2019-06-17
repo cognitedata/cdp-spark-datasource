@@ -22,7 +22,8 @@ case class TypeDescription(
     id: Long,
     name: String,
     description: String,
-    fields: Seq[FieldDescription])
+    fields: Seq[FieldDescription]
+)
 case class PostType(id: Long, fields: Seq[PostField])
 case class FieldData(id: Long, name: String, valueType: String, value: String)
 case class FieldDescription(id: Long, name: String, description: String, valueType: String)
@@ -42,7 +43,8 @@ case class AssetsItem(
     source: Option[String],
     sourceId: Option[String],
     createdTime: Option[Long],
-    lastUpdatedTime: Option[Long])
+    lastUpdatedTime: Option[Long]
+)
 
 case class PostAssetsItem(
     name: String,
@@ -96,10 +98,16 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val assetsItems = rows.map(r => fromRow[UpdateAssetsItemBase](r))
-    val updateAssetsItem = assetsItems.map(a => UpdateAssetsItem(a))
+    val updateAssetsItems = rows
+      .map(r => fromRow[UpdateAssetsItemBase](r))
+      .map(a => UpdateAssetsItem(a))
 
-    post(config, uri"${baseAssetsURL(config.project)}/update", updateAssetsItem)
+    // Assets must have an id when using update
+    if (updateAssetsItems.exists(_.id.isEmpty)) {
+      throw new IllegalArgumentException("Assets must have an id when using update")
+    }
+
+    post(config, uri"${baseAssetsURL(config.project)}/update", updateAssetsItems)
   }
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

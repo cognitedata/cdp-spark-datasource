@@ -1,9 +1,13 @@
 package com.cognite.spark.datasource
 
 import com.softwaremill.sttp._
+
 import org.apache.spark.sql.{DataFrame, Row}
-import org.scalatest.{FlatSpec, Matchers}
 import org.apache.spark.sql.functions._
+import org.apache.spark.SparkException
+
+import org.scalatest.{FlatSpec, Matchers}
+
 import io.circe.generic.auto._
 
 class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
@@ -207,6 +211,31 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       spark.sql(s"select * from destinationAssets where description = '$description'").collect,
       df => df.length < 100)
     assert(assetsFromTestDf.length == 100)
+  }
+
+  it should "check for null ids on asset update" taggedAs WriteTest in {
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "assets")
+      .load()
+      .where("name = 'upsertTestThree'")
+    val wdf = spark.sql("""
+        |select 'upsertTestThree' as name, null as id
+      """.stripMargin)
+
+    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
+
+    val e = intercept[SparkException] {
+      wdf.write
+        .format("com.cognite.spark.datasource")
+        .option("apiKey", writeApiKey.apiKey)
+        .option("type", "assets")
+        .option("onconflict", "update")
+        .save()
+    }
+    e.getCause shouldBe a[IllegalArgumentException]
+    spark.sparkContext.setLogLevel("WARN")
   }
 
   it should "succesfully read and write asset types" taggedAs WriteTest in {
