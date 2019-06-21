@@ -51,6 +51,9 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdpRelation[FileItem](config, "files")
     with InsertableRelation {
 
+  override val fieldsWithPushdownFilter: Seq[String] =
+    Seq("assetIds", "dir", "name", "fileType", "source")
+
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)

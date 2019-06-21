@@ -3,7 +3,18 @@ import cats.effect.IO
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import io.circe.Decoder
-import org.apache.spark.sql.sources.{BaseRelation, TableScan}
+import org.apache.spark.sql.sources.{
+  And,
+  BaseRelation,
+  EqualNullSafe,
+  EqualTo,
+  Filter,
+  In,
+  IsNotNull,
+  Or,
+  PrunedFilteredScan,
+  TableScan
+}
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
@@ -22,30 +33,67 @@ case class DeleteItem(
     id: Long
 )
 
-abstract class CdpRelation[T: Decoder](config: RelationConfig, shortName: String)
+case class PushdownFilter(fieldName: String, value: String)
+
+abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortName: String)
     extends BaseRelation
     with TableScan
     with Serializable
+    with PrunedFilteredScan
     with CdpConnector {
   @transient lazy private val itemsRead =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
 
+  val fieldsWithPushdownFilter: Seq[String] = Seq[String]()
+
   val sqlContext: SQLContext
-  override def buildScan(): RDD[Row] =
+  override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
+
+  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
+    val pushdownFilters: Seq[PushdownFilter] = fieldsWithPushdownFilter
+      .map(f => (f, filters.flatMap(getFilter(_, f)))) // map from fieldname to its filtering values
+      .flatMap(pdf => pdf._2.map(v => PushdownFilter(pdf._1, v)))
+      .distinct
+
     CdpRdd[T](
       sqlContext.sparkContext,
       (e: T) => {
         if (config.collectMetrics) {
           itemsRead.inc()
         }
-        toRow(e)
+        toRow(e, requiredColumns)
       },
       listUrl(),
       config,
+      pushdownFilters,
       cursors()
     )
+  }
 
   def toRow(t: T): Row
+
+  def toRow(item: T, requiredColumns: Array[String]): Row =
+    if (requiredColumns.isEmpty) {
+      toRow(item)
+    } else {
+      val values = item.productIterator
+      val itemMap = item.getClass.getDeclaredFields.map(_.getName -> values.next).toMap
+      Row.fromSeq(requiredColumns.map(itemMap(_)).toSeq)
+    }
+
+  // Spark will still filter the result after pushdown filters are applied, see source code for
+  // PrunedFilteredScan, hence it's ok that our pushdown filter reads some data that should ideally
+  // be filtered out
+  def getFilter(filter: Filter, colName: String): Seq[String] =
+    filter match {
+      case IsNotNull(`colName`) => Seq()
+      case EqualTo(`colName`, value) => Seq(value.toString)
+      case EqualNullSafe(`colName`, value) => Seq(value.toString)
+      case In(`colName`, values) => values.map(v => v.toString)
+      case And(f1, f2) => getFilter(f1, colName) ++ getFilter(f2, colName)
+      case Or(f1, f2) => getFilter(f1, colName) ++ getFilter(f2, colName)
+      case _ => Seq()
+    }
 
   def listUrl(): Uri
 

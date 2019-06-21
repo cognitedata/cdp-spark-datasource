@@ -87,6 +87,7 @@ class RawTableRelation(
       },
       baseUrl,
       configWithLimit,
+      Seq[PushdownFilter](),
       new NextCursorIterator[RawItem](
         baseUrl.param("columns", ","),
         configWithLimit

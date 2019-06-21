@@ -27,53 +27,96 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "apply a single pushdown filter" taggedAs WriteTest in {
+    val metricsPrefix = "single.pushdown.filter"
     val df = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"type = 'alert'")
     assert(df.count == 8)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 8)
   }
 
   it should "apply multiple pushdown filters" taggedAs WriteTest in {
+    val metricsPrefix = "multiple.pushdown.filters"
     val df = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"type = 'maintenance' and subtype = 'new'")
-    assert(df.count == 2)
+      .where(s"type = 'maintenance' and source = 'test data'")
+    assert(df.count == 4)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 17)
   }
 
   it should "handle or conditions" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.or"
     val df = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"type = 'maintenance' or type = 'upgrade'")
     assert(df.count == 9)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 9)
   }
 
   it should "handle in() conditions" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.in"
     val df = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"type in('alert','replacement')")
     assert(df.count == 12)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 12)
   }
 
   it should "handle and, or and in() in one query" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.and.or.in"
     val df = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
       .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"(type = 'maintenance' or type = 'upgrade') and subtype in('manual', 'automatic')")
     assert(df.count == 4)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 9)
+  }
+
+  it should "handle a really advanced query" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.advanced"
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"((type = 'maintenance' or type = 'upgrade') " +
+        s"and subtype in('manual', 'automatic')) " +
+        s"or (type = 'maintenance' and subtype = 'manual') " +
+        s"or (type = 'upgrade') and source = 'something'")
+    assert(df.count == 4)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 9)
   }
 
   def eventDescriptions(source: String): Array[Row] =

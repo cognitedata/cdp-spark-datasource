@@ -109,6 +109,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     post(config, uri"${baseAssetsURL(config.project)}/update", updateAssetsItems)
   }
+  //TODO: Add description as a pushdown filter once we know how spaces are handled
+  override val fieldsWithPushdownFilter: Seq[String] = Seq("name", "source", "depth")
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val postAssetItems = rows.map(r => fromRow[PostAssetsItem](r))
@@ -152,12 +154,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def toRow(t: AssetsItem): Row = asRow(t)
 
-  // TODO: As of 2019-03-22 the normal /assets endpoint doesn't work on some projects when
-  // using cursors retrieved from /assets/cursors, but the cursors do work with /assets/list.
-  // This is ok as long as we don't support predicate pushdown for assets, as we don't need
-  // the search capabilities of /assets, but this should be removed once /assets works as expected.
   override def listUrl(): Uri =
-    uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets/list"
+    uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets"
 
   private val cursorsUrl = uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets/cursors"
   override def cursors(): Iterator[(Option[String], Option[Int])] =

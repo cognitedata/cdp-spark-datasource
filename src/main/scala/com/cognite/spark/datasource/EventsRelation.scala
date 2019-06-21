@@ -7,7 +7,6 @@ import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import io.circe.parser.decode
 import org.apache.spark.datasource.MetricsSource
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -83,7 +82,6 @@ object UpdateEventItem {
 
 case class SourceWithResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[SourceWithResourceId])
-case class EventFilter(`type`: Option[String], subtype: Option[String])
 
 class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLContext)
     extends CdpRelation[EventItem](config, "events")
@@ -185,52 +183,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     (postUpdate, postNewItems).parMapN((_, _) => ())
   }
 
-  case class ColumnFilter(
-      column: String
-  )
-
-  // scalastyle:off cyclomatic.complexity
-  def getFilter(filter: Filter, colName: String): Seq[ColumnFilter] =
-    filter match {
-      case IsNotNull(`colName`) => Seq()
-      case EqualTo(`colName`, value) => Seq(ColumnFilter(value.toString))
-      case EqualNullSafe(`colName`, value) => Seq(ColumnFilter(value.toString))
-      case In(`colName`, values) => values.map(v => ColumnFilter(v.toString))
-      case And(f1, f2) => getFilter(f1, colName) ++ getFilter(f2, colName)
-      case Or(f1, f2) => getFilter(f1, colName) ++ getFilter(f2, colName)
-      // TODO: add support for String filtering using the 'Search for events' endpoint
-      case StringStartsWith(`colName`, value) =>
-        sys.error(
-          s"Filtering using 'string starts with' not allowed for events, attempted for ${value.toString}")
-      case StringEndsWith(`colName`, value) =>
-        sys.error(
-          s"Filtering using 'string ends with' not allowed for events, attempted for ${value.toString}")
-      case StringContains(`colName`, value) =>
-        sys.error(
-          s"Filtering using 'string contains' not allowed for data points, attempted for ${value.toString}")
-      case _ =>
-        Seq()
-    }
-
-  // scalastyle:on cyclomatic.complexity
-  override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
-
-  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    val types = filters.flatMap(getFilter(_, "type")).map(_.column)
-    val subTypes = filters.flatMap(getFilter(_, "subtype")).map(_.column)
-
-    val eventFilters = for {
-      eventType <- if (types.isEmpty) { Array(None) } else { types.map(Some(_)) }
-      eventSubType <- if (subTypes.isEmpty) { Array(None) } else { subTypes.map(Some(_)) }
-    } yield EventFilter(eventType, eventSubType)
-
-    EventsRdd(sqlContext.sparkContext, listUrl(), (e: EventItem) => {
-      if (config.collectMetrics) {
-        eventsRead.inc()
-      }
-      toRow(e, requiredColumns)
-    }, eventFilters, config, cursors())
-  }
+  override val fieldsWithPushdownFilter: Seq[String] = Seq("source", "type")
 
   def baseEventsURL(project: String, version: String = "0.6"): Uri =
     uri"${config.baseUrl}/api/$version/projects/$project/events"
@@ -238,13 +191,6 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   override def schema: StructType = structType[EventItem]
 
   override def toRow(t: EventItem): Row = asRow(t)
-
-  def toRow(t: EventItem, requiredColumns: Array[String]): Row = {
-    val values = t.productIterator
-    val eventMap = t.getClass.getDeclaredFields.map(_.getName -> values.next).toMap
-
-    Row.fromSeq(requiredColumns.map(eventMap(_)).toSeq)
-  }
 
   override def listUrl(): Uri =
     uri"${config.baseUrl}/api/0.6/projects/${config.project}/events"
