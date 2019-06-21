@@ -104,6 +104,11 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   override def update(rows: Seq[Row]): IO[Unit] = {
     val updateEventItems = rows.map(r => UpdateEventItem(fromRow[EventItem](r)))
 
+    // Events must have an id when using update
+    if (updateEventItems.exists(_.id.isEmpty)) {
+      throw new IllegalArgumentException("Events must have an id when using update")
+    }
+
     post(config, uri"${baseEventsURL(config.project)}/update", updateEventItems)
   }
 

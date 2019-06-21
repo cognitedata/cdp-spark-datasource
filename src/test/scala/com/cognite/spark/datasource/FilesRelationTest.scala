@@ -9,7 +9,8 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
   private val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
 
   "FilesRelation" should "read files" taggedAs ReadTest in {
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", readApiKey)
       .option("type", "files")
       .load()
@@ -20,7 +21,8 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "respect the limit option" taggedAs ReadTest in {
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", readApiKey)
       .option("type", "files")
       .option("limit", "5")
@@ -30,7 +32,8 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "use cursors when necessary" taggedAs ReadTest in {
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", readApiKey)
       .option("type", "files")
       .option("batchSize", "2")
@@ -44,14 +47,15 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
     val firstDirectoryName = "test directory"
     val secondDirectoryName = "dummy directory"
 
-
-    val df = spark.read.format("com.cognite.spark.datasource")
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey)
       .option("type", "files")
       .load()
     df.createOrReplaceTempView("filesSource")
 
-    spark.sql(s"""
+    spark
+      .sql(s"""
                  |select id,
                  |fileName,
                  |'$firstDirectoryName' as directory,
@@ -76,7 +80,8 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
       rows => rows.length < 10)
     assert(dfWithTestDirectory.length == 10)
 
-    spark.sql(s"""
+    spark
+      .sql(s"""
                  |select id,
                  |fileName,
                  |'$secondDirectoryName' as directory,
@@ -99,7 +104,7 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
     val dfWithUpdatedSource = retryWhile[Array[Row]](
       spark.sql(s"select * from filesSource where directory = '$secondDirectoryName'").collect,
       rows => rows.length < 10)
-    assert(dfWithUpdatedSource.length== 10)
+    assert(dfWithUpdatedSource.length == 10)
 
     val emptyDfWithTestDirectory = retryWhile[Array[Row]](
       spark.sql(s"select * from filesSource where directory = '$firstDirectoryName'").collect,
