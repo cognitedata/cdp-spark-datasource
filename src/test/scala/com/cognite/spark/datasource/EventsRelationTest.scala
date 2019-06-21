@@ -381,6 +381,46 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
+  it should "check for null ids on event update" taggedAs WriteTest in {
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", readApiKey.apiKey)
+      .option("type", "events")
+      .option("limit", "10")
+      .load()
+
+    df.createTempView("nullevents")
+    val wdf = spark
+      .sql(s"""
+      |select "bar" as description,
+      |startTime,
+      |endTime,
+      |type,
+      |subtype,
+      |assetIds,
+      |null as id,
+      |metadata,
+      |source,
+      |sourceId,
+      |null as createdTime,
+      |lastUpdatedTime
+      |from events
+      |limit 1
+    """.stripMargin)
+    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
+
+    val e = intercept[SparkException] {
+      wdf.write
+        .format("com.cognite.spark.datasource")
+        .option("apiKey", writeApiKey.apiKey)
+        .option("type", "events")
+        .option("onconflict", "update")
+        .save()
+    }
+    e.getCause shouldBe a[IllegalArgumentException]
+    spark.sparkContext.setLogLevel("WARN")
+  }
+
   it should "allow deletes in savemode" taggedAs WriteTest in {
     val source = "spark-savemode-event-deletes-test"
 
