@@ -24,6 +24,8 @@ case class RelationConfig(
 object OnConflict extends Enumeration {
   type Mode = Value
   val ABORT, UPDATE, UPSERT, DELETE = Value
+
+  def withNameOpt(s: String): Option[Value] = values.find(_.toString.toLowerCase == s.toLowerCase())
 }
 
 class DefaultSource
@@ -89,8 +91,13 @@ class DefaultSource
       case None => ""
     }
     val collectMetrics = toBoolean(parameters, "collectMetrics")
+    val onConflictName = parameters.getOrElse("onconflict", "ABORT")
     val saveMode =
-      OnConflict.withName(parameters.getOrElse("onconflict", "ABORT").toUpperCase())
+      OnConflict
+        .withNameOpt(onConflictName.toUpperCase())
+        .getOrElse(throw new IllegalArgumentException(
+          s"$onConflictName is not a valid onConflict option. Please choose one of the following options instead: ${OnConflict.values
+            .mkString(", ")}"))
     RelationConfig(
       auth,
       project,
