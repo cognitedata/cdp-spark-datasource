@@ -8,6 +8,7 @@ object Constants {
   val DefaultMaxRetries = 10
   val DefaultBatchSize = 1000
   val DefaultRawBatchSize = 10000
+  val DefaultInferSchemaLimit = 10000
   val DefaultDataPointsBatchSize = 100000
   val DefaultDataPointsAggregationBatchSize = 10000
   val DefaultPartitions = 20
