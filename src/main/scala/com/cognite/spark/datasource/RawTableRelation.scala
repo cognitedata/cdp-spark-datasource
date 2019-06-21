@@ -57,7 +57,10 @@ class RawTableRelation(
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
-      val rdd = readRows(inferSchemaLimit, collectSchemaInferenceMetrics)
+      val rdd =
+        readRows(
+          inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
+          collectSchemaInferenceMetrics)
 
       import sqlContext.sparkSession.implicits._
       val df = sqlContext.createDataFrame(rdd, defaultSchema)
@@ -73,6 +76,7 @@ class RawTableRelation(
       limit: Option[Int],
       collectMetrics: Boolean = config.collectMetrics): RDD[Row] = {
     val baseUrl = baseRawTableURL(config.project, database, table)
+    val configWithLimit = config.copy(limit = limit)
     CdpRdd[RawItem](
       sqlContext.sparkContext,
       (item: RawItem) => {
@@ -82,10 +86,10 @@ class RawTableRelation(
         Row(item.key, item.columns.asJson.noSpaces)
       },
       baseUrl,
-      config,
+      configWithLimit,
       new NextCursorIterator[RawItem](
         baseUrl.param("columns", ","),
-        config
+        configWithLimit
       )
     )
   }
