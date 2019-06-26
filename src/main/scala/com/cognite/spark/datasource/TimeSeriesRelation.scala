@@ -66,9 +66,7 @@ case class UpdateTimeSeriesBase(
     isStep: Option[Boolean],
     description: Option[String],
     securityCategories: Option[Seq[Long]],
-    id: Option[Long],
-    createdTime: Option[Long],
-    lastUpdatedTime: Option[Long])
+    id: Option[Long])
 
 case class UpdateTimeSeriesItem(
     id: Long,
