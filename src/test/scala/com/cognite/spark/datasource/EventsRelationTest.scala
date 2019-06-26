@@ -98,7 +98,67 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .where(s"(type = 'maintenance' or type = 'upgrade') and subtype in('manual', 'automatic')")
     assert(df.count == 4)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 9)
+    assert(eventsRead == 4)
+  }
+
+  it should "handle pushdown filters on minimum startTime" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.minStartTime"
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"startTime > 1584601199999")
+    assert(df.count == 3)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 3)
+  }
+
+  it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.maxStartTime"
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"startTime < 1539468000")
+    assert(df.count == 2)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 2)
+  }
+
+  it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.minMaxStartTime"
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"startTime < 2039468000 and startTime > 1539468000")
+    assert(df.count == 1002)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 1002)
+  }
+
+  it should "handle pushdown filters on assetIds" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.assetIds"
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"assetIds In(Array(8031965690878131), Array(2091657868296883))")
+    assert(df.count == 1300)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 1300)
   }
 
   it should "handle a really advanced query" taggedAs WriteTest in {
@@ -116,7 +176,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
         s"or (type = 'upgrade') and source = 'something'")
     assert(df.count == 4)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 9)
+    assert(eventsRead == 4)
   }
 
   def eventDescriptions(source: String): Array[Row] =

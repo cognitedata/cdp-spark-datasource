@@ -17,7 +17,7 @@ class CdpRddTest extends FlatSpec with Matchers with SparkTest {
     extends CdpRdd[Number](spark.sparkContext, (n: Number) => Row(n.number),
       uri"http://localhost/api",
       config,
-      Seq[PushdownFilter](),
+      Seq[Uri](uri"http://localhost/api"),
       nextCursorIterator)
 
   case class NumberedItems(nextCursor: Iterator[String]) extends Iterator[String] {

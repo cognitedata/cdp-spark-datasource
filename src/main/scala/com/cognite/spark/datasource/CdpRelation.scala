@@ -49,12 +49,7 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
   val sqlContext: SQLContext
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
-  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    val pushdownFilters: Seq[PushdownFilter] = fieldsWithPushdownFilter
-      .map(f => (f, filters.flatMap(getFilter(_, f)))) // map from fieldname to its filtering values
-      .flatMap(pdf => pdf._2.map(v => PushdownFilter(pdf._1, v)))
-      .distinct
-
+  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
     CdpRdd[T](
       sqlContext.sparkContext,
       (e: T) => {
@@ -65,9 +60,17 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
       },
       listUrl(),
       config,
-      pushdownFilters,
+      urlsWithFilters(filters, listUrl),
       cursors()
     )
+
+  def urlsWithFilters(filters: Array[Filter], uri: Uri): Seq[Uri] = {
+    val urlsWithFilters = fieldsWithPushdownFilter
+      .map(f => (f, filters.flatMap(getFilter(_, f)))) // map from fieldname to its filtering values
+      .flatMap(pdf => pdf._2.map(v => PushdownFilter(pdf._1, v)))
+      .distinct
+      .map(f => uri.param(f.fieldName, f.value))
+    if (urlsWithFilters.isEmpty) { Seq(uri) } else urlsWithFilters
   }
 
   def toRow(t: T): Row

@@ -10,7 +10,7 @@ case class CdpRddPartition(
     cursor: Option[String],
     size: Option[Int],
     index: Int,
-    filters: Seq[PushdownFilter])
+    urlsWithFilters: Seq[Uri])
     extends Partition
 
 case class CdpRdd[A: Decoder](
@@ -18,7 +18,7 @@ case class CdpRdd[A: Decoder](
     toRow: A => Row,
     getSinglePartitionBaseUri: Uri,
     config: RelationConfig,
-    columnFilters: Seq[PushdownFilter],
+    urlsWithFilters: Seq[Uri],
     cursors: Iterator[(Option[String], Option[Int])])
     extends RDD[Row](sparkContext, Nil)
     with CdpConnector {
@@ -34,17 +34,13 @@ case class CdpRdd[A: Decoder](
           case (Some(l), Some(s)) => Some(scala.math.min(l, s))
           case (l, None) => l
         }
-        CdpRddPartition(cursor, partitionSize, index, columnFilters)
+        CdpRddPartition(cursor, partitionSize, index, urlsWithFilters)
     }.toArray
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdpRddPartition]
 
-    val urlsWithFilters =
-      Some(split.filters.map(f => getSinglePartitionBaseUri.param(f.fieldName, f.value)))
-        .filter(_.nonEmpty)
-        .getOrElse(Seq(getSinglePartitionBaseUri))
-    val rowIteratorsSeq = urlsWithFilters
+    val rowIteratorsSeq = split.urlsWithFilters
       .map { url =>
         get[A](
           config.copy(limit = split.size, applicationId = broadcastApplicationId.value),
