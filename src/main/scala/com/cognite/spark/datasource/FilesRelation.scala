@@ -52,7 +52,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with InsertableRelation {
 
   override val fieldsWithPushdownFilter: Seq[String] =
-    Seq("assetIds", "dir", "name", "fileType", "source")
+    Seq("assetId", "dir", "name", "fileType", "source")
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {

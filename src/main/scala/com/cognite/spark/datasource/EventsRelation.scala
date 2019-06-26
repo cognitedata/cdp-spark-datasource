@@ -12,6 +12,7 @@ import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 case class EventItem(
     id: Option[Long],
@@ -183,7 +184,96 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     (postUpdate, postNewItems).parMapN((_, _) => ())
   }
 
-  override val fieldsWithPushdownFilter: Seq[String] = Seq("source", "type")
+  override val fieldsWithPushdownFilter = Seq("type", "subtype", "assetIds", "startTime", "source")
+
+  override def urlsWithFilters(filters: Array[Filter], uri: Uri): Seq[Uri] = {
+    val filterMaps =
+      fieldsWithPushdownFilter
+        .map(col => (col, filters.flatMap(getFilter(_, col))))
+        .filter(_._2.nonEmpty)
+        .toMap
+    val assetIdsFilterOpt = filterMaps.get("assetIds")
+    val typeFilterOpt = filterMaps.get("type")
+    val subtypeFilterOpt = filterMaps.get("subtype")
+    val sourceFilterOpt = filterMaps.get("source")
+    val startTimeFilters = getStartTimeFilters(filters)
+
+    val assetIds = getAssetIdsUrls(uri, assetIdsFilterOpt)
+    val subtypesAndTypes = getTypeAndSubtypeUrls(uri, typeFilterOpt, subtypeFilterOpt)
+    val startTimes = getStartTimeUrls(uri, startTimeFilters)
+    val sources = getSourceUrls(uri, sourceFilterOpt)
+
+    val res = assetIds ++ subtypesAndTypes ++ startTimes ++ sources
+    if (res.isEmpty) Seq(uri) else res
+  }
+
+  private def getAssetIdsUrls(uri: Uri, assetIdsFiltersOpt: Option[Array[String]]): Seq[Uri] =
+    assetIdsFiltersOpt match {
+      case Some(filters) => {
+        val ids = filters.flatMap(_.split("\\D+").filter(_.nonEmpty))
+        ids.map(uri.param("assetId", _)) // Endpoint uses singular
+      }
+      case None => Seq()
+    }
+
+  private def getStartTimeUrls(
+      uri: Uri,
+      startTimeFilters: (Option[String], Option[String])): Seq[Uri] = startTimeFilters match {
+    case (Some(minFilter), None) => Seq(uri.param("minStartTime", minFilter))
+    case (None, Some(maxFilter)) => Seq(uri.param("maxStartTime", maxFilter))
+    case (Some(minFilter), Some(maxFilter)) => {
+      val urlWithMinFilter = uri.param("minStartTime", minFilter)
+      Seq(urlWithMinFilter.param("maxStartTime", maxFilter))
+    }
+    case (None, None) => Seq()
+  }
+
+  private def getSourceUrls(uri: Uri, sourceFilterOpt: Option[Array[String]]): Seq[Uri] =
+    sourceFilterOpt match {
+      case Some(sourceFilter) => sourceFilter.map(p => uri.param("source", p)).toSeq
+      case None => Seq()
+    }
+
+  private def getStartTimeFilters(filters: Array[Filter]): (Option[String], Option[String]) = {
+    val startTimeFilters = filters.flatMap(getStartTimeFilter)
+
+    Tuple2(
+      // Note that this way of aggregating filters will not work with "Or" predicates.
+      Try(startTimeFilters.filter(_.isInstanceOf[Min]).max).toOption.map(_.value.toString),
+      Try(startTimeFilters.filter(_.isInstanceOf[Max]).min).toOption.map(_.value.toString)
+    )
+  }
+
+  private def getTypeAndSubtypeUrls(
+      uri: Uri,
+      typeFilterOpt: Option[Array[String]],
+      subtypeFilterOpt: Option[Array[String]]): Seq[Uri] =
+    (typeFilterOpt, subtypeFilterOpt) match {
+      case (Some(typeFilter), Some(subtypeFilter)) =>
+        val typeAndSubtypes = for {
+          _type <- typeFilter
+          subtype <- subtypeFilter
+        } yield (_type, subtype)
+        typeAndSubtypes.toSeq.map { p =>
+          uri.param("type", p._1).param("subtype", p._2)
+        }
+      case (Some(typeFilter), None) => typeFilter.map(p => uri.param("type", p)).toSeq
+      case (None, Some(_)) =>
+        throw new IllegalArgumentException("Type must be set when filtering on sub-type.")
+      case (None, None) => Seq()
+    }
+
+  private def getStartTimeFilter(filter: Filter): Seq[Limit] =
+    filter match {
+      case LessThan("startTime", value) =>
+        Seq(Max(value.toString.toLong - 1)) // end point is inclusive
+      case LessThanOrEqual("startTime", value) => Seq(Max(value.toString.toLong))
+      case GreaterThan("startTime", value) =>
+        Seq(Min(value.toString.toLong + 1)) // end point is inclusive
+      case GreaterThanOrEqual("startTime", value) => Seq(Min(value.toString.toLong))
+      case And(f1, f2) => getStartTimeFilter(f1) ++ getStartTimeFilter(f2)
+      case _ => Seq()
+    }
 
   def baseEventsURL(project: String, version: String = "0.6"): Uri =
     uri"${config.baseUrl}/api/$version/projects/$project/events"

@@ -104,7 +104,7 @@ class RawTableRelation(
       },
       baseUrlWithParams,
       configWithLimit,
-      Seq[PushdownFilter](),
+      Seq(baseUrlWithParams),
       new NextCursorIterator[RawItem](
         baseUrlWithParams.param("columns", ","),
         configWithLimit
