@@ -289,3 +289,10 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   override def cursors(): Iterator[(Option[String], Option[Int])] =
     CursorsCursorIterator(cursorsUrl.param("divisions", config.partitions.toString), config)
 }
+
+object EventsRelation extends DeleteSchema with UpsertSchema with InsertSchema with UpdateSchema {
+  val insertSchema = structType[PostEventItem]
+  val upsertSchema = structType[PostEventItem]
+  val updateSchema = StructType(structType[EventItem].filterNot(field =>
+    Seq("createdTime", "lastUpdatedTime").contains(field.name)))
+}

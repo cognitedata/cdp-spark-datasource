@@ -199,7 +199,10 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 }
 
-object AssetsRelation {
+object AssetsRelation extends DeleteSchema with InsertSchema with UpdateSchema {
+  val insertSchema = structType[PostAssetsItem]
+  val updateSchema = structType[UpdateAssetsItemBase]
+
   val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)

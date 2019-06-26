@@ -263,3 +263,14 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def listUrl(): Uri =
     uri"${config.baseUrl}/api/0.5/projects/${config.project}/timeseries"
 }
+
+object TimeSeriesRelation
+    extends DeleteSchema
+    with UpsertSchema
+    with InsertSchema
+    with UpdateSchema {
+  val insertSchema = structType[PostTimeSeriesItem]
+  val upsertSchema = StructType(structType[TimeSeriesItem].filterNot(field =>
+    Seq("createdTime", "lastUpdatedTime").contains(field.name)))
+  val updateSchema = StructType(structType[UpdateTimeSeriesBase])
+}
