@@ -18,6 +18,7 @@ import org.apache.spark.sql.sources.{
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 
 case class Setter[A](set: A, setNull: Boolean)
 object Setter {
@@ -127,5 +128,20 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
   def delete(rows: Seq[Row]): IO[Unit] =
     throw new IllegalArgumentException(
       s"""$shortName does not support the "onconflict" option "delete".""")
+}
 
+trait InsertSchema {
+  val insertSchema: StructType
+}
+
+trait UpsertSchema {
+  val upsertSchema: StructType
+}
+
+trait UpdateSchema {
+  val updateSchema: StructType
+}
+
+abstract class DeleteSchema {
+  val deleteSchema: StructType = StructType(Seq(StructField("id", DataTypes.LongType)))
 }
