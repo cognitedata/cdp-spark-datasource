@@ -1,3 +1,15 @@
+# 0.4.11
+
+## Enhancements
+* Filters are now pushed to CDF when possible for Assets, Events, Files and Raw Tables.
+
+* Better error messages for invalid `onConflict` options.
+
+* An error is now thrown if trying to update with null as id.
+
+## Fixes
+* Infer schema limit for Raw is now being used again.
+
 # 0.4.10
 
 ## Enhancements
