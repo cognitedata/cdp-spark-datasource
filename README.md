@@ -100,7 +100,9 @@ See an example for using `.save()` under Events below.
 Deleting with `.save()` is currently supported for assets, events and time series.
 
 Just like when writing, you need provide an API-key and the resource type you'd like to interact with.
-You then need to specify `delete` as the `onconflict` option like this, `.option("onconflict", "delete)`.
+You then need to specify `delete` as the `onconflict` option like this, `.option("onconflict", "delete")`.
+
+See an example for using `.save()` to delete under Time Series below.
 
 ### Assets
 
@@ -177,7 +179,7 @@ val df = spark.read.format("com.cognite.spark.datasource")
   .option("apiKey", "myApiKey")
   .option("type", "timeseries")
   .load()
-destinationDf.createTempView("timeseries")
+df.createTempView("timeseries")
 
 // Read some new time series data from a csv-file
 val timeSeriesDf = spark.read.format("csv")
@@ -186,9 +188,18 @@ val timeSeriesDf = spark.read.format("csv")
 
 // Ensure correct schema by copying the columns in the DataFrame read from the project.
 // Note that the time series must already exist in the project before data can be written to it, based on the ´name´ column.
-timeSeriesDf.select(destinationDf.columns.map(col):_*)
+timeSeriesDf.select(df.columns.map(col):_*)
   .write
   .insertInto("timeseries")
+
+// Delete all time series you just created
+timeSeriesDf
+  .write
+  .format("com.cognite.spark.datasource")
+  .option("apiKey", "myApiKey")
+  .option("type", "timeseries")
+  .option("onconflict", "delete")
+  .save()
 ```
 
 ### Data points
