@@ -138,7 +138,7 @@ It will do insert for assets, raw tables and data points, and throw an error if 
 
 Writing with `.save()` is currently supported for assets, events and time series.
 
-You'll need to provide an API-key and the event type you'd like to write to. In addition you can specify
+You'll need to provide an API-key and the resource type you'd like to write to. In addition you can specify
 the desired behaviour when rows in your Dataframe are present in CDF with the `.option("onconflict", value)`.
 
 The valid options for onconflict are
@@ -148,6 +148,15 @@ Supports partial updates.
 - `upsert` - will update rows that already exist, and insert new rows.
 
 See an example for using `.save()` under Events below.
+
+### Deleting
+
+#### Deleting with `.save()`
+
+Deleting with `.save()` is currently supported for assets, events and time series.
+
+Just like when writing, you need provide an API-key and the resource type you'd like to interact with.
+You then need to specify `delete` as the `onconflict` option like this, `.option("onconflict", "delete)`.
 
 ### Assets
 
