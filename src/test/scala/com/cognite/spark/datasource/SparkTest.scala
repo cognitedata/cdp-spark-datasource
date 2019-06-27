@@ -3,7 +3,9 @@ package com.cognite.spark.datasource
 import cats.effect.IO
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
+import com.codahale.metrics.Counter
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.datasource.MetricsSource
 import org.scalatest.Tag
 
 import scala.concurrent.TimeoutException
@@ -17,6 +19,8 @@ trait SparkTest extends CdpConnector {
     .builder()
     .master("local[*]")
     .config("spark.ui.enabled", "false")
+    // https://medium.com/@mrpowers/how-to-cut-the-run-time-of-a-spark-sbt-test-suite-by-40-52d71219773f
+    .config("spark.sql.shuffle.partitions", "1")
     .config("spark.app.id", this.getClass.getName + math.floor(math.random * 1000).toLong.toString)
     .getOrCreate()
 
@@ -65,4 +69,11 @@ trait SparkTest extends CdpConnector {
       spark.sparkContext.applicationId
     )
   }
+
+  def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
+    MetricsSource
+      .metricsMap(s"$metricsPrefix.$resourceType.read")
+      .value
+      .asInstanceOf[Counter]
+      .getCount
 }

@@ -81,6 +81,7 @@ case class UpdateTimeSeriesItem(
     isString: Option[Setter[Boolean]],
     isStep: Option[Setter[Boolean]]
 )
+
 object UpdateTimeSeriesItem {
   def apply(timeSeriesItem: TimeSeriesItem): UpdateTimeSeriesItem =
     new UpdateTimeSeriesItem(
@@ -129,8 +130,15 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val updateTimeSeriesItems =
-      rows.map(r => UpdateTimeSeriesItem(fromRow[UpdateTimeSeriesBase](r)))
+    val updateTimeSeriesBaseItems =
+      rows.map(r => fromRow[UpdateTimeSeriesBase](r))
+
+    // Time series must have an id when using update
+    if (updateTimeSeriesBaseItems.exists(_.id.isEmpty)) {
+      throw new IllegalArgumentException("Time series must have an id when using update")
+    }
+
+    val updateTimeSeriesItems = updateTimeSeriesBaseItems.map(UpdateTimeSeriesItem(_))
 
     post(
       config,

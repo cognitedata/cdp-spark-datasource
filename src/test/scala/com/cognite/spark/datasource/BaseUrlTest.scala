@@ -7,6 +7,7 @@ class BaseUrlTest extends FlatSpec with SparkTest {
   private val readApiKey = System.getenv("TEST_API_KEY_READ")
 
   it should "read different files metadata from greenfield and api" taggedAs GreenfieldTest in {
+
     val dfGreenfield = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", greenfieldApiKey)

@@ -17,8 +17,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   sourceDf.createOrReplaceTempView("sourceTimeSeries")
 
   it should "successfully both update and insert time series" taggedAs WriteTest in {
-    val initialDescription = "'post testing'"
-    val updatedDescription = "'upsert testing'"
+    val initialDescription = "post testing"
+    val updatedDescription = "upsert testing"
     val testUnit = "test data"
 
     // Clean up any old test data
@@ -31,7 +31,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     // Insert new time series test data
     spark
       .sql(s"""
-         |select $initialDescription as description,
+         |select '$initialDescription' as description,
          |concat('TEST', name) as name,
          |isString,
          |metadata,
@@ -51,15 +51,18 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
 
     // Check if post worked
     val initialDescriptionsAfterPost = retryWhile[Array[Row]](
-      spark.sql(s"""select * from sourceTimeSeries where description = $initialDescription""").collect,
+      spark
+        .sql(s"""select * from sourceTimeSeries where description = '$initialDescription'""")
+        .collect,
       df => df.length < 5)
     assert(initialDescriptionsAfterPost.length == 5)
 
-    val updatedDescriptionsAfterUpsert = retryWhile[Array[Row]]({
-      // Upsert time series data
-      spark
-        .sql(s"""
-                |select $updatedDescription as description,
+    val updatedDescriptionsAfterUpsert = retryWhile[Array[Row]](
+      {
+        // Upsert time series data
+        spark
+          .sql(s"""
+                |select '$updatedDescription' as description,
                 |name,
                 |isString,
                 |metadata,
@@ -71,18 +74,24 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
                 |null as createdTime,
                 |lastUpdatedTime
                 |from sourceTimeSeries
-                |where description = $initialDescription
+                |where description = '$initialDescription'
      """.stripMargin)
-        .select(sourceDf.columns.map(col): _*)
-        .write
-        .insertInto("sourceTimeSeries")
-      // Check if upsert worked
-      spark.sql(s"""select * from sourceTimeSeries where description = $updatedDescription""").collect
-    }, df => df.length < 5)
+          .select(sourceDf.columns.map(col): _*)
+          .write
+          .insertInto("sourceTimeSeries")
+        // Check if upsert worked
+        spark
+          .sql(s"""select * from sourceTimeSeries where description = '$updatedDescription'""")
+          .collect
+      },
+      df => df.length < 5
+    )
     assert(updatedDescriptionsAfterUpsert.length == 5)
 
     val initialDescriptionsAfterUpsert = retryWhile[Array[Row]](
-      spark.sql(s"""select * from sourceTimeSeries where description = $initialDescription""").collect,
+      spark
+        .sql(s"""select * from sourceTimeSeries where description = '$initialDescription'""")
+        .collect,
       df => df.length > 0)
     assert(initialDescriptionsAfterUpsert.length == 0)
 
@@ -101,8 +110,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(testTimeSeriesAfterCleanup.length == 0)
 
     // Insert new time series test data
-    spark.sql(
-      s"""
+    spark
+      .sql(s"""
          |select '$insertDescription' as description,
          |isString,
          |concat('TEST_', name) as name,
@@ -131,8 +140,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     // Trying to insert existing rows should throw a CdpApiException
     spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
     val insertError = intercept[SparkException] {
-      spark.sql(
-        s"""
+      spark
+        .sql(s"""
            |select description,
            |isString,
            |name,
@@ -162,30 +171,36 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     val updateDescription = "spark-update-test"
     val saveModeUnit = "spark-savemode-test"
 
-    val dfWithDescriptionUpdateTest = retryWhile[Array[Row]]({
-      // Update data with a new description
-      spark.sql(
-        s"""
+    val dfWithDescriptionUpdateTest = retryWhile[Array[Row]](
+      {
+        // Update data with a new description
+        spark
+          .sql(s"""
            |select '$updateDescription' as description,
            |id,
            |name
            |from sourceTimeSeries
            |where unit = '$saveModeUnit'
      """.stripMargin)
-        .write
-        .format("com.cognite.spark.datasource")
-        .option("apiKey", writeApiKey.apiKey)
-        .option("type", "timeseries")
-        .option("onconflict", "update")
-        .save()
-      spark.sql(s"select * from sourceTimeSeries where description = '$updateDescription'").collect
-    }, df => df.length < 5)
+          .write
+          .format("com.cognite.spark.datasource")
+          .option("apiKey", writeApiKey.apiKey)
+          .option("type", "timeseries")
+          .option("onconflict", "update")
+          .save()
+        spark
+          .sql(s"select * from sourceTimeSeries where description = '$updateDescription'")
+          .collect
+      },
+      df => df.length < 5
+    )
     assert(dfWithDescriptionUpdateTest.length == 5)
 
     // Trying to update nonexisting Time Series should throw a CdpApiException
     spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
     val updateError = intercept[SparkException] {
-      spark.sql(s"""
+      spark
+        .sql(s"""
                    |select '$updateDescription' as description,
                    |isString,
                    |name,
@@ -251,7 +266,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
              |where unit = '$saveModeUnit'
      """.stripMargin)
 
-    existingTimeSeriesDf.union(nonExistingTimeSeriesDf)
+    existingTimeSeriesDf
+      .union(nonExistingTimeSeriesDf)
       .write
       .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
@@ -266,6 +282,55 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(dfWithDescriptionUpsertTest.length == 10)
 
     cleanupTestData(saveModeUnit)
+  }
+
+  it should "check for null ids on time series update" taggedAs WriteTest in {
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "timeseries")
+      .load()
+    df.createOrReplaceTempView("sourceTimeSeries")
+
+    val initialDescription = "post testing"
+    val testUnit = "test data"
+
+    // Clean up any old test data
+    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
+      cleanupTestData(testUnit)
+      spark.sql(s"""select * from sourceTimeSeries where unit = '$testUnit'""").collect
+    }, df => df.length > 0)
+    assert(testTimeSeriesAfterCleanup.length == 0)
+
+    // Insert new time series test data
+    val wdf = spark
+      .sql(s"""
+         |select '$initialDescription' as description,
+         |concat('TEST', name) as name,
+         |isString,
+         |metadata,
+         |'$testUnit' as unit,
+         |'' as assetId,
+         |isStep,
+         |cast(array() as array<long>) as securityCategories,
+         |null as id,
+         |null as createdTime,
+         |null as lastUpdatedTime
+         |from sourceTimeSeries
+     """.stripMargin)
+
+    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
+
+    val e = intercept[SparkException] {
+      wdf.write
+        .format("com.cognite.spark.datasource")
+        .option("apiKey", writeApiKey.apiKey)
+        .option("type", "timeseries")
+        .option("onconflict", "update")
+        .save()
+    }
+    e.getCause shouldBe a[IllegalArgumentException]
+    spark.sparkContext.setLogLevel("WARN")
   }
 
   it should "support deletes in savemode" taggedAs WriteTest in {

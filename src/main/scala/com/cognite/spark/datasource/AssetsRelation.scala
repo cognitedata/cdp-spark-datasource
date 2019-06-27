@@ -22,7 +22,8 @@ case class TypeDescription(
     id: Long,
     name: String,
     description: String,
-    fields: Seq[FieldDescription])
+    fields: Seq[FieldDescription]
+)
 case class PostType(id: Long, fields: Seq[PostField])
 case class FieldData(id: Long, name: String, valueType: String, value: String)
 case class FieldDescription(id: Long, name: String, description: String, valueType: String)
@@ -42,7 +43,8 @@ case class AssetsItem(
     source: Option[String],
     sourceId: Option[String],
     createdTime: Option[Long],
-    lastUpdatedTime: Option[Long])
+    lastUpdatedTime: Option[Long]
+)
 
 case class PostAssetsItem(
     name: String,
@@ -96,11 +98,19 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val assetsItems = rows.map(r => fromRow[UpdateAssetsItemBase](r))
-    val updateAssetsItem = assetsItems.map(a => UpdateAssetsItem(a))
+    val updateAssetsItems = rows
+      .map(r => fromRow[UpdateAssetsItemBase](r))
+      .map(a => UpdateAssetsItem(a))
 
-    post(config, uri"${baseAssetsURL(config.project)}/update", updateAssetsItem)
+    // Assets must have an id when using update
+    if (updateAssetsItems.exists(_.id.isEmpty)) {
+      throw new IllegalArgumentException("Assets must have an id when using update")
+    }
+
+    post(config, uri"${baseAssetsURL(config.project)}/update", updateAssetsItems)
   }
+  //TODO: Add description as a pushdown filter once we know how spaces are handled
+  override val fieldsWithPushdownFilter: Seq[String] = Seq("name", "source", "depth")
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val postAssetItems = rows.map(r => fromRow[PostAssetsItem](r))
@@ -144,12 +154,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def toRow(t: AssetsItem): Row = asRow(t)
 
-  // TODO: As of 2019-03-22 the normal /assets endpoint doesn't work on some projects when
-  // using cursors retrieved from /assets/cursors, but the cursors do work with /assets/list.
-  // This is ok as long as we don't support predicate pushdown for assets, as we don't need
-  // the search capabilities of /assets, but this should be removed once /assets works as expected.
   override def listUrl(): Uri =
-    uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets/list"
+    uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets"
 
   private val cursorsUrl = uri"${config.baseUrl}/api/0.6/projects/${config.project}/assets/cursors"
   override def cursors(): Iterator[(Option[String], Option[Int])] =

@@ -1,6 +1,6 @@
-# Spark data source for the Cognite Data Platform API
+# Spark data source for the Cognite Data Fusion API
 
-A [Spark](https://spark.apache.org/) data source for the [Cognite Data Platform](https://doc.cognitedata.com/).
+A [Spark](https://spark.apache.org/) data source for the [Cognite Data Fusion](https://doc.cognitedata.com/).
 
 Supports read and write for raw and clean data types.
 
@@ -10,84 +10,29 @@ if there are many items.
 
 See instructions below for examples using different resource types.
 
-## Build the project with sbt:
+#### Table of Contents
 
-The project runs read-only integration tests against the Open Industrial Data project. Head over to
-https://openindustrialdata.com/ to get an API key and store it in the environment variable `TEST_API_KEY_READ`.
-To run the write integration tests you'll also need to set the environment variable `TEST_API_KEY_WRITE`
-to an API key to a project where you have write access. To run tests against greenfield set the environment
-variable `TEST_API_KEY_GREENFIELD` to an API key with read access to the project cdp-spark-datasource-test.
-
-### Setting up
-First run `sbt compile` to generate Scala sources for protobuf.
-
-If you have set `TEST_API_KEY_WRITE` run the Python files `scripts/createThreeDData.py` and `scripts/createFilesMetaData.py`
-(you'll need to install cognite-sdk-python and set the environment variables `PROJECT` and `TEST_API_KEY_WRITE`).
-This will upload a 3D model to your project which is used for testing.
-
-### Running the tests
-
-To run all tests run `sbt test`.
-
-To run groups of tests enter sbt shell mode `sbt>`
-
-To run only the read-only tests run `sbt> testOnly -- -n ReadTest`
-
-To run only the write tests run `sbt> testOnly -- -n WriteTest`
-
-To run only the greenfield tests run `sbt> testOnly -- -n GreenfieldTest`
-
-To run all tests except the write tests run `sbt> testOnly -- -l WriteTest`
-
-To skip the read/write tests in assembly you can add `test in assembly := {}` to build.sbt, or run:
-
-Windows: `sbt "set test in assembly := {}" assembly`
-
-Linux/macos: `sbt 'set test in assembly := {}' assembly`
-
-### Building the .jar
-
-Run `sbt assembly` to create `~/path-to-repo/target/scala-2.11/cdp-spark-datasource-*-jar-with-dependencies.jar`.
+- [Reading and writing Cognite Data Fusion resource types:](#Reading-and-writing-Cognite-Data-Fusion-resource-types)
+  - [Common options](#Common-options)
+  - [Reading](#Reading)
+  - [Writing](#Writing)
+    - [Writing with `.insertInto()`](#Writing-with-insertInto)
+    - [Writing with `.save()`](#Writing-with-save)
+  - [Assets](#Assets)
+    - [Asset types](#Asset-types)
+  - [Time series](#Time-series)
+  - [Data points](#Data-points)
+  - [Events](#Events)
+  - [Files metadata](#Files-metadata)
+  - [3D models and revisions](#3D-models-and-revisions)
+  - [Raw tables](#Raw-tables)
+- [Build the project with sbt:](#Build-the-project-with-sbt)
+  - [Setting up](#Setting-up)
+  - [Running the tests](#Running-the-tests)
+- [Run it with spark-shell](#Run-it-with-spark-shell)
 
 
-## Run it with spark-shell
-
-To run locally you'll need spark-metrics (marked as provided), which can be found at
-https://github.com/cognitedata/spark-metrics/releases/tag/v2.4.0-cognite.
-Download the jar-file and place under SPARK_HOME/jars.
-
-Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following:
-
-```
-$> spark-shell --jars ~/path-to-repo/target/cdp-spark-datasource-*-jar-with-dependencies.jar
-Spark context Web UI available at http://IP:4040
-Spark context available as 'sc' (master = local[*], app id = local-1513307936323).
-Spark session available as 'spark'.
-Welcome to
-      ____              __
-     / __/__  ___ _____/ /__
-    _\ \/ _ \/ _ `/ __/  '_/
-   /___/ .__/\_,_/_/ /_/\_\   version 2.4.0
-      /_/
-Using Scala version 2.11.8 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_131)
-Type in expressions to have them evaluated.
-Type :help for more information.
-
-scala> val apiKey="secret-key-you-have"
-scala> val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
-  .option("apiKey", apiKey)
-  .option("batchSize", "1000")
-  .option("limit", "1000")
-  .option("type", "assets")
-  .load()
-
-df: org.apache.spark.sql.DataFrame = [name: string, parentId: bigint ... 3 more fields]
-
-scala> df.count
-res0: Long = 1000
-```
-
-## Reading and writing Cognite Data Platform resource types:
+## Reading and writing Cognite Data Fusion resource types:
 
 cdp-spark-datasource supports reads from, and writes to, assets, time series, raw tables, data points and events.
 You can also read files metadata and 3D-files metadata.
@@ -98,28 +43,27 @@ Some options are common to all resource types, and can be set with
 `spark.read.format("com.cognite.spark.datasource").option("nameOfOption", "value")`.
 
 The common options are:
-- `apiKey`: *REQUIRED IF NO BEARER TOKEN* A Cognite Data Platform [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) to be used for authorization.
-- `bearerToken`: *REQUIRED IF NO API-KEY* A Cognite Data Platform [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) to be used for authorization.
-- `type`: *REQUIRED* The Cognite Data Platform resource type. See below for more information.
+- `apiKey`: *REQUIRED IF NO BEARER TOKEN* A Cognite Data Fusion [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) to be used for authorization.
+- `bearerToken`: *REQUIRED IF NO API-KEY* A Cognite Data Fusion [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) to be used for authorization.
+- `type`: *REQUIRED* The Cognite Data Fusion resource type. See below for more information.
 - `maxRetries`: The maximum number of retries to be made when a request fails. The default value is 10.
 - `limit`: The number of items to fetch for this resource type to create the DataFrame. Note that this is different
-from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for the items to be fetched from
-the data platform, *before* filtering and other transformations are applied to limit the number of results.
+from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for the items to be fetched from CDF, *before* filtering and other transformations are applied to limit the number of results.
 - `batchSize`: Maximum number of items to read/write per API call.
-- `baseUrl`: Set the prefix to be used for all CDP API calls. The default is https://api.cognitedata.com
+- `baseUrl`: Set the prefix to be used for all CDF API calls. The default is https://api.cognitedata.com
 
 ### Reading
 
-To read from CDP resource types you need to provide two things:
+To read from CDF resource types you need to provide two things:
 an API-key and the resource type. To read from a table you should also specify the database name and table name.
 
 ### Writing
 
-There are two ways you can use cdp-spark-datasource to write to CDP: using `insertInto` or using the `save` function. 
+There are two ways you can use cdp-spark-datasource to write to CDF: using `insertInto` or using the `save` function.
 - `insertInto` - will check that all fields are present and in the correct order, and can be more convenient when
 working with Spark SQL tables.
 - `save` - will give you control over how to handle potential collisions with existing data,
-and allows updating a subset of fields in a row. 
+and allows updating a subset of fields in a row.
 
 #### Writing with `.insertInto()`
 
@@ -143,7 +87,7 @@ the desired behaviour when rows in your Dataframe are present in CDF with the `.
 
 The valid options for onconflict are
 - `abort` - will try to insert all rows in the Dataframe. An error will be thrown if the resource item already exists and no more rows will be written.
-- `update` - will look for all rows in the Dataframe in CDP and try to update them. If one or more rows do not exist no more rows will be updated and an error will be thrown.
+- `update` - will look for all rows in the Dataframe in CDF and try to update them. If one or more rows do not exist no more rows will be updated and an error will be thrown.
 Supports partial updates.
 - `upsert` - will update rows that already exist, and insert new rows.
 
@@ -172,7 +116,7 @@ val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
 // Register your assets in a temporary view
 df.createTempView("assets")
 
-// Create a new asset and write to CDP
+// Create a new asset and write to CDF
 // Note that parentId, asset type IDs and asset type field IDs have to exist
 val assetColumns = Seq("id", "path", "depth", "name", "parentId", "description",
                    "types", "metadata", "source", "sourceId", "createdTime", "lastupdatedTime")
@@ -261,7 +205,7 @@ time intervals.
 
 You can also request aggregated data by filtering by aggregation and granularity.
 
-`aggregation`: Numerical data points can be aggregated before they are retrieved from CDP.
+`aggregation`: Numerical data points can be aggregated before they are retrieved from CDF.
 This allows for faster queries by reducing the amount of data transferred.
 You can aggregate data points by specifying one or more aggregates (e.g. average, minimum, maximum)
 as well as the time granularity over which the aggregates should be applied (e.g. "1h" for one hour).
@@ -370,9 +314,9 @@ Raw tables are organized in databases and tables so you'll need to provide these
 `publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
 
 Two additonal options are required:
-- `database`: The name of the database in Cognite Data Platform's "raw" storage to use.
+- `database`: The name of the database in Cognite Data Fusion's "raw" storage to use.
 It must exist, and will not be created if it does not.
-- `table`: The name of the table in Cognite Data Platform's "raw" storage to use.
+- `table`: The name of the table in Cognite Data Fusion's "raw" storage to use.
 It must exist in the given `database` option, and will not be created if it does not.
 
 You can optionally have Spark infer the DataFrame schema with the following options:
@@ -392,4 +336,77 @@ df.createTempView("tablename")
 
 // Insert some new values
 spark.sql("""insert into tablename values ("key", "values")""")
+```
+
+## Build the project with sbt:
+
+The project runs read-only integration tests against the Open Industrial Data project. Head over to
+https://openindustrialdata.com/ to get an API key and store it in the environment variable `TEST_API_KEY_READ`.
+To run the write integration tests you'll also need to set the environment variable `TEST_API_KEY_WRITE`
+to an API key to a project where you have write access. To run tests against greenfield set the environment
+variable `TEST_API_KEY_GREENFIELD` to an API key with read access to the project cdp-spark-datasource-test.
+
+### Setting up
+First run `sbt compile` to generate Scala sources for protobuf.
+
+If you have set `TEST_API_KEY_WRITE` run the Python files `scripts/createThreeDData.py` and `scripts/createFilesMetaData.py`
+(you'll need to install cognite-sdk-python and set the environment variables `PROJECT` and `TEST_API_KEY_WRITE`).
+This will upload a 3D model to your project which is used for testing.
+
+### Running the tests
+
+To run all tests run `sbt test`.
+
+To run groups of tests enter sbt shell mode `sbt>`
+
+To run only the read-only tests run `sbt> testOnly -- -n ReadTest`
+
+To run only the write tests run `sbt> testOnly -- -n WriteTest`
+
+To run only the greenfield tests run `sbt> testOnly -- -n GreenfieldTest`
+
+To run all tests except the write tests run `sbt> testOnly -- -l WriteTest`
+
+To skip the read/write tests in assembly you can add `test in assembly := {}` to build.sbt, or run:
+
+Windows: `sbt "set test in assembly := {}" assembly`
+
+Linux/macos: `sbt 'set test in assembly := {}' assembly`
+
+
+## Run it with spark-shell
+
+To run locally you'll need spark-metrics (marked as provided), which can be found at
+https://github.com/cognitedata/spark-metrics/releases/tag/v2.4.0-cognite.
+Download the jar-file and place under SPARK_HOME/jars.
+
+Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following:
+
+```
+$> spark-shell --jars ~/path-to-repo/target/cdp-spark-datasource-*-jar-with-dependencies.jar
+Spark context Web UI available at http://IP:4040
+Spark context available as 'sc' (master = local[*], app id = local-1513307936323).
+Spark session available as 'spark'.
+Welcome to
+      ____              __
+     / __/__  ___ _____/ /__
+    _\ \/ _ \/ _ `/ __/  '_/
+   /___/ .__/\_,_/_/ /_/\_\   version 2.4.0
+      /_/
+Using Scala version 2.11.8 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_131)
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> val apiKey="secret-key-you-have"
+scala> val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+  .option("apiKey", apiKey)
+  .option("batchSize", "1000")
+  .option("limit", "1000")
+  .option("type", "assets")
+  .load()
+
+df: org.apache.spark.sql.DataFrame = [name: string, parentId: bigint ... 3 more fields]
+
+scala> df.count
+res0: Long = 1000
 ```
