@@ -3,7 +3,7 @@
 ## Enhancements
 * Filters are now pushed to CDF when possible for Assets, Events, Files and Raw Tables.
 
-* Raw Tables now expose lastUpdatedTime, and filters for it are pushed to CDF.
+* Raw Tables now expose lastChanged column, and filters for it are pushed to CDF.
 
 * Better error messages for invalid `onConflict` options.
 
