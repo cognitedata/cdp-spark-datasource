@@ -1,9 +1,9 @@
 # 0.4.11
 
 ## Enhancements
-* Filters are now pushed to CDF when possible for Assets, Events, Files and Raw Tables.
+* Filters are now pushed to CDF when possible for assets, events, files and raw tables.
 
-* Raw Tables now expose lastChanged column, and filters for it are pushed to CDF.
+* Raw Tables now expose a `lastChanged` column, and filters for it are pushed to CDF.
 
 * Better error messages for invalid `onConflict` options.
 
@@ -15,7 +15,7 @@
 # 0.4.10
 
 ## Enhancements
-* Support deleting time series, events and assets with `.save()`.
+* Support for deleting time series, events and assets with `.save()`.
 
 * Set `x-cdp-sdk` header for all API calls.
 
