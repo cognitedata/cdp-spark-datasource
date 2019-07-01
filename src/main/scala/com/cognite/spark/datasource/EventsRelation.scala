@@ -81,8 +81,8 @@ object UpdateEventItem {
     )
 }
 
-case class SourceWithResourceId(id: Long, source: String, sourceId: String)
-case class EventConflict(duplicates: Seq[SourceWithResourceId])
+case class IdSourceAndResourceId(id: Long, source: String, sourceId: String)
+case class EventConflict(duplicates: Seq[IdSourceAndResourceId])
 
 class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLContext)
     extends CdpRelation[EventItem](config, "events")

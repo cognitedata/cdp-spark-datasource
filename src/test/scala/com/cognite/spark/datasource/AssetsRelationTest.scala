@@ -152,6 +152,92 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       rows => rows.length < 1)
   }
 
+  it should "support upserts when using insertInto()" taggedAs WriteTest in {
+    val source = "spark-assets-upsert-testing"
+
+    // Cleanup old assets
+    cleanupAssets(source)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sourceAssets where source = '$source'").collect,
+      rows => rows.length > 0)
+
+    // Post new assets
+    spark
+      .sql(s"""
+              |select id,
+              |path,
+              |depth,
+              |name,
+              |null as parentId,
+              |null as types,
+              |'foo' as description,
+              |metadata,
+              |'$source' as source,
+              |id as sourceId,
+              |createdTime,
+              |lastUpdatedTime
+              |from sourceAssets
+              |limit 100
+     """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationAssets")
+
+    // Check if post worked
+    val assetsFromTestDf = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
+      df => df.length < 100)
+    assert(assetsFromTestDf.length == 100)
+
+    val description = "spark-assets-upsert-testing-description"
+
+    // Upsert assets
+    spark.sql(s"""
+                 |select id,
+                 |path,
+                 |depth,
+                 |name,
+                 |parentId,
+                 |types,
+                 |'bar' as description,
+                 |metadata,
+                 |source,
+                 |sourceId,
+                 |createdTime,
+                 |lastUpdatedTime
+                 |from destinationAssets
+                 |where source = '$source'""".stripMargin)
+      .union(
+    spark
+      .sql(s"""
+              |select id,
+              |path,
+              |depth,
+              |name,
+              |null as parentId,
+              |null as types,
+              |'bar' as description,
+              |metadata,
+              |'$source' as source,
+              |id+1 as sourceId,
+              |createdTime,
+              |lastUpdatedTime
+              |from sourceAssets
+              |limit 100
+     """.stripMargin))
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationAssets")
+
+    // Check if upsert worked
+    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+      spark.sql(s"select description from destinationAssets where source = '$source'").collect,
+      df => df.length < 200)
+    assert(descriptionsAfterUpsert.length == 200)
+    assert(descriptionsAfterUpsert.map(_.getString(0)).forall(_ == "bar"))
+
+  }
+
   it should "allow partial updates" taggedAs WriteTest in {
     val sourceDf = spark.read
       .format("com.cognite.spark.datasource")
@@ -207,7 +293,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       df => df.length > 0)
     assert(oldAssetsFromTestDf.length == 0)
 
-    // Post new events
+    // Post new assets
     spark
       .sql(s"""
                  |select id,
