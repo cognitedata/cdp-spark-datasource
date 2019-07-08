@@ -66,6 +66,26 @@ trait CdpConnector {
     retryWithBackoff(result, Constants.DefaultInitialRetryDelay, config.maxRetries)
   }
 
+  def postJsonWithBody[A: Decoder, B: Encoder](
+      config: RelationConfig,
+      url: Uri,
+      items: Seq[B]): IO[A] = {
+    val result = sttp
+      .header("Accept", "application/json")
+      .header("x-cdp-sdk", Constants.SparkDatasourceVersion)
+      .header("x-cdp-app", config.applicationId)
+      .header("Content-Type", "application/json")
+      .body(Items(items))
+      .auth(config.auth)
+      .post(url)
+      .response(asJson[A])
+      .parseResponseIf(_ => true)
+      .send()
+      .flatMap(r => onError(url)(r))
+
+    retryWithBackoff(result, Constants.DefaultInitialRetryDelay, config.maxRetries)
+  }
+
   def getProtobuf[A](
       config: RelationConfig,
       url: Uri,
@@ -95,6 +115,16 @@ trait CdpConnector {
       initialCursor: Option[String] = None): Iterator[A] =
     getWithCursor(config, url, initialCursor)
       .flatMap(_.chunk)
+
+  def postWithBody[A: Decoder, B: Encoder](
+      config: RelationConfig,
+      url: Uri,
+      items: Seq[B]): Iterator[A] =
+    postJsonWithBody[DataItems[A], B](config, url, items)
+      .unsafeRunSync()
+      .data
+      .items
+      .toIterator
 
   def onError[A, B](url: Uri): PartialFunction[Response[Either[B, A]], IO[A]] = {
     case Response(Right(Right(data)), _, _, _, _) => IO.pure(data)
@@ -253,5 +283,6 @@ object CdpConnector {
     AsyncHttpClientCatsBackend[IO]()
 
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
+  type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]
 }

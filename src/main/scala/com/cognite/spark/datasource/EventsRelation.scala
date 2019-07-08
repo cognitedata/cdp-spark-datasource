@@ -7,6 +7,7 @@ import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import io.circe.parser.decode
 import org.apache.spark.datasource.MetricsSource
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -81,6 +82,7 @@ object UpdateEventItem {
     )
 }
 
+case class EventId(id: Long)
 case class IdSourceAndResourceId(id: Long, source: String, sourceId: String)
 case class EventConflict(duplicates: Seq[IdSourceAndResourceId])
 
@@ -184,7 +186,48 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     (postUpdate, postNewItems).parMapN((_, _) => ())
   }
 
-  override val fieldsWithPushdownFilter = Seq("type", "subtype", "assetIds", "startTime", "source")
+  override val fieldsWithPushdownFilter: Seq[String] =
+    Seq("type", "subtype", "assetIds", "startTime", "source")
+
+  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
+    val otherFilters = urlsWithFilters(filters, listUrl())
+    val idFilters = urlWithBody(filters)
+
+    if (idFilters.nonEmpty) {
+      val byIds = CdpEventsByIdsRdd(
+        sqlContext.sparkContext,
+        (e: EventItem) => {
+          if (config.collectMetrics) {
+            itemsRead.inc()
+          }
+          toRow(e, requiredColumns)
+        },
+        config,
+        byIdsUrl(),
+        idFilters
+      )
+
+      val hasOtherFilters = otherFilters.headOption match {
+        case Some(head) => head != listUrl()
+        case None => false
+      }
+
+      // If we have filters both on eventId and other filters
+      // then we must do requests for both and join them
+      if (hasOtherFilters) {
+        val other = super.buildScan(requiredColumns, filters)
+        other ++ byIds
+      } else { byIds }
+    } else {
+      super.buildScan(requiredColumns, filters)
+    }
+  }
+
+  def urlWithBody(filters: Array[Filter]): Seq[EventId] =
+    for {
+      filter <- filters
+      id <- getFilter(filter, "id")
+    } yield EventId(id.toLong)
 
   override def urlsWithFilters(filters: Array[Filter], uri: Uri): Seq[Uri] = {
     val filterMaps =
@@ -209,10 +252,9 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
 
   private def getAssetIdsUrls(uri: Uri, assetIdsFiltersOpt: Option[Array[String]]): Seq[Uri] =
     assetIdsFiltersOpt match {
-      case Some(filters) => {
+      case Some(filters) =>
         val ids = filters.flatMap(_.split("\\D+").filter(_.nonEmpty))
         ids.map(uri.param("assetId", _)) // Endpoint uses singular
-      }
       case None => Seq()
     }
 
@@ -221,10 +263,9 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
       startTimeFilters: (Option[String], Option[String])): Seq[Uri] = startTimeFilters match {
     case (Some(minFilter), None) => Seq(uri.param("minStartTime", minFilter))
     case (None, Some(maxFilter)) => Seq(uri.param("maxStartTime", maxFilter))
-    case (Some(minFilter), Some(maxFilter)) => {
+    case (Some(minFilter), Some(maxFilter)) =>
       val urlWithMinFilter = uri.param("minStartTime", minFilter)
       Seq(urlWithMinFilter.param("maxStartTime", maxFilter))
-    }
     case (None, None) => Seq()
   }
 
@@ -285,14 +326,15 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   override def listUrl(): Uri =
     uri"${config.baseUrl}/api/0.6/projects/${config.project}/events"
 
+  private def byIdsUrl(): Uri = uri"${listUrl().toString()}/byids"
   private val cursorsUrl = uri"${config.baseUrl}/api/0.6/projects/${config.project}/events/cursors"
   override def cursors(): Iterator[(Option[String], Option[Int])] =
     CursorsCursorIterator(cursorsUrl.param("divisions", config.partitions.toString), config)
 }
 
 object EventsRelation extends DeleteSchema with UpsertSchema with InsertSchema with UpdateSchema {
-  val insertSchema = structType[PostEventItem]
-  val upsertSchema = structType[PostEventItem]
-  val updateSchema = StructType(structType[EventItem].filterNot(field =>
+  val insertSchema: StructType = structType[PostEventItem]
+  val upsertSchema: StructType = structType[PostEventItem]
+  val updateSchema: StructType = StructType(structType[EventItem].filterNot(field =>
     Seq("createdTime", "lastUpdatedTime").contains(field.name)))
 }

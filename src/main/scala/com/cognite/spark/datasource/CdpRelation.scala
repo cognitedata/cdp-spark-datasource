@@ -1,5 +1,6 @@
 package com.cognite.spark.datasource
 import cats.effect.IO
+import com.codahale.metrics.Counter
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import io.circe.Decoder
@@ -42,7 +43,7 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
     with Serializable
     with PrunedFilteredScan
     with CdpConnector {
-  @transient lazy private val itemsRead =
+  @transient lazy protected val itemsRead: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
 
   val fieldsWithPushdownFilter: Seq[String] = Seq[String]()
@@ -50,7 +51,14 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
   val sqlContext: SQLContext
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
-  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
+  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
+    val urlsFilters = urlsWithFilters(filters, listUrl())
+    val urls = if (urlsFilters.isEmpty) {
+      Seq(listUrl())
+    } else {
+      urlsFilters
+    }
+
     CdpRdd[T](
       sqlContext.sparkContext,
       (e: T) => {
@@ -61,18 +69,17 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
       },
       listUrl(),
       config,
-      urlsWithFilters(filters, listUrl),
+      urls,
       cursors()
     )
+  }
 
-  def urlsWithFilters(filters: Array[Filter], uri: Uri): Seq[Uri] = {
-    val urlsWithFilters = fieldsWithPushdownFilter
+  def urlsWithFilters(filters: Array[Filter], uri: Uri): Seq[Uri] =
+    fieldsWithPushdownFilter
       .map(f => (f, filters.flatMap(getFilter(_, f)))) // map from fieldname to its filtering values
       .flatMap(pdf => pdf._2.map(v => PushdownFilter(pdf._1, v)))
       .distinct
       .map(f => uri.param(f.fieldName, f.value))
-    if (urlsWithFilters.isEmpty) { Seq(uri) } else urlsWithFilters
-  }
 
   def toRow(t: T): Row
 
