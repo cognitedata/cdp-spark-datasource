@@ -192,7 +192,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val description = "spark-assets-upsert-testing-description"
 
     // Upsert assets
-    spark.sql(s"""
+    spark
+      .sql(s"""
                  |select id,
                  |path,
                  |depth,
@@ -207,9 +208,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |lastUpdatedTime
                  |from destinationAssets
                  |where source = '$source'""".stripMargin)
-      .union(
-    spark
-      .sql(s"""
+      .union(spark
+        .sql(s"""
               |select id,
               |path,
               |depth,
@@ -231,11 +231,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     // Check if upsert worked
     val descriptionsAfterUpsert = retryWhile[Array[Row]](
-      spark.sql(s"select description from destinationAssets where source = '$source'").collect,
+      spark
+        .sql(
+          s"select description from destinationAssets where source = '$source' and description = 'bar'")
+        .collect,
       df => df.length < 200)
     assert(descriptionsAfterUpsert.length == 200)
-    assert(descriptionsAfterUpsert.map(_.getString(0)).forall(_ == "bar"))
-
   }
 
   it should "allow partial updates" taggedAs WriteTest in {
