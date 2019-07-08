@@ -170,10 +170,11 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"((type = 'maintenance' or type = 'upgrade') " +
-        s"and subtype in('manual', 'automatic')) " +
-        s"or (type = 'maintenance' and subtype = 'manual') " +
-        s"or (type = 'upgrade') and source = 'something'")
+      .where(
+        s"((type = 'maintenance' or type = 'upgrade') " +
+          s"and subtype in('manual', 'automatic')) " +
+          s"or (type = 'maintenance' and subtype = 'manual') " +
+          s"or (type = 'upgrade') and source = 'something'")
     assert(df.count == 4)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 4)
@@ -320,8 +321,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark
       .sql(s"""
                  |select "foo" as description,
-                 |startTime,
-                 |endTime,
+                 |least(startTime, endTime) as startTime,
+                 |greatest(startTime, endTime) as endTime,
                  |type,
                  |subtype,
                  |array(8031965690878131) as assetIds,
@@ -352,8 +353,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       spark
         .sql(s"""
            |select "foo" as description,
-           |startTime,
-           |endTime,
+           |least(startTime, endTime) as startTime,
+           |greatest(startTime, endTime) as endTime,
            |type,
            |subtype,
            |array(8031965690878131) as assetIds,
@@ -538,8 +539,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark
       .sql(s"""
               |select "foo" as description,
-              |startTime,
-              |endTime,
+              |least(startTime, endTime) as startTime,
+              |greatest(startTime, endTime) as endTime,
               |type,
               |subtype,
               |null as assetIds,
