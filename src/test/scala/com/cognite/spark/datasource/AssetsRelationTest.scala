@@ -74,7 +74,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(df.count() == 1)
 
     val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
-    assert(assetsRead == 8)
+    assert(assetsRead == 1)
   }
 
   it should "be possible to create assets" taggedAs WriteTest in {

@@ -10,8 +10,12 @@ import org.apache.spark.sql.sources.{
   EqualNullSafe,
   EqualTo,
   Filter,
+  GreaterThan,
+  GreaterThanOrEqual,
   In,
   IsNotNull,
+  LessThan,
+  LessThanOrEqual,
   Or,
   PrunedFilteredScan,
   TableScan
@@ -35,7 +39,40 @@ case class DeleteItem(
     id: Long
 )
 
-case class PushdownFilter(fieldName: String, value: String)
+sealed trait PushdownExpression
+final case class PushdownFilter(fieldName: String, value: String) extends PushdownExpression
+final case class PushdownAnd(left: PushdownExpression, right: PushdownExpression)
+    extends PushdownExpression
+final case class PushdownFilters(filters: Seq[PushdownExpression]) extends PushdownExpression
+final case class NoPushdown() extends PushdownExpression
+
+object PushdownUtilities {
+  def pushdownToUri(parameters: Seq[Map[String, String]], uri: Uri): Seq[Uri] =
+    parameters.map(params => uri.params(params))
+
+  def pushdownToParameters(p: PushdownExpression): Seq[Map[String, String]] =
+    p match {
+      case PushdownAnd(left, right) =>
+        handleAnd(pushdownToParameters(left), pushdownToParameters(right))
+      case PushdownFilter(field, value) => Seq(Map[String, String](field -> value))
+      case PushdownFilters(filters) => filters.flatMap(pushdownToParameters)
+      case NoPushdown() => Seq()
+    }
+
+  def handleAnd(
+      left: Seq[Map[String, String]],
+      right: Seq[Map[String, String]]): Seq[Map[String, String]] =
+    if (left.isEmpty) {
+      right
+    } else if (right.isEmpty) {
+      left
+    } else {
+      for {
+        l <- left
+        r <- right
+      } yield l ++ r
+    }
+}
 
 abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortName: String)
     extends BaseRelation
@@ -43,6 +80,7 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
     with Serializable
     with PrunedFilteredScan
     with CdpConnector {
+  import PushdownUtilities._
   @transient lazy protected val itemsRead: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
 
@@ -74,12 +112,18 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
     )
   }
 
-  def urlsWithFilters(filters: Array[Filter], uri: Uri): Seq[Uri] =
-    fieldsWithPushdownFilter
-      .map(f => (f, filters.flatMap(getFilter(_, f)))) // map from fieldname to its filtering values
-      .flatMap(pdf => pdf._2.map(v => PushdownFilter(pdf._1, v)))
-      .distinct
-      .map(f => uri.param(f.fieldName, f.value))
+  def urlsWithFilters(filters: Array[Filter], uri: Uri): Seq[Uri] = {
+    val pushdownFilterExpression = toPushdownFilterExpression(filters)
+    val getAll = shouldGetAll(pushdownFilterExpression)
+    val params = pushdownToParameters(pushdownFilterExpression)
+    val urlsWithFilter = pushdownToUri(params, uri).distinct
+
+    if (urlsWithFilter.isEmpty || getAll) {
+      Seq(uri)
+    } else {
+      urlsWithFilter
+    }
+  }
 
   def toRow(t: T): Row
 
@@ -92,18 +136,51 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
       Row.fromSeq(requiredColumns.map(itemMap(_)).toSeq)
     }
 
+  def toPushdownFilterExpression(filters: Array[Filter]): PushdownExpression =
+    if (filters.isEmpty) {
+      NoPushdown()
+    } else {
+      filters
+        .map(getFilter)
+        .reduce(PushdownAnd(_, _))
+    }
+
   // Spark will still filter the result after pushdown filters are applied, see source code for
   // PrunedFilteredScan, hence it's ok that our pushdown filter reads some data that should ideally
   // be filtered out
-  def getFilter(filter: Filter, colName: String): Seq[String] =
+  // scalastyle:off
+  def getFilter(filter: Filter): PushdownExpression =
     filter match {
-      case IsNotNull(`colName`) => Seq()
-      case EqualTo(`colName`, value) => Seq(value.toString)
-      case EqualNullSafe(`colName`, value) => Seq(value.toString)
-      case In(`colName`, values) => values.map(v => v.toString)
-      case And(f1, f2) => getFilter(f1, colName) ++ getFilter(f2, colName)
-      case Or(f1, f2) => getFilter(f1, colName) ++ getFilter(f2, colName)
-      case _ => Seq()
+      case IsNotNull(colName) => NoPushdown()
+      case EqualTo(colName, value) => PushdownFilter(colName, value.toString)
+      case EqualNullSafe(colName, value) => PushdownFilter(colName, value.toString)
+      case GreaterThan(colName, value) =>
+        PushdownFilter("min" + colName.capitalize, toMinTimeFormat(value))
+      case GreaterThanOrEqual(colName, value) =>
+        PushdownFilter("min" + colName.capitalize, toMinTimeFormat(value))
+      case LessThan(colName, value) =>
+        PushdownFilter("max" + colName.capitalize, toMaxTimeFormat(value))
+      case LessThanOrEqual(colName, value) =>
+        PushdownFilter("max" + colName.capitalize, toMaxTimeFormat(value))
+      case In(colName, values) =>
+        PushdownFilters(values.map(v => PushdownFilter(colName, v.toString)))
+      case And(f1, f2) => PushdownAnd(getFilter(f1), getFilter(f2))
+      case Or(f1, f2) => PushdownFilters(Seq(getFilter(f1), getFilter(f2)))
+      case _ => NoPushdown()
+    }
+
+  private def toMinTimeFormat(value: Any): String = (value.toString.toLong + 1).toString
+  private def toMaxTimeFormat(value: Any): String = (value.toString.toLong - 1).toString
+
+  def shouldGetAll(pushdownExpression: PushdownExpression): Boolean =
+    pushdownExpression match {
+      case PushdownAnd(left, right) => shouldGetAll(left) || shouldGetAll(right)
+      case PushdownFilter(field, _) => !fieldsWithPushdownFilter.contains(field)
+      case PushdownFilters(filters) =>
+        filters
+          .map(shouldGetAll)
+          .exists(identity)
+      case NoPushdown() => false
     }
 
   def listUrl(): Uri

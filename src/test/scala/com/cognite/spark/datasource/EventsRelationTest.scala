@@ -53,7 +53,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .where(s"type = 'maintenance' and source = 'test data'")
     assert(df.count == 4)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 17)
+    assert(eventsRead == 4)
   }
 
   it should "handle or conditions" taggedAs WriteTest in {
