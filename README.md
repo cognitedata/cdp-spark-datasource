@@ -106,7 +106,7 @@ See an example for using `.save()` to delete under Time Series below.
 
 ### Assets
 
-https://doc.cognitedata.com/concepts/#assets
+https://doc.cognitedata.com/dev/concepts/resource_types/assets.html
 
 ```scala
 // Read assets from your project into a DataFrame
@@ -171,7 +171,7 @@ spark
 
 ### Time series
 
-https://doc.cognitedata.com/concepts/#time-series
+https://doc.cognitedata.com/dev/concepts/resource_types/timeseries.html
 
 ```scala
 // Get all the time series from your project
@@ -204,8 +204,6 @@ timeSeriesDf
 
 ### Data points
 
-https://doc.cognitedata.com/concepts/#data-points
-
 Data points are always related to a time series. To read datapoints you will need to filter by a valid time series name,
 otherwise an empty DataFrame will be returned. For this reason it is important to be careful when using caching with
 this resource type.
@@ -214,7 +212,10 @@ One additional option is supported:
 - `partitions`: The data source will split the time range into this many partitions (20 by default)
 time intervals.
 
-You can also request aggregated data by filtering by aggregation and granularity.
+#### Numerical data points
+
+To read numerical data points from CDF, provide the option `.option("type", "datapoints")`.
+For numerical data points you can also request aggregated data by filtering by aggregation and granularity.
 
 `aggregation`: Numerical data points can be aggregated before they are retrieved from CDF.
 This allows for faster queries by reducing the amount of data transferred.
@@ -245,9 +246,28 @@ val timeseriesAggregated = spark.sql(s"select * from datapoints where name = '$t
 s"and aggregation = 'min' and granularity = '1d'")
 ```
 
+#### String data points
+
+To read numerical data points from CDF, provide the option `.option("type", "stringdatapoints")`.
+
+```scala
+// Get the datapoints from publicdata
+val df = spark.read.format("com.cognite.spark.datasource")
+  .option("apiKey", "publicdataApiKey")
+  .option("type", "stringdatapoints")
+  .load()
+
+// Create the view to enable SQL syntax
+df.createTempView("stringdatapoints")
+
+// Read the raw datapoints from the VAL_23-LIC-92521:MODE time series.
+val timeseriesName = "VAL_23-LIC-92521:MODE"
+val timeseries = spark.sql(s"select * from stringdatapoints where name = '$timeseriesName'")
+```
+
 ### Events
 
-https://doc.cognitedata.com/concepts/#events
+https://doc.cognitedata.com/dev/concepts/resource_types/events.html
 
 ```scala
 // Read events from `publicdata`
@@ -287,7 +307,7 @@ spark.sql("""
 
 ### Files metadata
 
-https://doc.cognitedata.com/api/0.6/#operation/getFiles
+https://doc.cognitedata.com/dev/concepts/resource_types/files.html
 
 ```scala
 // Read files metadata from publicdata
@@ -301,7 +321,7 @@ df.groupBy("fileType").count().show()
 
 ### 3D models and revisions
 
-https://doc.cognitedata.com/api/0.6/#tag/3D
+https://doc.cognitedata.com/dev/concepts/resource_types/3dmodels.html
 
 Note that Open Industrial Data does not have 3D models in it, so to test this you'll need a project
 with existing 3D models. There are five options for listing metadata about 3D models:
