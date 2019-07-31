@@ -123,13 +123,19 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val timeSeriesItems = rows.map(r => fromRow[TimeSeriesItem](r))
+    val timeSeriesItems = rows.map { r =>
+      val timeSeriesItem = fromRow[TimeSeriesItem](r)
+      timeSeriesItem.copy(metadata = filterMetadata(timeSeriesItem.metadata))
+    }
     updateOrPostTimeSeries(timeSeriesItems)
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val updateTimeSeriesBaseItems =
-      rows.map(r => fromRow[UpdateTimeSeriesBase](r))
+      rows.map { r =>
+        val timeSeriesItem = fromRow[UpdateTimeSeriesBase](r)
+        timeSeriesItem.copy(metadata = filterMetadata(timeSeriesItem.metadata))
+      }
 
     // Time series must have an id when using update
     if (updateTimeSeriesBaseItems.exists(_.id.isEmpty)) {

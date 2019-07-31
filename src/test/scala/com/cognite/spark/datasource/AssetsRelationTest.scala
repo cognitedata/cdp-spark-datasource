@@ -111,6 +111,41 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       rows => rows.length < 1)
   }
 
+  it should "handle null values in metadata when inserting in savemode" taggedAs WriteTest in {
+    val assetsTestSource = "assets-relation-test-create"
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "assets")
+      .load()
+    df.createOrReplaceTempView("assets")
+    cleanupAssets(assetsTestSource)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+      rows => rows.length > 0)
+    spark
+      .sql(s"""
+              |select null as id,
+              |null as path,
+              |null as depth,
+              |'asset name' as name,
+              |null as parentId,
+              |'asset description' as description,
+              |null as types,
+              |map("foo", null, "bar", "test") as metadata,
+              |'$assetsTestSource' as source,
+              |null as sourceId,
+              |null as createdTime,
+              |null as lastUpdatedTime
+      """.stripMargin)
+      .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "assets")
+      .option("onconflict", "abort")
+      .save
+  }
+
   it should "be possible to copy assets from one tenant to another" taggedAs WriteTest in {
     val assetsTestSource = "assets-relation-test-copy"
     val sourceDf = spark.read
@@ -171,7 +206,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |null as parentId,
               |null as types,
               |'foo' as description,
-              |metadata,
+              |map("foo", null, "bar", "test") as metadata,
               |'$source' as source,
               |id as sourceId,
               |createdTime,
@@ -201,7 +236,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |parentId,
                  |types,
                  |'bar' as description,
-                 |metadata,
+                 |map("foo", null, "bar", "test") as metadata,
                  |source,
                  |sourceId,
                  |createdTime,

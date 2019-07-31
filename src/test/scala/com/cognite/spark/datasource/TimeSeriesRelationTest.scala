@@ -34,7 +34,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
          |select '$initialDescription' as description,
          |concat('TEST', name) as name,
          |isString,
-         |metadata,
+         |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
          |'$testUnit' as unit,
          |'' as assetId,
          |isStep,
@@ -65,7 +65,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
                 |select '$updatedDescription' as description,
                 |name,
                 |isString,
-                |metadata,
+                |map("foo", null, "bar", "test") as metadata,
                 |'test data' as unit,
                 |'' as assetId,
                 |isStep,
@@ -115,7 +115,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
          |select '$insertDescription' as description,
          |isString,
          |concat('TEST_', name) as name,
-         |metadata,
+         |map("foo", null, "bar", "test") as metadata,
          |'$saveModeUnit' as unit,
          |NULL as assetId,
          |isStep,
@@ -145,7 +145,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
            |select description,
            |isString,
            |name,
-           |metadata,
+           |map("foo", null) as metadata,
            |unit,
            |assetId,
            |isStep,
@@ -178,6 +178,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
           .sql(s"""
            |select '$updateDescription' as description,
            |id,
+           |map("foo", null, "bar", "test") as metadata,
            |name
            |from sourceTimeSeries
            |where unit = '$saveModeUnit'
@@ -254,7 +255,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
              |select '$upsertDescription' as description,
              |isString,
              |concat('UPSERTS_', name) as name,
-             |metadata,
+             |map("foo", null, "bar", "test") as metadata,
              |unit,
              |assetId,
              |isStep,
