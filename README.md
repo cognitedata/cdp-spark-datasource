@@ -15,9 +15,11 @@ See instructions below for examples using different resource types.
 - [Reading and writing Cognite Data Fusion resource types:](#Reading-and-writing-Cognite-Data-Fusion-resource-types)
   - [Common options](#Common-options)
   - [Reading](#Reading)
+    - [Filter pushdown](#Filter-pushdown)
   - [Writing](#Writing)
     - [Writing with `.insertInto()`](#Writing-with-insertInto)
     - [Writing with `.save()`](#Writing-with-save)
+  - [Deleting](#Deleting)
   - [Assets](#Assets)
     - [Asset types](#Asset-types)
   - [Time series](#Time-series)
@@ -56,6 +58,36 @@ from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the lim
 
 To read from CDF resource types you need to provide two things:
 an API-key and the resource type. To read from a table you should also specify the database name and table name.
+
+#### Filter pushdown
+
+Filters on certain fields will be pushed down to the API. For example when reading events with a filter on IDs
+only the IDs that satisfy the filter will be read from CDF, as opposed to reading all events and then applying the filter.
+This happens automatically, but note that filters are only pushed down when Spark reads data from CDF and
+not when working on a DataFrame that is already in memory.
+
+The following fields have filter pushdown:
+
+##### Assets
+- name
+- source
+- depth
+
+##### Events
+- id
+- source
+- assetIds
+- type
+- subtype - *note that a filter on type must be supplied when filtering on subtype*
+- minStartTime
+- maxStartTime
+
+##### Files
+- name
+- source
+- assetId
+- dir
+- fileType
 
 ### Writing
 
