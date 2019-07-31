@@ -365,7 +365,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |subtype,
                  |array(2091657868296883) as assetIds,
                  |bigint(0) as id,
-                 |metadata,
+                 |map("some", null, "metadata", "test") as metadata,
                  |"$source" as source,
                  |sourceId,
                  |createdTime,
@@ -407,7 +407,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |subtype,
                  |array(8031965690878131) as assetIds,
                  |bigint(0) as id,
-                 |metadata,
+                 |map("foo", null, "bar", "test") as metadata,
                  |"$source" as source,
                  |sourceId,
                  |createdTime,
@@ -439,7 +439,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
            |subtype,
            |array(8031965690878131) as assetIds,
            |bigint(0) as id,
-           |metadata,
+           |map("foo", null, "bar", "test") as metadata,
            |"$source" as source,
            |sourceId,
            |createdTime,
@@ -459,7 +459,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
-  it should "allow partial updates in savemode" taggedAs WriteTest ignore {
+  it should "allow partial updates in savemode" taggedAs WriteTest in {
     val source = "spark-savemode-updates-test"
 
     // Cleanup old events
@@ -473,7 +473,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark
       .sql(s"""
              |select "foo" as description,
-             |startTime,
+             |1384601200000 as startTime,
              |endTime,
              |type,
              |subtype,

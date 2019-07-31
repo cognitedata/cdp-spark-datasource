@@ -96,14 +96,20 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"events.read")
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
-    val postEventItems = rows.map(r => fromRow[PostEventItem](r))
+    val postEventItems = rows.map { r =>
+      val eventItem = fromRow[PostEventItem](r)
+      eventItem.copy(metadata = filterMetadata(eventItem.metadata))
+    }
     post(config, baseEventsURL(config.project), postEventItems)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = postEvents(rows)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val updateEventItems = rows.map(r => UpdateEventItem(fromRow[EventItem](r)))
+    val updateEventItems = rows.map { r =>
+      val eventItem = fromRow[EventItem](r)
+      UpdateEventItem(eventItem.copy(metadata = filterMetadata(eventItem.metadata)))
+    }
 
     // Events must have an id when using update
     if (updateEventItems.exists(_.id.isEmpty)) {

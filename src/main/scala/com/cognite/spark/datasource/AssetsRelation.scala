@@ -120,7 +120,10 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val updateAssetsItems = rows
-      .map(r => fromRow[UpdateAssetsItemBase](r))
+      .map { r =>
+        val assetItem = fromRow[UpdateAssetsItemBase](r)
+        assetItem.copy(metadata = filterMetadata(assetItem.metadata))
+      }
       .map(a => UpdateAssetsItem(a))
 
     // Assets must have an id when using update
@@ -134,8 +137,11 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override val fieldsWithPushdownFilter: Seq[String] = Seq("name", "source", "depth")
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
-    val postAssetItems = rows.map(r => fromRow[PostAssetsItem](r))
-    post(config, baseAssetsURL(config.project), postAssetItems)
+    val postAssetsItems = rows.map { r =>
+      val assetItem = fromRow[PostAssetsItem](r)
+      assetItem.copy(metadata = filterMetadata(assetItem.metadata))
+    }
+    post(config, baseAssetsURL(config.project), postAssetsItems)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] =
@@ -162,7 +168,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         decode[Error[AssetConflict]](body) match {
           case Right(conflict) =>
             resolveConflict(rows.map { r =>
-              fromRow[AssetsItem](r)
+              val assetItem = fromRow[AssetsItem](r)
+              assetItem.copy(metadata = filterMetadata(assetItem.metadata))
             }, postAssetsItems, conflict.error)
           case Left(_) => IO.raiseError(onError(baseAssetsURL(config.project), response))
         }
