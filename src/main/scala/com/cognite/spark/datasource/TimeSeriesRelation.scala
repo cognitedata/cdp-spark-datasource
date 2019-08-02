@@ -7,6 +7,7 @@ import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import io.circe.parser.decode
 import org.apache.spark.datasource.MetricsSource
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -32,8 +33,19 @@ case class TimeSeriesItem(
     createdTime: Option[Long],
     lastUpdatedTime: Option[Long])
 
+case class PostTimeSeriesItemBase(
+    name: String,
+    isString: Boolean,
+    metadata: Option[Map[String, String]],
+    unit: Option[String],
+    assetId: Option[Long],
+    isStep: Option[Boolean],
+    description: Option[String],
+    securityCategories: Option[Seq[Long]])
+
 case class PostTimeSeriesItem(
     name: String,
+    legacyName: String,
     isString: Boolean,
     metadata: Option[Map[String, String]],
     unit: Option[String],
@@ -45,6 +57,7 @@ object PostTimeSeriesItem {
   def apply(timeSeriesItem: TimeSeriesItem): PostTimeSeriesItem =
     new PostTimeSeriesItem(
       timeSeriesItem.name,
+      timeSeriesItem.name, // Use name as legacyName for now
       timeSeriesItem.isString,
       timeSeriesItem.metadata,
       timeSeriesItem.unit,
@@ -52,6 +65,18 @@ object PostTimeSeriesItem {
       timeSeriesItem.isStep,
       timeSeriesItem.description,
       timeSeriesItem.securityCategories
+    )
+  def apply(postTimeSeriesItemBase: PostTimeSeriesItemBase): PostTimeSeriesItem =
+    new PostTimeSeriesItem(
+      postTimeSeriesItemBase.name,
+      postTimeSeriesItemBase.name,
+      postTimeSeriesItemBase.isString,
+      postTimeSeriesItemBase.metadata,
+      postTimeSeriesItemBase.unit,
+      postTimeSeriesItemBase.assetId,
+      postTimeSeriesItemBase.isStep,
+      postTimeSeriesItemBase.description,
+      postTimeSeriesItemBase.securityCategories
     )
 }
 
@@ -114,12 +139,38 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   @transient lazy private val timeSeriesCreated =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"timeseries.created")
 
+  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
+    val urlsFilters = urlsWithFilters(filters, listUrl())
+    val urls = if (urlsFilters.isEmpty) {
+      Seq(listUrl())
+    } else {
+      urlsFilters
+    }
+
+    TimeSeriesRdd[TimeSeriesItem](
+      sqlContext.sparkContext,
+      (e: TimeSeriesItem) => {
+        if (config.collectMetrics) {
+          itemsRead.inc()
+        }
+        toRow(e, requiredColumns)
+      },
+      listUrl(),
+      config,
+      urls,
+      cursors()
+    )
+  }
+
+  override def cursors(): Iterator[(Option[String], Option[Int])] =
+    NextCursorIterator[TimeSeriesItem](listUrl(), config, false)
+
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val postTimeSeriesItems = rows.map { r =>
-      val postTimeSeriesItem = fromRow[PostTimeSeriesItem](r)
+      val postTimeSeriesItem = PostTimeSeriesItem(fromRow[PostTimeSeriesItemBase](r))
       postTimeSeriesItem.copy(metadata = filterMetadata(postTimeSeriesItem.metadata))
     }
-    post(config, baseTimeSeriesUrl(config.project), postTimeSeriesItems)
+    post(config, baseTimeSeriesUrl(config.project, "v1"), postTimeSeriesItems)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
@@ -146,7 +197,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     post(
       config,
-      uri"${baseTimeSeriesUrl(config.project)}/update",
+      uri"${baseTimeSeriesUrl(config.project, "0.6")}/update",
       updateTimeSeriesItems
     )
   }
@@ -184,7 +235,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     } else {
       post(
         config,
-        baseTimeSeriesUrl(config.project),
+        baseTimeSeriesUrl(config.project, "v1"),
         postTimeSeriesToCreate
       ).flatTap { _ =>
         IO {
@@ -207,7 +258,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
             case Right(conflict) =>
               resolveConflict(
                 timeSeriesItems,
-                baseTimeSeriesUrl(config.project),
+                baseTimeSeriesUrl(config.project, "v1"),
                 updateTimeSeriesItems,
                 updateTimeSeriesUrl,
                 conflict.error)
@@ -259,7 +310,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     (putItems, postItems).parMapN((_, _) => ())
   }
 
-  def baseTimeSeriesUrl(project: String, version: String = "0.5"): Uri =
+  def baseTimeSeriesUrl(project: String, version: String = "v1"): Uri =
     uri"${baseUrl(project, version, config.baseUrl)}/timeseries"
 
   override def schema: StructType = structType[TimeSeriesItem]
@@ -267,7 +318,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def toRow(t: TimeSeriesItem): Row = asRow(t)
 
   override def listUrl(): Uri =
-    uri"${config.baseUrl}/api/0.5/projects/${config.project}/timeseries"
+    baseTimeSeriesUrl(config.project, "v1")
 }
 
 object TimeSeriesRelation

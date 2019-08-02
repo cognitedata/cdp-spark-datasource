@@ -186,7 +186,7 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
   def listUrl(): Uri
 
   def cursors(): Iterator[(Option[String], Option[Int])] =
-    NextCursorIterator(listUrl(), config)
+    NextCursorIterator(listUrl(), config, true)
 
   def deleteItems(config: RelationConfig, baseUrl: Uri, rows: Seq[Row]): IO[Unit] = {
     val deleteItems: Seq[Long] = rows.map(r => fromRow[DeleteItem](r).id)

@@ -48,7 +48,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .select(sourceDf.columns.map(col): _*)
       .write
       .insertInto("sourceTimeSeries")
-
     // Check if post worked
     val initialDescriptionsAfterPost = retryWhile[Array[Row]](
       spark
@@ -163,7 +162,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     }
     insertError.getCause shouldBe a[CdpApiException]
     val insertCdpApiException = insertError.getCause.asInstanceOf[CdpApiException]
-    assert(insertCdpApiException.code == 400)
+    assert(insertCdpApiException.code == 409)
     spark.sparkContext.setLogLevel("WARN")
   }
 

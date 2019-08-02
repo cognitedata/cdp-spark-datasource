@@ -116,6 +116,13 @@ trait CdpConnector {
     getWithCursor(config, url, initialCursor)
       .flatMap(_.chunk)
 
+  def getV1[A: Decoder](
+      config: RelationConfig,
+      url: Uri,
+      initialCursor: Option[String] = None): Iterator[A] =
+    getWithCursorV1(config, url, initialCursor)
+      .flatMap(_.chunk)
+
   def postWithBody[A: Decoder, B: Encoder](
       config: RelationConfig,
       url: Uri,
@@ -164,6 +171,23 @@ trait CdpConnector {
         getJson[DataItemsWithCursor[A]](config, getUrl)
           .unsafeRunSync()
           .data
+      (dataWithCursor.items, dataWithCursor.nextCursor)
+    }
+
+  def getWithCursorV1[A: Decoder](
+      config: RelationConfig,
+      url: Uri,
+      initialCursor: Option[String] = None): Iterator[Chunk[A, String]] =
+    Batch.chunksWithCursor(
+      config.batchSize.getOrElse(Constants.DefaultBatchSize),
+      config.limit,
+      initialCursor) { (chunkSize, cursor: Option[String]) =>
+      val urlWithLimit = url.param("limit", chunkSize.toString)
+      val getUrl = cursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
+
+      val dataWithCursor =
+        getJson[ItemsWithCursor[A]](config, getUrl)
+          .unsafeRunSync()
       (dataWithCursor.items, dataWithCursor.nextCursor)
     }
 

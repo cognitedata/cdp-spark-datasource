@@ -6,7 +6,8 @@ import io.circe.Decoder
 
 case class NextCursorIterator[A: Decoder](
     url: Uri,
-    config: RelationConfig
+    config: RelationConfig,
+    hasDataWrapper: Boolean
 ) extends Iterator[(Option[String], Option[Int])]
     with CdpConnector {
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
@@ -28,11 +29,18 @@ case class NextCursorIterator[A: Decoder](
         .getOrElse(batchSize))
     val urlWithLimit = url.param("limit", thisBatchSize.toString)
     val getUrl = nextCursor.fold(urlWithLimit)(urlWithLimit.param("cursor", _))
-    val dataWithCursor =
+    val dataWithCursor = if (hasDataWrapper) {
       getJson[CdpConnector.DataItemsWithCursor[A]](
         config,
         getUrl
       ).unsafeRunSync().data
+    } else {
+      getJson[ItemsWithCursor[A]](
+        config,
+        getUrl
+      ).unsafeRunSync()
+    }
+
     nextCursor = dataWithCursor.nextCursor
     nItemsRead += thisBatchSize
     (next, nextCursor.map(_ => thisBatchSize))
