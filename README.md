@@ -68,12 +68,12 @@ not when working on a DataFrame that is already in memory.
 
 The following fields have filter pushdown:
 
-##### Assets
+**Assets**
 - name
 - source
 - depth
 
-##### Events
+**Events**
 - id
 - source
 - assetIds
@@ -82,7 +82,7 @@ The following fields have filter pushdown:
 - minStartTime
 - maxStartTime
 
-##### Files
+**Files**
 - name
 - source
 - assetId
