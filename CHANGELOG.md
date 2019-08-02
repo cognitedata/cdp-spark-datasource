@@ -1,3 +1,15 @@
+# 0.4.12
+
+## Enhancements
+* Assets will now do upsert when the `source`+`sourceId`-pair exists.
+
+* When filtering Events on Ids the filter is now applied API-side
+
+* Filter pushdown with `AND` and `OR` clauses has been optimized.
+
+## Fixes
+* Metadata keys with null values are now removed, avoiding NullPointerExceptions from the API.
+
 # 0.4.11
 
 ## Enhancements
