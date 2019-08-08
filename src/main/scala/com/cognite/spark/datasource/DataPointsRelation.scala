@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
 import com.codahale.metrics.Counter
 import com.softwaremill.sttp._
@@ -10,10 +10,8 @@ import org.apache.spark.sql.sources.{BaseRelation, TableScan, _}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
-import scala.concurrent.ExecutionContext
 import scala.util.Try
 import com.cognite.data.api.v2.DataPoints._
-import com.cognite.spark.datasource.Auth._
 
 sealed case class DataPointsDataItems[A](items: Seq[A])
 
@@ -136,8 +134,7 @@ abstract class DataPointsRelation(
 
   def getTimestampLimits(
       timeSeriesNames: Vector[String],
-      hardLimits: (Option[Long], Option[Long])): Map[String, (Long, Long)] = {
-    implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+      hardLimits: (Option[Long], Option[Long])): Map[String, (Long, Long)] =
     timeSeriesNames
       .grouped(Constants.MaxConcurrentRequests / 2)
       .flatMap(batchGroup =>
@@ -150,7 +147,6 @@ abstract class DataPointsRelation(
           }
           .unsafeRunSync())
       .toMap
-  }
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 

@@ -1,10 +1,13 @@
 package com.cognite.spark.datasource
 
+import cats.effect.IO
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import io.circe.generic.auto._
+import com.cognite.sdk.scala.v1.{GenericClient, ThreeDAssetMapping}
+import com.cognite.sdk.scala.v1.resources.ThreeDAssetMappings
 
 case class ModelRevisionMappingItem(
     nodeId: Long,
@@ -14,11 +17,16 @@ case class ModelRevisionMappingItem(
 
 class ThreeDModelRevisionMappingsRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
     val sqlContext: SQLContext)
-    extends CdpRelation[ModelRevisionMappingItem](config, "3dmodelrevisionmappings") {
-  override def schema: StructType = structType[ModelRevisionMappingItem]
+    extends SdkV1Relation[ThreeDAssetMapping, ThreeDAssetMappings[IO], ModelRevisionMappingItem](
+      config,
+      "3dmodelrevisionmappings") {
+  override def schema: StructType = structType[ThreeDAssetMapping]
 
-  override def toRow(t: ModelRevisionMappingItem): Row = asRow(t)
+  override def toRow(t: ThreeDAssetMapping): Row = asRow(t)
 
-  override def listUrl(): Uri =
-    uri"${config.baseUrl}/api/0.6/projects/${config.project}/3d/models/$modelId/revisions/$revisionId/mappings"
+  override def listUrl(version: String = "0.6"): Uri =
+    uri"${config.baseUrl}/api/$version/projects/${config.project}/3d/models/$modelId/revisions/$revisionId/mappings"
+
+  override def clientToResource(client: GenericClient[IO, Nothing]): ThreeDAssetMappings[IO] =
+    client.threeDAssetMappings(modelId, revisionId)
 }

@@ -11,7 +11,18 @@ class SparkSchemaHelperImpl(val c: Context) {
     import c.universe._
 
     val constructor = weakTypeOf[T].decl(termNames.CONSTRUCTOR).asMethod
-    val params = constructor.paramLists.flatten.map(param => q"$x.${param.name.toTermName}")
+    val params = constructor.paramLists.flatten
+      .map(param => {
+        val baseExpr = q"$x.${param.name.toTermName}"
+        def toSqlTimestamp(expr: c.Tree) = q"java.sql.Timestamp.from($expr)"
+        if (param.typeSignature <:< weakTypeOf[java.time.Instant]) {
+          q"${toSqlTimestamp(baseExpr)}"
+        } else if (param.typeSignature <:< weakTypeOf[Option[java.time.Instant]]) {
+          q"$baseExpr.map(a => ${toSqlTimestamp(q"a")})"
+        } else {
+          q"$baseExpr"
+        }
+      })
 
     val row = symbolOf[Row.type].asClass.module
     c.Expr[Row](q"$row(..$params)")
@@ -87,7 +98,18 @@ class SparkSchemaHelperImpl(val c: Context) {
           } else {
             baseExpr
           }
-        q"$resExpr.asInstanceOf[${param.typeSignature}]"
+
+        if (rowType <:< typeOf[java.time.Instant]) {
+          val instantBaseExpr =
+            q"scala.util.Try(Option($r.getAs[java.sql.Timestamp]($name))).toOption.flatten.map(x => x.toInstant())"
+          if (isOuterOption) {
+            instantBaseExpr
+          } else {
+            q"""$instantBaseExpr.getOrElse(throw new IllegalArgumentException("Row is missing required column named '" + $name + "'."))"""
+          }
+        } else {
+          q"$resExpr.asInstanceOf[${param.typeSignature}]"
+        }
       })
       q"new ${structType}(..$params)"
     }
