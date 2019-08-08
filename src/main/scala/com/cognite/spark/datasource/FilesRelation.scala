@@ -1,15 +1,16 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{ContextShift, IO}
-import cats.implicits._
+import cats.effect.IO
+import com.cognite.sdk.scala.v1.{File, FileUpdate, GenericClient}
+import com.cognite.sdk.scala.v1.resources.Files
+import com.cognite.sdk.scala.common.Setter.optionToSetter
+import com.cognite.sdk.scala.common.NonNullableSetter.optionToNonNullableSetter
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import org.apache.spark.sql.sources.InsertableRelation
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-
-import scala.concurrent.ExecutionContext
+import org.apache.spark.sql.{Row, SQLContext}
 
 case class FileItem(
     id: Option[Long],
@@ -25,64 +26,25 @@ case class FileItem(
     createdTime: Option[Long],
     lastUpdatedTime: Option[Long])
 
-case class UpdateFileItem(
-    id: Option[Long],
-    directory: Option[Setter[String]],
-    source: Option[Setter[String]],
-    sourceId: Option[Setter[String]],
-    fileType: Option[Setter[String]],
-    metadata: Option[Setter[Map[String, String]]],
-    assetIds: Option[Map[String, Seq[Long]]]
-)
-object UpdateFileItem {
-  def apply(fileItem: FileItem): UpdateFileItem =
-    new UpdateFileItem(
-      fileItem.id,
-      Setter[String](fileItem.directory),
-      Setter[String](fileItem.source),
-      Setter[String](fileItem.sourceId),
-      Setter[String](fileItem.fileType),
-      Setter[Map[String, String]](fileItem.metadata),
-      fileItem.assetIds.map(a => Map("set" -> a))
-    )
-}
-
 class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends CdpRelation[FileItem](config, "files")
+    extends SdkV1Relation[File, Files[IO], FileItem](config, "files")
     with InsertableRelation {
 
-  override val fieldsWithPushdownFilter: Seq[String] =
-    Seq("assetId", "dir", "name", "fileType", "source")
-
-  override def insert(data: DataFrame, overwrite: Boolean): Unit =
-    data.foreachPartition((rows: Iterator[Row]) => {
-      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
-      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-        batchGroup.parTraverse(postFiles).unsafeRunSync()
-      }
-      ()
-    })
-
-  def postFiles(rows: Seq[Row]): IO[Unit] = {
-    val fileItems = rows.map { r =>
-      val fileItem = fromRow[FileItem](r)
-      fileItem.copy(metadata = filterMetadata(fileItem.metadata))
+  override def getFromRowAndCreate(rows: Seq[Row]): IO[Seq[File]] = {
+    val files = rows.map { r =>
+      val file = fromRow[File](r)
+      file.copy(metadata = filterMetadata(file.metadata))
     }
-
-    val updateFileItems = fileItems.map(f => UpdateFileItem(f))
-
-    post(
-      config,
-      uri"$listUrl/update",
-      updateFileItems
-    )
+    client.files.updateFromRead(files)
   }
 
-  override def schema: StructType = structType[FileItem]
+  override def clientToResource(client: GenericClient[IO, Nothing]): Files[IO] =
+    client.files
 
-  override def toRow(t: FileItem): Row = asRow(t)
+  override def schema: StructType = structType[File]
 
-  override def listUrl(): Uri =
-    uri"${config.baseUrl}/api/0.6/projects/${config.project}/files"
+  override def toRow(t: File): Row = asRow(t)
+
+  override def listUrl(version: String = "0.6"): Uri =
+    uri"${config.baseUrl}/api/$version/projects/${config.project}/files"
 }

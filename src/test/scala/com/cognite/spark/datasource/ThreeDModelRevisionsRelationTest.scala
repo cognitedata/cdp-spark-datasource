@@ -1,5 +1,6 @@
 package com.cognite.spark.datasource
 
+import com.cognite.sdk.scala.common.ApiKeyAuth
 import org.scalatest.FlatSpec
 
 class ThreeDModelRevisionsRelationTest extends FlatSpec with SparkTest  {

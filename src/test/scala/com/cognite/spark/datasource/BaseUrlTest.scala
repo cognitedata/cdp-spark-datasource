@@ -11,14 +11,14 @@ class BaseUrlTest extends FlatSpec with SparkTest {
     val dfGreenfield = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", greenfieldApiKey)
-      .option("type", "files")
+      .option("type", "events")
       .option("baseUrl", "https://greenfield.cognitedata.com")
       .load()
 
     val dfApi = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", readApiKey)
-      .option("type", "files")
+      .option("type", "events")
       .load()
 
     assert(dfGreenfield.count != dfApi.count)

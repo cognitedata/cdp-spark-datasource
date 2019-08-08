@@ -1,6 +1,7 @@
 package com.cognite.spark.datasource
 
 import cats.effect.IO
+import com.cognite.sdk.scala.common.ApiKeyAuth
 import com.softwaremill.sttp._
 import io.circe.Decoder
 import io.circe.syntax._

@@ -1,10 +1,13 @@
 package com.cognite.spark.datasource
 
+import cats.effect.IO
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import io.circe.generic.auto._
+import com.cognite.sdk.scala.v1.{GenericClient, ThreeDRevision}
+import com.cognite.sdk.scala.v1.resources.ThreeDRevisions
 
 case class ModelRevisionItem(
     id: Long,
@@ -22,11 +25,16 @@ case class ModelRevisionItem(
 
 class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(
     val sqlContext: SQLContext)
-    extends CdpRelation[ModelRevisionItem](config, "3dmodelrevision") {
-  override def schema: StructType = structType[ModelRevisionItem]
+    extends SdkV1Relation[ThreeDRevision, ThreeDRevisions[IO], ModelRevisionItem](
+      config,
+      "3dmodelrevision") {
+  override def schema: StructType = structType[ThreeDRevision]
 
-  override def toRow(t: ModelRevisionItem): Row = asRow(t)
+  override def toRow(t: ThreeDRevision): Row = asRow(t)
 
-  override def listUrl(): Uri =
-    uri"${config.baseUrl}/api/0.6/projects/${config.project}/3d/models/$modelId/revisions"
+  override def clientToResource(client: GenericClient[IO, Nothing]): ThreeDRevisions[IO] =
+    client.threeDRevisions(modelId)
+
+  override def listUrl(version: String = "0.6"): Uri =
+    uri"${config.baseUrl}/api/$version/projects/${config.project}/3d/models/$modelId/revisions"
 }

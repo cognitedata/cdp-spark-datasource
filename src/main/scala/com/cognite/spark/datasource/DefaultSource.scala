@@ -2,6 +2,7 @@ package com.cognite.spark.datasource
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
+import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, BearerTokenAuth}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
@@ -152,7 +153,7 @@ class DefaultSource
           inferSchemaLimit,
           collectSchemaInferenceMetrics)(sqlContext)
       case "assets" =>
-        new AssetsRelation(config)(sqlContext)
+        new AssetsRelationV1(config)(sqlContext)
       case "events" =>
         new EventsRelation(config)(sqlContext)
       case "files" =>

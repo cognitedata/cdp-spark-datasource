@@ -1,5 +1,6 @@
 package com.cognite.spark.datasource
 
+import com.cognite.sdk.scala.common.ApiKeyAuth
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers}
 import org.apache.spark.sql.functions.col

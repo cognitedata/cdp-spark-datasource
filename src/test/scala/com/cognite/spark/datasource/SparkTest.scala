@@ -4,6 +4,7 @@ import cats.effect.IO
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import com.codahale.metrics.Counter
+import com.cognite.sdk.scala.common.Auth
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.datasource.MetricsSource
 import org.scalatest.Tag

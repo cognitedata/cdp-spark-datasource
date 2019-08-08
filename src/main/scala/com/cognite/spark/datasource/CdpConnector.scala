@@ -1,9 +1,9 @@
 package com.cognite.spark.datasource
 
 import java.io.IOException
-
-import cats.effect.{IO, Timer}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
+import com.cognite.sdk.scala.common.Auth
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import com.softwaremill.sttp._
 import com.softwaremill.sttp.circe._
@@ -14,7 +14,6 @@ import io.circe.{Decoder, Encoder, Printer}
 import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import scala.util.Random
-import com.cognite.spark.datasource.Auth._
 
 case class Data[A](data: A)
 case class ItemsWithCursor[A](items: Seq[A], nextCursor: Option[String] = None)
@@ -303,8 +302,10 @@ trait CdpConnector {
 
 object CdpConnector {
   @transient implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
-  @transient implicit lazy val sttpBackend: SttpBackend[IO, Nothing] =
-    AsyncHttpClientCatsBackend[IO]()
+  @transient implicit val cs: ContextShift[IO] =
+    IO.contextShift(ExecutionContext.global)
+  @transient implicit val sttpBackend: SttpBackend[IO, Nothing] =
+    AsyncHttpClientCatsBackend[cats.effect.IO]()
 
   type DataItemsWithCursor[A] = Data[ItemsWithCursor[A]]
   type DataItems[A] = Data[Items[A]]

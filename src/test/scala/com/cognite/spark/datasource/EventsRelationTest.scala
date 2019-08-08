@@ -1,4 +1,5 @@
 package com.cognite.spark.datasource
+import com.cognite.sdk.scala.common.ApiKeyAuth
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import com.softwaremill.sttp._
@@ -8,6 +9,9 @@ import org.scalatest.{FlatSpec, Matchers}
 class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
   val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
+
+  cleanupEvents("spark-savemode-insert-test")
+  cleanupEvents("spark-events-savemode-test")
 
   "EventsRelation" should "allow simple reads" taggedAs ReadTest in {
     val df = spark.read
@@ -110,10 +114,10 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"startTime > 1584601199999")
-    assert(df.count == 3)
+      .where(s"startTime > 1554698747169")
+    assert(df.count == 8)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 3)
+    assert(eventsRead == 8)
   }
 
   it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
@@ -125,7 +129,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"startTime < 1539468000")
+      .where(s"startTime < 1539468000 and source = 'generator'")
     assert(df.count == 2)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 2)
@@ -156,9 +160,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"assetIds In(Array(8031965690878131), Array(2091657868296883))")
-    assert(df.count == 1300)
+    assert(df.count == 100)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 1300)
+    assert(eventsRead == 100)
   }
 
   it should "handle pusdown filters on eventIds" taggedAs WriteTest in {

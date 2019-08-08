@@ -43,9 +43,9 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "support updates" taggedAs WriteTest in {
-    val source = "spark datasource upsert test"
-    val firstDirectoryName = "test directory"
-    val secondDirectoryName = "dummy directory"
+    val originalSource = "spark datasource upsert test"
+    val firstSource = "test directory"
+    val secondSource = "dummy directory"
 
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -56,60 +56,60 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
 
     spark
       .sql(s"""
-                 |select id,
-                 |fileName,
-                 |'$firstDirectoryName' as directory,
-                 |source,
-                 |sourceId,
-                 |fileType,
-                 |metadata,
-                 |assetIds,
-                 |uploaded,
-                 |uploadedAt,
-                 |createdTime,
-                 |lastUpdatedTime
-                 |from filesSource
-                 |where source = '$source'
+            |select id,
+            |name,
+            |source,
+            |id as externalId,
+            |mimetype,
+            |metadata,
+            |Array(1739842716040355) as assetIds,
+            |uploaded,
+            |uploadedTime,
+            |createdTime,
+            |lastUpdatedTime,
+            |uploadUrl
+            |from filesSource
+            |where source = '$originalSource'
      """.stripMargin)
       .select(df.columns.map(col): _*)
       .write
       .insertInto("filesSource")
 
     val dfWithTestDirectory = retryWhile[Array[Row]](
-      spark.sql(s"select * from filesSource where directory = '$firstDirectoryName'").collect,
+      spark.sql(s"select * from filesSource where assetIds = Array(1739842716040355)").collect,
       rows => rows.length < 10)
     assert(dfWithTestDirectory.length == 10)
 
     spark
       .sql(s"""
-                 |select id,
-                 |fileName,
-                 |'$secondDirectoryName' as directory,
-                 |source,
-                 |sourceId,
-                 |fileType,
-                 |metadata,
-                 |assetIds,
-                 |uploaded,
-                 |uploadedAt,
-                 |createdTime,
-                 |lastUpdatedTime
-                 |from filesSource
-                 |where source = '$source'
+            |select id,
+            |name,
+            |source,
+            |id as externalId,
+            |mimetype,
+            |metadata,
+            |Array(176631399357975) as assetIds,
+            |uploaded,
+            |uploadedTime,
+            |createdTime,
+            |lastUpdatedTime,
+            |uploadUrl
+            |from filesSource
+            |where source = '$originalSource'
      """.stripMargin)
       .select(df.columns.map(col): _*)
       .write
       .insertInto("filesSource")
 
     val dfWithUpdatedSource = retryWhile[Array[Row]](
-      spark.sql(s"select * from filesSource where directory = '$secondDirectoryName'").collect,
+      spark.sql(s"select * from filesSource where assetIds = Array(176631399357975)").collect,
       rows => rows.length < 10)
     assert(dfWithUpdatedSource.length == 10)
 
-    val emptyDfWithTestDirectory = retryWhile[Array[Row]](
-      spark.sql(s"select * from filesSource where directory = '$firstDirectoryName'").collect,
+    val emptyDfWithTestsource = retryWhile[Array[Row]](
+      spark.sql(s"select * from filesSource where assetIds = Array(1739842716040355)").collect,
       rows => rows.length > 0)
-    assert(emptyDfWithTestDirectory.length == 0)
+    assert(emptyDfWithTestsource.length == 0)
 
   }
 }

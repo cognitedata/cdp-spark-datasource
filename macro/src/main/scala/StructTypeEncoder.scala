@@ -50,9 +50,10 @@ object StructTypeEncoder {
         val (valueDt, valueNullable) = typeToStructType(c)(rt.typeArgs(1))
         val keyDt = typeToStructType(c)(rt.typeArgs.head)._1
         q"DataTypes.createMapType($keyDt, $valueDt, $valueNullable)"
-      case x if x <:< weakTypeOf[Seq[_]] =>
+      case x if x <:< weakTypeOf[Seq[_]] || x <:< weakTypeOf[Array[_]] =>
         val (valueDt, valueNullable) = typeToStructType(c)(rt.typeArgs.head)
         q"DataTypes.createArrayType($valueDt, $valueNullable)"
+      case x if x <:< weakTypeOf[java.time.Instant] => q"DataTypes.TimestampType"
       case _ => q"implicitly[StructTypeEncoder[$rt]].structType()"
     }
     (dt, nullable)
