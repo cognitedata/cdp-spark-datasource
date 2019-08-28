@@ -3,6 +3,7 @@ package com.cognite.spark.datasource
 import scala.language.experimental.macros
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
+import com.cognite.sdk.scala.common.{NonNullableSetter, Setter}
 
 import scala.reflect.macros.blackbox.Context
 
@@ -34,6 +35,10 @@ class SparkSchemaHelperImpl(val c: Context) {
     val optionType = typeOf[Option[_]]
     val optionSeq = typeOf[Seq[Option[_]]]
     val optionMap = typeOf[Map[_, Option[_]]]
+    val optionSetter = typeOf[Option[Setter[_]]]
+    val optionNonNullableSetter = typeOf[Option[NonNullableSetter[_]]]
+    val setterType = symbolOf[Setter.type].asClass.module
+    val nonNullableSetterType = symbolOf[NonNullableSetter.type].asClass.module
     val seqAny = typeOf[Seq[Any]]
     val mapAny = typeOf[Map[Any, Any]]
     val seqRow = typeOf[Seq[Row]]
@@ -43,7 +48,12 @@ class SparkSchemaHelperImpl(val c: Context) {
       val params = constructor.paramLists.flatten.map((param: Symbol) => {
         val name = param.name.toString
         val isOuterOption = param.typeSignature <:< optionType
-        val innerType = if (isOuterOption) {
+        val isOptionNonNullableSetter = param.typeSignature <:< optionNonNullableSetter
+
+        val isOptionSetter = param.typeSignature <:< optionSetter
+        val innerType = if (isOptionSetter || isOptionNonNullableSetter) {
+          param.typeSignature.typeArgs.head.typeArgs.head
+        } else if (isOuterOption) {
           param.typeSignature.typeArgs.head
         } else {
           param.typeSignature
@@ -71,7 +81,11 @@ class SparkSchemaHelperImpl(val c: Context) {
 
         val column = q"scala.util.Try(Option($r.getAs[$rowType]($name))).toOption.flatten"
         val baseExpr =
-          if (isOuterOption) { column } else {
+          if (isOptionSetter) {
+            q"$setterType.optionToSetter[$rowType].transform(scala.util.Try(Option($r.getAs[$rowType]($name))).toOption.flatten)"
+          } else if (isOptionNonNullableSetter) {
+            q"$nonNullableSetterType.optionToNonNullableSetter[$rowType].transform(scala.util.Try(Option($r.getAs[$rowType]($name))).toOption.flatten)"
+          } else if (isOuterOption) { column } else {
             q"""$column.getOrElse(throw new IllegalArgumentException("Row is missing required column named '" + $name + "'."))"""
           }
 
@@ -102,7 +116,11 @@ class SparkSchemaHelperImpl(val c: Context) {
         if (rowType <:< typeOf[java.time.Instant]) {
           val instantBaseExpr =
             q"scala.util.Try(Option($r.getAs[java.sql.Timestamp]($name))).toOption.flatten.map(x => x.toInstant())"
-          if (isOuterOption) {
+          if (isOptionSetter) {
+            q"$setterType.optionToSetter[java.time.Instant].transform(scala.util.Try(Option($r.getAs[java.sql.Timestamp]($name))).toOption.flatten.map(x => x.toInstant()))"
+          } else if (isOptionNonNullableSetter) {
+            q"$nonNullableSetterType.optionToNonNullableSetter[java.time.Instant].transform(scala.util.Try(Option($r.getAs[java.sql.Timestamp]($name))).toOption.flatten.map(x => x.toInstant()))"
+          } else if (isOuterOption) {
             instantBaseExpr
           } else {
             q"""$instantBaseExpr.getOrElse(throw new IllegalArgumentException("Row is missing required column named '" + $name + "'."))"""

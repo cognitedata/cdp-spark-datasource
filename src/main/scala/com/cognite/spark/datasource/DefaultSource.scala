@@ -155,7 +155,7 @@ class DefaultSource
       case "assets" =>
         new AssetsRelationV1(config)(sqlContext)
       case "events" =>
-        new EventsRelation(config)(sqlContext)
+        new EventsRelationV1(config)(sqlContext)
       case "files" =>
         new FilesRelation(config)(sqlContext)
       case "3dmodels" =>
@@ -196,11 +196,11 @@ class DefaultSource
 
     val relation = resourceType match {
       case "events" =>
-        new EventsRelation(config)(sqlContext) //.EventsInsertion(config)
+        new EventsRelationV1(config)(sqlContext)
       case "timeseries" =>
         new TimeSeriesRelation(config)(sqlContext)
       case "assets" =>
-        new AssetsRelation(config)(sqlContext)
+        new AssetsRelationV1(config)(sqlContext)
       case _ => sys.error(s"Resource type $resourceType does not support save()")
     }
 

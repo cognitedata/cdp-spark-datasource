@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
 
-import com.cognite.sdk.scala.common.ApiKeyAuth
+import com.cognite.sdk.scala.common.{ApiKeyAuth, CdpApiException}
 import com.softwaremill.sttp._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
@@ -94,10 +94,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         |'asset description' as description,
         |null as metadata,
         |'$assetsTestSource' as source,
-        |null as id,
-        |null as createdTime,
-        |null as lastUpdatedTime
+        |10 as id,
+        |0 as createdTime,
+        |0 as lastUpdatedTime
       """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
       .write
       .insertInto("assets")
     retryWhile[Array[Row]](
@@ -119,18 +120,13 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       rows => rows.length > 0)
     spark
       .sql(s"""
-              |select null as id,
-              |null as path,
-              |null as depth,
+              |select "1" as externalId,
               |'asset name' as name,
               |null as parentId,
               |'asset description' as description,
-              |null as types,
-              |map("foo", null, "bar", "test") as metadata,
+              map("foo", null, "bar", "test") as metadata,
               |'$assetsTestSource' as source,
-              |null as sourceId,
-              |null as createdTime,
-              |null as lastUpdatedTime
+              |bigint(10) as id
       """.stripMargin)
       .write
       .format("com.cognite.spark.datasource")
@@ -178,7 +174,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       rows => rows.length < 1)
   }
 
-  it should "support upserts when using insertInto()" taggedAs WriteTest ignore {
+  it should "support upserts when using insertInto()" taggedAs WriteTest in {
     val source = "spark-assets-upsert-testing"
 
     // Cleanup old assets
@@ -559,7 +555,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
           assetIds
         ).unsafeRunSync()
       } catch {
-        case CdpApiException(_, 400, AssetIdNotFound(_)) => // ignore exceptions about already deleted items
+        case CdpApiException(_, 400, AssetIdNotFound(_), None, None) => // ignore exceptions about already deleted items
       }
     }
   }

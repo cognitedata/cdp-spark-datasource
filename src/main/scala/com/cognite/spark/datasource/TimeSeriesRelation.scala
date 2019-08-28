@@ -1,18 +1,16 @@
 package com.cognite.spark.datasource
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
+import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.v1.{GenericClient, TimeSeries, TimeSeriesCreate, TimeSeriesUpdate}
+import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
-import io.circe.parser.decode
-import org.apache.spark.datasource.MetricsSource
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-
-import scala.concurrent.ExecutionContext
 
 case class PostTimeSeriesDataItems[A](items: Seq[A])
 case class TimeSeriesConflict(notFound: Seq[Long])
@@ -33,301 +31,98 @@ case class TimeSeriesItem(
     createdTime: Option[Long],
     lastUpdatedTime: Option[Long])
 
-case class PostTimeSeriesItemBase(
-    name: String,
-    isString: Boolean,
-    metadata: Option[Map[String, String]],
-    unit: Option[String],
-    assetId: Option[Long],
-    isStep: Option[Boolean],
-    description: Option[String],
-    securityCategories: Option[Seq[Long]])
-
-case class PostTimeSeriesItem(
-    name: String,
-    legacyName: String,
-    isString: Boolean,
-    metadata: Option[Map[String, String]],
-    unit: Option[String],
-    assetId: Option[Long],
-    isStep: Option[Boolean],
-    description: Option[String],
-    securityCategories: Option[Seq[Long]])
-object PostTimeSeriesItem {
-  def apply(timeSeriesItem: TimeSeriesItem): PostTimeSeriesItem =
-    new PostTimeSeriesItem(
-      timeSeriesItem.name,
-      timeSeriesItem.name, // Use name as legacyName for now
-      timeSeriesItem.isString,
-      timeSeriesItem.metadata,
-      timeSeriesItem.unit,
-      timeSeriesItem.assetId,
-      timeSeriesItem.isStep,
-      timeSeriesItem.description,
-      timeSeriesItem.securityCategories
-    )
-  def apply(postTimeSeriesItemBase: PostTimeSeriesItemBase): PostTimeSeriesItem =
-    new PostTimeSeriesItem(
-      postTimeSeriesItemBase.name,
-      postTimeSeriesItemBase.name,
-      postTimeSeriesItemBase.isString,
-      postTimeSeriesItemBase.metadata,
-      postTimeSeriesItemBase.unit,
-      postTimeSeriesItemBase.assetId,
-      postTimeSeriesItemBase.isStep,
-      postTimeSeriesItemBase.description,
-      postTimeSeriesItemBase.securityCategories
-    )
-}
-
-// This class is needed to enable partial updates
-// since TimeSeriesItem has values that are not optional
-case class UpdateTimeSeriesBase(
-    name: Option[String],
-    isString: Option[Boolean],
-    metadata: Option[Map[String, String]],
-    unit: Option[String],
-    assetId: Option[Long],
-    isStep: Option[Boolean],
-    description: Option[String],
-    securityCategories: Option[Seq[Long]],
-    id: Option[Long])
-
-case class UpdateTimeSeriesItem(
-    id: Long,
-    name: Option[Setter[String]],
-    metadata: Option[Setter[Map[String, String]]],
-    unit: Option[Setter[String]],
-    assetId: Option[Setter[Long]],
-    description: Option[Setter[String]],
-    securityCategories: Option[Map[String, Option[Seq[Long]]]],
-    isString: Option[Setter[Boolean]],
-    isStep: Option[Setter[Boolean]]
-)
-
-object UpdateTimeSeriesItem {
-  def apply(timeSeriesItem: TimeSeriesItem): UpdateTimeSeriesItem =
-    new UpdateTimeSeriesItem(
-      timeSeriesItem.id.get,
-      Setter[String](Some(timeSeriesItem.name)),
-      Setter[Map[String, String]](timeSeriesItem.metadata),
-      Setter[String](timeSeriesItem.unit),
-      Setter[Long](timeSeriesItem.assetId),
-      Setter[String](timeSeriesItem.description),
-      securityCategories = timeSeriesItem.securityCategories.map(a => Map("set" -> Option(a))),
-      Setter[Boolean](Some(timeSeriesItem.isString)),
-      Setter[Boolean](timeSeriesItem.isStep)
-    )
-  def apply(timeSeriesBase: UpdateTimeSeriesBase): UpdateTimeSeriesItem =
-    new UpdateTimeSeriesItem(
-      timeSeriesBase.id.get,
-      Setter[String](timeSeriesBase.name),
-      Setter[Map[String, String]](timeSeriesBase.metadata),
-      Setter[String](timeSeriesBase.unit),
-      Setter[Long](timeSeriesBase.assetId),
-      Setter[String](timeSeriesBase.description),
-      securityCategories = timeSeriesBase.securityCategories.map(a => Map("set" -> Option(a))),
-      Setter[Boolean](timeSeriesBase.isString),
-      Setter[Boolean](timeSeriesBase.isStep)
-    )
-}
-
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends CdpRelation[TimeSeriesItem](config, "timeseries")
+    extends SdkV1Relation[TimeSeries, TimeSeriesResource[IO], TimeSeriesItem](config, "timeseries")
     with InsertableRelation {
 
-  @transient lazy private val timeSeriesCreated =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"timeseries.created")
-
-  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    val urlsFilters = urlsWithFilters(filters, listUrl())
-    val urls = if (urlsFilters.isEmpty) {
-      Seq(listUrl())
-    } else {
-      urlsFilters
-    }
-
-    TimeSeriesRdd[TimeSeriesItem](
-      sqlContext.sparkContext,
-      (e: TimeSeriesItem) => {
-        if (config.collectMetrics) {
-          itemsRead.inc()
-        }
-        toRow(e, requiredColumns)
-      },
-      listUrl(),
-      config,
-      urls,
-      cursors()
-    )
-  }
-
-  override def cursors(): Iterator[(Option[String], Option[Int])] =
-    NextCursorIterator[TimeSeriesItem](listUrl(), config, false)
-
   override def insert(rows: Seq[Row]): IO[Unit] = {
-    val postTimeSeriesItems = rows.map { r =>
-      val postTimeSeriesItem = PostTimeSeriesItem(fromRow[PostTimeSeriesItemBase](r))
-      postTimeSeriesItem.copy(metadata = filterMetadata(postTimeSeriesItem.metadata))
+    val timeSeriesCreates = rows.map { r =>
+      val timeSeriesCreate = fromRow[TimeSeriesCreate](r)
+      timeSeriesCreate.copy(metadata = filterMetadata(timeSeriesCreate.metadata))
     }
-    post(config, baseTimeSeriesUrl(config.project, "v1"), postTimeSeriesItems)
-  }
-
-  override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val timeSeriesItems = rows.map { r =>
-      val timeSeriesItem = fromRow[TimeSeriesItem](r)
-      timeSeriesItem.copy(metadata = filterMetadata(timeSeriesItem.metadata))
-    }
-    updateOrPostTimeSeries(timeSeriesItems)
+    client.timeSeries.create(timeSeriesCreates) *> IO.unit
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val updateTimeSeriesBaseItems =
-      rows.map { r =>
-        val timeSeriesItem = fromRow[UpdateTimeSeriesBase](r)
-        timeSeriesItem.copy(metadata = filterMetadata(timeSeriesItem.metadata))
-      }
-
-    // Time series must have an id when using update
-    if (updateTimeSeriesBaseItems.exists(_.id.isEmpty)) {
-      throw new IllegalArgumentException("Time series must have an id when using update")
-    }
-
-    val updateTimeSeriesItems = updateTimeSeriesBaseItems.map(UpdateTimeSeriesItem(_))
-
-    post(
-      config,
-      uri"${baseTimeSeriesUrl(config.project, "0.6")}/update",
-      updateTimeSeriesItems
-    )
+    val timeSeriesUpdates = rows.map(r => fromRow[TimeSeriesUpdate](r))
+    client.timeSeries.update(timeSeriesUpdates) *> IO.unit
   }
 
-  override def insert(df: org.apache.spark.sql.DataFrame, overwrite: scala.Boolean): scala.Unit =
-    df.foreachPartition((rows: Iterator[Row]) => {
-      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-      val timeSeriesItems = rows.map { r =>
-        val timeSeriesItem = fromRow[TimeSeriesItem](r)
-        timeSeriesItem.copy(metadata = filterMetadata(timeSeriesItem.metadata))
-      }
-      val batches =
-        timeSeriesItems.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
-      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-        batchGroup.parTraverse(updateOrPostTimeSeries).unsafeRunSync()
-      }
-      ()
-    })
+  override def delete(rows: Seq[Row]): IO[Unit] = {
+    val ids = rows.map(r => fromRow[DeleteItem](r).id)
+    client.timeSeries.deleteByIds(ids) *> IO.unit
+  }
 
-  override def delete(rows: Seq[Row]): IO[Unit] =
-    deleteItems(config, baseTimeSeriesUrl(config.project, "0.6"), rows)
+  override def upsert(rows: Seq[Row]): IO[Unit] = getFromRowAndCreate(rows)
 
-  private val updateTimeSeriesUrl =
-    uri"${baseUrl(config.project, "0.6", config.baseUrl)}/timeseries/update"
-
-  private def updateOrPostTimeSeries(timeSeriesItems: Seq[TimeSeriesItem]): IO[Unit] = {
-    implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-
-    val updateTimeSeriesItems =
-      timeSeriesItems.filter(_.id.nonEmpty).map(i => UpdateTimeSeriesItem(i))
-    val postTimeSeriesToCreate =
-      timeSeriesItems.filter(_.id.isEmpty).map(i => PostTimeSeriesItem(i))
-    val postItems = if (postTimeSeriesToCreate.isEmpty) {
-      IO.unit
-    } else {
-      post(
-        config,
-        baseTimeSeriesUrl(config.project, "v1"),
-        postTimeSeriesToCreate
-      ).flatTap { _ =>
-        IO {
-          if (config.collectMetrics) {
-            timeSeriesCreated.inc(postTimeSeriesToCreate.length)
-          }
-        }
-      }
+  override def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] = {
+    val timeSeriesSeq = rows.map { r =>
+      val timeSeries = fromRow[TimeSeries](r)
+      timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
     }
-    val updateItems = if (updateTimeSeriesItems.isEmpty) {
-      IO.unit
-    } else {
-      postOr(
-        config,
-        updateTimeSeriesUrl,
-        updateTimeSeriesItems
-      ) {
-        case response @ Response(Right(body), StatusCodes.BadRequest, _, _, _) =>
-          decode[Error[TimeSeriesConflict]](body) match {
-            case Right(conflict) =>
-              resolveConflict(
-                timeSeriesItems,
-                baseTimeSeriesUrl(config.project, "v1"),
-                updateTimeSeriesItems,
-                updateTimeSeriesUrl,
-                conflict.error)
-            case Left(_) => IO.raiseError(onError(updateTimeSeriesUrl, response))
-          }
-      }
-    }
-    (updateItems, postItems).parMapN((_, _) => ())
+
+    client.timeSeries
+      .createFromRead(timeSeriesSeq)
+      .handleErrorWith {
+        case e: CdpApiException =>
+          if (e.code == 409) {
+            val existingExternalIds =
+              e.duplicated.get.map(j => j("externalId").get.asString.get)
+            resolveConflict(existingExternalIds, timeSeriesSeq)
+          } else { IO.raiseError(e) }
+      } *> IO.unit
   }
 
   def resolveConflict(
-      timeSeriesItems: Seq[TimeSeriesItem],
-      timeSeriesUrl: Uri,
-      updateTimeSeriesItems: Seq[UpdateTimeSeriesItem],
-      updateTimeSeriesUrl: Uri,
-      duplicateIds: TimeSeriesConflict): IO[Unit] = {
-    implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+      existingExternalIds: Seq[String],
+      timeSeriesSeq: Seq[TimeSeries]): IO[Unit] = {
+    import CdpConnector.cs
+    val (timeSeriesToUpdate, timeSeriesToCreate) = timeSeriesSeq.partition(
+      p => existingExternalIds.contains(p.externalId.get)
+    )
 
-    val notFound = duplicateIds.notFound
-    val timeSeriesToUpdate = updateTimeSeriesItems.filter(p => !notFound.contains(p.id))
-    val putItems = if (timeSeriesToUpdate.isEmpty) {
-      IO.unit
-    } else {
-      post(
-        config,
-        updateTimeSeriesUrl,
-        timeSeriesToUpdate
-      )
-    }
+    val idMap = client.timeSeries
+      .retrieveByExternalIds(existingExternalIds)
+      .map(_.map(ts => ts.externalId -> ts.id).toMap)
+      .unsafeRunSync()
 
-    val timeSeriesToCreate = timeSeriesItems.filter(p => p.id.exists(notFound.contains(_)))
-    val postTimeSeriesToCreate = timeSeriesToCreate.map(t => PostTimeSeriesItem(t))
-    val postItems = if (timeSeriesToCreate.isEmpty) {
-      IO.unit
-    } else {
-      post(
-        config,
-        timeSeriesUrl,
-        postTimeSeriesToCreate
-      ).flatTap { _ =>
-        IO {
-          if (config.collectMetrics) {
-            timeSeriesCreated.inc(postTimeSeriesToCreate.length)
-          }
-        }
+    val create =
+      if (timeSeriesToCreate.isEmpty) { IO.unit } else {
+        client.timeSeries.createFromRead(timeSeriesToCreate)
       }
-    }
+    val update =
+      if (timeSeriesToUpdate.isEmpty) { IO.unit } else {
+        client.timeSeries.updateFromRead(timeSeriesToUpdate.map(ts =>
+          ts.copy(id = idMap(ts.externalId))))
+      }
 
-    (putItems, postItems).parMapN((_, _) => ())
+    (create, update).parMapN((_, _) => ())
   }
+
+  override def cursors(): Iterator[(Option[String], Option[Int])] =
+    NextCursorIterator[TimeSeriesItem](listUrl("v1"), config, false)
 
   def baseTimeSeriesUrl(project: String, version: String = "v1"): Uri =
     uri"${baseUrl(project, version, config.baseUrl)}/timeseries"
 
-  override def schema: StructType = structType[TimeSeriesItem]
+  override def schema: StructType = structType[TimeSeries]
 
-  override def toRow(t: TimeSeriesItem): Row = asRow(t)
+  override def toRow(t: TimeSeries): Row = asRow(t)
 
-  override def listUrl(): Uri =
-    baseTimeSeriesUrl(config.project, "v1")
+  override def clientToResource(client: GenericClient[IO, Nothing]): TimeSeriesResource[IO] =
+    client.timeSeries
+
+  override def listUrl(version: String): Uri =
+    baseTimeSeriesUrl(config.project, version)
 }
-
 object TimeSeriesRelation
     extends DeleteSchema
     with UpsertSchema
     with InsertSchema
-    with UpdateSchema {
-  val insertSchema = structType[PostTimeSeriesItem]
-  val upsertSchema = StructType(structType[TimeSeriesItem].filterNot(field =>
+//    with UpdateSchema
+    {
+  val insertSchema = structType[TimeSeriesCreate]
+  val upsertSchema = StructType(structType[TimeSeries].filterNot(field =>
     Seq("createdTime", "lastUpdatedTime").contains(field.name)))
-  val updateSchema = StructType(structType[UpdateTimeSeriesBase])
+//  val updateSchema = StructType(structType[TimeSeriesCreate])
 }
