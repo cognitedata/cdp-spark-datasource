@@ -77,7 +77,8 @@ lazy val macroSub = (project in file("macro"))
     publishLocal := {},
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
-      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided)
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
+      "com.cognite" %% "cognite-sdk-scala" % "0.1.3")
   )
 
 lazy val library = (project in file("."))
@@ -89,7 +90,7 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     libraryDependencies ++= Seq(
 
-      "com.cognite" %% "cognite-sdk-scala" % "0.1.1",
+      "com.cognite" %% "cognite-sdk-scala" % "0.1.3",
 
       "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
 

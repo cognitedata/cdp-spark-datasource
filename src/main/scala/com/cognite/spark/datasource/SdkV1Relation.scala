@@ -39,7 +39,7 @@ abstract class SdkV1Relation[A, T <: Readable[A, IO], C: Decoder](
 
   def listUrl(version: String): Uri
 
-  def getFromRowAndCreate(rows: Seq[Row]): IO[Seq[A]] =
+  def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] =
     sys.error(s"Resource type $shortName does not support writing.")
 
   override def buildScan(): RDD[Row] =
@@ -77,4 +77,20 @@ abstract class SdkV1Relation[A, T <: Readable[A, IO], C: Decoder](
 
   def cursors(): Iterator[(Option[String], Option[Int])] =
     NextCursorIterator[C](listUrl("0.6"), config, true)
+
+  def insert(rows: Seq[Row]): IO[Unit] =
+    throw new IllegalArgumentException(
+      s"""$shortName does not support the "onconflict" option "abort".""")
+
+  def upsert(rows: Seq[Row]): IO[Unit] =
+    throw new IllegalArgumentException(
+      s"""$shortName does not support the "onconflict" option "upsert".""")
+
+  def update(rows: Seq[Row]): IO[Unit] =
+    throw new IllegalArgumentException(
+      s"""$shortName does not support the "onconflict" option "update".""")
+
+  def delete(rows: Seq[Row]): IO[Unit] =
+    throw new IllegalArgumentException(
+      s"""$shortName does not support the "onconflict" option "delete".""")
 }

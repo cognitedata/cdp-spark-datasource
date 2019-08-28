@@ -1,9 +1,10 @@
 package com.cognite.spark.datasource
 
 import java.io.IOException
+
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
-import com.cognite.sdk.scala.common.Auth
+import com.cognite.sdk.scala.common.{Auth, CdpApiException}
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import com.softwaremill.sttp._
 import com.softwaremill.sttp.circe._
@@ -21,9 +22,6 @@ case class Items[A](items: Seq[A])
 case class CdpApiErrorPayload(code: Int, message: String)
 case class Error[A](error: A)
 case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
-
-case class CdpApiException(url: Uri, code: Int, message: String)
-    extends Throwable(s"Request to ${url.toString()} failed with status $code: $message") {}
 
 trait CdpConnector {
   import CdpConnector._
@@ -102,7 +100,7 @@ trait CdpConnector {
       .flatMap(r =>
         r.body match {
           case Right(body) => IO.pure(body)
-          case Left(error) => IO.raiseError(CdpApiException(url, r.code, error))
+          case Left(error) => IO.raiseError(CdpApiException(url, r.code, error, None, None))
       })
 
     retryWithBackoff(result, Constants.DefaultInitialRetryDelay, config.maxRetries)
@@ -143,16 +141,24 @@ trait CdpConnector {
   def parseCdpApiError(responseBody: String, url: Uri, statusCode: StatusCode): IO[Nothing] =
     decode[CdpApiError](responseBody) match {
       case Right(cdpApiError) =>
-        IO.raiseError(CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message))
+        IO.raiseError(
+          CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message, None, None))
       case Left(error) =>
         IO.raiseError(
-          CdpApiException(url, statusCode, s"${error.getMessage} reading '$responseBody'"))
+          CdpApiException(
+            url,
+            statusCode,
+            s"${error.getMessage} reading '$responseBody'",
+            None,
+            None))
     }
 
   def defaultHandling(url: Uri): PartialFunction[Response[String], IO[Unit]] = {
     case r if r.isSuccess => IO.unit
     case Response(Right(body), statusCode, _, _, _) => parseCdpApiError(body, url, statusCode)
-    case r => IO.raiseError(CdpApiException(url, r.code, "Failed to read request body as string"))
+    case r =>
+      IO.raiseError(
+        CdpApiException(url, r.code, "Failed to read request body as string", None, None))
   }
 
   def getWithCursor[A: Decoder](
@@ -269,8 +275,10 @@ trait CdpConnector {
   def onError(url: Uri, response: Response[String]): Throwable =
     decode[CdpApiError](response.unsafeBody)
       .fold(
-        error => CdpApiException(url, response.code.toInt, error.getMessage),
-        cdpApiError => CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message))
+        error => CdpApiException(url, response.code.toInt, error.getMessage, None, None),
+        cdpApiError =>
+          CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message, None, None)
+      )
 
   private def shouldRetry(status: Int): Boolean = status match {
     // @larscognite: Retry on 429,
