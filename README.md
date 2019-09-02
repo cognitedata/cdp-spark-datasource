@@ -48,7 +48,7 @@ The common options are:
 | `baseUrl`     | The prefix for all CDF API calls. Default: https://api.cognitedata.com                                                                                                                                                                                                                                            |                                            |
 ### Read data
 
-To read from CDF resource types, you need to specify: an **API-key** or a **bearertoken**?_] and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
+To read from CDF resource types, you need to specify: an **API-key** or a **bearertoken** and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
 
 **Filter pushdown**
 
@@ -93,7 +93,7 @@ The valid options for onconflict are:
 
 - `update` - looks for all rows in the Dataframe in CDF and tries to update them. If one or more rows do not exist, no more rows are updated and an error is thrown. Supports partial updates.
 
-- `upsert` - updates/inserts rows.
+- `upsert` - updates rows that already exist, and inserts new rows.
 
 See an example of using `.save()` under [Events below](#events).
 
