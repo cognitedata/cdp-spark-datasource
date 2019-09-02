@@ -40,15 +40,15 @@ The common options are:
 |    Option     |                                                                                                                                                    Description                                                                                                                                                    |                  Required                  |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `apiKey`      | The CDF [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) for authorization.                                                                                                                                                                                                     | Yes, if you don't specify a `bearerToken`. |
-| `bearerToken` | The CDP [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify a `apiKey`.      |
-| `type`        | The Cognite Data Fusion resource type. See below for more information. [_Arne: add links_]                                                                                                                                                                                                                        | Yes                                        |
+| `bearerToken` | The CDP [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify an `apiKey`.      |
+| `type`        | The Cognite Data Fusion resource type. See below for more [resource type examples](#examples-by-resource-types).                                                                                                                                                                                                                        | Yes                                        |
 | `maxRetries`  | The maximum number of retries to be made when a request fails. Default: 10                                                                                                                                                                                                                                        |                                            |
 | `limit`       | The number of items to fetch for this resource type to create the DataFrame. Note that this is different from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for items to fetch from CDF, *before* filtering and other transformations are applied to limit the number of results. |                                            |
 | `batchSize`   | The maximum number of items to read/write per API call.                                                                                                                                                                                                                                                           |                                            |
 | `baseUrl`     | The prefix for all CDF API calls. Default: https://api.cognitedata.com                                                                                                                                                                                                                                            |                                            |
 ### Read data
 
-To read from CDF resource types, you need to specify: an **API-key** [_Arne: or bearertoken?_] and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
+To read from CDF resource types, you need to specify: an **API-key** or a **bearertoken**?_] and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
 
 **Filter pushdown**
 
@@ -76,12 +76,12 @@ You can write to CDF with:
 To write to a resource using the insert into pattern, you'll need to register a DataFrame that was read from
 the resource, as a temporary view. You also need write access to the project and resources. In the examples below, replace  `myApiKey` with your own API key.
 
-Your schema must match that of the target exactly. To ensure this, copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`. See the time series example below. [_Arne: add link_]
+Your schema must match that of the target exactly. To ensure this, copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`. See the [time series example below](#time-series). 
 
 `.insertInto()` does upserts (updates existing rows and inserts new rows) for events and time series. Events are matched on
 `source+sourceId` while time series are matched on `id`. 
 
-Dor assets, raw tables and data points, `.insertInto()` does inserts and throws an error if one or more rows already exist.
+For assets, raw tables and data points, `.insertInto()` does inserts and throws an error if one or more rows already exist.
 
 **`.save()`**
 
@@ -93,9 +93,9 @@ The valid options for onconflict are:
 
 - `update` - looks for all rows in the Dataframe in CDF and tries to update them. If one or more rows do not exist, no more rows are updated and an error is thrown. Supports partial updates.
 
-- `upsert` - updates rows that already exist, and insert new rows.
+- `upsert` - updates/inserts rows.
 
-See an example `.save()` under Events below. [_Arne: ad links_]
+See an example of using `.save()` under [Events below](#events).
 
 ### Delete data
 
@@ -103,7 +103,7 @@ We currently support deleting with `.save()` for assets, events and time series.
 
 You need to provide an API key and specify the resource type, and then specify `delete` as the `onconflict` option like this: `.option("onconflict", "delete")`.
 
-See an example for using `.save()` to delete under Time Series below. [_Arne: add link_]
+See an example for using `.save()` to delete under [Time Series below](#time-series).
 
 ## Examples by resource types
 
@@ -207,7 +207,7 @@ timeSeriesDf
 
 ### Data points
 
-Data points are always related to a time series. To read data points you need to filter by a valid time series name, otherwise an empty DataFrame is returned. **Important**: be careful when using caching with this resource type.
+Data points are always related to a time series. To read data points you need to filter by a valid time series name, otherwise an empty DataFrame is returned. **Important**: Be careful when using caching with this resource type. If you cache the result of a filter and then apply another filter, you do not trigger more data to be read from CDF and end up with an empty DataFrame.
 
 One additional option is supported:
 
@@ -332,7 +332,7 @@ df.show()
 
 ### Raw tables
 
-Learn more about Raw tables [here](https://doc.cognitedata.com/api/v1/#tag/Raw) [_Arne: is v1 ok?_]
+Learn more about Raw tables [here](https://doc.cognitedata.com/api/v1/#tag/Raw).
 
 Raw tables are organized in databases and tables that you need to provide as options to the DataFrameReader. `publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
 
@@ -366,10 +366,9 @@ spark.sql("""insert into tablename values ("key", "values")""")
 The project runs read-only integration tests against the Open Industrial Data project. Navigate to
 https://openindustrialdata.com/ to get an API key and store it in the `TEST_API_KEY_READ` environment variable.
 
-To run the write integration tests, you'll also need to set the `TEST_API_KEY_WRITE` environment variable 
-to an API key for a project where you have write access. 
+To run the write integration tests, you'll also need to set the `TEST_API_KEY_WRITE` environment variable to an API key for a project where you have write access.
 
-To run tests against greenfield, set the `TEST_API_KEY_GREENFIELD` environment variable to an API key with read access to the project cdp-spark-datasource-test. [_Arne: Is this internal? If not, how do I get an API key?_]
+<!-- To run tests against greenfield, set the `TEST_API_KEY_GREENFIELD` environment variable to an API key with read access to the project cdp-spark-datasource-test. [_Arne: Is this internal? If not, how do I get an API key?_] -->
 
 ### Set up
 
@@ -389,7 +388,7 @@ To run **only the read-only tests**, run `sbt> testOnly -- -n ReadTest`
 
 To run **only the write tests**, run `sbt> testOnly -- -n WriteTest`
 
-To run **only the greenfield tests**, run `sbt> testOnly -- -n GreenfieldTest`
+<!-- To run **only the greenfield tests**, run `sbt> testOnly -- -n GreenfieldTest`-->
 
 To run **all tests except the write tests**, run `sbt> testOnly -- -l WriteTest`
 
