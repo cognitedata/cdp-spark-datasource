@@ -1,144 +1,115 @@
-# Spark data source for the Cognite Data Fusion API
+# Spark Data Source
 
-A [Spark](https://spark.apache.org/) data source for the [Cognite Data Fusion](https://doc.cognitedata.com/).
+The Cognite Spark Data Source lets you use [Spark](https://spark.apache.org/) to read and write data from and to [Cognite Data Fusion](https://docs.cognite.com/dev/) (CDF).
 
-Supports read and write for raw and clean data types.
+Reads and writes are done in parallel using asynchronous calls. Reads start only after all cursors have been retrieved, which can take a while if there are many items.
 
-Reads and writes are done in parallel using asynchronous calls.
-Reads will start only after all cursors have been retrieved, which can take a while
-if there are many items.
+The instructions below explain how to read to write to the different resource types in CDF.
 
-See instructions below for examples using different resource types.
+**In this article**
 
-#### Table of Contents
+- [Read and write to CDF](#read-and-write-to-cdf)
+    - [Common options](#common-options)
+    - [Read data](#read-data)
+    - [Write data](#write-data)
+    - [Delete data](#delete-data)
+- [Examples by resource types](#examples-by-resource-types)
+    - [Assets](#assets)
+    - [Asset types](#asset-types)
+    - [Time series](#time-series)
+    - [Data points](#data-points)
+    - [Events](#events)
+    - [Files metadata](#files-metadata)
+    - [3D models and revisions metadata](#3d-models-and-revisions-metadata)
+    - [Raw tables](#raw-tables)
+- [Build the project with sbt](#build-the-project-with-sbt)
+    - [Set up](#set-up)
+    - [Run the tests](#run-the-tests)
+- [Run the project locally with spark-shell](#run-the-project-locally-with-spark-shell)
 
-- [Reading and writing Cognite Data Fusion resource types:](#Reading-and-writing-Cognite-Data-Fusion-resource-types)
-  - [Common options](#Common-options)
-  - [Reading](#Reading)
-    - [Filter pushdown](#Filter-pushdown)
-  - [Writing](#Writing)
-    - [Writing with `.insertInto()`](#Writing-with-insertInto)
-    - [Writing with `.save()`](#Writing-with-save)
-  - [Deleting](#Deleting)
-  - [Assets](#Assets)
-    - [Asset types](#Asset-types)
-  - [Time series](#Time-series)
-  - [Data points](#Data-points)
-  - [Events](#Events)
-  - [Files metadata](#Files-metadata)
-  - [3D models and revisions](#3D-models-and-revisions)
-  - [Raw tables](#Raw-tables)
-- [Build the project with sbt:](#Build-the-project-with-sbt)
-  - [Setting up](#Setting-up)
-  - [Running the tests](#Running-the-tests)
-- [Run it with spark-shell](#Run-it-with-spark-shell)
+## Read and write to CDF
 
-
-## Reading and writing Cognite Data Fusion resource types:
-
-cdp-spark-datasource supports reads from, and writes to, assets, time series, raw tables, data points and events.
-You can also read files metadata and 3D-files metadata.
+The Cognite Spark Data Source lets you read data from and write data to these resource types: **assets**, **time series**, **data points**, **events**, and **raw tables**. For **files** and **3D models**, you can read **metadata** .
 
 ### Common options
 
-Some options are common to all resource types, and can be set with
-`spark.read.format("com.cognite.spark.datasource").option("nameOfOption", "value")`.
+Some options are common to all resource types. To set the options, use `spark.read.format("com.cognite.spark.datasource").option("nameOfOption", "value")`.
 
 The common options are:
-- `apiKey`: *REQUIRED IF NO BEARER TOKEN* A Cognite Data Fusion [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) to be used for authorization.
-- `bearerToken`: *REQUIRED IF NO API-KEY* A Cognite Data Fusion [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) to be used for authorization.
-- `type`: *REQUIRED* The Cognite Data Fusion resource type. See below for more information.
-- `maxRetries`: The maximum number of retries to be made when a request fails. The default value is 10.
-- `limit`: The number of items to fetch for this resource type to create the DataFrame. Note that this is different
-from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for the items to be fetched from CDF, *before* filtering and other transformations are applied to limit the number of results.
-- `batchSize`: Maximum number of items to read/write per API call.
-- `baseUrl`: Set the prefix to be used for all CDF API calls. The default is https://api.cognitedata.com
 
-### Reading
+|    Option     |                                                                                                                                                    Description                                                                                                                                                    |                  Required                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `apiKey`      | The CDF [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) for authorization.                                                                                                                                                                                                     | Yes, if you don't specify a `bearerToken`. |
+| `bearerToken` | The CDP [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify a `apiKey`.      |
+| `type`        | The Cognite Data Fusion resource type. See below for more information. [_Arne: add links_]                                                                                                                                                                                                                        | Yes                                        |
+| `maxRetries`  | The maximum number of retries to be made when a request fails. Default: 10                                                                                                                                                                                                                                        |                                            |
+| `limit`       | The number of items to fetch for this resource type to create the DataFrame. Note that this is different from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for items to fetch from CDF, *before* filtering and other transformations are applied to limit the number of results. |                                            |
+| `batchSize`   | The maximum number of items to read/write per API call.                                                                                                                                                                                                                                                           |                                            |
+| `baseUrl`     | The prefix for all CDF API calls. Default: https://api.cognitedata.com                                                                                                                                                                                                                                            |                                            |
+### Read data
 
-To read from CDF resource types you need to provide two things:
-an API-key and the resource type. To read from a table you should also specify the database name and table name.
+To read from CDF resource types, you need to specify: an **API-key** [_Arne: or bearertoken?_] and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
 
-#### Filter pushdown
+**Filter pushdown**
 
-Filters on certain fields will be pushed down to the API. For example when reading events with a filter on IDs
-only the IDs that satisfy the filter will be read from CDF, as opposed to reading all events and then applying the filter.
-This happens automatically, but note that filters are only pushed down when Spark reads data from CDF and
-not when working on a DataFrame that is already in memory.
+For some fields, filters are pushed down to the API. For example, if you read events with a filter on IDs,  only the IDs that satisfy the filter are read from CDF, as opposed to reading all events and **then** applying  the filter. This happens automatically, but note that filters are only pushed down when Spark reads data from CDF, and not when working on a DataFrame that is already in memory.
 
 The following fields have filter pushdown:
 
-**Assets**
-- name
-- source
-- depth
 
-**Events**
-- id
-- source
-- assetIds
-- type
-- subtype - *note that a filter on type must be supplied when filtering on subtype*
-- minStartTime
-- maxStartTime
+|Resource type  |Fields  |
+|---------|---------|
+|Assets     | - name</br>- source</br>- depth        |
+|Events     | - id</br>- source</br>- assetIds</br>- type</br>- subtype (You must supply a filter on type when filtering on subtype)</br>- minStartTime</br>- maxStartTime        |
+|Files     | - name</br>- source</br>- assetId</br>- dir</br>- fileType        |
 
-**Files**
-- name
-- source
-- assetId
-- dir
-- fileType
+### Write data
 
-### Writing
+You can write to CDF with:
 
-There are two ways you can use cdp-spark-datasource to write to CDF: using `insertInto` or using the `save` function.
-- `insertInto` - will check that all fields are present and in the correct order, and can be more convenient when
-working with Spark SQL tables.
-- `save` - will give you control over how to handle potential collisions with existing data,
-and allows updating a subset of fields in a row.
+- `insertInto` - checks that all fields are present and in the correct order. Can be more convenient when you're working with Spark SQL tables.
 
-#### Writing with `.insertInto()`
+- `save` - gives you control over how to handle potential collisions with existing data, and allows you to update a subset of fields in a row.
 
-To write to a resource using the insert into pattern you'll need to register a DataFrame that was read from
-that resource as a temporary view. You'll need a project where you have write access
-and replace `myApiKey` in the examples below.
+**`.insertInto()`**
 
-Your schema will have to match that of the target exactly. A convenient way to ensure
-this is to copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`, see time series example.
+To write to a resource using the insert into pattern, you'll need to register a DataFrame that was read from
+the resource, as a temporary view. You also need write access to the project and resources. In the examples below, replace  `myApiKey` with your own API key.
 
-`.insertInto()` will do upsert, as in updating existing rows and inserting new rows, for events and time series. Events are matched on
-`source+sourceId` while time series are matched on `id`.
-It will do insert for assets, raw tables and data points, and throw an error if one or more rows already exist.
+Your schema must match that of the target exactly. To ensure this, copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`. See the time series example below. [_Arne: add link_]
 
-#### Writing with `.save()`
+`.insertInto()` does upserts (updates existing rows and inserts new rows) for events and time series. Events are matched on
+`source+sourceId` while time series are matched on `id`. 
 
-Writing with `.save()` is currently supported for assets, events and time series.
+Dor assets, raw tables and data points, `.insertInto()` does inserts and throws an error if one or more rows already exist.
 
-You'll need to provide an API-key and the resource type you'd like to write to. In addition you can specify
-the desired behaviour when rows in your Dataframe are present in CDF with the `.option("onconflict", value)`.
+**`.save()`**
 
-The valid options for onconflict are
-- `abort` - will try to insert all rows in the Dataframe. An error will be thrown if the resource item already exists and no more rows will be written.
-- `update` - will look for all rows in the Dataframe in CDF and try to update them. If one or more rows do not exist no more rows will be updated and an error will be thrown.
-Supports partial updates.
-- `upsert` - will update rows that already exist, and insert new rows.
+We currently support writing with `.save()` for assets, events, and time series. You'll need to provide an API key and the resource type you want to write to. You can also use `.option("onconflict", value)` to specify the desired behavior when rows in your Dataframe are present in CDF.
 
-See an example for using `.save()` under Events below.
+The valid options for onconflict are:
 
-### Deleting
+- `abort` - tries to insert all rows in the Dataframe. Throws an error if the resource item already exists, and no more rows will be written.
 
-#### Deleting with `.save()`
+- `update` - looks for all rows in the Dataframe in CDF and tries to update them. If one or more rows do not exist, no more rows are updated and an error is thrown. Supports partial updates.
 
-Deleting with `.save()` is currently supported for assets, events and time series.
+- `upsert` - updates rows that already exist, and insert new rows.
 
-Just like when writing, you need provide an API-key and the resource type you'd like to interact with.
-You then need to specify `delete` as the `onconflict` option like this, `.option("onconflict", "delete")`.
+See an example `.save()` under Events below. [_Arne: ad links_]
 
-See an example for using `.save()` to delete under Time Series below.
+### Delete data
+
+We currently support deleting with `.save()` for assets, events and time series.
+
+You need to provide an API key and specify the resource type, and then specify `delete` as the `onconflict` option like this: `.option("onconflict", "delete")`.
+
+See an example for using `.save()` to delete under Time Series below. [_Arne: add link_]
+
+## Examples by resource types
 
 ### Assets
 
-https://doc.cognitedata.com/dev/concepts/resource_types/assets.html
+Learn more about assets [here](https://doc.cognitedata.com/dev/concepts/resource_types/assets.html).
 
 ```scala
 // Read assets from your project into a DataFrame
@@ -151,7 +122,7 @@ val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
 df.createTempView("assets")
 
 // Create a new asset and write to CDF
-// Note that parentId, asset type IDs and asset type field IDs have to exist
+// Note that parentId, asset type IDs, and asset type field IDs have to exist.
 val assetColumns = Seq("id", "path", "depth", "name", "parentId", "description",
                    "types", "metadata", "source", "sourceId", "createdTime", "lastupdatedTime")
 val someAsset = Seq(
@@ -167,10 +138,10 @@ spark
   .insertInto("assets")
 ```
 
-#### Asset types
+### Asset types
 ```scala
 // Assets have support for typed metadata for groups of assets such as wells or valves.
-// To manually create an asset of an existing type we write to the types field using Scala sequences
+// To manually create an asset of an existing type, we write to the types field using Scala sequences
 val assetColumns = Seq("id", "path", "depth", "name", "parentId", "description",
                    "types", "metadata", "source", "sourceId", "createdTime", "lastupdatedTime")
 val someAssetWithAssetType = Seq(
@@ -203,7 +174,7 @@ spark
 
 ### Time series
 
-https://doc.cognitedata.com/dev/concepts/resource_types/timeseries.html
+Learn more about time series [here](https://doc.cognitedata.com/dev/concepts/resource_types/timeseries.html).
 
 ```scala
 // Get all the time series from your project
@@ -213,7 +184,7 @@ val df = spark.read.format("com.cognite.spark.datasource")
   .load()
 df.createTempView("timeseries")
 
-// Read some new time series data from a csv-file
+// Read some new time series data from a csv file
 val timeSeriesDf = spark.read.format("csv")
   .option("header", "true")
   .load("timeseries.csv)
@@ -236,28 +207,19 @@ timeSeriesDf
 
 ### Data points
 
-Data points are always related to a time series. To read datapoints you will need to filter by a valid time series name,
-otherwise an empty DataFrame will be returned. For this reason it is important to be careful when using caching with
-this resource type.
+Data points are always related to a time series. To read data points you need to filter by a valid time series name, otherwise an empty DataFrame is returned. **Important**: be careful when using caching with this resource type.
 
 One additional option is supported:
-- `partitions`: The data source will split the time range into this many partitions (20 by default)
-time intervals.
+
+- `partitions`: Specifies the number of partitions to split the data source into. Default: 20.
 
 #### Numerical data points
 
-To read numerical data points from CDF, provide the option `.option("type", "datapoints")`.
-For numerical data points you can also request aggregated data by filtering by aggregation and granularity.
+To read numerical data points from CDF, use the `.option("type", "datapoints")` option. For numerical data points you can also request aggregated data by filtering by **aggregation** and **granularity**.
 
-`aggregation`: Numerical data points can be aggregated before they are retrieved from CDF.
-This allows for faster queries by reducing the amount of data transferred.
-You can aggregate data points by specifying one or more aggregates (e.g. average, minimum, maximum)
-as well as the time granularity over which the aggregates should be applied (e.g. "1h" for one hour).
-If the aggregate option is NULL, or not set, data points will return the raw time series data.
+- `aggregation`: Numerical data points can be aggregated to reduce the amount of data transferred in query responses and improve performance. You can specify one or more aggregates (for example average, minimum and maximum) and also the time granularity for the aggregates (for example 1h for one hour). If the aggregate option is NULL, or not set, data points return the raw time series data.
 
-`granularity`: Aggregates are aligned to the start time modulo the granularity unit.
-For example, if you ask for daily average temperatures since monday afternoon last week,
-the first aggregated data point will contain averages for monday, the second for tuesday, etc.
+- `granularity`: Aggregates are aligned to the start time modulo of the granularity unit. For example, if you ask for daily average temperatures since Monday afternoon last week, the first aggregated data point contains averages for the whole of Monday, the second for Tuesday, etc.
 
 ```scala
 // Get the datapoints from publicdata
@@ -280,7 +242,7 @@ s"and aggregation = 'min' and granularity = '1d'")
 
 #### String data points
 
-To read numerical data points from CDF, provide the option `.option("type", "stringdatapoints")`.
+To read numerical data points from CDF, provide the `.option("type", "stringdatapoints")` option.
 
 ```scala
 // Get the datapoints from publicdata
@@ -299,7 +261,7 @@ val timeseries = spark.sql(s"select * from stringdatapoints where name = '$times
 
 ### Events
 
-https://doc.cognitedata.com/dev/concepts/resource_types/events.html
+Learn more about events [here](https://doc.cognitedata.com/dev/concepts/resource_types/events.html)
 
 ```scala
 // Read events from `publicdata`
@@ -339,7 +301,7 @@ spark.sql("""
 
 ### Files metadata
 
-https://doc.cognitedata.com/dev/concepts/resource_types/files.html
+Learn more about files [here](https://doc.cognitedata.com/dev/concepts/resource_types/files.html)
 
 ```scala
 // Read files metadata from publicdata
@@ -351,12 +313,11 @@ val df = spark.read.format("com.cognite.spark.datasource")
 df.groupBy("fileType").count().show()
 ```
 
-### 3D models and revisions
+### 3D models and revisions metadata
 
-https://doc.cognitedata.com/dev/concepts/resource_types/3dmodels.html
+Learn more about 3D models and revisions [here](https://doc.cognitedata.com/dev/concepts/resource_types/3dmodels.html)
 
-Note that Open Industrial Data does not have 3D models in it, so to test this you'll need a project
-with existing 3D models. There are five options for listing metadata about 3D models:
+Note that the Open Industrial Data project does not have any 3D models. To test this example, you need a project with existing 3D models. There are five options for listing metadata about 3D models:
 `3dmodels`, `3dmodelrevisions`, `3dmodelrevisionmappings`, `3dmodelrevisionnodes` and `3dmodelrevisionsectors`.
 
 ```scala
@@ -371,22 +332,21 @@ df.show()
 
 ### Raw tables
 
-https://doc.cognitedata.com/api/0.5/#tag/Raw
+Learn more about Raw tables [here](https://doc.cognitedata.com/api/v1/#tag/Raw) [_Arne: is v1 ok?_]
 
-Raw tables are organized in databases and tables so you'll need to provide these as options to the DataFrameReader.
-`publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
+Raw tables are organized in databases and tables that you need to provide as options to the DataFrameReader. `publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
 
-Two additonal options are required:
-- `database`: The name of the database in Cognite Data Fusion's "raw" storage to use.
-It must exist, and will not be created if it does not.
-- `table`: The name of the table in Cognite Data Fusion's "raw" storage to use.
-It must exist in the given `database` option, and will not be created if it does not.
+Two additional options are required:
 
-You can optionally have Spark infer the DataFrame schema with the following options:
-- `inferSchema`: Set this to `"true"` to enable schema inference.
-The inferred schema can also be used for inserting new rows.
-- `inferSchemaLimit`: The number of rows to use for inferring the schema of this table.
-The default is to read all rows.
+- `database`: The name of the database in Cognite Data Fusion's "raw" storage to use. The database must exist, and will not be created if it does not.
+
+- `table`: The name of the table in Cognite Data Fusion's "raw" storage to use. The table must exist in the database specified in the `database` option, and will not be created if it does not.
+
+Optionally, you can have Spark infer the DataFrame schema with the following options:
+
+- `inferSchema`: Set this to `"true"` to enable schema inference. You can also use the inferred schema can also be used for inserting new rows.
+
+- `inferSchemaLimit`: The number of rows to use for inferring the schema of the table. The default is to read all rows.
 
 ```scala
 val df = spark.read.format("com.cognite.spark.datasource")
@@ -401,65 +361,54 @@ df.createTempView("tablename")
 spark.sql("""insert into tablename values ("key", "values")""")
 ```
 
-## Build the project with sbt:
+## Build the project with sbt
 
-The project runs read-only integration tests against the Open Industrial Data project. Head over to
-https://openindustrialdata.com/ to get an API key and store it in the environment variable `TEST_API_KEY_READ`.
-To run the write integration tests you'll also need to set the environment variable `TEST_API_KEY_WRITE`
-to an API key to a project where you have write access. To run tests against greenfield set the environment
-variable `TEST_API_KEY_GREENFIELD` to an API key with read access to the project cdp-spark-datasource-test.
+The project runs read-only integration tests against the Open Industrial Data project. Navigate to
+https://openindustrialdata.com/ to get an API key and store it in the `TEST_API_KEY_READ` environment variable.
 
-### Setting up
-First run `sbt compile` to generate Scala sources for protobuf.
+To run the write integration tests, you'll also need to set the `TEST_API_KEY_WRITE` environment variable 
+to an API key for a project where you have write access. 
 
-If you have set `TEST_API_KEY_WRITE` run the Python files `scripts/createThreeDData.py` and `scripts/createFilesMetaData.py`
-(you'll need to install cognite-sdk-python and set the environment variables `PROJECT` and `TEST_API_KEY_WRITE`).
-This will upload a 3D model to your project which is used for testing.
+To run tests against greenfield, set the `TEST_API_KEY_GREENFIELD` environment variable to an API key with read access to the project cdp-spark-datasource-test. [_Arne: Is this internal? If not, how do I get an API key?_]
 
-### Running the tests
+### Set up
 
-To run all tests run `sbt test`.
+1. First run `sbt compile` to generate Scala sources for protobuf.
 
-To run groups of tests enter sbt shell mode `sbt>`
+2. If you have set `TEST_API_KEY_WRITE`, run the Python files `scripts/createThreeDData.py` and `scripts/createFilesMetaData.py` (You need to install the cognite-sdk-python and set the `PROJECT` and `TEST_API_KEY_WRITE` environment variables).
 
-To run only the read-only tests run `sbt> testOnly -- -n ReadTest`
+This uploads a 3D model to your project that you can use for testing.
 
-To run only the write tests run `sbt> testOnly -- -n WriteTest`
+### Run the tests
 
-To run only the greenfield tests run `sbt> testOnly -- -n GreenfieldTest`
+To run **all tests**, run `sbt test`.
 
-To run all tests except the write tests run `sbt> testOnly -- -l WriteTest`
+To run **groups of tests**, enter sbt shell mode `sbt>`
 
-To skip the read/write tests in assembly you can add `test in assembly := {}` to build.sbt, or run:
+To run **only the read-only tests**, run `sbt> testOnly -- -n ReadTest`
 
-Windows: `sbt "set test in assembly := {}" assembly`
+To run **only the write tests**, run `sbt> testOnly -- -n WriteTest`
 
-Linux/macos: `sbt 'set test in assembly := {}' assembly`
+To run **only the greenfield tests**, run `sbt> testOnly -- -n GreenfieldTest`
 
+To run **all tests except the write tests**, run `sbt> testOnly -- -l WriteTest`
 
-## Run it with spark-shell
+To **skip the read/write tests in assembly**, add `test in assembly := {}` to build.sbt, or run:
 
-To run locally you'll need spark-metrics (marked as provided), which can be found at
-https://github.com/cognitedata/spark-metrics/releases/tag/v2.4.0-cognite.
-Download the jar-file and place under SPARK_HOME/jars.
+- Windows: `sbt "set test in assembly := {}" assembly`
 
-Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following:
+- Linux/macos: `sbt 'set test in assembly := {}' assembly`
 
-```
+## Run the project locally with spark-shell
+
+To run the project locally, you'll need spark-metrics (marked as provided): [https://github.com/cognitedata/spark-metrics/releases/tag/v2.4.0-cognite](https://github.com/cognitedata/spark-metrics/releases/tag/v2.4.0-cognite).
+
+Download the jar-file and place it under SPARK_HOME/jars.
+
+Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following commands:
+
+``` cmd
 $> spark-shell --jars ~/path-to-repo/target/cdp-spark-datasource-*-jar-with-dependencies.jar
-Spark context Web UI available at http://IP:4040
-Spark context available as 'sc' (master = local[*], app id = local-1513307936323).
-Spark session available as 'spark'.
-Welcome to
-      ____              __
-     / __/__  ___ _____/ /__
-    _\ \/ _ \/ _ `/ __/  '_/
-   /___/ .__/\_,_/_/ /_/\_\   version 2.4.0
-      /_/
-Using Scala version 2.11.8 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_131)
-Type in expressions to have them evaluated.
-Type :help for more information.
-
 scala> val apiKey="secret-key-you-have"
 scala> val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
   .option("apiKey", apiKey)
