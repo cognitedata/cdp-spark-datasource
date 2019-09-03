@@ -400,8 +400,6 @@ To **skip the read/write tests in assembly**, add `test in assembly := {}` to bu
 
 ## Run the project locally with spark-shell
 
-To run the project locally, you'll need spark-metrics (marked as provided): [https://github.com/cognitedata/spark-metrics/releases/tag/v2.4.0-cognite](https://github.com/cognitedata/spark-metrics/releases/tag/v2.4.0-cognite).
-
 Download the jar-file and place it under SPARK_HOME/jars.
 
 Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following commands:
