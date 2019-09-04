@@ -59,10 +59,9 @@ podTemplate(label: label,
                        + ' "set macroSub/skip := true"'
                        + ' +library/package')
                 }
-                if (env.BRANCH_NAME == 'master') {
-                    stage('Deploy') {
-                        sh('sbt -Dsbt.log.noformat=true +library/publishSigned')
-                    }
+                stage('Deploy') {
+                    input "Deploy?"
+                    sh('sbt -Dsbt.log.noformat=true +library/publishSigned')
                 }
             }
         }
