@@ -2,7 +2,7 @@ package com.cognite.spark.datasource
 
 import java.io.IOException
 
-import cats.effect.{IO, Timer}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import com.softwaremill.sttp._
@@ -303,6 +303,7 @@ trait CdpConnector {
 
 object CdpConnector {
   @transient implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
+  @transient implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
   @transient implicit lazy val sttpBackend: SttpBackend[IO, Nothing] =
     AsyncHttpClientCatsBackend[IO]()
 

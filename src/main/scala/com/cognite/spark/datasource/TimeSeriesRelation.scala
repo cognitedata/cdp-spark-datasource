@@ -15,7 +15,8 @@ import org.apache.spark.sql.{Row, SQLContext}
 import scala.concurrent.ExecutionContext
 
 case class PostTimeSeriesDataItems[A](items: Seq[A])
-case class TimeSeriesConflict(notFound: Seq[Long])
+case class TimeSeriesConflict(duplicated: Seq[LegacyName])
+case class LegacyName(legacyName: String)
 case class TimeSeriesNotFound(notFound: Seq[String])
 
 case class TimeSeriesItem(
@@ -178,7 +179,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val timeSeriesItem = fromRow[TimeSeriesItem](r)
       timeSeriesItem.copy(metadata = filterMetadata(timeSeriesItem.metadata))
     }
-    updateOrPostTimeSeries(timeSeriesItems)
+    createOrUpdate(timeSeriesItems)
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
@@ -212,7 +213,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val batches =
         timeSeriesItems.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-        batchGroup.parTraverse(updateOrPostTimeSeries).unsafeRunSync()
+        batchGroup.parTraverse(createOrUpdate).unsafeRunSync()
       }
       ()
     })
@@ -223,91 +224,73 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   private val updateTimeSeriesUrl =
     uri"${baseUrl(config.project, "0.6", config.baseUrl)}/timeseries/update"
 
-  private def updateOrPostTimeSeries(timeSeriesItems: Seq[TimeSeriesItem]): IO[Unit] = {
-    implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  private def createOrUpdate(timeSeriesItems: Seq[TimeSeriesItem]): IO[Unit] = {
 
-    val updateTimeSeriesItems =
-      timeSeriesItems.filter(_.id.nonEmpty).map(i => UpdateTimeSeriesItem(i))
-    val postTimeSeriesToCreate =
-      timeSeriesItems.filter(_.id.isEmpty).map(i => PostTimeSeriesItem(i))
-    val postItems = if (postTimeSeriesToCreate.isEmpty) {
-      IO.unit
-    } else {
-      post(
-        config,
-        baseTimeSeriesUrl(config.project, "v1"),
-        postTimeSeriesToCreate
-      ).flatTap { _ =>
-        IO {
-          if (config.collectMetrics) {
-            timeSeriesCreated.inc(postTimeSeriesToCreate.length)
-          }
+    val postTimeSeriesItems = timeSeriesItems.map(t => PostTimeSeriesItem(t))
+
+    postOr(config, baseTimeSeriesUrl(config.project), postTimeSeriesItems) {
+      case response @ Response(Right(body), StatusCodes.Conflict, _, _, _) => {
+        val b = body
+        val x = decode[Error[TimeSeriesConflict]](body)
+        decode[Error[TimeSeriesConflict]](body) match {
+          case Right(conflict) =>
+            resolveConflict(timeSeriesItems, conflict.error)
+          case Left(_) => IO.raiseError(onError(baseTimeSeriesUrl(config.project), response))
+        }
+      }
+    }.flatTap { _ =>
+      IO {
+        if (config.collectMetrics) {
+          timeSeriesCreated.inc(timeSeriesItems.length)
         }
       }
     }
-    val updateItems = if (updateTimeSeriesItems.isEmpty) {
-      IO.unit
-    } else {
-      postOr(
-        config,
-        updateTimeSeriesUrl,
-        updateTimeSeriesItems
-      ) {
-        case response @ Response(Right(body), StatusCodes.BadRequest, _, _, _) =>
-          decode[Error[TimeSeriesConflict]](body) match {
-            case Right(conflict) =>
-              resolveConflict(
-                timeSeriesItems,
-                baseTimeSeriesUrl(config.project, "v1"),
-                updateTimeSeriesItems,
-                updateTimeSeriesUrl,
-                conflict.error)
-            case Left(_) => IO.raiseError(onError(updateTimeSeriesUrl, response))
-          }
-      }
-    }
-    (updateItems, postItems).parMapN((_, _) => ())
   }
 
   def resolveConflict(
       timeSeriesItems: Seq[TimeSeriesItem],
-      timeSeriesUrl: Uri,
-      updateTimeSeriesItems: Seq[UpdateTimeSeriesItem],
-      updateTimeSeriesUrl: Uri,
-      duplicateIds: TimeSeriesConflict): IO[Unit] = {
+      timeSeriesConflict: TimeSeriesConflict): IO[Unit] = {
     implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
-    val notFound = duplicateIds.notFound
-    val timeSeriesToUpdate = updateTimeSeriesItems.filter(p => !notFound.contains(p.id))
-    val putItems = if (timeSeriesToUpdate.isEmpty) {
+    val conflictingTimeSeriesNames = timeSeriesConflict.duplicated.map(_.legacyName)
+
+    val (timeSeriesToUpdate, timeSeriesToCreate) =
+      timeSeriesItems.partition(ts => conflictingTimeSeriesNames.contains(ts.name))
+
+    // Time series must have an id when using update
+    val updatesWithNoId = timeSeriesToUpdate.filter(_.id.isEmpty)
+    if (updatesWithNoId.nonEmpty) {
+      throw new IllegalArgumentException(
+        s"The following existing time series do not have an ID: ${updatesWithNoId
+          .map(_.name)}")
+    }
+    val updateItems = if (timeSeriesToUpdate.isEmpty) {
       IO.unit
     } else {
       post(
         config,
         updateTimeSeriesUrl,
-        timeSeriesToUpdate
+        timeSeriesToUpdate.map(t => UpdateTimeSeriesItem(t))
       )
     }
 
-    val timeSeriesToCreate = timeSeriesItems.filter(p => p.id.exists(notFound.contains(_)))
-    val postTimeSeriesToCreate = timeSeriesToCreate.map(t => PostTimeSeriesItem(t))
-    val postItems = if (timeSeriesToCreate.isEmpty) {
+    val createItems = if (timeSeriesToCreate.isEmpty) {
       IO.unit
     } else {
       post(
         config,
-        timeSeriesUrl,
-        postTimeSeriesToCreate
+        baseTimeSeriesUrl(config.project),
+        timeSeriesToCreate.map(t => PostTimeSeriesItem(t))
       ).flatTap { _ =>
         IO {
           if (config.collectMetrics) {
-            timeSeriesCreated.inc(postTimeSeriesToCreate.length)
+            timeSeriesCreated.inc(timeSeriesToCreate.length)
           }
         }
       }
     }
 
-    (putItems, postItems).parMapN((_, _) => ())
+    (updateItems, createItems).parMapN((_, _) => ())
   }
 
   def baseTimeSeriesUrl(project: String, version: String = "v1"): Uri =
