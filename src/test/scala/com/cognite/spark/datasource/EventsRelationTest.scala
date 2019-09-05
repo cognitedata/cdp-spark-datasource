@@ -115,9 +115,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"startTime > 1554698747169")
-    assert(df.count == 8)
+    assert(df.count == 4)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 8)
+    assert(eventsRead == 4)
   }
 
   it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
