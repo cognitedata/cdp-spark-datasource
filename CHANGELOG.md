@@ -1,3 +1,8 @@
+# 0.4.13
+
+## Fixes
+Fixed a bug with time series upsert where `insertInto` would only work under special conditions.
+
 # 0.4.12
 
 ## Enhancements
