@@ -1,6 +1,6 @@
 package com.cognite.spark.datasource
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, GenericClient}
 import com.cognite.sdk.scala.v1.resources.Assets
 import com.cognite.sdk.scala.common
@@ -16,14 +16,18 @@ import PushdownUtilities._
 import AssetsRelation.fieldDecoder
 import com.cognite.sdk.scala.common.CdpApiException
 
+import scala.concurrent.ExecutionContext
+
 class AssetsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Asset, Assets[IO], AssetsItem](config, "assets")
     with InsertableRelation {
+  @transient implicit lazy val contextShift: ContextShift[IO] =
+    IO.contextShift(ExecutionContext.global)
 
   override def getReaderIO(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],
       cursor: Option[String],
-      limit: Option[Long]): Seq[IO[common.ItemsWithCursor[Asset]]] = {
+      limit: Option[Long]): IO[Vector[common.ItemsWithCursor[Asset]]] = {
     val fieldNames = Array("name", "source")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val getAll = shouldGetAll(pushdownFilterExpression, fieldNames)
@@ -35,10 +39,10 @@ class AssetsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
       params.map(assetsFilterFromMap)
     }
 
-    pushdownFilters.map(f => client.assets.filterWithCursor(f, cursor, limit))
+    pushdownFilters.toVector.parTraverse(f => client.assets.filterWithCursor(f, cursor, limit))
   }
 
-  def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
+  private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
     AssetsFilter(name = m.get("name"), source = m.get("source"))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

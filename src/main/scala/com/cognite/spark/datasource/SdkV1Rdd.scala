@@ -18,7 +18,7 @@ case class SdkV1Rdd[A](
     getReaderIO: (
         GenericClient[IO, Nothing],
         Option[String],
-        Option[Long]) => Seq[IO[common.ItemsWithCursor[A]]])
+        Option[Long]) => IO[Vector[common.ItemsWithCursor[A]]])
     extends RDD[Row](sparkContext, Nil) {
 
   import CdpConnector.sttpBackend
@@ -39,11 +39,10 @@ case class SdkV1Rdd[A](
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[SdkPartition]
+    val rowIterator = for {
+      readers <- getReaderIO(client, split.cursor, config.limit.map(_.toLong))
+    } yield readers.flatMap(_.items).map(toRow).toIterator
 
-    getReaderIO(client, split.cursor, config.limit.map(_.toLong))
-      .map(_.unsafeRunSync())
-      .flatMap(_.items)
-      .map(toRow)
-      .toIterator
+    rowIterator.unsafeRunSync()
   }
 }
