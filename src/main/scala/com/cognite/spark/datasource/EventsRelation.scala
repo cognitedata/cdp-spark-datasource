@@ -2,7 +2,7 @@ package com.cognite.spark.datasource
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.cognite.spark.datasource.PushdownUtilities.{pushdownToParameters, pushdownToUri}
+import com.cognite.spark.datasource.PushdownUtilities._
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
@@ -198,7 +198,7 @@ class EventsRelation(config: RelationConfig)(@transient val sqlContext: SQLConte
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val params = pushdownToParameters(pushdownFilterExpression)
-    val getAll = shouldGetAll(pushdownFilterExpression)
+    val getAll = shouldGetAll(pushdownFilterExpression, fieldsWithPushdownFilter)
     val eventIds = transformEventIdQueryParameters(params)
     val paramsTransformed = transformAssetIdQueryParams(params.filter(!_.contains("id")))
 

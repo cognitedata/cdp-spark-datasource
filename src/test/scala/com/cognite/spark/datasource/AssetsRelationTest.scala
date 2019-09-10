@@ -55,8 +55,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(df.count() == 10)
   }
 
-  it should "support pushdown filters on name and depth" taggedAs ReadTest ignore {
-    val metricsPrefix = "pushdown.filters.assets"
+  it should "support pushdown filters on name" taggedAs ReadTest in {
+    val metricsPrefix = "pushdown.filters.assets.name"
     val df = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", readApiKey.apiKey)
@@ -66,13 +66,34 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("limit", "1000")
       .option("partitions", "1")
       .load()
-      .where("name = '23-TT-92604B' and parentId = 6895991969886325")
+      .where("name = '23-TT-92604B'")
 
     assert(df.count() == 1)
 
     val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
     assert(assetsRead == 1)
   }
+
+  it should "support pushdown filters on source" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.assets.source"
+    val df = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("limit", "1000")
+      .option("partitions", "1")
+      .load()
+      .where("source = 'some source'")
+
+    assert(df.count() == 1)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
+    assert(assetsRead == 1)
+  }
+
+
 
   it should "be possible to create assets" taggedAs WriteTest in {
     val assetsTestSource = "assets-relation-test-create"

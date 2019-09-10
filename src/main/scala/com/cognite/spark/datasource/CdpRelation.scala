@@ -35,9 +35,7 @@ object Setter {
 }
 case class NonNullableSetter[A](set: A)
 
-case class DeleteItem(
-    id: Long
-)
+case class DeleteItem(id: Long)
 
 sealed trait PushdownExpression
 final case class PushdownFilter(fieldName: String, value: String) extends PushdownExpression
@@ -71,6 +69,58 @@ object PushdownUtilities {
         l <- left
         r <- right
       } yield l ++ r
+    }
+
+  def toPushdownFilterExpression(filters: Array[Filter]): PushdownExpression =
+    if (filters.isEmpty) {
+      NoPushdown()
+    } else {
+      filters
+        .map(getFilter)
+        .reduce(PushdownAnd(_, _))
+    }
+
+  // Spark will still filter the result after pushdown filters are applied, see source code for
+  // PrunedFilteredScan, hence it's ok that our pushdown filter reads some data that should ideally
+  // be filtered out
+  // scalastyle:off
+  def getFilter(filter: Filter): PushdownExpression =
+    filter match {
+      case IsNotNull(colName) => NoPushdown()
+      case EqualTo(colName, value) => PushdownFilter(colName, value.toString)
+      case EqualNullSafe(colName, value) => PushdownFilter(colName, value.toString)
+      case GreaterThan(colName, value) =>
+        PushdownFilter("min" + colName.capitalize, toMinTimeFormat(value))
+      case GreaterThanOrEqual(colName, value) =>
+        PushdownFilter("min" + colName.capitalize, toMinTimeFormat(value))
+      case LessThan(colName, value) =>
+        PushdownFilter("max" + colName.capitalize, toMaxTimeFormat(value))
+      case LessThanOrEqual(colName, value) =>
+        PushdownFilter("max" + colName.capitalize, toMaxTimeFormat(value))
+      case In(colName, values) =>
+        PushdownFilters(values.map(v => PushdownFilter(colName, v.toString)))
+      case And(f1, f2) => PushdownAnd(getFilter(f1), getFilter(f2))
+      case Or(f1, f2) => PushdownFilters(Seq(getFilter(f1), getFilter(f2)))
+      case _ => NoPushdown()
+    }
+
+  private def toMinTimeFormat(value: Any): String = (value.toString.toLong + 1).toString
+  private def toMaxTimeFormat(value: Any): String = (value.toString.toLong - 1).toString
+
+  def shouldGetAll(
+      pushdownExpression: PushdownExpression,
+      fieldsWithPushdownFilter: Seq[String]): Boolean =
+    pushdownExpression match {
+      case PushdownAnd(left, right) =>
+        shouldGetAll(left, fieldsWithPushdownFilter) || shouldGetAll(
+          right,
+          fieldsWithPushdownFilter)
+      case PushdownFilter(field, _) => !fieldsWithPushdownFilter.contains(field)
+      case PushdownFilters(filters) =>
+        filters
+          .map(shouldGetAll(_, fieldsWithPushdownFilter))
+          .exists(identity)
+      case NoPushdown() => false
     }
 }
 
@@ -114,7 +164,7 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
 
   def urlsWithFilters(filters: Array[Filter], uri: Uri): Seq[Uri] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val getAll = shouldGetAll(pushdownFilterExpression)
+    val getAll = shouldGetAll(pushdownFilterExpression, fieldsWithPushdownFilter)
     val params = pushdownToParameters(pushdownFilterExpression)
     val urlsWithFilter = pushdownToUri(params, uri).distinct
 
@@ -134,53 +184,6 @@ abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortN
       val values = item.productIterator
       val itemMap = item.getClass.getDeclaredFields.map(_.getName -> values.next).toMap
       Row.fromSeq(requiredColumns.map(itemMap(_)).toSeq)
-    }
-
-  def toPushdownFilterExpression(filters: Array[Filter]): PushdownExpression =
-    if (filters.isEmpty) {
-      NoPushdown()
-    } else {
-      filters
-        .map(getFilter)
-        .reduce(PushdownAnd(_, _))
-    }
-
-  // Spark will still filter the result after pushdown filters are applied, see source code for
-  // PrunedFilteredScan, hence it's ok that our pushdown filter reads some data that should ideally
-  // be filtered out
-  // scalastyle:off
-  def getFilter(filter: Filter): PushdownExpression =
-    filter match {
-      case IsNotNull(colName) => NoPushdown()
-      case EqualTo(colName, value) => PushdownFilter(colName, value.toString)
-      case EqualNullSafe(colName, value) => PushdownFilter(colName, value.toString)
-      case GreaterThan(colName, value) =>
-        PushdownFilter("min" + colName.capitalize, toMinTimeFormat(value))
-      case GreaterThanOrEqual(colName, value) =>
-        PushdownFilter("min" + colName.capitalize, toMinTimeFormat(value))
-      case LessThan(colName, value) =>
-        PushdownFilter("max" + colName.capitalize, toMaxTimeFormat(value))
-      case LessThanOrEqual(colName, value) =>
-        PushdownFilter("max" + colName.capitalize, toMaxTimeFormat(value))
-      case In(colName, values) =>
-        PushdownFilters(values.map(v => PushdownFilter(colName, v.toString)))
-      case And(f1, f2) => PushdownAnd(getFilter(f1), getFilter(f2))
-      case Or(f1, f2) => PushdownFilters(Seq(getFilter(f1), getFilter(f2)))
-      case _ => NoPushdown()
-    }
-
-  private def toMinTimeFormat(value: Any): String = (value.toString.toLong + 1).toString
-  private def toMaxTimeFormat(value: Any): String = (value.toString.toLong - 1).toString
-
-  def shouldGetAll(pushdownExpression: PushdownExpression): Boolean =
-    pushdownExpression match {
-      case PushdownAnd(left, right) => shouldGetAll(left) || shouldGetAll(right)
-      case PushdownFilter(field, _) => !fieldsWithPushdownFilter.contains(field)
-      case PushdownFilters(filters) =>
-        filters
-          .map(shouldGetAll)
-          .exists(identity)
-      case NoPushdown() => false
     }
 
   def listUrl(): Uri

@@ -1,22 +1,45 @@
 package com.cognite.spark.datasource
 
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, GenericClient}
+import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, GenericClient}
 import com.cognite.sdk.scala.v1.resources.Assets
+import com.cognite.sdk.scala.common
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.sql.sources.InsertableRelation
+import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import io.circe.generic.auto._
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp.Uri
 import com.softwaremill.sttp._
 import org.apache.spark.sql.types._
 import cats.implicits._
+import PushdownUtilities._
 import AssetsRelation.fieldDecoder
 import com.cognite.sdk.scala.common.CdpApiException
 
 class AssetsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Asset, Assets[IO], AssetsItem](config, "assets")
     with InsertableRelation {
+
+  override def getReaderIO(filters: Array[Filter])(
+      client: GenericClient[IO, Nothing],
+      cursor: Option[String],
+      limit: Option[Long]): Seq[IO[common.ItemsWithCursor[Asset]]] = {
+    val fieldNames = Array("name", "source")
+    val pushdownFilterExpression = toPushdownFilterExpression(filters)
+    val getAll = shouldGetAll(pushdownFilterExpression, fieldNames)
+    val params = pushdownToParameters(pushdownFilterExpression)
+
+    val pushdownFilters = if (params.isEmpty || getAll) {
+      Seq(AssetsFilter())
+    } else {
+      params.map(assetsFilterFromMap)
+    }
+
+    pushdownFilters.map(f => client.assets.filterWithCursor(f, cursor, limit))
+  }
+
+  def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
+    AssetsFilter(name = m.get("name"), source = m.get("source"))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val assetCreates = rows.map { r =>

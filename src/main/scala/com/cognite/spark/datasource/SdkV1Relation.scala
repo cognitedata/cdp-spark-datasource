@@ -3,6 +3,7 @@ package com.cognite.spark.datasource
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.codahale.metrics.Counter
+import com.cognite.sdk.scala.common
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.common.{Auth, Readable}
 import com.softwaremill.sttp.Uri
@@ -10,18 +11,19 @@ import io.circe.Decoder
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.sql.sources.{BaseRelation, TableScan}
+import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
 
 import scala.concurrent.ExecutionContext
 
-abstract class SdkV1Relation[A, T <: Readable[A, IO], C: Decoder](
+abstract class SdkV1Relation[A <: Product, T <: Readable[A, IO], C: Decoder](
     config: RelationConfig,
     shortName: String)
     extends BaseRelation
     with CdpConnector
     with Serializable
-    with TableScan {
+    with TableScan
+    with PrunedFilteredScan {
   @transient lazy protected val itemsRead: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
   @transient lazy private val itemsCreated =
@@ -42,7 +44,15 @@ abstract class SdkV1Relation[A, T <: Readable[A, IO], C: Decoder](
   def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] =
     sys.error(s"Resource type $shortName does not support writing.")
 
-  override def buildScan(): RDD[Row] =
+  def getReaderIO(filters: Array[Filter])(
+      client: GenericClient[IO, Nothing],
+      cursor: Option[String],
+      limit: Option[Long]): Seq[IO[common.ItemsWithCursor[A]]] =
+    Seq(clientToResource(client).readWithCursor(cursor, limit))
+
+  override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
+
+  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
     SdkV1Rdd[A](
       sqlContext.sparkContext,
       config,
@@ -51,9 +61,9 @@ abstract class SdkV1Relation[A, T <: Readable[A, IO], C: Decoder](
         if (config.collectMetrics) {
           itemsRead.inc()
         }
-        toRow(a)
+        toRow(a, requiredColumns)
       },
-      clientToResource
+      getReaderIO(filters)
     )
 
   def insert(data: DataFrame, overwrite: Boolean): Unit =
@@ -74,6 +84,16 @@ abstract class SdkV1Relation[A, T <: Readable[A, IO], C: Decoder](
       }
       ()
     })
+
+  def toRow(item: A, requiredColumns: Array[String]): Row =
+    if (requiredColumns.isEmpty) {
+      toRow(item)
+    } else {
+      val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
+      val indices = requiredColumns.map(f => fieldNamesInOrder.indexOf[String](f))
+      val fullRow = toRow(item)
+      Row.fromSeq(indices.map(fullRow.get))
+    }
 
   def cursors(): Iterator[(Option[String], Option[Int])] =
     NextCursorIterator[C](listUrl("0.6"), config, true)

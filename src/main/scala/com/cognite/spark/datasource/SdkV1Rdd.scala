@@ -1,8 +1,9 @@
 package com.cognite.spark.datasource
 
 import cats.effect.IO
+import com.cognite.sdk.scala.common
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.common.{Auth, Readable}
+import com.cognite.sdk.scala.common.Auth
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -14,7 +15,10 @@ case class SdkV1Rdd[A](
     config: RelationConfig,
     cursors: Iterator[(Option[String], Option[Int])],
     toRow: A => Row,
-    clientToResource: GenericClient[IO, Nothing] => Readable[A, IO])
+    getReaderIO: (
+        GenericClient[IO, Nothing],
+        Option[String],
+        Option[Long]) => Seq[IO[common.ItemsWithCursor[A]]])
     extends RDD[Row](sparkContext, Nil) {
 
   import CdpConnector.sttpBackend
@@ -36,10 +40,9 @@ case class SdkV1Rdd[A](
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[SdkPartition]
 
-    clientToResource(client)
-      .readWithCursor(split.cursor, config.limit.map(_.toLong))
-      .unsafeRunSync()
-      .items
+    getReaderIO(client, split.cursor, config.limit.map(_.toLong))
+      .map(_.unsafeRunSync())
+      .flatMap(_.items)
       .map(toRow)
       .toIterator
   }
