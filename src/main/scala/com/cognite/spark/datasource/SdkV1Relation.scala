@@ -47,8 +47,8 @@ abstract class SdkV1Relation[A <: Product, T <: Readable[A, IO], C: Decoder](
   def getReaderIO(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],
       cursor: Option[String],
-      limit: Option[Long]): Seq[IO[common.ItemsWithCursor[A]]] =
-    Seq(clientToResource(client).readWithCursor(cursor, limit))
+      limit: Option[Long]): IO[Vector[common.ItemsWithCursor[A]]] =
+    clientToResource(client).readWithCursor(cursor, limit).map(Vector(_))
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
@@ -90,9 +90,9 @@ abstract class SdkV1Relation[A <: Product, T <: Readable[A, IO], C: Decoder](
       toRow(item)
     } else {
       val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
-      val indices = requiredColumns.map(f => fieldNamesInOrder.indexOf[String](f))
-      val fullRow = toRow(item)
-      Row.fromSeq(indices.map(fullRow.get))
+      val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf[String](f))
+      val rowOfAllFields = toRow(item)
+      Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
     }
 
   def cursors(): Iterator[(Option[String], Option[Int])] =
