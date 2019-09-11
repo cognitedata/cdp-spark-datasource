@@ -118,6 +118,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
 
+  override def upsert(rows: Seq[Row]): IO[Unit] = postRows(rows)
+
   override def update(rows: Seq[Row]): IO[Unit] = {
     val updateAssetsItems = rows
       .map { r =>
