@@ -242,7 +242,7 @@ s"and aggregation = 'min' and granularity = '1d'")
 
 #### String data points
 
-To read numerical data points from CDF, provide the `.option("type", "stringdatapoints")` option.
+To read string data points from CDF, provide the `.option("type", "stringdatapoints")` option.
 
 ```scala
 // Get the datapoints from publicdata
