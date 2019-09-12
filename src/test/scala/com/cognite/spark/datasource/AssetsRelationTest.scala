@@ -262,7 +262,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin))
       .select(destinationDf.columns.map(col): _*)
       .write
-      .insertInto("destinationAssets")
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "assets")
+      .option("onconflict", "upsert")
+      .save
 
     // Check if upsert worked
     val descriptionsAfterUpsert = retryWhile[Array[Row]](
