@@ -4,35 +4,14 @@ import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{GenericClient, TimeSeries, TimeSeriesCreate, TimeSeriesUpdate}
-import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
-import io.circe.generic.auto._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
-case class PostTimeSeriesDataItems[A](items: Seq[A])
-case class TimeSeriesConflict(notFound: Seq[Long])
-case class TimeSeriesNotFound(notFound: Seq[String])
-
-case class TimeSeriesItem(
-    name: String,
-    isString: Boolean,
-    metadata: Option[Map[String, String]],
-    unit: Option[String],
-    assetId: Option[Long],
-    isStep: Option[Boolean],
-    description: Option[String],
-    // Change this to Option[Vector[Long]] if we start seeing this exception:
-    // java.io.NotSerializableException: scala.Array$$anon$2
-    securityCategories: Option[Seq[Long]],
-    id: Option[Long],
-    createdTime: Option[Long],
-    lastUpdatedTime: Option[Long])
-
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[TimeSeries, TimeSeriesResource[IO], TimeSeriesItem](config, "timeseries")
+    extends SdkV1Relation[TimeSeries](config, "timeseries")
     with InsertableRelation {
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
@@ -99,9 +78,6 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     (create, update).parMapN((_, _) => ())
   }
 
-  override def cursors(): Iterator[(Option[String], Option[Int])] =
-    NextCursorIterator[TimeSeriesItem](listUrl("v1"), config, false)
-
   def baseTimeSeriesUrl(project: String, version: String = "v1"): Uri =
     uri"${baseUrl(project, version, config.baseUrl)}/timeseries"
 
@@ -109,11 +85,13 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def toRow(t: TimeSeries): Row = asRow(t)
 
-  override def clientToResource(client: GenericClient[IO, Nothing]): TimeSeriesResource[IO] =
-    client.timeSeries
-
-  override def listUrl(version: String): Uri =
-    baseTimeSeriesUrl(config.project, version)
+  override def getStreams(filters: Array[Filter])(
+      client: GenericClient[IO, Nothing],
+      limit: Option[Long],
+      numPartitions: StatusCode): Seq[fs2.Stream[IO, TimeSeries]] =
+    Seq(
+      config.limit.map(client.timeSeries.listWithLimit(_)).getOrElse(client.timeSeries.list)
+    )
 }
 object TimeSeriesRelation
     extends DeleteSchema

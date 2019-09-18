@@ -9,8 +9,8 @@ class ThreeDModelsRelationTest extends FlatSpec with SparkTest {
     val df = spark.read.format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey)
       .option("type", "3dmodels")
-      .option("limit", 4)
+      .option("limit", 5)
       .load()
-    assert(df.count == 4)
+    assert(df.count == 5)
   }
 }

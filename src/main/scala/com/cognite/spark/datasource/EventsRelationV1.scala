@@ -1,21 +1,85 @@
 package com.cognite.spark.datasource
 
-import cats.effect.IO
-import com.cognite.sdk.scala.v1.{Event, EventUpdate, GenericClient}
-import com.cognite.sdk.scala.v1.resources.Events
-import com.cognite.spark.datasource.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.softwaremill.sttp.Uri
-import com.softwaremill.sttp._
-import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.sql.sources.InsertableRelation
-import io.circe.generic.auto._
-import org.apache.spark.sql.types.{DataTypes, StructType}
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
+import com.cognite.sdk.scala.v1.{Event, EventUpdate, EventsFilter, GenericClient, TimeRange}
+import com.cognite.spark.datasource.SparkSchemaHelper.{asRow, fromRow, structType}
+import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.types.{DataTypes, StructType}
+
 import com.cognite.sdk.scala.common.CdpApiException
+import PushdownUtilities._
+import fs2.Stream
+
+import scala.concurrent.ExecutionContext
 
 class EventsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[Event, Events[IO], EventItem](config, "events")
+    extends SdkV1Relation[Event](config, "events")
     with InsertableRelation {
+  @transient implicit lazy val contextShift: ContextShift[IO] =
+    IO.contextShift(ExecutionContext.global)
+
+  override def getStreams(filters: Array[Filter])(
+      client: GenericClient[IO, Nothing],
+      limit: Option[Long],
+      numPartitions: Int): Seq[Stream[IO, Event]] = {
+    val fieldNames = Array(
+      "source",
+      "type",
+      "subtype",
+      "assetIds",
+      "minStartTime",
+      "maxStartTime",
+      "minEndTime",
+      "maxEndTime")
+    val pushdownFilterExpression = toPushdownFilterExpression(filters)
+    val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
+    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
+
+    val eventsFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
+      Seq(EventsFilter())
+    } else {
+      filtersAsMaps.distinct.map(eventsFilterFromMap)
+    }
+
+    eventsFilterSeq
+      .flatMap { f =>
+        client.events.filterPartitionsWithLimit(
+          f,
+          numPartitions,
+          limit.getOrElse(Constants.DefaultBatchSize))
+      }
+  }
+
+  def eventsFilterFromMap(m: Map[String, String]): EventsFilter =
+    EventsFilter(
+      source = m.get("source"),
+      `type` = m.get("type"),
+      subtype = m.get("subtype"),
+      startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
+      endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
+      assetIds = m.get("assetIds").map(assetIdsFromWrappedArray)
+    )
+
+  def assetIdsFromWrappedArray(wrappedArray: String): Seq[Long] =
+    wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
+
+  def timeRangeFromMinAndMax(minTime: Option[String], maxTime: Option[String]): Option[TimeRange] =
+    (minTime, maxTime) match {
+      case (None, None) => None
+      case _ => {
+        val minimumTimeAsInstant =
+          minTime
+            .map(java.sql.Timestamp.valueOf(_).toInstant.plusMillis(1))
+            .getOrElse(java.time.Instant.ofEpochMilli(0)) //API does not accept values < 0
+        val maximumTimeAsInstant =
+          maxTime
+            .map(java.sql.Timestamp.valueOf(_).toInstant.minusMillis(1))
+            .getOrElse(java.time.Instant.ofEpochMilli(Long.MaxValue))
+        Some(TimeRange(minimumTimeAsInstant, maximumTimeAsInstant))
+      }
+    }
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val events = fromRowWithFilteredMetadata(rows)
@@ -55,7 +119,6 @@ class EventsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   def resolveConflict(existingExternalIds: Seq[String], events: Seq[Event]): IO[Unit] = {
-    import CdpConnector.cs
     val (eventsToUpdate, eventsToCreate) = events.partition(
       p => existingExternalIds.contains(p.externalId.get)
     )
@@ -80,14 +143,4 @@ class EventsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def toRow(a: Event): Row = asRow(a)
 
-  override def clientToResource(client: GenericClient[IO, Nothing]): Events[IO] =
-    client.events
-
-  override def listUrl(version: String): Uri =
-    uri"${config.baseUrl}/api/$version/projects/${config.project}/events"
-
-  val cursorsUrl = uri"${listUrl("0.6")}/cursors"
-
-  override def cursors(): Iterator[(Option[String], Option[Int])] =
-    CursorsCursorIterator(cursorsUrl.param("divisions", config.partitions.toString), config)
 }

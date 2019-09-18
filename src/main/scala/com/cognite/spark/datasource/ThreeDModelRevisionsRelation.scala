@@ -8,6 +8,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import io.circe.generic.auto._
 import com.cognite.sdk.scala.v1.{GenericClient, ThreeDRevision}
 import com.cognite.sdk.scala.v1.resources.ThreeDRevisions
+import org.apache.spark.sql.sources.Filter
 
 case class ModelRevisionItem(
     id: Long,
@@ -25,16 +26,18 @@ case class ModelRevisionItem(
 
 class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(
     val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDRevision, ThreeDRevisions[IO], ModelRevisionItem](
-      config,
-      "3dmodelrevision") {
+    extends SdkV1Relation[ThreeDRevision](config, "3dmodelrevision") {
   override def schema: StructType = structType[ThreeDRevision]
 
   override def toRow(t: ThreeDRevision): Row = asRow(t)
 
-  override def clientToResource(client: GenericClient[IO, Nothing]): ThreeDRevisions[IO] =
-    client.threeDRevisions(modelId)
-
-  override def listUrl(version: String = "0.6"): Uri =
-    uri"${config.baseUrl}/api/$version/projects/${config.project}/3d/models/$modelId/revisions"
+  override def getStreams(filters: Array[Filter])(
+      client: GenericClient[IO, Nothing],
+      limit: Option[Long],
+      numPartitions: StatusCode): Seq[fs2.Stream[IO, ThreeDRevision]] =
+    Seq(
+      config.limit
+        .map(client.threeDRevisions(modelId).listWithLimit(_))
+        .getOrElse(client.threeDRevisions(modelId).list)
+    )
 }

@@ -2,32 +2,28 @@ package com.cognite.spark.datasource
 
 import cats.effect.{ContextShift, IO}
 import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, GenericClient}
-import com.cognite.sdk.scala.v1.resources.Assets
-import com.cognite.sdk.scala.common
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import io.circe.generic.auto._
 import com.cognite.spark.datasource.SparkSchemaHelper._
-import com.softwaremill.sttp.Uri
-import com.softwaremill.sttp._
 import org.apache.spark.sql.types._
 import cats.implicits._
 import PushdownUtilities._
-import AssetsRelation.fieldDecoder
 import com.cognite.sdk.scala.common.CdpApiException
+import fs2.Stream
 
 import scala.concurrent.ExecutionContext
 
 class AssetsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[Asset, Assets[IO], AssetsItem](config, "assets")
+    extends SdkV1Relation[Asset](config, "assets")
     with InsertableRelation {
   @transient implicit lazy val contextShift: ContextShift[IO] =
     IO.contextShift(ExecutionContext.global)
 
-  override def getReaderIO(filters: Array[Filter])(
+  override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],
-      cursor: Option[String],
-      limit: Option[Long]): IO[Vector[common.ItemsWithCursor[Asset]]] = {
+      limit: Option[Long],
+      numPartitions: Int): Seq[Stream[IO, Asset]] = {
     val fieldNames = Array("name", "source")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val getAll = shouldGetAll(pushdownFilterExpression, fieldNames)
@@ -39,7 +35,12 @@ class AssetsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
       params.map(assetsFilterFromMap)
     }
 
-    pushdownFilters.toVector.parTraverse(f => client.assets.filterWithCursor(f, cursor, limit))
+    pushdownFilters.flatMap { f =>
+      client.assets.filterPartitionsWithLimit(
+        f,
+        numPartitions,
+        limit.getOrElse(Constants.DefaultBatchSize))
+    }
   }
 
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
@@ -86,7 +87,6 @@ class AssetsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   def resolveConflict(existingExternalIds: Seq[String], assets: Seq[Asset]): IO[Unit] = {
-    import CdpConnector.cs
     val (assetsToUpdate, assetsToCreate) = assets.partition(
       p => existingExternalIds.contains(p.externalId.get)
     )
@@ -110,15 +110,4 @@ class AssetsRelationV1(config: RelationConfig)(val sqlContext: SQLContext)
   override def schema: StructType = structType[Asset]
 
   override def toRow(a: Asset): Row = asRow(a)
-
-  override def clientToResource(client: GenericClient[IO, Nothing]): Assets[IO] =
-    client.assets
-
-  override def listUrl(version: String): Uri =
-    uri"${config.baseUrl}/api/$version/projects/${config.project}/assets"
-
-  val cursorsUrl = uri"${listUrl("0.6")}/cursors"
-
-  override def cursors(): Iterator[(Option[String], Option[Int])] =
-    CursorsCursorIterator(cursorsUrl.param("divisions", config.partitions.toString), config)
 }

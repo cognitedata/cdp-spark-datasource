@@ -1,15 +1,15 @@
 package com.cognite.spark.datasource
 
 import com.cognite.sdk.scala.common.{ApiKeyAuth, CdpApiException}
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
 import org.apache.spark.sql.functions.col
-import com.softwaremill.sttp._
 import org.apache.spark.SparkException
 
 class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
   val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
+
   val sourceDf = spark.read
     .format("com.cognite.spark.datasource")
     .option("apiKey", readApiKey.apiKey)
@@ -24,17 +24,11 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
   destinationDf.createOrReplaceTempView("destinationTimeSeries")
 
+  val testDataUnit = "time-series-test-data"
+
   it should "successfully both update and insert time series" taggedAs WriteTest in {
     val initialDescription = "post testing"
     val updatedDescription = "upsert testing"
-    val testUnit = "test data"
-
-    // Clean up any old test data
-    cleanUpTimeSeriesTestDataByUnit(testUnit)
-    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
-      spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""").collect
-    }, df => df.length > 0)
-    assert(testTimeSeriesAfterCleanup.length == 0)
 
     // Insert new time series test data
     spark
@@ -43,7 +37,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
          |concat('TEST', name) as name,
          |isString,
          |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
-         |'$testUnit' as unit,
+         |'$testDataUnit' as unit,
          |null as assetId,
          |isStep,
          |cast(array() as array<long>) as securityCategories,
@@ -66,7 +60,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       df => df.length < 5)
     assert(initialDescriptionsAfterPost.length == 5)
 
-    // Upsert time series data
+    // Upsert time series data, but wait 5 seconds to make sure
+    Thread.sleep(5000)
     spark
       .sql(s"""
             |select '$updatedDescription' as description,
@@ -103,18 +98,16 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
         .collect,
       df => df.length > 0)
     assert(initialDescriptionsAfterUpsert.length == 0)
-
-    cleanUpTimeSeriesTestDataByUnit(testUnit)
   }
 
   it should "support abort in savemode" taggedAs WriteTest in {
     val insertDescription = "spark-insert-test"
-    val saveModeUnit = "spark-savemode-test"
 
     // Clean up any old test data
+    cleanUpTimeSeriesTestDataByUnit(testDataUnit)
+
     val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
-      cleanUpTimeSeriesTestDataByUnit(saveModeUnit)
-      spark.sql(s"""select * from destinationTimeSeries where unit = '$saveModeUnit'""").collect
+      spark.sql(s"""select * from destinationTimeSeries where unit = '$testDataUnit'""").collect
     }, df => df.length > 0)
     assert(testTimeSeriesAfterCleanup.length == 0)
 
@@ -125,7 +118,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
          |isString,
          |concat('TEST_', name) as name,
          |map("foo", null, "bar", "test") as metadata,
-         |'$saveModeUnit' as unit,
+         |'$testDataUnit' as unit,
          |NULL as assetId,
          |isStep,
          |cast(array() as array<long>) as securityCategories,
@@ -166,7 +159,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
            |createdTime,
            |lastUpdatedTime
            |from destinationTimeSeries
-           |where unit = '$saveModeUnit'
+           |where unit = '$testDataUnit'
      """.stripMargin)
         .write
         .format("com.cognite.spark.datasource")
@@ -181,27 +174,66 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "support partial update in savemode" taggedAs WriteTest in {
+    val insertDescription = "spark-insert-test"
     val updateDescription = "spark-update-test"
-    val saveModeUnit = "spark-savemode-test"
+
+    // Clean up any old test data
+    cleanUpTimeSeriesTestDataByUnit(testDataUnit)
+    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
+      spark.sql(s"""select * from destinationTimeSeries where unit = '$testDataUnit'""").collect
+    }, df => df.length > 0)
+    assert(testTimeSeriesAfterCleanup.length == 0)
+
+    // Insert new time series test data
+    spark
+      .sql(s"""
+              |select '$insertDescription' as description,
+              |isString,
+              |concat('TEST_', name) as name,
+              |map("foo", null, "bar", "test") as metadata,
+              |'$testDataUnit' as unit,
+              |NULL as assetId,
+              |isStep,
+              |cast(array() as array<long>) as securityCategories,
+              |id,
+              |string(id) as externalId,
+              |createdTime,
+              |lastUpdatedTime
+              |from sourceTimeSeries
+              |limit 5
+     """.stripMargin)
+      .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "timeseries")
+      .save()
+
+    val dfWithDescriptionInsertTest = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationTimeSeries where description = '$insertDescription'").collect,
+      df => df.length < 5
+    )
+    assert(dfWithDescriptionInsertTest.length == 5)
+
+    // Update data with a new description, but wait 5 seconds to make sure
+    Thread.sleep(5000)
+    spark
+      .sql(s"""
+              |select '$updateDescription' as description,
+              |id,
+              |map("bar", "test") as metadata,
+              |name
+              |from destinationTimeSeries
+              |where unit = '$testDataUnit'
+     """.stripMargin)
+      .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "update")
+      .save()
 
     val dfWithDescriptionUpdateTest = retryWhile[Array[Row]](
       {
-        // Update data with a new description
-        spark
-          .sql(s"""
-           |select '$updateDescription' as description,
-           |id,
-           |map("bar", "test") as metadata,
-           |name
-           |from destinationTimeSeries
-           |where unit = '$saveModeUnit'
-     """.stripMargin)
-          .write
-          .format("com.cognite.spark.datasource")
-          .option("apiKey", writeApiKey.apiKey)
-          .option("type", "timeseries")
-          .option("onconflict", "update")
-          .save()
         spark
           .sql(s"select * from destinationTimeSeries where description = '$updateDescription'")
           .collect
@@ -227,7 +259,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
                    |createdTime,
                    |lastUpdatedTime
                    |from destinationTimeSeries
-                   |where unit = '$saveModeUnit'
+                   |where unit = '$testDataUnit'
      """.stripMargin)
         .write
         .format("com.cognite.spark.datasource")
@@ -243,8 +275,46 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "support upsert in savemode" taggedAs WriteTest in {
+    val insertDescription = "spark-insert-test"
     val upsertDescription = "spark-upsert-test"
-    val saveModeUnit = "spark-savemode-test"
+
+    // Clean up any old test data
+    cleanUpTimeSeriesTestDataByUnit(testDataUnit)
+    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
+      spark.sql(s"""select * from destinationTimeSeries where unit = '$testDataUnit'""").collect
+    }, df => df.length > 0)
+    assert(testTimeSeriesAfterCleanup.length == 0)
+
+    // Insert new time series test data
+    spark
+      .sql(s"""
+              |select '$insertDescription' as description,
+              |isString,
+              |concat('TEST_', name) as name,
+              |map("foo", null, "bar", "test") as metadata,
+              |'$testDataUnit' as unit,
+              |NULL as assetId,
+              |isStep,
+              |cast(array() as array<long>) as securityCategories,
+              |id,
+              |string(id) as externalId,
+              |createdTime,
+              |lastUpdatedTime
+              |from sourceTimeSeries
+              |limit 5
+     """.stripMargin)
+      .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "timeseries")
+      .save()
+
+    val dfWithDescriptionInsertTest = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationTimeSeries where description = '$insertDescription'").collect,
+      df => df.length < 5
+    )
+    assert(dfWithDescriptionInsertTest.length == 5)
+
     // Test upserts
     val existingTimeSeriesDf =
       spark.sql(s"""
@@ -261,7 +331,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
               |createdTime,
               |lastUpdatedTime
               |from destinationTimeSeries
-              |where unit = '$saveModeUnit'
+              |where unit = '$testDataUnit'
      """.stripMargin)
 
     val nonExistingTimeSeriesDf =
@@ -279,7 +349,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
              |createdTime,
              |lastUpdatedTime
              |from destinationTimeSeries
-             |where unit = '$saveModeUnit'
+             |where unit = '$testDataUnit'
      """.stripMargin)
 
     existingTimeSeriesDf
@@ -296,10 +366,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       df => df.length < 10
     )
     assert(dfWithDescriptionUpsertTest.length == 10)
-
-    cleanUpTimeSeriesTestDataByUnit(saveModeUnit)
   }
-
 
   it should "check for null ids on time series update" taggedAs WriteTest in {
     val initialDescription = "post testing"
@@ -345,8 +412,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
-  def cleanUpTimeSeriesTestDataByUnit(testName: String): Unit = {
-    spark.sql(s"""select * from destinationTimeSeries where unit = '$testName'""")
+  def cleanUpTimeSeriesTestDataByUnit(unit: String): Unit = {
+    spark.sql(s"""select * from destinationTimeSeries where unit = '$unit'""")
         .write
         .format("com.cognite.spark.datasource")
         .option("apiKey", writeApiKey.apiKey)

@@ -1,6 +1,8 @@
 package com.cognite.spark.datasource
 
+import cats.effect.IO
 import com.cognite.sdk.scala.common.{ApiKeyAuth, CdpApiException}
+import com.cognite.sdk.scala.v1.{AssetsFilter, GenericClient}
 import com.softwaremill.sttp._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
@@ -316,7 +318,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
-  it should "support some more partial updates" taggedAs WriteTest ignore  {
+  it should "support some more partial updates" taggedAs WriteTest in  {
     val source = "spark-assets-test"
 
     // Cleanup assets
@@ -329,16 +331,13 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     // Post new assets
     spark
       .sql(s"""
-                 |select id,
-                 |path,
-                 |depth,
+                 |select id as externalId,
                  |name,
                  |null as parentId,
-                 |null as types,
-                 |description,
-                 |metadata,
-                 |"$source" as source,
-                 |sourceId,
+                 |'foo' as description,
+                 |map("bar", "test") as metadata,
+                 |'$source' as source,
+                 |id,
                  |createdTime,
                  |lastUpdatedTime
                  |from sourceAssets
@@ -493,7 +492,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   }
 
-  it should "allow deletes in savemode" taggedAs WriteTest ignore {
+  it should "allow deletes in savemode" taggedAs WriteTest in {
     val source = "spark-savemode-asset-deletes-test"
 
     cleanupAssets(source)
@@ -505,16 +504,13 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     // Insert some test data
     spark
       .sql(s"""
-              |select id,
-              |path,
-              |depth,
+              |select id as externalId,
               |name,
               |null as parentId,
-              |null as types,
-              |description,
-              |metadata,
-              |"$source" as source,
-              |sourceId,
+              |'foo' as description,
+              |map("bar", "test") as metadata,
+              |'$source' as source,
+              |id,
               |createdTime,
               |lastUpdatedTime
               |from sourceAssets
@@ -558,26 +554,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   def cleanupAssets(source: String): Unit = {
-    import AssetsRelation.fieldDecoder // overwrite the implicit derived decoder from circe
-
-    val config = getDefaultConfig(writeApiKey)
-    val assets = get[AssetsItem](
-      config,
-      uri"https://api.cognitedata.com/api/0.6/projects/${config.project}/assets?source=$source"
-    )
-
-    val assetIdsChunks = assets.map(_.id).grouped(1000)
-    val AssetIdNotFound = "^(Asset ids not found).+".r
-    for (assetIds <- assetIdsChunks) {
-      try {
-        post(
-          config,
-          uri"https://api.cognitedata.com/api/0.6/projects/${config.project}/assets/delete",
-          assetIds
-        ).unsafeRunSync()
-      } catch {
-        case CdpApiException(_, 400, AssetIdNotFound(_), None, None) => // ignore exceptions about already deleted items
-      }
-    }
+    spark.sql(s"""select * from destinationAssets where source = '$source'""")
+      .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "assets")
+      .option("onconflict", "delete")
+      .save()
   }
 }
