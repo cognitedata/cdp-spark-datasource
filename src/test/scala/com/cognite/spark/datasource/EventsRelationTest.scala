@@ -1,18 +1,35 @@
 package com.cognite.spark.datasource
-import cats.effect.IO
 import com.cognite.sdk.scala.common.{ApiKeyAuth, CdpApiException}
-import com.cognite.sdk.scala.v1.{EventsFilter, GenericClient}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
 import org.scalatest.{FlatSpec, Matchers}
 
 class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
+
   val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
   val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
 
+  val destinationDf: DataFrame = spark.read
+    .format("com.cognite.spark.datasource")
+    .option("apiKey", writeApiKey.apiKey)
+    .option("type", "events")
+    .load()
+  destinationDf.createOrReplaceTempView("destinationEvent")
+
+  val sourceDf: DataFrame = spark.read
+    .format("com.cognite.spark.datasource")
+    .option("apiKey", readApiKey.apiKey)
+    .option("type", "events")
+    .option("limit", "1000")
+    .option("partitions", "1")
+    .load()
+  sourceDf.createOrReplaceTempView("sourceEvent")
+  sourceDf.cache()
+
   cleanupEvents("spark-savemode-insert-test")
   cleanupEvents("spark-events-savemode-test")
+  cleanupEvents("spark-events-test")
 
   "EventsRelation" should "allow simple reads" taggedAs ReadTest in {
     val df = spark.read
@@ -31,7 +48,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(res.length == 1000)
   }
 
-  it should "apply a single pushdown filter" taggedAs WriteTest ignore {
+  it should "apply a single pushdown filter" taggedAs WriteTest in {
     val metricsPrefix = "single.pushdown.filter"
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -46,7 +63,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 8)
   }
 
-  it should "apply multiple pushdown filters" taggedAs WriteTest ignore {
+  it should "apply multiple pushdown filters" taggedAs WriteTest in {
     val metricsPrefix = "multiple.pushdown.filters"
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -61,7 +78,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 4)
   }
 
-  it should "handle or conditions" taggedAs WriteTest ignore {
+  it should "handle or conditions" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.or"
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -76,7 +93,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 9)
   }
 
-  it should "handle in() conditions" taggedAs WriteTest ignore {
+  it should "handle in() conditions" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.in"
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -91,7 +108,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 12)
   }
 
-  it should "handle and, or and in() in one query" taggedAs WriteTest ignore {
+  it should "handle and, or and in() in one query" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.and.or.in"
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -106,7 +123,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 4)
   }
 
-  it should "handle pushdown filters on minimum startTime" taggedAs WriteTest ignore {
+  it should "handle pushdown filters on minimum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.minStartTime"
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -115,13 +132,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"startTime > 1554698747169")
-    assert(df.count == 4)
+      .where("startTime > to_timestamp(1554698747)")
+    assert(df.count == 5)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 4)
+    assert(eventsRead == 5)
   }
 
-  it should "handle pushdown filters on maximum startTime" taggedAs WriteTest ignore {
+  it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.maxStartTime"
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -130,13 +147,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"startTime < 1539468000 and source = 'generator'")
-    assert(df.count == 2)
+      .where(s"startTime < to_timestamp(1540767) and source = 'generator'")
+    assert(df.count == 5)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 2)
+    assert(eventsRead == 5)
   }
 
-  it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest ignore {
+  it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.minMaxStartTime"
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -145,13 +162,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"startTime < 2039468000 and startTime > 1539468000")
-    assert(df.count == 1002)
+      .where(s"startTime < to_timestamp(2039468000) and startTime > to_timestamp(1539468000)")
+    assert(df.count == 78)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 1002)
+    assert(eventsRead == 78)
   }
 
-  it should "handle pushdown filters on assetIds" taggedAs WriteTest ignore {
+  it should "handle pushdown filters on assetIds" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.assetIds"
     val df = spark.read
       .format("com.cognite.spark.datasource")
@@ -231,8 +248,18 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 6)
   }
 
-  it should "handle a really advanced query" taggedAs WriteTest ignore {
+  it should "handle a really advanced query" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.advanced"
+
+    val df2 = spark.read
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("limit", "1000")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+
     val df = spark.read
       .format("com.cognite.spark.datasource")
       .option("apiKey", writeApiKey.apiKey)
@@ -265,32 +292,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 6)
   }
 
-  def eventDescriptions(source: String): Array[Row] =
-    spark
-      .sql(s"""select description from destinationEvent where source = "$source"""")
-      .collect()
-
-  val destinationDf: DataFrame = spark.read
-    .format("com.cognite.spark.datasource")
-    .option("apiKey", writeApiKey.apiKey)
-    .option("type", "events")
-    .load()
-  destinationDf.createOrReplaceTempView("destinationEvent")
-
-  val sourceDf: DataFrame = spark.read
-    .format("com.cognite.spark.datasource")
-    .option("apiKey", readApiKey.apiKey)
-    .option("type", "events")
-    .option("limit", "1000")
-    .option("partitions", "1")
-    .load()
-    .where("startTime < endTime")
-  sourceDf.createOrReplaceTempView("sourceEvent")
-  sourceDf.cache()
-
   it should "allow null values for all event fields except id" taggedAs WriteTest in {
 
-    val source = "nulltest"
+    val source = "spark-events-test"
     cleanupEvents(source)
     val eventDescriptionsAfterCleanup =
       retryWhile[Array[Row]](eventDescriptions(source), rows => rows.nonEmpty)
@@ -307,7 +311,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |null as subtype,
                  |map('foo', 'bar', 'nullValue', null) as metadata,
                  |null as assetIds,
-                 |'nulltest' as source,
+                 |'$source' as source,
                  |null as externalId,
                  |0 as createdTime,
                  |0 as lastUpdatedTime
@@ -677,14 +681,18 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(idsAfterDelete.length == 0)
   }
 
-  def cleanupEvents(source: String): Unit = {
+  def eventDescriptions(source: String): Array[Row] =
+    spark
+      .sql(s"""select description from destinationEvent where source = "$source"""")
+      .collect()
 
-    val config = getDefaultConfig(writeApiKey)
-    implicit val auth = config.auth
-    import CdpConnector.sttpBackend
-    val client = new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
-    val eventsFilter = EventsFilter(source = Some(source))
-    val eventIds = client.events.filter(eventsFilter).map(_.id).compile.toList
-    eventIds.flatMap(client.events.deleteByIds(_)).attempt.unsafeRunSync()
+  def cleanupEvents(source: String): Unit = {
+    spark.sql(s"""select * from destinationEvent where source = '$source'""")
+      .write
+      .format("com.cognite.spark.datasource")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
+      .option("onconflict", "delete")
+      .save()
   }
 }

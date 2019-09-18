@@ -5,9 +5,8 @@ import com.cognite.spark.datasource.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import io.circe.generic.auto._
 import com.cognite.sdk.scala.v1.{GenericClient, ThreeDAssetMapping}
-import com.cognite.sdk.scala.v1.resources.ThreeDAssetMappings
+import org.apache.spark.sql.sources.Filter
 
 case class ModelRevisionMappingItem(
     nodeId: Long,
@@ -17,16 +16,18 @@ case class ModelRevisionMappingItem(
 
 class ThreeDModelRevisionMappingsRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
     val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDAssetMapping, ThreeDAssetMappings[IO], ModelRevisionMappingItem](
-      config,
-      "3dmodelrevisionmappings") {
+    extends SdkV1Relation[ThreeDAssetMapping](config, "3dmodelrevisionmappings") {
   override def schema: StructType = structType[ThreeDAssetMapping]
 
   override def toRow(t: ThreeDAssetMapping): Row = asRow(t)
 
-  override def listUrl(version: String = "0.6"): Uri =
-    uri"${config.baseUrl}/api/$version/projects/${config.project}/3d/models/$modelId/revisions/$revisionId/mappings"
-
-  override def clientToResource(client: GenericClient[IO, Nothing]): ThreeDAssetMappings[IO] =
-    client.threeDAssetMappings(modelId, revisionId)
+  override def getStreams(filters: Array[Filter])(
+      client: GenericClient[IO, Nothing],
+      limit: Option[Long],
+      numPartitions: StatusCode): Seq[fs2.Stream[IO, ThreeDAssetMapping]] =
+    Seq(
+      config.limit
+        .map(client.threeDAssetMappings(modelId, revisionId).listWithLimit(_))
+        .getOrElse(client.threeDAssetMappings(modelId, revisionId).list)
+    )
 }

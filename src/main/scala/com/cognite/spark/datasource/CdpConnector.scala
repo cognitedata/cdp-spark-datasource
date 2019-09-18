@@ -100,7 +100,8 @@ trait CdpConnector {
       .flatMap(r =>
         r.body match {
           case Right(body) => IO.pure(body)
-          case Left(error) => IO.raiseError(CdpApiException(url, r.code, error, None, None))
+          case Left(error) =>
+            IO.raiseError(CdpApiException(url, r.code, error, None, None, None))
       })
 
     retryWithBackoff(result, Constants.DefaultInitialRetryDelay, config.maxRetries)
@@ -142,13 +143,14 @@ trait CdpConnector {
     decode[CdpApiError](responseBody) match {
       case Right(cdpApiError) =>
         IO.raiseError(
-          CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message, None, None))
+          CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message, None, None, None))
       case Left(error) =>
         IO.raiseError(
           CdpApiException(
             url,
             statusCode,
             s"${error.getMessage} reading '$responseBody'",
+            None,
             None,
             None))
     }
@@ -158,7 +160,7 @@ trait CdpConnector {
     case Response(Right(body), statusCode, _, _, _) => parseCdpApiError(body, url, statusCode)
     case r =>
       IO.raiseError(
-        CdpApiException(url, r.code, "Failed to read request body as string", None, None))
+        CdpApiException(url, r.code, "Failed to read request body as string", None, None, None))
   }
 
   def getWithCursor[A: Decoder](
@@ -275,9 +277,9 @@ trait CdpConnector {
   def onError(url: Uri, response: Response[String]): Throwable =
     decode[CdpApiError](response.unsafeBody)
       .fold(
-        error => CdpApiException(url, response.code.toInt, error.getMessage, None, None),
+        error => CdpApiException(url, response.code.toInt, error.getMessage, None, None, None),
         cdpApiError =>
-          CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message, None, None)
+          CdpApiException(url, cdpApiError.error.code, cdpApiError.error.message, None, None, None)
       )
 
   private def shouldRetry(status: Int): Boolean = status match {

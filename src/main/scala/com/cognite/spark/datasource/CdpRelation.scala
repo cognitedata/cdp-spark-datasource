@@ -90,22 +90,19 @@ object PushdownUtilities {
       case EqualTo(colName, value) => PushdownFilter(colName, value.toString)
       case EqualNullSafe(colName, value) => PushdownFilter(colName, value.toString)
       case GreaterThan(colName, value) =>
-        PushdownFilter("min" + colName.capitalize, toMinTimeFormat(value))
+        PushdownFilter("min" + colName.capitalize, value.toString)
       case GreaterThanOrEqual(colName, value) =>
-        PushdownFilter("min" + colName.capitalize, toMinTimeFormat(value))
+        PushdownFilter("min" + colName.capitalize, value.toString)
       case LessThan(colName, value) =>
-        PushdownFilter("max" + colName.capitalize, toMaxTimeFormat(value))
+        PushdownFilter("max" + colName.capitalize, value.toString)
       case LessThanOrEqual(colName, value) =>
-        PushdownFilter("max" + colName.capitalize, toMaxTimeFormat(value))
+        PushdownFilter("max" + colName.capitalize, value.toString)
       case In(colName, values) =>
         PushdownFilters(values.map(v => PushdownFilter(colName, v.toString)))
       case And(f1, f2) => PushdownAnd(getFilter(f1), getFilter(f2))
       case Or(f1, f2) => PushdownFilters(Seq(getFilter(f1), getFilter(f2)))
       case _ => NoPushdown()
     }
-
-  private def toMinTimeFormat(value: Any): String = (value.toString.toLong + 1).toString
-  private def toMaxTimeFormat(value: Any): String = (value.toString.toLong - 1).toString
 
   def shouldGetAll(
       pushdownExpression: PushdownExpression,

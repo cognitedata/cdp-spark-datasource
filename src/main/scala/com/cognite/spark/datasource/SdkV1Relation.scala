@@ -3,22 +3,17 @@ package com.cognite.spark.datasource
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.common.{Auth, Readable}
-import com.softwaremill.sttp.Uri
-import io.circe.Decoder
+import com.cognite.sdk.scala.common.Auth
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
-
+import fs2.Stream
 import scala.concurrent.ExecutionContext
 
-abstract class SdkV1Relation[A <: Product, T <: Readable[A, IO], C: Decoder](
-    config: RelationConfig,
-    shortName: String)
+abstract class SdkV1Relation[A <: Product](config: RelationConfig, shortName: String)
     extends BaseRelation
     with CdpConnector
     with Serializable
@@ -37,18 +32,13 @@ abstract class SdkV1Relation[A <: Product, T <: Readable[A, IO], C: Decoder](
 
   def toRow(a: A): Row
 
-  def clientToResource(client: GenericClient[IO, Nothing]): T
-
-  def listUrl(version: String): Uri
-
   def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] =
     sys.error(s"Resource type $shortName does not support writing.")
 
-  def getReaderIO(filters: Array[Filter])(
+  def getStreams(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],
-      cursor: Option[String],
-      limit: Option[Long]): IO[Vector[common.ItemsWithCursor[A]]] =
-    clientToResource(client).readWithCursor(cursor, limit).map(Vector(_))
+      limit: Option[Long],
+      numPartitions: Int): Seq[Stream[IO, A]]
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
@@ -56,14 +46,14 @@ abstract class SdkV1Relation[A <: Product, T <: Readable[A, IO], C: Decoder](
     SdkV1Rdd[A](
       sqlContext.sparkContext,
       config,
-      cursors(),
       (a: A) => {
         if (config.collectMetrics) {
           itemsRead.inc()
         }
         toRow(a, requiredColumns)
       },
-      getReaderIO(filters)
+      config.partitions,
+      getStreams(filters)
     )
 
   def insert(data: DataFrame, overwrite: Boolean): Unit =
@@ -94,9 +84,6 @@ abstract class SdkV1Relation[A <: Product, T <: Readable[A, IO], C: Decoder](
       val rowOfAllFields = toRow(item)
       Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
     }
-
-  def cursors(): Iterator[(Option[String], Option[Int])] =
-    NextCursorIterator[C](listUrl("0.6"), config, true)
 
   def insert(rows: Seq[Row]): IO[Unit] =
     throw new IllegalArgumentException(
