@@ -33,7 +33,7 @@ The Cognite Spark Data Source lets you read data from and write data to these re
 
 ### Common options
 
-Some options are common to all resource types. To set the options, use `spark.read.format("com.cognite.spark.datasource").option("nameOfOption", "value")`.
+Some options are common to all resource types. To set the options, use `spark.read.format("cognite.spark").option("nameOfOption", "value")`.
 
 The common options are:
 
@@ -113,7 +113,7 @@ Learn more about assets [here](https://doc.cognitedata.com/dev/concepts/resource
 
 ```scala
 // Read assets from your project into a DataFrame
-val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+val df = spark.sqlContext.read.format("cognite.spark")
  .option("apiKey", "myApiKey")
  .option("type", "assets")
  .load()
@@ -178,7 +178,7 @@ Learn more about time series [here](https://doc.cognitedata.com/dev/concepts/res
 
 ```scala
 // Get all the time series from your project
-val df = spark.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("cognite.spark")
   .option("apiKey", "myApiKey")
   .option("type", "timeseries")
   .load()
@@ -198,7 +198,7 @@ timeSeriesDf.select(df.columns.map(col):_*)
 // Delete all time series you just created
 timeSeriesDf
   .write
-  .format("com.cognite.spark.datasource")
+  .format("cognite.spark")
   .option("apiKey", "myApiKey")
   .option("type", "timeseries")
   .option("onconflict", "delete")
@@ -223,7 +223,7 @@ To read numerical data points from CDF, use the `.option("type", "datapoints")` 
 
 ```scala
 // Get the datapoints from publicdata
-val df = spark.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("cognite.spark")
   .option("apiKey", "publicdataApiKey")
   .option("type", "datapoints")
   .load()
@@ -246,7 +246,7 @@ To read string data points from CDF, provide the `.option("type", "stringdatapoi
 
 ```scala
 // Get the datapoints from publicdata
-val df = spark.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("cognite.spark")
   .option("apiKey", "publicdataApiKey")
   .option("type", "stringdatapoints")
   .load()
@@ -265,7 +265,7 @@ Learn more about events [here](https://doc.cognitedata.com/dev/concepts/resource
 
 ```scala
 // Read events from `publicdata`
-val df = spark.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("cognite.spark")
   .option("apiKey", "publicdataApiKey")
   .option("type", "events")
   .load()
@@ -273,13 +273,13 @@ val df = spark.read.format("com.cognite.spark.datasource")
 // Insert the events in your own project using .save()
 import org.apache.spark.sql.functions._
 df.withColumn("source", lit("publicdata"))
-  .write.format("com.cognite.spark.datasource")
+  .write.format("cognite.spark")
   .option("apiKey", "myApiKey")
   .option("onconflict", "abort")
   .save()
 
 // Get a reference to the events in your project
-val myProjectDf = spark.read.format("com.cognite.spark.datasource")
+val myProjectDf = spark.read.format("cognite.spark")
   .option("apiKey", "myApiKey")
   .option("type", "events")
   .load()
@@ -293,7 +293,7 @@ spark.sql("""
  |from events
  |where source = 'publicdata'
 """.stripMargin)
-.write.format("com.cognite.spark.datasource")
+.write.format("cognite.spark")
 .option("apiKey", "myApiKey")
 .option("onconflict", "update")
 .save()
@@ -305,7 +305,7 @@ Learn more about files [here](https://doc.cognitedata.com/dev/concepts/resource_
 
 ```scala
 // Read files metadata from publicdata
-val df = spark.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("cognite.spark")
   .option("apiKey", "myApiKey")
   .option("type", "files")
   .load()
@@ -322,7 +322,7 @@ Note that the Open Industrial Data project does not have any 3D models. To test 
 
 ```scala
 // Read 3D models metadata from a project with 3D models and revisions
-val df = spark.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("cognite.spark")
   .option("apiKey", "apiKeyToProjectWith3dModels")
   .option("type", "3dmodels")
   .load()
@@ -349,7 +349,7 @@ Optionally, you can have Spark infer the DataFrame schema with the following opt
 - `inferSchemaLimit`: The number of rows to use for inferring the schema of the table. The default is to read all rows.
 
 ```scala
-val df = spark.read.format("com.cognite.spark.datasource")
+val df = spark.read.format("cognite.spark")
   .option("apiKey", "myApiKey")
   .option("type", "raw")
   .option("database", "database-name") // a raw database from your project
@@ -407,7 +407,7 @@ Get an API-key for the Open Industrial Data project at https://openindustrialdat
 ``` cmd
 $> spark-shell --jars ~/path-to-repo/target/cdp-spark-datasource-*-jar-with-dependencies.jar
 scala> val apiKey="secret-key-you-have"
-scala> val df = spark.sqlContext.read.format("com.cognite.spark.datasource")
+scala> val df = spark.sqlContext.read.format("cognite.spark")
   .option("apiKey", apiKey)
   .option("batchSize", "1000")
   .option("limit", "1000")
