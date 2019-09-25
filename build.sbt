@@ -6,13 +6,14 @@ val circeVersion = "0.11.1"
 val sttpVersion = "1.6.3"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
+val cogniteSdkVersion = "0.2.0"
 
 resolvers += "libs-release" at artifactory + "libs-release/"
 
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
 lazy val commonSettings = Seq(
-  organization := "com.cognite.spark.datasource",
+  organization := "cognite.spark",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
   version := "0.5.0-SNAPSHOT",
@@ -61,14 +62,6 @@ lazy val commonSettings = Seq(
   fork in Test := true
 )
 
-// Added this to fix a race condition between ProtoBuf and BuildInfo
-// https://github.com/sbt/sbt/issues/1583#issuecomment-262166588
-managedSourceDirectories in Compile += target.value / "protobuf-generated"
-
-PB.targets in Compile := Seq(
-  scalapb.gen() -> (target.value / "protobuf-generated")
-)
-
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
 lazy val macroSub = (project in file("macro"))
   .settings(
@@ -78,7 +71,7 @@ lazy val macroSub = (project in file("macro"))
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
-      "com.cognite" %% "cognite-sdk-scala" % "0.1.4")
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion)
   )
 
 lazy val library = (project in file("."))
@@ -90,9 +83,7 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     libraryDependencies ++= Seq(
 
-      "com.cognite" %% "cognite-sdk-scala" % "0.1.4",
-
-      "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
 
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
 
