@@ -2,7 +2,7 @@
 
 The Cognite Spark Data Source lets you use [Spark](https://spark.apache.org/) to read and write data from and to [Cognite Data Fusion](https://docs.cognite.com/dev/) (CDF).
 
-Reads and writes are done in parallel using asynchronous calls. Reads start only after all cursors have been retrieved, which can take a while if there are many items.
+Reads and writes are done in parallel using asynchronous calls.
 
 The instructions below explain how to read to write to the different resource types in CDF.
 
@@ -45,7 +45,7 @@ The common options are:
 | `maxRetries`  | The maximum number of retries to be made when a request fails. Default: 10                                                                                                                                                                                                                                        |                                            |
 | `limit`       | The number of items to fetch for this resource type to create the DataFrame. Note that this is different from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for items to fetch from CDF, *before* filtering and other transformations are applied to limit the number of results. |                                            |
 | `batchSize`   | The maximum number of items to read/write per API call.                                                                                                                                                                                                                                                           |                                            |
-| `baseUrl`     | The prefix for all CDF API calls. Default: https://api.cognitedata.com                                                                                                                                                                                                                                            |                                            |
+
 ### Read data
 
 To read from CDF resource types, you need to specify: an **API-key** or a **bearertoken** and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
@@ -59,9 +59,9 @@ The following fields have filter pushdown:
 
 |Resource type  |Fields  |
 |---------|---------|
-|Assets     | - name</br>- source</br>- depth        |
-|Events     | - id</br>- source</br>- assetIds</br>- type</br>- subtype (You must supply a filter on type when filtering on subtype)</br>- minStartTime</br>- maxStartTime        |
-|Files     | - name</br>- source</br>- assetId</br>- dir</br>- fileType        |
+|Assets     | - name</br>- source</br>        |
+|Events     | - source</br>- assetIds</br>- type</br>- subtype (You must supply a filter on type when filtering on subtype)</br>- minStartTime</br>- maxStartTime        |
+|Time Series     | - assetId</br>        |
 
 ### Write data
 
@@ -123,51 +123,17 @@ df.createTempView("assets")
 
 // Create a new asset and write to CDF
 // Note that parentId, asset type IDs, and asset type field IDs have to exist.
-val assetColumns = Seq("id", "path", "depth", "name", "parentId", "description",
-                   "types", "metadata", "source", "sourceId", "createdTime", "lastupdatedTime")
+val assetColumns = Seq("externalId", "name", "parentId", "description", "metadata", "source",
+"id", "createdTime", "lastupdatedTime")
 val someAsset = Seq(
-(99L, Seq(0L), 99L, "99-BB-99999", 2231996316030451L, "This is another asset",
-Seq(), Map("sourceSystem"->"MySparkJob"), "some source", "some source id", 99L, 99L))
+("Some external ID", "asset name", "This is another asset", Map("sourceSystem"->"MySparkJob"), "some source", 
+99L, 0L, 0L))
 val someAssetDf = someAsset.toDF(assetColumns:_*)
 
 // Write the new asset to CDF, ensuring correct schema by borrowing the schema of the df from CDF
 spark
   .sqlContext
   .createDataFrame(someAssetDf.rdd, df.schema)
-  .write
-  .insertInto("assets")
-```
-
-### Asset types
-```scala
-// Assets have support for typed metadata for groups of assets such as wells or valves.
-// To manually create an asset of an existing type, we write to the types field using Scala sequences
-val assetColumns = Seq("id", "path", "depth", "name", "parentId", "description",
-                   "types", "metadata", "source", "sourceId", "createdTime", "lastupdatedTime")
-val someAssetWithAssetType = Seq(
-  (
-  99L, Seq(0L), 99L, "99-BB-99999", 2231996316030451L, "This is an asset with an asset type",
-  Seq((100L, // asset type ID
-    "some asset type", // asset type name
-    Seq((200L, // asset type field ID
-      "some asset type field of type String", // field name
-      "String", // field valueType
-      "Some value" // field value
-    ))
-  )),
-  Map("sourceSystem"->"MySparkJob"),
-  "some source", "some source id",
-  99L,
-  99L
-  )
-)
-
-val someAssetWithAssetTypeDf = someAsset.toDF(assetColumns:_*)
-
-// Write to CDF
-spark
-  .sqlContext
-  .createDataFrame(someAssetWithAssetTypeDf.rdd, df.schema)
   .write
   .insertInto("assets")
 ```
@@ -207,11 +173,7 @@ timeSeriesDf
 
 ### Data points
 
-Data points are always related to a time series. To read data points you need to filter by a valid time series name, otherwise an empty DataFrame is returned. **Important**: Be careful when using caching with this resource type. If you cache the result of a filter and then apply another filter, you do not trigger more data to be read from CDF and end up with an empty DataFrame.
-
-One additional option is supported:
-
-- `partitions`: Specifies the number of partitions to split the data source into. Default: 20.
+Data points are always related to a time series. To read data points you need to filter by a valid time series id, otherwise an empty DataFrame is returned. **Important**: Be careful when using caching with this resource type. If you cache the result of a filter and then apply another filter, you do not trigger more data to be read from CDF and end up with an empty DataFrame.
 
 #### Numerical data points
 
@@ -231,12 +193,12 @@ val df = spark.read.format("cognite.spark")
 // Create the view to enable SQL syntax
 df.createTempView("datapoints")
 
-// Read the raw datapoints from the VAL_23-ESDV-92501A-PST:VALUE time series.
-val timeseriesName = "VAL_23-ESDV-92501A-PST:VALUE"
-val timeseries = spark.sql(s"select * from datapoints where name = '$timeseriesName'")
+// Read the raw datapoints from the VAL_23-FT-92537-04:X.Value time series.
+val timeseriesId = 3385857257491234L
+val timeseries = spark.sql(s"select * from datapoints where id = $timeseriesId")
 
 // Read aggregate data from the same time series
-val timeseriesAggregated = spark.sql(s"select * from datapoints where name = '$timeseriesName'" +
+val timeseriesAggregated = spark.sql(s"select * from datapoints where id = $timeseriesId" +
 s"and aggregation = 'min' and granularity = '1d'")
 ```
 
@@ -254,9 +216,9 @@ val df = spark.read.format("cognite.spark")
 // Create the view to enable SQL syntax
 df.createTempView("stringdatapoints")
 
-// Read the raw datapoints from the VAL_23-LIC-92521:MODE time series.
-val timeseriesName = "VAL_23-LIC-92521:MODE"
-val timeseries = spark.sql(s"select * from stringdatapoints where name = '$timeseriesName'")
+// Read the raw datapoints from the VAL_23-PIC-96153:MODE time series.
+val timeseriesId = 6536948395539605L
+val timeseries = spark.sql(s"select * from stringdatapoints where id = $timeseriesId")
 ```
 
 ### Events
@@ -288,8 +250,7 @@ myProjectDf.createTempView("events")
 // Update the description of all events from Open Industrial Data
 spark.sql("""
  |select 'Manually copied data from publicdata' as description,
- |source,
- |sourceId
+ |id,
  |from events
  |where source = 'publicdata'
 """.stripMargin)
@@ -317,8 +278,8 @@ df.groupBy("fileType").count().show()
 
 Learn more about 3D models and revisions [here](https://doc.cognitedata.com/dev/concepts/resource_types/3dmodels.html)
 
-Note that the Open Industrial Data project does not have any 3D models. To test this example, you need a project with existing 3D models. There are five options for listing metadata about 3D models:
-`3dmodels`, `3dmodelrevisions`, `3dmodelrevisionmappings`, `3dmodelrevisionnodes` and `3dmodelrevisionsectors`.
+Note that the Open Industrial Data project does not have any 3D models. To test this example, you need a project with existing 3D models. There are four options for listing metadata about 3D models:
+`3dmodels`, `3dmodelrevisions`, `3dmodelrevisionmappings` and `3dmodelrevisionnodes`.
 
 ```scala
 // Read 3D models metadata from a project with 3D models and revisions
