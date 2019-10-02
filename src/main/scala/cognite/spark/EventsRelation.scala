@@ -60,9 +60,6 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       assetIds = m.get("assetIds").map(assetIdsFromWrappedArray)
     )
 
-  def assetIdsFromWrappedArray(wrappedArray: String): Seq[Long] =
-    wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
-
   def timeRangeFromMinAndMax(minTime: Option[String], maxTime: Option[String]): Option[TimeRange] =
     (minTime, maxTime) match {
       case (None, None) => None

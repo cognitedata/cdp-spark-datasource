@@ -103,6 +103,9 @@ object PushdownUtilities {
           .exists(identity)
       case NoPushdown() => false
     }
+
+  def assetIdsFromWrappedArray(wrappedArray: String): Seq[Long] =
+    wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
 }
 
 abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortName: String)
