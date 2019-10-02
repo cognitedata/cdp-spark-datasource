@@ -26,6 +26,37 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
 
   val testDataUnit = "time-series-test-data"
 
+  it should "handle pushdown filters on assetId with multiple assetIds" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.assetIds"
+    val df = spark.read
+      .format("cognite.spark")
+      .option("apiKey", readApiKey.apiKey)
+      .option("type", "timeseries")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"assetId In(6191827428964450, 3424990723231138, 3047932288982463)")
+    assert(df.count == 87)
+    val timeSeriesRead = getNumberOfRowsRead(metricsPrefix, "timeseries")
+    assert(timeSeriesRead == 87)
+  }
+
+  it should "handle pushdown filters on assetId on nonexisting assetId" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.assetIds.nonexisting"
+    val df = spark.read
+      .format("cognite.spark")
+      .option("apiKey", readApiKey.apiKey)
+      .option("type", "timeseries")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"assetId = 99")
+    assert(df.count == 0)
+
+    // Metrics counter does not create a Map key until reading the first row
+    assertThrows[NoSuchElementException](getNumberOfRowsRead(metricsPrefix, "timeseries"))
+  }
+
   it should "successfully both update and insert time series" taggedAs WriteTest in {
     val initialDescription = "post testing"
     val updatedDescription = "upsert testing"

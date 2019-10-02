@@ -3,12 +3,19 @@ package cognite.spark
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.CdpApiException
-import com.cognite.sdk.scala.v1.{GenericClient, TimeSeries, TimeSeriesCreate, TimeSeriesUpdate}
+import com.cognite.sdk.scala.v1.{
+  GenericClient,
+  TimeSeries,
+  TimeSeriesCreate,
+  TimeSeriesFilter,
+  TimeSeriesUpdate
+}
 import cognite.spark.SparkSchemaHelper._
 import com.softwaremill.sttp._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
+import PushdownUtilities._
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries](config, "timeseries")
@@ -86,8 +93,19 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],
       limit: Option[Int],
-      numPartitions: StatusCode): Seq[fs2.Stream[IO, TimeSeries]] =
-    Seq(client.timeSeries.list(limit))
+      numPartitions: StatusCode): Seq[fs2.Stream[IO, TimeSeries]] = {
+
+    val fieldNames = Array("assetId")
+    val pushdownFilterExpression = toPushdownFilterExpression(filters)
+    val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
+    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
+    val assetIds = filtersAsMaps.flatMap(m => m.get("assetId").map(_.toLong))
+    if (assetIds.isEmpty || shouldGetAllRows) {
+      Seq(client.timeSeries.list(limit))
+    } else {
+      Seq(client.timeSeries.filter(TimeSeriesFilter(assetIds = Some(assetIds)), limit))
+    }
+  }
 }
 object TimeSeriesRelation
     extends DeleteSchema

@@ -359,7 +359,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       df => df.length < 1)
     assert(initialDescriptionsAfterPost.length == 1)
 
-    val id = spark.sql(s"select * from destinationTimeSeries where name = '$tsName'").select("id").collect.head.get(0)
+    val id = initialDescriptionsAfterPost.head.getLong(8)
 
     // Insert some datapoints to the new time series
     spark
