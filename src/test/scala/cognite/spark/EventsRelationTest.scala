@@ -362,7 +362,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     // Check if post worked
     val descriptionsAfterPost =
-      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.length < 100)
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.length != 100)
     assert(descriptionsAfterPost.length == 100)
     assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "bar"))
 
