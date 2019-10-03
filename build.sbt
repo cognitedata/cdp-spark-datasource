@@ -13,7 +13,7 @@ resolvers += "libs-release" at artifactory + "libs-release/"
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
 lazy val commonSettings = Seq(
-  organization := "cognite.spark",
+  organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
   version := "1.0.0-rc1",
