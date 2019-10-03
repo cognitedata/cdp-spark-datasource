@@ -19,7 +19,8 @@ class URLTest extends FunSuite with SparkTest with CdpConnector {
         "",
         "https://api.cognitedata.com",
         OnConflict.ABORT,
-        spark.sparkContext.applicationId
+        spark.sparkContext.applicationId,
+        Constants.DefaultParallelismPerPartition
       ), "dummy", "dummy", None, false, None, false)(spark.sqlContext)
     assert(
       "https://api.cognitedata.com/api/0.5/projects/stat%C3%B8il/raw/databaseName/tableName"

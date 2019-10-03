@@ -7,6 +7,7 @@ import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import cats.implicits._
+import fs2.Stream
 
 class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[File](config, "files")
@@ -23,10 +24,12 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],
       limit: Option[Int],
-      numPartitions: Int): Seq[fs2.Stream[IO, File]] =
+      numPartitions: Int): Seq[Stream[IO, File]] =
     Seq(client.files.list(limit))
 
   override def schema: StructType = structType[File]
 
   override def toRow(t: File): Row = asRow(t)
+
+  override def uniqueId(a: File): Long = a.id
 }

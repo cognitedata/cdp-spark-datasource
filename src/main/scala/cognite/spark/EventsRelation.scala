@@ -44,10 +44,16 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       filtersAsMaps.distinct.map(eventsFilterFromMap)
     }
 
-    eventsFilterSeq
-      .flatMap { f =>
+    val streamsPerFilter = eventsFilterSeq
+      .map { f =>
         client.events.filterPartitions(f, numPartitions, limit)
       }
+
+    // Merge streams related to each partition to make sure duplicate values are read into
+    // the same RDD partition
+    streamsPerFilter.transpose
+      .map(s => s.reduce(_.merge(_)))
+
   }
 
   def eventsFilterFromMap(m: Map[String, String]): EventsFilter =
@@ -137,5 +143,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def schema: StructType = structType[Event]
 
   override def toRow(a: Event): Row = asRow(a)
+
+  override def uniqueId(a: Event): Long = a.id
 
 }

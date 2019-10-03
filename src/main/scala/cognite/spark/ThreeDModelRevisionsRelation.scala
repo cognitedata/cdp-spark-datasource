@@ -2,11 +2,11 @@ package cognite.spark
 
 import cats.effect.IO
 import cognite.spark.SparkSchemaHelper._
-import com.softwaremill.sttp._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import com.cognite.sdk.scala.v1.{GenericClient, ThreeDRevision}
 import org.apache.spark.sql.sources.Filter
+import fs2.Stream
 
 case class ModelRevisionItem(
     id: Long,
@@ -28,9 +28,11 @@ class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(val sq
 
   override def toRow(t: ThreeDRevision): Row = asRow(t)
 
+  override def uniqueId(a: ThreeDRevision): Long = a.id
+
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],
       limit: Option[Int],
-      numPartitions: StatusCode): Seq[fs2.Stream[IO, ThreeDRevision]] =
+      numPartitions: Int): Seq[Stream[IO, ThreeDRevision]] =
     Seq(client.threeDRevisions(modelId).list(limit))
 }

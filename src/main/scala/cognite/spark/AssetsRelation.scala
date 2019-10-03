@@ -34,9 +34,15 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       params.map(assetsFilterFromMap)
     }
 
-    pushdownFilters.flatMap { f =>
-      client.assets.filterPartitions(f, numPartitions, limit)
-    }
+    val streamsPerFilter = pushdownFilters
+      .map { f =>
+        client.assets.filterPartitions(f, numPartitions, limit)
+      }
+
+    // Merge streams related to each partition to make sure duplicate values are read into
+    // the same RDD partition
+    streamsPerFilter.transpose
+      .map(s => s.reduce(_.merge(_)))
   }
 
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
@@ -106,4 +112,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def schema: StructType = structType[Asset]
 
   override def toRow(a: Asset): Row = asRow(a)
+
+  override def uniqueId(a: Asset): Long = a.id
 }

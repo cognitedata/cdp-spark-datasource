@@ -16,6 +16,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
+import fs2.Stream
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries](config, "timeseries")
@@ -90,10 +91,12 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def toRow(t: TimeSeries): Row = asRow(t)
 
+  override def uniqueId(a: TimeSeries): Long = a.id
+
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],
       limit: Option[Int],
-      numPartitions: StatusCode): Seq[fs2.Stream[IO, TimeSeries]] = {
+      numPartitions: Int): Seq[Stream[IO, TimeSeries]] = {
 
     val fieldNames = Array("assetId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)

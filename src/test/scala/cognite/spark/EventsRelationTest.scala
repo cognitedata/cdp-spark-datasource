@@ -64,6 +64,22 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 8)
   }
 
+  it should "handle duplicates in a pushdown filter scenario" taggedAs WriteTest in {
+    val metricsPrefix = "single.pushdown.filter.duplicates"
+    val df = spark.read
+      .format("cognite.spark")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("partitions", "10")
+      .load()
+      .where(s"type = 'alert' or source = 'test data'")
+    assert(df.count == 20)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 20)
+  }
+
   it should "apply multiple pushdown filters" taggedAs WriteTest in {
     val metricsPrefix = "multiple.pushdown.filters"
     val df = spark.read
