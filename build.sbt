@@ -6,7 +6,7 @@ val circeVersion = "0.11.1"
 val sttpVersion = "1.6.3"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "0.2.0"
+val cogniteSdkVersion = "0.2.1"
 
 resolvers += "libs-release" at artifactory + "libs-release/"
 

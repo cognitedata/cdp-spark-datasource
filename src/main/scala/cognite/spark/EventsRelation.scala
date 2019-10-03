@@ -121,7 +121,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   def resolveConflict(existingExternalIds: Seq[String], events: Seq[Event]): IO[Unit] = {
     val (eventsToUpdate, eventsToCreate) = events.partition(
-      p => existingExternalIds.contains(p.externalId.get)
+      p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
     )
 
     val idMap = client.events

@@ -340,8 +340,8 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
               |null as assetId,
               |isStep,
               |cast(array() as array<long>) as securityCategories,
-              |id,
-              |id as externalId,
+              |id+1 as id,
+              |'datapoints-testing' as externalId,
               |createdTime,
               |lastUpdatedTime
               |from sourceTimeSeries

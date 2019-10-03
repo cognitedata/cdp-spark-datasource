@@ -90,7 +90,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   def resolveConflict(existingExternalIds: Seq[String], assets: Seq[Asset]): IO[Unit] = {
     val (assetsToUpdate, assetsToCreate) = assets.partition(
-      p => existingExternalIds.contains(p.externalId.get)
+      p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
     )
 
     val idMap = client.assets
