@@ -20,7 +20,9 @@ case class RelationConfig(
     metricsPrefix: String,
     baseUrl: String,
     onConflict: OnConflict.Value,
-    applicationId: String)
+    applicationId: String,
+    parallelismPerPartition: Int
+)
 
 object OnConflict extends Enumeration {
   type Mode = Value
@@ -67,7 +69,6 @@ class DefaultSource
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
-
     val bearerToken = parameters
       .get("bearerToken")
       .map(bearerToken => BearerTokenAuth(bearerToken))
@@ -78,9 +79,8 @@ class DefaultSource
       .orElse(bearerToken)
       .getOrElse(sys.error("Either apiKey or bearerToken is required."))
     val project = getProject(auth, maxRetries, baseUrl)
-
     val batchSize = toPositiveInt(parameters, "batchSize")
-    val limit = toPositiveInt(parameters, "limit")
+    val limitPerPartition = toPositiveInt(parameters, "limit")
     val partitions = toPositiveInt(parameters, "partitions")
       .getOrElse(Constants.DefaultPartitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
@@ -95,18 +95,24 @@ class DefaultSource
         .getOrElse(throw new IllegalArgumentException(
           s"$onConflictName is not a valid onConflict option. Please choose one of the following options instead: ${OnConflict.values
             .mkString(", ")}"))
+    val parallelismPerPartition = {
+      toPositiveInt(parameters, "parallelismPerPartition").getOrElse(
+        Constants.DefaultParallelismPerPartition)
+    }
     RelationConfig(
       auth,
       project,
       batchSize,
-      limit,
+      limitPerPartition,
       partitions,
       maxRetries,
       collectMetrics,
       metricsPrefix,
       baseUrl,
       saveMode,
-      sqlContext.sparkContext.applicationId)
+      sqlContext.sparkContext.applicationId,
+      parallelismPerPartition
+    )
   }
 
   // scalastyle:off cyclomatic.complexity method.length

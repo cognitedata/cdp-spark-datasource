@@ -67,7 +67,8 @@ trait SparkTest extends CdpConnector {
       "",
       Constants.DefaultBaseUrl,
       OnConflict.ABORT,
-      spark.sparkContext.applicationId
+      spark.sparkContext.applicationId,
+      Constants.DefaultParallelismPerPartition
     )
   }
 

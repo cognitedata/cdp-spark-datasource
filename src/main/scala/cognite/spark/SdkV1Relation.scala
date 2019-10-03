@@ -33,6 +33,8 @@ abstract class SdkV1Relation[A <: Product](config: RelationConfig, shortName: St
 
   def toRow(a: A): Row
 
+  def uniqueId(a: A): Long
+
   def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] =
     sys.error(s"Resource type $shortName does not support writing.")
 
@@ -53,7 +55,7 @@ abstract class SdkV1Relation[A <: Product](config: RelationConfig, shortName: St
         }
         toRow(a, requiredColumns)
       },
-      config.partitions,
+      uniqueId,
       getStreams(filters)
     )
 

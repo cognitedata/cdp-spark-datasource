@@ -93,7 +93,24 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(assetsRead == 1)
   }
 
+  it should "handle duplicates in a pushdown filter scenario" taggedAs ReadTest in {
+    val metricsPrefix = "pushdown.filters.assets.duplicates"
+    val df = spark.read
+      .format("cognite.spark")
+      .option("apiKey", writeApiKey.apiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("limit", "1000")
+      .option("partitions", "5")
+      .load()
+      .where("source = 'some source' or name = '99-BB-99999'")
 
+    assert(df.count() == 1)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
+    assert(assetsRead == 1)
+  }
 
   it should "be possible to create assets" taggedAs WriteTest in {
     val assetsTestSource = "assets-relation-test-create"
