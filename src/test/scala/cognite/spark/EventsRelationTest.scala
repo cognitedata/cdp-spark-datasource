@@ -406,13 +406,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     // Check if upsert worked
     val descriptionsAfterUpdate =
-      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.length < 500)
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.length != 500)
     assert(descriptionsAfterUpdate.length == 500)
     assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "foo"))
 
     val dfWithCorrectAssetIds = retryWhile[Array[Row]](
       spark.sql(s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'").collect,
-      rows => rows.length < 500)
+      rows => rows.length != 500)
     assert(dfWithCorrectAssetIds.length == 500)
   }
 

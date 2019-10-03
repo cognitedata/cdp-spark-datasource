@@ -219,7 +219,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     cleanupAssets(source)
     retryWhile[Array[Row]](
       spark.sql(s"select * from sourceAssets where source = '$source'").collect,
-      rows => rows.length > 0)
+      rows => rows.length > 0
+    )
 
     // Post new assets
     spark
@@ -243,7 +244,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     // Check if post worked
     val assetsFromTestDf = retryWhile[Array[Row]](
       spark.sql(s"select * from destinationAssets where source = '$source' and description = 'foo'").collect,
-      df => df.length < 100)
+      df => df.length != 100)
     assert(assetsFromTestDf.length == 100)
 
     // Upsert assets
@@ -284,7 +285,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .sql(
           s"select description from destinationAssets where source = '$source' and description = 'bar'")
         .collect,
-      df => df.length < 200)
+      df => df.length != 200)
     assert(descriptionsAfterUpsert.length == 200)
   }
 

@@ -57,9 +57,46 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     assertThrows[NoSuchElementException](getNumberOfRowsRead(metricsPrefix, "timeseries"))
   }
 
+  it should "insert a time series with no name" taggedAs WriteTest in {
+    cleanUpTimeSeriesTestDataByUnit(testDataUnit)
+    val description = "no name"
+    // Insert new time series test data
+    spark
+      .sql(s"""
+              |select '$description' as description,
+              |null as name,
+              |isString,
+              |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
+              |'$testDataUnit' as unit,
+              |null as assetId,
+              |isStep,
+              |cast(array() as array<long>) as securityCategories,
+              |id,
+              |'no-name-time-series' as externalId,
+              |createdTime,
+              |lastUpdatedTime
+              |from sourceTimeSeries
+              |limit 1
+     """.stripMargin)
+      .select(sourceDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationTimeSeries")
+
+    // Check if post worked
+    val dfAfterPost = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select * from destinationTimeSeries where description = '$description'""")
+        .collect,
+      df => df.length != 1)
+    assert(dfAfterPost.length == 1)
+    assert(dfAfterPost.head.get(0) == null)
+  }
+
   it should "successfully both update and insert time series" taggedAs WriteTest in {
     val initialDescription = "post testing"
     val updatedDescription = "upsert testing"
+
+    cleanUpTimeSeriesTestDataByUnit(testDataUnit)
 
     // Insert new time series test data
     spark

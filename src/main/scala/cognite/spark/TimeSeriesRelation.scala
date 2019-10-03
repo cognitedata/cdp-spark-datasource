@@ -63,7 +63,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   def resolveConflict(existingExternalIds: Seq[String], timeSeriesSeq: Seq[TimeSeries]): IO[Unit] = {
     import CdpConnector.cs
     val (timeSeriesToUpdate, timeSeriesToCreate) = timeSeriesSeq.partition(
-      p => existingExternalIds.contains(p.externalId.get)
+      p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
     )
 
     val idMap = client.timeSeries
