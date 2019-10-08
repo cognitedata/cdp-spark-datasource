@@ -10,7 +10,7 @@ import cats.implicits._
 import fs2.Stream
 
 class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[File](config, "files")
+    extends SdkV1Relation[File, Long](config, "files")
     with InsertableRelation {
 
   override def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] = {

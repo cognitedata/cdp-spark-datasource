@@ -14,7 +14,7 @@ import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 
-abstract class SdkV1Relation[A <: Product](config: RelationConfig, shortName: String)
+abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends BaseRelation
     with CdpConnector
     with Serializable
@@ -33,7 +33,7 @@ abstract class SdkV1Relation[A <: Product](config: RelationConfig, shortName: St
 
   def toRow(a: A): Row
 
-  def uniqueId(a: A): Long
+  def uniqueId(a: A): I
 
   def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] =
     sys.error(s"Resource type $shortName does not support writing.")
@@ -46,7 +46,7 @@ abstract class SdkV1Relation[A <: Product](config: RelationConfig, shortName: St
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    SdkV1Rdd[A](
+    SdkV1Rdd[A, I](
       sqlContext.sparkContext,
       config,
       (a: A) => {

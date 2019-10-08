@@ -6,7 +6,6 @@ import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField
 import org.scalatest.{FlatSpec, Matchers}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
-import java.sql.Timestamp
 
 class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   val readApiKey = System.getenv("TEST_API_KEY_READ")
@@ -328,6 +327,21 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "datapoints")
       .load()
     destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
+
+    // Clean up old time series data
+    spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""")
+      .write
+      .format("cognite.spark")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "delete")
+      .save()
+
+    // Check that it's gone
+    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
+      spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""").collect
+    }, df => df.length > 0)
+    assert(testTimeSeriesAfterCleanup.length == 0)
 
     // Insert new time series test data
     spark

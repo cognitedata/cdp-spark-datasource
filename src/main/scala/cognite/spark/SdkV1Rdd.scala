@@ -16,11 +16,11 @@ import scala.concurrent.{ExecutionContext, Future}
 
 case class CdfPartition(index: Int) extends Partition
 
-case class SdkV1Rdd[A](
+case class SdkV1Rdd[A, I](
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
     toRow: A => Row,
-    uniqueId: A => Long,
+    uniqueId: A => I,
     getStreams: (GenericClient[IO, Nothing], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
   import CdpConnector.sttpBackend
@@ -42,11 +42,11 @@ case class SdkV1Rdd[A](
     val drainPool =
       ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
 
-    // Do not increase number of threads, as this will make processedItems non-blocking
+    // Do not increase number of threads, as this will make processedIds non-blocking
     implicit val singleThreadedCs: ContextShift[IO] =
       IO.contextShift(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1)))
 
-    val processedItems = mutable.Set[Long]()
+    val processedIds = mutable.Set[I]()
 
     val streams =
       getStreams(client, config.limit, config.partitions)
@@ -64,7 +64,7 @@ case class SdkV1Rdd[A](
       new EitherQueue(config.parallelismPerPartition * 2)
 
     val putOnQueueStream =
-      enqueueStreamResults(currentStreamsAsSingleStream, queue, processedItems, singleThreadedCs)
+      enqueueStreamResults(currentStreamsAsSingleStream, queue, processedIds, singleThreadedCs)
 
     // Continuously read the stream data into the queue on a separate thread
     val streamsToQueue = Future {
@@ -79,7 +79,7 @@ case class SdkV1Rdd[A](
   def enqueueStreamResults(
       stream: Stream[IO, A],
       queue: EitherQueue,
-      processedItems: mutable.Set[Long],
+      processedIds: mutable.Set[I],
       singleThreadedCs: ContextShift[IO]): Stream[IO, Unit] =
     for {
       // Ensure that only one chunk is processed at a time
@@ -87,9 +87,9 @@ case class SdkV1Rdd[A](
       put <- {
         // Filter out and keep track of already seen items
         // since overlapping pushdown filters may read duplicates.
-        val freshItems = s.toVector.filterNot(i => processedItems.contains(uniqueId(i)))
-        processedItems ++= freshItems.map(i => uniqueId(i))
-        Stream.eval(IO(queue.put(Right(freshItems))))
+        val freshIds = s.toVector.filterNot(i => processedIds.contains(uniqueId(i)))
+        processedIds ++= freshIds.map(i => uniqueId(i))
+        Stream.eval(IO(queue.put(Right(freshIds))))
       }.handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
     } yield put
 

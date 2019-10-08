@@ -10,7 +10,7 @@ import fs2.Stream
 
 class ThreeDModelRevisionNodesRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
     val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDNode](config, "3dmodelrevisionnodes") {
+    extends SdkV1Relation[ThreeDNode, Long](config, "3dmodelrevisionnodes") {
   override def schema: StructType = structType[ThreeDNode]
 
   override def toRow(t: ThreeDNode): Row = asRow(t)

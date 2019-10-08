@@ -10,6 +10,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
+import PushdownUtilities.filtersToTimestampLimits
 
 case class StringDataPointsItem(
     id: Option[Long],
@@ -73,7 +74,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
     val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
 
-    val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters)
+    val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters, "timestamp")
 
     val itemsIOFromId = ids.map { id =>
       (

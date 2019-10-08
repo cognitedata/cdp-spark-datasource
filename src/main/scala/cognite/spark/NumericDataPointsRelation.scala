@@ -41,6 +41,9 @@ case class InsertDataPointsItem(
 
 class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)
     extends DataPointsRelationV1[DataPointsItem](config)(sqlContext) {
+
+  import PushdownUtilities.filtersToTimestampLimits
+
   override def schema: StructType =
     StructType(
       Seq(
@@ -93,7 +96,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
     val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
 
-    val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters)
+    val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters, "timestamp")
     val (aggregations, granularities) = getAggregationSettings(filters)
 
     if (aggregations.isEmpty) {

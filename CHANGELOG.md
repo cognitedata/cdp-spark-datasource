@@ -20,7 +20,7 @@ Fixed a bug with time series upsert where `insertInto` would only work under spe
 ## Enhancements
 * Filters are now pushed to CDF when possible for assets, events, files and raw tables.
 
-* Raw Tables now expose a `lastChanged` column, and filters for it are pushed to CDF.
+* Raw Tables now expose a `lastUpdatedTime` column, and filters for it are pushed to CDF.
 
 * Better error messages for invalid `onConflict` options.
 
