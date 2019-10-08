@@ -23,7 +23,7 @@ case class ModelRevisionItem(
     createdTime: Long)
 
 class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDRevision](config, "3dmodelrevision") {
+    extends SdkV1Relation[ThreeDRevision, Long](config, "3dmodelrevision") {
   override def schema: StructType = structType[ThreeDRevision]
 
   override def toRow(t: ThreeDRevision): Row = asRow(t)

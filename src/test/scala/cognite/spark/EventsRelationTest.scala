@@ -38,8 +38,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", readApiKey.apiKey)
       .option("type", "events")
       .option("batchSize", "500")
-      .option("limit", "1000")
-      .option("partitions", "1")
+      .option("limit", "100")
+      .option("partitions", "10")
       .load()
 
     df.createTempView("events")

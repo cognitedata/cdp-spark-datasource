@@ -1,25 +1,13 @@
 package cognite.spark
 
-import cats.effect.IO
-import com.codahale.metrics.Counter
-import cognite.spark.SparkSchemaHelper._
-import com.softwaremill.sttp._
-import io.circe.Decoder
-import org.apache.spark.sql.sources._
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
-import org.apache.spark.datasource.MetricsSource
+import java.time.Instant
 
-case class Setter[A](set: A, setNull: Boolean)
-object Setter {
-  def apply[A](set: Option[A]): Option[Setter[A]] =
-    set match {
-      case None => None
-      case _ => Some(new Setter(set.get, false))
-    }
-}
-case class NonNullableSetter[A](set: A)
+import com.cognite.sdk.scala.v1.TimeRange
+import com.softwaremill.sttp._
+import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+
+import scala.util.Try
 
 case class DeleteItem(id: Long)
 
@@ -106,99 +94,59 @@ object PushdownUtilities {
 
   def assetIdsFromWrappedArray(wrappedArray: String): Seq[Long] =
     wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
-}
 
-abstract class CdpRelation[T <: Product: Decoder](config: RelationConfig, shortName: String)
-    extends BaseRelation
-    with TableScan
-    with Serializable
-    with PrunedFilteredScan
-    with CdpConnector {
-  import PushdownUtilities._
-  @transient lazy protected val itemsRead: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
+  def filtersToTimestampLimits(filters: Array[Filter], colName: String): (Instant, Instant) = {
+    val timestampLimits = filters.flatMap(getTimestampLimit(_, colName))
 
-  val fieldsWithPushdownFilter: Seq[String] = Seq[String]()
-
-  val sqlContext: SQLContext
-  override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
-
-  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    val urlsFilters = urlsWithFilters(filters, listUrl())
-    val urls = if (urlsFilters.isEmpty) {
-      Seq(listUrl())
-    } else {
-      urlsFilters
+    if (timestampLimits.exists(_.value.isBefore(Instant.ofEpochMilli(0)))) {
+      sys.error("timestamp limits must exceed 1970-01-01T00:00:00Z")
     }
 
-    CdpRdd[T](
-      sqlContext.sparkContext,
-      (e: T) => {
-        if (config.collectMetrics) {
-          itemsRead.inc()
-        }
-        toRow(e, requiredColumns)
-      },
-      listUrl(),
-      config,
-      urls,
-      cursors()
+    Tuple2(
+      // Note that this way of aggregating filters will not work with "Or" predicates.
+      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption
+        .map(_.value)
+        .getOrElse(Instant.ofEpochMilli(0)),
+      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption
+        .map(_.value)
+        .getOrElse(Instant.ofEpochMilli(Long.MaxValue))
     )
   }
 
-  def urlsWithFilters(filters: Array[Filter], uri: Uri): Seq[Uri] = {
-    val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val getAll = shouldGetAll(pushdownFilterExpression, fieldsWithPushdownFilter)
-    val params = pushdownToParameters(pushdownFilterExpression)
-    val urlsWithFilter = pushdownToUri(params, uri).distinct
-
-    if (urlsWithFilter.isEmpty || getAll) {
-      Seq(uri)
-    } else {
-      urlsWithFilter
-    }
-  }
-
-  def toRow(t: T): Row
-
-  def toRow(item: T, requiredColumns: Array[String]): Row =
-    if (requiredColumns.isEmpty) {
-      toRow(item)
-    } else {
-      val values = item.productIterator
-      val itemMap = item.getClass.getDeclaredFields.map(_.getName -> values.next).toMap
-      Row.fromSeq(requiredColumns.map(itemMap(_)).toSeq)
+  def timeRangeFromMinAndMax(minTime: Option[String], maxTime: Option[String]): Option[TimeRange] =
+    (minTime, maxTime) match {
+      case (None, None) => None
+      case _ => {
+        val minimumTimeAsInstant =
+          minTime
+            .map(java.sql.Timestamp.valueOf(_).toInstant.plusMillis(1))
+            .getOrElse(java.time.Instant.ofEpochMilli(0)) //API does not accept values < 0
+        val maximumTimeAsInstant =
+          maxTime
+            .map(java.sql.Timestamp.valueOf(_).toInstant.minusMillis(1))
+            .getOrElse(java.time.Instant.ofEpochMilli(Long.MaxValue))
+        Some(TimeRange(minimumTimeAsInstant, maximumTimeAsInstant))
+      }
     }
 
-  def listUrl(): Uri
+  def getTimestampLimit(filter: Filter, colName: String): Seq[Limit] =
+    filter match {
+      case LessThan(colName, value) => Seq(timeStampStringToMax(value, -1))
+      case LessThanOrEqual(colName, value) => Seq(timeStampStringToMax(value, 0))
+      case GreaterThan(colName, value) => Seq(timeStampStringToMin(value, 1))
+      case GreaterThanOrEqual(colName, value) => Seq(timeStampStringToMin(value, 0))
+      case And(f1, f2) => getTimestampLimit(f1, colName) ++ getTimestampLimit(f2, colName)
+      // case Or(f1, f2) => we might possibly want to do something clever with joining an "or" clause
+      //                    with timestamp limits on each side (including replacing "max of Min's" with the less strict
+      //                    "min of Min's" when aggregating filters on the same side); just ignore them for now
+      case _ => Seq.empty
+    }
 
-  def cursors(): Iterator[(Option[String], Option[Int])] =
-    NextCursorIterator(listUrl(), config, true)
+  def timeStampStringToMin(value: Any, adjustment: Long): Min =
+    Min(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
 
-  def deleteItems(config: RelationConfig, baseUrl: Uri, rows: Seq[Row]): IO[Unit] = {
-    val deleteItems: Seq[Long] = rows.map(r => fromRow[DeleteItem](r).id)
-    post(
-      config,
-      uri"$baseUrl/delete",
-      deleteItems
-    )
-  }
-
-  def insert(rows: Seq[Row]): IO[Unit] =
-    throw new IllegalArgumentException(
-      s"""$shortName does not support the "onconflict" option "abort".""")
-
-  def upsert(rows: Seq[Row]): IO[Unit] =
-    throw new IllegalArgumentException(
-      s"""$shortName does not support the "onconflict" option "upsert".""")
-
-  def update(rows: Seq[Row]): IO[Unit] =
-    throw new IllegalArgumentException(
-      s"""$shortName does not support the "onconflict" option "update".""")
-
-  def delete(rows: Seq[Row]): IO[Unit] =
-    throw new IllegalArgumentException(
-      s"""$shortName does not support the "onconflict" option "delete".""")
+  def timeStampStringToMax(value: Any, adjustment: Long): Max =
+    Max(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
 }
 
 trait InsertSchema {

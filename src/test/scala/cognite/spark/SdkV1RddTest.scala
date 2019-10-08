@@ -7,6 +7,7 @@ import fs2.Stream
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
+import com.softwaremill.sttp._
 
 class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
   val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
@@ -22,7 +23,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
       Seq(
         Stream.eval(
           throw com.cognite.sdk.scala.common.CdpApiException(
-            baseUrl("no project", "v1", "https://api.cognitedata.com"),
+            uri"https://api.cognitedata.com/v1/",
             400,
             errorMessage,
             None,
@@ -30,7 +31,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
             None)))
 
     def toRow(s: String): Row = Row.empty
-    def uniqueId(s: String): Long = 1L
+    def uniqueId(s: String): String = "1"
 
     val sdkRdd = SdkV1Rdd(spark.sparkContext, getDefaultConfig(readApiKey), toRow, uniqueId, getStreams)
 

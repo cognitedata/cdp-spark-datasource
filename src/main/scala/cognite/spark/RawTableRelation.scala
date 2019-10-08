@@ -1,13 +1,16 @@
 package cognite.spark
 
+import java.time.Instant
+
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
+import cognite.spark.PushdownUtilities.getTimestampLimit
+import com.cognite.sdk.scala.v1.{GenericClient, RawRow, RawRowFilter}
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import com.softwaremill.sttp._
-import io.circe.JsonObject
-import io.circe.generic.auto._
+import io.circe.{Json, JsonObject}
 import io.circe.syntax._
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
@@ -15,20 +18,10 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
+import com.cognite.sdk.scala.common.Auth
+import fs2.Stream
+
 import scala.util.Try
-
-abstract class LimitLong extends Ordered[LimitLong] with Serializable {
-  def value: Long
-
-  override def compare(that: LimitLong): Int = this.value.compareTo(that.value)
-}
-
-sealed case class MinLong(value: Long) extends LimitLong
-
-sealed case class MaxLong(value: Long) extends LimitLong
-
-case class RawItem(key: String, lastUpdatedTime: Long, columns: JsonObject)
-case class RawItemForPost(key: String, columns: JsonObject)
 
 class RawTableRelation(
     config: RelationConfig,
@@ -46,12 +39,16 @@ class RawTableRelation(
     with Serializable {
   import RawTableRelation._
 
+  import CdpConnector.sttpBackend
+  implicit val auth: Auth = config.auth
+  @transient lazy val client = new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
+
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
 
   @transient lazy val defaultSchema = StructType(
     Seq(
       StructField("key", DataTypes.StringType),
-      StructField(lastChangedColName, DataTypes.LongType),
+      StructField(lastUpdatedTimeColName, DataTypes.TimestampType),
       StructField("columns", DataTypes.StringType)
     ))
   @transient lazy val mapper: ObjectMapper = {
@@ -74,7 +71,7 @@ class RawTableRelation(
       val rdd =
         readRows(
           inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
-          (None, None),
+          RawRowFilter(),
           collectSchemaInferenceMetrics)
 
       import sqlContext.sparkSession.implicits._
@@ -83,73 +80,49 @@ class RawTableRelation(
         renameColumns(sqlContext.sparkSession.read.json(df.select($"columns").as[String]))
       StructType(
         StructField("key", DataTypes.StringType, false)
-          +: StructField(lastChangedColName, DataTypes.LongType, true)
+          +: StructField(lastUpdatedTimeColName, DataTypes.TimestampType, true)
           +: jsonDf.schema.fields)
     } else {
       defaultSchema
     }
   }
 
+  def getStreams(filter: RawRowFilter)(
+      client: GenericClient[IO, Nothing],
+      limit: Option[Int],
+      numPartitions: Int): Seq[Stream[IO, RawRow]] =
+    client.rawRows(database, table).filterPartitionsF(filter, numPartitions, limit).unsafeRunSync()
+
   private def readRows(
       limit: Option[Int],
-      lastChangedLimits: (Option[Long], Option[Long]),
+      filter: RawRowFilter,
       collectMetrics: Boolean = config.collectMetrics): RDD[Row] = {
-    val baseUrl = baseRawTableURL(config.project, database, table)
     val configWithLimit = config.copy(limit = limit)
 
-    val (minUpdatedTime, maxUpdatedTime) = lastChangedLimits
-    val baseUrlWithParams = baseUrl.params(
-      Map(
-        "minLastUpdatedTime" -> minUpdatedTime.map(_.toString),
-        "maxLastUpdatedTime" -> maxUpdatedTime.map(_.toString))
-        .collect { case (k, Some(v)) => k -> v })
-
-    CdpRdd[RawItem](
+    SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
-      (item: RawItem) => {
+      configWithLimit,
+      (item: RawRow) => {
         if (collectMetrics) {
           rowsRead.inc()
         }
-        Row(item.key, item.lastUpdatedTime, item.columns.asJson.noSpaces)
+        Row(
+          item.key,
+          item.lastUpdatedTime.map(java.sql.Timestamp.from).orNull,
+          JsonObject(item.columns.toSeq: _*).asJson.noSpaces)
       },
-      baseUrlWithParams,
-      configWithLimit,
-      Seq(baseUrlWithParams),
-      new NextCursorIterator[RawItem](
-        baseUrlWithParams.param("columns", ","),
-        configWithLimit,
-        true
-      )
+      (r: RawRow) => r.key,
+      getStreams(filter)
     )
   }
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
-  private def getLastChangedLimit(filter: Filter): Seq[LimitLong] =
-    filter match {
-      // The upper bound of lastChanged passed into Raw API represents a closed interval.
-      case LessThan(lastChangedColName, value) => Seq(MaxLong(value.toString.toLong))
-      case LessThanOrEqual(lastChangedColName, value) => Seq(MaxLong(value.toString.toLong))
-      // The lower bound of lastChanged passed into Raw API represents an open interval.
-      case GreaterThan(lastChangedColName, value) => Seq(MinLong(value.toString.toLong))
-      case GreaterThanOrEqual(lastChangedColName, value) => Seq(MinLong(value.toString.toLong - 1))
-      case And(f1, f2) => getLastChangedLimit(f1) ++ getLastChangedLimit(f2)
-      // case Or(f1, f2) => Ignored for now. See DataPointsRelation getTimestampLimit for explanation,
-      case _ => Seq()
-    }
-
-  private def getLastChangedLimits(filters: Array[Filter]) = {
-    val lastChangedLimits = filters.flatMap(getLastChangedLimit)
-
-    Tuple2(
-      // Note that this way of aggregating filters will not work with "Or" predicates.
-      Try(lastChangedLimits.filter(_.isInstanceOf[MinLong]).max).toOption.map(_.value),
-      Try(lastChangedLimits.filter(_.isInstanceOf[MaxLong]).min).toOption.map(_.value)
-    )
-  }
-
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    val rdd = readRows(config.limit, getLastChangedLimits(filters))
+
+    val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
+
+    val rdd = readRows(config.limit, RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime))
     val newRdd = if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
       rdd
     } else {
@@ -164,12 +137,30 @@ class RawTableRelation(
     })
   }
 
+  def filtersToTimestampLimits(
+      filters: Array[Filter],
+      colName: String): (Option[Instant], Option[Instant]) = {
+    val timestampLimits = filters.flatMap(getTimestampLimit(_, colName))
+
+    if (timestampLimits.exists(_.value.isBefore(Instant.ofEpochMilli(0)))) {
+      sys.error("timestamp limits must exceed 1970-01-01T00:00:00Z")
+    }
+
+    Tuple2(
+      // Note that this way of aggregating filters will not work with "Or" predicates.
+      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption
+        .map(_.value),
+      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption
+        .map(_.value)
+    )
+  }
+
   override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
     if (!df.columns.contains("key")) {
       throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column.")
     }
 
-    val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df.drop(lastChangedColName))
+    val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df.drop(lastUpdatedTimeColName))
     dfWithUnRenamedKeyColumns.foreachPartition((rows: Iterator[Row]) => {
       implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
@@ -183,43 +174,35 @@ class RawTableRelation(
   private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]): IO[Unit] = {
     val items = rowsToRawItems(nonKeyColumnNames, rows, mapper)
 
-    val url = uri"${baseRawTableURL(config.project, database, table)}/create"
-
-    post(config, url, items)
-      .flatTap { _ =>
-        IO {
-          if (config.collectMetrics) {
-            rowsCreated.inc(rows.length)
-          }
+    client.rawRows(database, table).createFromRead(items).flatTap { _ =>
+      IO {
+        if (config.collectMetrics) {
+          rowsCreated.inc(rows.length)
         }
       }
+    } *> IO.unit
   }
-
-  def baseRawTableURL(project: String, database: String, table: String): Uri =
-    uri"${baseUrl(project, "0.5", config.baseUrl)}/raw/$database/$table"
 }
 
 object RawTableRelation {
-  private val lastChangedColName = "lastChanged"
+  private val lastUpdatedTimeColName = "lastUpdatedTime"
   private val keyColumnPattern = """^_*key$""".r
-  private val lastChangedColumnPattern = """^_*lastChanged$""".r
+  private val lastUpdatedTimeColumnPattern = """^_*lastUpdatedTime$""".r
 
   private def keyColumns(schema: StructType): Array[String] =
     schema.fieldNames.filter(keyColumnPattern.findFirstIn(_).isDefined)
-  private def lastChangedColumns(schema: StructType): Array[String] =
-    schema.fieldNames.filter(lastChangedColumnPattern.findFirstIn(_).isDefined)
+  private def lastUpdatedTimeColumns(schema: StructType): Array[String] =
+    schema.fieldNames.filter(lastUpdatedTimeColumnPattern.findFirstIn(_).isDefined)
 
-  def rowsToRawItems(
-      nonKeyColumnNames: Seq[String],
-      rows: Seq[Row],
-      mapper: ObjectMapper): Seq[RawItemForPost] =
+  def rowsToRawItems(nonKeyColumnNames: Seq[String], rows: Seq[Row], mapper: ObjectMapper): Seq[RawRow] =
     rows.map(
       row =>
-        RawItemForPost(
+        RawRow(
           Option(row.getString(row.fieldIndex(temporaryKeyName)))
             .getOrElse(throw new IllegalArgumentException("\"key\" can not be null.")),
           io.circe.parser
-            .decode[JsonObject](mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames)))
+            .decode[Map[String, Json]](
+              mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames)))
             .right
             .get
       ))
@@ -228,7 +211,7 @@ object RawTableRelation {
     StructType.apply(schema.fields.map(field => {
       if (keyColumnPattern.findFirstIn(field.name).isDefined) {
         field.copy(name = field.name.replaceFirst("_", ""))
-      } else if (lastChangedColumnPattern.findFirstIn(field.name).isDefined) {
+      } else if (lastUpdatedTimeColumnPattern.findFirstIn(field.name).isDefined) {
         field.copy(name = field.name.replaceFirst("_", ""))
       } else {
         field
@@ -236,7 +219,7 @@ object RawTableRelation {
     }))
 
   private def renameColumns(df: DataFrame): DataFrame = {
-    val columnsToRename = keyColumns(df.schema) ++ lastChangedColumns(df.schema)
+    val columnsToRename = keyColumns(df.schema) ++ lastUpdatedTimeColumns(df.schema)
     // rename columns starting with the longest one first, to avoid creating a column with the same name
     columnsToRename.sorted.foldLeft(df) { (df, column) =>
       df.withColumnRenamed(column, s"_$column")
@@ -244,7 +227,7 @@ object RawTableRelation {
   }
 
   private def unRenameColumns(df: DataFrame): DataFrame = {
-    val columnsToRename = keyColumns(df.schema) ++ lastChangedColumns(df.schema)
+    val columnsToRename = keyColumns(df.schema) ++ lastUpdatedTimeColumns(df.schema)
     // when renaming them back we instead start with the shortest column name, for similar reasons
     columnsToRename.sortWith(_ > _).foldLeft(df) { (df, column) =>
       df.withColumnRenamed(column, column.substring(1))
@@ -252,7 +235,7 @@ object RawTableRelation {
   }
 
   private val temporaryKeyName = s"TrE85tFQPCb2fEUZ"
-  private val temporaryLastChangedName = s"J2p972xzM9bf32oD"
+  private val temporarylastUpdatedTimeName = s"J2p972xzM9bf32oD"
 
   def flattenAndRenameColumns(
       sqlContext: SQLContext,
@@ -264,31 +247,31 @@ object RawTableRelation {
     val dfWithSchema =
       df.select(
         $"key",
-        col(lastChangedColName),
+        col(lastUpdatedTimeColName),
         from_json($"columns", jsonFieldsSchema).alias("columns"))
 
-    if (keyColumns(jsonFieldsSchema).isEmpty && lastChangedColumns(jsonFieldsSchema).isEmpty) {
-      dfWithSchema.select("key", lastChangedColName, "columns.*")
+    if (keyColumns(jsonFieldsSchema).isEmpty && lastUpdatedTimeColumns(jsonFieldsSchema).isEmpty) {
+      dfWithSchema.select("key", lastUpdatedTimeColName, "columns.*")
     } else {
       val dfWithColumnsTmpRenamed = dfWithSchema
         .withColumnRenamed("key", temporaryKeyName)
-        .withColumnRenamed(lastChangedColName, temporaryLastChangedName)
+        .withColumnRenamed(lastUpdatedTimeColName, temporarylastUpdatedTimeName)
       val temporaryFlatDf = renameColumns(
-        dfWithColumnsTmpRenamed.select(temporaryKeyName, temporaryLastChangedName, "columns.*"))
+        dfWithColumnsTmpRenamed.select(temporaryKeyName, temporarylastUpdatedTimeName, "columns.*"))
       temporaryFlatDf
         .withColumnRenamed(temporaryKeyName, "key")
-        .withColumnRenamed(temporaryLastChangedName, lastChangedColName)
+        .withColumnRenamed(temporarylastUpdatedTimeName, lastUpdatedTimeColName)
     }
   }
 
   def prepareForInsert(df: DataFrame): (Seq[String], DataFrame) = {
     val dfWithKeyRenamed = df
       .withColumnRenamed("key", temporaryKeyName)
-      .withColumnRenamed(lastChangedColName, temporaryLastChangedName)
+      .withColumnRenamed(lastUpdatedTimeColName, temporarylastUpdatedTimeName)
     val dfWithUnRenamedColumns = unRenameColumns(dfWithKeyRenamed)
     val columnNames =
       dfWithUnRenamedColumns.columns.filter(x =>
-        !x.equals(temporaryKeyName) && !x.equals(temporaryLastChangedName))
+        !x.equals(temporaryKeyName) && !x.equals(temporarylastUpdatedTimeName))
     (columnNames, dfWithUnRenamedColumns)
   }
 }

@@ -11,7 +11,7 @@ import fs2.Stream
 case class ModelItem(id: Long, name: String, createdTime: Long)
 
 class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDModel](config, "threeDModels.read") {
+    extends SdkV1Relation[ThreeDModel, Long](config, "threeDModels.read") {
 
   override def schema: StructType = structType[ThreeDModel]
 

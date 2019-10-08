@@ -15,7 +15,7 @@ import fs2.Stream
 import scala.concurrent.ExecutionContext
 
 class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[Event](config, "events")
+    extends SdkV1Relation[Event, Long](config, "events")
     with InsertableRelation {
   @transient implicit lazy val contextShift: ContextShift[IO] =
     IO.contextShift(ExecutionContext.global)
@@ -65,22 +65,6 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
       assetIds = m.get("assetIds").map(assetIdsFromWrappedArray)
     )
-
-  def timeRangeFromMinAndMax(minTime: Option[String], maxTime: Option[String]): Option[TimeRange] =
-    (minTime, maxTime) match {
-      case (None, None) => None
-      case _ => {
-        val minimumTimeAsInstant =
-          minTime
-            .map(java.sql.Timestamp.valueOf(_).toInstant.plusMillis(1))
-            .getOrElse(java.time.Instant.ofEpochMilli(0)) //API does not accept values < 0
-        val maximumTimeAsInstant =
-          maxTime
-            .map(java.sql.Timestamp.valueOf(_).toInstant.minusMillis(1))
-            .getOrElse(java.time.Instant.ofEpochMilli(Long.MaxValue))
-        Some(TimeRange(minimumTimeAsInstant, maximumTimeAsInstant))
-      }
-    }
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val events = fromRowWithFilteredMetadata(rows)

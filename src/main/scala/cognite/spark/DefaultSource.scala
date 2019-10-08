@@ -124,8 +124,6 @@ class DefaultSource
     val config = parseRelationConfig(parameters, sqlContext)
     resourceType match {
       case "datapoints" =>
-        val numPartitions =
-          toPositiveInt(parameters, "partitions").getOrElse(Constants.DefaultDataPointsPartitions)
         new NumericDataPointsRelationV1(config)(sqlContext)
       case "stringdatapoints" =>
         new StringDataPointsRelationV1(config)(sqlContext)

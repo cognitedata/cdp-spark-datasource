@@ -11,7 +11,6 @@ import com.cognite.sdk.scala.v1.{
   TimeSeriesUpdate
 }
 import cognite.spark.SparkSchemaHelper._
-import com.softwaremill.sttp._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -19,7 +18,7 @@ import PushdownUtilities._
 import fs2.Stream
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[TimeSeries](config, "timeseries")
+    extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
     with InsertableRelation {
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
@@ -83,9 +82,6 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     (create, update).parMapN((_, _) => ())
   }
-
-  def baseTimeSeriesUrl(project: String, version: String = "v1"): Uri =
-    uri"${baseUrl(project, version, config.baseUrl)}/timeseries"
 
   override def schema: StructType = structType[TimeSeries]
 

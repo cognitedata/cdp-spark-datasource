@@ -3,7 +3,7 @@ package cognite.spark
 import org.scalatest.{FlatSpec, Matchers}
 import com.softwaremill.sttp._
 import PushdownUtilities._
-class CdpRelationTest extends FlatSpec with Matchers with SparkTest {
+class PushdownUtilitiesTest extends FlatSpec with Matchers with SparkTest {
 
   it should "create one request for 1x1 and expression" in {
     val baseUri = uri"https://api.com"

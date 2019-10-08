@@ -14,7 +14,7 @@ import fs2.Stream
 import scala.concurrent.ExecutionContext
 
 class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[Asset](config, "assets")
+    extends SdkV1Relation[Asset, Long](config, "assets")
     with InsertableRelation {
   @transient implicit lazy val contextShift: ContextShift[IO] =
     IO.contextShift(ExecutionContext.global)

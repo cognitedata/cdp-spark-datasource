@@ -10,12 +10,12 @@ import fs2.Stream
 
 class ThreeDModelRevisionMappingsRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
     val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDAssetMapping](config, "3dmodelrevisionmappings") {
+    extends SdkV1Relation[ThreeDAssetMapping, String](config, "3dmodelrevisionmappings") {
   override def schema: StructType = structType[ThreeDAssetMapping]
 
   override def toRow(t: ThreeDAssetMapping): Row = asRow(t)
 
-  override def uniqueId(a: ThreeDAssetMapping): Long = a.nodeId + a.assetId
+  override def uniqueId(a: ThreeDAssetMapping): String = a.nodeId.toString + a.assetId.toString
 
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],
