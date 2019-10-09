@@ -52,11 +52,9 @@ case class SdkV1Rdd[A, I](
 
     val streams =
       getStreams(client, config.limit, config.partitions)
-    val groupedStreams = streams.grouped(config.parallelismPerPartition)
+    val groupedStreams = streams.grouped(config.parallelismPerPartition).toSeq
 
-    val currentStreamsAsSingleStream = groupedStreams
-      .drop(split.index)
-      .next
+    val currentStreamsAsSingleStream = groupedStreams(split.index)
       .reduce(_.merge(_))
 
     // Local testing show this queue never holds more than 5 chunks since CDF is the bottleneck.
