@@ -3,13 +3,14 @@ package cognite.spark
 import java.util.concurrent.{ArrayBlockingQueue, Executors}
 
 import cats.effect.{ContextShift, IO}
+import cats.implicits._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.common.Auth
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import fs2._
-import scala.math.ceil
+
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -22,8 +23,10 @@ case class SdkV1Rdd[A](
     uniqueId: A => Long,
     getStreams: (GenericClient[IO, Nothing], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
-
   import CdpConnector.sttpBackend
+
+  type EitherQueue = ArrayBlockingQueue[Either[Throwable, Vector[A]]]
+
   implicit val auth: Auth = config.auth
   @transient lazy val client =
     new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
@@ -38,7 +41,9 @@ case class SdkV1Rdd[A](
     val split = _split.asInstanceOf[CdfPartition]
     val drainPool =
       ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
-    implicit val contextShift: ContextShift[IO] =
+
+    // Do not increase number of threads, as this will make processedItems non-blocking
+    implicit val singleThreadedCs: ContextShift[IO] =
       IO.contextShift(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1)))
 
     val processedItems = mutable.Set[Long]()
@@ -52,10 +57,14 @@ case class SdkV1Rdd[A](
       .next
       .reduce(_.merge(_))
 
-    val queue: ArrayBlockingQueue[Vector[A]] =
-      new ArrayBlockingQueue[Vector[A]](config.parallelismPerPartition * 2)
+    // Local testing show this queue never holds more than 5 chunks since CDF is the bottleneck.
+    // Still setting this to 2x the number of streams being read to makes sure this doesn't block
+    // too early, for example in the event that all streams return a chunk at the same time.
+    val queue =
+      new EitherQueue(config.parallelismPerPartition * 2)
 
-    val putOnQueueStream = enqueueStreamResults(currentStreamsAsSingleStream, queue, processedItems)
+    val putOnQueueStream =
+      enqueueStreamResults(currentStreamsAsSingleStream, queue, processedItems, singleThreadedCs)
 
     // Continuously read the stream data into the queue on a separate thread
     val streamsToQueue = Future {
@@ -69,20 +78,22 @@ case class SdkV1Rdd[A](
   // streams in chunks and add the chunks to a queue continuously.
   def enqueueStreamResults(
       stream: Stream[IO, A],
-      queue: ArrayBlockingQueue[Vector[A]],
-      processedItems: mutable.Set[Long]): Stream[IO, Unit] =
+      queue: EitherQueue,
+      processedItems: mutable.Set[Long],
+      singleThreadedCs: ContextShift[IO]): Stream[IO, Unit] =
     for {
-      s <- stream.chunks
+      // Ensure that only one chunk is processed at a time
+      s <- stream.chunks.flatMap(c => Stream.eval(singleThreadedCs.shift *> IO.pure(c)))
       put <- {
         // Filter out and keep track of already seen items
         // since overlapping pushdown filters may read duplicates.
         val freshItems = s.toVector.filterNot(i => processedItems.contains(uniqueId(i)))
-        processedItems ++= freshItems.map(uniqueId)
-        Stream.eval(IO(queue.put(freshItems)))
-      }
+        processedItems ++= freshItems.map(i => uniqueId(i))
+        Stream.eval(IO(queue.put(Right(freshItems))))
+      }.handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
     } yield put
 
-  def queueIterator(queue: ArrayBlockingQueue[Vector[A]], f: Future[Unit]): Iterator[Row] =
+  def queueIterator(queue: EitherQueue, f: Future[Unit]): Iterator[Row] =
     new Iterator[Row] {
       var nextItems: Iterator[A] = Iterator.empty
 
@@ -103,6 +114,11 @@ case class SdkV1Rdd[A](
       override def next(): Row = toRow(nextItems.next())
 
       def iteratorFromQueue(): Iterator[A] =
-        Option(queue.poll()).map(_.toIterator).getOrElse(Iterator.empty)
+        Option(queue.poll())
+          .map {
+            case Right(value) => value.toIterator
+            case Left(err) => throw err
+          }
+          .getOrElse(Iterator.empty)
     }
 }

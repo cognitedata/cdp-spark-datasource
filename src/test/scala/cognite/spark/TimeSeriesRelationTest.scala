@@ -481,6 +481,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   def cleanUpTimeSeriesTestDataByUnit(unit: String): Unit = {
+    Thread.sleep(2000)
     spark.sql(s"""select * from destinationTimeSeries where unit = '$unit'""")
         .write
         .format("cognite.spark")
