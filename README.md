@@ -4,7 +4,7 @@ The Cognite Spark Data Source lets you use [Spark](https://spark.apache.org/) to
 
 Reads and writes are done in parallel using asynchronous calls.
 
-The instructions below explain how to read to write to the different resource types in CDF.
+The instructions below explain how to read from, and write to, the different resource types in CDF.
 
 **In this article**
 
