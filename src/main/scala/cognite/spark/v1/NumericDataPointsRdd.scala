@@ -9,11 +9,9 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
-import cats.syntax._
 import cats.implicits._
-import cats.data._
 import cognite.spark.PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
-import fs2.Stream
+import fs2._
 import org.apache.spark.sql.sources.{
   And,
   Filter,
@@ -53,6 +51,11 @@ case class NumericDataPointsRdd(
       countStart: Option[Instant] = None): Seq[Range] =
     counts match {
       case count +: moreCounts =>
+        if (count.value > maxPointsPerPartition) {
+          throw new RuntimeException(
+            s"More than ${maxPointsPerPartition} for id $id in interval starting at ${count.timestamp.toString}" +
+              " with granularity ${granularity.toString}. Please report this to Cognite.")
+        }
         val accumulatedCount = count.value.toLong + countSum
         if (accumulatedCount > partitionSize) {
           val newRange = Range(
@@ -83,26 +86,36 @@ case class NumericDataPointsRdd(
         }
     }
 
+  // We must not exceed this. We're assuming there are less than this many
+  // points for the smallest interval (1s) which seems reasonable, but we
+  // could choose to do paging when that is not the case.
+  val maxPointsPerPartition = 100000
   val partitionSize = 100000
   val bucketSize = 2000000
+
+  private val granularitiesToTry = Seq(
+    Granularity(300, ChronoUnit.DAYS),
+    Granularity(150, ChronoUnit.DAYS),
+    Granularity(75, ChronoUnit.DAYS),
+    Granularity(37, ChronoUnit.DAYS),
+    Granularity(16, ChronoUnit.DAYS),
+    Granularity(8, ChronoUnit.DAYS),
+    Granularity(1, ChronoUnit.DAYS),
+    Granularity(12, ChronoUnit.HOURS),
+    Granularity(6, ChronoUnit.HOURS),
+    Granularity(3, ChronoUnit.HOURS),
+    Granularity(1, ChronoUnit.HOURS),
+    Granularity(30, ChronoUnit.MINUTES),
+    Granularity(1, ChronoUnit.MINUTES),
+    Granularity(30, ChronoUnit.SECONDS),
+    Granularity(1, ChronoUnit.SECONDS)
+  )
 
   private def smallEnoughRanges(
       id: Long,
       start: Instant,
       end: Instant,
-      granularities: Seq[Granularity] = Seq(
-        Granularity(300, ChronoUnit.DAYS),
-        Granularity(150, ChronoUnit.DAYS),
-        Granularity(75, ChronoUnit.DAYS),
-        Granularity(37, ChronoUnit.DAYS),
-        Granularity(16, ChronoUnit.DAYS),
-        Granularity(8, ChronoUnit.DAYS),
-        Granularity(1, ChronoUnit.DAYS),
-        Granularity(12, ChronoUnit.HOURS),
-        Granularity(6, ChronoUnit.HOURS),
-        Granularity(3, ChronoUnit.HOURS),
-        Granularity(1, ChronoUnit.HOURS)
-      )): IO[Seq[Range]] =
+      granularities: Seq[Granularity] = granularitiesToTry): IO[Seq[Range]] =
     granularities match {
       case granularity +: moreGranular =>
         client.dataPoints
@@ -124,6 +137,54 @@ case class NumericDataPointsRdd(
           }
     }
 
+  private def getFirstAndLastConcurrently(ids: Vector[Long], start: Instant, end: Instant) = {
+    val firsts = ids.map { id =>
+      client.dataPoints
+        .queryById(
+          id,
+          start,
+          end,
+          limit = Some(1)
+        )
+        .map(_.headOption)
+        .map(p => id -> p)
+    }.parSequence
+    val lasts = client.dataPoints.getLatestDataPointsByIds(ids)
+    (firsts, lasts).parMapN {
+      case (f, l) =>
+        f.map {
+          case (id, first) =>
+            (id, first, l.getOrElse(id, None))
+        }
+    }
+  }
+
+  private def rangesToBuckets(ranges: Seq[Range]) = {
+    // Fold into a sequence of buckets, where each bucket has some ranges with a
+    // total of data points <= bucketSize
+    val bucketsFold = ranges.foldLeft((Seq.empty[Bucket], Seq.empty[Range], 0L)) {
+      case ((buckets, ranges, sum), r) =>
+        val sumTotal = sum + r.count
+        if (sumTotal > bucketSize) {
+          // Create a new bucket from the ranges, and assign an index of "1" temporarily.
+          // We'll change the index before returning the buckets.
+          (Bucket(1, ranges) +: buckets, Seq(r), r.count)
+        } else {
+          (buckets, r +: ranges, sumTotal)
+        }
+    }
+
+    // If there are any non-empty ranges left, put them in a final bucket.
+    val buckets = bucketsFold match {
+      case (buckets, _, 0) => buckets
+      case (buckets, ranges, _) => Bucket(1, ranges) +: buckets
+    }
+
+    buckets.zipWithIndex.map {
+      case (bucket, index) => bucket.copy(index = index)
+    }
+  }
+
   private def buckets(
       ids: Seq[Long],
       externalIds: Seq[String],
@@ -134,28 +195,9 @@ case class NumericDataPointsRdd(
       .covary[IO]
       .chunkLimit(100)
       .parEvalMapUnordered(50) { chunk =>
-        val firsts = chunk.map { id =>
-          client.dataPoints
-            .queryById(
-              id,
-              start,
-              end,
-              limit = Some(1)
-            )
-            .map(_.headOption)
-            .map(p => id -> p)
-        }.parSequence
-        val lasts = client.dataPoints.getLatestDataPointsByIds(chunk.toList)
-        val b = (firsts, lasts).parMapN {
-          case (f, l) =>
-            f.map {
-              case (id, first) =>
-                (id, first, l.getOrElse(id, None))
-            }
-        }
-        b
+        getFirstAndLastConcurrently(chunk.toVector, start, end)
       }
-      .flatMap(Stream.chunk)
+      .flatMap(Stream.emits)
 
     val ranges = firstLatest
       .parEvalMapUnordered(50) {
@@ -170,23 +212,11 @@ case class NumericDataPointsRdd(
       .map(Stream.emits)
       .flatten
 
-    val ranges1 = ranges.compile.toVector.map(Random.shuffle(_)).unsafeRunSync()
+    // Shuffle the ranges to get a more even distribution across potentially
+    // many time series and ranges, to reduce the possibility of hotspotting.
+    val shuffledRanges = ranges.compile.toVector.map(Random.shuffle(_)).unsafeRunSync()
 
-    val bucketsFold = ranges1.foldLeft((Seq.empty[Bucket], Seq.empty[Range], 0L)) {
-      case ((buckets, ranges, sum), r) =>
-        val sumTotal = sum + r.count
-        if (sumTotal > bucketSize) {
-          (Bucket(1, ranges) +: buckets, Seq(r), r.count)
-        } else {
-          (buckets, r +: ranges, sumTotal)
-        }
-    }
-    val buckets = bucketsFold match {
-      case (buckets, _, 0) => buckets
-      case (buckets, ranges, _) => Bucket(1, ranges) +: buckets
-    }
-
-    buckets
+    rangesToBuckets(shuffledRanges)
   }
 
   def timeStampStringToMin(value: Any, adjustment: Long): Min =
@@ -234,9 +264,7 @@ case class NumericDataPointsRdd(
     val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
 
     val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters)
-    buckets(ids, externalIds, lowerTimeLimit, upperTimeLimit).zipWithIndex.map {
-      case (bucket, index) => bucket.copy(index = index)
-    }.toArray
+    buckets(ids, externalIds, lowerTimeLimit, upperTimeLimit).toArray
   }
 
   @transient lazy implicit val contextShift: ContextShift[IO] =
