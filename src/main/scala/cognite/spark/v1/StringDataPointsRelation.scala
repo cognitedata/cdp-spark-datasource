@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import java.time.Instant
+
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.StringDataPoint

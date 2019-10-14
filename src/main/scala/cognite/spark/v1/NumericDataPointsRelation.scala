@@ -6,7 +6,6 @@ import java.time.temporal.ChronoUnit
 import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
 import cats.effect.IO
 import cats.implicits._
-import com.cognite.sdk.scala.v1.GenericClient
 import PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow}
 import org.apache.spark.rdd.RDD
@@ -14,8 +13,6 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
 import fs2._
-
-import scala.util.Random
 
 case class DataPointsFilter(
     id: Option[Long],
@@ -105,6 +102,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
+    val timestampLimits = filtersToTimestampLimits(filters)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
     val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
     val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
@@ -114,90 +112,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       ids,
       externalIds,
       filters,
+      timestampLimits,
       toRow(requiredColumns))
   }
-
-  def getIOs(filters: Array[Filter])(
-      client: GenericClient[IO, Nothing]): Seq[IO[Seq[DataPointsItem]]] = {
-    val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-
-    val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
-    val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
-
-    val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters, "timestamp")
-    val (aggregations, granularities) = getAggregationSettings(filters)
-
-    if (aggregations.isEmpty) {
-      getIOsWithoutAggregates(ids, externalIds, lowerTimeLimit, upperTimeLimit)
-    } else {
-      getIOsWithAggregates(
-        ids,
-        externalIds,
-        lowerTimeLimit,
-        upperTimeLimit,
-        granularities,
-        aggregations,
-        client)
-    }
-  }
-
-  def getIOsWithoutAggregates(
-      ids: Seq[Long],
-      externalIds: Seq[String],
-      lowerTimeLimit: Instant,
-      upperTimeLimit: Instant): Seq[IO[Seq[DataPointsItem]]] =
-    Seq.empty
-
-  def getIOsWithAggregates(
-      ids: Seq[Long],
-      externalIds: Seq[String],
-      lowerTimeLimit: Instant,
-      upperTimeLimit: Instant,
-      granularities: Seq[String],
-      aggregations: Seq[AggregationFilter],
-      client: GenericClient[IO, Nothing]): Seq[IO[Seq[DataPointsItem]]] = {
-    val agg = aggregations.map(_.aggregation)
-    val ioFromId = for {
-      id <- ids
-      g <- granularities
-    } yield
-      client.dataPoints
-        .queryAggregatesById(id, lowerTimeLimit, upperTimeLimit, g, agg, config.limit)
-        .map(aggs =>
-          aggs.flatMap {
-            case (aggregation, dataPoints) =>
-              dataPoints.map { p =>
-                DataPointsItem(
-                  Some(id),
-                  None,
-                  java.sql.Timestamp.from(p.timestamp),
-                  p.value,
-                  Some(aggregation),
-                  Some(g))
-              }
-          }.toSeq)
-
-    val ioFromExternalId = for {
-      extId <- externalIds
-      g <- granularities
-    } yield
-      client.dataPoints
-        .queryAggregatesByExternalId(extId, lowerTimeLimit, upperTimeLimit, g, agg, config.limit)
-        .map(aggs =>
-          aggs.flatMap {
-            case (aggregation, dataPoints) =>
-              dataPoints.map { p =>
-                DataPointsItem(
-                  None,
-                  Some(extId),
-                  java.sql.Timestamp.from(p.timestamp),
-                  p.value,
-                  Some(aggregation),
-                  Some(g))
-              }
-          }.toSeq)
-    ioFromId ++ ioFromExternalId
-  }
-
 }

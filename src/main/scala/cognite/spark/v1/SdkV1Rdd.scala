@@ -35,7 +35,9 @@ case class SdkV1Rdd[A, I](
 
   override def getPartitions: Array[Partition] = {
     val numberOfPartitions =
-      getStreams(client, config.limitPerPartition, config.partitions).grouped(config.parallelismPerPartition).length
+      getStreams(client, config.limitPerPartition, config.partitions)
+        .grouped(config.parallelismPerPartition)
+        .length
     0.until(numberOfPartitions).toArray.map(CdfPartition)
   }
 
