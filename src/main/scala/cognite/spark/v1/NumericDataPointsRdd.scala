@@ -15,6 +15,7 @@ import cats.implicits._
 import cognite.spark.PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
 import fs2._
 import org.apache.spark.sql.sources._
+import Ordering.Implicits._
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Random, Try}
@@ -29,6 +30,7 @@ case class NumericDataPointsRdd(
     ids: Seq[Long],
     externalIds: Seq[String],
     filters: Array[Filter],
+    timestampLimits: (Option[Instant], Option[Instant]),
     toRow: DataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
 
@@ -38,6 +40,7 @@ case class NumericDataPointsRdd(
   @transient lazy val client =
     new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
 
+  private val (lowerTimeLimit, upperTimeLimit) = timestampLimits
   private def countsToRanges(
       id: Long,
       counts: Seq[SdkDataPoint],
@@ -145,12 +148,17 @@ case class NumericDataPointsRdd(
         .map(_.headOption)
         .map(p => id -> p)
     }.parSequence
-    val lasts = client.dataPoints.getLatestDataPointsByIds(ids)
+    val lasts = for {
+      latestByIds <- client.dataPoints.getLatestDataPointsByIds(ids)
+    } yield
+      for {
+        (id, maybeLatest) <- latestByIds
+      } yield (id, maybeLatest.map(latest => latest.timestamp.min(end)))
     (firsts, lasts).parMapN {
       case (f, l) =>
         f.map {
           case (id, first) =>
-            (id, first, l.getOrElse(id, None))
+            (id, first.map(_.timestamp), l.getOrElse(id, None))
         }
     }
   }
@@ -184,8 +192,10 @@ case class NumericDataPointsRdd(
   private def buckets(
       ids: Seq[Long],
       externalIds: Seq[String],
-      start: Instant,
-      end: Instant): Seq[Bucket] = {
+      maybeStart: Option[Instant],
+      maybeEnd: Option[Instant]): Seq[Bucket] = {
+    val start = maybeStart.getOrElse(Instant.ofEpochMilli(0))
+    val end = maybeEnd.getOrElse(Instant.ofEpochMilli(Long.MaxValue))
     val firstLatest = Stream
       .emits(ids)
       .covary[IO]
@@ -198,10 +208,10 @@ case class NumericDataPointsRdd(
     val ranges = firstLatest
       .parEvalMapUnordered(50) {
         case (id, Some(first), Some(latest)) =>
-          if (latest.timestamp.compareTo(first.timestamp) > 0) {
-            smallEnoughRanges(id, first.timestamp, latest.timestamp)
+          if (latest >= first) {
+            smallEnoughRanges(id, first, latest)
           } else {
-            IO(Seq(Range(id, first.timestamp, latest.timestamp.plusMillis(1), 1)))
+            IO(Seq(Range(id, first, latest.plusMillis(1), 1)))
           }
         case _ => IO(Seq.empty)
       }
@@ -215,43 +225,6 @@ case class NumericDataPointsRdd(
     rangesToBuckets(shuffledRanges)
   }
 
-  def timeStampStringToMin(value: Any, adjustment: Long): Min =
-    Min(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
-
-  def timeStampStringToMax(value: Any, adjustment: Long): Max =
-    Max(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
-
-  def getTimestampLimit(filter: Filter): Seq[Limit] =
-    filter match {
-      case LessThan("timestamp", value) => Seq(timeStampStringToMax(value, -1))
-      case LessThanOrEqual("timestamp", value) => Seq(timeStampStringToMax(value, 0))
-      case GreaterThan("timestamp", value) => Seq(timeStampStringToMin(value, 1))
-      case GreaterThanOrEqual("timestamp", value) => Seq(timeStampStringToMin(value, 0))
-      case And(f1, f2) => getTimestampLimit(f1) ++ getTimestampLimit(f2)
-      // case Or(f1, f2) => we might possibly want to do something clever with joining an "or" clause
-      //                    with timestamp limits on each side (including replacing "max of Min's" with the less strict
-      //                    "min of Min's" when aggregating filters on the same side); just ignore them for now
-      case _ => Seq.empty
-    }
-
-  def filtersToTimestampLimits(filters: Array[Filter]): (Instant, Instant) = {
-    val timestampLimits = filters.flatMap(getTimestampLimit)
-
-    if (timestampLimits.exists(_.value.isBefore(Instant.ofEpochMilli(0)))) {
-      sys.error("timestamp limits must exceed 1970-01-01T00:00:00Z")
-    }
-
-    Tuple2(
-      // Note that this way of aggregating filters will not work with "Or" predicates.
-      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption
-        .map(_.value)
-        .getOrElse(Instant.ofEpochMilli(0)),
-      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption
-        .map(_.value)
-        .getOrElse(Instant.ofEpochMilli(Long.MaxValue))
-    )
-  }
-
   override def getPartitions: Array[Partition] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
@@ -259,7 +232,6 @@ case class NumericDataPointsRdd(
     val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
     val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
 
-    val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters)
     buckets(ids, externalIds, lowerTimeLimit, upperTimeLimit).toArray
   }
 
@@ -288,6 +260,7 @@ case class NumericDataPointsRdd(
                 .map(toRow)
                 .toVector)
       }
+      .map(r => config.limitPerPartition.fold(r)(limit => r.take(limit)))
       .unsafeRunSync()
       .toIterator
   }

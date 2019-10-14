@@ -35,100 +35,11 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       )))
   }
 
-  it should "iterate over period longer than limit" taggedAs (ReadTest) in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "datapoints")
-      .option("batchSize", "40")
-      .option("limit", "100")
-      .option("partitions", "1")
-      .load()
-      .where(s"timestamp > to_timestamp(0) and timestamp < to_timestamp(1790902000) and id = $valhallTimeSeriesId")
-    assert(df.count() == 100)
-
-    val df2 = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "datapoints")
-      .option("batchSize", "40")
-      .option("limit", "100")
-      .option("partitions", "1")
-      .load()
-      .where(s"timestamp < to_timestamp(1790902000) and id = $valhallTimeSeriesId")
-    assert(df2.count() == 100)
-  }
-
-  it should "handle initial data set below batch size" taggedAs (ReadTest) in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "datapoints")
-      .option("batchSize", "2000")
-      .option("limit", "100")
-      .option("partitions", "1")
-      .load()
-      .where(s"id = $valhallTimeSeriesId")
-    assert(df.count() == 100)
-  }
-
-  it should "apply limit to each partition" taggedAs ReadTest ignore {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "datapoints")
-      .option("batchSize", "2000")
-      .option("limit", "100")
-      .option("partitions", "2")
-      .load()
-      .where(
-        s"timestamp >= to_timestamp(1509528850) and timestamp <= to_timestamp(1557485862) and id = $valhallTimeSeriesId")
-    assert(df.count() == 200)
-
-    val df2 = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "datapoints")
-      .option("batchSize", "2000")
-      .option("limit", "100")
-      .option("partitions", "3")
-      .load()
-      .where(
-        s"timestamp >= to_timestamp(1509528850) and timestamp <= to_timestamp(1557485862) and id = $valhallTimeSeriesId")
-    assert(df2.count() == 300)
-  }
-
-  it should "handle initial data set with the same size as the batch size" taggedAs (ReadTest) in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "datapoints")
-      .option("batchSize", "100")
-      .option("limit", "100")
-      .option("partitions", "1")
-      .load()
-      .where(s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1790902000) and id = $valhallTimeSeriesId")
-    assert(df.count() == 100)
-  }
-
   it should "test that start/stop time are handled correctly for data points" taggedAs (ReadTest) in {
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
-      .option("partitions", "1")
-      .load()
-      .where(
-        s"timestamp > to_timestamp(1509528850) and timestamp < to_timestamp(1509528860) and id = $valhallTimeSeriesId")
-    assert(df.count() == 9)
-  }
-
-  it should "handle start/stop time without duplicates when using multiple partitions" taggedAs (ReadTest) ignore {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "datapoints")
-      .option("partitions", "7")
       .load()
       .where(
         s"timestamp > to_timestamp(1509528850) and timestamp < to_timestamp(1509528860) and id = $valhallTimeSeriesId")
@@ -140,8 +51,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
-      .option("partitions", "1")
-      .option("limit", "10")
       .load()
       .where(
         s"aggregation = 'min' and granularity = '1d' and id = $valhallTimeSeriesId")
@@ -181,7 +90,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
-      .option("partitions", "1")
       .load()
       .sort("timestamp")
       .where(
@@ -193,7 +101,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
-      .option("partitions", "3")
       .load()
       .sort("timestamp")
       .where(
@@ -208,9 +115,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
-      .option("batchSize", "100")
-      .option("limit", "1")
-      .option("partitions", "1")
       .load()
       .where(
         s"timestamp >= to_timestamp(1508889600) and timestamp <= to_timestamp(1511481600) and aggregation in ('sum', 'average', 'max') and granularity = '30d' and id = $valhallTimeSeriesId")
@@ -234,7 +138,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .load()
-      .where(s"aggregation in ('min') and id = $valhallTimeSeriesId")
+      .where(s"timestamp >= to_timestamp(1508889600) and timestamp <= to_timestamp(1511481600) and aggregation in ('min') and id = $valhallTimeSeriesId")
     val e = intercept[Exception] {
       df.count()
     }
@@ -247,7 +151,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .load()
-      .where(s"granularity = '30d' and id = $valhallTimeSeriesId")
+      .where(s"timestamp >= to_timestamp(1508889600) and timestamp <= to_timestamp(1511481600) and granularity = '30d' and id = $valhallTimeSeriesId")
     val e = intercept[Exception] {
       df.count()
     }
@@ -263,7 +167,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("type", "datapoints")
         .load()
         .where(
-          s"aggregation in ('min') and granularity = '$granularity' and id = $valhallTimeSeriesId")
+          s"timestamp >= to_timestamp(1508889600) and timestamp <= to_timestamp(1511481600) and aggregation in ('min') and granularity = '$granularity' and id = $valhallTimeSeriesId")
       val e = intercept[Exception] {
         df.count()
       }
@@ -292,9 +196,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .format("cognite.spark.v1")
         .option("apiKey", readApiKey)
         .option("type", "datapoints")
-        .option("batchSize", "1")
-        .option("limit", "1")
-        .option("partitions", "1")
         .load()
         .where(
           s"timestamp > to_timestamp(0) and timestamp <= to_timestamp(1510358400) and aggregation in ('max') and granularity = '$granularity' and id = $valhallTimeSeriesId")
