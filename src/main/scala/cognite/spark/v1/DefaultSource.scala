@@ -12,7 +12,7 @@ import scala.concurrent.ExecutionContext
 case class RelationConfig(
     auth: Auth,
     batchSize: Option[Int],
-    limit: Option[Int],
+    limitPerPartition: Option[Int],
     partitions: Int,
     maxRetries: Int,
     collectMetrics: Boolean,
@@ -78,7 +78,7 @@ class DefaultSource
       .orElse(bearerToken)
       .getOrElse(sys.error("Either apiKey or bearerToken is required."))
     val batchSize = toPositiveInt(parameters, "batchSize")
-    val limitPerPartition = toPositiveInt(parameters, "limit")
+    val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
       .getOrElse(Constants.DefaultPartitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
