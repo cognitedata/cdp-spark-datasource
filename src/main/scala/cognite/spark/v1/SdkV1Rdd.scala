@@ -33,7 +33,7 @@ case class SdkV1Rdd[A, I](
 
   override def getPartitions: Array[Partition] = {
     val numberOfPartitions =
-      getStreams(client, config.limit, config.partitions).grouped(config.parallelismPerPartition).length
+      getStreams(client, config.limitPerPartition, config.partitions).grouped(config.parallelismPerPartition).length
     0.until(numberOfPartitions).toArray.map(CdfPartition)
   }
 
@@ -49,7 +49,7 @@ case class SdkV1Rdd[A, I](
     val processedIds = mutable.Set.empty[I]
 
     val streams =
-      getStreams(client, config.limit, config.partitions)
+      getStreams(client, config.limitPerPartition, config.partitions)
     val groupedStreams = streams.grouped(config.parallelismPerPartition).toSeq
 
     val currentStreamsAsSingleStream = groupedStreams(split.index)

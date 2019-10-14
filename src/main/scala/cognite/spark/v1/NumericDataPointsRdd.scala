@@ -12,14 +12,7 @@ import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
 import cats.implicits._
 import cognite.spark.PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
 import fs2._
-import org.apache.spark.sql.sources.{
-  And,
-  Filter,
-  GreaterThan,
-  GreaterThanOrEqual,
-  LessThan,
-  LessThanOrEqual
-}
+import org.apache.spark.sql.sources._
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Random, Try}

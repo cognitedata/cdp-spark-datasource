@@ -13,7 +13,7 @@ case class RelationConfig(
     auth: Auth,
     project: String,
     batchSize: Option[Int],
-    limit: Option[Int],
+    limitPerPartition: Option[Int],
     partitions: Int,
     maxRetries: Int,
     collectMetrics: Boolean,
@@ -80,7 +80,7 @@ class DefaultSource
       .getOrElse(sys.error("Either apiKey or bearerToken is required."))
     val project = getProject(auth, maxRetries, baseUrl)
     val batchSize = toPositiveInt(parameters, "batchSize")
-    val limitPerPartition = toPositiveInt(parameters, "limit")
+    val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
       .getOrElse(Constants.DefaultPartitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
