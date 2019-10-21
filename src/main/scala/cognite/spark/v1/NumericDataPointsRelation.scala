@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import java.time.Instant
+import java.time.{Duration, Instant}
 import java.time.temporal.ChronoUnit
 
 import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
@@ -8,11 +8,15 @@ import cats.effect.IO
 import cats.implicits._
 import PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow}
+import cats.data.Validated.{Invalid, Valid}
+import cats.data.ValidatedNel
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
 import fs2._
+
+import scala.util.matching.Regex
 
 case class DataPointsFilter(
     id: Option[Long],
@@ -38,17 +42,66 @@ case class InsertDataPointsItem(
     timestamp: Instant,
     value: Double)
 
-final case class Granularity(amount: Int, unit: ChronoUnit) {
+final case class Granularity(
+    amountOption: Option[Long],
+    unit: ChronoUnit,
+    isLongFormat: Boolean = false) {
   private val unitString = unit match {
-    case ChronoUnit.DAYS => "d"
-    case ChronoUnit.WEEKS => "w"
-    case ChronoUnit.HOURS => "h"
-    case ChronoUnit.MINUTES => "m"
-    case ChronoUnit.SECONDS => "s"
+    case ChronoUnit.DAYS => if (isLongFormat) "day" else "d"
+    case ChronoUnit.WEEKS => if (isLongFormat) "week" else "w"
+    case ChronoUnit.HOURS => if (isLongFormat) "hour" else "h"
+    case ChronoUnit.MINUTES => if (isLongFormat) "minute" else "m"
+    case ChronoUnit.SECONDS => if (isLongFormat) "second" else "s"
     case _ => throw new RuntimeException("Invalid granularity unit")
   }
 
-  override def toString: String = s"$amount$unitString"
+  val amount: Long = amountOption.getOrElse(1)
+
+  private val amountString = amountOption match {
+    case Some(a) => a.toString
+    case None => ""
+  }
+
+  override def toString: String = s"$amountString$unitString"
+
+  def toMillis: Long = unit.getDuration.multipliedBy(amount).toMillis
+}
+
+object Granularity {
+  val shortStringToUnit: Map[String, ChronoUnit] = Map(
+    "d" -> ChronoUnit.DAYS,
+    "w" -> ChronoUnit.WEEKS,
+    "h" -> ChronoUnit.HOURS,
+    "m" -> ChronoUnit.MINUTES,
+    "s" -> ChronoUnit.SECONDS
+  )
+  val longStringToUnit: Map[String, ChronoUnit] = Map(
+    "day" -> ChronoUnit.DAYS,
+    "week" -> ChronoUnit.WEEKS,
+    "hour" -> ChronoUnit.HOURS,
+    "minute" -> ChronoUnit.MINUTES,
+    "second" -> ChronoUnit.SECONDS
+  )
+
+  //val stringToUnit: Map[String, ChronoUnit] = shortUnitToString.map(_.swap)
+  private val validUnits = shortStringToUnit.keys.mkString("|") + "|" + longStringToUnit.keys.mkString(
+    "|")
+  val granularityRegex: Regex = f"""([1-9][0-9]*)*($validUnits)""".r
+
+  def parse(s: String): Either[Throwable, Granularity] =
+    Either
+      .catchNonFatal {
+        val granularityRegex(amount, unitString) = s
+        val (unit, isLongFormat) = shortStringToUnit.get(unitString) match {
+          case Some(unit) => (unit, false)
+          case None => (longStringToUnit(unitString), true)
+        }
+        Granularity(Option(amount).map(_.toInt), unit, isLongFormat)
+      }
+      .recoverWith {
+        case _: RuntimeException =>
+          Left(new IllegalArgumentException(s"Invalid granularity specification: $s."))
+      }
 }
 
 class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)
@@ -106,13 +159,26 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
     val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
     val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
+    val (aggregations, stringGranularities) = getAggregationSettings(filters)
+
+    val granularitiesOrErrors = stringGranularities
+      .map(Granularity.parse)
+      .toVector
+      .traverse(_.toValidatedNel)
+    val granularities = granularitiesOrErrors match {
+      case Valid(granularities) => granularities
+      case Invalid(errors) =>
+        val errorMessages = errors.map(_.getMessage).mkString_("\n")
+        throw new IllegalArgumentException(errorMessages)
+    }
     NumericDataPointsRdd(
       sqlContext.sparkContext,
       config,
       ids,
       externalIds,
-      filters,
       timestampLimits,
+      aggregations,
+      granularities,
       toRow(requiredColumns))
   }
 }
