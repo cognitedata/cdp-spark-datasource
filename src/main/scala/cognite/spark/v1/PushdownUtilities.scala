@@ -51,7 +51,7 @@ object PushdownUtilities {
     } else {
       filters
         .map(getFilter)
-        .reduce(PushdownAnd(_, _))
+        .reduce(PushdownAnd)
     }
 
   // Spark will still filter the result after pushdown filters are applied, see source code for
