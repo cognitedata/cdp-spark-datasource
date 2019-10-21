@@ -56,6 +56,41 @@ abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlC
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
+  def filtersToTimestampLimits(filters: Array[Filter]): (Option[Instant], Option[Instant]) = {
+    val timestampLimits = filters.flatMap(getTimestampLimit)
+
+    if (timestampLimits.exists(_.value.isBefore(Instant.ofEpochMilli(0)))) {
+      sys.error("timestamp limits must exceed 1970-01-01T00:00:00Z")
+    }
+
+    Tuple2(
+      // Note that this way of aggregating filters will not work with "Or" predicates.
+      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption
+        .map(_.value),
+      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption
+        .map(_.value)
+    )
+  }
+
+  def getTimestampLimit(filter: Filter): Seq[Limit] =
+    filter match {
+      case LessThan("timestamp", value) => Seq(timeStampStringToMax(value, -1))
+      case LessThanOrEqual("timestamp", value) => Seq(timeStampStringToMax(value, 0))
+      case GreaterThan("timestamp", value) => Seq(timeStampStringToMin(value, 1))
+      case GreaterThanOrEqual("timestamp", value) => Seq(timeStampStringToMin(value, 0))
+      case And(f1, f2) => getTimestampLimit(f1) ++ getTimestampLimit(f2)
+      // case Or(f1, f2) => we might possibly want to do something clever with joining an "or" clause
+      //                    with timestamp limits on each side (including replacing "max of Min's" with the less strict
+      //                    "min of Min's" when aggregating filters on the same side); just ignore them for now
+      case _ => Seq.empty
+    }
+
+  def timeStampStringToMin(value: Any, adjustment: Long): Min =
+    Min(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
+
+  def timeStampStringToMax(value: Any, adjustment: Long): Max =
+    Max(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
+
   def getAggregationSettings(filters: Array[Filter]): (Array[AggregationFilter], Seq[String]) = {
     val aggregations = filters.flatMap(getAggregation).distinct
     val granularities = filters.flatMap(getGranularity).distinct

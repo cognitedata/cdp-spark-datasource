@@ -136,7 +136,10 @@ case class NumericDataPointsRdd(
           }
     }
 
-  private def getFirstAndLastConcurrently(ids: Vector[Long], start: Instant, end: Instant) = {
+  private def getFirstAndLastConcurrently(
+      ids: Vector[Long],
+      start: Instant,
+      end: Instant): IO[Vector[(Long, Option[Instant], Option[Instant])]] = {
     val firsts = ids.map { id =>
       client.dataPoints
         .queryById(
