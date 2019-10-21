@@ -121,9 +121,10 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
       .where(
         s"timestamp >= to_timestamp(1508889600) and timestamp <= to_timestamp(1511481600) and aggregation in ('sum', 'average', 'max') and granularity = '30d' and id = $valhallTimeSeriesId")
-    assert(df.count() == 3)
-    val results: Array[Row] = df.collect()
-    val Array(max, avg, sum) = results
+      .orderBy(col("aggregation").asc)
+    val results = df.collect()
+    assert(results.size == 3)
+    val Array(avg, max, sum) = results
     val timeSeriesId = valhallTimeSeriesId
     assert(sum.getLong(0) == timeSeriesId)
     assert(avg.getLong(0) == timeSeriesId)
@@ -145,7 +146,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     val e = intercept[Exception] {
       df.count()
     }
-    e.getCause shouldBe a[RuntimeException]
+    e shouldBe an[IllegalArgumentException]
   }
 
   it should "be an error to specify a granularity without specifying an aggregation" taggedAs (ReadTest) in {
@@ -158,7 +159,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     val e = intercept[Exception] {
       df.count()
     }
-    e.getCause shouldBe a[RuntimeException]
+    e shouldBe an[IllegalArgumentException]
   }
 
   it should "be an error to specify an invalid granularity" taggedAs (ReadTest) in {
@@ -174,9 +175,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       val e = intercept[Exception] {
         df.count()
       }
-      e.getCause shouldBe a[CdpApiException]
-      val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
-      assert(cdpApiException.code == 400)
+      e shouldBe an[IllegalArgumentException]
     }
     spark.sparkContext.setLogLevel("WARN")
   }
@@ -202,7 +201,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .load()
         .where(
           s"timestamp > to_timestamp(0) and timestamp <= to_timestamp(1510358400) and aggregation in ('max') and granularity = '$granularity' and id = $valhallTimeSeriesId")
-      assert(df.count() == 1)
+      assert(df.count() >= 1)
     }
   }
 

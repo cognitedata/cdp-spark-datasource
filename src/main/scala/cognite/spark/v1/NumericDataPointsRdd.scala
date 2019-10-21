@@ -1,24 +1,34 @@
 package cognite.spark.v1
 
-import java.time.Instant
+import java.time.{Duration, Instant}
 import java.time.temporal.ChronoUnit
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.{Concurrent, ContextShift, IO}
 import com.cognite.sdk.scala.v1.GenericClient
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
 import cats.implicits._
-import cognite.spark.PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
 import fs2._
-import org.apache.spark.sql.sources._
-import Ordering.Implicits._
 
+import Ordering.Implicits._
 import scala.concurrent.ExecutionContext
 import scala.util.{Random, Try}
 
-final case class Range(id: Long, start: Instant, end: Instant, count: Long)
+sealed trait Range {
+  val count: Long
+}
+final case class DataPointsRange(id: Either[Long, String], start: Instant, end: Instant, count: Long)
+    extends Range
+final case class AggregationRange(
+    id: Either[Long, String],
+    start: Instant,
+    end: Instant,
+    count: Long,
+    granularity: Granularity,
+    aggregation: String)
+    extends Range
 
 final case class Bucket(index: Int, ranges: Seq[Range]) extends Partition
 
@@ -27,8 +37,9 @@ case class NumericDataPointsRdd(
     config: RelationConfig,
     ids: Seq[Long],
     externalIds: Seq[String],
-    filters: Array[Filter],
     timestampLimits: (Option[Instant], Option[Instant]),
+    aggregations: Array[AggregationFilter],
+    granularities: Seq[Granularity],
     toRow: DataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
 
@@ -39,7 +50,7 @@ case class NumericDataPointsRdd(
 
   private val (lowerTimeLimit, upperTimeLimit) = timestampLimits
   private def countsToRanges(
-      id: Long,
+      id: Either[Long, String],
       counts: Seq[SdkDataPoint],
       granularity: Granularity,
       ranges: Seq[Range] = Seq.empty,
@@ -54,7 +65,7 @@ case class NumericDataPointsRdd(
         }
         val accumulatedCount = count.value.toLong + countSum
         if (accumulatedCount > partitionSize) {
-          val newRange = Range(
+          val newRange = DataPointsRange(
             id,
             countStart.getOrElse(count.timestamp),
             countStart
@@ -76,7 +87,8 @@ case class NumericDataPointsRdd(
       case _ =>
         countStart match {
           case Some(start) =>
-            val lastRange = Range(id, start, start.plus(granularity.amount, granularity.unit), countSum)
+            val lastRange =
+              DataPointsRange(id, start, start.plus(granularity.amount, granularity.unit), countSum)
             lastRange +: ranges
           case _ => ranges
         }
@@ -88,72 +100,147 @@ case class NumericDataPointsRdd(
   val maxPointsPerPartition = 100000
   val partitionSize = 100000
   val bucketSize = 2000000
+  val maxPointsPerAggregationRange = 10000
 
   private val granularitiesToTry = Seq(
-    Granularity(300, ChronoUnit.DAYS),
-    Granularity(150, ChronoUnit.DAYS),
-    Granularity(75, ChronoUnit.DAYS),
-    Granularity(37, ChronoUnit.DAYS),
-    Granularity(16, ChronoUnit.DAYS),
-    Granularity(8, ChronoUnit.DAYS),
-    Granularity(1, ChronoUnit.DAYS),
-    Granularity(12, ChronoUnit.HOURS),
-    Granularity(6, ChronoUnit.HOURS),
-    Granularity(3, ChronoUnit.HOURS),
-    Granularity(1, ChronoUnit.HOURS),
-    Granularity(30, ChronoUnit.MINUTES),
-    Granularity(1, ChronoUnit.MINUTES),
-    Granularity(30, ChronoUnit.SECONDS),
-    Granularity(1, ChronoUnit.SECONDS)
+    Granularity(Some(300), ChronoUnit.DAYS),
+    Granularity(Some(150), ChronoUnit.DAYS),
+    Granularity(Some(75), ChronoUnit.DAYS),
+    Granularity(Some(37), ChronoUnit.DAYS),
+    Granularity(Some(16), ChronoUnit.DAYS),
+    Granularity(Some(8), ChronoUnit.DAYS),
+    Granularity(Some(1), ChronoUnit.DAYS),
+    Granularity(Some(12), ChronoUnit.HOURS),
+    Granularity(Some(6), ChronoUnit.HOURS),
+    Granularity(Some(3), ChronoUnit.HOURS),
+    Granularity(Some(1), ChronoUnit.HOURS),
+    Granularity(Some(30), ChronoUnit.MINUTES),
+    Granularity(Some(1), ChronoUnit.MINUTES),
+    Granularity(Some(30), ChronoUnit.SECONDS),
+    Granularity(Some(1), ChronoUnit.SECONDS)
   )
 
+  private def queryAggregates(
+      idOrExternalId: Either[Long, String],
+      start: Instant,
+      end: Instant,
+      granularity: String,
+      aggregates: Seq[String],
+      limit: Int) = idOrExternalId match {
+    case Left(id) =>
+      client.dataPoints
+        .queryAggregatesById(
+          id,
+          start,
+          end,
+          granularity.toString,
+          aggregates,
+          limit = Some(limit)
+        )
+    case Right(externalId) =>
+      client.dataPoints
+        .queryAggregatesByExternalId(
+          externalId,
+          start,
+          end,
+          granularity.toString,
+          aggregates,
+          limit = Some(limit)
+        )
+  }
+
+  private def floorToNearest(x: Long, base: Double) =
+    (base * math.floor(x.toDouble / base)).toLong
+
+  private def ceilToNearest(x: Long, base: Double) =
+    (base * math.ceil(x.toDouble / base)).toLong
+
   private def smallEnoughRanges(
-      id: Long,
+      id: Either[Long, String],
       start: Instant,
       end: Instant,
       granularities: Seq[Granularity] = granularitiesToTry): IO[Seq[Range]] =
     granularities match {
       case granularity +: moreGranular =>
+        // convert start to closest previous granularity unit
+        // convert end to closest next granularity unit(?)
+        val granularityUnitMillis = granularity.unit.getDuration.toMillis
+
+        queryAggregates(
+          id,
+          Instant.ofEpochMilli(floorToNearest(start.toEpochMilli, granularityUnitMillis)),
+          Instant.ofEpochMilli(ceilToNearest(end.toEpochMilli, granularityUnitMillis)),
+          granularity.toString,
+          Seq("count"),
+          10000
+        ).flatMap { aggregates =>
+          val counts = aggregates("count")
+          if (counts.map(_.value).max > partitionSize && moreGranular.nonEmpty) {
+            smallEnoughRanges(id, start, end, moreGranular)
+          } else {
+            IO.pure(countsToRanges(id, counts, granularity))
+          }
+        }
+    }
+
+  private def queryById(idOrExternalId: Either[Long, String], start: Instant, end: Instant, limit: Int) =
+    idOrExternalId match {
+      case Left(id) =>
         client.dataPoints
-          .queryAggregatesById(
+          .queryById(
             id,
             start,
             end,
-            granularity.toString,
-            Seq("count"),
-            limit = Some(10000)
+            limit = Some(limit)
           )
-          .flatMap { aggregates =>
-            val counts = aggregates("count")
-            if (counts.map(_.value).max > partitionSize && moreGranular.nonEmpty) {
-              smallEnoughRanges(id, start, end, moreGranular)
-            } else {
-              IO.pure(countsToRanges(id, counts, granularity))
-            }
-          }
+      case Right(externalId) =>
+        client.dataPoints
+          .queryByExternalId(
+            externalId,
+            start,
+            end,
+            limit = Some(limit)
+          )
     }
 
-  private def getFirstAndLastConcurrently(
-      ids: Vector[Long],
+  private def getFirstAndLastConcurrentlyById(
+      idOrExternalIds: Vector[Either[Long, String]],
       start: Instant,
-      end: Instant): IO[Vector[(Long, Option[Instant], Option[Instant])]] = {
-    val firsts = ids.map { id =>
-      client.dataPoints
-        .queryById(
-          id,
-          start,
-          end,
-          limit = Some(1)
-        )
+      end: Instant): IO[Vector[(Either[Long, String], Option[Instant], Option[Instant])]] = {
+    val firsts = idOrExternalIds.map { id =>
+      queryById(id, start, end, 1)
         .map(_.headOption)
         .map(p => id -> p)
     }.parSequence
-    val lasts = for {
-      latestByIds <- client.dataPoints.getLatestDataPointsByIds(ids)
+    val ids = idOrExternalIds.flatMap(_.left.toOption)
+    val externalIds = idOrExternalIds.flatMap(_.right.toOption)
+    val latestByInternalIds = if (ids.nonEmpty) {
+      client.dataPoints.getLatestDataPointsByIds(ids)
+    } else {
+      IO.pure(Map.empty)
+    }
+    val latestByExternalIds = if (externalIds.nonEmpty) {
+      client.dataPoints.getLatestDataPointsByExternalIds(externalIds)
+    } else {
+      IO.pure(Map.empty)
+    }
+    val lastsByInternalId: IO[Map[Either[Long, String], Option[Instant]]] = for {
+      latestByIds <- latestByInternalIds
     } yield
       for {
         (id, maybeLatest) <- latestByIds
-      } yield (id, maybeLatest.map(latest => latest.timestamp.min(end)))
+      } yield (Left[Long, String](id), maybeLatest.map(latest => latest.timestamp.min(end)))
+    val lastsByExternalId: IO[Map[Either[Long, String], Option[Instant]]] = for {
+      latestByIds <- latestByExternalIds
+    } yield
+      for {
+        (id, maybeLatest) <- latestByIds
+      } yield (Right[Long, String](id), maybeLatest.map(latest => latest.timestamp.min(end)))
+    val lasts = for {
+      byInternalId <- lastsByInternalId
+      byExternalId <- lastsByExternalId
+    } yield byExternalId ++ byInternalId
+
     (firsts, lasts).parMapN {
       case (f, l) =>
         f.map {
@@ -163,7 +250,7 @@ case class NumericDataPointsRdd(
     }
   }
 
-  private def rangesToBuckets(ranges: Seq[Range]) = {
+  private def rangesToBuckets(ranges: Seq[Range]): Vector[Bucket] = {
     // Fold into a sequence of buckets, where each bucket has some ranges with a
     // total of data points <= bucketSize
     val bucketsFold = ranges.foldLeft((Seq.empty[Bucket], Seq.empty[Range], 0L)) {
@@ -184,26 +271,19 @@ case class NumericDataPointsRdd(
       case (buckets, ranges, _) => Bucket(1, ranges) +: buckets
     }
 
-    buckets.zipWithIndex.map {
-      case (bucket, index) => bucket.copy(index = index)
-    }
+    buckets.zipWithIndex.map { case (bucket, index) => bucket.copy(index = index) }.toVector
   }
+
+  private val defaultEnd = Instant.ofEpochMilli(1571827773002L)
+  private val defaultStart = Instant.ofEpochMilli(0)
 
   private def buckets(
       ids: Seq[Long],
       externalIds: Seq[String],
       maybeStart: Option[Instant],
-      maybeEnd: Option[Instant]): Seq[Bucket] = {
-    val start = maybeStart.getOrElse(Instant.ofEpochMilli(0))
-    val end = maybeEnd.getOrElse(Instant.ofEpochMilli(Long.MaxValue))
-    val firstLatest = Stream
-      .emits(ids)
-      .covary[IO]
-      .chunkLimit(100)
-      .parEvalMapUnordered(50) { chunk =>
-        getFirstAndLastConcurrently(chunk.toVector, start, end)
-      }
-      .flatMap(Stream.emits)
+      maybeEnd: Option[Instant],
+      firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])])
+    : IO[Seq[Bucket]] = {
 
     val ranges = firstLatest
       .parEvalMapUnordered(50) {
@@ -211,7 +291,7 @@ case class NumericDataPointsRdd(
           if (latest >= first) {
             smallEnoughRanges(id, first, latest)
           } else {
-            IO(Seq(Range(id, first, latest.plusMillis(1), 1)))
+            IO(Seq(DataPointsRange(id, first, latest.plusMillis(1), 1)))
           }
         case _ => IO(Seq.empty)
       }
@@ -220,19 +300,83 @@ case class NumericDataPointsRdd(
 
     // Shuffle the ranges to get a more even distribution across potentially
     // many time series and ranges, to reduce the possibility of hotspotting.
-    val shuffledRanges = ranges.compile.toVector.map(Random.shuffle(_)).unsafeRunSync()
+    ranges.compile.toVector.map(Random.shuffle(_)).map(rangesToBuckets)
+  }
 
-    rangesToBuckets(shuffledRanges)
+  private def aggregationBuckets(
+      aggregations: Seq[AggregationFilter],
+      granularity: Granularity,
+      ids: Seq[Long],
+      externalIds: Seq[String],
+      maybeStart: Option[Instant],
+      maybeEnd: Option[Instant],
+      firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])]
+  ): IO[Vector[Bucket]] = {
+    val granularityUnitMillis = granularity.unit.getDuration.toMillis
+    // TODO: make sure we have a test that covers more than 10000 units
+    firstLatest
+      .parEvalMapUnordered(50) {
+        case (id, Some(first), Some(latest)) =>
+          val aggStart = Instant.ofEpochMilli(floorToNearest(first.toEpochMilli, granularityUnitMillis))
+          val aggEnd = Instant.ofEpochMilli(
+            floorToNearest(
+              latest.toEpochMilli,
+              granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis))
+
+          val d1 = Duration.between(aggStart, aggEnd)
+          val numValues = d1.toMillis / granularity.unit.getDuration.toMillis
+          val numRanges = numValues / maxPointsPerAggregationRange
+
+          val ranges = for {
+            a <- aggregations
+            i <- 0L to numRanges
+            rangeStart = aggStart.plus((maxPointsPerAggregationRange * (i - 1)).max(0), granularity.unit)
+            rangeEnd = rangeStart.plus(maxPointsPerAggregationRange, granularity.unit).min(aggEnd)
+            nPoints = Duration
+              .between(rangeStart, rangeEnd)
+              .toMillis / granularity.unit.getDuration.toMillis
+          } yield AggregationRange(id, rangeStart, rangeEnd, nPoints, granularity, a.aggregation)
+          IO(ranges)
+        case _ => IO(Seq.empty)
+      }
+      .map(Stream.emits)
+      .flatten
+      .compile
+      .toVector
+      .map(Random.shuffle(_))
+      .map(rangesToBuckets)
   }
 
   override def getPartitions: Array[Partition] = {
-    val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-
-    val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
-    val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
-
-    buckets(ids, externalIds, lowerTimeLimit, upperTimeLimit).toArray
+    val start = lowerTimeLimit.getOrElse(defaultStart)
+    val end = upperTimeLimit.getOrElse(defaultEnd)
+    val firstLatest = Stream
+      .emits(ids.map(Left(_)) ++ externalIds.map(Right(_)))
+      .covary[IO]
+      .chunkLimit(100)
+      .parEvalMapUnordered(50) { chunk =>
+        getFirstAndLastConcurrentlyById(chunk.toVector, start, end)
+      }
+      .flatMap(Stream.emits)
+    val partitions = if (granularities.isEmpty) {
+      buckets(ids, externalIds, lowerTimeLimit, upperTimeLimit, firstLatest)
+    } else {
+      granularities.toVector
+        .map(
+          g =>
+            aggregationBuckets(
+              aggregations,
+              g,
+              ids,
+              externalIds,
+              lowerTimeLimit,
+              upperTimeLimit,
+              firstLatest))
+        .parFlatSequence
+    }
+    partitions
+      .map(_.toArray[Partition])
+      .unsafeRunSync()
   }
 
   @transient lazy implicit val contextShift: ContextShift[IO] =
@@ -242,23 +386,39 @@ case class NumericDataPointsRdd(
     val bucket = _split.asInstanceOf[Bucket]
 
     bucket.ranges.toVector
-      .flatTraverse { r =>
-        client.dataPoints
-          .queryById(r.id, r.start, r.end, limit = Some(100000))
-          .map(
-            dataPoints =>
-              dataPoints
-                .map { p =>
-                  DataPointsItem(
-                    Some(r.id),
-                    None,
-                    java.sql.Timestamp.from(p.timestamp),
-                    p.value,
-                    None,
-                    None)
-                }
-                .map(toRow)
-                .toVector)
+      .flatTraverse {
+        case r: DataPointsRange =>
+          queryById(r.id, r.start, r.end, 100000)
+            .map(
+              dataPoints =>
+                dataPoints
+                  .map { p =>
+                    DataPointsItem(
+                      r.id.left.toOption,
+                      r.id.right.toOption,
+                      java.sql.Timestamp.from(p.timestamp),
+                      p.value,
+                      None,
+                      None)
+                  }
+                  .map(toRow)
+                  .toVector)
+        case r: AggregationRange =>
+          queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
+            .map(
+              dataPoints =>
+                dataPoints(r.aggregation)
+                  .map { p =>
+                    DataPointsItem(
+                      r.id.left.toOption,
+                      r.id.right.toOption,
+                      java.sql.Timestamp.from(p.timestamp),
+                      p.value,
+                      Some(r.aggregation),
+                      Some(r.granularity.toString))
+                  }
+                  .map(toRow)
+                  .toVector)
       }
       .map(r => config.limitPerPartition.fold(r)(limit => r.take(limit)))
       .unsafeRunSync()

@@ -23,7 +23,7 @@ sealed case class Min(value: Instant) extends Limit
 
 sealed case class Max(value: Instant) extends Limit
 
-case class AggregationFilter(aggregation: String)
+final case class AggregationFilter(aggregation: String)
 
 abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlContext: SQLContext)
     extends BaseRelation
@@ -94,11 +94,11 @@ abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlC
     val granularities = filters.flatMap(getGranularity).distinct
 
     if (aggregations.nonEmpty && granularities.isEmpty) {
-      sys.error(s"Aggregations requested but granularity is not specified")
+      throw new IllegalArgumentException(s"Aggregations requested but granularity is not specified")
     }
 
     if (aggregations.isEmpty && granularities.nonEmpty) {
-      sys.error(s"Granularity specified but no aggregation requested")
+      throw new IllegalArgumentException(s"Granularity specified but no aggregation requested")
     }
 
     (aggregations, granularities)
