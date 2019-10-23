@@ -144,9 +144,10 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
       .option("partitions", "1")
+      .option("limit", "10")
       .load()
       .where(
-        s"timestamp >= to_timestamp(1509490000) and timestamp <= to_timestamp(1510358400) and aggregation = 'min' and granularity = '1d' and id = $valhallTimeSeriesId")
+        s"aggregation = 'min' and granularity = '1d' and id = $valhallTimeSeriesId")
 
     assert(df1.count() == 10)
     val df1Partitions = spark.read

@@ -109,7 +109,7 @@ object PushdownUtilities {
         .getOrElse(Instant.ofEpochMilli(0)),
       Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption
         .map(_.value)
-        .getOrElse(Instant.ofEpochMilli(Long.MaxValue))
+        .getOrElse(Instant.ofEpochMilli(Constants.millisSinceEpochIn2100)) // Year 2100 should be sufficient
     )
   }
 

@@ -18,4 +18,5 @@ object Constants {
   val MetadataValuePostMaxLength = 512
   val MaxConcurrentRequests = 1000
   val SparkDatasourceVersion = s"${BuildInfo.organization}-${BuildInfo.version}"
+  val millisSinceEpochIn2100 = 4102448400000L
 }
