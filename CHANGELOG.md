@@ -1,3 +1,19 @@
+# 1.0.0
+This release goes from using Cognite API version 0.5/0.6 to using [Cognite API v1](https://docs.cognite.com/api/v1/). 
+All reads from, and writes to, CDF now use the [Cognite Scala SDK](https://github.com/cognitedata/cognite-sdk-scala).
+
+## Breaking changes
+* All schemas updated to match API v1
+
+## Enhancements
+* Parallel retrieval is now a lot faster, and parallelity can be specified using the `partitions` option.`
+
+* All datetime columns are now Timestamps rather than milliseconds since Epoch.
+
+* Format has been shortened, for convenience: `.format("cognite.spark.v1")`.
+
+* Filtering Time Series on `assetId` is now applied API-side.
+
 # 0.4.13
 
 ## Fixes

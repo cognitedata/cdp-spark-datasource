@@ -1,4 +1,4 @@
-package cognite.spark
+package cognite.spark.v1
 
 import scala.language.experimental.macros
 import org.apache.spark.sql.types.{StructField, StructType}
