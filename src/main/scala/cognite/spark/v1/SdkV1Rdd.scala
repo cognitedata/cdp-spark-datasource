@@ -29,7 +29,7 @@ case class SdkV1Rdd[A, I](
 
   implicit val auth: Auth = config.auth
   @transient lazy val client =
-    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
+    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)
 
   override def getPartitions: Array[Partition] = {
     val numberOfPartitions =

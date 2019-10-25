@@ -27,7 +27,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   import CdpConnector.sttpBackend
   implicit val auth: Auth = config.auth
-  @transient lazy val client = new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
+  @transient lazy val client =
+    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)
 
   def schema: StructType
 
