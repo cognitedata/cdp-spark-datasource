@@ -33,7 +33,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlC
     with InsertableRelation {
   @transient implicit lazy val contextShift: ContextShift[IO] =
     IO.contextShift(ExecutionContext.global)
-  import CdpConnector.sttpBackend
+  import CdpConnector.retryingSttpBackend
   implicit val auth: Auth = config.auth
   @transient lazy val client = new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
   def toRow(a: A): Row
