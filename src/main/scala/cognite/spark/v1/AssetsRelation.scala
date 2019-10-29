@@ -115,3 +115,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: Asset): Long = a.id
 }
+object AssetsRelation extends UpsertSchema {
+  val upsertSchema = StructType(
+    structType[Asset].filterNot(field => Seq("createdTime", "lastUpdatedTime").contains(field.name)))
+}

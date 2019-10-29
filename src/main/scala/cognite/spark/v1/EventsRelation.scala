@@ -129,5 +129,8 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def toRow(a: Event): Row = asRow(a)
 
   override def uniqueId(a: Event): Long = a.id
-
+}
+object EventsRelation extends UpsertSchema {
+  val upsertSchema = StructType(
+    structType[Event].filterNot(field => Seq("createdTime", "lastUpdatedTime").contains(field.name)))
 }
