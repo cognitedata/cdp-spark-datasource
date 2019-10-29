@@ -23,7 +23,7 @@ case class SdkV1Rdd[A, I](
     uniqueId: A => I,
     getStreams: (GenericClient[IO, Nothing], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
-  import CdpConnector.sttpBackend
+  import CdpConnector.retryingSttpBackend
 
   type EitherQueue = ArrayBlockingQueue[Either[Throwable, Vector[A]]]
 

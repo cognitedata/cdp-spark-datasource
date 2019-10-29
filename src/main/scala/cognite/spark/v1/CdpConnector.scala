@@ -4,7 +4,7 @@ import java.io.IOException
 
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
-import com.cognite.sdk.scala.common.{Auth, CdpApiException}
+import com.cognite.sdk.scala.common.{Auth, CdpApiException, RetryingBackend}
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import com.softwaremill.sttp._
 import com.softwaremill.sttp.circe._
@@ -146,8 +146,11 @@ object CdpConnector {
   @transient implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
   @transient implicit val cs: ContextShift[IO] =
     IO.contextShift(ExecutionContext.global)
-  @transient implicit val sttpBackend: SttpBackend[IO, Nothing] =
+  val sttpBackend: SttpBackend[IO, Nothing] =
     AsyncHttpClientCatsBackend[cats.effect.IO]()
+
+  @transient implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
+    new RetryingBackend[IO, Nothing](sttpBackend)
 
   type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]

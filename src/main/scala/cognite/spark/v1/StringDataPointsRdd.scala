@@ -15,7 +15,7 @@ case class StringDataPointsRdd(
 ) extends RDD[Row](sparkContext, Nil) {
 
   implicit val auth: Auth = config.auth
-  import CdpConnector.sttpBackend
+  import CdpConnector.retryingSttpBackend
   @transient lazy val client =
     new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
 

@@ -25,7 +25,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   @transient lazy private val itemsCreated =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.created")
 
-  import CdpConnector.sttpBackend
+  import CdpConnector.retryingSttpBackend
   implicit val auth: Auth = config.auth
   @transient lazy val client =
     new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)

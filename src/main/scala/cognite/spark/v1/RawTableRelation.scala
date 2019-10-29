@@ -38,7 +38,7 @@ class RawTableRelation(
     with Serializable {
   import RawTableRelation._
 
-  import CdpConnector.sttpBackend
+  import CdpConnector.retryingSttpBackend
   implicit val auth: Auth = config.auth
   @transient lazy val client = new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
 
