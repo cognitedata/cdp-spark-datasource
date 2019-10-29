@@ -106,14 +106,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
   }
 }
-object TimeSeriesRelation
-    extends DeleteSchema
-    with UpsertSchema
-    with InsertSchema
-//    with UpdateSchema
-    {
-  val insertSchema = structType[TimeSeriesCreate]
+object TimeSeriesRelation extends UpsertSchema {
   val upsertSchema = StructType(structType[TimeSeries].filterNot(field =>
     Seq("createdTime", "lastUpdatedTime").contains(field.name)))
-//  val updateSchema = StructType(structType[TimeSeriesCreate])
 }
