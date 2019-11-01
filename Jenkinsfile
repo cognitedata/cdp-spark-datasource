@@ -46,17 +46,12 @@ podTemplate(label: label,
                     sh('cp /sbt-credentials/repositories /root/.sbt/')
                     sh('mkdir -p /root/.sbt/gpg && cp /sbt-credentials/pubring.asc /sbt-credentials/secring.asc /root/.sbt/gpg/')
                 }
-                stage('Run tests') {
-                    sh('sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage +test coverageReport')
-                }
                 stage("Upload report to codecov.io") {
                     sh('bash </codecov-script/upload-report.sh')
                 }
                 stage('Build JAR file') {
                     sh('sbt -Dsbt.log.noformat=true'
                        + ' "set test in library := {}"'
-                       + ' "set compile/skip := true"'
-                       + ' "set macroSub/skip := true"'
                        + ' +library/package')
                 }
                 stage('Deploy') {
