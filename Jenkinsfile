@@ -47,7 +47,7 @@ podTemplate(label: label,
                     sh('mkdir -p /root/.sbt/gpg && cp /sbt-credentials/pubring.asc /sbt-credentials/secring.asc /root/.sbt/gpg/')
                 }
                 stage('Run tests') {
-                    sh('sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage +test coverageReport')
+                    sh('sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck')
                 }
                 stage("Upload report to codecov.io") {
                     sh('bash </codecov-script/upload-report.sh')
@@ -55,14 +55,10 @@ podTemplate(label: label,
                 stage('Build JAR file') {
                     sh('sbt -Dsbt.log.noformat=true'
                        + ' "set test in library := {}"'
-                       + ' "set compile/skip := true"'
-                       + ' "set macroSub/skip := true"'
                        + ' +library/package')
                 }
-                if (env.BRANCH_NAME == 'master') {
-                    stage('Deploy') {
-                        sh('sbt -Dsbt.log.noformat=true +library/publishSigned')
-                    }
+                stage('Deploy') {
+                    sh('sbt -Dsbt.log.noformat=true +library/publishSigned')
                 }
             }
         }

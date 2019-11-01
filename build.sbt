@@ -84,7 +84,7 @@ lazy val library = (project in file("."))
   .dependsOn(macroSub % "compile-internal, test-internal")
   .settings(
     commonSettings,
-    name := "cdp-spark-datasource",
+    name := "cdp-spark-datasource-old",
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
     libraryDependencies ++= Seq(
