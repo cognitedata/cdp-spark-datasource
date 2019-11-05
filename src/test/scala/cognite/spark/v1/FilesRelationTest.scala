@@ -25,7 +25,7 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "files")
-      .option("limit", "5")
+      .option("limitPerPartition", "5")
       .load()
 
     assert(df.count() == 5)
