@@ -16,8 +16,9 @@ import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
 import fs2.Stream
+import io.scalaland.chimney.dsl._
 
-class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
+class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
     with InsertableRelation {
 
@@ -44,11 +45,17 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesSeq = rows.map { r =>
       val timeSeries = fromRow[TimeSeries](r)
-      timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
+      val timeSeriesWithMetadata = timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
+      val timeSeriesCreate = timeSeriesWithMetadata.transformInto[TimeSeriesCreate]
+      if (useLegacyName) {
+        timeSeriesCreate.copy(legacyName = timeSeriesCreate.name)
+      } else {
+        timeSeriesCreate
+      }
     }
 
     client.timeSeries
-      .createFromRead(timeSeriesSeq)
+      .create(timeSeriesSeq)
       .handleErrorWith {
         case e: CdpApiException =>
           if (e.code == 409) {
@@ -59,7 +66,9 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       } *> IO.unit
   }
 
-  def resolveConflict(existingExternalIds: Seq[String], timeSeriesSeq: Seq[TimeSeries]): IO[Unit] = {
+  def resolveConflict(
+      existingExternalIds: Seq[String],
+      timeSeriesSeq: Seq[TimeSeriesCreate]): IO[Unit] = {
     import CdpConnector.cs
     val (timeSeriesToUpdate, timeSeriesToCreate) = timeSeriesSeq.partition(
       p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
@@ -72,12 +81,12 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     val create =
       if (timeSeriesToCreate.isEmpty) { IO.unit } else {
-        client.timeSeries.createFromRead(timeSeriesToCreate)
+        client.timeSeries.create(timeSeriesToCreate)
       }
     val update =
       if (timeSeriesToUpdate.isEmpty) { IO.unit } else {
         client.timeSeries.updateFromRead(timeSeriesToUpdate.map(ts =>
-          ts.copy(id = idMap(ts.externalId))))
+          ts.transformInto[TimeSeries].copy(id = idMap(ts.externalId))))
       }
 
     (create, update).parMapN((_, _) => ())
