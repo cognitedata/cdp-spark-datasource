@@ -39,7 +39,7 @@ case class NumericDataPointsRdd(
     config: RelationConfig,
     ids: Seq[Long],
     externalIds: Seq[String],
-    timestampLimits: (Option[Instant], Option[Instant]),
+    timestampLimits: (Instant, Instant),
     aggregations: Array[AggregationFilter],
     granularities: Seq[Granularity],
     toRow: DataPointsItem => Row
@@ -277,14 +277,9 @@ case class NumericDataPointsRdd(
     buckets.zipWithIndex.map { case (bucket, index) => bucket.copy(index = index) }.toVector
   }
 
-  private val defaultEnd = Instant.ofEpochMilli(1571827773002L)
-  private val defaultStart = Instant.ofEpochMilli(0)
-
   private def buckets(
       ids: Seq[Long],
       externalIds: Seq[String],
-      maybeStart: Option[Instant],
-      maybeEnd: Option[Instant],
       firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])])
     : IO[Seq[Bucket]] = {
 
@@ -311,8 +306,6 @@ case class NumericDataPointsRdd(
       granularity: Granularity,
       ids: Seq[Long],
       externalIds: Seq[String],
-      maybeStart: Option[Instant],
-      maybeEnd: Option[Instant],
       firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])]
   ): IO[Vector[Bucket]] = {
     val granularityUnitMillis = granularity.unit.getDuration.toMillis
@@ -351,30 +344,19 @@ case class NumericDataPointsRdd(
   }
 
   override def getPartitions: Array[Partition] = {
-    val start = lowerTimeLimit.getOrElse(defaultStart)
-    val end = upperTimeLimit.getOrElse(defaultEnd)
     val firstLatest = Stream
       .emits(ids.map(Left(_)) ++ externalIds.map(Right(_)))
       .covary[IO]
       .chunkLimit(100)
       .parEvalMapUnordered(50) { chunk =>
-        getFirstAndLastConcurrentlyById(chunk.toVector, start, end)
+        getFirstAndLastConcurrentlyById(chunk.toVector, lowerTimeLimit, upperTimeLimit)
       }
       .flatMap(Stream.emits)
     val partitions = if (granularities.isEmpty) {
-      buckets(ids, externalIds, lowerTimeLimit, upperTimeLimit, firstLatest)
+      buckets(ids, externalIds, firstLatest)
     } else {
       granularities.toVector
-        .map(
-          g =>
-            aggregationBuckets(
-              aggregations,
-              g,
-              ids,
-              externalIds,
-              lowerTimeLimit,
-              upperTimeLimit,
-              firstLatest))
+        .map(g => aggregationBuckets(aggregations, g, ids, externalIds, firstLatest))
         .parFlatSequence
     }
     partitions

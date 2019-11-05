@@ -27,9 +27,6 @@ case class DataPointsFilter(
 case class DataPointsItem(
     id: Option[Long],
     externalId: Option[String],
-    isString: Boolean,
-    isStep: Boolean,
-    unit: Option[String],
     timestamp: java.sql.Timestamp,
     value: Double,
     aggregation: Option[String],
@@ -155,7 +152,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val timestampLimits = filtersToTimestampLimits(filters)
+    val timestampLimits = filtersToTimestampLimits(filters, "timestamp")
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
     val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
     val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
