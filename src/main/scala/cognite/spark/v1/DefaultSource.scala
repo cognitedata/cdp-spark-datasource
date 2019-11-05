@@ -125,7 +125,8 @@ class DefaultSource
       case "stringdatapoints" =>
         new StringDataPointsRelationV1(config)(sqlContext)
       case "timeseries" =>
-        new TimeSeriesRelation(config)(sqlContext)
+        val useLegacyName = toBoolean(parameters, "useLegacyName")
+        new TimeSeriesRelation(config, useLegacyName)(sqlContext)
       case "raw" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
@@ -187,7 +188,8 @@ class DefaultSource
       case "events" =>
         new EventsRelation(config)(sqlContext)
       case "timeseries" =>
-        new TimeSeriesRelation(config)(sqlContext)
+        val useLegacyName = toBoolean(parameters, "useLegacyName")
+        new TimeSeriesRelation(config, useLegacyName)(sqlContext)
       case "assets" =>
         new AssetsRelation(config)(sqlContext)
       case _ => sys.error(s"Resource type $resourceType does not support save()")
