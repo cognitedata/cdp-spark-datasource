@@ -98,7 +98,7 @@ class RawTableRelation(
       limit: Option[Int],
       filter: RawRowFilter,
       collectMetrics: Boolean = config.collectMetrics): RDD[Row] = {
-    val configWithLimit = config.copy(limit = limit)
+    val configWithLimit = config.copy(limitPerPartition = limit)
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
@@ -123,7 +123,7 @@ class RawTableRelation(
 
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
 
-    val rdd = readRows(config.limit, RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime))
+    val rdd = readRows(config.limitPerPartition, RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime))
     val newRdd = if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
       rdd
     } else {
