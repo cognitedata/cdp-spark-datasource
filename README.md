@@ -371,7 +371,7 @@ scala> val apiKey="secret-key-you-have"
 scala> val df = spark.sqlContext.read.format("cognite.spark.v1")
   .option("apiKey", apiKey)
   .option("batchSize", "1000")
-  .option("limit", "1000")
+  .option("limitPerPartition", "1000")
   .option("type", "assets")
   .load()
 

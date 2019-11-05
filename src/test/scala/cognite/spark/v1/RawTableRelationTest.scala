@@ -74,7 +74,7 @@ class RawTableRelationTest extends FlatSpec with Matchers with SparkTest {
     val df = spark.read.format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "raw")
-      .option("limit", limit)
+      .option("limitPerPartition", limit)
       .option("partitions", partitions)
       .option("database", "testdb")
       .option("table", "cryptoAssets")
@@ -228,7 +228,7 @@ class RawTableRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("metricsPrefix", metricsPrefix)
       .option("inferSchemaLimit", inferSchemaLimit)
       .option("collectSchemaInferenceMetrics", true)
-      .option("limit", 200)
+      .option("limitPerPartition", 200)
       .load()
 
     // Trigger schema evaluation
