@@ -57,12 +57,6 @@ abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlC
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
-  def timeStampStringToMin(value: Any, adjustment: Long): Min =
-    Min(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
-
-  def timeStampStringToMax(value: Any, adjustment: Long): Max =
-    Max(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
-
   def getAggregationSettings(filters: Array[Filter]): (Array[AggregationFilter], Seq[String]) = {
     val aggregations = filters.flatMap(getAggregation).distinct
     val granularities = filters.flatMap(getGranularity).distinct
