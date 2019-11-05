@@ -111,9 +111,6 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       Seq(
         StructField("id", LongType, nullable = true),
         StructField("externalId", StringType, nullable = true),
-        StructField("isString", BooleanType, nullable = false),
-        StructField("isStep", BooleanType, nullable = false),
-        StructField("unit", StringType, nullable = true),
         StructField("timestamp", TimestampType, nullable = false),
         StructField("value", DoubleType, nullable = false),
         StructField("aggregation", StringType, nullable = true),

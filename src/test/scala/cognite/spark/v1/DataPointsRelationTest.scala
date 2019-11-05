@@ -19,15 +19,11 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "datapoints")
       .load()
       .where(s"id = $valhallTimeSeriesId")
-    assert(df.schema.length == 9)
 
     assert(
       df.schema.fields.sameElements(Array(
         StructField("id", LongType, nullable = true),
         StructField("externalId", StringType, nullable = true),
-        StructField("isString", BooleanType, nullable = false),
-        StructField("isStep", BooleanType, nullable = false),
-        StructField("unit", StringType, nullable = true),
         StructField("timestamp", TimestampType, nullable = false),
         StructField("value", DoubleType, nullable = false),
         StructField("aggregation", StringType, nullable = true),
@@ -55,7 +51,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .where(
         s"aggregation = 'min' and granularity = '1d' and id = $valhallTimeSeriesId")
 
-    assert(df1.count() == 10)
+    assert(df1.count() > 10)
     val df1Partitions = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -82,7 +78,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         s"timestamp >= to_timestamp(1514592000) and timestamp <= to_timestamp(1540512000) and aggregation = 'average' and granularity = '60d' and id = $valhallTimeSeriesId")
     val result = df3.collect()
     assert(result.length == 5)
-    assert(result(0).getTimestamp(5).getTime == 1514592000000L)
+    assert(result(0).getTimestamp(2).getTime == 1514592000000L)
   }
 
   it should "shift non-aligned aggregates to correct timestamps" taggedAs ReadTest in {
@@ -96,7 +92,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         s"timestamp >= to_timestamp(1509490001) and timestamp <= to_timestamp(1510358400) and aggregation = 'max' and granularity = '1d' and id = $valhallTimeSeriesId")
     val results1 = df1.collect()
     assert(results1.length == 10)
-    assert(results1(0).getTimestamp(5).getTime == 1509494400000L)
+    assert(results1(0).getTimestamp(2).getTime == 1509494400000L)
     val df2 = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -107,7 +103,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         s"timestamp >= to_timestamp(1509490001) and timestamp <= to_timestamp(1510358400) and aggregation = 'max' and granularity = '1d' and id = $valhallTimeSeriesId")
     val results2 = df2.collect()
     assert(results2.length == 10)
-    assert(results2(0).getTimestamp(5).getTime == 1509494400000L)
+    assert(results2(0).getTimestamp(2).getTime == 1509494400000L)
   }
 
   it should "be possible to specify multiple aggregation types in one query" taggedAs (ReadTest) in {
@@ -126,11 +122,11 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(sum.getLong(0) == timeSeriesId)
     assert(avg.getLong(0) == timeSeriesId)
     assert(max.getLong(0) == timeSeriesId)
-    assert(sum.getString(7) == "sum")
-    assert(avg.getString(7) == "average")
-    assert(max.getString(7) == "max")
-    assert(sum.getDouble(6) > avg.getDouble(6))
-    assert(avg.getDouble(6) < max.getDouble(6))
+    assert(sum.getString(4) == "sum")
+    assert(avg.getString(4) == "average")
+    assert(max.getString(4) == "max")
+    assert(sum.getDouble(3) > avg.getDouble(3))
+    assert(avg.getDouble(3) < max.getDouble(3))
   }
 
   it should "be an error to specify an aggregation without specifying a granularity" taggedAs (ReadTest) in {
@@ -281,9 +277,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .sql(s"""
               |select $id as id,
               |'insert-test-data' as externalId,
-              |false as isString,
-              |false as isStep,
-              |'some unit' as unit,
               |to_timestamp(1509490001) as timestamp,
               |double(1.5) as value,
               |null as aggregation,
@@ -315,9 +308,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .sql(s"""
                    |select 9999 as id,
                    |"" as externalId,
-                   |false as isString,
-                   |false as isStep,
-                   |'someunit' as unit,
                    |bigint(123456789) as timestamp,
                    |double(1) as value,
                    |null as aggregation,

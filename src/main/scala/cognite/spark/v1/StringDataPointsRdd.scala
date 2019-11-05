@@ -38,9 +38,6 @@ case class StringDataPointsRdd(
           StringDataPointsItem(
             filter.id,
             filter.externalId,
-            isString = true,
-            isStep = true,
-            None,
             java.sql.Timestamp.from(sdp.timestamp),
             sdp.value
           )

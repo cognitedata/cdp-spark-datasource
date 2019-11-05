@@ -15,14 +15,10 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
       .option("type", "stringdatapoints")
       .load()
       .where(s"id = $valhallTimeSeriesId")
-    assert(df.schema.length == 7)
 
     assert(df.schema.fields.sameElements(Array(
       StructField("id", LongType, nullable = true),
       StructField("externalId", StringType, nullable = true),
-      StructField("isString", BooleanType, nullable = false),
-      StructField("isStep", BooleanType, nullable = false),
-      StructField("unit", StringType, nullable = true),
       StructField("timestamp", TimestampType, nullable = false),
       StructField("value", StringType, nullable = false))))
   }

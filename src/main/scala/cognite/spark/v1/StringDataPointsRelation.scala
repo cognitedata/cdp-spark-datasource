@@ -1,7 +1,5 @@
 package cognite.spark.v1
 
-import java.time.Instant
-
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.StringDataPoint
@@ -17,9 +15,6 @@ import PushdownUtilities.filtersToTimestampLimits
 case class StringDataPointsItem(
     id: Option[Long],
     externalId: Option[String],
-    isString: Boolean,
-    isStep: Boolean,
-    unit: Option[String],
     timestamp: java.sql.Timestamp,
     value: String
 )
@@ -39,9 +34,6 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
       Seq(
         StructField("id", LongType, nullable = true),
         StructField("externalId", StringType, nullable = true),
-        StructField("isString", BooleanType, nullable = false),
-        StructField("isStep", BooleanType, nullable = false),
-        StructField("unit", StringType, nullable = true),
         StructField("timestamp", TimestampType, nullable = false),
         StructField("value", StringType, nullable = false)
       ))
