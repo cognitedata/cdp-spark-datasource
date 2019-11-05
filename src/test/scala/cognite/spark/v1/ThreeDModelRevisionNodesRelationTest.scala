@@ -13,7 +13,7 @@ class ThreeDModelRevisionNodesRelationTest extends FlatSpec with SparkTest  {
       .option("type", "3dmodelrevisionnodes")
       .option("modelid", model.id)
       .option("revisionid", revision.id)
-      .option("limit", "10")
+      .option("limitPerPartition", "10")
       .load()
     assert(df.count == 10)
 

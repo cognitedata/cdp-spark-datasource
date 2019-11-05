@@ -18,7 +18,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     .format("cognite.spark.v1")
     .option("apiKey", readApiKey)
     .option("type", "events")
-    .option("limit", "1000")
+    .option("limitPerPartition", "1000")
     .option("partitions", "1")
     .load()
   sourceDf.createOrReplaceTempView("sourceEvent")
@@ -34,7 +34,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", readApiKey)
       .option("type", "events")
       .option("batchSize", "500")
-      .option("limit", "100")
+      .option("limitPerPartition", "100")
       .option("partitions", "10")
       .load()
 
@@ -269,7 +269,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
-      .option("limit", "1000")
+      .option("limitPerPartition", "1000")
       .option("metricsPrefix", metricsPrefix)
       .load()
 
@@ -594,7 +594,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "events")
-      .option("limit", "10")
+      .option("limitPerPartition", "10")
       .load()
 
     df.createTempView("nullevents")
