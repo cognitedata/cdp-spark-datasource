@@ -1,3 +1,14 @@
+# 1.1.0
+
+## Breaking changes
+* The library has been renamed to "cdf-spark-datasource" instead of "cdp-spark-datasource".
+* `isString`, `isStep` and `unit` have been removed from the data points schema. They were only used for reads.
+
+## Enhancements
+* Failed requests will be retried when appropriate failures are detected.
+
+* You can set `baseUrl` as in `.option("baseUrl", "https://greenfield.cognitedata.com")`
+
 # 1.0.0
 This release goes from using Cognite API version 0.5/0.6 to using [Cognite API v1](https://docs.cognite.com/api/v1/). 
 All reads from, and writes to, CDF now use the [Cognite Scala SDK](https://github.com/cognitedata/cognite-sdk-scala).
