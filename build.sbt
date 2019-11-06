@@ -16,7 +16,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.0.0",
+  version := "1.1.0",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -78,7 +78,7 @@ lazy val library = (project in file("."))
   .dependsOn(macroSub % "compile-internal, test-internal")
   .settings(
     commonSettings,
-    name := "cdp-spark-datasource",
+    name := "cdf-spark-datasource",
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
     libraryDependencies ++= Seq(
