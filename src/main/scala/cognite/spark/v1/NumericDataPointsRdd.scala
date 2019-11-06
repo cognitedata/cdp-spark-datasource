@@ -6,6 +6,7 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
+import com.softwaremill.sttp.SttpBackend
 
 case class NumericDataPointsRdd(
     @transient override val sparkContext: SparkContext,
@@ -15,7 +16,8 @@ case class NumericDataPointsRdd(
 ) extends RDD[Row](sparkContext, Nil) {
 
   implicit val auth: Auth = config.auth
-  import CdpConnector.retryingSttpBackend
+  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
+    CdpConnector.retryingSttpBackend(config.maxRetries)
   @transient lazy val client =
     new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
 

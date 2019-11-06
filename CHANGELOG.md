@@ -1,3 +1,8 @@
+# 1.1.1
+
+## Enhancements
+* Use `maxRetries` option to allow configuration of the number of retries to attempt.
+
 # 1.1.0
 
 ## Breaking changes

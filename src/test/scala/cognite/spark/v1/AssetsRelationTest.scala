@@ -7,19 +7,16 @@ import org.apache.spark.sql.functions._
 import org.scalatest.{FlatSpec, Matchers}
 
 class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
-  val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
-  val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
-
   val sourceDf = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", readApiKey.apiKey)
+    .option("apiKey", readApiKey)
     .option("type", "assets")
     .load()
   sourceDf.createTempView("sourceAssets")
 
   val destinationDf = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey.apiKey)
+    .option("apiKey", writeApiKey)
     .option("type", "assets")
     .load()
   destinationDf.createTempView("destinationAssets")
@@ -27,7 +24,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "read assets" taggedAs ReadTest in {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey.apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "assets")
       .option("limit", "1000")
       .option("partitions", "1")
@@ -43,7 +40,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "read assets with a small batchSize" taggedAs ReadTest in {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey.apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "assets")
       .option("batchSize", "1")
       .option("limit", "10")
@@ -57,7 +54,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.assets.name"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey.apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -76,7 +73,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.assets.source"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -95,7 +92,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.assets.duplicates"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -114,7 +111,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val assetsTestSource = "assets-relation-test-create"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .load()
     df.createOrReplaceTempView("assets")
@@ -146,7 +143,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val assetsTestSource = "assets-relation-test-create"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .load()
     df.createOrReplaceTempView("assets")
@@ -166,7 +163,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("onconflict", "abort")
       .save
@@ -176,13 +173,13 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val assetsTestSource = "assets-relation-test-copy"
     val sourceDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey.apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "assets")
       .load()
     sourceDf.createOrReplaceTempView("source_assets")
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .load()
     df.createOrReplaceTempView("assets")
@@ -290,7 +287,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "allow partial updates" taggedAs WriteTest in {
     val sourceDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .load()
       .where("name = 'upsertTestThree'")
@@ -301,7 +298,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     wdf.write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("onconflict", "update")
       .save
@@ -310,7 +307,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "throw proper exception on invalid onconflict options" taggedAs WriteTest in {
     val sourceDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .load()
       .where("name = 'upsertTestThree'")
@@ -324,7 +321,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val e = assertThrows[IllegalArgumentException] {
       wdf.write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey.apiKey)
+        .option("apiKey", writeApiKey)
         .option("type", "assets")
         .option("onconflict", "does-not-exists")
         .save()
@@ -378,7 +375,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("onconflict", "update")
       .save
@@ -393,7 +390,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "check for null ids on asset update" taggedAs WriteTest in {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .load()
       .where("name = 'upsertTestThree'")
@@ -406,7 +403,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val e = intercept[SparkException] {
       wdf.write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey.apiKey)
+        .option("apiKey", writeApiKey)
         .option("type", "assets")
         .option("onconflict", "update")
         .save()
@@ -461,7 +458,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
        """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("onconflict", "delete")
       .save()
@@ -480,7 +477,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sql(s"""select * from destinationAssets where source = '$source'""")
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("onconflict", "delete")
       .save()

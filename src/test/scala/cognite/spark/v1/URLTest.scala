@@ -5,7 +5,6 @@ import org.scalatest.FlatSpec
 
 class URLTest extends FlatSpec with SparkTest {
   private val greenfieldApiKey = System.getenv("TEST_API_KEY_GREENFIELD")
-  private val readApiKey = System.getenv("TEST_API_KEY_READ")
 
   it should "read different files metadata from greenfield and api" taggedAs GreenfieldTest in {
 
@@ -24,11 +23,5 @@ class URLTest extends FlatSpec with SparkTest {
 
     assert(dfGreenfield.count > 0)
     assert(dfGreenfield.count != dfApi.count)
-  }
-
-  it should "verify that correct project is retrieved from TEST_API_KEY" in {
-    val project =
-      getProject(ApiKeyAuth(readApiKey), Constants.DefaultMaxRetries, Constants.DefaultBaseUrl)
-    assert(project == "publicdata")
   }
 }

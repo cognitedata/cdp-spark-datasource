@@ -13,8 +13,6 @@ class RawTableRelationTest extends FlatSpec with Matchers with SparkTest {
   import RawTableRelation._
   import spark.implicits._
 
-  private val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-
   private def collectToSet[A](df: DataFrame): Set[A] =
     df.collect().map(_.getAs[A](0)).toSet
 
