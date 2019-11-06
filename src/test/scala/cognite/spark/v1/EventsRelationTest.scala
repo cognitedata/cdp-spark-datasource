@@ -7,20 +7,16 @@ import org.apache.spark.SparkException
 import org.scalatest.{FlatSpec, Matchers}
 
 class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
-
-  val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
-  val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
-
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey.apiKey)
+    .option("apiKey", writeApiKey)
     .option("type", "events")
     .load()
   destinationDf.createOrReplaceTempView("destinationEvent")
 
   val sourceDf: DataFrame = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", readApiKey.apiKey)
+    .option("apiKey", readApiKey)
     .option("type", "events")
     .option("limit", "1000")
     .option("partitions", "1")
@@ -35,7 +31,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   "EventsRelation" should "allow simple reads" taggedAs ReadTest in {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey.apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("batchSize", "500")
       .option("limit", "100")
@@ -53,7 +49,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "single.pushdown.filter"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -68,7 +64,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "single.pushdown.filter.duplicates"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -84,7 +80,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "multiple.pushdown.filters"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -99,7 +95,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.or"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -114,7 +110,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.in"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -129,7 +125,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.and.or.in"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -144,7 +140,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.minStartTime"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -159,7 +155,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.maxStartTime"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -174,7 +170,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.minMaxStartTime"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -189,7 +185,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.assetIds"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -204,7 +200,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.id"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -219,7 +215,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.ids"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -234,7 +230,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.orids"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -251,7 +247,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.idsAndDescription"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -270,7 +266,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     val df2 = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("limit", "1000")
@@ -279,7 +275,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -298,7 +294,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.idortype"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -445,7 +441,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .save()
 
@@ -477,7 +473,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey.apiKey)
+        .option("apiKey", writeApiKey)
         .option("type", "events")
         .save()
     }
@@ -541,7 +537,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("onconflict", "update")
       .save()
@@ -582,7 +578,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
         """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey.apiKey)
+        .option("apiKey", writeApiKey)
         .option("type", "events")
         .option("onconflict", "update")
         .save()
@@ -596,7 +592,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "check for null ids on event update" taggedAs WriteTest in {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey.apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("limit", "10")
       .load()
@@ -624,7 +620,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val e = intercept[SparkException] {
       wdf.write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey.apiKey)
+        .option("apiKey", writeApiKey)
         .option("type", "events")
         .option("onconflict", "update")
         .save()
@@ -683,7 +679,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("onconflict", "delete")
       .save()
@@ -707,7 +703,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sql(s"""select * from destinationEvent where source = '$source'""")
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("onconflict", "delete")
       .save()

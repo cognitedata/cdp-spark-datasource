@@ -18,6 +18,7 @@ import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.ExecutionContext
 import com.cognite.sdk.scala.common.Auth
+import com.softwaremill.sttp.SttpBackend
 import fs2.Stream
 
 import scala.util.Try
@@ -38,7 +39,8 @@ class RawTableRelation(
     with Serializable {
   import RawTableRelation._
 
-  import CdpConnector.retryingSttpBackend
+  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
+    CdpConnector.retryingSttpBackend(config.maxRetries)
   implicit val auth: Auth = config.auth
   @transient lazy val client = new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
 

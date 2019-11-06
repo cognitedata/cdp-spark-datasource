@@ -7,19 +7,16 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
 
 class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
-  val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
-  val writeApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_WRITE"))
-
   val sourceDf = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", readApiKey.apiKey)
+    .option("apiKey", readApiKey)
     .option("type", "timeseries")
     .load()
   sourceDf.createOrReplaceTempView("sourceTimeSeries")
 
   val destinationDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "timeseries")
       .load()
   destinationDf.createOrReplaceTempView("destinationTimeSeries")
@@ -30,7 +27,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.assetIds"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey.apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "timeseries")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -45,7 +42,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.assetIds.nonexisting"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey.apiKey)
+      .option("apiKey", readApiKey)
       .option("type", "timeseries")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -199,7 +196,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "timeseries")
       .save()
 
@@ -231,7 +228,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey.apiKey)
+        .option("apiKey", writeApiKey)
         .option("type", "timeseries")
         .save()
     }
@@ -272,7 +269,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "timeseries")
       .save()
 
@@ -295,7 +292,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "timeseries")
       .option("onconflict", "update")
       .save()
@@ -331,7 +328,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey.apiKey)
+        .option("apiKey", writeApiKey)
         .option("type", "timeseries")
         .option("onconflict", "update")
         .save()
@@ -373,7 +370,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "timeseries")
       .save()
 
@@ -424,7 +421,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .union(nonExistingTimeSeriesDf)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey.apiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "timeseries")
       .option("onconflict", "upsert")
       .save()
@@ -471,7 +468,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     val e = intercept[SparkException] {
       wdf.write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey.apiKey)
+        .option("apiKey", writeApiKey)
         .option("type", "timeseries")
         .option("onconflict", "update")
         .save()
@@ -485,7 +482,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sql(s"""select * from destinationTimeSeries where unit = '$unit'""")
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey.apiKey)
+        .option("apiKey", writeApiKey)
         .option("type", "timeseries")
         .option("onconflict", "delete")
         .save()

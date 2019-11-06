@@ -10,8 +10,6 @@ import org.scalatest.{FlatSpec, Matchers}
 import com.softwaremill.sttp._
 
 class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
-  val readApiKey = ApiKeyAuth(System.getenv("TEST_API_KEY_READ"))
-
   it should "throw an error when passed streams that return an error" in {
 
     val errorMessage = "Some exception"
@@ -33,7 +31,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
     def toRow(s: String): Row = Row.empty
     def uniqueId(s: String): String = "1"
 
-    val sdkRdd = SdkV1Rdd(spark.sparkContext, getDefaultConfig(readApiKey), toRow, uniqueId, getStreams)
+    val sdkRdd = SdkV1Rdd(spark.sparkContext, getDefaultConfig(readApiKeyAuth), toRow, uniqueId, getStreams)
 
     val e = intercept[CdpApiException] {
       sdkRdd.compute(CdfPartition(0), TaskContext.get())

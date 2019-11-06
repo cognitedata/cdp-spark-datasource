@@ -6,9 +6,6 @@ import org.apache.spark.sql.types.{BooleanType, LongType, StringType, StructFiel
 import org.scalatest.{FlatSpec, Matchers}
 
 class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
-  val readApiKey = System.getenv("TEST_API_KEY_READ")
-  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-
   val valhallTimeSeries = "'VAL_23-PIC-96153:MODE'"
   val valhallTimeSeriesId = 6536948395539605L
 

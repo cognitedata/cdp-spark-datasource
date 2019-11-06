@@ -5,6 +5,7 @@ import cats.implicits._
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.common.Auth
+import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
@@ -25,7 +26,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   @transient lazy private val itemsCreated =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.created")
 
-  import CdpConnector.retryingSttpBackend
+  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
+    CdpConnector.retryingSttpBackend(config.maxRetries)
   implicit val auth: Auth = config.auth
   @transient lazy val client =
     new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)

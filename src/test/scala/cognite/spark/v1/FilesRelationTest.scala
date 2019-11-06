@@ -5,9 +5,6 @@ import org.apache.spark.sql.functions.col
 import org.scalatest.{FlatSpec, Matchers}
 
 class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
-  private val readApiKey = System.getenv("TEST_API_KEY_READ")
-  private val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-
   "FilesRelation" should "read files" taggedAs ReadTest in {
     val df = spark.read
       .format("cognite.spark.v1")

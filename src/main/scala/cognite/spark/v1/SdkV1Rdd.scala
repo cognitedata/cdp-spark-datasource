@@ -6,6 +6,7 @@ import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.common.Auth
+import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -23,7 +24,8 @@ case class SdkV1Rdd[A, I](
     uniqueId: A => I,
     getStreams: (GenericClient[IO, Nothing], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
-  import CdpConnector.retryingSttpBackend
+  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
+    CdpConnector.retryingSttpBackend(config.maxRetries)
 
   type EitherQueue = ArrayBlockingQueue[Either[Throwable, Vector[A]]]
 

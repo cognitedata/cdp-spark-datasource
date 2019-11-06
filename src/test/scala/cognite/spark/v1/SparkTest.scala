@@ -1,21 +1,38 @@
 package cognite.spark.v1
 
+import java.io.IOException
+
 import cats.effect.IO
 import com.softwaremill.sttp._
 import io.circe.generic.auto._
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common.Auth
+import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth}
 import org.apache.spark.sql.SparkSession
 import org.scalatest.Tag
 import org.apache.spark.datasource.MetricsSource
 
-import scala.concurrent.TimeoutException
+import scala.concurrent.{ExecutionContext, TimeoutException}
+import scala.concurrent.duration._
+import scala.util.Random
+import cats.effect.{IO, Timer}
+import cats.implicits._
+import com.cognite.sdk.scala.v1._
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
 object GreenfieldTest extends Tag("GreenfieldTest")
 
 trait SparkTest extends CdpConnector {
+  implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
+
+  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
+  implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
+  val writeClient = Client("cdp-spark-datasource-test")(writeApiKeyAuth, implicitly)
+
+  val readApiKey = System.getenv("TEST_API_KEY_READ")
+  implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
+  val readClient = Client("cdp-spark-datasource-test")(readApiKeyAuth, implicitly)
+
   val spark: SparkSession = SparkSession
     .builder()
     .master("local[*]")
@@ -25,21 +42,22 @@ trait SparkTest extends CdpConnector {
     .config("spark.app.id", this.getClass.getName + math.floor(math.random * 1000).toLong.toString)
     .getOrCreate()
 
-  def getThreeDModelIdAndRevisionId(auth: Auth): (String, String) = {
-    val config = getDefaultConfig(auth)
-
-    val modelUrl = uri"https://api.cognitedata.com/api/0.6/projects/${config.project}/3d/models"
-    val models = getJson[Data[Items[ModelItem]]](config, modelUrl).unsafeRunSync()
-    val modelId = models.data.items.head.id.toString
-
-    val revisionsUrl =
-      uri"https://api.cognitedata.com/api/0.6/projects/${config.project}/3d/models/$modelId/revisions"
-    val revisions =
-      getJson[Data[Items[ModelRevisionItem]]](config, revisionsUrl).unsafeRunSync()
-    val revisionId = revisions.data.items.head.id.toString
-
-    (modelId, revisionId)
+  // scalastyle:off cyclomatic.complexity
+  def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int): IO[A] = {
+    val exponentialDelay = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2)
+    val randomDelayScale = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
+    val nextDelay = Random.nextInt(randomDelayScale.toInt).millis + exponentialDelay
+    ioa.handleErrorWith {
+      case exception @ (_: TimeoutException | _: IOException) =>
+        if (maxRetries > 0) {
+          IO.sleep(initialDelay) *> retryWithBackoff(ioa, nextDelay, maxRetries - 1)
+        } else {
+          IO.raiseError(exception)
+        }
+      case error => IO.raiseError(error)
+    }
   }
+  // scalastyle:on cyclomatic.complexity
 
   def retryWhile[A](action: => A, shouldRetry: A => Boolean): A =
     retryWithBackoff(
@@ -54,11 +72,9 @@ trait SparkTest extends CdpConnector {
       Constants.DefaultMaxRetries
     ).unsafeRunSync()
 
-  def getDefaultConfig(auth: Auth): RelationConfig = {
-    val project = getProject(auth, Constants.DefaultMaxRetries, Constants.DefaultBaseUrl)
+  def getDefaultConfig(auth: Auth): RelationConfig =
     RelationConfig(
       auth,
-      project,
       Some(Constants.DefaultBatchSize),
       None,
       Constants.DefaultPartitions,
@@ -70,7 +86,6 @@ trait SparkTest extends CdpConnector {
       spark.sparkContext.applicationId,
       Constants.DefaultParallelismPerPartition
     )
-  }
 
   def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
     MetricsSource

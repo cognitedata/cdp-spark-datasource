@@ -8,9 +8,6 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
 class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
-  val readApiKey = System.getenv("TEST_API_KEY_READ")
-  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-
   val valhallTimeSeries = "'VAL_23-FT-92537-04:X.Value'"
 
   val valhallTimeSeriesId = 3385857257491234L

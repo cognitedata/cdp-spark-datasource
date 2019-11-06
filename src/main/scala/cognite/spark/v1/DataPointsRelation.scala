@@ -9,6 +9,7 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import scala.concurrent.ExecutionContext
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.common.Auth
+import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
@@ -33,7 +34,8 @@ abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlC
     with InsertableRelation {
   @transient implicit lazy val contextShift: ContextShift[IO] =
     IO.contextShift(ExecutionContext.global)
-  import CdpConnector.retryingSttpBackend
+  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
+    CdpConnector.retryingSttpBackend(config.maxRetries)
   implicit val auth: Auth = config.auth
   @transient lazy val client = new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
   def toRow(a: A): Row

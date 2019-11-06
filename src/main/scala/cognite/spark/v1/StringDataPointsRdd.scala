@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import com.cognite.sdk.scala.common.{Auth, StringDataPoint}
 import com.cognite.sdk.scala.v1.GenericClient
+import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -15,7 +16,8 @@ case class StringDataPointsRdd(
 ) extends RDD[Row](sparkContext, Nil) {
 
   implicit val auth: Auth = config.auth
-  import CdpConnector.retryingSttpBackend
+  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
+    CdpConnector.retryingSttpBackend(config.maxRetries)
   @transient lazy val client =
     new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
 
