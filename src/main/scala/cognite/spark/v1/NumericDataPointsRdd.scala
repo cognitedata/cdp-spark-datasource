@@ -177,7 +177,7 @@ case class NumericDataPointsRdd(
           Seq("count"),
           10000
         ).flatMap { aggregates =>
-          val counts = aggregates("count")
+          val counts = aggregates("count").flatMap(_.datapoints)
           if (counts.map(_.value).max > partitionSize && moreGranular.nonEmpty) {
             smallEnoughRanges(id, start, end, moreGranular)
           } else {
@@ -212,6 +212,7 @@ case class NumericDataPointsRdd(
       end: Instant): IO[Vector[(Either[Long, String], Option[Instant], Option[Instant])]] = {
     val firsts = idOrExternalIds.map { id =>
       queryById(id, start, end.max(start.plusMillis(1)), 1)
+        .map(queryResponse => queryResponse.flatMap(_.datapoints))
         .map(_.headOption)
         .map(p => id -> p)
     }.parSequence
@@ -374,36 +375,37 @@ case class NumericDataPointsRdd(
       .flatTraverse {
         case r: DataPointsRange =>
           queryById(r.id, r.start, r.end, 100000)
-            .map(
-              dataPoints =>
-                dataPoints
-                  .map { p =>
-                    DataPointsItem(
-                      r.id.left.toOption,
-                      r.id.right.toOption,
-                      java.sql.Timestamp.from(p.timestamp),
-                      p.value,
-                      None,
-                      None)
-                  }
-                  .map(toRow)
-                  .toVector)
+            .map(queryResponse => queryResponse.flatMap(_.datapoints))
+            .map(dataPoints =>
+              dataPoints
+                .map { p =>
+                  DataPointsItem(
+                    r.id.left.toOption,
+                    r.id.right.toOption,
+                    java.sql.Timestamp.from(p.timestamp),
+                    p.value,
+                    None,
+                    None)
+                }
+                .map(toRow)
+                .toVector)
         case r: AggregationRange =>
           queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
-            .map(
-              dataPoints =>
-                dataPoints(r.aggregation)
-                  .map { p =>
-                    DataPointsItem(
-                      r.id.left.toOption,
-                      r.id.right.toOption,
-                      java.sql.Timestamp.from(p.timestamp),
-                      p.value,
-                      Some(r.aggregation),
-                      Some(r.granularity.toString))
-                  }
-                  .map(toRow)
-                  .toVector)
+            .map(queryResponse =>
+              queryResponse.mapValues(dataPointsResponse => dataPointsResponse.flatMap(_.datapoints)))
+            .map(dataPoints =>
+              dataPoints(r.aggregation)
+                .map { p =>
+                  DataPointsItem(
+                    r.id.left.toOption,
+                    r.id.right.toOption,
+                    java.sql.Timestamp.from(p.timestamp),
+                    p.value,
+                    Some(r.aggregation),
+                    Some(r.granularity.toString))
+                }
+                .map(toRow)
+                .toVector)
       }
       .map(r => config.limitPerPartition.fold(r)(limit => r.take(limit)))
       .unsafeRunSync()

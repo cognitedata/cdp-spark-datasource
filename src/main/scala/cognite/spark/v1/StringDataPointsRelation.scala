@@ -80,14 +80,16 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
       (
         StringDataPointsFilter(Some(id), None),
         client.dataPoints
-          .queryStringsById(id, lowerTimeLimit, upperTimeLimit, config.limitPerPartition))
+          .queryStringsById(id, lowerTimeLimit, upperTimeLimit, config.limitPerPartition)
+          .map(dpRes => dpRes.flatMap(_.datapoints)))
     }
 
     val itemsIOFromExternalId = externalIds.map { extId =>
       (
         StringDataPointsFilter(None, Some(extId)),
         client.dataPoints
-          .queryStringsByExternalId(extId, lowerTimeLimit, upperTimeLimit, config.limitPerPartition))
+          .queryStringsByExternalId(extId, lowerTimeLimit, upperTimeLimit, config.limitPerPartition)
+          .map(dpRes => dpRes.flatMap(_.datapoints)))
 
     }
 

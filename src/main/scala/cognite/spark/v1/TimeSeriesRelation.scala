@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{
@@ -17,10 +17,13 @@ import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
 import fs2.Stream
 import io.scalaland.chimney.dsl._
+import scala.concurrent.ExecutionContext
 
 class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
     with InsertableRelation {
+  @transient implicit lazy val contextShift: ContextShift[IO] =
+    IO.contextShift(ExecutionContext.global)
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesCreates = rows.map { r =>
@@ -109,17 +112,34 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, TimeSeries]] = {
 
-    val fieldNames = Array("assetId")
+    val fieldNames = Array("name", "unit", "isStep", "isString", "assetId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-    val assetIds = filtersAsMaps.flatMap(m => m.get("assetId").map(_.toLong))
-    if (assetIds.isEmpty || shouldGetAllRows) {
-      Seq(client.timeSeries.list(limit))
+    val timeSeriesFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
+      Seq(TimeSeriesFilter())
     } else {
-      Seq(client.timeSeries.filter(TimeSeriesFilter(assetIds = Some(assetIds)), limit))
+      filtersAsMaps.distinct.map(timeSeriesFilterFromMap)
     }
+
+    val streamsPerFilter = timeSeriesFilterSeq
+      .map { f =>
+        client.timeSeries.filterPartitions(f, numPartitions, limit)
+      }
+
+    // Merge streams related to each partition to make sure duplicate values are read into
+    // the same RDD partition
+    streamsPerFilter.transpose
+      .map(s => s.reduce(_.merge(_)))
   }
+  def timeSeriesFilterFromMap(m: Map[String, String]): TimeSeriesFilter =
+    TimeSeriesFilter(
+      name = m.get("name"),
+      unit = m.get("unit"),
+      isStep = m.get("isStep").map(_.toBoolean),
+      isString = m.get("isString").map(_.toBoolean),
+      assetIds = m.get("assetId").map(assetIdsFromWrappedArray)
+    )
 }
 object TimeSeriesRelation extends UpsertSchema {
   val upsertSchema = StructType(structType[TimeSeries].filterNot(field =>

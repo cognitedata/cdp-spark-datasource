@@ -34,6 +34,16 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
 
   val testDataUnit = "time-series-test-data"
 
+  it should "read all data regardless of the number of partitions" taggedAs ReadTest in {
+    val dfreader = spark.read.format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "timeseries")
+    for (np <- Seq(1, 4, 8, 12)){
+      val df = dfreader.option("partitions", np.toString).load()
+      assert(df.count == 363)
+    }
+  }
+
   it should "handle pushdown filters on assetId with multiple assetIds" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.assetIds"
     val df = spark.read
@@ -42,6 +52,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "timeseries")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
+      .option("partitions", "1")
       .load()
       .where(s"assetId In(6191827428964450, 3424990723231138, 3047932288982463)")
     assert(df.count == 87)
