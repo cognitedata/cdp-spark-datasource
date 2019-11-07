@@ -7,6 +7,7 @@ import org.apache.spark.sql.functions._
 import org.scalatest.{FlatSpec, Matchers}
 
 class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
+
   val sourceDf = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", readApiKey)
@@ -129,7 +130,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         |'$assetsTestSource' as source,
         |10 as id,
         |0 as createdTime,
-        |0 as lastUpdatedTime
+        |0 as lastUpdatedTime,
+        |null as rootId,
+        |null as aggregates
       """.stripMargin)
       .select(destinationDf.columns.map(col): _*)
       .write
@@ -197,7 +200,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
          |'$assetsTestSource' as source,
          |id,
          |createdTime,
-         |lastUpdatedTime
+         |lastUpdatedTime,
+         |0 as rootId,
+         |null as aggregates
          |from source_assets where id = 2675073401706610
       """.stripMargin)
       .write
@@ -228,7 +233,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |'$source' as source,
               |id,
               |createdTime,
-              |lastUpdatedTime
+              |lastUpdatedTime,
+              |0 as rootId,
+              |null as aggregates
               |from sourceAssets
               |limit 100
      """.stripMargin)
@@ -253,7 +260,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |'$source' as source,
               |id,
               |createdTime,
-              |lastUpdatedTime
+              |lastUpdatedTime,
+              |0 as rootId,
+              |null as aggregates
               |from destinationAssets
               |where source = '$source'""".stripMargin)
       .union(spark
@@ -266,7 +275,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |'$source' as source,
               |id,
               |createdTime,
-              |lastUpdatedTime
+              |lastUpdatedTime,
+              |0 as rootId,
+              |null as aggregates
               |from sourceAssets
               |limit 100
      """.stripMargin))
@@ -350,7 +361,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |'$source' as source,
                  |id,
                  |createdTime,
-                 |lastUpdatedTime
+                 |lastUpdatedTime,
+                 |0 as rootId,
+                 |null as aggregates
                  |from sourceAssets
                  |limit 100
      """.stripMargin)
@@ -432,7 +445,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |'$source' as source,
               |id,
               |createdTime,
-              |lastUpdatedTime
+              |lastUpdatedTime,
+              |0 as rootId,
+              |null as aggregates
               |from sourceAssets
               |limit 100
      """.stripMargin)
