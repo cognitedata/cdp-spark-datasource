@@ -10,7 +10,7 @@ import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import fs2._
+import fs2.Stream
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}

@@ -1,20 +1,11 @@
 package cognite.spark.v1
 
-import java.io.IOException
-
 import cats.effect.{ContextShift, IO, Timer}
-import cats.implicits._
-import com.cognite.sdk.scala.common.{Auth, CdpApiException, RetryingBackend}
+import com.cognite.sdk.scala.common.RetryingBackend
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import com.softwaremill.sttp._
-import com.softwaremill.sttp.circe._
-import io.circe.generic.auto._
-import io.circe.parser.decode
-import io.circe.{Decoder, Printer}
 
-import scala.concurrent.{ExecutionContext, TimeoutException}
-import scala.concurrent.duration._
-import scala.util.Random
+import scala.concurrent.ExecutionContext
 
 case class Data[A](data: A)
 case class Items[A](items: Seq[A])

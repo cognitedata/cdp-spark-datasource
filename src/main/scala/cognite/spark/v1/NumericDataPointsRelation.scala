@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import java.time.{Duration, Instant}
+import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
@@ -9,12 +9,10 @@ import cats.implicits._
 import PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow}
 import cats.data.Validated.{Invalid, Valid}
-import cats.data.ValidatedNel
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
-import fs2._
 
 import scala.util.matching.Regex
 

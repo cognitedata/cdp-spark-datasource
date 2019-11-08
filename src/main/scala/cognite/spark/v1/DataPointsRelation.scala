@@ -14,7 +14,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 
-import scala.util.Try
 abstract class Limit extends Ordered[Limit] with Serializable {
   def value: Instant
 
