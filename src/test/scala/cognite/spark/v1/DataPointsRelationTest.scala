@@ -198,6 +198,48 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     }
   }
 
+  it should "read data points without duplicates" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "datapoints")
+      .load()
+      .where(
+        s"timestamp >= to_timestamp(1510150000) and timestamp <= to_timestamp(1510358401) and id = $valhallTimeSeriesId")
+      .cache()
+    assert(df.count() > 200000)
+    assert(df.count() == df.distinct().count())
+  }
+
+  it should "read very many aggregates correctly and without duplicates" taggedAs ReadTest in {
+    val emptyDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "datapoints")
+      .load()
+      .where(
+        s"timestamp >= to_timestamp(1510358400) and timestamp <= to_timestamp(1510358400) and aggregation in ('max') and granularity = '1s' and id = $valhallTimeSeriesId")
+    assert(emptyDf.count() == 0)
+    val oneDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "datapoints")
+      .load()
+      .where(
+        s"timestamp >= to_timestamp(1510358400) and timestamp <= to_timestamp(1510358401) and aggregation in ('max') and granularity = '1s' and id = $valhallTimeSeriesId")
+    assert(oneDf.count() == 1)
+
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "datapoints")
+      .load()
+      .where(
+        s"timestamp >= to_timestamp(1510338400) and timestamp <= to_timestamp(1510358400) and aggregation in ('max') and granularity = '1s' and id = $valhallTimeSeriesId")
+    assert(df.count() > 10000)
+    assert(df.distinct().count() == df.count())
+  }
+
   it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest in {
 
     val testUnit = "datapoints testing"

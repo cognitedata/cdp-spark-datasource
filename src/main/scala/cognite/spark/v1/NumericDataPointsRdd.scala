@@ -211,7 +211,7 @@ case class NumericDataPointsRdd(
       start: Instant,
       end: Instant): IO[Vector[(Either[Long, String], Option[Instant], Option[Instant])]] = {
     val firsts = idOrExternalIds.map { id =>
-      queryById(id, start, end, 1)
+      queryById(id, start, end.max(start.plusMillis(1)), 1)
         .map(_.headOption)
         .map(p => id -> p)
     }.parSequence
@@ -321,12 +321,12 @@ case class NumericDataPointsRdd(
 
           val d1 = Duration.between(aggStart, aggEnd)
           val numValues = d1.toMillis / granularity.unit.getDuration.toMillis
-          val numRanges = numValues / maxPointsPerAggregationRange
+          val numRanges = (numValues / maxPointsPerAggregationRange).max(1)
 
           val ranges = for {
             a <- aggregations
-            i <- 0L to numRanges
-            rangeStart = aggStart.plus((maxPointsPerAggregationRange * (i - 1)).max(0), granularity.unit)
+            i <- 0L until numRanges
+            rangeStart = aggStart.plus((maxPointsPerAggregationRange * i).max(0), granularity.unit)
             rangeEnd = rangeStart.plus(maxPointsPerAggregationRange, granularity.unit).min(aggEnd)
             nPoints = Duration
               .between(rangeStart, rangeEnd)
