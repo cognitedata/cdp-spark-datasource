@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.v1.GenericClient
@@ -12,8 +12,6 @@ import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, T
 import org.apache.spark.sql.types.StructType
 import fs2.Stream
 import org.apache.spark.datasource.MetricsSource
-
-import scala.concurrent.ExecutionContext
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends BaseRelation
@@ -64,7 +62,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
-      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+      import CdpConnector._
       val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
         batchGroup

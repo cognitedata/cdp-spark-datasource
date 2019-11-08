@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import java.time.Instant
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
 import com.cognite.sdk.scala.v1.{GenericClient, RawRow, RawRowFilter}
@@ -16,7 +16,6 @@ import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.datasource.MetricsSource
 
-import scala.concurrent.ExecutionContext
 import com.cognite.sdk.scala.common.Auth
 import com.softwaremill.sttp.SttpBackend
 import fs2.Stream
@@ -38,6 +37,7 @@ class RawTableRelation(
     with CdpConnector
     with Serializable {
   import RawTableRelation._
+  import CdpConnector._
 
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
@@ -163,7 +163,6 @@ class RawTableRelation(
 
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df.drop(lastUpdatedTimeColName))
     dfWithUnRenamedKeyColumns.foreachPartition((rows: Iterator[Row]) => {
-      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
       val batches = rows.grouped(batchSize).toVector
       batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
         batchGroup.parTraverse(postRows(columnNames, _)).unsafeRunSync()

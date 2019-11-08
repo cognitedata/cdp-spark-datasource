@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.v1.{Event, EventCreate, EventUpdate, EventsFilter, GenericClient}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
@@ -12,13 +12,10 @@ import PushdownUtilities._
 import fs2.Stream
 import io.scalaland.chimney.dsl._
 
-import scala.concurrent.ExecutionContext
-
 class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Event, Long](config, "events")
     with InsertableRelation {
-  @transient implicit lazy val contextShift: ContextShift[IO] =
-    IO.contextShift(ExecutionContext.global)
+  import CdpConnector._
 
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],

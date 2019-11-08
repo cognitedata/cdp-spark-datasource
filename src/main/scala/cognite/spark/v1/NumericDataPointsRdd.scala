@@ -3,20 +3,18 @@ package cognite.spark.v1
 import java.time.{Duration, Instant}
 import java.time.temporal.ChronoUnit
 
-import cats.effect.{Concurrent, ContextShift, IO}
+import cats.effect.IO
 import com.cognite.sdk.scala.v1.GenericClient
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
 import com.softwaremill.sttp.SttpBackend
-import cats.syntax._
 import cats.implicits._
 import fs2.Stream
 
 import Ordering.Implicits._
-import scala.concurrent.ExecutionContext
-import scala.util.{Random, Try}
+import scala.util.Random
 
 sealed trait Range {
   val count: Long
@@ -44,8 +42,9 @@ case class NumericDataPointsRdd(
     granularities: Seq[Granularity],
     toRow: DataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
-
+  import CdpConnector._
   implicit val auth: Auth = config.auth
+
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
   @transient lazy val client =
@@ -364,9 +363,6 @@ case class NumericDataPointsRdd(
       .map(_.toArray[Partition])
       .unsafeRunSync()
   }
-
-  @transient lazy implicit val contextShift: ContextShift[IO] =
-    IO.contextShift(ExecutionContext.global)
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val bucket = _split.asInstanceOf[Bucket]
