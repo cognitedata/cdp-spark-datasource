@@ -59,6 +59,12 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
       .handleErrorWith {
         case e: CdpApiException =>
           if (e.code == 409) {
+            val legacyNameConflicts = e.duplicated.get.flatMap(j => j("legacyName")).map(_.asString.get)
+            if (legacyNameConflicts.nonEmpty) {
+              throw new IllegalArgumentException(
+                "Found legacyName conflicts, upserts are not supported with legacyName." +
+                  s" Conflicting legacyNames: ${legacyNameConflicts.mkString(", ")}")
+            }
             val existingExternalIds =
               e.duplicated.get.map(j => j("externalId").get.asString.get)
             resolveConflict(existingExternalIds, timeSeriesSeq)
