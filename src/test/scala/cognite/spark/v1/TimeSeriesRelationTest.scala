@@ -142,6 +142,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
 
     // Attempting to insert the same name should be an error when legacyName is set.
     // Note that we use a different externalId.
+    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
     val exception = the[SparkException] thrownBy spark
       .sql(s"""
               |select null as description,
@@ -160,6 +161,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .select(sourceDf.columns.map(col): _*)
       .write
       .insertInto("destinationTimeSeriesWithLegacyName")
+    spark.sparkContext.setLogLevel("WARN")
     assert(exception.getCause.isInstanceOf[IllegalArgumentException])
 
     val before2 = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(legacyName2)
