@@ -2,11 +2,10 @@ package cognite.spark.v1
 
 import java.time.Instant
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
-import scala.concurrent.ExecutionContext
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.common.Auth
 import com.softwaremill.sttp.SttpBackend
@@ -32,8 +31,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlC
     with PrunedFilteredScan
     with Serializable
     with InsertableRelation {
-  @transient implicit lazy val contextShift: ContextShift[IO] =
-    IO.contextShift(ExecutionContext.global)
+  import CdpConnector._
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
   implicit val auth: Auth = config.auth

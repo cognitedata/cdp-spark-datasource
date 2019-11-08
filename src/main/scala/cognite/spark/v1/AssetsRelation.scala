@@ -11,14 +11,12 @@ import PushdownUtilities._
 import com.cognite.sdk.scala.common.CdpApiException
 import fs2.Stream
 
-import scala.concurrent.ExecutionContext
 import io.scalaland.chimney.dsl._
 
 class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Asset, Long](config, "assets")
     with InsertableRelation {
-  @transient implicit lazy val contextShift: ContextShift[IO] =
-    IO.contextShift(ExecutionContext.global)
+  import CdpConnector._
 
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO, Nothing],

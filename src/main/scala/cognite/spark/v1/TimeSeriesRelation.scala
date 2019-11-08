@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{
@@ -17,13 +17,11 @@ import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
 import fs2.Stream
 import io.scalaland.chimney.dsl._
-import scala.concurrent.ExecutionContext
 
 class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
     with InsertableRelation {
-  @transient implicit lazy val contextShift: ContextShift[IO] =
-    IO.contextShift(ExecutionContext.global)
+  import CdpConnector._
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesCreates = rows.map { r =>
@@ -77,7 +75,6 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
   def resolveConflict(
       existingExternalIds: Seq[String],
       timeSeriesSeq: Seq[TimeSeriesCreate]): IO[Unit] = {
-    import CdpConnector.cs
     val (timeSeriesToUpdate, timeSeriesToCreate) = timeSeriesSeq.partition(
       p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
     )

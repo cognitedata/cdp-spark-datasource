@@ -1,13 +1,10 @@
 package cognite.spark.v1
 
-import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, BearerTokenAuth}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
-
-import scala.concurrent.ExecutionContext
 
 case class RelationConfig(
     auth: Auth,
@@ -196,7 +193,7 @@ class DefaultSource
     }
 
     data.foreachPartition((rows: Iterator[Row]) => {
-      implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+      import CdpConnector._
       val batches = rows.grouped(Constants.DefaultBatchSize).toVector
 
       config.onConflict match {

@@ -1,5 +1,8 @@
 package cognite.spark.v1
 
+import java.util.concurrent.Executors
+
+import cats.Parallel
 import cats.effect.{ContextShift, IO, Timer}
 import com.cognite.sdk.scala.common.RetryingBackend
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
@@ -26,9 +29,13 @@ trait CdpConnector {
 }
 
 object CdpConnector {
-  @transient implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
-  @transient implicit val cs: ContextShift[IO] =
-    IO.contextShift(ExecutionContext.global)
+  @transient lazy val cdpConnectorExecutionContext: ExecutionContext =
+    ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
+  @transient implicit lazy val cdpConnectorTimer: Timer[IO] = IO.timer(cdpConnectorExecutionContext)
+  @transient implicit val cdpConnectorContextShift: ContextShift[IO] =
+    IO.contextShift(cdpConnectorExecutionContext)
+  @transient implicit lazy val cdpConnectorParallel: Parallel[IO, IO.Par] =
+    IO.ioParallel(cdpConnectorContextShift)
   val sttpBackend: SttpBackend[IO, Nothing] =
     AsyncHttpClientCatsBackend[cats.effect.IO]()
 
