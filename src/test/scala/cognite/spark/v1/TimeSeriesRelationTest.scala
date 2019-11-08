@@ -1,10 +1,13 @@
 package cognite.spark.v1
 
+import java.util.UUID
+
 import com.cognite.sdk.scala.common.{ApiKeyAuth, CdpApiException}
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
+import com.softwaremill.sttp._
 
 class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   val sourceDf = spark.read
@@ -20,6 +23,14 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "timeseries")
       .load()
   destinationDf.createOrReplaceTempView("destinationTimeSeries")
+
+  val destinationDfWithLegacyName = spark.read
+    .format("cognite.spark.v1")
+    .option("apiKey", writeApiKey)
+    .option("type", "timeseries")
+    .option("useLegacyName", true)
+    .load()
+  destinationDfWithLegacyName.createOrReplaceTempView("destinationTimeSeriesWithLegacyName")
 
   val testDataUnit = "time-series-test-data"
 
@@ -87,6 +98,97 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       df => df.length != 1)
     assert(dfAfterPost.length == 1)
     assert(dfAfterPost.head.get(0) == null)
+  }
+
+  it should "create time series with legacyName if useLegacyName option is set" taggedAs WriteTest in {
+    implicit val backend: SttpBackend[Id, Nothing] = HttpURLConnectionBackend()
+    val project = writeClient.login.status.project
+    val legacyName1 = UUID.randomUUID().toString.substring(0, 8)
+    val legacyName2 = UUID.randomUUID().toString.substring(0, 8)
+    val before = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(legacyName1)
+    before.code shouldBe 400
+    val before05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
+      .header("api-key", writeApiKey)
+      .contentType("application/json")
+      .acceptEncoding("application/json")
+      .send()
+    before05.code shouldEqual 404
+    spark
+      .sql(s"""
+              |select null as description,
+              |'$legacyName1' as name,
+              |false as isString,
+              |null as metadata,
+              |'$testDataUnit' as unit,
+              |null as assetId,
+              |false as isStep,
+              |null as securityCategories,
+              |0 as id,
+              |'$legacyName1' as externalId,
+              |now() as createdTime,
+              |now() lastUpdatedTime
+     """.stripMargin)
+      .select(sourceDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationTimeSeriesWithLegacyName")
+    val after = writeClient.timeSeries.retrieveByExternalId(legacyName1)
+    after should not be empty
+    val after05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
+      .header("api-key", writeApiKey)
+      .contentType("application/json")
+      .acceptEncoding("application/json")
+      .send()
+    after05.code shouldEqual 200
+
+    // Attempting to insert the same name should be an error when legacyName is set.
+    // Note that we use a different externalId.
+    val exception = the[SparkException] thrownBy spark
+      .sql(s"""
+              |select null as description,
+              |'$legacyName1' as name,
+              |false as isString,
+              |null as metadata,
+              |'$testDataUnit' as unit,
+              |null as assetId,
+              |false as isStep,
+              |null as securityCategories,
+              |0 as id,
+              |'$legacyName2' as externalId,
+              |now() as createdTime,
+              |now() lastUpdatedTime
+     """.stripMargin)
+      .select(sourceDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationTimeSeriesWithLegacyName")
+    assert(exception.getCause.isInstanceOf[IllegalArgumentException])
+
+    val before2 = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(legacyName2)
+    before2.code shouldBe 400
+
+    // inserting without useLegacyName should work.
+    spark
+      .sql(s"""
+              |select null as description,
+              |'$legacyName1' as name,
+              |false as isString,
+              |null as metadata,
+              |'$testDataUnit' as unit,
+              |null as assetId,
+              |false as isStep,
+              |null as securityCategories,
+              |0 as id,
+              |'$legacyName2' as externalId,
+              |now() as createdTime,
+              |now() lastUpdatedTime
+     """.stripMargin)
+      .select(sourceDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationTimeSeries")
+
+    val after2 = writeClient.timeSeries.retrieveByExternalId(legacyName1)
+    after2 should not be empty
+
+    writeClient.timeSeries.deleteByExternalIds(Seq(legacyName1, legacyName2))
   }
 
   it should "successfully both update and insert time series" taggedAs WriteTest in {
