@@ -78,9 +78,8 @@ object Granularity {
     "second" -> ChronoUnit.SECONDS
   )
 
-  //val stringToUnit: Map[String, ChronoUnit] = shortUnitToString.map(_.swap)
-  private val validUnits = shortStringToUnit.keys.mkString("|") + "|" + longStringToUnit.keys.mkString(
-    "|")
+  private val validUnits = shortStringToUnit.keys.mkString("|") + "|" +
+    longStringToUnit.keys.mkString("|")
   val granularityRegex: Regex = f"""([1-9][0-9]*)*($validUnits)""".r
 
   def parse(s: String): Either[Throwable, Granularity] =
