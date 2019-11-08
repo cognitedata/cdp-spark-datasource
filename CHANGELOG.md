@@ -1,12 +1,29 @@
-# 1.1.1
+# 1.2.0
+
+*NOTE*: `stringdatapoints` only retrieves the first 100000 data points.
+This will be fixed in the next release. `datapoints` is fixed in this release.
+
+## Breaking changes
+* `assets` resource type now has `rootId` and `aggregates` fields.
+
+## Fixes
+* `datapoints` will now retrieve all numerical data points again.
+
 
 ## Enhancements
 * Use `maxRetries` option to allow configuration of the number of retries to attempt.
+
+* `timeseries` now supports parallel retrieval.
+
+* `timeseries` does filter pushdown for name, unit, isStep, and isString columns.
+
+* `datapoints` uses count aggregates for improved performance when retrieving numerical data points.
 
 # 1.1.0
 
 ## Breaking changes
 * The library has been renamed to "cdf-spark-datasource" instead of "cdp-spark-datasource".
+
 * `isString`, `isStep` and `unit` have been removed from the data points schema. They were only used for reads.
 
 ## Enhancements
@@ -15,7 +32,7 @@
 * You can set `baseUrl` as in `.option("baseUrl", "https://greenfield.cognitedata.com")`
 
 # 1.0.0
-This release goes from using Cognite API version 0.5/0.6 to using [Cognite API v1](https://docs.cognite.com/api/v1/). 
+This release goes from using Cognite API version 0.5/0.6 to using [Cognite API v1](https://docs.cognite.com/api/v1/).
 All reads from, and writes to, CDF now use the [Cognite Scala SDK](https://github.com/cognitedata/cognite-sdk-scala).
 
 ## Breaking changes
