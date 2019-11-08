@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.cognite.sdk.scala.v1.{Event, EventUpdate, EventsFilter, GenericClient, TimeRange}
+import com.cognite.sdk.scala.v1.{Event, EventUpdate, EventsFilter, GenericClient}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}

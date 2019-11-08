@@ -12,7 +12,7 @@ import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
 import com.softwaremill.sttp.SttpBackend
 import cats.syntax._
 import cats.implicits._
-import fs2._
+import fs2.Stream
 
 import Ordering.Implicits._
 import scala.concurrent.ExecutionContext
