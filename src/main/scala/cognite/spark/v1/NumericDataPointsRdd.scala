@@ -368,7 +368,7 @@ case class NumericDataPointsRdd(
     val bucket = _split.asInstanceOf[Bucket]
 
     bucket.ranges.toVector
-      .flatTraverse {
+      .parFlatTraverse {
         case r: DataPointsRange =>
           queryById(r.id, r.start, r.end, 100000)
             .map(queryResponse => queryResponse.flatMap(_.datapoints))
