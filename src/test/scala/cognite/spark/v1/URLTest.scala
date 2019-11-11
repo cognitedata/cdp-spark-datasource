@@ -1,6 +1,5 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.ApiKeyAuth
 import org.scalatest.FlatSpec
 
 class URLTest extends FlatSpec with SparkTest {

@@ -2,9 +2,6 @@ package cognite.spark.v1
 
 import java.io.IOException
 
-import cats.effect.IO
-import com.softwaremill.sttp._
-import io.circe.generic.auto._
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth}
 import org.apache.spark.sql.SparkSession
