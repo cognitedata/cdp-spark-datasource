@@ -53,7 +53,6 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // the same RDD partition
     streamsPerFilter.transpose
       .map(s => s.reduce(_.merge(_)))
-
   }
 
   def eventsFilterFromMap(m: Map[String, String]): EventsFilter =

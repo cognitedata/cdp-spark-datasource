@@ -1,6 +1,5 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.ApiKeyAuth
 import org.apache.spark.sql.Row
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._

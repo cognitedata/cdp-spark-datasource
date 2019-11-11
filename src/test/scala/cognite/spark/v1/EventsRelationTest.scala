@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.{ApiKeyAuth, CdpApiException}
+import com.cognite.sdk.scala.common.CdpApiException
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
@@ -24,9 +24,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   sourceDf.createOrReplaceTempView("sourceEvent")
   sourceDf.cache()
 
-  cleanupEvents("spark-savemode-insert-test")
-  cleanupEvents("spark-events-savemode-test")
-  cleanupEvents("spark-events-test")
+  spark.sql(s"""select * from destinationEvent where source like 'spark-events-%'""")
+    .write
+    .format("cognite.spark.v1")
+    .option("apiKey", writeApiKey)
+    .option("type", "events")
+    .option("onconflict", "delete")
+    .save()
 
   "EventsRelation" should "allow simple reads" taggedAs ReadTest in {
     val df = spark.read
@@ -185,15 +189,15 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filters.assetIds"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"assetIds In(Array(8031965690878131), Array(2091657868296883))")
-    assert(df.count == 100)
+      .where(s"assetIds In(Array(3047932288982463)) and startTime <= to_timestamp(1330239600)")
+    assert(df.count == 12)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 100)
+    assert(eventsRead == 12)
   }
 
   it should "handle pusdown filters on eventIds" taggedAs WriteTest ignore {
@@ -307,7 +311,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "allow null values for all event fields except id" taggedAs WriteTest in {
 
-    val source = "spark-events-test"
+    val source = "spark-events-test-null"
     cleanupEvents(source)
     val eventDescriptionsAfterCleanup =
       retryWhile[Array[Row]](eventDescriptions(source), rows => rows.nonEmpty)
@@ -342,7 +346,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "support upserts" taggedAs WriteTest in {
-    val source = "spark-events-test"
+    val source = "spark-events-test-upsert"
 
     // Cleanup events
     cleanupEvents(source)
@@ -413,7 +417,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "allow inserts in savemode" taggedAs WriteTest in {
-    val source = "spark-events-test"
+    val source = "spark-events-test-insert-savemode"
 
     // Cleanup events
     cleanupEvents(source)
@@ -422,7 +426,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventDescriptionsReturned.isEmpty)
 
     // Test inserts
-    spark
+    val df = spark
       .sql(s"""
                  |select "foo" as description,
                  |least(startTime, endTime) as startTime,
@@ -433,13 +437,14 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |bigint(0) as id,
                  |map("foo", null, "bar", "test") as metadata,
                  |"$source" as source,
-                 |string(id) as externalId,
+                 |string(id+1) as externalId,
                  |createdTime,
                  |lastUpdatedTime
                  |from sourceEvent
                  |limit 100
      """.stripMargin)
-      .write
+
+      df.write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "events")
@@ -454,24 +459,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     // Trying to insert existing rows should throw a CdpApiException
     spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
     val e = intercept[SparkException] {
-      spark
-        .sql(s"""
-           |select "foo" as description,
-           |least(startTime, endTime) as startTime,
-           |greatest(startTime, endTime) as endTime,
-           |type,
-           |subtype,
-           |array(8031965690878131) as assetIds,
-           |bigint(0) as id,
-           |map("foo", null, "bar", "test") as metadata,
-           |"$source" as source,
-           |string(id) as externalId,
-           |createdTime,
-           |lastUpdatedTime
-           |from sourceEvent
-           |limit 100
-     """.stripMargin)
-        .write
+        df.write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("type", "events")
@@ -484,7 +472,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "allow partial updates in savemode" taggedAs WriteTest in {
-    val source = "spark-events-test"
+    val source = "spark-events-test-upsert-savemode"
 
     // Cleanup old events
     cleanupEvents(source)
@@ -630,7 +618,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "allow deletes in savemode" taggedAs WriteTest in {
-    val source = "spark-events-test"
+    val source = "spark-events-test-delete-savemode"
 
     // Cleanup old events
     cleanupEvents(source)
@@ -708,4 +696,5 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("onconflict", "delete")
       .save()
   }
+
 }

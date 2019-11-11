@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types.{BooleanType, DoubleType, LongType, StringType, StructField, TimestampType}
+import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField, TimestampType}
 import org.scalatest.{FlatSpec, Matchers}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row

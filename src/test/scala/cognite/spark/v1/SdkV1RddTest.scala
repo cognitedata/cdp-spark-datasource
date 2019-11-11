@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import com.cognite.sdk.scala.common.{ApiKeyAuth, CdpApiException}
+import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.GenericClient
 import fs2.Stream
 import org.apache.spark.TaskContext

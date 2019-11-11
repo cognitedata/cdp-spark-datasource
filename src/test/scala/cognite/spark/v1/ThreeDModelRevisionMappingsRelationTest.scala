@@ -1,10 +1,9 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.ApiKeyAuth
 import org.scalatest.FlatSpec
 
 class ThreeDModelRevisionMappingsRelationTest extends FlatSpec with SparkTest {
-  "ThreeDModelRevisionsRelationTest" should "pass a smoke test" taggedAs WriteTest ignore {
+  "ThreeDModelRevisionsRelationTest" should "pass a smoke test" taggedAs WriteTest in {
     val model = writeClient.threeDModels.list().compile.toList.head
     val revision = writeClient.threeDRevisions(model.id).list().compile.toList.head
 
