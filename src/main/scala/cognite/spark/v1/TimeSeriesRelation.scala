@@ -20,6 +20,7 @@ import io.scalaland.chimney.dsl._
 
 class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
+    with WritableRelation
     with InsertableRelation {
   import CdpConnector._
 

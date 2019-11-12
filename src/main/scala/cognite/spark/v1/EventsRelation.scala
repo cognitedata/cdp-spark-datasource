@@ -14,7 +14,8 @@ import io.scalaland.chimney.dsl._
 
 class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Event, Long](config, "events")
-    with InsertableRelation {
+    with InsertableRelation
+    with WritableRelation {
   import CdpConnector._
 
   override def getStreams(filters: Array[Filter])(
