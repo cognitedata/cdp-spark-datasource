@@ -88,20 +88,11 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       val rowOfAllFields = toRow(item)
       Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
     }
+}
 
-  def insert(rows: Seq[Row]): IO[Unit] =
-    throw new IllegalArgumentException(
-      s"""$shortName does not support the "onconflict" option "abort".""")
-
-  def upsert(rows: Seq[Row]): IO[Unit] =
-    throw new IllegalArgumentException(
-      s"""$shortName does not support the "onconflict" option "upsert".""")
-
-  def update(rows: Seq[Row]): IO[Unit] =
-    throw new IllegalArgumentException(
-      s"""$shortName does not support the "onconflict" option "update".""")
-
-  def delete(rows: Seq[Row]): IO[Unit] =
-    throw new IllegalArgumentException(
-      s"""$shortName does not support the "onconflict" option "delete".""")
+trait WritableRelation {
+  def insert(rows: Seq[Row]): IO[Unit]
+  def upsert(rows: Seq[Row]): IO[Unit]
+  def update(rows: Seq[Row]): IO[Unit]
+  def delete(rows: Seq[Row]): IO[Unit]
 }

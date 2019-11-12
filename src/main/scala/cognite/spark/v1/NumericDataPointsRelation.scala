@@ -102,9 +102,21 @@ object Granularity {
 }
 
 class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)
-    extends DataPointsRelationV1[DataPointsItem](config)(sqlContext) {
+    extends DataPointsRelationV1[DataPointsItem](config)(sqlContext)
+    with WritableRelation {
 
   import PushdownUtilities.filtersToTimestampLimits
+
+  override def insert(rows: Seq[Row]): IO[Unit] =
+    throw new RuntimeException("Insert not supported for datapoints. Use upsert instead.")
+
+  override def upsert(rows: Seq[Row]): IO[Unit] = insertSeqOfRows(rows)
+
+  override def update(rows: Seq[Row]): IO[Unit] =
+    throw new RuntimeException("Update not supported for datapoints. Use upsert instead.")
+
+  override def delete(rows: Seq[Row]): IO[Unit] =
+    throw new RuntimeException("Delete not supported for datapoints.")
 
   override def schema: StructType =
     StructType(

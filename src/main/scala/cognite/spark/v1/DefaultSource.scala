@@ -180,7 +180,6 @@ class DefaultSource
       data: DataFrame): BaseRelation = {
     val config = parseRelationConfig(parameters, sqlContext)
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
-
     val relation = resourceType match {
       case "events" =>
         new EventsRelation(config)(sqlContext)
@@ -189,6 +188,10 @@ class DefaultSource
         new TimeSeriesRelation(config, useLegacyName)(sqlContext)
       case "assets" =>
         new AssetsRelation(config)(sqlContext)
+      case "datapoints" =>
+        new NumericDataPointsRelationV1(config)(sqlContext)
+      case "stringdatapoints" =>
+        new StringDataPointsRelationV1(config)(sqlContext)
       case _ => sys.error(s"Resource type $resourceType does not support save()")
     }
 

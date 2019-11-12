@@ -35,7 +35,19 @@ case class StringDataPointsFilter(
 )
 
 class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext: SQLContext)
-    extends DataPointsRelationV1[StringDataPointsItem](config)(sqlContext) {
+    extends DataPointsRelationV1[StringDataPointsItem](config)(sqlContext)
+    with WritableRelation {
+
+  override def insert(rows: Seq[Row]): IO[Unit] =
+    throw new RuntimeException("Insert not supported for stringdatapoints. Please use upsert instead.")
+
+  override def upsert(rows: Seq[Row]): IO[Unit] = insertSeqOfRows(rows)
+
+  override def update(rows: Seq[Row]): IO[Unit] =
+    throw new RuntimeException("Update not supported for stringdatapoints. Please use upsert instead.")
+
+  override def delete(rows: Seq[Row]): IO[Unit] =
+    throw new RuntimeException("Delete not supported for stringdatapoints.")
 
   def toRow(a: StringDataPointsItem): Row = asRow(a)
 
