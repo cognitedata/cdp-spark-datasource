@@ -13,6 +13,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
+import cognite.spark.v1.SparkSchemaHelper.structType
+
+import scala.util.matching.Regex
 
 import scala.util.matching.Regex
 
@@ -172,4 +175,8 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       granularities,
       toRow(requiredColumns))
   }
+}
+
+object NumericDataPointsRelation extends UpsertSchema {
+  val upsertSchema = structType[InsertDataPointsItem]
 }

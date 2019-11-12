@@ -471,6 +471,84 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
+  it should "allow upsert in savemode" taggedAs WriteTest in {
+    val source = "spark-events-test"
+
+    // Cleanup events
+    cleanupEvents(source)
+    val eventDescriptionsReturned =
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.nonEmpty)
+    assert(eventDescriptionsReturned.isEmpty)
+
+    // Post new events
+    spark
+      .sql(s"""
+              |select "foo" as description,
+              |least(startTime, endTime) as startTime,
+              |greatest(startTime, endTime) as endTime,
+              |type,
+              |subtype,
+              |null as assetIds,
+              |bigint(0) as id,
+              |map("foo", null, "bar", "test") as metadata,
+              |"$source" as source,
+              |string(id) as externalId,
+              |null as createdTime,
+              |lastUpdatedTime
+              |from sourceEvent
+              |limit 100
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .option("onconflict", "upsert")
+      .save()
+
+    // Check if post worked
+    val descriptionsAfterPost =
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.length != 100)
+    assert(descriptionsAfterPost.length == 100)
+    assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "foo"))
+
+    // Update events
+    spark
+      .sql(s"""
+              |select "bar" as description,
+              |startTime,
+              |endTime,
+              |type,
+              |subtype,
+              |array(2091657868296883) as assetIds,
+              |bigint(0) as id,
+              |map("some", null, "metadata", "test") as metadata,
+              |"$source" as source,
+              |string(id) as externalId,
+              |createdTime,
+              |lastUpdatedTime
+              |from sourceEvent
+              |limit 500
+        """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("onconflict", "upsert")
+      .option("type", "events")
+      .save()
+
+    // Check if upsert worked
+    val descriptionsAfterUpdate =
+      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.length != 500)
+    assert(descriptionsAfterUpdate.length == 500)
+    assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
+
+    val dfWithCorrectAssetIds = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'").collect,
+      rows => rows.length != 500)
+    assert(dfWithCorrectAssetIds.length == 500)
+
+  }
+
   it should "allow partial updates in savemode" taggedAs WriteTest in {
     val source = "spark-events-test-upsert-savemode"
 
