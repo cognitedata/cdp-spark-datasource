@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import java.time.Instant
+
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.StringDataPoint
@@ -11,11 +13,19 @@ import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import PushdownUtilities.filtersToTimestampLimits
+import cognite.spark.v1.SparkSchemaHelper.structType
 
 case class StringDataPointsItem(
     id: Option[Long],
     externalId: Option[String],
     timestamp: java.sql.Timestamp,
+    value: String
+)
+
+case class StringDataPointsInsertItem(
+    id: Option[Long],
+    externalId: Option[String],
+    timestamp: Instant,
     value: String
 )
 
@@ -40,14 +50,12 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
 
   override def insertSeqOfRows(rows: Seq[Row]): IO[Unit] = {
     val (dataPointsWithId, dataPointsWithExternalId) =
-      rows.map(r => fromRow[StringDataPointsItem](r)).partition(p => p.id.isDefined)
+      rows.map(r => fromRow[StringDataPointsInsertItem](r)).partition(p => p.id.isDefined)
     IO {
       dataPointsWithId.groupBy(_.id).map {
         case (id, datapoint) =>
           client.dataPoints
-            .insertStringsById(
-              id.get,
-              datapoint.map(dp => StringDataPoint(dp.timestamp.toInstant, dp.value)))
+            .insertStringsById(id.get, datapoint.map(dp => StringDataPoint(dp.timestamp, dp.value)))
             .unsafeRunSync()
       }
     } *>
@@ -57,7 +65,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
             client.dataPoints
               .insertStringsByExternalId(
                 extId.get,
-                datapoint.map(dp => StringDataPoint(dp.timestamp.toInstant, dp.value)))
+                datapoint.map(dp => StringDataPoint(dp.timestamp, dp.value)))
               .unsafeRunSync()
         }
       }
@@ -102,4 +110,12 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     val rowOfAllFields = toRow(item)
     Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
   }
+}
+
+object StringDataPointsRelation extends UpsertSchema {
+  // We should use StringDataPointsItem here, but doing that gives the error: "constructor Timestamp encapsulates
+  // multiple overloaded alternatives and cannot be treated as a method. Consider invoking
+  // `<offending symbol>.asTerm.alternatives` and manually picking the required method" in StructTypeEncoder, probably
+  // because TimeStamp has multiple constructors. Issue in backlog for investigating this.
+  val upsertSchema = structType[StringDataPointsInsertItem]
 }

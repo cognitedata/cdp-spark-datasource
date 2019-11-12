@@ -12,6 +12,7 @@ import com.cognite.sdk.scala.common.CdpApiException
 import fs2.Stream
 
 import scala.concurrent.ExecutionContext
+import io.scalaland.chimney.dsl._
 
 class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Asset, Long](config, "assets")
@@ -68,16 +69,16 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def upsert(rows: Seq[Row]): IO[Unit] = getFromRowAndCreate(rows)
 
-  def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[Asset] =
+  def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[AssetCreate] =
     rows.map { r =>
-      val asset = fromRow[Asset](r)
+      val asset = fromRow[AssetCreate](r)
       asset.copy(metadata = filterMetadata(asset.metadata))
     }
   override def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] = {
     val assets = fromRowWithFilteredMetadata(rows)
 
     client.assets
-      .createFromRead(assets)
+      .create(assets)
       .handleErrorWith {
         case e: CdpApiException =>
           if (e.code == 409) {
@@ -88,22 +89,22 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       } *> IO.unit
   }
 
-  def resolveConflict(existingExternalIds: Seq[String], assets: Seq[Asset]): IO[Unit] = {
+  def resolveConflict(existingExternalIds: Seq[String], assets: Seq[AssetCreate]): IO[Unit] = {
     val (assetsToUpdate, assetsToCreate) = assets.partition(
       p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
     )
 
     val idMap = client.assets
       .retrieveByExternalIds(existingExternalIds)
-      .unsafeRunSync()
-      .map(a => a.externalId -> a.id)
-      .toMap
+      .map(_.map(e => e.externalId -> e.id).toMap)
 
     val create =
-      if (assetsToCreate.isEmpty) IO.unit else client.assets.createFromRead(assetsToCreate)
+      if (assetsToCreate.isEmpty) { IO.unit } else client.assets.create(assetsToCreate)
     val update =
       if (assetsToUpdate.isEmpty) { IO.unit } else {
-        client.assets.updateFromRead(assetsToUpdate.map(a => a.copy(id = idMap(a.externalId))))
+        idMap.flatMap(idMap =>
+          client.assets.update(assetsToUpdate.map(a =>
+            a.into[AssetUpdate].withFieldComputed(_.id, x => idMap(x.externalId)).transform)))
       }
 
     (create, update).parMapN((_, _) => ())
@@ -116,6 +117,5 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: Asset): Long = a.id
 }
 object AssetsRelation extends UpsertSchema {
-  val upsertSchema = StructType(
-    structType[Asset].filterNot(field => Seq("createdTime", "lastUpdatedTime").contains(field.name)))
+  val upsertSchema = structType[AssetCreate]
 }

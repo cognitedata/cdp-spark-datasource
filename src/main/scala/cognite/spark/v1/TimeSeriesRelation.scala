@@ -47,13 +47,12 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
 
   override def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesSeq = rows.map { r =>
-      val timeSeries = fromRow[TimeSeries](r)
+      val timeSeries = fromRow[TimeSeriesCreate](r)
       val timeSeriesWithMetadata = timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
-      val timeSeriesCreate = timeSeriesWithMetadata.transformInto[TimeSeriesCreate]
       if (useLegacyName) {
-        timeSeriesCreate.copy(legacyName = timeSeriesCreate.name)
+        timeSeriesWithMetadata.copy(legacyName = timeSeries.name)
       } else {
-        timeSeriesCreate
+        timeSeriesWithMetadata
       }
     }
 
@@ -86,7 +85,6 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
     val idMap = client.timeSeries
       .retrieveByExternalIds(existingExternalIds)
       .map(_.map(ts => ts.externalId -> ts.id).toMap)
-      .unsafeRunSync()
 
     val create =
       if (timeSeriesToCreate.isEmpty) { IO.unit } else {
@@ -94,8 +92,9 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
       }
     val update =
       if (timeSeriesToUpdate.isEmpty) { IO.unit } else {
-        client.timeSeries.updateFromRead(timeSeriesToUpdate.map(ts =>
-          ts.transformInto[TimeSeries].copy(id = idMap(ts.externalId))))
+        idMap.flatMap(idMap =>
+          client.timeSeries.update(timeSeriesToUpdate.map(ts =>
+            ts.transformInto[TimeSeriesUpdate].copy(id = idMap(ts.externalId)))))
       }
 
     (create, update).parMapN((_, _) => ())
@@ -142,6 +141,5 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
     )
 }
 object TimeSeriesRelation extends UpsertSchema {
-  val upsertSchema = StructType(structType[TimeSeries].filterNot(field =>
-    Seq("createdTime", "lastUpdatedTime").contains(field.name)))
+  val upsertSchema = structType[TimeSeriesCreate]
 }

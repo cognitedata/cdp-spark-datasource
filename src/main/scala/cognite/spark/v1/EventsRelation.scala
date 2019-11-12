@@ -2,15 +2,15 @@ package cognite.spark.v1
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.cognite.sdk.scala.v1.{Event, EventUpdate, EventsFilter, GenericClient}
+import com.cognite.sdk.scala.v1.{Event, EventCreate, EventUpdate, EventsFilter, GenericClient}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
-
 import com.cognite.sdk.scala.common.CdpApiException
 import PushdownUtilities._
 import fs2.Stream
+import io.scalaland.chimney.dsl._
 
 import scala.concurrent.ExecutionContext
 
@@ -67,7 +67,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val events = fromRowWithFilteredMetadata(rows)
-    client.events.createFromRead(events) *> IO.unit
+    client.events.create(events) *> IO.unit
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
@@ -82,16 +82,16 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def upsert(rows: Seq[Row]): IO[Unit] = getFromRowAndCreate(rows)
 
-  def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[Event] =
+  def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[EventCreate] =
     rows.map { r =>
-      val event = fromRow[Event](r)
+      val event = fromRow[EventCreate](r)
       event.copy(metadata = filterMetadata(event.metadata))
     }
   override def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] = {
     val events = fromRowWithFilteredMetadata(rows)
 
     client.events
-      .createFromRead(events)
+      .create(events)
       .handleErrorWith {
         case e: CdpApiException =>
           if (e.code == 409) {
@@ -102,22 +102,22 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       } *> IO.unit
   }
 
-  def resolveConflict(existingExternalIds: Seq[String], events: Seq[Event]): IO[Unit] = {
+  def resolveConflict(existingExternalIds: Seq[String], events: Seq[EventCreate]): IO[Unit] = {
     val (eventsToUpdate, eventsToCreate) = events.partition(
       p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
     )
 
     val idMap = client.events
       .retrieveByExternalIds(existingExternalIds)
-      .unsafeRunSync()
-      .map(e => e.externalId -> e.id)
-      .toMap
+      .map(_.map(e => e.externalId -> e.id).toMap)
 
     val create =
-      if (eventsToCreate.isEmpty) IO.unit else client.events.createFromRead(eventsToCreate)
+      if (eventsToCreate.isEmpty) IO.unit else client.events.create(eventsToCreate)
     val update =
       if (eventsToUpdate.isEmpty) { IO.unit } else {
-        client.events.updateFromRead(eventsToUpdate.map(e => e.copy(id = idMap(e.externalId))))
+        idMap.flatMap(idMap =>
+          client.events.update(eventsToUpdate.map(e =>
+            e.transformInto[EventUpdate].copy(id = idMap(e.externalId)))))
       }
 
     (create, update).parMapN((_, _) => ())
@@ -130,6 +130,5 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: Event): Long = a.id
 }
 object EventsRelation extends UpsertSchema {
-  val upsertSchema = StructType(
-    structType[Event].filterNot(field => Seq("createdTime", "lastUpdatedTime").contains(field.name)))
+  val upsertSchema = structType[EventCreate]
 }
