@@ -361,12 +361,13 @@ To **skip the read/write tests in assembly**, add `test in assembly := {}` to bu
 
 ## Run the project locally with spark-shell
 
-Download the jar-file and place it under SPARK_HOME/jars.
+To download the spark data source, simply add the maven coordinates for the package using the
+`--packages` flag.
 
-Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following commands (replace <release> with the release you'd like, for example 1.0.0-rc1):
+Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following commands (replace <release> with the release you'd like, for example 1.2.0):
 
 ``` cmd
-$> spark-shell --packages com.cognite.spark.datasource:cdp-spark-datasource_2.11:<latest-release>
+$> spark-shell --packages com.cognite.spark.datasource:cdf-spark-datasource_2.11:<latest-release>
 scala> val apiKey="secret-key-you-have"
 scala> val df = spark.sqlContext.read.format("cognite.spark.v1")
   .option("apiKey", apiKey)
@@ -380,3 +381,6 @@ df: org.apache.spark.sql.DataFrame = [name: string, parentId: bigint ... 3 more 
 scala> df.count
 res0: Long = 1000
 ```
+
+Note that if you're on an older version than `1.1.0` you'll need to use the old name,
+`cdp-spark-datasource`.

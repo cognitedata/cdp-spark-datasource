@@ -31,7 +31,12 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         "minStartTime",
         "maxStartTime",
         "minEndTime",
-        "maxEndTime")
+        "maxEndTime",
+        "minCreatedTime",
+        "maxCreatedTime",
+        "minLastUpdatedTime",
+        "maxLastUpdatedTime"
+      )
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
@@ -60,7 +65,9 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       subtype = m.get("subtype"),
       startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
-      assetIds = m.get("assetIds").map(assetIdsFromWrappedArray)
+      assetIds = m.get("assetIds").map(assetIdsFromWrappedArray),
+      createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
+      lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime"))
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

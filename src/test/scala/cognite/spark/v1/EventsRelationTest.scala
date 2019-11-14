@@ -64,6 +64,37 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 8)
   }
 
+  it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.and.non.pushdown"
+    // The contents of the parenthesis would need all content, but the left side should cancel that out
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"(type = 'alert' or description = 'test desc') and type = 'alert'")
+    assert(df.count == 8)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 8)
+  }
+
+  it should "read all data when necessary" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.or.non.pushdown"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"type = 'alert' or description = 'some test desc'")
+    assert(df.count == 8)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead > 3000)
+  }
+
   it should "handle duplicates in a pushdown filter scenario" taggedAs WriteTest in {
     val metricsPrefix = "single.pushdown.filter.duplicates"
     val df = spark.read
@@ -153,6 +184,21 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(df.count == 5)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 5)
+  }
+
+  it should "handle pushdown filters on maximum createdTime" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filters.maxCreatedTime"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where("createdTime <= to_timestamp(1540471832)")
+    assert(df.count == 303)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 303)
   }
 
   it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
