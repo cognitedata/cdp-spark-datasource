@@ -99,7 +99,7 @@ case class NumericDataPointsRdd(
   // We must not exceed this. We're assuming there are less than this many
   // points for the smallest interval (1s) which seems reasonable, but we
   // could choose to do paging when that is not the case.
-  val maxPointsPerPartition = 100000
+  val maxPointsPerPartition = Constants.DefaultDataPointsLimit
   val partitionSize = 100000
   val bucketSize = 2000000
   val maxPointsPerAggregationRange = 10000

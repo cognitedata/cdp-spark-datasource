@@ -119,6 +119,28 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
     assert(df.count() == 9)
   }
 
+  it should "fetch all string data points from a time series using paging" taggedAs ReadTest in {
+    val df = spark.read.format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "stringdatapoints")
+      .option("batchSize", "100")
+      .load()
+      .where(s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1573081192) and id = $valhallTimeSeriesId")
+    assert(df.count() == 2146)
+  }
+
+  it should "fetch all string data points from a time series using paging and respect limitPerPartition" taggedAs ReadTest in {
+    val df = spark.read.format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "stringdatapoints")
+      .option("batchSize", "10000")
+      .option("limitPerPartition", "100")
+      .option("partitions", "1")
+      .load()
+      .where(s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1573081192) and id = $valhallTimeSeriesId")
+    assert(df.count() == 100)
+  }
+
   it should "be an error to specify an invalid (time series) name" taggedAs WriteTest in {
     val destinationDf = spark.read.format("cognite.spark.v1")
       .option("apiKey", writeApiKey)

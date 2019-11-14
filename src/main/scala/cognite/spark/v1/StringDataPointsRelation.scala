@@ -5,7 +5,7 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.StringDataPoint
-import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow}
 import org.apache.spark.rdd.RDD
@@ -99,22 +99,80 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     val itemsIOFromId = ids.map { id =>
       (
         StringDataPointsFilter(Some(id), None),
-        client.dataPoints
-          .queryStringsById(id, lowerTimeLimit, upperTimeLimit, config.limitPerPartition)
-          .map(dpRes => dpRes.flatMap(_.datapoints)))
+        getAllDataPoints(
+          CogniteInternalId(id),
+          lowerTimeLimit,
+          upperTimeLimit.plusMillis(1),
+          config.limitPerPartition)
+      )
     }
 
     val itemsIOFromExternalId = externalIds.map { extId =>
       (
         StringDataPointsFilter(None, Some(extId)),
-        client.dataPoints
-          .queryStringsByExternalId(extId, lowerTimeLimit, upperTimeLimit, config.limitPerPartition)
-          .map(dpRes => dpRes.flatMap(_.datapoints)))
-
+        getAllDataPoints(
+          CogniteExternalId(extId),
+          lowerTimeLimit,
+          upperTimeLimit.plusMillis(1),
+          config.limitPerPartition)
+      )
     }
 
     itemsIOFromId ++ itemsIOFromExternalId
   }
+
+  private def limitForCall(nPointsRemaining: Option[Int]) =
+    (nPointsRemaining, config.batchSize) match {
+      case (remaining @ Some(_), None) => remaining
+      case (Some(remaining), Some(batchSize)) => Some(remaining.min(batchSize))
+      case (None, batchSize @ Some(_)) => batchSize
+      case (None, None) => None
+    }
+
+  def getAllDataPoints(
+      id: CogniteId,
+      lowerLimit: Instant,
+      upperLimit: Instant,
+      nPointsRemaining: Option[Int] = None,
+      allPoints: IO[Seq[StringDataPoint]] = IO.pure(Seq.empty)): IO[Seq[StringDataPoint]] =
+    if (lowerLimit.toEpochMilli >= upperLimit.toEpochMilli || nPointsRemaining.exists(_ <= 0)) {
+      allPoints
+    } else {
+      val queryPoints = id match {
+        case CogniteInternalId(internalId) =>
+          client.dataPoints.queryStringsById(
+            internalId,
+            lowerLimit,
+            upperLimit,
+            limitForCall(nPointsRemaining))
+        case CogniteExternalId(externalId) =>
+          client.dataPoints.queryStringsByExternalId(
+            externalId,
+            lowerLimit,
+            upperLimit,
+            limitForCall(nPointsRemaining))
+      }
+      queryPoints
+        .map(dpRes => dpRes.flatMap(_.datapoints))
+        .flatMap {
+          case Nil => allPoints
+          case points =>
+            val newLowerLimit = points.last.timestamp.plusMillis(1)
+            val newAllPoints = allPoints.map { all =>
+              val pointsFromResponse = nPointsRemaining match {
+                case None => points
+                case Some(maxNumPointsToInclude) => points.take(maxNumPointsToInclude)
+              }
+              all ++ pointsFromResponse
+            }
+            getAllDataPoints(
+              id,
+              newLowerLimit,
+              upperLimit,
+              nPointsRemaining.map(_ - points.size),
+              newAllPoints)
+        }
+    }
 
   override def toRow(requiredColumns: Array[String])(item: StringDataPointsItem): Row = {
     val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
