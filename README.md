@@ -361,8 +361,6 @@ To **skip the read/write tests in assembly**, add `test in assembly := {}` to bu
 
 ## Run the project locally with spark-shell
 
-Download the jar-file and place it under SPARK_HOME/jars.
-
 Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following commands (replace <release> with the release you'd like, for example 1.0.0-rc1):
 
 ``` cmd
