@@ -83,7 +83,7 @@ object PushdownUtilities {
       fieldsWithPushdownFilter: Seq[String]): Boolean =
     pushdownExpression match {
       case PushdownAnd(left, right) =>
-        shouldGetAll(left, fieldsWithPushdownFilter) || shouldGetAll(right, fieldsWithPushdownFilter)
+        shouldGetAll(left, fieldsWithPushdownFilter) && shouldGetAll(right, fieldsWithPushdownFilter)
       case PushdownFilter(field, _) => !fieldsWithPushdownFilter.contains(field)
       case PushdownFilters(filters) =>
         filters
