@@ -5,9 +5,8 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-
-import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.common.Auth
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
+import com.cognite.sdk.scala.common.{Auth, StringDataPoint}
 import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
@@ -131,5 +130,53 @@ abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlC
         sys.error(
           s"Choosing granularity using 'string starts with' not allowed for data points, attempted for ${value.toString}")
       case _ => Seq()
+    }
+}
+
+object DataPointsRelationV1 {
+  def limitForCall(nPointsRemaining: Option[Int], batchSize: Option[Int]): Option[Int] =
+    (nPointsRemaining, batchSize) match {
+      case (remaining @ Some(_), None) => remaining
+      case (Some(remaining), Some(batchSize)) => Some(remaining.min(batchSize))
+      case (None, batchSize @ Some(_)) => batchSize
+      case (None, None) => None
+    }
+
+  def getAllDataPoints[R](
+      queryMethod: (CogniteId, Instant, Instant, Option[Int]) => IO[(Option[Instant], Seq[R])],
+      batchSize: Option[Int],
+      id: CogniteId,
+      lowerLimit: Instant,
+      upperLimit: Instant,
+      nPointsRemaining: Option[Int] = None,
+      allPoints: IO[Seq[R]] = IO.pure(Seq.empty)): IO[Seq[R]] =
+    if (lowerLimit.toEpochMilli >= upperLimit.toEpochMilli || nPointsRemaining.exists(_ <= 0)) {
+      allPoints
+    } else {
+      val queryPoints =
+        queryMethod(id, lowerLimit, upperLimit, limitForCall(nPointsRemaining, batchSize))
+
+      queryPoints
+        .flatMap {
+          case (_, Nil) => allPoints
+          case (None, points) => allPoints.map(_ ++ points)
+          case (Some(lastTimestamp), points) =>
+            val newLowerLimit = lastTimestamp.plusMillis(1)
+            val newAllPoints = allPoints.map { all =>
+              val pointsFromResponse = nPointsRemaining match {
+                case None => points
+                case Some(maxNumPointsToInclude) => points.take(maxNumPointsToInclude)
+              }
+              all ++ pointsFromResponse
+            }
+            getAllDataPoints(
+              queryMethod,
+              batchSize,
+              id,
+              newLowerLimit,
+              upperLimit,
+              nPointsRemaining.map(_ - points.size),
+              newAllPoints)
+        }
     }
 }
