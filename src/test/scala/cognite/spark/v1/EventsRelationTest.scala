@@ -49,186 +49,187 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(res.length == 1000)
   }
 
-  it should "apply a single pushdown filter" taggedAs WriteTest in {
+  it should "apply a single pushdown filter" taggedAs ReadTest in {
     val metricsPrefix = "single.pushdown.filter"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"type = 'alert'")
-    assert(df.count == 8)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 8)
-  }
-
-  it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.and.non.pushdown"
-    // The contents of the parenthesis would need all content, but the left side should cancel that out
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
-      .where(s"(type = 'alert' or description = 'test desc') and type = 'alert'")
-    assert(df.count == 8)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 8)
-  }
-
-  it should "read all data when necessary" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.or.non.pushdown"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
-      .where(s"type = 'alert' or description = 'some test desc'")
-    assert(df.count == 8)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead > 3000)
-  }
-
-  it should "handle duplicates in a pushdown filter scenario" taggedAs WriteTest in {
-    val metricsPrefix = "single.pushdown.filter.duplicates"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .option("partitions", "10")
-      .load()
-      .where(s"type = 'alert' or source = 'test data'")
+      .where(s"type = 'Workpackage'")
     assert(df.count == 20)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 20)
   }
 
-  it should "apply multiple pushdown filters" taggedAs WriteTest in {
+  it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs ReadTest in {
+    val metricsPrefix = "pushdown.and.non.pushdown"
+    // The contents of the parenthesis would need all content, but the left side should cancel that out
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"(type = 'RULE_BROKEN' or description = 'Rule test rule broken.') and type = 'RULE_BROKEN'")
+    assert(df.count == 260)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 260)
+  }
+
+  it should "read all data when necessary" taggedAs ReadTest in {
+    val metricsPrefix = "pushdown.or.non.pushdown"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("partitions", "500")
+      .load()
+      .where(s"type = 'RULE_BROKEN' or description = 'Rule test rule broken.'")
+    assert(df.count == 260)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead > 3000)
+  }
+
+  it should "handle duplicates in a pushdown filter scenario" taggedAs ReadTest in {
+    val metricsPrefix = "single.pushdown.filter.duplicates"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("partitions", "200")
+      .load()
+      .where(s"type = 'RULE_BROKEN' or subtype = '-LLibBzAJWfs1aBXHgg3'")
+    assert(df.count == 260)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 260)
+  }
+
+  it should "apply multiple pushdown filters" taggedAs ReadTest in {
     val metricsPrefix = "multiple.pushdown.filters"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"type = 'maintenance' and source = 'test data'")
-    assert(df.count == 4)
+      .where(s"type = 'Workpackage' and source = 'akerbp-cdp'")
+    assert(df.count == 20)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 4)
+    assert(eventsRead == 20)
   }
 
-  it should "handle or conditions" taggedAs WriteTest in {
+  it should "handle or conditions" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.or"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"type = 'maintenance' or type = 'upgrade'")
-    assert(df.count == 9)
+      .where(s"type = 'Workpackage' or type = 'RULE_BROKEN'")
+    assert(df.count == 280)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 9)
+    assert(eventsRead == 280)
   }
 
-  it should "handle in() conditions" taggedAs WriteTest in {
+  it should "handle in() conditions" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.in"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"type in('alert','replacement')")
-    assert(df.count == 12)
+      .where(s"type in('Workpackage','Worktask')")
+    assert(df.count == 1147)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 12)
+    assert(eventsRead == 1147)
   }
 
-  it should "handle and, or and in() in one query" taggedAs WriteTest in {
+  it should "handle and, or and in() in one query" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.and.or.in"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"(type = 'maintenance' or type = 'upgrade') and subtype in('manual', 'automatic')")
-    assert(df.count == 4)
+      .where(s"(type = 'RULE_BROKEN' or type = '***.***') and subtype in('-LLibBzAJWfs1aBXHgg3', '*** *** by *** *** ***', '*** *** by ***-ON Application')")
+    assert(df.count == 19)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 4)
+    assert(eventsRead == 19)
   }
 
-  it should "handle pushdown filters on minimum startTime" taggedAs WriteTest in {
+  it should "handle pushdown filters on minimum startTime" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.minStartTime"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where("startTime > to_timestamp(1554698747)")
-    assert(df.count == 5)
+      .where("startTime > to_timestamp(1568105460)")
+    assert(df.count >= 1346)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 5)
+    assert(eventsRead >= 1346)
   }
 
-  it should "handle pushdown filters on maximum createdTime" taggedAs WriteTest in {
+  it should "handle pushdown filters on maximum createdTime" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.maxCreatedTime"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where("createdTime <= to_timestamp(1540471832)")
-    assert(df.count == 303)
+      .where("createdTime <= to_timestamp(1535448052)")
+    assert(df.count == 6907)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 303)
+    assert(eventsRead == 6907)
   }
 
-  it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
+  it should "handle pushdown filters on maximum startTime" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.maxStartTime"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"startTime < to_timestamp(1540767) and source = 'generator'")
-    assert(df.count == 5)
+      .where(s"startTime < to_timestamp(1533132293) and source = 'akerbp-cdp'")
+    assert(df.count == 40004)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 5)
+    assert(eventsRead == 40004)
   }
 
-  it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest in {
+  it should "handle pushdown filters on minimum and maximum startTime" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.minMaxStartTime"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("apiKey", readApiKey)
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"startTime < to_timestamp(2039468000) and startTime > to_timestamp(1539468000)")
-    assert(df.count == 78)
+      .where(s"startTime < to_timestamp(1533132293) and startTime > to_timestamp(1533000293)")
+    assert(df.count == 396)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 78)
+    assert(eventsRead == 396)
   }
 
   it should "handle pushdown filters on assetIds" taggedAs WriteTest in {
