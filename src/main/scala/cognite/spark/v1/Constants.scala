@@ -10,7 +10,7 @@ object Constants {
   val DefaultRawBatchSize = 10000
   val DefaultInferSchemaLimit = 10000
   val DefaultDataPointsLimit = 100000
-  val DefaultPartitions = 20
+  val DefaultPartitions = 200
   val DefaultDataPointsPartitions = 20
   val DefaultParallelismPerPartition = 10
   val DefaultInitialRetryDelay: FiniteDuration = 150.millis
