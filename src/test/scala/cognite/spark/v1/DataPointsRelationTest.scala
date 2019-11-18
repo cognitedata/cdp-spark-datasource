@@ -11,6 +11,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   val valhallTimeSeries = "'VAL_23-FT-92537-04:X.Value'"
 
   val valhallTimeSeriesId = 3385857257491234L
+  val withMissingAggregatesId = 3644806523397779L
 
   "DataPointsRelation" should "use our own schema for data points" taggedAs (ReadTest) in {
     val df = spark.read
@@ -240,6 +241,16 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(df.distinct().count() == df.count())
   }
 
+  it should "handle missing aggregates" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "datapoints")
+      .load()
+      .where(
+        s"timestamp >= to_timestamp(1349732220) and timestamp <= to_timestamp(1572931920) and aggregation = 'average' and granularity = '5m' and id = $withMissingAggregatesId")
+    assert(df.count() == 723059)
+  }
   it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest in {
 
     val testUnit = "datapoints testing"
