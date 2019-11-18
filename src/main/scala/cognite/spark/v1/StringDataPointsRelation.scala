@@ -99,7 +99,9 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     val itemsIOFromId = ids.map { id =>
       (
         StringDataPointsFilter(Some(id), None),
-        getAllDataPoints(
+        DataPointsRelationV1.getAllDataPoints[StringDataPoint](
+          queryStrings,
+          config.batchSize,
           CogniteInternalId(id),
           lowerTimeLimit,
           upperTimeLimit.plusMillis(1),
@@ -110,7 +112,9 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     val itemsIOFromExternalId = externalIds.map { extId =>
       (
         StringDataPointsFilter(None, Some(extId)),
-        getAllDataPoints(
+        DataPointsRelationV1.getAllDataPoints[StringDataPoint](
+          queryStrings,
+          config.batchSize,
           CogniteExternalId(extId),
           lowerTimeLimit,
           upperTimeLimit.plusMillis(1),
@@ -121,58 +125,31 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     itemsIOFromId ++ itemsIOFromExternalId
   }
 
-  private def limitForCall(nPointsRemaining: Option[Int]) =
-    (nPointsRemaining, config.batchSize) match {
-      case (remaining @ Some(_), None) => remaining
-      case (Some(remaining), Some(batchSize)) => Some(remaining.min(batchSize))
-      case (None, batchSize @ Some(_)) => batchSize
-      case (None, None) => None
-    }
-
-  def getAllDataPoints(
+  private def queryStrings(
       id: CogniteId,
       lowerLimit: Instant,
       upperLimit: Instant,
-      nPointsRemaining: Option[Int] = None,
-      allPoints: IO[Seq[StringDataPoint]] = IO.pure(Seq.empty)): IO[Seq[StringDataPoint]] =
-    if (lowerLimit.toEpochMilli >= upperLimit.toEpochMilli || nPointsRemaining.exists(_ <= 0)) {
-      allPoints
-    } else {
-      val queryPoints = id match {
-        case CogniteInternalId(internalId) =>
-          client.dataPoints.queryStringsById(
-            internalId,
-            lowerLimit,
-            upperLimit,
-            limitForCall(nPointsRemaining))
-        case CogniteExternalId(externalId) =>
-          client.dataPoints.queryStringsByExternalId(
-            externalId,
-            lowerLimit,
-            upperLimit,
-            limitForCall(nPointsRemaining))
-      }
-      queryPoints
-        .map(dpRes => dpRes.flatMap(_.datapoints))
-        .flatMap {
-          case Nil => allPoints
-          case points =>
-            val newLowerLimit = points.last.timestamp.plusMillis(1)
-            val newAllPoints = allPoints.map { all =>
-              val pointsFromResponse = nPointsRemaining match {
-                case None => points
-                case Some(maxNumPointsToInclude) => points.take(maxNumPointsToInclude)
-              }
-              all ++ pointsFromResponse
-            }
-            getAllDataPoints(
-              id,
-              newLowerLimit,
-              upperLimit,
-              nPointsRemaining.map(_ - points.size),
-              newAllPoints)
-        }
+      nPointsRemaining: Option[Int]) = {
+    val responses = id match {
+      case CogniteInternalId(internalId) =>
+        client.dataPoints.queryStringsById(
+          internalId,
+          lowerLimit,
+          upperLimit,
+          DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize))
+      case CogniteExternalId(externalId) =>
+        client.dataPoints.queryStringsByExternalId(
+          externalId,
+          lowerLimit,
+          upperLimit,
+          DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize))
     }
+    responses.map { queryResponses =>
+      val dataPoints = queryResponses.flatMap(_.datapoints)
+      val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
+      (lastTimestamp, dataPoints)
+    }
+  }
 
   override def toRow(requiredColumns: Array[String])(item: StringDataPointsItem): Row = {
     val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)

@@ -4,7 +4,7 @@ import java.time.{Duration, Instant}
 import java.time.temporal.ChronoUnit
 
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -17,15 +17,19 @@ import Ordering.Implicits._
 import scala.util.Random
 
 sealed trait Range {
-  val count: Long
+  val count: Option[Long]
 }
-final case class DataPointsRange(id: Either[Long, String], start: Instant, end: Instant, count: Long)
+final case class DataPointsRange(
+    id: Either[Long, String],
+    start: Instant,
+    end: Instant,
+    count: Option[Long])
     extends Range
 final case class AggregationRange(
     id: Either[Long, String],
     start: Instant,
     end: Instant,
-    count: Long,
+    count: Option[Long],
     granularity: Granularity,
     aggregation: String)
     extends Range
@@ -73,7 +77,7 @@ case class NumericDataPointsRdd(
             countStart
               .map(_ => count.timestamp)
               .getOrElse(count.timestamp.plus(granularity.amount, granularity.unit)),
-            countSum
+            Some(countSum)
           )
           countsToRanges(id, counts, granularity, newRange +: ranges, 0, None)
         } else {
@@ -90,7 +94,11 @@ case class NumericDataPointsRdd(
         countStart match {
           case Some(start) =>
             val lastRange =
-              DataPointsRange(id, start, start.plus(granularity.amount, granularity.unit), countSum)
+              DataPointsRange(
+                id,
+                start,
+                start.plus(granularity.amount, granularity.unit),
+                Some(countSum))
             lastRange +: ranges
           case _ => ranges
         }
@@ -176,11 +184,17 @@ case class NumericDataPointsRdd(
           Seq("count"),
           10000
         ).flatMap { aggregates =>
-          val counts = aggregates("count").flatMap(_.datapoints)
-          if (counts.map(_.value).max > partitionSize && moreGranular.nonEmpty) {
-            smallEnoughRanges(id, start, end, moreGranular)
-          } else {
-            IO.pure(countsToRanges(id, counts, granularity))
+          aggregates.get("count") match {
+            case Some(countsResponses) =>
+              val counts = countsResponses.flatMap(_.datapoints)
+              if (counts.map(_.value).max > partitionSize && moreGranular.nonEmpty) {
+                smallEnoughRanges(id, start, end, moreGranular)
+              } else {
+                IO.pure(countsToRanges(id, counts, granularity))
+              }
+            case None =>
+              // can't rely on aggregates for this range so page through it
+              IO.pure(Seq(DataPointsRange(id, start, end, None)))
           }
         }
     }
@@ -258,13 +272,25 @@ case class NumericDataPointsRdd(
     // total of data points <= bucketSize
     val bucketsFold = ranges.foldLeft((Seq.empty[Bucket], Seq.empty[Range], 0L)) {
       case ((buckets, ranges, sum), r) =>
-        val sumTotal = sum + r.count
-        if (sumTotal > bucketSize) {
-          // Create a new bucket from the ranges, and assign an index of "1" temporarily.
-          // We'll change the index before returning the buckets.
-          (Bucket(1, ranges) +: buckets, Seq(r), r.count)
-        } else {
-          (buckets, r +: ranges, sumTotal)
+        r.count match {
+          case Some(count) =>
+            val sumTotal = sum + count
+            if (sumTotal > bucketSize) {
+              // Create a new bucket from the ranges, and assign an index of "1" temporarily.
+              // We'll change the index before returning the buckets.
+              (Bucket(1, ranges) +: buckets, Seq(r), count)
+            } else {
+              (buckets, r +: ranges, sumTotal)
+            }
+          case None =>
+            // Ranges without a count get their own buckets,
+            // because we don't know how many points they contain.
+            val newBuckets = if (ranges.isEmpty) {
+              buckets
+            } else {
+              Bucket(1, ranges) +: buckets
+            }
+            (Bucket(1, Seq(r)) +: newBuckets, Seq.empty, 0)
         }
     }
 
@@ -289,7 +315,7 @@ case class NumericDataPointsRdd(
           if (latest >= first) {
             smallEnoughRanges(id, first, latest)
           } else {
-            IO(Seq(DataPointsRange(id, first, latest.plusMillis(1), 1)))
+            IO(Seq(DataPointsRange(id, first, latest.plusMillis(1), Some(1))))
           }
         case _ => IO(Seq.empty)
       }
@@ -331,7 +357,7 @@ case class NumericDataPointsRdd(
             nPoints = Duration
               .between(rangeStart, rangeEnd)
               .toMillis / granularity.unit.getDuration.toMillis
-          } yield AggregationRange(id, rangeStart, rangeEnd, nPoints, granularity, a.aggregation)
+          } yield AggregationRange(id, rangeStart, rangeEnd, Some(nPoints), granularity, a.aggregation)
           IO(ranges)
         case _ => IO(Seq.empty)
       }
@@ -364,44 +390,93 @@ case class NumericDataPointsRdd(
       .unsafeRunSync()
   }
 
+  private def queryDoubles(
+      id: CogniteId,
+      lowerLimit: Instant,
+      upperLimit: Instant,
+      nPointsRemaining: Option[Int]) = {
+    val responses = id match {
+      case CogniteInternalId(internalId) =>
+        client.dataPoints.queryById(
+          internalId,
+          lowerLimit,
+          upperLimit,
+          DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize))
+      case CogniteExternalId(externalId) =>
+        client.dataPoints.queryByExternalId(
+          externalId,
+          lowerLimit,
+          upperLimit,
+          DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize))
+    }
+    responses.map { queryResponses =>
+      val dataPoints = queryResponses.flatMap(_.datapoints)
+      val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
+      (lastTimestamp, dataPoints)
+    }
+  }
+
+  private def queryDataPointsRange(dataPointsRange: DataPointsRange) =
+    dataPointsRange.count match {
+      case Some(_) =>
+        queryById(dataPointsRange.id, dataPointsRange.start, dataPointsRange.end, 100000)
+          .map(queryResponse => queryResponse.flatMap(_.datapoints))
+      case None =>
+        // Page through this range since we don't know how many points it contains.
+        val id: CogniteId = dataPointsRange.id
+          .fold(internalId => CogniteInternalId(internalId), externalId => CogniteExternalId(externalId))
+        DataPointsRelationV1
+          .getAllDataPoints[SdkDataPoint](
+            queryDoubles,
+            config.batchSize,
+            id,
+            dataPointsRange.start,
+            dataPointsRange.end)
+    }
+
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val bucket = _split.asInstanceOf[Bucket]
 
     bucket.ranges.toVector
       .parFlatTraverse {
         case r: DataPointsRange =>
-          queryById(r.id, r.start, r.end, 100000)
-            .map(queryResponse => queryResponse.flatMap(_.datapoints))
-            .map(dataPoints =>
-              dataPoints
-                .map { p =>
-                  DataPointsItem(
-                    r.id.left.toOption,
-                    r.id.right.toOption,
-                    java.sql.Timestamp.from(p.timestamp),
-                    p.value,
-                    None,
-                    None)
-                }
-                .map(toRow)
-                .toVector)
+          queryDataPointsRange(r)
+            .map(
+              dataPoints =>
+                dataPoints
+                  .map { p =>
+                    DataPointsItem(
+                      r.id.left.toOption,
+                      r.id.right.toOption,
+                      java.sql.Timestamp.from(p.timestamp),
+                      p.value,
+                      None,
+                      None)
+                  }
+                  .map(toRow)
+                  .toVector)
         case r: AggregationRange =>
           queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
             .map(queryResponse =>
               queryResponse.mapValues(dataPointsResponse => dataPointsResponse.flatMap(_.datapoints)))
-            .map(dataPoints =>
-              dataPoints(r.aggregation)
-                .map { p =>
-                  DataPointsItem(
-                    r.id.left.toOption,
-                    r.id.right.toOption,
-                    java.sql.Timestamp.from(p.timestamp),
-                    p.value,
-                    Some(r.aggregation),
-                    Some(r.granularity.toString))
-                }
-                .map(toRow)
-                .toVector)
+            .map(dataPointsAggregates =>
+              dataPointsAggregates.get(r.aggregation) match {
+                case Some(dataPoints) =>
+                  dataPoints
+                    .map { p =>
+                      DataPointsItem(
+                        r.id.left.toOption,
+                        r.id.right.toOption,
+                        java.sql.Timestamp.from(p.timestamp),
+                        p.value,
+                        Some(r.aggregation),
+                        Some(r.granularity.toString))
+                    }
+                    .map(toRow)
+                    .toVector
+                case None =>
+                  Vector.empty
+            })
       }
       .map(r => config.limitPerPartition.fold(r)(limit => r.take(limit)))
       .unsafeRunSync()
