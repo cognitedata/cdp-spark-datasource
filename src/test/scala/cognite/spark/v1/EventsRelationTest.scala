@@ -75,9 +75,10 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"(type = 'RULE_BROKEN' or description = 'Rule test rule broken.') and type = 'RULE_BROKEN'")
-    assert(df.count == 260)
+      .where("createdTime < to_timestamp(1574165300)")
+    assert(df.count == 269)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 260)
+    assert(eventsRead == 269)
   }
 
   it should "read all data when necessary" taggedAs ReadTest in {
@@ -91,7 +92,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("partitions", "500")
       .load()
       .where(s"type = 'RULE_BROKEN' or description = 'Rule test rule broken.'")
-    assert(df.count == 260)
+      .where("createdTime < to_timestamp(1574165300)")
+    assert(df.count == 269)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead > 3000)
   }
@@ -107,9 +109,10 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("partitions", "200")
       .load()
       .where(s"type = 'RULE_BROKEN' or subtype = '-LLibBzAJWfs1aBXHgg3'")
-    assert(df.count == 260)
+      .where("createdTime < to_timestamp(1574165300)")
+    assert(df.count == 269)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 260)
+    assert(eventsRead == 269)
   }
 
   it should "apply multiple pushdown filters" taggedAs ReadTest in {
@@ -137,9 +140,10 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"type = 'Workpackage' or type = 'RULE_BROKEN'")
-    assert(df.count == 280)
+      .where("createdTime < to_timestamp(1574165300)")
+    assert(df.count == 289)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 280)
+    assert(eventsRead == 289)
   }
 
   it should "handle in() conditions" taggedAs ReadTest in {
@@ -167,9 +171,10 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"(type = 'RULE_BROKEN' or type = '***.***') and subtype in('-LLibBzAJWfs1aBXHgg3', '*** *** by *** *** ***', '*** *** by ***-ON Application')")
-    assert(df.count == 19)
+      .where("createdTime < to_timestamp(1574165300)")
+    assert(df.count == 22)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 19)
+    assert(eventsRead == 22)
   }
 
   it should "handle pushdown filters on minimum startTime" taggedAs ReadTest in {
