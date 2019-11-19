@@ -5,7 +5,7 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
+import com.cognite.sdk.scala.v1.{CogniteId, GenericClient}
 import com.cognite.sdk.scala.common.{Auth, StringDataPoint}
 import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.rdd.RDD
