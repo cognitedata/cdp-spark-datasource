@@ -397,17 +397,9 @@ case class NumericDataPointsRdd(
       nPointsRemaining: Option[Int]) = {
     val responses = id match {
       case CogniteInternalId(internalId) =>
-        client.dataPoints.queryById(
-          internalId,
-          lowerLimit,
-          upperLimit,
-          DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize))
+        client.dataPoints.queryById(internalId, lowerLimit, upperLimit, nPointsRemaining)
       case CogniteExternalId(externalId) =>
-        client.dataPoints.queryByExternalId(
-          externalId,
-          lowerLimit,
-          upperLimit,
-          DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize))
+        client.dataPoints.queryByExternalId(externalId, lowerLimit, upperLimit, nPointsRemaining)
     }
     responses.map { queryResponses =>
       val dataPoints = queryResponses.flatMap(_.datapoints)
