@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import java.time.Instant
+
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.CdpApiException
@@ -139,5 +141,44 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
     )
 }
 object TimeSeriesRelation extends UpsertSchema {
-  val upsertSchema = structType[TimeSeriesCreate]
+  val upsertSchema = structType[TimeSeriesUpsertSchema]
+  val insertSchema = structType[TimeSeriesInsertSchema]
+  val readSchema = structType[TimeSeriesReadSchema]
 }
+
+case class TimeSeriesUpsertSchema(
+    id: Option[Long] = None,
+    name: Option[String] = None,
+    externalId: Option[String] = None,
+    metadata: Option[Map[String, String]] = None,
+    assetId: Option[Long] = None,
+    description: Option[String] = None,
+    securityCategories: Option[Seq[Long]] = None
+)
+
+case class TimeSeriesInsertSchema(
+    externalId: Option[String] = None,
+    name: Option[String] = None,
+    isString: Boolean = false,
+    metadata: Option[Map[String, String]] = None,
+    unit: Option[String] = None,
+    assetId: Option[Long] = None,
+    isStep: Boolean = false,
+    description: Option[String] = None,
+    securityCategories: Option[Seq[Long]] = None
+)
+
+case class TimeSeriesReadSchema(
+    name: Option[String] = None,
+    isString: Boolean = false,
+    metadata: Option[Map[String, String]] = None,
+    unit: Option[String] = None,
+    assetId: Option[Long] = None,
+    isStep: Boolean = false,
+    description: Option[String] = None,
+    securityCategories: Option[Seq[Long]] = None,
+    id: Long = 0,
+    externalId: Option[String] = None,
+    createdTime: Instant = Instant.ofEpochMilli(0),
+    lastUpdatedTime: Instant = Instant.ofEpochMilli(0)
+)

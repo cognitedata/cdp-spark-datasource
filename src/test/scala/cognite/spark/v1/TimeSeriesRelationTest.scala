@@ -8,6 +8,8 @@ import org.scalatest.{FlatSpec, Matchers}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
 import com.softwaremill.sttp._
+import io.scalaland.chimney.Transformer
+import io.scalaland.chimney.dsl._
 
 class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   val sourceDf = spark.read
@@ -549,6 +551,14 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       df => df.length < 10
     )
     assert(dfWithDescriptionUpsertTest.length == 10)
+  }
+
+  it should "correctly have insert < read and upsert < read schema hierarchy" in {
+    val timeSeriesInsert = TimeSeriesInsertSchema()
+    timeSeriesInsert.transformInto[TimeSeriesReadSchema]
+
+    val timeSeriesUpsert = TimeSeriesUpsertSchema()
+    timeSeriesUpsert.into[TimeSeriesReadSchema].withFieldComputed(_.id, tsu => tsu.id.getOrElse(0L))
   }
 
   it should "check for null ids on time series update" taggedAs WriteTest in {

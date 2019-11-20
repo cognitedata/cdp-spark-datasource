@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import io.scalaland.chimney.Transformer
+import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._
@@ -159,7 +161,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |'asset name' as name,
               |null as parentId,
               |'asset description' as description,
-              map("foo", null, "bar", "test") as metadata,
+              |map("foo", null, "bar", "test") as metadata,
               |'$assetsTestSource' as source,
               |bigint(10) as id
       """.stripMargin)
@@ -422,6 +424,16 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     }
     e.getCause shouldBe a[IllegalArgumentException]
     spark.sparkContext.setLogLevel("WARN")
+  }
+
+  it should "correctly have insert < read and upsert < read schema hierarchy" in {
+    val assetInsert = AssetsInsertSchema(name = "test-asset")
+    assetInsert.transformInto[AssetsReadSchema].copy(id = 1234L)
+
+    val assetUpsert = AssetsUpsertSchema(name = Some("test-asset"), id = Some(1234L))
+    assetUpsert.into[AssetsReadSchema]
+      .withFieldComputed(_.id, aus => aus.id.getOrElse(0L))
+      .withFieldComputed(_.name, aus => aus.name.getOrElse(""))
   }
 
   it should "allow deletes in savemode" taggedAs WriteTest in {

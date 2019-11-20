@@ -18,7 +18,7 @@ import cognite.spark.v1.SparkSchemaHelper.structType
 case class StringDataPointsItem(
     id: Option[Long],
     externalId: Option[String],
-    timestamp: java.sql.Timestamp,
+    timestamp: Instant,
     value: String
 )
 
@@ -165,4 +165,6 @@ object StringDataPointsRelation extends UpsertSchema {
   // `<offending symbol>.asTerm.alternatives` and manually picking the required method" in StructTypeEncoder, probably
   // because TimeStamp has multiple constructors. Issue in backlog for investigating this.
   val upsertSchema = structType[StringDataPointsInsertItem]
+  val readSchema = structType[StringDataPointsItem]
+  val insertSchema = structType[StringDataPointsInsertItem]
 }

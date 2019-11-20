@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import java.time.Instant
+
 import cats.effect.{ContextShift, IO}
 import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, GenericClient}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -10,7 +12,6 @@ import cats.implicits._
 import PushdownUtilities._
 import com.cognite.sdk.scala.common.CdpApiException
 import fs2.Stream
-
 import io.scalaland.chimney.dsl._
 
 class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
@@ -116,5 +117,42 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: Asset): Long = a.id
 }
 object AssetsRelation extends UpsertSchema {
-  val upsertSchema = structType[AssetCreate]
+  val upsertSchema = structType[AssetsUpsertSchema]
+  val insertSchema = structType[AssetsInsertSchema]
+  val readSchema = structType[AssetsReadSchema]
 }
+
+case class AssetsUpsertSchema(
+    id: Option[Long] = None,
+    name: Option[String] = None,
+    description: Option[String] = None,
+    source: Option[String] = None,
+    externalId: Option[String] = None,
+    metadata: Option[Map[String, String]] = None,
+    parentId: Option[Long] = None,
+    parentExternalId: Option[String] = None
+)
+
+case class AssetsInsertSchema(
+    name: String,
+    parentId: Option[Long] = None,
+    description: Option[String] = None,
+    source: Option[String] = None,
+    externalId: Option[String] = None,
+    metadata: Option[Map[String, String]] = None,
+    parentExternalId: Option[String] = None
+)
+
+case class AssetsReadSchema(
+    externalId: Option[String] = None,
+    name: String,
+    parentId: Option[Long] = None,
+    description: Option[String] = None,
+    metadata: Option[Map[String, String]] = None,
+    source: Option[String] = None,
+    id: Long = 0,
+    createdTime: Instant = Instant.ofEpochMilli(0),
+    lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
+    rootId: Long = 0,
+    aggregates: Option[Map[String, Long]] = None
+)

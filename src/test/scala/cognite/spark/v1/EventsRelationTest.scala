@@ -1,6 +1,8 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
+import io.scalaland.chimney.Transformer
+import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
@@ -810,6 +812,14 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
           .collect,
         df => df.length > 0)
     assert(idsAfterDelete.length == 0)
+  }
+
+  it should "correctly have insert < read and upsert < read schema hierarchy" in {
+    val eventInsert = EventsInsertSchema()
+    eventInsert.transformInto[EventsReadSchema]
+
+    val eventUpsert = EventsUpsertSchema()
+    eventUpsert.into[EventsReadSchema].withFieldComputed(_.id, eu => eu.id.getOrElse(0L))
   }
 
   def eventDescriptions(source: String): Array[Row] =
