@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import java.time.Instant
+
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.v1.{Event, EventCreate, EventUpdate, EventsFilter, GenericClient}
@@ -135,5 +137,47 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: Event): Long = a.id
 }
 object EventsRelation extends UpsertSchema {
-  val upsertSchema = structType[EventCreate]
+  val upsertSchema = structType[EventsUpsertSchema]
+  val insertSchema = structType[EventsInsertSchema]
+  val readSchema = structType[EventsReadSchema]
 }
+
+case class EventsUpsertSchema(
+    id: Option[Long] = None,
+    startTime: Option[Instant] = None,
+    endTime: Option[Instant] = None,
+    description: Option[String] = None,
+    `type`: Option[String] = None,
+    subtype: Option[String] = None,
+    metadata: Option[Map[String, String]] = None,
+    assetIds: Option[Seq[Long]] = None,
+    source: Option[String] = None,
+    externalId: Option[String] = None
+)
+
+case class EventsInsertSchema(
+    startTime: Option[Instant] = None,
+    endTime: Option[Instant] = None,
+    description: Option[String] = None,
+    `type`: Option[String] = None,
+    subtype: Option[String] = None,
+    metadata: Option[Map[String, String]] = None,
+    assetIds: Option[Seq[Long]] = None,
+    source: Option[String] = None,
+    externalId: Option[String] = None
+)
+
+case class EventsReadSchema(
+    id: Long = 0,
+    startTime: Option[Instant] = None,
+    endTime: Option[Instant] = None,
+    description: Option[String] = None,
+    `type`: Option[String] = None,
+    subtype: Option[String] = None,
+    metadata: Option[Map[String, String]] = None,
+    assetIds: Option[Seq[Long]] = None,
+    source: Option[String] = None,
+    externalId: Option[String] = None,
+    createdTime: Instant = Instant.ofEpochMilli(0),
+    lastUpdatedTime: Instant = Instant.ofEpochMilli(0)
+)

@@ -38,7 +38,7 @@ case class StringDataPointsRdd(
           StringDataPointsItem(
             filter.id,
             filter.externalId,
-            java.sql.Timestamp.from(sdp.timestamp),
+            sdp.timestamp,
             sdp.value
           )
         }

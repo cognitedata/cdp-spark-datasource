@@ -28,7 +28,7 @@ case class DataPointsFilter(
 case class DataPointsItem(
     id: Option[Long],
     externalId: Option[String],
-    timestamp: java.sql.Timestamp,
+    timestamp: Instant,
     value: Double,
     aggregation: Option[String],
     granularity: Option[String]
@@ -191,4 +191,6 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 
 object NumericDataPointsRelation extends UpsertSchema {
   val upsertSchema = structType[InsertDataPointsItem]
+  val readSchema = structType[DataPointsItem]
+  val insertSchema = structType[InsertDataPointsItem]
 }

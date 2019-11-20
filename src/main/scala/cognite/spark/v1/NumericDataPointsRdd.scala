@@ -437,7 +437,7 @@ case class NumericDataPointsRdd(
                     DataPointsItem(
                       r.id.left.toOption,
                       r.id.right.toOption,
-                      java.sql.Timestamp.from(p.timestamp),
+                      p.timestamp,
                       p.value,
                       None,
                       None)
@@ -456,7 +456,7 @@ case class NumericDataPointsRdd(
                       DataPointsItem(
                         r.id.left.toOption,
                         r.id.right.toOption,
-                        java.sql.Timestamp.from(p.timestamp),
+                        p.timestamp,
                         p.value,
                         Some(r.aggregation),
                         Some(r.granularity.toString))
