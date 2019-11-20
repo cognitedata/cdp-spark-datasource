@@ -334,20 +334,17 @@ case class NumericDataPointsRdd(
       externalIds: Seq[String],
       firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])]
   ): IO[Vector[Bucket]] = {
-    val granularityUnitMillis = granularity.unit.getDuration.toMillis
+    val granularityMillis = granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis
     // TODO: make sure we have a test that covers more than 10000 units
     firstLatest
       .parEvalMapUnordered(50) {
         case (id, Some(first), Some(latest)) =>
-          val aggStart = Instant.ofEpochMilli(floorToNearest(first.toEpochMilli, granularityUnitMillis))
-          val aggEnd = Instant.ofEpochMilli(
-            floorToNearest(
-              latest.toEpochMilli,
-              granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis))
+          val aggStart = Instant.ofEpochMilli(floorToNearest(first.toEpochMilli, granularityMillis))
+          val aggEnd = Instant.ofEpochMilli(ceilToNearest(latest.toEpochMilli, granularityMillis))
 
           val d1 = Duration.between(aggStart, aggEnd)
           val numValues = d1.toMillis / granularity.unit.getDuration.toMillis
-          val numRanges = (numValues / maxPointsPerAggregationRange).max(1)
+          val numRanges = Math.ceil(numValues.toDouble / maxPointsPerAggregationRange).toLong.max(1)
 
           val ranges = for {
             a <- aggregations
