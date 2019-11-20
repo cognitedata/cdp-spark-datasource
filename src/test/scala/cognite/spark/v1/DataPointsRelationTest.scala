@@ -11,6 +11,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   val valhallTimeSeries = "'VAL_23-FT-92537-04:X.Value'"
 
   val valhallTimeSeriesId = 3385857257491234L
+  // VAL_23-TT-92533:X.Value has some null aggregate values
   val withMissingAggregatesId = 3644806523397779L
 
   "DataPointsRelation" should "use our own schema for data points" taggedAs (ReadTest) in {
@@ -79,7 +80,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         s"timestamp >= to_timestamp(1514592000) and timestamp <= to_timestamp(1540512000) and aggregation = 'average' and granularity = '60d' and id = $valhallTimeSeriesId")
     val result = df3.collect()
     assert(result.length == 5)
-    assert(result(0).getTimestamp(2).getTime == 1514592000000L)
+    assert(result(0).getTimestamp(2).getTime == 1518912000000L)
   }
 
   it should "shift non-aligned aggregates to correct timestamps" taggedAs ReadTest in {
@@ -250,7 +251,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .where(
         s"timestamp >= to_timestamp(1349732220) and timestamp <= to_timestamp(1572931920) and aggregation = 'average' and granularity = '5m' and id = $withMissingAggregatesId")
     // TODO: Check if this is the correct number.
-    assert(df.count() == 721073)
+    assert(df.count() == 723073)
   }
   it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest in {
 
