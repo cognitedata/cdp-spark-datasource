@@ -4,19 +4,14 @@ import java.time.Instant
 
 import cats.effect.IO
 import cats.implicits._
-import com.cognite.sdk.scala.common.CdpApiException
-import com.cognite.sdk.scala.v1.{
-  GenericClient,
-  TimeSeries,
-  TimeSeriesCreate,
-  TimeSeriesFilter,
-  TimeSeriesUpdate
-}
+import com.cognite.sdk.scala.common.{CdpApiException, WithExternalId, WithId}
+import com.cognite.sdk.scala.v1._
 import cognite.spark.v1.SparkSchemaHelper._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
+import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
 import io.scalaland.chimney.dsl._
 
@@ -35,8 +30,11 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val timeSeriesUpdates = rows.map(r => fromRow[TimeSeriesUpdate](r))
-    client.timeSeries.update(timeSeriesUpdates) *> IO.unit
+    val timeSeriesUpdates = rows.map(r => fromRow[TimeSeriesUpsertSchema](r))
+    updateByIdOrExternalId[TimeSeriesUpsertSchema, TimeSeriesUpdate, TimeSeriesResource[IO], TimeSeries](
+      timeSeriesUpdates,
+      client.timeSeries
+    )
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
@@ -75,30 +73,11 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
       } *> IO.unit
   }
 
-  def resolveConflict(
-      existingExternalIds: Seq[String],
-      timeSeriesSeq: Seq[TimeSeriesCreate]): IO[Unit] = {
-    val (timeSeriesToUpdate, timeSeriesToCreate) = timeSeriesSeq.partition(
-      p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
-    )
-
-    val idMap = client.timeSeries
-      .retrieveByExternalIds(existingExternalIds)
-      .map(_.map(ts => ts.externalId -> ts.id).toMap)
-
-    val create =
-      if (timeSeriesToCreate.isEmpty) { IO.unit } else {
-        client.timeSeries.create(timeSeriesToCreate)
-      }
-    val update =
-      if (timeSeriesToUpdate.isEmpty) { IO.unit } else {
-        idMap.flatMap(idMap =>
-          client.timeSeries.update(timeSeriesToUpdate.map(ts =>
-            ts.transformInto[TimeSeriesUpdate].copy(id = idMap(ts.externalId)))))
-      }
-
-    (create, update).parMapN((_, _) => ())
-  }
+  def resolveConflict(existingExternalIds: Seq[String], timeSeriesSeq: Seq[TimeSeriesCreate]): IO[Unit] =
+    upsertAfterConflict[TimeSeries, TimeSeriesUpdate, TimeSeriesCreate, TimeSeriesResource[IO]](
+      existingExternalIds,
+      timeSeriesSeq,
+      client.timeSeries)
 
   override def schema: StructType = structType[TimeSeries]
 
@@ -154,7 +133,8 @@ case class TimeSeriesUpsertSchema(
     assetId: Option[Long] = None,
     description: Option[String] = None,
     securityCategories: Option[Seq[Long]] = None
-)
+) extends WithExternalId
+    with WithId[Option[Long]]
 
 case class TimeSeriesInsertSchema(
     externalId: Option[String] = None,

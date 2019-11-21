@@ -364,7 +364,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "allow null values for all event fields except id" taggedAs WriteTest in {
-
     val source = "spark-events-test-null"
     cleanupEvents(source)
     val eventDescriptionsAfterCleanup =
@@ -709,44 +708,67 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.setLogLevel("WARN")
   }
 
-  it should "check for null ids on event update" taggedAs WriteTest in {
-    val df = spark.read
+  it should "allow null ids on event update" taggedAs WriteTest in {
+    val source = "null-id-events"
+    // Cleanup old events
+    cleanupEvents(source)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sourceEvent where source = '$source'").collect,
+      rows => rows.length > 0
+    )
+
+    // Post new events
+    spark
+      .sql(
+        s"""
+           |select string(id) as externalId,
+           |null as id,
+           |'$source' as source,
+           |startTime,
+           |endTime,
+           |type,
+           |subtype,
+           |'foo' as description,
+           |map() as metadata,
+           |null as assetIds,
+           |null as lastUpdatedTime,
+           |null as createdTime
+           |from sourceEvent
+           |limit 5
+       """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationEvent")
+
+    // Check if post worked
+    val eventsFromTestDf = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationEvent where source = '$source' and description = 'foo'").collect,
+      df => df.length < 5)
+    assert(eventsFromTestDf.length == 5)
+
+    // Upsert events
+    spark
+      .sql(
+        s"""
+           |select externalId,
+           |'bar' as description
+           |from destinationEvent
+           |where source = '$source'
+       """.stripMargin)
+      .write
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
-      .option("limitPerPartition", "10")
-      .load()
+      .option("onconflict", "update")
+      .save()
 
-    df.createTempView("nullevents")
-    val wdf = spark
-      .sql(s"""
-      |select "bar" as description,
-      |startTime,
-      |endTime,
-      |type,
-      |subtype,
-      |assetIds,
-      |null as id,
-      |metadata,
-      |source,
-      |externalId,
-      |null as createdTime,
-      |lastUpdatedTime
-      |from events
-      |limit 1
-    """.stripMargin)
-    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
-
-    val e = intercept[SparkException] {
-      wdf.write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "events")
-        .option("onconflict", "update")
-        .save()
-    }
-    e.getCause shouldBe a[IllegalArgumentException]
-    spark.sparkContext.setLogLevel("WARN")
+   // Check if update worked
+    val descriptionsAfterUpdate = retryWhile[Array[Row]](
+      spark
+        .sql(s"select description from destinationEvent where source = '$source' and description = 'bar'").collect,
+      df => df.length < 5
+    )
+    assert(descriptionsAfterUpdate.length == 5)
   }
 
   it should "allow deletes in savemode" taggedAs WriteTest in {

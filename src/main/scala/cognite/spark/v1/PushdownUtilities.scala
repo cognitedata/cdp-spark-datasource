@@ -6,7 +6,6 @@ import com.cognite.sdk.scala.v1.TimeRange
 import com.softwaremill.sttp._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
-
 import scala.util.Try
 
 case class DeleteItem(id: Long)

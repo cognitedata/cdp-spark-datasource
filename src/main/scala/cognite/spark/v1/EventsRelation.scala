@@ -9,8 +9,9 @@ import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
-import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.common.{CdpApiException, WithExternalId, WithId}
 import PushdownUtilities._
+import com.cognite.sdk.scala.v1.resources.Events
 import fs2.Stream
 import io.scalaland.chimney.dsl._
 
@@ -78,8 +79,11 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val events = rows.map(r => fromRow[EventUpdate](r))
-    client.events.update(events) *> IO.unit
+    val eventUpdates = rows.map(r => fromRow[EventsUpsertSchema](r))
+    updateByIdOrExternalId[EventsUpsertSchema, EventUpdate, Events[IO], Event](
+      eventUpdates,
+      client.events
+    )
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
@@ -109,26 +113,11 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       } *> IO.unit
   }
 
-  def resolveConflict(existingExternalIds: Seq[String], events: Seq[EventCreate]): IO[Unit] = {
-    val (eventsToUpdate, eventsToCreate) = events.partition(
-      p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
-    )
-
-    val idMap = client.events
-      .retrieveByExternalIds(existingExternalIds)
-      .map(_.map(e => e.externalId -> e.id).toMap)
-
-    val create =
-      if (eventsToCreate.isEmpty) IO.unit else client.events.create(eventsToCreate)
-    val update =
-      if (eventsToUpdate.isEmpty) { IO.unit } else {
-        idMap.flatMap(idMap =>
-          client.events.update(eventsToUpdate.map(e =>
-            e.transformInto[EventUpdate].copy(id = idMap(e.externalId)))))
-      }
-
-    (create, update).parMapN((_, _) => ())
-  }
+  def resolveConflict(existingExternalIds: Seq[String], events: Seq[EventCreate]): IO[Unit] =
+    upsertAfterConflict[Event, EventUpdate, EventCreate, Events[IO]](
+      existingExternalIds,
+      events,
+      client.events)
 
   override def schema: StructType = structType[Event]
 
@@ -153,7 +142,8 @@ case class EventsUpsertSchema(
     assetIds: Option[Seq[Long]] = None,
     source: Option[String] = None,
     externalId: Option[String] = None
-)
+) extends WithExternalId
+    with WithId[Option[Long]]
 
 case class EventsInsertSchema(
     startTime: Option[Instant] = None,
