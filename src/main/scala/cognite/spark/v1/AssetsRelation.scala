@@ -10,7 +10,8 @@ import cognite.spark.v1.SparkSchemaHelper._
 import org.apache.spark.sql.types._
 import cats.implicits._
 import PushdownUtilities._
-import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.common.{CdpApiException, WithExternalId, WithId}
+import com.cognite.sdk.scala.v1.resources.Assets
 import fs2.Stream
 import io.scalaland.chimney.dsl._
 
@@ -58,8 +59,11 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val assetUpdates = rows.map(r => fromRow[AssetUpdate](r))
-    client.assets.update(assetUpdates) *> IO.unit
+    val assetUpdates = rows.map(r => fromRow[AssetsUpsertSchema](r))
+    updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate, Assets[IO], Asset](
+      assetUpdates,
+      client.assets
+    )
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
@@ -89,26 +93,11 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       } *> IO.unit
   }
 
-  def resolveConflict(existingExternalIds: Seq[String], assets: Seq[AssetCreate]): IO[Unit] = {
-    val (assetsToUpdate, assetsToCreate) = assets.partition(
-      p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
-    )
-
-    val idMap = client.assets
-      .retrieveByExternalIds(existingExternalIds)
-      .map(_.map(e => e.externalId -> e.id).toMap)
-
-    val create =
-      if (assetsToCreate.isEmpty) { IO.unit } else client.assets.create(assetsToCreate)
-    val update =
-      if (assetsToUpdate.isEmpty) { IO.unit } else {
-        idMap.flatMap(idMap =>
-          client.assets.update(assetsToUpdate.map(a =>
-            a.into[AssetUpdate].withFieldComputed(_.id, x => idMap(x.externalId)).transform)))
-      }
-
-    (create, update).parMapN((_, _) => ())
-  }
+  def resolveConflict(existingExternalIds: Seq[String], assets: Seq[AssetCreate]): IO[Unit] =
+    upsertAfterConflict[Asset, AssetUpdate, AssetCreate, Assets[IO]](
+      existingExternalIds,
+      assets,
+      client.assets)
 
   override def schema: StructType = structType[Asset]
 
@@ -131,7 +120,8 @@ case class AssetsUpsertSchema(
     metadata: Option[Map[String, String]] = None,
     parentId: Option[Long] = None,
     parentExternalId: Option[String] = None
-)
+) extends WithExternalId
+    with WithId[Option[Long]]
 
 case class AssetsInsertSchema(
     name: String,

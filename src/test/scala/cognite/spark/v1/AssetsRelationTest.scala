@@ -401,29 +401,64 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(assetsFromTestDf.length == 100)
   }
 
-  it should "check for null ids on asset update" taggedAs WriteTest in {
-    val df = spark.read
+  it should "allow null ids on asset update" taggedAs WriteTest in {
+    val source = "spark-assets-updateId-testing"
+    // Cleanup old assets
+    cleanupAssets(source)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sourceAssets where source = '$source'").collect,
+      rows => rows.length > 0
+    )
+
+    // Post new assets
+    spark
+      .sql(s"""
+              |select string(id) as externalId,
+              |name,
+              |null as parentId,
+              |'foo' as description,
+              |map("bar", "test") as metadata,
+              |'$source' as source,
+              |null as id,
+              |createdTime,
+              |lastUpdatedTime,
+              |0 as rootId,
+              |null as aggregates
+              |from sourceAssets
+              |limit 100
+     """.stripMargin)
+      .write
+      .insertInto("destinationAssets")
+
+    // Check if post worked
+    val assetsFromTestDf = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationAssets where source = '$source' and description = 'foo'").collect,
+      df => df.length != 100)
+    assert(assetsFromTestDf.length == 100)
+
+    // Upsert assets
+    spark
+      .sql(s"""
+              |select externalId,
+              |'bar' as description
+              |from destinationAssets
+              |where source = '$source'
+     """.stripMargin)
+      .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "assets")
-      .load()
-      .where("name = 'upsertTestThree'")
-    val wdf = spark.sql("""
-        |select 'upsertTestThree' as name, null as id
-      """.stripMargin)
+      .option("onconflict", "update")
+      .save()
 
-    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
-
-    val e = intercept[SparkException] {
-      wdf.write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "assets")
-        .option("onconflict", "update")
-        .save()
-    }
-    e.getCause shouldBe a[IllegalArgumentException]
-    spark.sparkContext.setLogLevel("WARN")
+    // Check if update worked
+    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+      spark
+        .sql(
+          s"select description from destinationAssets where source = '$source' and description = 'bar'")
+        .collect,
+      df => df.length != 100)
+    assert(descriptionsAfterUpsert.length == 100)
   }
 
   it should "correctly have insert < read and upsert < read schema hierarchy" in {

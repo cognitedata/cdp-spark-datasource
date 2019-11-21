@@ -1,17 +1,20 @@
 package cognite.spark.v1
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.common.Auth
+import com.cognite.sdk.scala.v1.{GenericClient, TimeSeriesUpdate}
+import com.cognite.sdk.scala.common._
 import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
 import fs2.Stream
+import io.scalaland.chimney.Transformer
 import org.apache.spark.datasource.MetricsSource
+import io.scalaland.chimney.dsl._
+import CdpConnector._
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends BaseRelation
@@ -88,6 +91,54 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       val rowOfAllFields = toRow(item)
       Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
     }
+
+  // scalastyle:off no.whitespace.after.left.bracket
+  def updateByIdOrExternalId[
+      P <: WithExternalId with WithId[Option[Long]],
+      U <: WithSetExternalId,
+      T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO],
+      R <: WithId[Long]](updates: Seq[P], resource: T)(
+      implicit transform: Transformer[P, U]): IO[Unit] = {
+    require(
+      updates.forall(u => u.id.isDefined || u.externalId.isDefined),
+      "Update requires an id or externalId to be set for each row.")
+    val (updatesById, updatesByExternalId) = updates.partition(_.id.isDefined)
+    val updateIds = if (updatesById.isEmpty) { IO.unit } else {
+      resource.updateById(updatesById.map(u => u.id.get -> u.transformInto[U]).toMap)
+    }
+    val updateExternalIds = if (updatesByExternalId.isEmpty) { IO.unit } else {
+      resource.updateByExternalId(
+        updatesByExternalId
+          .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+          .toMap)
+    }
+    (updateIds, updateExternalIds).parMapN((_, _) => ())
+  }
+
+  // scalastyle:off no.whitespace.after.left.bracket
+  def upsertAfterConflict[
+      R <: WithId[Long],
+      U <: WithSetExternalId,
+      C <: WithExternalId,
+      T <: UpdateByExternalId[R, U, IO] with Create[R, C, IO]](
+      existingExternalIds: Seq[String],
+      resourceCreates: Seq[C],
+      resource: T)(implicit transform: Transformer[C, U]): IO[Unit] = {
+    val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
+      p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
+    )
+    val create = if (resourcesToCreate.isEmpty) { IO.unit } else {
+      resource.create(resourcesToCreate)
+    }
+    val update = if (resourcesToUpdate.isEmpty) { IO.unit } else {
+      resource.updateByExternalId(
+        resourcesToUpdate
+          .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+          .toMap)
+    }
+    (create, update).parMapN((_, _) => ())
+  }
+
 }
 
 trait WritableRelation {
