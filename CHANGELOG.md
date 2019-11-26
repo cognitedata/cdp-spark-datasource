@@ -1,3 +1,21 @@
+# 1.2.1
+
+## Enhancements
+* `datapoints` and `stringdatapoints` now supports save mode.
+
+* Increased the default number of partitions from 20 to 200.
+
+## Fixes
+* `stringdatapoints` now correctly fetches all data points.
+
+* Fixed a bug in pushdown implementation that would cause no filters to be pushed down when
+combining filters on pushdown and non-pushdown fields.
+
+* `datapoints` will no longer fail when aggregates aren't ready in CDF yet.
+
+* `datapoints` should now retrieve all aggregates.
+Previously it could miss some aggregates due to a rounding error.
+
 # 1.2.0
 
 *NOTE*: `stringdatapoints` only retrieves the first 100000 data points.
@@ -8,7 +26,6 @@ This will be fixed in the next release. `datapoints` is fixed in this release.
 
 ## Fixes
 * `datapoints` will now retrieve all numerical data points again.
-
 
 ## Enhancements
 * Use `maxRetries` option to allow configuration of the number of retries to attempt.
