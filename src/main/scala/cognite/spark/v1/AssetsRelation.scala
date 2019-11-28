@@ -67,8 +67,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val ids = rows.map(r => fromRow[DeleteItem](r).id)
-    client.assets.deleteByIds(ids)
+    val deletes = rows.map(r => fromRow[DeleteItem](r))
+    deleteWithIgnoreUnknownIds(client.assets, deletes, config.ignoreUnknownIds)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = getFromRowAndCreate(rows)

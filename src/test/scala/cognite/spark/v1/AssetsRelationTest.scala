@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import com.cognite.sdk.scala.common.CdpApiException
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
@@ -532,6 +533,81 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
           .collect,
         df => df.length > 0)
     assert(idsAfterDelete.isEmpty)
+  }
+
+  it should "support ignoring unknown ids in deletes" in {
+    val source = "ignore-unknown-id-test"
+    cleanupAssets(source)
+    val dfWithDeletesAsSource = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
+      df => df.length > 0)
+    assert(dfWithDeletesAsSource.length == 0)
+
+    // Insert some test data
+    spark
+      .sql(s"""
+              |select id as externalId,
+              |name,
+              |null as parentId,
+              |'foo' as description,
+              |map("bar", "test") as metadata,
+              |'$source' as source,
+              |id,
+              |createdTime,
+              |lastUpdatedTime,
+              |0 as rootId,
+              |null as aggregates
+              |from sourceAssets
+              |limit 1
+     """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationAssets")
+
+    // Check if insert worked
+    val idsAfterInsert =
+      retryWhile[Array[Row]](
+        spark
+          .sql(s"select id from destinationAssets where source = '$source'")
+          .collect,
+        df => df.length < 1)
+    assert(idsAfterInsert.length == 1)
+
+    spark
+      .sql(
+        s"""
+           |select 1574865177148 as id
+           |from destinationAssets
+           |where source = '$source'
+        """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "delete")
+      .option("ignoreUnknownIds", "true")
+      .save()
+
+    // Should throw error if ignoreUnknownIds is false
+    val e = intercept[SparkException] {
+      spark
+        .sql(
+          s"""
+             |select 1574865177148 as id
+             |from destinationAssets
+             |where source = '$source'
+        """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "delete")
+        .option("ignoreUnknownIds", "false")
+        .save()
+    }
+    e.getCause shouldBe a[CdpApiException]
+    val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+    assert(cdpApiException.code == 400)
   }
 
   def cleanupAssets(source: String): Unit = {

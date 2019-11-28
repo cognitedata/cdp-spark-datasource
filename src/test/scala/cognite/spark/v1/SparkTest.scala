@@ -81,7 +81,8 @@ trait SparkTest extends CdpConnector {
       Constants.DefaultBaseUrl,
       OnConflict.ABORT,
       spark.sparkContext.applicationId,
-      Constants.DefaultParallelismPerPartition
+      Constants.DefaultParallelismPerPartition,
+      true
     )
 
   def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =

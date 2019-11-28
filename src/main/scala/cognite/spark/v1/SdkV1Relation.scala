@@ -139,6 +139,13 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     (create, update).parMapN((_, _) => ())
   }
 
+  def deleteWithIgnoreUnknownIds(
+      resource: DeleteByIdsWithIgnoreUnknownIds[IO, Long],
+      deletes: Seq[DeleteItem],
+      ignoreUnknownIds: Boolean = true): IO[Unit] = {
+    val ids = deletes.map(_.id)
+    resource.deleteByIds(ids, ignoreUnknownIds)
+  }
 }
 
 trait WritableRelation {

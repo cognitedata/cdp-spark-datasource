@@ -836,6 +836,82 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(idsAfterDelete.length == 0)
   }
 
+  it should "support ignoring unknown ids in deletes" in {
+    val source = "ignore-unknown-id-test"
+    cleanupEvents(source)
+    val dfWithDeletesAsSource = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationEvent where source = '$source'").collect,
+      df => df.length > 0)
+    assert(dfWithDeletesAsSource.length == 0)
+
+    // Insert some test data
+    spark
+      .sql(s"""
+              select "foo" as description,
+              least(startTime, endTime) as startTime,
+              greatest(startTime, endTime) as endTime,
+              type,
+              subtype,
+              null as assetIds,
+              bigint(0) as id,
+              map("foo", null, "bar", "test") as metadata,
+              "$source" as source,
+              externalId,
+              0 as createdTime,
+              lastUpdatedTime
+              from sourceEvent
+              limit 1
+      """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationEvent")
+
+    // Check if insert worked
+    val idsAfterInsert =
+      retryWhile[Array[Row]](
+        spark
+          .sql(s"select id from destinationEvent where source = '$source'")
+          .collect,
+        df => df.length < 1)
+    assert(idsAfterInsert.length == 1)
+
+    spark
+      .sql(
+        s"""
+           |select 1574865177148 as id
+           |from destinationEvent
+           |where source = '$source'
+        """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .option("onconflict", "delete")
+      .option("ignoreUnknownIds", "true")
+      .save()
+
+    // Should throw error if ignoreUnknownIds is false
+    val e = intercept[SparkException] {
+      spark
+        .sql(
+          s"""
+             |select 1574865177148 as id
+             |from destinationEvent
+             |where source = '$source'
+        """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "events")
+        .option("onconflict", "delete")
+        .option("ignoreUnknownIds", "false")
+        .save()
+    }
+    e.getCause shouldBe a[CdpApiException]
+    val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+    assert(cdpApiException.code == 400)
+  }
+
   it should "correctly have insert < read and upsert < read schema hierarchy" in {
     val eventInsert = EventsInsertSchema()
     eventInsert.transformInto[EventsReadSchema]

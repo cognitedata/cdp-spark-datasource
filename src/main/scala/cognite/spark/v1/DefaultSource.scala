@@ -17,7 +17,8 @@ case class RelationConfig(
     baseUrl: String,
     onConflict: OnConflict.Value,
     applicationId: String,
-    parallelismPerPartition: Int
+    parallelismPerPartition: Int,
+    ignoreUnknownIds: Boolean
 )
 
 object OnConflict extends Enumeration {
@@ -39,7 +40,10 @@ class DefaultSource
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation =
     createRelation(sqlContext, parameters, null) // scalastyle:off null
 
-  private def toBoolean(parameters: Map[String, String], parameterName: String): Boolean =
+  private def toBoolean(
+      parameters: Map[String, String],
+      parameterName: String,
+      defaultValue: Boolean = false): Boolean =
     parameters.get(parameterName) match {
       case Some(string) =>
         if (string.equalsIgnoreCase("true")) {
@@ -49,7 +53,7 @@ class DefaultSource
         } else {
           sys.error("$parameterName must be 'true' or 'false'")
         }
-      case None => false
+      case None => defaultValue
     }
 
   private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
@@ -94,6 +98,7 @@ class DefaultSource
       toPositiveInt(parameters, "parallelismPerPartition").getOrElse(
         Constants.DefaultParallelismPerPartition)
     }
+    val ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", true)
     RelationConfig(
       auth,
       batchSize,
@@ -105,7 +110,8 @@ class DefaultSource
       baseUrl,
       saveMode,
       sqlContext.sparkContext.applicationId,
-      parallelismPerPartition
+      parallelismPerPartition,
+      ignoreUnknownIds
     )
   }
 
