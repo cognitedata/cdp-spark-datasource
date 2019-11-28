@@ -87,8 +87,8 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val ids = rows.map(r => fromRow[DeleteItem](r).id)
-    client.events.deleteByIds(ids)
+    val deletes = rows.map(r => fromRow[DeleteItem](r))
+    deleteWithIgnoreUnknownIds(client.events, deletes, config.ignoreUnknownIds)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = getFromRowAndCreate(rows)
