@@ -93,13 +93,10 @@ case class NumericDataPointsRdd(
       case _ =>
         countStart match {
           case Some(start) =>
+            val end = start.plus(granularity.amount, granularity.unit)
             val lastRange =
-              DataPointsRange(
-                id,
-                start,
-                start.plus(granularity.amount, granularity.unit),
-                Some(countSum))
-            lastRange +: ranges
+              DataPointsRange(id, start, end, Some(countSum))
+            lastRange +: DataPointsRange(id, end, end.plus(granularity.amount, granularity.unit), None) +: ranges
           case _ => ranges
         }
     }
