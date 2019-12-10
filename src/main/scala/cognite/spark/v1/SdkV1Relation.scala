@@ -1,9 +1,9 @@
 package cognite.spark.v1
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.v1.{GenericClient, TimeSeriesUpdate}
+import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.common._
 import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.rdd.RDD

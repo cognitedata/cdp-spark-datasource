@@ -5,7 +5,7 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
-import com.cognite.sdk.scala.v1.{GenericClient, RawRow, RawRowFilter}
+import com.cognite.sdk.scala.v1._
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.circe.{Json, JsonObject}

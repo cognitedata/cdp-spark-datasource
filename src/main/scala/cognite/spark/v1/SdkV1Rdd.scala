@@ -4,7 +4,7 @@ import java.util.concurrent.{ArrayBlockingQueue, Executors}
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.common.Auth
 import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.{Partition, SparkContext, TaskContext}

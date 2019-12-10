@@ -26,6 +26,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
             errorMessage,
             None,
             None,
+            None,
             None)))
 
     def toRow(s: String): Row = Row.empty
