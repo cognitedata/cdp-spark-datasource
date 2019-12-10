@@ -1,3 +1,24 @@
+# 1.2.3
+## Enhancements
+* Support new option `ignoreUnknownIds` for asset and event deletes.
+Assets and events will ignore existing ids on deletes.
+The default value is true. Use `.option("ignoreUnknownIds", "false")` to
+revert to the old behavior, where the job will be aborted when an attempt
+to delete an unknown id is made.
+
+* Use Cognite Scala SDK version 1.1.0
+
+## Fixes
+* Fetch data points at the end of the available count aggregates, even if
+they are not ready yet. This will fetch all data points even if the last
+aggregates claim there are no data points available.
+Some edge cases may still not have been properly addressed yet.
+
+# 1.2.2
+
+## Enhancements
+* Use Cognite Scala SDK version 1.0.1
+
 # 1.2.1
 
 ## Enhancements
