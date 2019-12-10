@@ -4,7 +4,7 @@ import java.time.{Duration, Instant}
 import java.time.temporal.ChronoUnit
 
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
+import com.cognite.sdk.scala.v1._
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -222,9 +222,7 @@ case class NumericDataPointsRdd(
       end: Instant): IO[Vector[(Either[Long, String], Option[Instant], Option[Instant])]] = {
     val firsts = idOrExternalIds.map { id =>
       queryById(id, start, end.max(start.plusMillis(1)), 1)
-        .map(queryResponse => queryResponse.flatMap(_.datapoints))
-        .map(_.headOption)
-        .map(p => id -> p)
+        .map(response => id -> response.datapoints.headOption)
     }.parSequence
     val ids = idOrExternalIds.flatMap(_.left.toOption)
     val externalIds = idOrExternalIds.flatMap(_.right.toOption)
@@ -395,8 +393,8 @@ case class NumericDataPointsRdd(
       case CogniteExternalId(externalId) =>
         client.dataPoints.queryByExternalId(externalId, lowerLimit, upperLimit, nPointsRemaining)
     }
-    responses.map { queryResponses =>
-      val dataPoints = queryResponses.flatMap(_.datapoints)
+    responses.map { response =>
+      val dataPoints = response.datapoints
       val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
       (lastTimestamp, dataPoints)
     }
@@ -406,7 +404,7 @@ case class NumericDataPointsRdd(
     dataPointsRange.count match {
       case Some(_) =>
         queryById(dataPointsRange.id, dataPointsRange.start, dataPointsRange.end, 100000)
-          .map(queryResponse => queryResponse.flatMap(_.datapoints))
+          .map(_.datapoints)
       case None =>
         // Page through this range since we don't know how many points it contains.
         val id: CogniteId = dataPointsRange.id

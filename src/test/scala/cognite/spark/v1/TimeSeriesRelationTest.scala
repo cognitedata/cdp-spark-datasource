@@ -144,8 +144,9 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .select(sourceDf.columns.map(col): _*)
       .write
       .insertInto("destinationTimeSeriesWithLegacyName")
+
     val after = writeClient.timeSeries.retrieveByExternalId(legacyName1)
-    after should not be empty
+    after.externalId.get shouldBe legacyName1
     val after05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
       .header("api-key", writeApiKey)
       .contentType("application/json")
@@ -201,7 +202,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .insertInto("destinationTimeSeries")
 
     val after2 = writeClient.timeSeries.retrieveByExternalId(legacyName1)
-    after2 should not be empty
+    after2.externalId.get shouldBe legacyName1
 
     writeClient.timeSeries.deleteByExternalIds(Seq(legacyName1, legacyName2))
   }

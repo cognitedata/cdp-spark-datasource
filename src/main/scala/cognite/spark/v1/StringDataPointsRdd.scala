@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import com.cognite.sdk.scala.common.{Auth, StringDataPoint}
-import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1._
 import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
