@@ -19,7 +19,7 @@ case class StringDataPointsRdd(
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
   @transient lazy val client =
-    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
+    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)
 
   override def getPartitions: Array[Partition] = {
     val numberofIOs = getIOs(client).length

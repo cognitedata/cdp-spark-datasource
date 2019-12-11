@@ -1,4 +1,12 @@
+# 1.2.4
+
+## Fixes
+* RAW tables now respects the `baseUrl` option for writes.
+
+* String data points now respects the `baseUrl` option for writes.
+
 # 1.2.3
+
 ## Enhancements
 * Support new option `ignoreUnknownIds` for asset and event deletes.
 Assets and events will ignore existing ids on deletes.
@@ -105,16 +113,16 @@ Fixed a bug with time series upsert where `insertInto` would only work under spe
 # 0.4.11
 
 ## Enhancements
-* Filters are now pushed to CDF when possible for assets, events, files and raw tables.
+* Filters are now pushed to CDF when possible for assets, events, files and RAW tables.
 
-* Raw Tables now expose a `lastUpdatedTime` column, and filters for it are pushed to CDF.
+* RAW tables now expose a `lastUpdatedTime` column, and filters for it are pushed to CDF.
 
 * Better error messages for invalid `onConflict` options.
 
 * An error is now thrown if trying to update with null as id.
 
 ## Fixes
-* Infer schema limit for Raw is now being used again.
+* Infer schema limit for RAW is now being used again.
 
 # 0.4.10
 
@@ -222,7 +230,7 @@ The time interval will be split into the given number of partitions and fetched 
 * *Breaking change* `"tables"` renamed to `"raw"`.
 
 ## Fixes
-* Validation of `key` column for raw tables, null values are not allowed.
+* Validation of `key` column for RAW tables, null values are not allowed.
 
 ## Enhancements
 * Improved performance for assets.
