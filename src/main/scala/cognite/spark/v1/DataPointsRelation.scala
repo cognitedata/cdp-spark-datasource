@@ -34,7 +34,8 @@ abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlC
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
   implicit val auth: Auth = config.auth
-  @transient lazy val client = new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion)
+  @transient lazy val client =
+    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)
   def toRow(a: A): Row
 
   def toRow(requiredColumns: Array[String])(item: A): Row
