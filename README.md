@@ -46,6 +46,7 @@ The common options are:
 | `limitPerPartition`       | The number of items to fetch for this resource type to create the DataFrame. Note that this is different from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for items to fetch from CDF *per partition*, *before* filtering and other transformations are applied to limit the number of results. Not supported by data points. |                                            |
 | `batchSize`   | The maximum number of items to read/write per API call.                                                                                                                                                                                                                                                           |                                            |
 
+
 ### Read data
 
 To read from CDF resource types, you need to specify: an **API-key** or a **bearertoken** and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
