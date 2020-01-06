@@ -333,7 +333,13 @@ https://openindustrialdata.com/ to get an API key and store it in the `TEST_API_
 
 To run the write integration tests, you'll also need to set the `TEST_API_KEY_WRITE` environment variable to an API key for a project where you have write access.
 
-<!-- To run tests against greenfield, set the `TEST_API_KEY_GREENFIELD` environment variable to an API key with read access to the project cdp-spark-datasource-test. [_Arne: Is this internal? If not, how do I get an API key?_] -->
+For Cognite employees: To run tests against greenfield, set the `TEST_API_KEY_GREENFIELD` environment variable
+to an API key with read access to the project cdp-spark-datasource-test.
+
+If you are using the SBT shell in IntelliJ or similar and want to get it to pick up environment variables
+from a file, you can create a file in this directory named `.env` containing environment variables, one
+per line, of the format `ENVIRONMENT_VARIABLE_NAME=value`.
+See [sbt-dotenv](https://github.com/mefellows/sbt-dotenv) for more information.
 
 ### Set up
 

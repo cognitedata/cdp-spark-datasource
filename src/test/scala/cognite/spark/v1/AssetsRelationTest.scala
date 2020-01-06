@@ -3,7 +3,7 @@ package cognite.spark.v1
 import com.cognite.sdk.scala.common.CdpApiException
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._
 import org.scalatest.{FlatSpec, Matchers}
@@ -112,10 +112,13 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "be possible to create assets" taggedAs WriteTest in {
     val assetsTestSource = "assets-relation-test-create"
+    val metricsPrefix = "assets.test.create"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .load()
     df.createOrReplaceTempView("assets")
     cleanupAssets(assetsTestSource)
@@ -139,6 +142,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .select(destinationDf.columns.map(col): _*)
       .write
       .insertInto("assets")
+
+    val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
+    assert(assetsCreated == 1)
+
     retryWhile[Array[Row]](
       spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
       rows => rows.length < 1)
@@ -146,6 +153,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle null values in metadata when inserting in savemode" taggedAs WriteTest in {
     val assetsTestSource = "assets-relation-test-create"
+    val metricsPrefix = "assets.test.create.savemode"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -171,7 +179,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("onconflict", "abort")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save
+
+    val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
+    assert(assetsCreated == 1)
   }
 
   it should "be possible to copy assets from one tenant to another" taggedAs WriteTest in {
@@ -215,7 +228,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "support upserts when using insertInto()" taggedAs WriteTest in {
-    val source = "spark-assets-upsert-testing"
+    val source = s"spark-assets-upsert-testing${shortRandomString()}"
+    val metricsPrefix = "assets.upsert.test"
 
     // Cleanup old assets
     cleanupAssets(source)
@@ -224,10 +238,20 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       rows => rows.length > 0
     )
 
+    val destinationDf: DataFrame = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+    destinationDf.createOrReplaceTempView("destinationAssetsUpsert")
+
+    val randomSuffix = shortRandomString()
     // Post new assets
     spark
       .sql(s"""
-              |select id as externalId,
+              |select concat(string(id), '${randomSuffix}') as externalId,
               |name,
               |null as parentId,
               |'foo' as description,
@@ -243,13 +267,16 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .select(destinationDf.columns.map(col): _*)
       .write
-      .insertInto("destinationAssets")
+      .insertInto("destinationAssetsUpsert")
 
     // Check if post worked
     val assetsFromTestDf = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source' and description = 'foo'").collect,
+      spark.sql(s"select * from destinationAssetsUpsert where source = '$source' and description = 'foo'").collect,
       df => df.length != 100)
     assert(assetsFromTestDf.length == 100)
+
+    val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
+    assert(assetsCreated == 100)
 
     // Upsert assets
     spark
@@ -259,23 +286,23 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |null parentId,
               |'bar' as description,
               |map("foo", null, "bar", "test") as metadata,
-              |'$source' as source,
+              |'$source'as source,
               |id,
               |createdTime,
               |lastUpdatedTime,
               |0 as rootId,
               |null as aggregates
-              |from destinationAssets
+              |from destinationAssetsUpsert
               |where source = '$source'""".stripMargin)
       .union(spark
         .sql(s"""
-              |select externalId,
+              |select concat(externalId, '${randomSuffix}_create') as externalId,
               |name,
               |null parentId,
               |'bar' as description,
               |metadata,
               |'$source' as source,
-              |id,
+              |null as id,
               |createdTime,
               |lastUpdatedTime,
               |0 as rootId,
@@ -285,7 +312,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin))
       .select(destinationDf.columns.map(col): _*)
       .write
-      .insertInto("destinationAssets")
+      .insertInto("destinationAssetsUpsert")
 
     // Check if upsert worked
     val descriptionsAfterUpsert = retryWhile[Array[Row]](
@@ -295,6 +322,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .collect,
       df => df.length != 200)
     assert(descriptionsAfterUpsert.length == 200)
+
+    val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
+    assert(assetsCreatedAfterUpsert == 200)
+    val assetsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "assets")
+    assert(assetsUpdatedAfterUpsert == 100)
   }
 
   it should "allow partial updates" taggedAs WriteTest in {
@@ -329,7 +361,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         |select 'upsertTestThree' as name, id from invalid
       """.stripMargin)
 
-    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
+    disableSparkLogging() // Removing expected Spark executor Errors from the console
 
     val e = assertThrows[IllegalArgumentException] {
       wdf.write
@@ -339,7 +371,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("onconflict", "does-not-exists")
         .save()
     }
-    spark.sparkContext.setLogLevel("WARN")
+    enableSparkLogging()
   }
 
   it should "support some more partial updates" taggedAs WriteTest in  {
@@ -588,6 +620,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("ignoreUnknownIds", "true")
       .save()
 
+    disableSparkLogging() // Removing expected Spark executor Errors from the console
+
     // Should throw error if ignoreUnknownIds is false
     val e = intercept[SparkException] {
       spark
@@ -605,6 +639,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("ignoreUnknownIds", "false")
         .save()
     }
+    enableSparkLogging()
     e.getCause shouldBe a[CdpApiException]
     val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
     assert(cdpApiException.code == 400)

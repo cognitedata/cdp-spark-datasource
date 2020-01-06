@@ -2,36 +2,24 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.common._
-import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
+import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
 import fs2.Stream
 import io.scalaland.chimney.Transformer
-import org.apache.spark.datasource.MetricsSource
 import io.scalaland.chimney.dsl._
 import CdpConnector._
+import io.circe.JsonObject
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
-    extends BaseRelation
+    extends CdfRelation(config, shortName)
     with CdpConnector
     with Serializable
     with TableScan
     with PrunedFilteredScan {
-  @transient lazy protected val itemsRead: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
-  @transient lazy private val itemsCreated =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.created")
-
-  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
-    CdpConnector.retryingSttpBackend(config.maxRetries)
-  implicit val auth: Auth = config.auth
-  @transient lazy val client =
-    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)
 
   def schema: StructType
 
@@ -39,7 +27,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   def uniqueId(a: A): I
 
-  def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] =
+  def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] =
     sys.error(s"Resource type $shortName does not support writing.")
 
   def getStreams(filters: Array[Filter])(
@@ -69,14 +57,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
         batchGroup
-          .parTraverse(getFromRowAndCreate)
-          .flatTap { _ =>
-            IO {
-              if (config.collectMetrics) {
-                itemsCreated.inc(batchGroup.foldLeft(0: Int)(_ + _.length))
-              }
-            }
-          }
+          .parTraverse(getFromRowsAndCreate(_))
           .unsafeRunSync()
       }
       ()
@@ -102,39 +83,78 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     require(
       updates.forall(u => u.id.isDefined || u.externalId.isDefined),
       "Update requires an id or externalId to be set for each row.")
-    val (updatesById, updatesByExternalId) = updates.partition(_.id.isDefined)
+    val (updatesById, updatesByExternalId) = updates.partition(u => u.id.exists(_ > 0))
     val updateIds = if (updatesById.isEmpty) { IO.unit } else {
-      resource.updateById(updatesById.map(u => u.id.get -> u.transformInto[U]).toMap)
+      resource
+        .updateById(updatesById.map(u => u.id.get -> u.transformInto[U]).toMap)
+        .flatTap(_ => incMetrics(itemsUpdated, updatesById.size))
+        .map(_ => ())
     }
     val updateExternalIds = if (updatesByExternalId.isEmpty) { IO.unit } else {
-      resource.updateByExternalId(
-        updatesByExternalId
-          .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
-          .toMap)
+      resource
+        .updateByExternalId(
+          updatesByExternalId
+            .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+            .toMap)
+        .flatTap(_ => incMetrics(itemsUpdated, updatesByExternalId.size))
+        .map(_ => ())
     }
+
     (updateIds, updateExternalIds).parMapN((_, _) => ())
   }
 
+  private def assertNoLegacyNameConflicts(duplicated: Seq[JsonObject]) = {
+    val legacyNameConflicts =
+      duplicated.flatMap(j => j("legacyName")).map(_.asString.get)
+    if (legacyNameConflicts.nonEmpty) {
+      throw new IllegalArgumentException(
+        "Found legacyName conflicts, upserts are not supported with legacyName." +
+          s" Conflicting legacyNames: ${legacyNameConflicts.mkString(", ")}")
+    }
+  }
+
   // scalastyle:off no.whitespace.after.left.bracket
-  def upsertAfterConflict[
-      R <: WithId[Long],
+  def createOrUpdateByExternalId[
+      R <: WithExternalId,
       U <: WithSetExternalId,
       C <: WithExternalId,
       T <: UpdateByExternalId[R, U, IO] with Create[R, C, IO]](
       existingExternalIds: Seq[String],
       resourceCreates: Seq[C],
-      resource: T)(implicit transform: Transformer[C, U]): IO[Unit] = {
+      resource: T,
+      doUpsert: Boolean)(implicit transform: Transformer[C, U]): IO[Unit] = {
     val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
-      p => if (p.externalId.isEmpty) { false } else { existingExternalIds.contains(p.externalId.get) }
+      p => p.externalId.exists(id => existingExternalIds.contains(id))
     )
-    val create = if (resourcesToCreate.isEmpty) { IO.unit } else {
-      resource.create(resourcesToCreate)
+    val create = if (resourcesToCreate.isEmpty) {
+      IO.unit
+    } else {
+      resource
+        .create(resourcesToCreate)
+        .flatTap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
+        .map(_ => ())
+        .recoverWith {
+          case CdpApiException(_, 409, _, _, Some(duplicated), _, _) if doUpsert =>
+            assertNoLegacyNameConflicts(duplicated)
+            val existingExternalIds =
+              duplicated.flatMap(j => j("externalId")).map(_.asString.get)
+            createOrUpdateByExternalId[R, U, C, T](
+              existingExternalIds,
+              resourcesToCreate,
+              resource,
+              doUpsert = false)
+        }
     }
-    val update = if (resourcesToUpdate.isEmpty) { IO.unit } else {
-      resource.updateByExternalId(
-        resourcesToUpdate
-          .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
-          .toMap)
+    val update = if (resourcesToUpdate.isEmpty) {
+      IO.unit
+    } else {
+      resource
+        .updateByExternalId(
+          resourcesToUpdate
+            .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+            .toMap)
+        .flatTap(_ => incMetrics(itemsUpdated, resourcesToUpdate.size))
+        .map(_ => ())
     }
     (create, update).parMapN((_, _) => ())
   }

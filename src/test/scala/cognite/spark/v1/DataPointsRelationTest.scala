@@ -109,16 +109,21 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "be possible to specify multiple aggregation types in one query" taggedAs (ReadTest) in {
+    val metricsPrefix = "multi.aggregation"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .load()
       .where(
-        s"timestamp >= to_timestamp(1508889600) and timestamp <= to_timestamp(1511481600) and aggregation in ('sum', 'average', 'max') and granularity = '30d' and id = $valhallTimeSeriesId")
+        s"timestamp >= to_timestamp(1508544000) and timestamp < to_timestamp(1511136000) and aggregation in ('sum', 'average', 'max') and granularity = '30d' and id = $valhallTimeSeriesId")
       .orderBy(col("aggregation").asc)
     val results = df.collect()
-    assert(results.size == 3)
+    assert(results.length == 3)
+    val pointsRead = getNumberOfRowsRead(metricsPrefix, "datapoints")
+    assert(pointsRead == 3)
     val Array(avg, max, sum) = results
     val timeSeriesId = valhallTimeSeriesId
     assert(sum.getLong(0) == timeSeriesId)
@@ -158,7 +163,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "be an error to specify an invalid granularity" taggedAs (ReadTest) in {
-    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
+    disableSparkLogging() // Removing expected Spark executor Errors from the console
     for (granularity <- Seq("30", "dd", "d30", "1", "0", "1.2d", "1.4y", "1.4seconds")) {
       val df = spark.read
         .format("cognite.spark.v1")
@@ -172,7 +177,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       }
       e shouldBe an[IllegalArgumentException]
     }
-    spark.sparkContext.setLogLevel("WARN")
+    enableSparkLogging()
   }
 
   it should "accept valid granularity specifications" taggedAs (ReadTest) in {
@@ -243,21 +248,27 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "handle missing aggregates" taggedAs ReadTest in {
+    val metricsPrefix = "missing.aggregates"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .load()
       .where(
         s"timestamp >= to_timestamp(1349732220) and timestamp <= to_timestamp(1572931920) and aggregation = 'average' and granularity = '5m' and id = $withMissingAggregatesId")
     // TODO: Check if this is the correct number.
     assert(df.count() == 723073)
+    val pointsRead = getNumberOfRowsRead(metricsPrefix, "datapoints")
+    // We read one more than strictly necessary, but it's filtered out by Spark.
+    assert(pointsRead == 723074)
   }
+
   it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest in {
-
+    val metricsPrefix = "datapoints.insert"
     val testUnit = "datapoints testing"
-
-    val tsName = "datapoints-insert-testing"
+    val tsName = s"datapoints-insert-${shortRandomString()}"
 
     val sourceTimeSeriesDf = spark.read
       .format("cognite.spark.v1")
@@ -277,6 +288,8 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "datapoints")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .load()
     destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
 
@@ -306,8 +319,8 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
               |null as assetId,
               |isStep,
               |cast(array() as array<long>) as securityCategories,
-              |id+1 as id,
-              |'datapoints-testing' as externalId,
+              |id,
+              |'$tsName' as externalId,
               |createdTime,
               |lastUpdatedTime
               |from sourceTimeSeries
@@ -320,18 +333,18 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     // Check if post worked
     val initialDescriptionsAfterPost = retryWhile[Array[Row]](
       spark
-        .sql(s"""select * from destinationTimeSeries where name = '$tsName'""")
+        .sql(s"""select id from destinationTimeSeries where name = '$tsName'""")
         .collect,
       df => df.length < 1)
     assert(initialDescriptionsAfterPost.length == 1)
 
-    val id = initialDescriptionsAfterPost.head.getLong(8)
+    val id = initialDescriptionsAfterPost.head.getLong(0)
 
-    // Insert some datapoints to the new time series
+    // Insert some data points to the new time series
     spark
       .sql(s"""
               |select $id as id,
-              |'insert-test-data' as externalId,
+              |'this-should-be-ignored' as externalId,
               |to_timestamp(1509490001) as timestamp,
               |double(1.5) as value,
               |null as aggregation,
@@ -339,6 +352,8 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       """.stripMargin)
       .write
       .insertInto("destinationDatapoints")
+    val pointsCreated = getNumberOfRowsCreated(metricsPrefix, "datapoints")
+    assert(pointsCreated == 1)
 
     // Check if post worked
     val dataPointsAfterPost = retryWhile[Array[Row]](
@@ -347,6 +362,127 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .collect,
       df => df.length < 1)
     assert(dataPointsAfterPost.length == 1)
+
+    // Insert some data points to the new time series by external id
+    spark
+      .sql(s"""
+              |select null as id,
+              |'$tsName' as externalId,
+              |to_timestamp(1509500001) as timestamp,
+              |double(1.5) as value,
+              |null as aggregation,
+              |null as granularity
+      """.stripMargin)
+      .write
+      .insertInto("destinationDatapoints")
+
+    val pointsAfterInsertByExternalId = getNumberOfRowsCreated(metricsPrefix, "datapoints")
+    assert(pointsAfterInsertByExternalId == 2)
+
+    // Check if post worked
+    val dataPointsAfterPostByExternalId = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select * from destinationDatapoints where id = '$id'""")
+        .collect,
+      df => df.length < 2)
+    assert(dataPointsAfterPostByExternalId.length == 2)
+  }
+
+  it should "be possible to create data points for several time series at the same time" taggedAs WriteTest in {
+    val tsName1 = s"dps-insert1-${shortRandomString()}"
+    val tsName2 = s"dps-insert2-${shortRandomString()}"
+
+    val destinationTimeSeriesDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .load()
+    destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
+
+    val destinationDataPointsDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "datapoints")
+      .load()
+    destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
+
+    spark
+      .sql(
+        s"""
+           |select '$tsName1' as name,
+           |'$tsName1' as externalId
+     """.stripMargin)
+      .union(spark
+        .sql(
+          s"""
+             |select '$tsName2' as name,
+             |'$tsName2' as externalId
+     """.stripMargin))
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "upsert")
+      .save()
+
+    val idsAfterPost = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select id from destinationTimeSeries where externalId in ('$tsName1', '$tsName2') order by externalId asc""")
+        .collect,
+      df => df.length < 2)
+    assert(idsAfterPost.length == 2)
+
+    val Array(id1, id2) = idsAfterPost.map(r => r.getLong(0).toString)
+    spark
+      .sql(
+        s"""
+           |select $id1 as id,
+           |'this-should-be-ignored' as externalId,
+           |to_timestamp(1509500001) as timestamp,
+           |double(1.0) as value,
+           |null as aggregation,
+           |null as granularity
+      """.stripMargin)
+      .union(
+        spark.sql(
+          s"""
+             |select $id2 as id,
+             |'this-should-be-ignored' as externalId,
+             |to_timestamp(1509500001) as timestamp,
+             |double(9.0) as value,
+             |null as aggregation,
+             |null as granularity
+      """.stripMargin))
+      .union(
+        spark.sql(
+          s"""
+             |select null as id,
+             |'$tsName1' as externalId,
+             |to_timestamp(1509900001) as timestamp,
+             |double(9.0) as value,
+             |null as aggregation,
+             |null as granularity
+      """.stripMargin))
+      .union(
+        spark.sql(
+          s"""
+             |select null as id,
+             |'$tsName2' as externalId,
+             |to_timestamp(1509900001) as timestamp,
+             |double(1.0) as value,
+             |null as aggregation,
+             |null as granularity
+      """.stripMargin))
+      .write
+      .insertInto("destinationDatapoints")
+
+    // Check if post worked
+    val dataPointsAfterPost = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select * from destinationDatapoints where id in ($id1, $id2)""")
+        .collect,
+      df => df.length < 4)
+    assert(dataPointsAfterPost.length == 4)
   }
 
   it should "be an error to specify an invalid (time series) id" taggedAs (WriteTest) in {
@@ -357,7 +493,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
     destinationDf.createOrReplaceTempView("destinationDatapoints")
 
-    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
+    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val e = intercept[SparkException] {
       spark
         .sql(s"""
@@ -375,6 +511,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     e.getCause shouldBe a[CdpApiException]
     val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
     assert(cdpApiException.code == 400)
-    spark.sparkContext.setLogLevel("WARN")
+    enableSparkLogging()
   }
 }

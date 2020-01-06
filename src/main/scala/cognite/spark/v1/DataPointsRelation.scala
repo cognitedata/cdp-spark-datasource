@@ -6,11 +6,8 @@ import cats.effect.IO
 import cats.implicits._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import com.cognite.sdk.scala.v1._
-import com.cognite.sdk.scala.common.{Auth, StringDataPoint}
-import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types._
 
 abstract class Limit extends Ordered[Limit] with Serializable {
   def value: Instant
@@ -24,23 +21,18 @@ sealed case class Max(value: Instant) extends Limit
 
 final case class AggregationFilter(aggregation: String)
 
-abstract class DataPointsRelationV1[A](config: RelationConfig)(override val sqlContext: SQLContext)
-    extends BaseRelation
+abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String)(
+    override val sqlContext: SQLContext)
+    extends CdfRelation(config, shortName)
     with TableScan
     with PrunedFilteredScan
     with Serializable
     with InsertableRelation {
   import CdpConnector._
-  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
-    CdpConnector.retryingSttpBackend(config.maxRetries)
-  implicit val auth: Auth = config.auth
-  @transient lazy val client =
-    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)
+
   def toRow(a: A): Row
 
   def toRow(requiredColumns: Array[String])(item: A): Row
-
-  override def schema: StructType
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {

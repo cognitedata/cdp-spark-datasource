@@ -35,8 +35,9 @@ case class StringDataPointsFilter(
 )
 
 class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext: SQLContext)
-    extends DataPointsRelationV1[StringDataPointsItem](config)(sqlContext)
+    extends DataPointsRelationV1[StringDataPointsItem](config, "stringdatapoints")(sqlContext)
     with WritableRelation {
+  import CdpConnector._
 
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new RuntimeException("Insert not supported for stringdatapoints. Please use upsert instead.")
@@ -62,29 +63,46 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
 
   override def insertSeqOfRows(rows: Seq[Row]): IO[Unit] = {
     val (dataPointsWithId, dataPointsWithExternalId) =
-      rows.map(r => fromRow[StringDataPointsInsertItem](r)).partition(p => p.id.isDefined)
-    IO {
-      dataPointsWithId.groupBy(_.id).map {
-        case (id, datapoint) =>
-          client.dataPoints
-            .insertStringsById(id.get, datapoint.map(dp => StringDataPoint(dp.timestamp, dp.value)))
-            .unsafeRunSync()
-      }
-    } *>
-      IO {
-        dataPointsWithExternalId.groupBy(_.externalId).map {
-          case (extId, datapoint) =>
-            client.dataPoints
-              .insertStringsByExternalId(
-                extId.get,
-                datapoint.map(dp => StringDataPoint(dp.timestamp, dp.value)))
-              .unsafeRunSync()
-        }
-      }
+      rows.map(r => fromRow[StringDataPointsInsertItem](r)).partition(p => p.id.exists(_ > 0))
+
+    if (dataPointsWithExternalId.exists(_.externalId.isEmpty)) {
+      throw new IllegalArgumentException(
+        "The id or externalId fields must be set when inserting data points.")
+    }
+
+    val updatesById = dataPointsWithId.groupBy(_.id).map {
+      case (id, dataPoints) =>
+        client.dataPoints
+          .insertStringsById(id.get, dataPoints.map(dp => StringDataPoint(dp.timestamp, dp.value)))
+          .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
+    }
+    val updatesByExternalId = dataPointsWithExternalId.groupBy(_.externalId).map {
+      case (Some(externalId), dataPoints) =>
+        client.dataPoints
+          .insertStringsByExternalId(
+            externalId,
+            dataPoints.map(dp => StringDataPoint(dp.timestamp, dp.value)))
+          .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
+      case (None, _) =>
+        throw new IllegalArgumentException(
+          "The id or externalId fields must be set when inserting data points.")
+    }
+
+    (updatesById.toVector.parSequence_, updatesByExternalId.toVector.parSequence_)
+      .parMapN((_, _) => ())
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    StringDataPointsRdd(sqlContext.sparkContext, config, getIOs(filters), toRow(requiredColumns))
+    StringDataPointsRdd(
+      sqlContext.sparkContext,
+      config,
+      getIOs(filters),
+      (item: StringDataPointsItem) => {
+        if (config.collectMetrics) {
+          itemsRead.inc()
+        }
+        toRow(requiredColumns)(item)
+      })
 
   def getIOs(filters: Array[Filter])(
       client: GenericClient[IO, Nothing]): Seq[(StringDataPointsFilter, IO[Seq[StringDataPoint]])] = {

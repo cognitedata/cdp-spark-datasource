@@ -13,7 +13,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[File, Long](config, "files")
     with InsertableRelation {
 
-  override def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val files = rows.map { r =>
       val file = fromRow[File](r)
       file.copy(metadata = filterMetadata(file.metadata))
