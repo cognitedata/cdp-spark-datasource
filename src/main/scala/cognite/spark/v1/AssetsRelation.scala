@@ -2,18 +2,18 @@ package cognite.spark.v1
 
 import java.time.Instant
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, GenericClient}
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import cognite.spark.v1.SparkSchemaHelper._
+import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.types._
 import cats.implicits._
 import PushdownUtilities._
-import com.cognite.sdk.scala.common.{CdpApiException, WithExternalId, WithId}
+import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1.resources.Assets
 import fs2.Stream
-import io.scalaland.chimney.dsl._
 
 class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Asset, Long](config, "assets")
@@ -51,11 +51,10 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     AssetsFilter(name = m.get("name"), source = m.get("source"))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
-    val assetCreates = rows.map { r =>
-      val assetCreate = fromRow[AssetCreate](r)
-      assetCreate.copy(metadata = filterMetadata(assetCreate.metadata))
-    }
-    client.assets.create(assetCreates) *> IO.unit
+    val assets = fromRowWithFilteredMetadata(rows)
+    client.assets
+      .create(assets)
+      .flatTap(_ => incMetrics(itemsCreated, assets.size)) *> IO.unit
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
@@ -71,33 +70,43 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     deleteWithIgnoreUnknownIds(client.assets, deletes, config.ignoreUnknownIds)
   }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = getFromRowAndCreate(rows)
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
+    val assets = rows.map { r =>
+      val asset = fromRow[AssetsUpsertSchema](r)
+      asset.copy(metadata = filterMetadata(asset.metadata))
+    }
+    val (assetsToUpdate, assetsToCreate) = assets.partition(r => r.id.exists(_ > 0))
 
-  def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[AssetCreate] =
+    if (assetsToCreate.exists(_.name.isEmpty)) {
+      throw new IllegalArgumentException("The name field must be set when creating assets.")
+    }
+
+    val update = updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate, Assets[IO], Asset](
+      assetsToUpdate,
+      client.assets
+    )
+    val createOrUpdate = createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, Assets[IO]](
+      Seq.empty,
+      assetsToCreate.map(_.into[AssetCreate].withFieldComputed(_.name, _.name.get).transform),
+      client.assets,
+      doUpsert = true)
+    (update, createOrUpdate).parMapN((_, _) => ())
+  }
+
+  private def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[AssetCreate] =
     rows.map { r =>
       val asset = fromRow[AssetCreate](r)
       asset.copy(metadata = filterMetadata(asset.metadata))
     }
-  override def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] = {
+
+  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val assets = fromRowWithFilteredMetadata(rows)
-
-    client.assets
-      .create(assets)
-      .handleErrorWith {
-        case e: CdpApiException =>
-          if (e.code == 409) {
-            val existingExternalIds =
-              e.duplicated.get.map(j => j("externalId").get.asString.get)
-            resolveConflict(existingExternalIds, assets)
-          } else { IO.raiseError(e) }
-      } *> IO.unit
-  }
-
-  def resolveConflict(existingExternalIds: Seq[String], assets: Seq[AssetCreate]): IO[Unit] =
-    upsertAfterConflict[Asset, AssetUpdate, AssetCreate, Assets[IO]](
-      existingExternalIds,
+    createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, Assets[IO]](
+      Seq.empty,
       assets,
-      client.assets)
+      client.assets,
+      doUpsert = true)
+  }
 
   override def schema: StructType = structType[Asset]
 

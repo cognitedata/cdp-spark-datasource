@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
 import java.io.IOException
+import java.util.UUID
 
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth}
@@ -38,6 +39,10 @@ trait SparkTest extends CdpConnector {
     .config("spark.sql.shuffle.partitions", "1")
     .config("spark.app.id", this.getClass.getName + math.floor(math.random * 1000).toLong.toString)
     .getOrCreate()
+
+  enableSparkLogging()
+
+  def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
   // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int): IO[A] = {
@@ -85,10 +90,25 @@ trait SparkTest extends CdpConnector {
       true
     )
 
-  def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
+  private def getCounter(metricName: String): Long =
     MetricsSource
-      .metricsMap(s"$metricsPrefix.$resourceType.read")
+      .metricsMap(metricName)
       .value
       .asInstanceOf[Counter]
       .getCount
+
+  def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
+    getCounter(s"$metricsPrefix.$resourceType.read")
+
+  def getNumberOfRowsCreated(metricsPrefix: String, resourceType: String): Long =
+    getCounter(s"$metricsPrefix.$resourceType.created")
+
+  def getNumberOfRowsUpdated(metricsPrefix: String, resourceType: String): Long =
+    getCounter(s"$metricsPrefix.$resourceType.updated")
+
+  def disableSparkLogging(): Unit =
+    spark.sparkContext.setLogLevel("OFF")
+
+  def enableSparkLogging(): Unit =
+    spark.sparkContext.setLogLevel("ERROR")
 }

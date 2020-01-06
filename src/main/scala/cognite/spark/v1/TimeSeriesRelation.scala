@@ -4,16 +4,16 @@ import java.time.Instant
 
 import cats.effect.IO
 import cats.implicits._
-import com.cognite.sdk.scala.common.{CdpApiException, WithExternalId, WithId}
+import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1._
 import cognite.spark.v1.SparkSchemaHelper._
+import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
-import io.scalaland.chimney.dsl._
 
 class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
@@ -21,13 +21,8 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
     with InsertableRelation {
   import CdpConnector._
 
-  override def insert(rows: Seq[Row]): IO[Unit] = {
-    val timeSeriesCreates = rows.map { r =>
-      val timeSeriesCreate = fromRow[TimeSeriesCreate](r)
-      timeSeriesCreate.copy(metadata = filterMetadata(timeSeriesCreate.metadata))
-    }
-    client.timeSeries.create(timeSeriesCreates) *> IO.unit
-  }
+  override def insert(rows: Seq[Row]): IO[Unit] =
+    getFromRowsAndCreate(rows, doUpsert = false)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesUpdates = rows.map(r => fromRow[TimeSeriesUpsertSchema](r))
@@ -42,9 +37,32 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
     client.timeSeries.deleteByIds(ids) *> IO.unit
   }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = getFromRowAndCreate(rows)
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
+    val timeSeriess = rows.map { r =>
+      val timeSeries = fromRow[TimeSeriesUpsertSchema](r)
+      timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
+    }
+    val (timeSeriesToUpdate, timeSeriesToCreate) = timeSeriess.partition(r => r.id.exists(_ > 0))
 
-  override def getFromRowAndCreate(rows: Seq[Row]): IO[Unit] = {
+    // scalastyle:off no.whitespace.after.left.bracket
+    val update = updateByIdOrExternalId[
+      TimeSeriesUpsertSchema,
+      TimeSeriesUpdate,
+      TimeSeriesResource[IO],
+      TimeSeries](
+      timeSeriesToUpdate,
+      client.timeSeries
+    )
+    val createOrUpdate =
+      createOrUpdateByExternalId[TimeSeries, TimeSeriesUpdate, TimeSeriesCreate, TimeSeriesResource[IO]](
+        Seq.empty,
+        timeSeriesToCreate.map(_.transformInto[TimeSeriesCreate]),
+        client.timeSeries,
+        doUpsert = true)
+    (update, createOrUpdate).parMapN((_, _) => ())
+  }
+
+  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val timeSeriesSeq = rows.map { r =>
       val timeSeries = fromRow[TimeSeriesCreate](r)
       val timeSeriesWithMetadata = timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
@@ -55,29 +73,12 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
       }
     }
 
-    client.timeSeries
-      .create(timeSeriesSeq)
-      .handleErrorWith {
-        case e: CdpApiException =>
-          if (e.code == 409) {
-            val legacyNameConflicts = e.duplicated.get.flatMap(j => j("legacyName")).map(_.asString.get)
-            if (legacyNameConflicts.nonEmpty) {
-              throw new IllegalArgumentException(
-                "Found legacyName conflicts, upserts are not supported with legacyName." +
-                  s" Conflicting legacyNames: ${legacyNameConflicts.mkString(", ")}")
-            }
-            val existingExternalIds =
-              e.duplicated.get.map(j => j("externalId").get.asString.get)
-            resolveConflict(existingExternalIds, timeSeriesSeq)
-          } else { IO.raiseError(e) }
-      } *> IO.unit
-  }
-
-  def resolveConflict(existingExternalIds: Seq[String], timeSeriesSeq: Seq[TimeSeriesCreate]): IO[Unit] =
-    upsertAfterConflict[TimeSeries, TimeSeriesUpdate, TimeSeriesCreate, TimeSeriesResource[IO]](
-      existingExternalIds,
+    createOrUpdateByExternalId[TimeSeries, TimeSeriesUpdate, TimeSeriesCreate, TimeSeriesResource[IO]](
+      Seq.empty,
       timeSeriesSeq,
-      client.timeSeries)
+      client.timeSeries,
+      doUpsert = doUpsert)
+  }
 
   override def schema: StructType = structType[TimeSeries]
 

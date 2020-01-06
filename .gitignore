@@ -9,3 +9,4 @@ metastore_db/
 src/main/scripts/Pip*
 .metals/
 .bloop/
+.env

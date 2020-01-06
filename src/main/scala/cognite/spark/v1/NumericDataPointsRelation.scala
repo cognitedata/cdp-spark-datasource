@@ -17,8 +17,6 @@ import cognite.spark.v1.SparkSchemaHelper.structType
 
 import scala.util.matching.Regex
 
-import scala.util.matching.Regex
-
 case class DataPointsFilter(
     id: Option[Long],
     externalId: Option[String],
@@ -102,8 +100,9 @@ object Granularity {
 }
 
 class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)
-    extends DataPointsRelationV1[DataPointsItem](config)(sqlContext)
+    extends DataPointsRelationV1[DataPointsItem](config, "datapoints")(sqlContext)
     with WritableRelation {
+  import CdpConnector._
 
   import PushdownUtilities.filtersToTimestampLimits
 
@@ -140,23 +139,32 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 
   def insertSeqOfRows(rows: Seq[Row]): IO[Unit] = {
     val (dataPointsWithId, dataPointsWithExternalId) =
-      rows.map(r => fromRow[InsertDataPointsItem](r)).partition(p => p.id.isDefined)
-    IO {
-      dataPointsWithId.groupBy(_.id).map {
-        case (id: Option[Long], p: Seq[InsertDataPointsItem]) =>
-          client.dataPoints
-            .insertById(id.get, p.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
-            .unsafeRunSync()
-      }
-    } *>
-      IO {
-        dataPointsWithExternalId.groupBy(_.externalId).map {
-          case (extId: Option[String], p: Seq[InsertDataPointsItem]) =>
-            client.dataPoints
-              .insertByExternalId(extId.get, p.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
-              .unsafeRunSync()
-        }
-      }
+      rows.map(r => fromRow[InsertDataPointsItem](r)).partition(p => p.id.exists(_ > 0))
+
+    if (dataPointsWithExternalId.exists(_.externalId.isEmpty)) {
+      throw new IllegalArgumentException(
+        "The id or externalId fields must be set when inserting data points.")
+    }
+
+    val updatesById = dataPointsWithId.groupBy(_.id).map {
+      case (id, dataPoints) =>
+        client.dataPoints
+          .insertById(id.get, dataPoints.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
+          .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
+    }
+
+    val updatesByExternalId = dataPointsWithExternalId.groupBy(_.externalId).map {
+      case (Some(externalId), dataPoints) =>
+        client.dataPoints
+          .insertByExternalId(externalId, dataPoints.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
+          .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
+      case (None, _) =>
+        throw new IllegalArgumentException(
+          "The id or externalId fields must be set when inserting data points.")
+    }
+
+    (updatesById.toVector.parSequence_, updatesByExternalId.toVector.parSequence_)
+      .parMapN((_, _) => ())
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
@@ -185,7 +193,13 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       timestampLimits,
       aggregations,
       granularities,
-      toRow(requiredColumns))
+      (item: DataPointsItem) => {
+        if (config.collectMetrics) {
+          itemsRead.inc()
+        }
+        toRow(requiredColumns)(item)
+      }
+    )
   }
 }
 

@@ -115,7 +115,7 @@ object PushdownUtilities {
   def timeRangeFromMinAndMax(minTime: Option[String], maxTime: Option[String]): Option[TimeRange] =
     (minTime, maxTime) match {
       case (None, None) => None
-      case _ => {
+      case _ =>
         val minimumTimeAsInstant =
           minTime
             .map(java.sql.Timestamp.valueOf(_).toInstant)
@@ -125,7 +125,6 @@ object PushdownUtilities {
             .map(java.sql.Timestamp.valueOf(_).toInstant)
             .getOrElse(java.time.Instant.ofEpochMilli(Long.MaxValue))
         Some(TimeRange(minimumTimeAsInstant, maximumTimeAsInstant))
-      }
     }
 
   def getTimestampLimit(filter: Filter, colName: String): Seq[Limit] =

@@ -77,9 +77,9 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "insert a time series with no name" taggedAs WriteTest in {
-    val insertNoNameUnit = "time-series-insert-no-name"
+    val insertNoNameUnit = s"insert-no-name-${shortRandomString()}"
     cleanUpTimeSeriesTestDataByUnit(insertNoNameUnit)
-    val description = "no name"
+    val description = s"no name ${shortRandomString()}"
     // Insert new time series test data
     spark
       .sql(s"""
@@ -113,11 +113,11 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "create time series with legacyName if useLegacyName option is set" taggedAs WriteTest in {
-    val legacyNameUnit = "time-series-legacy-name"
+    val legacyNameUnit = s"legacy-name-${shortRandomString()}"
     implicit val backend: SttpBackend[Id, Nothing] = HttpURLConnectionBackend()
     val project = writeClient.login.status.project
-    val legacyName1 = UUID.randomUUID().toString.substring(0, 8)
-    val legacyName2 = UUID.randomUUID().toString.substring(0, 8)
+    val legacyName1 = shortRandomString()
+    val legacyName2 = shortRandomString()
     val before = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(legacyName1)
     before.code shouldBe 400
     val before05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
@@ -156,7 +156,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
 
     // Attempting to insert the same name should be an error when legacyName is set.
     // Note that we use a different externalId.
-    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
+    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val exception = the[SparkException] thrownBy spark
       .sql(s"""
               |select null as description,
@@ -175,7 +175,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .select(sourceDf.columns.map(col): _*)
       .write
       .insertInto("destinationTimeSeriesWithLegacyName")
-    spark.sparkContext.setLogLevel("WARN")
+    enableSparkLogging()
     assert(exception.getCause.isInstanceOf[IllegalArgumentException])
 
     val before2 = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(legacyName2)
@@ -208,12 +208,26 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "successfully both update and insert time series" taggedAs WriteTest in {
-    val initialDescription = "post testing"
-    val updatedDescription = "upsert testing"
-    val insertTestUnit = "time-series-insert-testing"
+    val metricsPrefix = s"update-and-insert-${shortRandomString()}"
+    val initialDescription = s"post-testing-${shortRandomString()}"
+    val updatedDescription = s"upsert-testing-${shortRandomString()}"
+    val insertTestUnit = s"insert-test${shortRandomString()}"
 
     cleanUpTimeSeriesTestDataByUnit(insertTestUnit)
 
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+    df.createOrReplaceTempView("destinationTimeSeriesInsertAndUpdate")
+
+    a [NoSuchElementException] should be thrownBy getNumberOfRowsCreated(metricsPrefix, "timeseries")
+    a [NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+
+    val randomSuffix = shortRandomString()
     // Insert new time series test data
     spark
       .sql(s"""
@@ -226,7 +240,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
          |isStep,
          |cast(array() as array<long>) as securityCategories,
          |id,
-         |concat(string(id), "_upsert") as externalId,
+         |concat(string(id), "_upsert_${randomSuffix}") as externalId,
          |createdTime,
          |lastUpdatedTime
          |from sourceTimeSeries
@@ -234,18 +248,23 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
       .select(sourceDf.columns.map(col): _*)
       .write
-      .insertInto("destinationTimeSeries")
+      .insertInto("destinationTimeSeriesInsertAndUpdate")
+
+    a [NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+    val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
+    assert(rowsCreated == 5)
 
     // Check if post worked
-    val initialDescriptionsAfterPost = retryWhile[Array[Row]](
-      spark
-        .sql(s"""select * from destinationTimeSeries where description = '$initialDescription'""")
-        .collect,
-      df => df.length < 5)
-    assert(initialDescriptionsAfterPost.length == 5)
+    val initialDescriptionsAfterPost = retryWhile[Int](
+      (for (_ <- 1 to 5)
+        yield spark
+          .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where description = '$initialDescription'""")
+          .collect
+          .length).min,
+      length => length < 5)
+    assert(initialDescriptionsAfterPost == 5)
 
-    // Upsert time series data, but wait 5 seconds to make sure
-    Thread.sleep(5000)
+    // Upsert time series data
     spark
       .sql(s"""
             |select '$updatedDescription' as description,
@@ -265,12 +284,17 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
           """.stripMargin)
       .select(sourceDf.columns.map(col): _*)
       .write
-      .insertInto("destinationTimeSeries")
+      .insertInto("destinationTimeSeriesInsertAndUpdate")
+
+    val rowsCreatedAfterUpdate = getNumberOfRowsCreated(metricsPrefix, "timeseries")
+    assert(rowsCreatedAfterUpdate == 5)
+    val rowsUpdatedAfterUpdate = getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+    assert(rowsUpdatedAfterUpdate == 5)
 
     // Check if upsert worked
     val updatedDescriptionsAfterUpsert = retryWhile[Array[Row]](
         spark
-        .sql(s"""select * from destinationTimeSeries where description = '$updatedDescription'""")
+        .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where description = '$updatedDescription'""")
         .collect,
       df => df.length < 5
     )
@@ -278,15 +302,16 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
 
     val initialDescriptionsAfterUpsert = retryWhile[Array[Row]](
       spark
-        .sql(s"""select * from destinationTimeSeries where description = '$initialDescription'""")
+        .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where description = '$initialDescription'""")
         .collect,
       df => df.length > 0)
     assert(initialDescriptionsAfterUpsert.length == 0)
   }
 
   it should "support abort in savemode" taggedAs WriteTest in {
-    val abortDescription = "spark-test-abort"
-    val abortUnit = "time-series-insert-savemode"
+    val metricsPrefix = s"abort-savemode-${shortRandomString()}"
+    val abortDescription = s"spark-test-abort-${shortRandomString()}"
+    val abortUnit = s"insert-abort-${shortRandomString()}"
     // Clean up any old test data
     cleanUpTimeSeriesTestDataByUnit(abortUnit)
 
@@ -307,26 +332,32 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
          |isStep,
          |cast(array() as array<long>) as securityCategories,
          |id,
-         |concat(string(id), "_abort") as externalId,
+         |concat(string(id), "_abort_${shortRandomString()}") as externalId,
          |createdTime,
          |lastUpdatedTime
          |from sourceTimeSeries
-         |limit 5
+         |limit 7
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "timeseries")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save()
+
+    a [NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+    val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
+    assert(rowsCreated == 7)
 
     val dfWithDescriptionInsertTest = retryWhile[Array[Row]](
       spark.sql(s"select * from destinationTimeSeries where description = '$abortDescription'").collect,
-      df => df.length < 5
+      df => df.length < 7
     )
-    assert(dfWithDescriptionInsertTest.length == 5)
+    assert(dfWithDescriptionInsertTest.length == 7)
 
     // Trying to insert existing rows should throw a CdpApiException
-    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
+    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val insertError = intercept[SparkException] {
       spark
         .sql(s"""
@@ -349,18 +380,24 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("type", "timeseries")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
         .save()
     }
     insertError.getCause shouldBe a[CdpApiException]
     val insertCdpApiException = insertError.getCause.asInstanceOf[CdpApiException]
     assert(insertCdpApiException.code == 409)
-    spark.sparkContext.setLogLevel("WARN")
+    val rowsCreatedAfterAbort = getNumberOfRowsCreated(metricsPrefix, "timeseries")
+    assert(rowsCreatedAfterAbort == 7)
+    assertThrows[NoSuchElementException](getNumberOfRowsUpdated(metricsPrefix, "timeseries"))
+    enableSparkLogging()
   }
 
   it should "support partial update in savemode" taggedAs WriteTest in {
-    val insertDescription = "spark-insert-test"
-    val updateDescription = "spark-update-test"
-    val partialUpdateUnit = "time-series-partial-update"
+    val metricsPrefix = s"partial-update${shortRandomString()}"
+    val insertDescription = s"spark-insert-test-${shortRandomString()}"
+    val updateDescription = s"spark-update-test-${shortRandomString()}"
+    val partialUpdateUnit = s"partial-update-${shortRandomString()}"
 
     // Clean up any old test data
     cleanUpTimeSeriesTestDataByUnit(partialUpdateUnit)
@@ -370,6 +407,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     )
     assert(testTimeSeriesAfterCleanup.length == 0)
 
+    val randomSuffix = shortRandomString()
     // Insert new time series test data
     spark
       .sql(s"""
@@ -382,7 +420,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
               |isStep,
               |cast(array() as array<long>) as securityCategories,
               |id,
-              |concat(string(id), "_partial") as externalId,
+              |concat(string(id), "_partial_$randomSuffix") as externalId,
               |createdTime,
               |lastUpdatedTime
               |from sourceTimeSeries
@@ -392,20 +430,28 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "timeseries")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save()
 
-    val dfWithDescriptionInsertTest = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationTimeSeries where description = '$insertDescription' and unit = '$partialUpdateUnit'").collect,
-      df => df.length < 5
-    )
-    assert(dfWithDescriptionInsertTest.length == 5)
+    val withDescriptionInsertTest = retryWhile[Int](
+      (for (_ <- 1 to 5)
+        yield spark
+          .sql(s"""select * from destinationTimeSeries where description = '$insertDescription' and unit = '$partialUpdateUnit'""".stripMargin)
+          .collect
+          .length).min,
+      length => length < 5)
+    assert(withDescriptionInsertTest == 5)
 
-    // Update data with a new description, but wait 5 seconds to make sure
-    Thread.sleep(5000)
+    val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
+    assert(rowsCreated == 5)
+
+    // Update data with a new description
     spark
       .sql(s"""
               |select '$updateDescription' as description,
               |id,
+              |externalId,
               |map("bar", "test") as metadata,
               |name
               |from destinationTimeSeries
@@ -416,7 +462,12 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", writeApiKey)
       .option("type", "timeseries")
       .option("onconflict", "update")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save()
+
+    val rowsUpdatedAfterUpdate = getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+    assert(rowsUpdatedAfterUpdate == 5)
 
     val dfWithDescriptionUpdateTest = retryWhile[Array[Row]](
         spark
@@ -426,8 +477,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     )
     assert(dfWithDescriptionUpdateTest.length == 5)
 
-    // Trying to update nonexisting Time Series should throw a CdpApiException
-    spark.sparkContext.setLogLevel("OFF") // Removing expected Spark executor Errors from the console
+    // Trying to update non-existing Time Series should throw a CdpApiException
+    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val updateError = intercept[SparkException] {
       spark
         .sql(s"""
@@ -450,18 +501,22 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("apiKey", writeApiKey)
         .option("type", "timeseries")
         .option("onconflict", "update")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
         .save()
     }
     updateError.getCause shouldBe a[CdpApiException]
     val updateCdpApiException = updateError.getCause.asInstanceOf[CdpApiException]
     assert(updateCdpApiException.code == 400)
-    spark.sparkContext.setLogLevel("WARN")
+    enableSparkLogging()
+    val rowsUpdatedAfterFailedUpdate = getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+    assert(rowsUpdatedAfterFailedUpdate == 5)
   }
 
   it should "support upsert in savemode" taggedAs WriteTest in {
-    val insertDescription = "spark-insert-test-savemode"
-    val upsertDescription = "spark-upsert-test-savemode"
-    val upsertUnit = "time-series-upsert-savemode"
+    val insertDescription = s"spark-insert-test-savemode-${shortRandomString()}"
+    val upsertDescription = s"spark-upsert-test-savemode-${shortRandomString()}"
+    val upsertUnit = s"upsert-save-${shortRandomString()}"
 
     // Clean up any old test data
     cleanUpTimeSeriesTestDataByUnit(upsertUnit)
@@ -471,6 +526,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(testTimeSeriesAfterCleanup.length == 0)
 
     // Insert new time series test data
+    val randomSuffix = shortRandomString()
     spark
       .sql(s"""
               |select '$insertDescription' as description,
@@ -482,7 +538,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
               |isStep,
               |cast(array() as array<long>) as securityCategories,
               |id,
-              |concat(string(id), "_upsert_savemode") as externalId,
+              |concat(string(id), "_upsert_savemode_$randomSuffix") as externalId,
               |createdTime,
               |lastUpdatedTime
               |from sourceTimeSeries
@@ -507,12 +563,12 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
               |isString,
               |name,
               |metadata,
-              |unit,
+              |'${upsertUnit + "-ex"}' as unit,
               |assetId,
               |isStep,
               |securityCategories,
               |id,
-              |string(id)+"_upsert_savemode" as externalId,
+              |string(id)+"_upsert_savemode_$randomSuffix" as externalId,
               |createdTime,
               |lastUpdatedTime
               |from destinationTimeSeries
@@ -525,12 +581,12 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
              |isString,
              |'test-upserts' as name,
              |map("foo", null, "bar", "test") as metadata,
-             |unit,
+             |'${upsertUnit + "-non"}' as unit,
              |assetId,
              |isStep,
              |securityCategories,
-             |id + 10,
-             |concat(string(id), "_upsert_savemode") as externalId,
+             |null as id,
+             |null as externalId,
              |createdTime,
              |lastUpdatedTime
              |from destinationTimeSeries
@@ -564,7 +620,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "allow null ids on time series update" taggedAs WriteTest in {
-    val updateTestUnit = "ts-update-testing-null-id"
+    val updateTestUnit = s"test-null-id-${shortRandomString()}"
     cleanUpTimeSeriesTestDataByUnit(updateTestUnit)
     retryWhile[Array[Row]](
       spark.sql(s"select * from destinationTimeSeries where unit = '$updateTestUnit'").collect,
