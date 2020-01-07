@@ -56,9 +56,15 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
     val createOrUpdate =
       createOrUpdateByExternalId[TimeSeries, TimeSeriesUpdate, TimeSeriesCreate, TimeSeriesResource[IO]](
         Seq.empty,
-        timeSeriesToCreate.map(_.transformInto[TimeSeriesCreate]),
+        timeSeriesToCreate.map(
+          u =>
+            u.into[TimeSeriesCreate]
+              .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
+              .withFieldComputed(_.isString, _.isString.getOrElse(false))
+              .transform),
         client.timeSeries,
-        doUpsert = true)
+        doUpsert = true
+      )
     (update, createOrUpdate).parMapN((_, _) => ())
   }
 
@@ -133,7 +139,9 @@ case class TimeSeriesUpsertSchema(
     metadata: Option[Map[String, String]] = None,
     assetId: Option[Long] = None,
     description: Option[String] = None,
-    securityCategories: Option[Seq[Long]] = None
+    securityCategories: Option[Seq[Long]] = None,
+    isStep: Option[Boolean] = None,
+    isString: Option[Boolean] = None
 ) extends WithExternalId
     with WithId[Option[Long]]
 
