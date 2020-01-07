@@ -410,13 +410,17 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .sql(
         s"""
            |select '$tsName1' as name,
-           |'$tsName1' as externalId
+           |'$tsName1' as externalId,
+           |false as isStep,
+           |false as isString
      """.stripMargin)
       .union(spark
         .sql(
           s"""
              |select '$tsName2' as name,
-             |'$tsName2' as externalId
+             |'$tsName2' as externalId,
+             |false as isStep,
+             |false as isString
      """.stripMargin))
       .write
       .format("cognite.spark.v1")
