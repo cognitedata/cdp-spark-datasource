@@ -1,3 +1,15 @@
+# 1.2.5
+
+## Enhancements
+* Upserts can now be done by internal id.
+
+* Metrics are now collected for inserts and updates.
+
+* Added support for the time series fields `isString` and `isStep` when doing upserts.
+
+## Fixes
+* Fixed a bug where certain resources could not write to other tenants than the main CDF tenant.
+
 # 1.2.4
 
 ## Fixes
