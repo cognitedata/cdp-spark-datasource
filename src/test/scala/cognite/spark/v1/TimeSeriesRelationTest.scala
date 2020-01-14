@@ -264,7 +264,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       length => length < 5)
     assert(initialDescriptionsAfterPost == 5)
 
-    // Upsert time series data
+    // Update time series data
     spark
       .sql(s"""
             |select '$updatedDescription' as description,
@@ -291,21 +291,21 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     val rowsUpdatedAfterUpdate = getNumberOfRowsUpdated(metricsPrefix, "timeseries")
     assert(rowsUpdatedAfterUpdate == 5)
 
-    // Check if upsert worked
-    val updatedDescriptionsAfterUpsert = retryWhile[Array[Row]](
+    // Check if update worked
+    val updatedDescriptionsAfterUpdate = retryWhile[Array[Row]](
         spark
         .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where description = '$updatedDescription'""")
         .collect,
       df => df.length < 5
     )
-    assert(updatedDescriptionsAfterUpsert.length == 5)
+    assert(updatedDescriptionsAfterUpdate.length == 5)
 
-    val initialDescriptionsAfterUpsert = retryWhile[Array[Row]](
+    val initialDescriptionsAfterUpdate = retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where description = '$initialDescription'""")
         .collect,
       df => df.length > 0)
-    assert(initialDescriptionsAfterUpsert.length == 0)
+    assert(initialDescriptionsAfterUpdate.length == 0)
   }
 
   it should "support abort in savemode" taggedAs WriteTest in {
@@ -575,21 +575,23 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
 
     val nonExistingTimeSeriesDf =
-      spark.sql(s"""
-             |select '$upsertDescription' as description,
-             |isString,
-             |'test-upserts' as name,
-             |map("foo", null, "bar", "test") as metadata,
-             |'${upsertUnit + "-non"}' as unit,
-             |assetId,
-             |securityCategories,
-             |null as id,
-             |null as externalId,
-             |createdTime,
-             |lastUpdatedTime
-             |from destinationTimeSeries
-             |where unit = '$upsertUnit'
+      spark.sql(
+        s"""
+           |select '$upsertDescription' as description,
+           |isString,
+           |'test-upserts' as name,
+           |map("foo", null, "bar", "test") as metadata,
+           |'${upsertUnit + "-non"}' as unit,
+           |assetId,
+           |securityCategories,
+           |null as id,
+           |null as externalId,
+           |createdTime,
+           |lastUpdatedTime
+           |from destinationTimeSeries
+           |where unit = '$upsertUnit'
      """.stripMargin)
+        .cache()
 
     existingTimeSeriesDf
       .union(nonExistingTimeSeriesDf)
@@ -607,6 +609,69 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       }
     )
     assert(dfWithDescriptionUpsertTest.length == 10)
+
+    // Attempting to upsert (insert in this case) multiple time series
+    // with the same name should be an error when useLegacyName is true.
+    disableSparkLogging()
+    val exception = the [SparkException] thrownBy nonExistingTimeSeriesDf
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "upsert")
+      .option("useLegacyName", "true")
+      .save()
+    assert(exception.getCause.isInstanceOf[IllegalArgumentException])
+    enableSparkLogging()
+
+    val nonExistingTimeSeriesWithLegacyNameDf =
+      spark.sql(
+        s"""
+           |select '$upsertDescription' as description,
+           |isString,
+           |concat('test-upserts-${shortRandomString()}', id) as name,
+           |map("foo", null, "bar", "test") as metadata,
+           |'${upsertUnit + "-non"}' as unit,
+           |assetId,
+           |securityCategories,
+           |null as id,
+           |null as externalId,
+           |createdTime,
+           |lastUpdatedTime
+           |from destinationTimeSeries
+           |where unit = '$upsertUnit'
+     """.stripMargin)
+        .cache()
+
+    implicit val backend: SttpBackend[Id, Nothing] = HttpURLConnectionBackend()
+    val project = writeClient.login.status.project
+    val legacyNamesToCreate = nonExistingTimeSeriesWithLegacyNameDf.select("name").collect().map(_.getString(0))
+    for (legacyName <- legacyNamesToCreate) {
+      val before05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName}")
+        .header("api-key", writeApiKey)
+        .contentType("application/json")
+        .acceptEncoding("application/json")
+        .send()
+      before05.code shouldEqual 404
+    }
+
+    nonExistingTimeSeriesWithLegacyNameDf
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "upsert")
+      .option("useLegacyName", "true")
+      .save()
+
+    for (legacyName <- legacyNamesToCreate) {
+      val after05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName}")
+        .header("api-key", writeApiKey)
+        .contentType("application/json")
+        .acceptEncoding("application/json")
+        .send()
+      after05.code shouldEqual 200
+    }
   }
 
   it should "correctly have insert < read and upsert < read schema hierarchy" in {
