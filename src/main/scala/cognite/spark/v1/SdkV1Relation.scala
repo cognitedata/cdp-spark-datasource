@@ -103,13 +103,14 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     (updateIds, updateExternalIds).parMapN((_, _) => ())
   }
 
-  private def assertNoLegacyNameConflicts(duplicated: Seq[JsonObject]) = {
+  private def assertNoLegacyNameConflicts(duplicated: Seq[JsonObject], requestId: Option[String]) = {
     val legacyNameConflicts =
       duplicated.flatMap(j => j("legacyName")).map(_.asString.get)
     if (legacyNameConflicts.nonEmpty) {
       throw new IllegalArgumentException(
         "Found legacyName conflicts, upserts are not supported with legacyName." +
-          s" Conflicting legacyNames: ${legacyNameConflicts.mkString(", ")}")
+          s" Conflicting legacyNames: ${legacyNameConflicts.mkString(", ")}." +
+          requestId.map(id => s" Request ID: $id").getOrElse(""))
     }
   }
 
@@ -134,8 +135,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .flatTap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
         .map(_ => ())
         .recoverWith {
-          case CdpApiException(_, 409, _, _, Some(duplicated), _, _) if doUpsert =>
-            assertNoLegacyNameConflicts(duplicated)
+          case CdpApiException(_, 409, _, _, Some(duplicated), _, requestId) if doUpsert =>
+            assertNoLegacyNameConflicts(duplicated, requestId)
             val existingExternalIds =
               duplicated.flatMap(j => j("externalId")).map(_.asString.get)
             createOrUpdateByExternalId[R, U, C, T](
