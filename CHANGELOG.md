@@ -1,3 +1,8 @@
+# 1.2.6
+
+## Fixes
+* The `useLegacyName` option for time series is now respected also when doing upserts.
+
 # 1.2.5
 
 ## Enhancements
