@@ -137,13 +137,13 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .recoverWith {
           case CdpApiException(_, 409, _, _, Some(duplicated), _, requestId) if doUpsert =>
             assertNoLegacyNameConflicts(duplicated, requestId)
-            val existingExternalIds =
+            val moreExistingExternalIds =
               duplicated.flatMap(j => j("externalId")).map(_.asString.get)
             createOrUpdateByExternalId[R, U, C, T](
-              existingExternalIds,
+              existingExternalIds ++ moreExistingExternalIds,
               resourcesToCreate,
               resource,
-              doUpsert = false)
+              doUpsert = doUpsert)
         }
     }
     val update = if (resourcesToUpdate.isEmpty) {
