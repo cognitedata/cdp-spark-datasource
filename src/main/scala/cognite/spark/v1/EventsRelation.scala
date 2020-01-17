@@ -100,13 +100,23 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
     val (eventsToUpdate, eventsToCreate) = events.partition(r => r.id.exists(_ > 0))
 
+    // In each batch we must not have duplicated external IDs.
+    // TODO: Is the same true for normal IDs?
+    val eventsToCreateWithoutDuplicatesByExternalId = eventsToCreate
+      .groupBy(_.externalId)
+      .flatMap {
+        case (None, events) => events
+        case (Some(_), events) => events.take(1)
+      }
+      .toSeq
+
     val update = updateByIdOrExternalId[EventsUpsertSchema, EventUpdate, Events[IO], Event](
       eventsToUpdate,
       client.events
     )
     val createOrUpdate = createOrUpdateByExternalId[Event, EventUpdate, EventCreate, Events[IO]](
       Seq.empty,
-      eventsToCreate.map(_.transformInto[EventCreate]),
+      eventsToCreateWithoutDuplicatesByExternalId.map(_.transformInto[EventCreate]),
       client.events,
       doUpsert = true)
     (update, createOrUpdate).parMapN((_, _) => ())

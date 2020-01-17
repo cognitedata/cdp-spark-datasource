@@ -549,6 +549,88 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     enableSparkLogging()
   }
 
+  it should "allow duplicated external ids when using upsert in savemode" in {
+    val source = s"spark-events-test-${shortRandomString()}"
+    val metricsPrefix = "upsert.duplicate.event.metrics.save"
+
+    // Cleanup events
+    val eventDescriptionsReturned =
+      retryWhile[Array[Row]](cleanupEvents(source), rows => rows.nonEmpty)
+    assert(eventDescriptionsReturned.isEmpty)
+
+    val externalId = shortRandomString()
+
+    // Post new events
+    val eventsToCreate = spark
+      .sql(s"""
+              |select "$source" as source,
+              |cast(from_unixtime(0) as timestamp) as startTime,
+              |"$externalId" as externalId
+              |union
+              |select "$source" as source,
+              |cast(from_unixtime(1) as timestamp) as startTime,
+              |"$externalId" as externalId
+     """.stripMargin)
+
+    eventsToCreate
+      .repartition(1)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .option("onconflict", "upsert")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .save()
+
+    val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
+    assert(eventsCreated == 1)
+
+    a [NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "events")
+
+    val eventsToUpdate = spark
+      .sql(s"""
+              |select "$source" as source,
+              |"bar" as description,
+              |cast(from_unixtime(0) as timestamp) as endTime,
+              |"$externalId" as externalId
+              |union
+              |select "$source" as source,
+              |"bar" as description,
+              |cast(from_unixtime(1) as timestamp) as endTime,
+              |"$externalId" as externalId
+     """.stripMargin)
+
+    eventsToUpdate
+      .repartition(1)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .option("onconflict", "upsert")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .save()
+
+    val eventsCreatedAfterByExternalId = getNumberOfRowsCreated(metricsPrefix, "events")
+    assert(eventsCreatedAfterByExternalId == 1)
+
+    val eventsUpdatedAfterByExternalId = getNumberOfRowsUpdated(metricsPrefix, "events")
+    assert(eventsUpdatedAfterByExternalId == 1)
+
+    val descriptionsAfterUpdate =
+      retryWhile[Array[Row]](
+        spark
+          .sql(s"select description from destinationEvent where source = '$source' and description = 'bar'")
+          .collect(),
+        rows => rows.length < 1)
+    assert(descriptionsAfterUpdate.length == 1)
+    assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
+
+    val eventsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "events")
+    assert(eventsCreatedAfterUpsert == 1)
+  }
+
   it should "allow upsert in savemode" taggedAs WriteTest in {
     val source = s"spark-events-test-${shortRandomString()}"
     val metricsPrefix = "upsert.event.metrics.save"
