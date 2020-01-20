@@ -34,7 +34,6 @@ class RawTableRelation(
     with InsertableRelation
     with TableScan
     with PrunedFilteredScan
-    with CdpConnector
     with Serializable {
   import RawTableRelation._
   import CdpConnector._

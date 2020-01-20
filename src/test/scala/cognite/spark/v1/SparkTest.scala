@@ -20,7 +20,7 @@ object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
 object GreenfieldTest extends Tag("GreenfieldTest")
 
-trait SparkTest extends CdpConnector {
+trait SparkTest {
   implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
@@ -81,13 +81,13 @@ trait SparkTest extends CdpConnector {
       None,
       Constants.DefaultPartitions,
       Constants.DefaultMaxRetries,
-      false,
+      collectMetrics = false,
       "",
       Constants.DefaultBaseUrl,
       OnConflict.ABORT,
       spark.sparkContext.applicationId,
       Constants.DefaultParallelismPerPartition,
-      true
+      ignoreUnknownIds = true
     )
 
   private def getCounter(metricName: String): Long =

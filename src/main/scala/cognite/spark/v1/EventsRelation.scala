@@ -4,16 +4,16 @@ import java.time.Instant
 
 import cats.effect.IO
 import cats.implicits._
-import com.cognite.sdk.scala.v1.{Event, EventCreate, EventUpdate, EventsFilter, GenericClient}
+import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import com.cognite.sdk.scala.common.{WithExternalId, WithId}
+import com.cognite.sdk.scala.v1.resources.Events
+import com.cognite.sdk.scala.v1.{Event, EventCreate, EventUpdate, EventsFilter, GenericClient}
+import fs2.Stream
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
-import com.cognite.sdk.scala.common.{WithExternalId, WithId}
-import PushdownUtilities._
-import com.cognite.sdk.scala.v1.resources.Events
-import fs2.Stream
+import org.apache.spark.sql.{Row, SQLContext}
 
 class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Event, Long](config, "events")
@@ -98,28 +98,12 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val event = fromRow[EventsUpsertSchema](r)
       event.copy(metadata = filterMetadata(event.metadata))
     }
-    val (eventsToUpdate, eventsToCreate) = events.partition(r => r.id.exists(_ > 0))
+    val (itemsToUpdate, itemsToCreate) = events.partition(r => r.id.exists(_ > 0))
 
-    // In each batch we must not have duplicated external IDs.
-    // TODO: Is the same true for normal IDs?
-    val eventsToCreateWithoutDuplicatesByExternalId = eventsToCreate
-      .groupBy(_.externalId)
-      .flatMap {
-        case (None, events) => events
-        case (Some(_), events) => events.take(1)
-      }
-      .toSeq
-
-    val update = updateByIdOrExternalId[EventsUpsertSchema, EventUpdate, Events[IO], Event](
-      eventsToUpdate,
-      client.events
-    )
-    val createOrUpdate = createOrUpdateByExternalId[Event, EventUpdate, EventCreate, Events[IO]](
-      Seq.empty,
-      eventsToCreateWithoutDuplicatesByExternalId.map(_.transformInto[EventCreate]),
-      client.events,
-      doUpsert = true)
-    (update, createOrUpdate).parMapN((_, _) => ())
+    genericUpsert[Event, EventsUpsertSchema, EventCreate, EventUpdate, Events[IO]](
+      itemsToUpdate,
+      itemsToCreate.map(_.transformInto[EventCreate]),
+      client.events)
   }
 
   def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[EventCreate] =

@@ -39,40 +39,34 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val timeSeries = rows.map { r =>
-      val timeSeries = fromRow[TimeSeriesUpsertSchema](r)
-      timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
+      val ts = fromRow[TimeSeriesUpsertSchema](r)
+      ts.copy(metadata = filterMetadata(ts.metadata))
     }
-    val (timeSeriesToUpdate, timeSeriesToCreate) = timeSeries.partition(r => r.id.exists(_ > 0))
+    val (itemsToUpdate, itemsToCreate) = timeSeries.partition(r => r.id.exists(_ > 0))
 
     // scalastyle:off no.whitespace.after.left.bracket
-    val update = updateByIdOrExternalId[
+    genericUpsert[
+      TimeSeries,
       TimeSeriesUpsertSchema,
+      TimeSeriesCreate,
       TimeSeriesUpdate,
-      TimeSeriesResource[IO],
-      TimeSeries](
-      timeSeriesToUpdate,
+      TimeSeriesResource[IO]](
+      itemsToUpdate,
+      itemsToCreate.map { c =>
+        val asCreate = c
+          .into[TimeSeriesCreate]
+          .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
+          .withFieldComputed(_.isString, _.isString.getOrElse(false))
+        if (useLegacyName) {
+          asCreate
+            .withFieldComputed(_.legacyName, _.name)
+            .transform
+        } else {
+          asCreate.transform
+        }
+      },
       client.timeSeries
     )
-    val createOrUpdate =
-      createOrUpdateByExternalId[TimeSeries, TimeSeriesUpdate, TimeSeriesCreate, TimeSeriesResource[IO]](
-        Seq.empty,
-        timeSeriesToCreate.map { c =>
-          val asCreate = c
-            .into[TimeSeriesCreate]
-            .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
-            .withFieldComputed(_.isString, _.isString.getOrElse(false))
-          if (useLegacyName) {
-            asCreate
-              .withFieldComputed(_.legacyName, _.name)
-              .transform
-          } else {
-            asCreate.transform
-          }
-        },
-        client.timeSeries,
-        doUpsert = true
-      )
-    (update, createOrUpdate).parMapN((_, _) => ())
   }
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
