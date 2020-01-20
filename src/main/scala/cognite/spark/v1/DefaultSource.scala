@@ -32,8 +32,7 @@ class DefaultSource
     extends RelationProvider
     with CreatableRelationProvider
     with SchemaRelationProvider
-    with DataSourceRegister
-    with CdpConnector {
+    with DataSourceRegister {
 
   override def shortName(): String = "cognite"
 

@@ -16,18 +16,6 @@ case class CdpApiErrorPayload(code: Int, message: String)
 case class Error[A](error: A)
 case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
 
-trait CdpConnector {
-  // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
-  // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
-  // Since null keys don't make sense to CDP either, remove them as well.
-  // Additionally, values are limited to 512 characters, yet we still have data where values have
-  // more characters than that, so truncate them to the valid length if required: it's necessary for
-  // copying existing data, and probably for upserts as well.
-  def filterMetadata(metadata: Option[Map[String, String]]): Option[Map[String, String]] =
-    metadata.map(_.filter { case (k, v) => k != null && v != null }
-      .mapValues(_.slice(0, Constants.MetadataValuePostMaxLength)))
-}
-
 object CdpConnector {
   @transient lazy val cdpConnectorExecutionContext: ExecutionContext =
     ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
@@ -44,4 +32,14 @@ object CdpConnector {
 
   type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]
+
+  // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
+  // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
+  // Since null keys don't make sense to CDP either, remove them as well.
+  // Additionally, values are limited to 512 characters, yet we still have data where values have
+  // more characters than that, so truncate them to the valid length if required: it's necessary for
+  // copying existing data, and probably for upserts as well.
+  def filterMetadata(metadata: Option[Map[String, String]]): Option[Map[String, String]] =
+    metadata.map(_.filter { case (k, v) => k != null && v != null }
+      .mapValues(_.slice(0, Constants.MetadataValuePostMaxLength)))
 }

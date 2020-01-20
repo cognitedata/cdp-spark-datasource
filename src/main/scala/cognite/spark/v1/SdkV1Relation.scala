@@ -16,7 +16,6 @@ import io.circe.JsonObject
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends CdfRelation(config, shortName)
-    with CdpConnector
     with Serializable
     with TableScan
     with PrunedFilteredScan {
@@ -85,18 +84,19 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       "Update requires an id or externalId to be set for each row.")
     val (updatesById, updatesByExternalId) = updates.partition(u => u.id.exists(_ > 0))
     val updateIds = if (updatesById.isEmpty) { IO.unit } else {
+      val updatesByIdMap = updatesById.map(u => u.id.get -> u.transformInto[U]).toMap
       resource
-        .updateById(updatesById.map(u => u.id.get -> u.transformInto[U]).toMap)
-        .flatTap(_ => incMetrics(itemsUpdated, updatesById.size))
+        .updateById(updatesByIdMap)
+        .flatTap(_ => incMetrics(itemsUpdated, updatesByIdMap.size))
         .map(_ => ())
     }
     val updateExternalIds = if (updatesByExternalId.isEmpty) { IO.unit } else {
+      val updatesByExternalIdMap = updatesByExternalId
+        .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+        .toMap
       resource
-        .updateByExternalId(
-          updatesByExternalId
-            .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
-            .toMap)
-        .flatTap(_ => incMetrics(itemsUpdated, updatesByExternalId.size))
+        .updateByExternalId(updatesByExternalIdMap)
+        .flatTap(_ => incMetrics(itemsUpdated, updatesByExternalIdMap.size))
         .map(_ => ())
     }
 
@@ -166,6 +166,46 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       ignoreUnknownIds: Boolean = true): IO[Unit] = {
     val ids = deletes.map(_.id)
     resource.deleteByIds(ids, ignoreUnknownIds)
+  }
+
+  def genericUpsert[
+      // The Item (read) type
+      R <: WithExternalId with WithId[Long],
+      // The UpsertSchema type
+      U <: WithExternalId with WithId[Option[Long]],
+      // The ItemCreate type
+      C <: WithExternalId,
+      // The ItemUpdate type
+      Up <: WithSetExternalId,
+      // The resource type (client.<resource>)
+      Re <: UpdateById[R, Up, IO] with UpdateByExternalId[R, Up, IO] with Create[R, C, IO]](
+      itemsToUpdate: Seq[U],
+      itemsToCreate: Seq[C],
+      resource: Re)(
+      implicit transformUpsertToUpdate: Transformer[U, Up],
+      transformCreateToUpdate: Transformer[C, Up]): IO[Unit] = {
+    // In each batch we must not have duplicated external IDs.
+    // Duplicated ids (not external) in eventsToUpdate are ok, however, because
+    // we create a map from id -> update, and that map will contain only one
+    // update per id.
+    val itemsToCreateWithoutDuplicatesByExternalId = itemsToCreate
+      .groupBy(_.externalId)
+      .flatMap {
+        case (None, events) => events
+        case (Some(_), events) => events.take(1)
+      }
+      .toSeq
+
+    val update = updateByIdOrExternalId[U, Up, Re, R](
+      itemsToUpdate,
+      resource
+    )
+    val createOrUpdate = createOrUpdateByExternalId[R, Up, C, Re](
+      Seq.empty,
+      itemsToCreateWithoutDuplicatesByExternalId,
+      resource,
+      doUpsert = true)
+    (update, createOrUpdate).parMapN((_, _) => ())
   }
 }
 

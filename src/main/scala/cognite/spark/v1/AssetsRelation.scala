@@ -3,17 +3,17 @@ package cognite.spark.v1
 import java.time.Instant
 
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, GenericClient}
-import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
-import cognite.spark.v1.SparkSchemaHelper._
-import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.types._
 import cats.implicits._
-import PushdownUtilities._
+import cognite.spark.v1.PushdownUtilities._
+import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1.resources.Assets
+import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, GenericClient}
 import fs2.Stream
+import io.scalaland.chimney.dsl._
+import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.{Row, SQLContext}
 
 class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Asset, Long](config, "assets")
@@ -75,22 +75,16 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val asset = fromRow[AssetsUpsertSchema](r)
       asset.copy(metadata = filterMetadata(asset.metadata))
     }
-    val (assetsToUpdate, assetsToCreate) = assets.partition(r => r.id.exists(_ > 0))
+    val (itemsToUpdate, itemsToCreate) = assets.partition(r => r.id.exists(_ > 0))
 
-    if (assetsToCreate.exists(_.name.isEmpty)) {
+    if (itemsToCreate.exists(_.name.isEmpty)) {
       throw new IllegalArgumentException("The name field must be set when creating assets.")
     }
 
-    val update = updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate, Assets[IO], Asset](
-      assetsToUpdate,
-      client.assets
-    )
-    val createOrUpdate = createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, Assets[IO]](
-      Seq.empty,
-      assetsToCreate.map(_.into[AssetCreate].withFieldComputed(_.name, _.name.get).transform),
-      client.assets,
-      doUpsert = true)
-    (update, createOrUpdate).parMapN((_, _) => ())
+    genericUpsert[Asset, AssetsUpsertSchema, AssetCreate, AssetUpdate, Assets[IO]](
+      itemsToUpdate,
+      itemsToCreate.map(_.into[AssetCreate].withFieldComputed(_.name, _.name.get).transform),
+      client.assets)
   }
 
   private def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[AssetCreate] =
