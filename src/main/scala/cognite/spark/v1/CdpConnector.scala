@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, SynchronousQueue, ThreadPoolExecutor, TimeUnit}
 
 import cats.Parallel
 import cats.effect.{ContextShift, IO, Timer}
@@ -18,7 +18,13 @@ case class Login(user: String, loggedIn: Boolean, project: String, projectId: Lo
 
 object CdpConnector {
   @transient lazy val cdpConnectorExecutionContext: ExecutionContext =
-    ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
+    ExecutionContext.fromExecutor(
+      new ThreadPoolExecutor(
+        0,
+        Constants.MaxConcurrentRequests,
+        60L,
+        TimeUnit.SECONDS,
+        new SynchronousQueue()))
   @transient implicit lazy val cdpConnectorTimer: Timer[IO] = IO.timer(cdpConnectorExecutionContext)
   @transient implicit val cdpConnectorContextShift: ContextShift[IO] =
     IO.contextShift(cdpConnectorExecutionContext)
