@@ -78,10 +78,14 @@ the resource, as a temporary view. You also need write access to the project and
 
 Your schema must match that of the target exactly. To ensure this, copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`. See the [time series example below](#time-series). 
 
-`.insertInto()` does upserts (updates existing rows and inserts new rows) for events and time series. Events are matched on
-`source+sourceId` while time series are matched on `id`. 
+`.insertInto()` does upserts (updates existing rows and inserts new rows) for events, assets, and time series.
+`.insertInto()` upserts use `externalId` (ignoring `id`), attempting to create a row with `externalId`
+if set, and if a row with the given `externalId` already exists it will be updated.
 
-For assets, raw tables and data points, `.insertInto()` does inserts and throws an error if one or more rows already exist.
+Data points also have upsert behavior, but based on the timestamp.
+
+For RAW tables, `.insertInto()` does inserts and throws an error if one or more rows already exist.
+For files, `insertInto()` only supports updating existing files.
 
 **`.save()`**
 
@@ -94,6 +98,10 @@ The valid options for onconflict are:
 - `update` - looks for all rows in the Dataframe in CDF and tries to update them. If one or more rows do not exist, no more rows are updated and an error is thrown. Supports partial updates.
 
 - `upsert` - updates rows that already exist, and inserts new rows.
+In this mode inserted rows with `id` set will always attempt to update the target row with such an `id`.
+If `id` is null, or not present, and `externalId` is not null, it will attempt to create a row with the
+given `externalId`. If such a row already exists, that row will be updated to the values present in the
+row being inserted.
 
 See an example of using `.save()` under [Events below](#events).
 

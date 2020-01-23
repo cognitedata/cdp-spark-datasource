@@ -1,3 +1,14 @@
+# 1.2.7
+
+## Enhancements
+* Duplicated `externalId` are now allowed for upserts. If duplicated
+`externalId` fields are used for upserts
+
+## Fixes
+* We now limit the number of threads being used for HTTP connections.
+In some cases it was possible to use too many threads for HTTP connections,
+and run out of ephemeral ports.
+
 # 1.2.6
 
 ## Fixes
