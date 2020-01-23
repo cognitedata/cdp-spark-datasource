@@ -5,7 +5,6 @@
 upserts, but the order in which they are applied is undefined and we currently
 only guarantee that at least one upsert will be made for each `externalId`,
 and at least one update will be made for each `id` set.
-
 This is based on the assumption that upserts for the same `id` or `externalId`
 will have the same values. If you have a use case where this is not the case,
 please let us know.
