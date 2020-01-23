@@ -1,3 +1,9 @@
+# 1.2.8
+
+## Enhancements
+* Java ConnectionException errors will now be retried, improving the robustness
+of the Spark data source.
+
 # 1.2.7
 
 ## Enhancements
