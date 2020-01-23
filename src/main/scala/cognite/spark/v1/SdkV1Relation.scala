@@ -184,7 +184,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resource: Re)(
       implicit transformUpsertToUpdate: Transformer[U, Up],
       transformCreateToUpdate: Transformer[C, Up]): IO[Unit] = {
-    // In each batch we must not have duplicated external IDs.
+
+    // In each create batch we must not have duplicated external IDs.
     // Duplicated ids (not external) in eventsToUpdate are ok, however, because
     // we create a map from id -> update, and that map will contain only one
     // update per id.
