@@ -1,8 +1,14 @@
 # 1.2.7
 
 ## Enhancements
-* Duplicated `externalId` are now allowed for upserts. If duplicated
-`externalId` fields are used for upserts
+* Multiple rows with the same `id` and `externalId` are now allowed for
+upserts, but the order in which they are applied is undefined and we currently
+only guarantee that at least one upsert will be made for each `externalId`,
+and at least one update will be made for each `id` set.
+
+This is based on the assumption that upserts for the same `id` or `externalId`
+will have the same values. If you have a use case where this is not the case,
+please let us know.
 
 ## Fixes
 * We now limit the number of threads being used for HTTP connections.
