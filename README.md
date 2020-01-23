@@ -103,6 +103,15 @@ If `id` is null, or not present, and `externalId` is not null, it will attempt t
 given `externalId`. If such a row already exists, that row will be updated to the values present in the
 row being inserted.
 
+Multiple rows with the same `id` and `externalId` are allowed for
+upserts, but the order in which they are applied is undefined and we currently
+only guarantee that at least one upsert will be made for each `externalId`,
+and at least one update will be made for each `id` set.
+
+This is based on the assumption that upserts for the same `id` or `externalId`
+will have the same values. If you have a use case where this is not the case,
+please let us know.
+
 See an example of using `.save()` under [Events below](#events).
 
 ### Delete data
