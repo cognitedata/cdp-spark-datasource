@@ -21,7 +21,7 @@ The instructions below explain how to read from, and write to, the different res
     - [Events](#events)
     - [Files metadata](#files-metadata)
     - [3D models and revisions metadata](#3d-models-and-revisions-metadata)
-    - [Raw tables](#raw-tables)
+    - [RAW tables](#raw-tables)
 - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
     - [Run the tests](#run-the-tests)
@@ -29,7 +29,7 @@ The instructions below explain how to read from, and write to, the different res
 
 ## Read and write to CDF
 
-The Cognite Spark Data Source lets you read data from and write data to these resource types: **assets**, **time series**, **data points**, **events**, and **raw tables**. For **files** and **3D models**, you can read **metadata** .
+The Cognite Spark Data Source lets you read data from and write data to these resource types: **assets**, **time series**, **data points**, **events**, and **RAW tables**. For **files** and **3D models**, you can read **metadata** .
 
 ### Common options
 
@@ -303,17 +303,17 @@ val df = spark.read.format("cognite.spark.v1")
 df.show()
 ```
 
-### Raw tables
+### RAW tables
 
-Learn more about Raw tables [here](https://doc.cognitedata.com/api/v1/#tag/Raw).
+Learn more about RAW tables [here](https://doc.cognitedata.com/api/v1/#tag/Raw).
 
-Raw tables are organized in databases and tables that you need to provide as options to the DataFrameReader. `publicdata` does not contain any raw tables so you'll need access to a project with raw table data.
+RAW tables are organized in databases and tables that you need to provide as options to the DataFrameReader. `publicdata` does not contain any RAW tables so you'll need access to a project with raw table data.
 
 Two additional options are required:
 
-- `database`: The name of the database in Cognite Data Fusion's "raw" storage to use. The database must exist, and will not be created if it does not.
+- `database`: The name of the database in Cognite Data Fusion's RAW storage to use. The database must exist, and will not be created if it does not.
 
-- `table`: The name of the table in Cognite Data Fusion's "raw" storage to use. The table must exist in the database specified in the `database` option, and will not be created if it does not.
+- `table`: The name of the table in Cognite Data Fusion's RAW storage to use. The table must exist in the database specified in the `database` option, and will not be created if it does not.
 
 Optionally, you can have Spark infer the DataFrame schema with the following options:
 
@@ -325,7 +325,7 @@ Optionally, you can have Spark infer the DataFrame schema with the following opt
 val df = spark.read.format("cognite.spark.v1")
   .option("apiKey", "myApiKey")
   .option("type", "raw")
-  .option("database", "database-name") // a raw database from your project
+  .option("database", "database-name") // a RAW database from your project
   .option("table", "table-name") // name of a table in "database-name"
   .load()
 df.createTempView("tablename")
