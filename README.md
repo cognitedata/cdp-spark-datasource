@@ -13,6 +13,13 @@ The instructions below explain how to read from, and write to, the different res
     - [Read data](#read-data)
     - [Write data](#write-data)
     - [Delete data](#delete-data)
+- [Schemas](#schemas)
+    - [Assets schema](#assets-schema)
+    - [Events schema](#events-schema)
+    - [Files schema](#files-schema)
+    - [Data points schema](#data-points-schema)
+    - [String data points schema](#string-data-points-schema)
+    - [Time series schema](#time-series-schema)
 - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Asset types](#asset-types)
@@ -125,6 +132,95 @@ See an example for using `.save()` to delete under [Time Series below](#time-ser
 Assets and events will ignore existing ids on deletes. If you prefer to abort the job
 when an attempt to delete an unknown id, use `.option("ignoreUnknownIds", "true")`
 for those resources types.
+
+## Schemas
+
+Spark DataFrames have schemas, with typing and names for columns. When writing to a resource in CDF using
+the `insertInto`-pattern you have to match the schema exactly (see [.insertInto()](#`.insertInto()`) for a tip about this).
+
+The schemas mirror the CDF API as closely as possible.
+
+### Assets schema
+| Column name       | Type                  |  Nullable |
+| ------------------| ----------------------| --------- |
+| `externalId`      | `string`              | Yes       |
+| `name`            | `string`              | No        |
+| `parentId`        | `long`                | Yes       |
+| `description`     | `string`              | Yes       |
+| `metadata`        | `map(string, string)` | Yes       |
+| `source`          | `long`                | Yes       |
+| `id`              | `long`                | No        |
+| `createdTime`     | `timestamp`           | No        |
+| `lastUpdatedTime` | `timestamp`           | No        |
+| `rootId`          | `long`                | Yes       |
+| `aggregates`      | `map(string, long)`   | Yes       |
+
+### Events schema
+| Column name       | Type                  |  Nullable |
+| ------------------| ----------------------| --------- |
+| `id`              | `long`                | No        |
+| `startTime`       | `timestamp`           | Yes       |
+| `endTime`         | `timestamp`           | Yes       |
+| `description`     | `string`              | Yes       |
+| `type`            | `string`              | Yes       |
+| `subtype`         | `string`              | Yes       |
+| `metadata`        | `map(string, string)` | Yes       |
+| `assetIds`        | `array(long)`         | Yes       |
+| `source`          | `long`                | Yes       |
+| `externalId`      | `string`              | Yes       |
+| `createdTime`     | `timestamp`           | No        |
+| `lastUpdatedTime` | `timestamp`           | No        |
+
+### Files schema
+| Column name       | Type                  |  Nullable |
+| ------------------| ----------------------| --------- |
+| `id`              | `long`                | No        |
+| `name`            | `string`              | No        |
+| `source`          | `long`                | Yes       |
+| `externalId`      | `string`              | Yes       |
+| `mimeType`        | `string`              | Yes       |
+| `metadata`        | `map(string, string)` | Yes       |
+| `assetIds`        | `array(long)`         | Yes       |
+| `uploaded`        | `boolean`             | No        |
+| `uploadedTime`    | `timestamp`           | Yes       |
+| `createdTime`     | `timestamp`           | No        |
+| `lastUpdatedTime` | `timestamp`           | No        |
+| `uploadUrl`       | `string`              | Yes       |
+
+### Data points schema
+| Column name   | Type        |  Nullable |
+| --------------| ------------| --------- |
+| `id`          | `long`      | Yes       |
+| `externalId`  | `string`    | Yes       |
+| `timestamp`   | `timestamp` | No        |
+| `value`       | `double`    | No        |
+| `aggregation` | `string`    | Yes       |
+| `granularity` | `string`    | Yes       |
+
+### String data points schema
+| Column name   | Type        |  Nullable |
+| --------------| ------------| --------- |
+| `id`          | `long`      | Yes       |
+| `externalId`  | `string`    | Yes       |
+| `timestamp`   | `timestamp` | No        |
+| `value`       | `string`    | No        |
+
+### Time series schema
+| Column name          | Type                  |  Nullable |
+| ---------------------| ----------------------| --------- |
+| `name`               | `string`              | Yes       |
+| `isString`           | `boolean`             | No        |
+| `metadata`           | `map(string, string)` | Yes       |
+| `unit`               | `string`              | Yes       |
+| `assetId`            | `long`                | Yes       |
+| `isStep`             | `boolean`             | No        |
+| `description`        | `string`              | Yes       |
+| `securityCategories` | `array(long)`         | Yes       |
+| `id`                 | `long`                | No        |
+| `externalId`         | `string`              | Yes       |
+| `createdTime`        | `timestamp`           | No        |
+| `lastUpdatedTime`    | `timestamp`           | No        |
+
 
 ## Examples by resource types
 
