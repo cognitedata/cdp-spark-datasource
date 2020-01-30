@@ -138,6 +138,7 @@ case class TimeSeriesUpsertSchema(
     name: Option[String] = None,
     externalId: Option[String] = None,
     metadata: Option[Map[String, String]] = None,
+    unit: Option[String] = None,
     assetId: Option[Long] = None,
     description: Option[String] = None,
     securityCategories: Option[Seq[Long]] = None,
