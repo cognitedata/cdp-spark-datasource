@@ -70,10 +70,10 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
       "count",
       "sum",
       "interpolation",
-      "stepinterpolation",
-      "totalvariation",
-      "continuousvariance",
-      "discretevariance")
+      "stepInterpolation",
+      "totalVariation",
+      "continuousVariance",
+      "discreteVariance")
     aggregation match {
       case agg: String if allowedAggregations.contains(agg) => AggregationFilter(agg)
       case _ => sys.error(s"Invalid aggregation $aggregation")
