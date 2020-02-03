@@ -1,3 +1,9 @@
+# 1.2.9
+
+## Fixes
+* Fixes a bug where the aggregations `stepInterpolation`, `totalVariation`,
+`continuousVariance` and `discreteVariance` could not be read due to case errors.
+
 # 1.2.8
 
 ## Enhancements
