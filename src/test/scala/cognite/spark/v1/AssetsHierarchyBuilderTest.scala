@@ -159,7 +159,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
       AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
       AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad")),
-      AssetCreate("sonChild", None, None, Some(testName),Some("sonChild"), None, Some("son")),
+      AssetCreate("sonChild", None, None, Some(testName),Some("sonChild"), None, Some("son"))
     )).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -177,7 +177,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
       AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("son")),
       AssetCreate("daughterChildUpdated", None, None, Some(testName),Some("sonChild"), None, Some("daughter")),
-      AssetCreate("daughterChildTwo", None, None, Some(testName),Some("daughterChildTwo"), None, Some("daughter")),
+      AssetCreate("daughterChildTwo", None, None, Some(testName),Some("daughterChildTwo"), None, Some("daughter"))
     ).map(a => a.copy(name = a.name + "Updated"))
 
     spark.sparkContext.parallelize(updatedTree).toDF().write
@@ -220,7 +220,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
 
     val updatedTree = Seq(
       AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("newSibling", None, None, Some(testName),Some("newSibling"), None, Some("dad")),
+      AssetCreate("newSibling", None, None, Some(testName),Some("newSibling"), None, Some("dad"))
     )
 
       spark.sparkContext.parallelize(updatedTree).toDF().write
