@@ -105,7 +105,6 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
   import CdpConnector._
 
   import PushdownUtilities.filtersToTimestampLimits
-
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new RuntimeException("Insert not supported for datapoints. Use upsert instead.")
 

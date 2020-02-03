@@ -87,7 +87,8 @@ trait SparkTest {
       OnConflict.ABORT,
       spark.sparkContext.applicationId,
       Constants.DefaultParallelismPerPartition,
-      ignoreUnknownIds = true
+      ignoreUnknownIds = true,
+      deleteMissingAssets = false
     )
 
   private def getCounter(metricName: String): Long =

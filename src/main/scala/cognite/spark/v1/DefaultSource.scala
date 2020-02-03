@@ -18,7 +18,8 @@ case class RelationConfig(
     onConflict: OnConflict.Value,
     applicationId: String,
     parallelismPerPartition: Int,
-    ignoreUnknownIds: Boolean
+    ignoreUnknownIds: Boolean,
+    deleteMissingAssets: Boolean
 )
 
 object OnConflict extends Enumeration {
@@ -98,6 +99,7 @@ class DefaultSource
         Constants.DefaultParallelismPerPartition)
     }
     val ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", true)
+    val deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets", false)
     RelationConfig(
       auth,
       batchSize,
@@ -110,7 +112,8 @@ class DefaultSource
       saveMode,
       sqlContext.sparkContext.applicationId,
       parallelismPerPartition,
-      ignoreUnknownIds
+      ignoreUnknownIds,
+      deleteMissingAssets
     )
   }
 
@@ -185,49 +188,54 @@ class DefaultSource
       data: DataFrame): BaseRelation = {
     val config = parseRelationConfig(parameters, sqlContext)
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
-    val relation = resourceType match {
-      case "events" =>
-        new EventsRelation(config)(sqlContext)
-      case "timeseries" =>
-        val useLegacyName = toBoolean(parameters, "useLegacyName")
-        new TimeSeriesRelation(config, useLegacyName)(sqlContext)
-      case "assets" =>
-        new AssetsRelation(config)(sqlContext)
-      case "datapoints" =>
-        new NumericDataPointsRelationV1(config)(sqlContext)
-      case "stringdatapoints" =>
-        new StringDataPointsRelationV1(config)(sqlContext)
-      case _ => sys.error(s"Resource type $resourceType does not support save()")
-    }
-
-    data.foreachPartition((rows: Iterator[Row]) => {
-      import CdpConnector._
-      val batches = rows.grouped(Constants.DefaultBatchSize).toVector
-
-      config.onConflict match {
-        case OnConflict.ABORT =>
-          batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-            batchGroup.parTraverse(relation.insert).unsafeRunSync()
-          }
-
-        case OnConflict.UPSERT =>
-          batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-            batchGroup.parTraverse(relation.upsert).unsafeRunSync()
-          }
-
-        case OnConflict.UPDATE =>
-          batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-            batchGroup.parTraverse(relation.update).unsafeRunSync()
-          }
-
-        case OnConflict.DELETE =>
-          batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-            batchGroup.parTraverse(relation.delete).unsafeRunSync()
-          }
+    if (resourceType == "assetshierarchy") {
+      val relation = new AssetsHierarchyBuilder(config)(sqlContext)
+      relation.build(data).unsafeRunSync()
+      relation
+    } else {
+      val relation = resourceType match {
+        case "events" =>
+          new EventsRelation(config)(sqlContext)
+        case "timeseries" =>
+          val useLegacyName = toBoolean(parameters, "useLegacyName")
+          new TimeSeriesRelation(config, useLegacyName)(sqlContext)
+        case "assets" =>
+          new AssetsRelation(config)(sqlContext)
+        case "datapoints" =>
+          new NumericDataPointsRelationV1(config)(sqlContext)
+        case "stringdatapoints" =>
+          new StringDataPointsRelationV1(config)(sqlContext)
+        case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
+      data.foreachPartition((rows: Iterator[Row]) => {
+        import CdpConnector._
+        val batches = rows.grouped(Constants.DefaultBatchSize).toVector
 
-      ()
-    })
-    relation
+        config.onConflict match {
+          case OnConflict.ABORT =>
+            batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+              batchGroup.parTraverse(relation.insert).unsafeRunSync()
+            }
+
+          case OnConflict.UPSERT =>
+            batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+              batchGroup.parTraverse(relation.upsert).unsafeRunSync()
+            }
+
+          case OnConflict.UPDATE =>
+            batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+              batchGroup.parTraverse(relation.update).unsafeRunSync()
+            }
+
+          case OnConflict.DELETE =>
+            batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+              batchGroup.parTraverse(relation.delete).unsafeRunSync()
+            }
+        }
+
+        ()
+      })
+      relation
+    }
   }
 }

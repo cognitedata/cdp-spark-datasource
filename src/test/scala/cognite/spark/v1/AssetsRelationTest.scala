@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
-import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
@@ -33,7 +32,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("partitions", "1")
       .load()
 
-    df.createTempView("assets")
+    df.createOrReplaceTempView("assets")
     val res = spark
       .sql("select * from assets")
       .collect()

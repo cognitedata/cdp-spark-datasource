@@ -38,7 +38,6 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     extends DataPointsRelationV1[StringDataPointsItem](config, "stringdatapoints")(sqlContext)
     with WritableRelation {
   import CdpConnector._
-
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new RuntimeException("Insert not supported for stringdatapoints. Please use upsert instead.")
 
