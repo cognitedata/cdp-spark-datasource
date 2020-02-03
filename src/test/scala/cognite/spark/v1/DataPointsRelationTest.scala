@@ -51,7 +51,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "datapoints")
       .load()
       .where(
-        s"aggregation = 'min' and granularity = '1d' and id = $valhallTimeSeriesId")
+        s"aggregation = 'stepInterpolation' and granularity = '1d' and id = $valhallTimeSeriesId")
 
     assert(df1.count() > 10)
     val df1Partitions = spark.read
@@ -203,6 +203,19 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
           s"timestamp > to_timestamp(0) and timestamp <= to_timestamp(1510358400) and aggregation in ('max') and granularity = '$granularity' and id = $valhallTimeSeriesId")
       assert(df.count() >= 1)
     }
+  }
+
+  it should "accept all aggregation options" in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "datapoints")
+      .load()
+      .where(
+        s"timestamp > to_timestamp(0) and timestamp <= to_timestamp(1510358400) and " +
+          s"aggregation in ('average', 'max', 'min', 'count', 'sum', 'interpolation', 'stepInterpolation', 'totalVariation', 'continuousVariance', 'discreteVariance') " +
+          s"and granularity = '1m' and id = $valhallTimeSeriesId")
+    assert(df.select("aggregation").distinct.count == 10)
   }
 
   it should "read data points without duplicates" taggedAs ReadTest in {
