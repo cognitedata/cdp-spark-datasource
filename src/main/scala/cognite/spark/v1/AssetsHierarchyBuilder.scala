@@ -45,6 +45,8 @@ final case class NoRootException(
     extends Exception(message)
 final case class InvalidTreeException(message: String = s"The tree is has an invalid structure.")
     extends Exception(message)
+final case class EmptyExternalIdException(message: String = s"ExternalId cannot be an empty String.")
+    extends Exception(message)
 
 class AssetsHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdfRelation(config, "assetshierarchy") {
@@ -200,6 +202,13 @@ class AssetsHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       root: AssetsIngestSchema,
       children: Array[AssetsIngestSchema]): Seq[AssetsIngestSchema] = {
     val visited = Seq[AssetsIngestSchema]()
+    val emptyExternalIds = children.filter(_.externalId == "")
+    if (emptyExternalIds.nonEmpty) {
+      throw EmptyExternalIdException(
+        s"""Found empty externalId for children with names: ${emptyExternalIds
+          .map(_.name)
+          .mkString(", ")}""")
+    }
     val insertableTree = iterateChildren(children, Array(root.externalId), visited)
     val insertableTreeExternalIds = insertableTree.map(_.externalId)
 

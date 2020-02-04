@@ -79,6 +79,27 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     e shouldBe an[InvalidTreeException]
   }
 
+  it should "throw an error if one more externalIds are empty Strings" in {
+    val e = intercept[Exception] {
+      spark.sparkContext.parallelize(Seq(
+        AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
+        AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
+        AssetCreate("daughter", None, None, Some(testName),Some(""), None, Some("dad")),
+        AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
+        AssetCreate("othertree", None, None, Some(testName),Some(""), None, Some("otherDad"))
+      )).toDF().write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assetshierarchy")
+        .save
+    }
+    e shouldBe an[EmptyExternalIdException]
+    val errorMessage = e.getMessage
+    errorMessage should include("daughter")
+    errorMessage should include("othertree")
+    errorMessage should not include("daughterSon")
+  }
+
   it should "ingest an asset tree" in {
     writeClient.assets.deleteByExternalIds(Seq("dad"), true, true)
 
