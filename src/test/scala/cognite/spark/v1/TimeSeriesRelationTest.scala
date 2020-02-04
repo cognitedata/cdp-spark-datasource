@@ -3,15 +3,18 @@ package cognite.spark.v1
 import java.util.UUID
 
 import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.v1.TimeSeries
 import org.apache.spark.sql.Row
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, OptionValues}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
 import com.softwaremill.sttp._
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 
-class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
+import scala.util.Try
+
+class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with OptionValues {
   val sourceDf = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", readApiKey)
@@ -33,6 +36,15 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     .option("useLegacyName", true)
     .load()
   destinationDfWithLegacyName.createOrReplaceTempView("destinationTimeSeriesWithLegacyName")
+
+  val destinationDfWithLegacyNameFromExternalId = spark.read
+    .format("cognite.spark.v1")
+    .option("apiKey", writeApiKey)
+    .option("type", "timeseries")
+    .option("useLegacyName", "externalId")
+    .load()
+  destinationDfWithLegacyNameFromExternalId.createOrReplaceTempView(
+    "destinationTimeSeriesWithLegacyNameFromExternalId")
 
   it should "read all data regardless of the number of partitions" taggedAs ReadTest in {
     val dfreader = spark.read.format("cognite.spark.v1")
@@ -112,12 +124,13 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(dfAfterPost.head.get(0) == null)
   }
 
-  it should "create time series with legacyName if useLegacyName option is set" taggedAs WriteTest in {
+  it should "create time series with legacyName based on name if useLegacyName option is 'true'" taggedAs WriteTest in {
     val legacyNameUnit = s"legacy-name-${shortRandomString()}"
     implicit val backend: SttpBackend[Id, Nothing] = HttpURLConnectionBackend()
     val project = writeClient.login.status.project
     val legacyName1 = shortRandomString()
-    val legacyName2 = shortRandomString()
+    val externalId1 = shortRandomString()
+    val externalId2 = shortRandomString()
     val before = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(legacyName1)
     before.code shouldBe 400
     val before05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
@@ -137,7 +150,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
               |false as isStep,
               |null as securityCategories,
               |0 as id,
-              |'$legacyName1' as externalId,
+              |'$externalId1' as externalId,
               |now() as createdTime,
               |now() lastUpdatedTime
      """.stripMargin)
@@ -145,8 +158,9 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .write
       .insertInto("destinationTimeSeriesWithLegacyName")
 
-    val after = writeClient.timeSeries.retrieveByExternalId(legacyName1)
-    after.externalId.get shouldBe legacyName1
+    val after = writeClient.timeSeries.retrieveByExternalId(externalId1)
+    after.externalId.get shouldBe externalId1
+
     val after05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
       .header("api-key", writeApiKey)
       .contentType("application/json")
@@ -168,7 +182,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
               |false as isStep,
               |null as securityCategories,
               |0 as id,
-              |'$legacyName2' as externalId,
+              |'$externalId2' as externalId,
               |now() as createdTime,
               |now() lastUpdatedTime
      """.stripMargin)
@@ -178,7 +192,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
     enableSparkLogging()
     assert(exception.getCause.isInstanceOf[IllegalArgumentException])
 
-    val before2 = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(legacyName2)
+    val before2 = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(externalId2)
     before2.code shouldBe 400
 
     // inserting without useLegacyName should work.
@@ -193,7 +207,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
               |false as isStep,
               |null as securityCategories,
               |0 as id,
-              |'$legacyName2' as externalId,
+              |'$externalId2' as externalId,
               |now() as createdTime,
               |now() lastUpdatedTime
      """.stripMargin)
@@ -201,10 +215,71 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest {
       .write
       .insertInto("destinationTimeSeries")
 
-    val after2 = writeClient.timeSeries.retrieveByExternalId(legacyName1)
-    after2.externalId.get shouldBe legacyName1
+    val after2 = writeClient.timeSeries.retrieveByExternalId(externalId1)
+    after2.externalId.get shouldBe externalId1
 
-    writeClient.timeSeries.deleteByExternalIds(Seq(legacyName1, legacyName2))
+    writeClient.timeSeries.deleteByExternalIds(Seq(externalId1, externalId2))
+  }
+
+  it should "create time series with legacyName from externalId if useLegacyName option is 'externalId'" taggedAs WriteTest in {
+    val legacyNameUnit = s"legacy-name-${shortRandomString()}"
+    implicit val backend: SttpBackend[Id, Nothing] = HttpURLConnectionBackend()
+    val project = writeClient.login.status.project
+    val name = shortRandomString()
+    val externalId = shortRandomString()
+    val before = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(externalId)
+    before.code shouldBe 400
+    val before05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${externalId}")
+      .header("api-key", writeApiKey)
+      .contentType("application/json")
+      .acceptEncoding("application/json")
+      .send()
+    before05.code shouldEqual 404
+    spark
+      .sql(s"""
+              |select null as description,
+              |'$name' as name,
+              |false as isString,
+              |null as metadata,
+              |'$legacyNameUnit' as unit,
+              |null as assetId,
+              |false as isStep,
+              |null as securityCategories,
+              |0 as id,
+              |'$externalId' as externalId,
+              |now() as createdTime,
+              |now() lastUpdatedTime
+     """.stripMargin)
+      .select(sourceDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationTimeSeriesWithLegacyNameFromExternalId")
+
+    val after = writeClient.timeSeries.retrieveByExternalId(externalId)
+    after.externalId.get shouldBe externalId
+
+    val after05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${externalId}")
+      .header("api-key", writeApiKey)
+      .contentType("application/json")
+      .acceptEncoding("application/json")
+      .send()
+    after05.code shouldEqual 200
+
+    writeClient.timeSeries.deleteByExternalIds(Seq(externalId))
+  }
+
+  it should "correctly parse useLegacyName options" in {
+    LegacyNameSource.fromSparkOption(None) shouldBe LegacyNameSource.None
+    LegacyNameSource.fromSparkOption(Some("false")) shouldBe LegacyNameSource.None
+
+    LegacyNameSource.fromSparkOption(Some("true")) shouldBe LegacyNameSource.Name
+    LegacyNameSource.fromSparkOption(Some("name")) shouldBe LegacyNameSource.Name
+
+    LegacyNameSource.fromSparkOption(Some("externalId")) shouldBe LegacyNameSource.ExternalId
+    LegacyNameSource.fromSparkOption(Some("ExternalID")) shouldBe LegacyNameSource.ExternalId
+
+    assertThrows[IllegalArgumentException] {
+      LegacyNameSource.fromSparkOption(Some("bogus"))
+    }
   }
 
   it should "successfully both update and insert time series" taggedAs WriteTest in {

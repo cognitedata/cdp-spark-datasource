@@ -136,8 +136,9 @@ class DefaultSource
       case "stringdatapoints" =>
         new StringDataPointsRelationV1(config)(sqlContext)
       case "timeseries" =>
-        val useLegacyName = toBoolean(parameters, "useLegacyName")
-        new TimeSeriesRelation(config, useLegacyName)(sqlContext)
+        val legacyNameSource =
+          LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
+        new TimeSeriesRelation(config, legacyNameSource)(sqlContext)
       case "raw" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
@@ -203,8 +204,9 @@ class DefaultSource
         case "events" =>
           new EventsRelation(config)(sqlContext)
         case "timeseries" =>
-          val useLegacyName = toBoolean(parameters, "useLegacyName")
-          new TimeSeriesRelation(config, useLegacyName)(sqlContext)
+          val legacyNameSource =
+            LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
+          new TimeSeriesRelation(config, legacyNameSource)(sqlContext)
         case "assets" =>
           new AssetsRelation(config)(sqlContext)
         case "datapoints" =>
