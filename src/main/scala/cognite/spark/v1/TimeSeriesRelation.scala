@@ -15,7 +15,8 @@ import PushdownUtilities._
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
 
-class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sqlContext: SQLContext)
+class TimeSeriesRelation(config: RelationConfig, legacyNameSource: LegacyNameSource.Value)(
+    val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
     with WritableRelation
     with InsertableRelation {
@@ -57,12 +58,14 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
           .into[TimeSeriesCreate]
           .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
           .withFieldComputed(_.isString, _.isString.getOrElse(false))
-        if (useLegacyName) {
-          asCreate
-            .withFieldComputed(_.legacyName, _.name)
-            .transform
-        } else {
-          asCreate.transform
+
+        legacyNameSource match {
+          case LegacyNameSource.None =>
+            asCreate.transform
+          case LegacyNameSource.Name =>
+            asCreate.withFieldComputed(_.legacyName, _.name).transform
+          case LegacyNameSource.ExternalId =>
+            asCreate.withFieldComputed(_.legacyName, _.externalId).transform
         }
       },
       client.timeSeries
@@ -73,10 +76,11 @@ class TimeSeriesRelation(config: RelationConfig, useLegacyName: Boolean)(val sql
     val timeSeriesSeq = rows.map { r =>
       val timeSeries = fromRow[TimeSeriesCreate](r)
       val timeSeriesWithMetadata = timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
-      if (useLegacyName) {
-        timeSeriesWithMetadata.copy(legacyName = timeSeries.name)
-      } else {
-        timeSeriesWithMetadata
+      legacyNameSource match {
+        case LegacyNameSource.None => timeSeriesWithMetadata
+        case LegacyNameSource.Name => timeSeriesWithMetadata.copy(legacyName = timeSeries.name)
+        case LegacyNameSource.ExternalId =>
+          timeSeriesWithMetadata.copy(legacyName = timeSeries.externalId)
       }
     }
 
@@ -131,6 +135,19 @@ object TimeSeriesRelation extends UpsertSchema {
   val upsertSchema = structType[TimeSeriesUpsertSchema]
   val insertSchema = structType[TimeSeriesInsertSchema]
   val readSchema = structType[TimeSeriesReadSchema]
+}
+
+object LegacyNameSource extends Enumeration {
+  type LegacyNameSource = Value
+  val None, Name, ExternalId = Value
+
+  def fromSparkOption(configValue: Option[String]): LegacyNameSource =
+    configValue.map(_.toLowerCase).getOrElse("false") match {
+      case "false" => LegacyNameSource.None
+      case "true" | "name" => LegacyNameSource.Name
+      case "externalid" => LegacyNameSource.ExternalId
+      case invalid => throw new IllegalArgumentException(s"Invalid value for useLegacyName: $invalid")
+    }
 }
 
 case class TimeSeriesUpsertSchema(
