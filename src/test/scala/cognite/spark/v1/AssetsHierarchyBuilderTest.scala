@@ -103,12 +103,14 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
   it should "ingest an asset tree" in {
     writeClient.assets.deleteByExternalIds(Seq("dad"), true, true)
 
-    spark.sparkContext.parallelize(Seq(
+    val assetTree = Seq(
       AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
       AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
       AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad")),
       AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter"))
-    )).toDF().write
+    )
+
+    spark.sparkContext.parallelize(assetTree).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "assetshierarchy")
@@ -117,7 +119,8 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
 
     val result = retryWhile[Array[Row]](
       spark.sql(s"select * from assets where source = '$testName'").collect,
-      rows => rows.length != 4)
+      rows => rows.map(r => r.getString(1)).toSet != assetTree.map(_.name).toSet
+    )
 
     val extIdMap = getAssetsMap(result)
     assert(extIdMap(Some("son")).parentId.contains(extIdMap(Some("dad")).id))

@@ -236,3 +236,7 @@ class AssetsHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def schema: StructType = structType[AssetsIngestSchema]
 }
+
+object AssetsHierarchyBuilder {
+  val upsertSchema = structType[AssetsIngestSchema]
+}
