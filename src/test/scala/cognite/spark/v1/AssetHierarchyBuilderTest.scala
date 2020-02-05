@@ -5,7 +5,7 @@ import com.cognite.sdk.scala.v1.AssetCreate
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
 
-class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
+class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
   import spark.implicits._
 
   private val assetsSourceDf = spark.read
@@ -15,14 +15,14 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     .load()
   assetsSourceDf.createOrReplaceTempView("assets")
 
-  val testName = "assetshierarchyTest"
+  val testName = "assetHierarchyTest"
 
   it should "throw an error on empty input" in {
     val e = intercept[Exception] {
       spark.sparkContext.parallelize(Seq[AssetCreate]()).toDF().write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
-        .option("type", "assetshierarchy")
+        .option("type", "assethierarchy")
         .save
     }
     e shouldBe an[NoRootException]
@@ -39,7 +39,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       )).toDF().write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
-        .option("type", "assetshierarchy")
+        .option("type", "assethierarchy")
         .save
     }
     e shouldBe an[InvalidTreeException]
@@ -56,7 +56,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       )).toDF().write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
-        .option("type", "assetshierarchy")
+        .option("type", "assethierarchy")
         .save
     }
     e shouldBe an[MultipleRootsException]
@@ -73,7 +73,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       )).toDF().write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
-        .option("type", "assetshierarchy")
+        .option("type", "assethierarchy")
         .save
     }
     e shouldBe an[InvalidTreeException]
@@ -90,7 +90,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       )).toDF().write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
-        .option("type", "assetshierarchy")
+        .option("type", "assethierarchy")
         .save
     }
     e shouldBe an[EmptyExternalIdException]
@@ -113,7 +113,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.parallelize(assetTree).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("batchSize", "2")
       .save
 
@@ -141,7 +141,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     )).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("batchSize", "3")
       .save
 
@@ -161,7 +161,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.parallelize(updatedTree).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("deleteMissingAssets", "true")
       .option("batchSize", "2")
       .save
@@ -187,7 +187,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     )).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("batchSize", "5")
       .save
 
@@ -207,7 +207,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.parallelize(updatedTree).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("", "true")
       .option("batchSize", "1")
       .save
@@ -233,7 +233,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     )).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("batchSize", "3")
       .save
 
@@ -250,7 +250,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       spark.sparkContext.parallelize(updatedTree).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("deleteMissingAssets", "false")
       .option("batchSize", "2")
       .save
@@ -282,7 +282,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     )).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("batchSize", "2")
       .save
 
@@ -302,7 +302,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.parallelize(updatedTree).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("deleteMissingAssets", "true")
       .option("batchSize", "3")
       .save
@@ -330,7 +330,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     )).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("batchSize", "3")
       .save
 
@@ -346,7 +346,7 @@ class AssetsHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext.parallelize(updatedTree).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "assetshierarchy")
+      .option("type", "assethierarchy")
       .option("deleteMissingAssets", "true")
       .option("batchSize", "1")
       .save

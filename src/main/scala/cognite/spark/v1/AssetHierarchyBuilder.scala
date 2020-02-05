@@ -48,8 +48,8 @@ final case class InvalidTreeException(message: String = s"The tree is has an inv
 final case class EmptyExternalIdException(message: String = s"ExternalId cannot be an empty String.")
     extends Exception(message)
 
-class AssetsHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
-    extends CdfRelation(config, "assetshierarchy") {
+class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
+    extends CdfRelation(config, "assethierarchy") {
 
   import CdpConnector.cdpConnectorContextShift
 
@@ -158,11 +158,11 @@ class AssetsHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   def needsUpdate(child: AssetsIngestSchema, cdfTree: Seq[Asset]): Boolean = {
-    // Find the matching Asset in CDF
+    // Find the matching asset in CDF
     val cdfAsset = cdfTree.find(a => a.externalId.contains(child.externalId))
     cdfAsset match {
       case Some(asset) =>
-        // Find the parent Asset in CDF to be able to get the externalId of the parent
+        // Find the parent asset in CDF to be able to get the externalId of the parent
         cdfTree.find(a => asset.parentId.contains(a.id)) match {
           case Some(parentAsset) =>
             !isMostlyEqual(child, asset) || !parentAsset.externalId.contains(child.parentExternalId)
@@ -237,6 +237,6 @@ class AssetsHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   override def schema: StructType = structType[AssetsIngestSchema]
 }
 
-object AssetsHierarchyBuilder {
+object AssetHierarchyBuilder {
   val upsertSchema = structType[AssetsIngestSchema]
 }
