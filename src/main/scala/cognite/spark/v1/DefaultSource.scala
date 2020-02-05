@@ -188,8 +188,8 @@ class DefaultSource
       data: DataFrame): BaseRelation = {
     val config = parseRelationConfig(parameters, sqlContext)
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
-    if (resourceType == "assetshierarchy") {
-      val relation = new AssetsHierarchyBuilder(config)(sqlContext)
+    if (resourceType == "assethierarchy") {
+      val relation = new AssetHierarchyBuilder(config)(sqlContext)
       relation.build(data).unsafeRunSync()
       relation
     } else {
