@@ -1,3 +1,8 @@
+# 1.2.10
+
+## Enhancements
+* Use Cognite Scala SDK version 1.1.2
+
 # 1.2.9
 
 ## Fixes
