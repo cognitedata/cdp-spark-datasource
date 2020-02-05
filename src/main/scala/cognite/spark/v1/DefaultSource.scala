@@ -25,7 +25,7 @@ case class RelationConfig(
 
 object OnConflict extends Enumeration {
   type Mode = Value
-  val ABORT, UPDATE, UPSERT, DELETE = Value
+  val Abort, Update, Upsert, Delete = Value
 
   def withNameOpt(s: String): Option[Value] = values.find(_.toString.toLowerCase == s.toLowerCase())
 }
@@ -220,22 +220,22 @@ class DefaultSource
         val batches = rows.grouped(Constants.DefaultBatchSize).toVector
 
         config.onConflict match {
-          case OnConflict.ABORT =>
+          case OnConflict.Abort =>
             batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
               batchGroup.parTraverse(relation.insert).unsafeRunSync()
             }
 
-          case OnConflict.UPSERT =>
+          case OnConflict.Upsert =>
             batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
               batchGroup.parTraverse(relation.upsert).unsafeRunSync()
             }
 
-          case OnConflict.UPDATE =>
+          case OnConflict.Update =>
             batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
               batchGroup.parTraverse(relation.update).unsafeRunSync()
             }
 
-          case OnConflict.DELETE =>
+          case OnConflict.Delete =>
             batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
               batchGroup.parTraverse(relation.delete).unsafeRunSync()
             }
