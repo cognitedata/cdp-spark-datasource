@@ -35,6 +35,25 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     .option("onconflict", "delete")
     .save()
 
+  /*
+  Open Industrial Data will, every now and again, insert some more Events. To stop this from breaking our
+  tests we apply an upper bound filter on createdTime for all Events
+   */
+  private def getBaseReader(
+    collectMetrics: Boolean = false,
+    metricsPrefix: String = "",
+    upperTimeBound: String = "1580000000"): DataFrame = {
+
+    spark.read
+      .format("cognite.spark.v1")
+      .option("type", "events")
+      .option("apiKey", readApiKey)
+      .option("collectMetrics", collectMetrics)
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(s"createdTime < to_timestamp($upperTimeBound)")
+  }
+
   "EventsRelation" should "allow simple reads" taggedAs ReadTest in {
     val df = spark.read
       .format("cognite.spark.v1")
@@ -54,14 +73,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "apply a single pushdown filter" taggedAs ReadTest in {
     val metricsPrefix = "single.pushdown.filter"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where(s"type = 'Workpackage'")
+
     assert(df.count == 20)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 20)
@@ -70,15 +84,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.and.non.pushdown"
     // The contents of the parenthesis would need all content, but the left side should cancel that out
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix, "1574165300")
       .where(s"(type = 'RULE_BROKEN' or description = 'Rule test rule broken.') and type = 'RULE_BROKEN'")
-      .where("createdTime < to_timestamp(1574165300)")
+
     assert(df.count == 269)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 269)
@@ -86,16 +94,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "read all data when necessary" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.or.non.pushdown"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .option("partitions", "500")
-      .load()
+    val df = getBaseReader(true, metricsPrefix, "1574165300")
       .where(s"type = 'RULE_BROKEN' or description = 'Rule test rule broken.'")
-      .where("createdTime < to_timestamp(1574165300)")
+
     assert(df.count == 269)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead > 3000)
@@ -103,16 +104,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle duplicates in a pushdown filter scenario" taggedAs ReadTest in {
     val metricsPrefix = "single.pushdown.filter.duplicates"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .option("partitions", "200")
-      .load()
+    val df = getBaseReader(true, metricsPrefix, "1574165300")
       .where(s"type = 'RULE_BROKEN' or subtype = '-LLibBzAJWfs1aBXHgg3'")
-      .where("createdTime < to_timestamp(1574165300)")
+
     assert(df.count == 269)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 269)
@@ -120,14 +114,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "apply multiple pushdown filters" taggedAs ReadTest in {
     val metricsPrefix = "multiple.pushdown.filters"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where(s"type = 'Workpackage' and source = 'akerbp-cdp'")
+
     assert(df.count == 20)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 20)
@@ -135,15 +124,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle or conditions" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.or"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix, "1574165300")
       .where(s"type = 'Workpackage' or type = 'RULE_BROKEN'")
-      .where("createdTime < to_timestamp(1574165300)")
+
     assert(df.count == 289)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 289)
@@ -151,13 +134,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle in() conditions" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.in"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where(s"type in('Workpackage','Worktask')")
     assert(df.count == 1147)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -166,15 +143,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle and, or and in() in one query" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.and.or.in"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix, "1574165300")
       .where(s"(type = 'RULE_BROKEN' or type = '***.***') and subtype in('-LLibBzAJWfs1aBXHgg3', '*** *** by *** *** ***', '*** *** by ***-ON Application')")
-      .where("createdTime < to_timestamp(1574165300)")
+
     assert(df.count == 22)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 22)
@@ -182,13 +153,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pushdown filters on minimum startTime" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.minStartTime"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where("startTime > to_timestamp(1568105460)")
     assert(df.count >= 1346)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -197,13 +162,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pushdown filters on maximum createdTime" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.maxCreatedTime"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where("createdTime <= to_timestamp(1535448052)")
     assert(df.count == 6907)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -212,13 +171,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pushdown filters on maximum startTime" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.maxStartTime"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where(s"startTime < to_timestamp(1533132293) and source = 'akerbp-cdp'")
     assert(df.count == 40004)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -227,13 +180,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pushdown filters on minimum and maximum startTime" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.minMaxStartTime"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where(s"startTime < to_timestamp(1533132293) and startTime > to_timestamp(1533000293)")
     assert(df.count == 396)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -242,13 +189,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pushdown filters on assetIds" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.assetIds"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where(s"assetIds In(Array(3047932288982463)) and startTime <= to_timestamp(1330239600)")
     assert(df.count == 12)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -257,13 +198,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pusdown filters on eventIds" taggedAs WriteTest ignore {
     val metricsPrefix = "pushdown.filters.id"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where("id = 370545839260513")
     assert(df.count == 1)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -272,13 +207,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pusdown filters on many eventIds" taggedAs WriteTest ignore {
     val metricsPrefix = "pushdown.filters.ids"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where("id In(607444033860, 3965637099169, 10477877031034, 17515837146970, 19928788984614, 21850891340773)")
     assert(df.count == 6)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -287,13 +216,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pusdown filters on many eventIds with or" taggedAs WriteTest ignore {
     val metricsPrefix = "pushdown.filters.orids"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where("""
           id = 607444033860 or id = 3965637099169 or id = 10477877031034 or
           id = 17515837146970 or id = 19928788984614 or id = 21850891340773""")
@@ -304,13 +227,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pusdown filters on many eventIds with other filters" taggedAs WriteTest ignore {
     val metricsPrefix = "pushdown.filters.idsAndDescription"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where("""id In(
         607444033860, 3965637099169,
         10477877031034, 17515837146970,
@@ -322,15 +239,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle a really advanced query" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.advanced"
-
-    val df2 = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "events")
-      .option("limitPerPartition", "1000")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
 
     val df = spark.read
       .format("cognite.spark.v1")
@@ -351,13 +259,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "handle pushdown on eventId or something else" taggedAs WriteTest ignore {
     val metricsPrefix = "pushdown.filters.idortype"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
+    val df = getBaseReader(true, metricsPrefix)
       .where(s"type = 'maintenance' or id = 17515837146970")
     assert(df.count == 6)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
