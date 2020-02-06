@@ -19,7 +19,8 @@ case class RelationConfig(
     applicationId: String,
     parallelismPerPartition: Int,
     ignoreUnknownIds: Boolean,
-    deleteMissingAssets: Boolean
+    deleteMissingAssets: Boolean,
+    ignoreDisconnectedAssets: Boolean
 )
 
 object OnConflict extends Enumeration {
@@ -65,6 +66,15 @@ class DefaultSource
       intValue
     }
 
+  private def parseSaveMode(parameters: Map[String, String]) = {
+    val onConflictName = parameters.getOrElse("onconflict", "ABORT")
+    OnConflict
+      .withNameOpt(onConflictName.toUpperCase())
+      .getOrElse(throw new IllegalArgumentException(
+        s"$onConflictName is not a valid onConflict option. Please choose one of the following options instead: ${OnConflict.values
+          .mkString(", ")}"))
+  }
+
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
@@ -87,19 +97,14 @@ class DefaultSource
       case None => ""
     }
     val collectMetrics = toBoolean(parameters, "collectMetrics")
-    val onConflictName = parameters.getOrElse("onconflict", "ABORT")
-    val saveMode =
-      OnConflict
-        .withNameOpt(onConflictName.toUpperCase())
-        .getOrElse(throw new IllegalArgumentException(
-          s"$onConflictName is not a valid onConflict option. Please choose one of the following options instead: ${OnConflict.values
-            .mkString(", ")}"))
+    val saveMode = parseSaveMode(parameters)
     val parallelismPerPartition = {
       toPositiveInt(parameters, "parallelismPerPartition").getOrElse(
         Constants.DefaultParallelismPerPartition)
     }
     val ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", true)
     val deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets", false)
+    val ignoreDisconnectedAssets = toBoolean(parameters, "ignoreDisconnectedAssets", false)
     RelationConfig(
       auth,
       batchSize,
@@ -113,7 +118,8 @@ class DefaultSource
       sqlContext.sparkContext.applicationId,
       parallelismPerPartition,
       ignoreUnknownIds,
-      deleteMissingAssets
+      deleteMissingAssets,
+      ignoreDisconnectedAssets
     )
   }
 

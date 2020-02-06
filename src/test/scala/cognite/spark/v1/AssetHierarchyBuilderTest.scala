@@ -77,6 +77,11 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
         .save
     }
     e shouldBe an[InvalidTreeException]
+    val errorMessage = e.getMessage
+    errorMessage should include("son")
+    errorMessage should include("daughter")
+    errorMessage should include("daughterSon")
+    errorMessage should include("other")
   }
 
   it should "throw an error if one more externalIds are empty Strings" in {
@@ -356,6 +361,41 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       rows => rows.map(r => r.getString(1)).toSet != updatedTree.map(_.name).toSet
     )
     assert(result.map(r => r.getString(1)).toSet == updatedTree.map(_.name).toSet)
+  }
+
+  it should "insert a tree while ignoring assets that are not connected when setting the ignoreDisconnectedAssets option to true" in {
+    writeClient.assets.deleteByExternalIds(Seq("dad"), true, true)
+
+    val assetTree = Seq(
+      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
+      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad")),
+      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
+      AssetCreate("cycleZero", None, None, Some(testName),Some("cycleZero"), None, Some("cycleThree")),
+      AssetCreate("cycleOne", None, None, Some(testName),Some("cycleOne"), None, Some("cycleZero")),
+      AssetCreate("cycleTwo", None, None, Some(testName),Some("cycleTwo"), None, Some("cycleOne")),
+      AssetCreate("cycleThree", None, None, Some(testName),Some("cycleThree"), None, Some("cycleTwo")),
+    )
+
+    spark.sparkContext.parallelize(assetTree).toDF().write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assethierarchy")
+      .option("batchSize", "2")
+      .option("ignoreDisconnectedAssets", "true")
+      .save
+
+    val namesOfAssetsToInsert = assetTree.slice(0, 4).map(_.name).toSet
+
+    val result = retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$testName'").collect,
+      rows => rows.map(r => r.getString(1)).toSet != namesOfAssetsToInsert
+    )
+
+    val extIdMap = getAssetsMap(result)
+    assert(extIdMap(Some("son")).parentId.contains(extIdMap(Some("dad")).id))
+    assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("dad")).id))
+    assert(extIdMap(Some("daughterSon")).parentId.contains(extIdMap(Some("daughter")).id))
   }
 
   def getAssetsMap(assets: Seq[Row]): Map[Option[String], AssetsReadSchema] =
