@@ -55,11 +55,12 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def build(df: DataFrame): IO[Unit] = {
     val deleteMissingAssets = config.deleteMissingAssets
+    val ignoreDisconnectedAssets = config.ignoreDisconnectedAssets
     val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
 
     val sourceTree = df.collect.map(r => fromRow[AssetsIngestSchema](r))
 
-    val (root, children) = validateAndOrderInput(sourceTree)
+    val (root, children) = validateAndOrderInput(sourceTree, ignoreDisconnectedAssets)
 
     for {
       rootAndChildren <- getCdfRootAndTree(CogniteExternalId(root.externalId))
@@ -180,10 +181,11 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       child.source == asset.source
 
   def validateAndOrderInput(
-      tree: Array[AssetsIngestSchema]): (AssetsIngestSchema, Seq[AssetsIngestSchema]) = {
+      tree: Array[AssetsIngestSchema],
+      ignoreDisconnectedAssets: Boolean): (AssetsIngestSchema, Seq[AssetsIngestSchema]) = {
     val (root, children) = splitIntoRootAndChildren(tree)
 
-    (root, getValidatedTree(root, children))
+    (root, getValidatedTree(root, children, ignoreDisconnectedAssets))
   }
 
   def splitIntoRootAndChildren(
@@ -200,7 +202,8 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def getValidatedTree(
       root: AssetsIngestSchema,
-      children: Array[AssetsIngestSchema]): Seq[AssetsIngestSchema] = {
+      children: Array[AssetsIngestSchema],
+      ignoreDisconnectedAssets: Boolean): Seq[AssetsIngestSchema] = {
     val visited = Seq[AssetsIngestSchema]()
     val emptyExternalIds = children.filter(_.externalId == "")
     if (emptyExternalIds.nonEmpty) {
@@ -215,10 +218,14 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     if (insertableTree.map(_.externalId).toSet == children.map(_.externalId).toSet) {
       insertableTree
     } else {
-      val assetsNotInTree =
-        children.filter(a => insertableTreeExternalIds.contains(a.externalId)).map(_.externalId)
-      throw InvalidTreeException(
-        s"Tree contains assets that are not connected to the root: ${assetsNotInTree.mkString(", ")}")
+      val (assetsInTree, assetsNotInTree) =
+        children.partition(a => insertableTreeExternalIds.contains(a.externalId))
+      if (ignoreDisconnectedAssets) {
+        assetsInTree
+      } else {
+        throw InvalidTreeException(
+          s"Tree contains assets that are not connected to the root: ${assetsNotInTree.map(_.externalId).mkString(", ")}")
+      }
     }
   }
 
