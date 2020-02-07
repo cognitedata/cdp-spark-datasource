@@ -13,6 +13,10 @@ The instructions below explain how to read from, and write to, the different res
     - [Read data](#read-data)
     - [Write data](#write-data)
     - [Delete data](#delete-data)
+- [Asset hierarchy builder (beta)](#asset-hierarchy-builder-beta)
+    - [Requirements](#requirements)
+    - [Options](#options)
+    - [Example](#example)
 - [Schemas](#schemas)
     - [Assets schema](#assets-schema)
     - [Events schema](#events-schema)
@@ -133,6 +137,78 @@ Assets and events will ignore existing ids on deletes. If you prefer to abort th
 when an attempt to delete an unknown id, use `.option("ignoreUnknownIds", "true")`
 for those resources types.
 
+## Asset hierarchy builder (beta)
+Note: The asset hierarchy builder is currently in beta, and has not been sufficiently tested to be used 
+on production data.
+
+The `.option("type", "assethierarchy")` lets you write new asset hierarchies, or update existing ones,
+using the Spark Data Source. It currently supports writing a single root asset and any number of children.
+The asset hierarchy builder can ingest entire hierarchies, as long as all nodes are connected to the root asset
+through the `externalId`/`parentExternalId` relationship. If input contains an update to data that already exists,
+i.e there's a match on `externalId` and there's a change to one of the other fields, the asset will be updated.
+There's also an option to delete assets from CDF that are not referenced in the input data.
+
+### Requirements
+- The source data must contain a single root, denoted by setting its `parentExternalId` to the empty string `""`.
+- All assets, except root, must be connected to another asset in the input data by `parentExternalId`.
+- The input data must not have loops, to ensure all asset hierarchies are fully connected.
+- `externalId` can not be the empty string `""`.
+
+### Options
+|    Option                  | Default | Description |
+| -------------------------- | --------|------------------------------------------------------------------------------------------------------------------ |
+| `deleteMissingAssets`      | `false` | Whether or not you would like assets under the root to be deleted if they're not present in the input data.       |
+| `ignoreDisconnectedAssets` | `false` | This will ignore assets that are not connected to root, as opposed to throwing an error and stopping the program. |
+| `batchSize`                | 1000    | The number of assets to write per API call.                                                                       |
+
+### Example
+```scala
+val assetHierarchySchema = Seq("externalId", "parentExternalId", "source", "description", "name", "metadata")
+
+// Manually create some assets that satisfy the requirements of the asset hierarchy builder
+val assetHierarchy = Seq(
+  ("root_asset", "", "manual_input", "root_asset", Some("This is the root asset"), Map("asset_depth" -> "0")),
+  ("first_child", "root_asset", "manual_input", "first_child", Some("This is the first_child"), Map("asset_depth" -> "1")),
+  ("second_child", "root_asset", "manual_input", "second_child", Some("This is the second_child"), Map("asset_depth" -> "1")),
+  ("grandchild", "first_child", "manual_input", "grandchild", Some("This is the child of first_child"), Map("asset_depth" -> "2"))
+)
+
+val assetHierarchyDataFrame = spark
+  .sparkContext
+  .parallelize(assetHierarchy)
+  .toDF(assetHierarchySchema:_*)
+
+// Validate that the schema is as expected
+assetHierarchyDataFrame.printSchema()
+
+// Insert the assets with the asset hierarchy builder
+assetHierarchyDataFrame.write
+  .format("cognite.spark.v1")
+  .option("apiKey", "myApiKey")
+  .option("type", "assethierarchy")
+  .save()
+
+// Have a look at your new asset hierarchy
+spark.read
+  .format("cognite.spark.v1")
+  .option("apiKey", "myApiKey")
+  .option("type", "assets")
+  .load()
+  .where("source = 'manual_input'")
+  .show()
+
+// Delete everything but the root using the deleteMissingAssets flag
+spark
+  .sparkContext
+  .parallelize(Seq(Seq("root_asset", "", "manual_input", "root_asset", Some("This is the root asset"), None)))
+  .toDF(assetHierarchySchema)
+  .format("cognite.spark.v1")
+  .option("apiKey", "myApiKey")
+  .option("type", "assethierarchy")
+  .option("deleteMissingAssets", "true")
+  .save()
+```
+
 ## Schemas
 
 Spark DataFrames have schemas, with typing and names for columns. When writing to a resource in CDF using
@@ -220,6 +296,17 @@ The schemas mirror the CDF API as closely as possible.
 | `externalId`         | `string`              | Yes       |
 | `createdTime`        | `timestamp`           | No        |
 | `lastUpdatedTime`    | `timestamp`           | No        |
+
+
+### Asset Hierarchy
+| Column name          | Type                  |  Nullable |
+| ---------------------| ----------------------| --------- |
+| `externalId`         | `string`              | No        |
+| `parentExternalId`   | `string`              | No        |
+| `source`             | `string`              | Yes       |
+| `name`               | `string`              | No        |
+| `description`        | `string`              | Yes       |
+| `metadata`           | `map(string, string)` | Yes       |
 
 
 ## Examples by resource types
