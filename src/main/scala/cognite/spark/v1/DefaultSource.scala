@@ -25,7 +25,7 @@ case class RelationConfig(
 
 object OnConflict extends Enumeration {
   type Mode = Value
-  val ABORT, UPDATE, UPSERT, DELETE = Value
+  val Abort, Update, Upsert, Delete = Value
 
   def withNameOpt(s: String): Option[Value] = values.find(_.toString.toLowerCase == s.toLowerCase())
 }
@@ -136,8 +136,9 @@ class DefaultSource
       case "stringdatapoints" =>
         new StringDataPointsRelationV1(config)(sqlContext)
       case "timeseries" =>
-        val useLegacyName = toBoolean(parameters, "useLegacyName")
-        new TimeSeriesRelation(config, useLegacyName)(sqlContext)
+        val legacyNameSource =
+          LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
+        new TimeSeriesRelation(config, legacyNameSource)(sqlContext)
       case "raw" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
@@ -203,8 +204,9 @@ class DefaultSource
         case "events" =>
           new EventsRelation(config)(sqlContext)
         case "timeseries" =>
-          val useLegacyName = toBoolean(parameters, "useLegacyName")
-          new TimeSeriesRelation(config, useLegacyName)(sqlContext)
+          val legacyNameSource =
+            LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
+          new TimeSeriesRelation(config, legacyNameSource)(sqlContext)
         case "assets" =>
           new AssetsRelation(config)(sqlContext)
         case "datapoints" =>
@@ -218,22 +220,22 @@ class DefaultSource
         val batches = rows.grouped(Constants.DefaultBatchSize).toVector
 
         config.onConflict match {
-          case OnConflict.ABORT =>
+          case OnConflict.Abort =>
             batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
               batchGroup.parTraverse(relation.insert).unsafeRunSync()
             }
 
-          case OnConflict.UPSERT =>
+          case OnConflict.Upsert =>
             batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
               batchGroup.parTraverse(relation.upsert).unsafeRunSync()
             }
 
-          case OnConflict.UPDATE =>
+          case OnConflict.Update =>
             batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
               batchGroup.parTraverse(relation.update).unsafeRunSync()
             }
 
-          case OnConflict.DELETE =>
+          case OnConflict.Delete =>
             batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
               batchGroup.parTraverse(relation.delete).unsafeRunSync()
             }

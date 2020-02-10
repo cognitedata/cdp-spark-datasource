@@ -1,3 +1,9 @@
+# 1.2.11
+
+## Enhancements
+* The `useLegacyName` option now supports setting `legacyName` based on `externalId`.
+    Use `.option("useLegacyName", "externalId")` to enable this.
+
 # 1.2.10
 
 ## Enhancements
