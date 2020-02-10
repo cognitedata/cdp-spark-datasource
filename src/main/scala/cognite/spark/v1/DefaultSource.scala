@@ -1,13 +1,17 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, BearerTokenAuth}
+import com.cognite.sdk.scala.v1.GenericClient
+import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 
 case class RelationConfig(
     auth: Auth,
+    projectName: String,
     batchSize: Option[Int],
     limitPerPartition: Option[Int],
     partitions: Int,
@@ -88,6 +92,8 @@ class DefaultSource
     val auth = apiKey
       .orElse(bearerToken)
       .getOrElse(sys.error("Either apiKey or bearerToken is required."))
+    val projectName = parameters
+      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, maxRetries, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
@@ -107,6 +113,7 @@ class DefaultSource
     val ignoreDisconnectedAssets = toBoolean(parameters, "ignoreDisconnectedAssets", false)
     RelationConfig(
       auth,
+      projectName,
       batchSize,
       limitPerPartition,
       partitions,
@@ -245,5 +252,15 @@ class DefaultSource
       })
       relation
     }
+  }
+}
+
+object DefaultSource {
+  def getProjectFromAuth(auth: Auth, maxRetries: Int, baseUrl: String): String = {
+    implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries)
+    val getProject = for {
+      client <- GenericClient.forAuth[IO, Nothing](Constants.SparkDatasourceVersion, auth, baseUrl)
+    } yield client.projectName
+    getProject.unsafeRunSync()
   }
 }

@@ -20,9 +20,9 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
 
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
-  implicit val auth: Auth = config.auth
-  @transient lazy val client =
-    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)
+
+  @transient lazy val client: GenericClient[IO, Nothing] =
+    CdpConnector.clientFromConfig(config)
 
   def incMetrics(counter: Counter, count: Int): IO[Unit] =
     IO(

@@ -3,6 +3,7 @@ package cognite.spark.v1
 import java.io.IOException
 import java.util.UUID
 
+import cats.Id
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth}
 import org.apache.spark.sql.SparkSession
@@ -25,11 +26,11 @@ trait SparkTest {
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
   implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
-  val writeClient = Client("cdp-spark-datasource-test")(writeApiKeyAuth, implicitly)
+  val writeClient = GenericClient.forAuth[Id, Nothing]("cdp-spark-datasource-test", writeApiKeyAuth)
 
   val readApiKey = System.getenv("TEST_API_KEY_READ")
   implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
-  val readClient = Client("cdp-spark-datasource-test")(readApiKeyAuth, implicitly)
+  val readClient = GenericClient.forAuth[Id, Nothing]("cdp-spark-datasource-test", readApiKeyAuth)
 
   val spark: SparkSession = SparkSession
     .builder()
@@ -77,6 +78,7 @@ trait SparkTest {
   def getDefaultConfig(auth: Auth): RelationConfig =
     RelationConfig(
       auth,
+      DefaultSource.getProjectFromAuth(auth, Constants.DefaultMaxRetries, Constants.DefaultBaseUrl),
       Some(Constants.DefaultBatchSize),
       None,
       Constants.DefaultPartitions,

@@ -51,8 +51,8 @@ case class NumericDataPointsRdd(
 
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
-  @transient lazy val client =
-    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)
+  @transient lazy val client: GenericClient[IO, Nothing] =
+    CdpConnector.clientFromConfig(config)
 
   private val (lowerTimeLimit, upperTimeLimit) = timestampLimits
   private def countsToRanges(

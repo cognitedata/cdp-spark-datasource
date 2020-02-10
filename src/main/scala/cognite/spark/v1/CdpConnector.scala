@@ -5,6 +5,7 @@ import java.util.concurrent.{Executors, SynchronousQueue, ThreadPoolExecutor, Ti
 import cats.Parallel
 import cats.effect.{ContextShift, IO, Timer}
 import com.cognite.sdk.scala.common.RetryingBackend
+import com.cognite.sdk.scala.v1.GenericClient
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import com.softwaremill.sttp._
 
@@ -30,11 +31,18 @@ object CdpConnector {
     IO.contextShift(cdpConnectorExecutionContext)
   @transient implicit lazy val cdpConnectorParallel: Parallel[IO, IO.Par] =
     IO.ioParallel(cdpConnectorContextShift)
-  val sttpBackend: SttpBackend[IO, Nothing] =
+  private val sttpBackend: SttpBackend[IO, Nothing] =
     AsyncHttpClientCatsBackend[cats.effect.IO]()
 
   def retryingSttpBackend(maxRetries: Int): SttpBackend[IO, Nothing] =
     new RetryingBackend[IO, Nothing](sttpBackend, maxRetries = Some(maxRetries))
+
+  def clientFromConfig(config: RelationConfig): GenericClient[IO, Nothing] =
+    new GenericClient[IO, Nothing](
+      Constants.SparkDatasourceVersion,
+      config.projectName,
+      config.auth,
+      config.baseUrl)(implicitly, retryingSttpBackend(config.maxRetries))
 
   type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]
