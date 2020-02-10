@@ -4,10 +4,16 @@
 * The `useLegacyName` option now supports setting `legacyName` based on `externalId`.
     Use `.option("useLegacyName", "externalId")` to enable this.
 
+* A new option `project` allows the user to specify the CDF project to use.
+If omitted, the project will be fetched using the `apiKey` or `bearerToken` option.
+
+* Use Cognite Scala SDK version 1.2.0
+
 # 1.2.10
 
 ## Enhancements
-* Use Cognite Scala SDK version 1.1.2
+* Use Cognite Scala SDK version 1.1.2, with further improved functionality to
+retry requests.
 
 # 1.2.9
 
