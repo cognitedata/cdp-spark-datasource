@@ -374,7 +374,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("cycleZero", None, None, Some(testName),Some("cycleZero"), None, Some("cycleThree")),
       AssetCreate("cycleOne", None, None, Some(testName),Some("cycleOne"), None, Some("cycleZero")),
       AssetCreate("cycleTwo", None, None, Some(testName),Some("cycleTwo"), None, Some("cycleOne")),
-      AssetCreate("cycleThree", None, None, Some(testName),Some("cycleThree"), None, Some("cycleTwo")),
+      AssetCreate("cycleThree", None, None, Some(testName),Some("cycleThree"), None, Some("cycleTwo"))
     )
 
     spark.sparkContext.parallelize(assetTree).toDF().write
