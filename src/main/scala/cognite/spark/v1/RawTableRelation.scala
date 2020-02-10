@@ -41,8 +41,8 @@ class RawTableRelation(
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
   implicit val auth: Auth = config.auth
-  @transient lazy val client =
-    new GenericClient[IO, Nothing](Constants.SparkDatasourceVersion, config.baseUrl)
+  @transient lazy val client: GenericClient[IO, Nothing] =
+    CdpConnector.clientFromConfig(config)
 
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
 
