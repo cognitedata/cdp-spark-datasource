@@ -131,7 +131,7 @@ You need to provide an API key and specify the resource type, and then specify `
 See an example for using `.save()` to delete under [Time Series below](#time-series).
 
 Assets and events will ignore existing ids on deletes. If you prefer to abort the job
-when an attempt to delete an unknown id, use `.option("ignoreUnknownIds", "true")`
+when an attempt to delete an unknown id, use `.option("ignoreUnknownIds", "false")`
 for those resources types.
 
 ## Asset hierarchy builder (beta)
