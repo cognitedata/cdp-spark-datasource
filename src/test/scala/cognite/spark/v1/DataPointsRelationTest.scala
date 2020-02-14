@@ -335,7 +335,8 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
               |id,
               |'$tsName' as externalId,
               |createdTime,
-              |lastUpdatedTime
+              |lastUpdatedTime,
+              |dataSetId
               |from sourceTimeSeries
               |limit 1
      """.stripMargin)

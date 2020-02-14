@@ -287,7 +287,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |'$source' as source,
                  |null as externalId,
                  |0 as createdTime,
-                 |0 as lastUpdatedTime
+                 |0 as lastUpdatedTime,
+                 |null as dataSetId
      """.stripMargin)
       .write
       .insertInto("destinationEvent")
@@ -333,7 +334,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |"$source" as source,
                  |concat("$source", cast(id as string)) as externalId,
                  |createdTime,
-                 |lastUpdatedTime
+                 |lastUpdatedTime,
+                 |dataSetId
                  |from sourceEvent
                  |limit 100
      """.stripMargin)
@@ -364,7 +366,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |"$source" as source,
                  |concat("$source", cast(id as string)) as externalId,
                  |createdTime,
-                 |lastUpdatedTime
+                 |lastUpdatedTime,
+                 |dataSetId
                  |from sourceEvent
                  |limit 500
      """.stripMargin)
@@ -740,7 +743,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
              |"$source" as source,
              |concat("$source", string(id)) as externalId,
              |createdTime,
-             |lastUpdatedTime
+             |lastUpdatedTime,
+             |dataSetId
              |from sourceEvent
              |limit 100
      """.stripMargin)
@@ -812,7 +816,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
          |source,
          |externalId,
          |null as createdTime,
-         |lastUpdatedTime
+         |lastUpdatedTime,
+         |dataSetId
          |from destinationEventsUpsertPartial
          |where source = '$source'
          |limit 1
@@ -854,7 +859,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
            |map() as metadata,
            |null as assetIds,
            |null as lastUpdatedTime,
-           |null as createdTime
+           |null as createdTime,
+           |null as dataSetId
            |from sourceEvent
            |limit 5
        """.stripMargin)
@@ -914,7 +920,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
               |"$source" as source,
               |concat("$source", externalId) as externalId,
               |0 as createdTime,
-              |lastUpdatedTime
+              |lastUpdatedTime,
+              |dataSetId
               |from sourceEvent
               |limit 100
      """.stripMargin)
@@ -976,7 +983,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
               |"$source" as source,
               |concat("$source", string(id)) as externalId,
               |0 as createdTime,
-              |lastUpdatedTime
+              |lastUpdatedTime,
+              |dataSetId
               |from sourceEvent
               |limit 1
       """.stripMargin)
