@@ -58,7 +58,6 @@ class TimeSeriesRelation(config: RelationConfig, legacyNameSource: LegacyNameSou
           .into[TimeSeriesCreate]
           .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
           .withFieldComputed(_.isString, _.isString.getOrElse(false))
-          .withFieldComputed(_.dataSetId, _.dataSetId)
 
         legacyNameSource match {
           case LegacyNameSource.None =>
