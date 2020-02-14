@@ -186,7 +186,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
               |0 as id,
               |'$externalId2' as externalId,
               |now() as createdTime,
-              |now() lastUpdatedTime
+              |now() lastUpdatedTime,
+              |null as dataSetId
      """.stripMargin)
       .select(sourceDf.columns.map(col): _*)
       .write
@@ -211,7 +212,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
               |0 as id,
               |'$externalId2' as externalId,
               |now() as createdTime,
-              |now() lastUpdatedTime
+              |now() lastUpdatedTime,
+              |null as dataSetId
      """.stripMargin)
       .select(sourceDf.columns.map(col): _*)
       .write
@@ -357,7 +359,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
             |id,
             |externalId,
             |createdTime,
-            |lastUpdatedTime
+            |lastUpdatedTime,
+            |dataSetId
             |from destinationTimeSeries
             |where description = '$initialDescription'
           """.stripMargin)
