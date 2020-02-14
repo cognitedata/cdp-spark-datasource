@@ -144,7 +144,8 @@ case class EventsUpsertSchema(
     metadata: Option[Map[String, String]] = None,
     assetIds: Option[Seq[Long]] = None,
     source: Option[String] = None,
-    externalId: Option[String] = None
+    externalId: Option[String] = None,
+    dataSetId: Option[Long] = None
 ) extends WithExternalId
     with WithId[Option[Long]]
 
@@ -157,7 +158,8 @@ case class EventsInsertSchema(
     metadata: Option[Map[String, String]] = None,
     assetIds: Option[Seq[Long]] = None,
     source: Option[String] = None,
-    externalId: Option[String] = None
+    externalId: Option[String] = None,
+    dataSetId: Option[Long] = None
 )
 
 case class EventsReadSchema(
@@ -172,5 +174,6 @@ case class EventsReadSchema(
     source: Option[String] = None,
     externalId: Option[String] = None,
     createdTime: Instant = Instant.ofEpochMilli(0),
-    lastUpdatedTime: Instant = Instant.ofEpochMilli(0)
+    lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
+    dataSetId: Option[Long] = None
 )

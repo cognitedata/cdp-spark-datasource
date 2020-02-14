@@ -62,7 +62,8 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
             |uploadedTime,
             |createdTime,
             |lastUpdatedTime,
-            |uploadUrl
+            |uploadUrl,
+            |dataSetId
             |from filesSource
             |where source = '$originalSource'
      """.stripMargin)
@@ -88,7 +89,8 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
             |uploadedTime,
             |createdTime,
             |lastUpdatedTime,
-            |uploadUrl
+            |uploadUrl,
+            |dataSetIds
             |from filesSource
             |where source = '$originalSource'
      """.stripMargin)

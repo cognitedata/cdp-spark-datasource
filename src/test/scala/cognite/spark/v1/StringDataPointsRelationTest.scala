@@ -243,7 +243,8 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
               |id,
               |'stringdatapoints-testing${randomSuffix}' as externalId,
               |createdTime,
-              |lastUpdatedTime
+              |lastUpdatedTime,
+              |dataSetId
               |from sourceTimeSeries
               |limit 1
      """.stripMargin)

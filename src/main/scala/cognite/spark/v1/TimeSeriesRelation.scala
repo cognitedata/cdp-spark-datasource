@@ -58,6 +58,7 @@ class TimeSeriesRelation(config: RelationConfig, legacyNameSource: LegacyNameSou
           .into[TimeSeriesCreate]
           .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
           .withFieldComputed(_.isString, _.isString.getOrElse(false))
+          .withFieldComputed(_.dataSetId, _.dataSetId)
 
         legacyNameSource match {
           case LegacyNameSource.None =>
@@ -160,7 +161,8 @@ case class TimeSeriesUpsertSchema(
     description: Option[String] = None,
     securityCategories: Option[Seq[Long]] = None,
     isStep: Option[Boolean] = None,
-    isString: Option[Boolean] = None
+    isString: Option[Boolean] = None,
+    dataSetId: Option[Long] = None
 ) extends WithExternalId
     with WithId[Option[Long]]
 
@@ -173,7 +175,8 @@ case class TimeSeriesInsertSchema(
     assetId: Option[Long] = None,
     isStep: Boolean = false,
     description: Option[String] = None,
-    securityCategories: Option[Seq[Long]] = None
+    securityCategories: Option[Seq[Long]] = None,
+    dataSetId: Option[Long] = None
 )
 
 case class TimeSeriesReadSchema(
@@ -188,5 +191,6 @@ case class TimeSeriesReadSchema(
     id: Long = 0,
     externalId: Option[String] = None,
     createdTime: Instant = Instant.ofEpochMilli(0),
-    lastUpdatedTime: Instant = Instant.ofEpochMilli(0)
+    lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
+    dataSetId: Option[Long] = None
 )

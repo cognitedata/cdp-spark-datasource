@@ -122,7 +122,8 @@ case class AssetsUpsertSchema(
     externalId: Option[String] = None,
     metadata: Option[Map[String, String]] = None,
     parentId: Option[Long] = None,
-    parentExternalId: Option[String] = None
+    parentExternalId: Option[String] = None,
+    dataSetId: Option[Long] = None
 ) extends WithExternalId
     with WithId[Option[Long]]
 
@@ -133,7 +134,8 @@ case class AssetsInsertSchema(
     source: Option[String] = None,
     externalId: Option[String] = None,
     metadata: Option[Map[String, String]] = None,
-    parentExternalId: Option[String] = None
+    parentExternalId: Option[String] = None,
+    dataSetId: Option[Long] = None
 )
 
 case class AssetsReadSchema(
@@ -147,5 +149,6 @@ case class AssetsReadSchema(
     createdTime: Instant = Instant.ofEpochMilli(0),
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
     rootId: Long = 0,
-    aggregates: Option[Map[String, Long]] = None
+    aggregates: Option[Map[String, Long]] = None,
+    dataSetId: Option[Long] = None
 )
