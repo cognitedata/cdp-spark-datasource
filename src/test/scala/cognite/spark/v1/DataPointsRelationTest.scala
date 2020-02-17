@@ -336,7 +336,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
               |'$tsName' as externalId,
               |createdTime,
               |lastUpdatedTime,
-              |dataSetId
+              |$testDataSetId as dataSetId
               |from sourceTimeSeries
               |limit 1
      """.stripMargin)
@@ -347,7 +347,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     // Check if post worked
     val initialDescriptionsAfterPost = retryWhile[Array[Row]](
       spark
-        .sql(s"""select id from destinationTimeSeries where name = '$tsName'""")
+        .sql(s"""select id from destinationTimeSeries where name = '$tsName' and dataSetId = $testDataSetId""")
         .collect,
       df => df.length < 1)
     assert(initialDescriptionsAfterPost.length == 1)
