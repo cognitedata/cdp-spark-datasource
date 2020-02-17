@@ -32,6 +32,8 @@ trait SparkTest {
   implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
   val readClient = GenericClient.forAuth[Id, Nothing]("cdp-spark-datasource-test", readApiKeyAuth)
 
+  val testDataSetId = 86163806167772L
+
   val spark: SparkSession = SparkSession
     .builder()
     .master("local[*]")

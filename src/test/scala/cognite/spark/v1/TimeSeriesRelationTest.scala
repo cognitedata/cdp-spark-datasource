@@ -107,7 +107,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
               |'no-name-time-series' as externalId,
               |createdTime,
               |lastUpdatedTime,
-              |dataSetId
+              |$testDataSetId as dataSetId
               |from sourceTimeSeries
               |limit 1
      """.stripMargin)
@@ -123,6 +123,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
       df => df.length != 1)
     assert(dfAfterPost.length == 1)
     assert(dfAfterPost.head.get(0) == null)
+    dfAfterPost.head.getAs[Long]("dataSetId") shouldBe testDataSetId
   }
 
   it should "create time series with legacyName based on name if useLegacyName option is 'true'" taggedAs WriteTest in {

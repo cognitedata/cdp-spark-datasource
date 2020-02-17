@@ -137,7 +137,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         |0 as lastUpdatedTime,
         |null as rootId,
         |null as aggregates,
-        |null as dataSetId
+        |$testDataSetId as dataSetId
       """.stripMargin)
       .select(destinationDf.columns.map(col): _*)
       .write
@@ -146,9 +146,13 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
     assert(assetsCreated == 1)
 
-    retryWhile[Array[Row]](
+    val Array(createdAsset) = retryWhile[Array[Row]](
       spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
       rows => rows.length < 1)
+
+    createdAsset.getAs[String]("name") shouldBe "asset name"
+    createdAsset.getAs[Long]("dataSetId") shouldBe testDataSetId
+    createdAsset.getAs[String]("externalId") shouldBe "1"
   }
 
   it should "handle null values in metadata when inserting in savemode" taggedAs WriteTest in {

@@ -860,7 +860,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
            |null as assetIds,
            |null as lastUpdatedTime,
            |null as createdTime,
-           |null as dataSetId
+           |$testDataSetId as dataSetId
            |from sourceEvent
            |limit 5
        """.stripMargin)
@@ -870,7 +870,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     // Check if post worked
     val eventsFromTestDf = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationEvent where source = '$source' and description = 'foo'").collect,
+      spark.sql(s"select * from destinationEvent where source = '$source' and description = 'foo' and dataSetId = $testDataSetId").collect,
       df => df.length < 5)
     assert(eventsFromTestDf.length == 5)
 
