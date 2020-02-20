@@ -15,8 +15,7 @@ import PushdownUtilities._
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
 
-class TimeSeriesRelation(config: RelationConfig, legacyNameSource: LegacyNameSource.Value)(
-    val sqlContext: SQLContext)
+class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
     with WritableRelation
     with InsertableRelation {
@@ -59,7 +58,7 @@ class TimeSeriesRelation(config: RelationConfig, legacyNameSource: LegacyNameSou
           .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
           .withFieldComputed(_.isString, _.isString.getOrElse(false))
 
-        legacyNameSource match {
+        config.legacyNameSource match {
           case LegacyNameSource.None =>
             asCreate.transform
           case LegacyNameSource.Name =>
@@ -76,7 +75,7 @@ class TimeSeriesRelation(config: RelationConfig, legacyNameSource: LegacyNameSou
     val timeSeriesSeq = rows.map { r =>
       val timeSeries = fromRow[TimeSeriesCreate](r)
       val timeSeriesWithMetadata = timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
-      legacyNameSource match {
+      config.legacyNameSource match {
         case LegacyNameSource.None => timeSeriesWithMetadata
         case LegacyNameSource.Name => timeSeriesWithMetadata.copy(legacyName = timeSeries.name)
         case LegacyNameSource.ExternalId =>
@@ -136,19 +135,6 @@ object TimeSeriesRelation extends UpsertSchema {
   val upsertSchema = structType[TimeSeriesUpsertSchema]
   val insertSchema = structType[TimeSeriesInsertSchema]
   val readSchema = structType[TimeSeriesReadSchema]
-}
-
-object LegacyNameSource extends Enumeration {
-  type LegacyNameSource = Value
-  val None, Name, ExternalId = Value
-
-  def fromSparkOption(configValue: Option[String]): LegacyNameSource =
-    configValue.map(_.toLowerCase).getOrElse("false") match {
-      case "false" => LegacyNameSource.None
-      case "true" | "name" => LegacyNameSource.Name
-      case "externalid" => LegacyNameSource.ExternalId
-      case invalid => throw new IllegalArgumentException(s"Invalid value for useLegacyName: $invalid")
-    }
 }
 
 case class TimeSeriesUpsertSchema(

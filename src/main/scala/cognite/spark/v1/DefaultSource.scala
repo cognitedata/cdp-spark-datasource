@@ -24,7 +24,8 @@ case class RelationConfig(
     parallelismPerPartition: Int,
     ignoreUnknownIds: Boolean,
     deleteMissingAssets: Boolean,
-    ignoreDisconnectedAssets: Boolean
+    ignoreDisconnectedAssets: Boolean,
+    legacyNameSource: LegacyNameSource.Value
 )
 
 object OnConflict extends Enumeration {
@@ -32,6 +33,19 @@ object OnConflict extends Enumeration {
   val Abort, Update, Upsert, Delete = Value
 
   def withNameOpt(s: String): Option[Value] = values.find(_.toString.toLowerCase == s.toLowerCase())
+}
+
+object LegacyNameSource extends Enumeration {
+  type LegacyNameSource = Value
+  val None, Name, ExternalId = Value
+
+  def fromSparkOption(configValue: Option[String]): LegacyNameSource =
+    configValue.map(_.toLowerCase).getOrElse("false") match {
+      case "false" => LegacyNameSource.None
+      case "true" | "name" => LegacyNameSource.Name
+      case "externalid" => LegacyNameSource.ExternalId
+      case invalid => throw new IllegalArgumentException(s"Invalid value for useLegacyName: $invalid")
+    }
 }
 
 class DefaultSource
@@ -126,7 +140,8 @@ class DefaultSource
       parallelismPerPartition,
       ignoreUnknownIds,
       deleteMissingAssets,
-      ignoreDisconnectedAssets
+      ignoreDisconnectedAssets,
+      legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
     )
   }
 
@@ -143,9 +158,7 @@ class DefaultSource
       case "stringdatapoints" =>
         new StringDataPointsRelationV1(config)(sqlContext)
       case "timeseries" =>
-        val legacyNameSource =
-          LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
-        new TimeSeriesRelation(config, legacyNameSource)(sqlContext)
+        new TimeSeriesRelation(config)(sqlContext)
       case "raw" =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
@@ -211,9 +224,7 @@ class DefaultSource
         case "events" =>
           new EventsRelation(config)(sqlContext)
         case "timeseries" =>
-          val legacyNameSource =
-            LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
-          new TimeSeriesRelation(config, legacyNameSource)(sqlContext)
+          new TimeSeriesRelation(config)(sqlContext)
         case "assets" =>
           new AssetsRelation(config)(sqlContext)
         case "datapoints" =>
