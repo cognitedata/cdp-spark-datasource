@@ -102,7 +102,7 @@ class TimeSeriesRelation(config: RelationConfig, legacyNameSource: LegacyNameSou
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, TimeSeries]] = {
 
-    val fieldNames = Array("name", "unit", "isStep", "isString", "assetId")
+    val fieldNames = Array("name", "unit", "isStep", "isString", "assetId", "dataSetId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
@@ -128,7 +128,8 @@ class TimeSeriesRelation(config: RelationConfig, legacyNameSource: LegacyNameSou
       unit = m.get("unit"),
       isStep = m.get("isStep").map(_.toBoolean),
       isString = m.get("isString").map(_.toBoolean),
-      assetIds = m.get("assetId").map(assetIdsFromWrappedArray)
+      assetIds = m.get("assetId").map(assetIdsFromWrappedArray),
+      dataSetIds = m.get("dataSetId").map(assetIdsFromWrappedArray(_).map(CogniteInternalId))
     )
 }
 object TimeSeriesRelation extends UpsertSchema {

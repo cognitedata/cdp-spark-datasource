@@ -8,7 +8,7 @@ import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1.resources.Events
-import com.cognite.sdk.scala.v1.{Event, EventCreate, EventUpdate, EventsFilter, GenericClient}
+import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
@@ -38,7 +38,8 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         "minCreatedTime",
         "maxCreatedTime",
         "minLastUpdatedTime",
-        "maxLastUpdatedTime"
+        "maxLastUpdatedTime",
+        "dataSetId"
       )
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
@@ -70,7 +71,8 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
       assetIds = m.get("assetIds").map(assetIdsFromWrappedArray),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
-      lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime"))
+      lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
+      dataSetIds = m.get("dataSetId").map(assetIdsFromWrappedArray(_).map(CogniteInternalId))
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

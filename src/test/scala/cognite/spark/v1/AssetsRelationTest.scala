@@ -90,6 +90,25 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(assetsRead == 1)
   }
 
+  it should "support pushdown filters on dataSetId" taggedAs ReadTest in {
+    val metricsPrefix = "pushdown.filters.assets.dataSetId"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .load()
+      .where("name = '23-TT-92604B' or dataSetId = 1 or dataSetId = 2 or dataSetId = 3 or dataSetId = 4")
+
+    assert(df.count() == 1)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
+    assert(assetsRead == 1)
+  }
+
   it should "handle duplicates in a pushdown filter scenario" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.assets.duplicates"
     val df = spark.read

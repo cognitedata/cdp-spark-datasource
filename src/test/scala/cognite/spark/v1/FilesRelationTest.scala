@@ -90,7 +90,7 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
             |createdTime,
             |lastUpdatedTime,
             |uploadUrl,
-            |dataSetIds
+            |dataSetId
             |from filesSource
             |where source = '$originalSource'
      """.stripMargin)
