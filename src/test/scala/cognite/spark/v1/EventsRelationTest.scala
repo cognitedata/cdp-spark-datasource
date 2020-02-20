@@ -81,6 +81,15 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 20)
   }
 
+  it should "get exception on invalid query" taggedAs ReadTest in {
+    val metricsPrefix = "pushdown.filter.dataSetId"
+    val df = getBaseReader(true, metricsPrefix)
+      .where("dataSetId = 0")
+
+    val thrown = the[SparkException] thrownBy df.count()
+    thrown.getMessage should include ("id must be greater than or equal to 1")
+  }
+
   it should "apply a dataSetId pushdown filter" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filter.dataSetId"
     val df = getBaseReader(true, metricsPrefix)
