@@ -81,6 +81,16 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead == 20)
   }
 
+  it should "apply a dataSetId pushdown filter" taggedAs ReadTest in {
+    val metricsPrefix = "pushdown.filter.dataSetId"
+    val df = getBaseReader(true, metricsPrefix)
+        .where("type = 'Workpackage' or dataSetId = 1")
+
+    assert(df.count == 20)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 20)
+  }
+
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.and.non.pushdown"
     // The contents of the parenthesis would need all content, but the left side should cancel that out

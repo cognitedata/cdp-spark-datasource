@@ -8,7 +8,7 @@ import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1.resources.Assets
-import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, GenericClient}
+import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
@@ -25,7 +25,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client: GenericClient[IO, Nothing],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, Asset]] = {
-    val fieldNames = Array("name", "source")
+    val fieldNames = Array("name", "source", "dataSetId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val getAll = shouldGetAll(pushdownFilterExpression, fieldNames)
     val params = pushdownToParameters(pushdownFilterExpression)
@@ -48,7 +48,11 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
-    AssetsFilter(name = m.get("name"), source = m.get("source"))
+    AssetsFilter(
+      name = m.get("name"),
+      source = m.get("source"),
+      dataSetIds = m.get("dataSetId").map(assetIdsFromWrappedArray(_).map(CogniteInternalId))
+    )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val assets = fromRowWithFilteredMetadata(rows)
