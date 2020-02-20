@@ -106,6 +106,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   private def assertNoLegacyNameConflicts(duplicated: Seq[JsonObject], requestId: Option[String]) = {
     val legacyNameConflicts =
       duplicated.flatMap(j => j("legacyName")).map(_.asString.get)
+
     if (legacyNameConflicts.nonEmpty) {
       throw new IllegalArgumentException(
         "Found legacyName conflicts, upserts are not supported with legacyName." +
@@ -136,9 +137,16 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .map(_ => ())
         .recoverWith {
           case CdpApiException(_, 409, _, _, Some(duplicated), _, requestId) if doUpsert =>
-            assertNoLegacyNameConflicts(duplicated, requestId)
-            val moreExistingExternalIds =
-              duplicated.flatMap(j => j("externalId")).map(_.asString.get)
+            val moreExistingExternalIds = config.legacyNameSource match {
+              case LegacyNameSource.ExternalId =>
+                // If we attempt to insert a time series that conflicts on both legacyName and externalId,
+                // the API will only return legacyName conflicts. Therefore, we also need to include the
+                // conflicting legacyNames (which we know to be externalIds) in the next round of updates.
+                duplicated.flatMap(j => j("externalId") ++ j("legacyName")).map(_.asString.get)
+              case _ =>
+                assertNoLegacyNameConflicts(duplicated, requestId)
+                duplicated.flatMap(j => j("externalId")).map(_.asString.get)
+            }
             createOrUpdateByExternalId[R, U, C, T](
               existingExternalIds ++ moreExistingExternalIds,
               resourcesToCreate,

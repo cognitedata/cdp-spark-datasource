@@ -46,6 +46,16 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
   destinationDfWithLegacyNameFromExternalId.createOrReplaceTempView(
     "destinationTimeSeriesWithLegacyNameFromExternalId")
 
+  val destinationDfWithLegacyNameFromExternalIdOnConflictUpsert = spark.read
+    .format("cognite.spark.v1")
+    .option("apiKey", writeApiKey)
+    .option("type", "timeseries")
+    .option("onconflict", "upsert")
+    .option("useLegacyName", "externalId")
+    .load()
+  destinationDfWithLegacyNameFromExternalIdOnConflictUpsert.createOrReplaceTempView(
+    "destinationTimeSeriesWithLegacyNameFromExternalIdOnConflictUpsert")
+
   it should "read all data regardless of the number of partitions" taggedAs ReadTest in {
     val dfreader = spark.read.format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -289,6 +299,61 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     after05.code shouldEqual 200
 
     writeClient.timeSeries.deleteByExternalIds(Seq(externalId))
+  }
+
+  it should "upsert time series that conflict on legacyName when useLegacyName = externalId" in {
+    val testUnit = s"legacy-name-upsert-${shortRandomString()}"
+    cleanUpTimeSeriesTestDataByUnit(testUnit)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationTimeSeries where unit = '$testUnit'").collect,
+      rows => rows.length > 0
+    )
+
+    val externalId = shortRandomString()
+
+    spark
+      .sql(s"""
+              |select null as description,
+              |'beforeUpsert' as name,
+              |false as isString,
+              |null as metadata,
+              |'$testUnit' as unit,
+              |null as assetId,
+              |false as isStep,
+              |null as securityCategories,
+              |0 as id,
+              |'$externalId' as externalId,
+              |now() as createdTime,
+              |now() lastUpdatedTime
+     """.stripMargin)
+      .select(sourceDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationTimeSeriesWithLegacyNameFromExternalId")
+
+    val beforeUpsert = writeClient.timeSeries.retrieveByExternalId(externalId)
+    beforeUpsert.name.value shouldBe "beforeUpsert"
+
+    spark
+      .sql(s"""
+              |select null as description,
+              |'afterUpsert' as name,
+              |false as isString,
+              |null as metadata,
+              |'$testUnit' as unit,
+              |null as assetId,
+              |false as isStep,
+              |null as securityCategories,
+              |0 as id,
+              |'$externalId' as externalId,
+              |now() as createdTime,
+              |now() lastUpdatedTime
+     """.stripMargin)
+      .select(sourceDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationTimeSeriesWithLegacyNameFromExternalIdOnConflictUpsert")
+
+    val afterUpsert = writeClient.timeSeries.retrieveByExternalId(externalId)
+    afterUpsert.name.value shouldBe "afterUpsert"
   }
 
   it should "correctly parse useLegacyName options" in {
