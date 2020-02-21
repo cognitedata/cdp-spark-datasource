@@ -1,3 +1,14 @@
+# 1.2.13
+## Fixes
+* Upserts are now supported when using `.option("useLegacyName", "externalId")`.
+
+## Fixes
+
+# 1.2.12
+
+## Enhancements
+* `dataSetId` can now be set for events, assets, and time series.
+
 # 1.2.11
 
 ## Enhancements
@@ -7,12 +18,10 @@
 * A new option `project` allows the user to specify the CDF project to use.
 If omitted, the project will be fetched using the `apiKey` or `bearerToken` option.
 
-* Use Cognite Scala SDK version 1.2.0
-
 # 1.2.10
 
 ## Enhancements
-* Use Cognite Scala SDK version 1.1.2, with further improved functionality to
+* Uses Cognite Scala SDK version 1.1.2, with further improved functionality to
 retry requests.
 
 # 1.2.9
