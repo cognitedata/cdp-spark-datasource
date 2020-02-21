@@ -233,7 +233,6 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       val (assetsInTree, assetsNotInTree) =
         children.partition(a => insertableTreeExternalIds.contains(a.externalId))
       if (ignoreDisconnectedAssets) {
-        itemsIgnored.inc(assetsNotInTree.length)
         assetsInTree
       } else {
         throw InvalidTreeException(
