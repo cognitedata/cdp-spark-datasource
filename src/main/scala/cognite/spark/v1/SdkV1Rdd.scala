@@ -65,8 +65,9 @@ case class SdkV1Rdd[A, I](
     val queue =
       new EitherQueue(config.parallelismPerPartition * 2)
 
-    val putOnQueueStream = enqueueStreamResults(currentStreamsAsSingleStream, queue, processedIds, singleThreadedCs)
-      .handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
+    val putOnQueueStream =
+      enqueueStreamResults(currentStreamsAsSingleStream, queue, processedIds, singleThreadedCs)
+        .handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
 
     // Continuously read the stream data into the queue on a separate thread
     val streamsToQueue = Future {
