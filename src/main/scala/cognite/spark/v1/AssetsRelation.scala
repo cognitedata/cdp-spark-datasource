@@ -100,7 +100,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val assets = fromRowWithFilteredMetadata(rows)
     createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, Assets[IO]](
-      Seq.empty,
+      Set.empty,
       assets,
       client.assets,
       doUpsert = true)

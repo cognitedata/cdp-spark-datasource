@@ -121,7 +121,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       U <: WithSetExternalId,
       C <: WithExternalId,
       T <: UpdateByExternalId[R, U, IO] with Create[R, C, IO]](
-      existingExternalIds: Seq[String],
+      existingExternalIds: Set[String],
       resourceCreates: Seq[C],
       resource: T,
       doUpsert: Boolean)(implicit transform: Transformer[C, U]): IO[Unit] = {
@@ -148,7 +148,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
                 duplicated.flatMap(j => j("externalId")).map(_.asString.get)
             }
             createOrUpdateByExternalId[R, U, C, T](
-              existingExternalIds ++ moreExistingExternalIds,
+              existingExternalIds ++ moreExistingExternalIds.toSet,
               resourcesToCreate,
               resource,
               doUpsert = doUpsert)
@@ -210,7 +210,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resource
     )
     val createOrUpdate = createOrUpdateByExternalId[R, Up, C, Re](
-      Seq.empty,
+      Set.empty,
       itemsToCreateWithoutDuplicatesByExternalId,
       resource,
       doUpsert = true)

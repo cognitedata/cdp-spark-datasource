@@ -84,7 +84,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
 
     createOrUpdateByExternalId[TimeSeries, TimeSeriesUpdate, TimeSeriesCreate, TimeSeriesResource[IO]](
-      Seq.empty,
+      Set.empty,
       timeSeriesSeq,
       client.timeSeries,
       doUpsert = doUpsert)
