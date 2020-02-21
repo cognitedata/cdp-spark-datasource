@@ -86,7 +86,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val df = getBaseReader(true, metricsPrefix)
       .where("dataSetId = 0")
 
+    disableSparkLogging()
     val thrown = the[SparkException] thrownBy df.count()
+    enableSparkLogging()
     thrown.getMessage should include ("id must be greater than or equal to 1")
   }
 
