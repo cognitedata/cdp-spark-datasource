@@ -118,7 +118,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val events = fromRowWithFilteredMetadata(rows)
 
     createOrUpdateByExternalId[Event, EventUpdate, EventCreate, Events[IO]](
-      Seq.empty,
+      Set.empty,
       events,
       client.events,
       doUpsert = true)
