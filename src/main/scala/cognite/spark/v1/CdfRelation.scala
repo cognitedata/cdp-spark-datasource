@@ -17,8 +17,6 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.created")
   @transient lazy protected val itemsUpdated: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.updated")
-  @transient lazy protected val itemsIgnored: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.ignored")
   @transient lazy protected val itemsDeleted: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.deleted")
 

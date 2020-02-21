@@ -116,9 +116,6 @@ trait SparkTest {
   def getNumberOfRowsUpdated(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.updated")
 
-  def getNumberOfRowsIgnored(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.ignored")
-
   def disableSparkLogging(): Unit =
     spark.sparkContext.setLogLevel("OFF")
 

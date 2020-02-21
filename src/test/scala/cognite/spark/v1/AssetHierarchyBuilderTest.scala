@@ -415,7 +415,6 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("dad")).id))
     assert(extIdMap(Some("daughterSon")).parentId.contains(extIdMap(Some("daughter")).id))
 
-    getNumberOfRowsIgnored(metricsPrefix, "assethierarchy") shouldBe 4
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe 4
   }
 
