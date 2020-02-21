@@ -80,7 +80,8 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       assetCreatesToInsert
         .grouped(batchSize)
         .toList
-        .traverse(client.assets.create) *> IO.unit
+        .traverse(client.assets.create)
+        .flatTap(x => incMetrics(itemsCreated, x.map(_.size).sum)) *> IO.unit
     } else {
       IO.unit
     }
@@ -93,7 +94,10 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           externalIds
             .grouped(batchSize)
             .toVector
-            .parTraverse(id => client.assets.deleteByExternalIds(id, true, true)) *> IO.unit
+            .parTraverse(id => client.assets.deleteByExternalIds(id, true, true))
+            // We report the total number of IDs that should not exist from this point, not the number of really deleted rows.
+            // The API does not give us this information :/
+            .flatTap(_ => incMetrics(itemsDeleted, externalIds.length)) *> IO.unit
       }
     } else {
       IO.unit
@@ -105,7 +109,8 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         .map(a => a.externalId -> AssetsIngestSchema.toAssetUpdate(a))
         .grouped(batchSize)
         .toVector
-        .parTraverse(a => client.assets.updateByExternalId(a.toMap)) *> IO.unit
+        .parTraverse(a => client.assets.updateByExternalId(a.toMap))
+        .flatTap(x => incMetrics(itemsUpdated, x.map(_.size).sum)) *> IO.unit
     } else {
       IO.unit
     }
@@ -128,16 +133,20 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   ): IO[Unit] =
     sourceRoot match {
       case None =>
-        client.assets.create(Seq(AssetsIngestSchema.toAssetCreate(root).copy(parentExternalId = None))) *> IO.unit
+        client.assets
+          .create(Seq(AssetsIngestSchema.toAssetCreate(root).copy(parentExternalId = None)))
+          .flatTap(x => incMetrics(itemsCreated, x.size)) *> IO.unit
       case Some(asset) =>
         if (isMostlyEqual(root, asset)) {
           IO.unit
         } else {
-          client.assets.updateByExternalId(
-            Seq(
-              root.externalId -> AssetsIngestSchema
-                .toAssetUpdate(root)
-                .copy(parentExternalId = None)).toMap) *> IO.unit
+          client.assets
+            .updateByExternalId(
+              Seq(
+                root.externalId -> AssetsIngestSchema
+                  .toAssetUpdate(root)
+                  .copy(parentExternalId = None)).toMap)
+            .flatTap(x => incMetrics(itemsUpdated, x.size)) *> IO.unit
         }
     }
 
@@ -221,6 +230,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       val (assetsInTree, assetsNotInTree) =
         children.partition(a => insertableTreeExternalIds.contains(a.externalId))
       if (ignoreDisconnectedAssets) {
+        itemsIgnored.inc(assetsNotInTree.length)
         assetsInTree
       } else {
         throw InvalidTreeException(

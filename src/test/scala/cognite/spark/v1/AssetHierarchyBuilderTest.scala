@@ -276,6 +276,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     writeClient.assets.deleteByExternalIds(Seq("dad"), true, true)
     writeClient.assets.deleteByExternalIds(Seq("theGrandFather"), true, true)
 
+    val metricsPrefix = "update.assetsHierarchy.subtreeDepth"
     spark.sparkContext.parallelize(Seq(
       AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
       AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
@@ -310,6 +311,8 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "assethierarchy")
       .option("deleteMissingAssets", "true")
       .option("batchSize", "3")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save
 
     val result = retryWhile[Array[Row]](
@@ -320,6 +323,10 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     assert(extIdMap(Some("daughterDaughter")).parentId.contains(extIdMap(Some("dad")).id))
     assert(extIdMap(Some("daughterSon")).parentId.contains(extIdMap(Some("daughterDaughter")).id))
     assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("daughterSon")).id))
+
+    getNumberOfRowsUpdated(metricsPrefix, "assethierarchy") shouldBe 4
+    getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe 1
+    getNumberOfRowsDeleted(metricsPrefix, "assethierarchy") shouldBe 3
   }
 
   it should "ingest an asset tree, then successfully delete a subtree" in {
@@ -377,12 +384,15 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("cycleThree", None, None, Some(testName),Some("cycleThree"), None, Some("cycleTwo"))
     )
 
+    val metricsPrefix = "insert.assetsHierarchy.ignored"
     spark.sparkContext.parallelize(assetTree).toDF().write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "assethierarchy")
       .option("batchSize", "2")
       .option("ignoreDisconnectedAssets", "true")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save
 
     val namesOfAssetsToInsert = assetTree.slice(0, 4).map(_.name).toSet
@@ -396,6 +406,9 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     assert(extIdMap(Some("son")).parentId.contains(extIdMap(Some("dad")).id))
     assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("dad")).id))
     assert(extIdMap(Some("daughterSon")).parentId.contains(extIdMap(Some("daughter")).id))
+
+    getNumberOfRowsIgnored(metricsPrefix, "assethierarchy") shouldBe 4
+    getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe 4
   }
 
   def getAssetsMap(assets: Seq[Row]): Map[Option[String], AssetsReadSchema] =
