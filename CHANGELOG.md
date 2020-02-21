@@ -1,4 +1,8 @@
 # 1.2.13
+
+## Enhancements
+* `assethierarchy` now supports metrics.
+
 ## Fixes
 * Upserts are now supported when using `.option("useLegacyName", "externalId")`.
 
@@ -17,6 +21,9 @@
 
 * A new option `project` allows the user to specify the CDF project to use.
 If omitted, the project will be fetched using the `apiKey` or `bearerToken` option.
+
+* A new resource type `assethierarchy` is now supported, allowing you to create
+asset hierarchies from Spark data frames. See the README for more information.
 
 # 1.2.10
 
