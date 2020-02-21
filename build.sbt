@@ -114,4 +114,3 @@ lazy val library = (project in file("."))
   )
 
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
-resolvers += Resolver.mavenLocal
