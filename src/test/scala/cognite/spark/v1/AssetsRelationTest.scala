@@ -587,6 +587,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         df => df.length < 100)
     assert(idsAfterInsert.length == 100)
 
+    val metricsPrefix = "assets.delete"
     // Delete the data
     spark
       .sql(s"""
@@ -599,6 +600,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("onconflict", "delete")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save()
 
     // Check if delete worked
@@ -609,6 +612,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
           .collect,
         df => df.length > 0)
     assert(idsAfterDelete.isEmpty)
+    getNumberOfRowsDeleted(metricsPrefix, "assets") shouldBe 100
   }
 
   it should "support ignoring unknown ids in deletes" in {
