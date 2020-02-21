@@ -173,7 +173,9 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       deletes: Seq[DeleteItem],
       ignoreUnknownIds: Boolean = true): IO[Unit] = {
     val ids = deletes.map(_.id)
-    resource.deleteByIds(ids, ignoreUnknownIds)
+    resource
+      .deleteByIds(ids, ignoreUnknownIds)
+      .flatTap(_ => incMetrics(itemsDeleted, ids.length))
   }
 
   def genericUpsert[
