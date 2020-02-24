@@ -82,11 +82,14 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .flatTap(_ => incMetrics(itemsCreated, events.size)) *> IO.unit
   }
 
+  private def isUpdateEmpty(u: EventUpdate): Boolean = u == EventUpdate()
+
   override def update(rows: Seq[Row]): IO[Unit] = {
     val eventUpdates = rows.map(r => fromRow[EventsUpsertSchema](r))
     updateByIdOrExternalId[EventsUpsertSchema, EventUpdate, Events[IO], Event](
       eventUpdates,
-      client.events
+      client.events,
+      isUpdateEmpty
     )
   }
 
@@ -105,6 +108,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     genericUpsert[Event, EventsUpsertSchema, EventCreate, EventUpdate, Events[IO]](
       itemsToUpdate,
       itemsToCreate.map(_.transformInto[EventCreate]),
+      isUpdateEmpty,
       client.events)
   }
 

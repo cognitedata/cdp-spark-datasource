@@ -77,17 +77,26 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       P <: WithExternalId with WithId[Option[Long]],
       U <: WithSetExternalId,
       T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO],
-      R <: WithId[Long]](updates: Seq[P], resource: T)(
-      implicit transform: Transformer[P, U]): IO[Unit] = {
+      R <: WithId[Long]](
+      updates: Seq[P],
+      resource: T,
+      isUpdateEmpty: U => Boolean
+  )(implicit transform: Transformer[P, U]): IO[Unit] = {
     require(
       updates.forall(u => u.id.isDefined || u.externalId.isDefined),
       "Update requires an id or externalId to be set for each row.")
-    val (updatesById, updatesByExternalId) = updates.partition(u => u.id.exists(_ > 0))
+    val (rawUpdatesById, updatesByExternalId) = updates.partition(u => u.id.exists(_ > 0))
+    val updatesById =
+      rawUpdatesById
+        .map(u => u.id.get -> u.transformInto[U])
+        .filter {
+          case (_, update) => !isUpdateEmpty(update)
+        }
+        .toMap
     val updateIds = if (updatesById.isEmpty) { IO.unit } else {
-      val updatesByIdMap = updatesById.map(u => u.id.get -> u.transformInto[U]).toMap
       resource
-        .updateById(updatesByIdMap)
-        .flatTap(_ => incMetrics(itemsUpdated, updatesByIdMap.size))
+        .updateById(updatesById)
+        .flatTap(_ => incMetrics(itemsUpdated, updatesById.size))
         .map(_ => ())
     }
     val updateExternalIds = if (updatesByExternalId.isEmpty) { IO.unit } else {
@@ -191,6 +200,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       Re <: UpdateById[R, Up, IO] with UpdateByExternalId[R, Up, IO] with Create[R, C, IO]](
       itemsToUpdate: Seq[U],
       itemsToCreate: Seq[C],
+      isUpdateEmpty: Up => Boolean,
       resource: Re)(
       implicit transformUpsertToUpdate: Transformer[U, Up],
       transformCreateToUpdate: Transformer[C, Up]): IO[Unit] = {
@@ -209,7 +219,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
     val update = updateByIdOrExternalId[U, Up, Re, R](
       itemsToUpdate,
-      resource
+      resource,
+      isUpdateEmpty
     )
     val createOrUpdate = createOrUpdateByExternalId[R, Up, C, Re](
       Set.empty,
