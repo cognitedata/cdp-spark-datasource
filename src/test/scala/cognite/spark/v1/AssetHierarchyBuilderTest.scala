@@ -139,9 +139,11 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
   it should "ingest an asset tree, then update it" in {
     writeClient.assets.deleteByExternalIds(Seq("dad"), true, true)
 
+    val ds = Some(testDataSetId)
+
     spark.sparkContext.parallelize(Seq(
       AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
+      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad"), dataSetId = ds),
       AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad")),
       AssetCreate("sonDaughter", None, None, Some(testName),Some("sonDaughter"), None, Some("son")),
       AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
@@ -159,9 +161,9 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     Thread.sleep(2000)
 
     val updatedTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad")),
+      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some(""), dataSetId = None),
+      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad"), dataSetId = None),
+      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad"), dataSetId = ds),
       AssetCreate("sonDaughter", None, None, Some(testName), Some("sonDaughter"), None, Some("daughter")),
       AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter"))
     ).map(a => a.copy(name = a.name + "Updated"))
@@ -182,6 +184,9 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     val extIdMap = getAssetsMap(result)
     assert(extIdMap(Some("sonDaughter")).parentId.contains(extIdMap(Some("daughter")).id))
     assert(extIdMap.get(Some("secondDaughterToBeDeleted")).isEmpty)
+    assert(extIdMap(Some("daughter")).dataSetId == ds)
+    assert(extIdMap(Some("son")).dataSetId == ds)
+    assert(extIdMap(Some("dad")).dataSetId == None)
   }
 
   it should "move an asset to another asset that is being moved" in {
