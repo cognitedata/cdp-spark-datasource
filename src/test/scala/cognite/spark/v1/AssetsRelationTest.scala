@@ -109,6 +109,20 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(assetsRead == 1)
   }
 
+  it should "support filtering on null" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .load()
+      .where("dataSetId is null")
+      .limit(5)
+
+    assert(df.count() == 5)
+  }
+
   it should "handle duplicates in a pushdown filter scenario" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.assets.duplicates"
     val df = spark.read
