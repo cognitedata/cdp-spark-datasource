@@ -14,7 +14,8 @@ final case class AssetsIngestSchema(
     source: Option[String],
     name: String,
     description: Option[String],
-    metadata: Option[Map[String, String]])
+    metadata: Option[Map[String, String]],
+    dataSetId: Option[Long])
 
 object AssetsIngestSchema {
   def toAssetCreate(a: AssetsIngestSchema): AssetCreate =
@@ -24,7 +25,8 @@ object AssetsIngestSchema {
       externalId = Some(a.externalId),
       metadata = a.metadata,
       source = a.source,
-      parentExternalId = Some(a.parentExternalId)
+      parentExternalId = Some(a.parentExternalId),
+      dataSetId = a.dataSetId
     )
 
   def toAssetUpdate(a: AssetsIngestSchema): AssetUpdate =
@@ -34,7 +36,8 @@ object AssetsIngestSchema {
       externalId = Some(SetValue(a.externalId)),
       metadata = a.metadata.map(SetValue(_)),
       source = a.source.map(SetValue(_)),
-      parentExternalId = Some(SetValue(a.parentExternalId))
+      parentExternalId = Some(SetValue(a.parentExternalId)),
+      dataSetId = a.dataSetId.map(SetValue(_))
     )
 }
 

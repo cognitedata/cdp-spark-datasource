@@ -108,11 +108,13 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
   it should "ingest an asset tree" in {
     writeClient.assets.deleteByExternalIds(Seq("dad"), true, true)
 
+    val ds = Some(testDataSetId)
+
     val assetTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad")),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter"))
+      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some(""), ds),
+      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad"), ds),
+      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad"), ds),
+      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter"), ds)
     )
 
     spark.sparkContext.parallelize(assetTree).toDF().write
@@ -123,7 +125,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       .save
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName' and dataSetId = $testDataSetId").collect,
       rows => rows.map(r => r.getString(1)).toSet != assetTree.map(_.name).toSet
     )
 
@@ -131,6 +133,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     assert(extIdMap(Some("son")).parentId.contains(extIdMap(Some("dad")).id))
     assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("dad")).id))
     assert(extIdMap(Some("daughterSon")).parentId.contains(extIdMap(Some("daughter")).id))
+    assert(extIdMap(Some("dad")).dataSetId == ds)
   }
 
   it should "ingest an asset tree, then update it" in {
