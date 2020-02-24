@@ -24,11 +24,14 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def insert(rows: Seq[Row]): IO[Unit] =
     getFromRowsAndCreate(rows, doUpsert = false)
 
+  private def isUpdateEmpty(u: TimeSeriesUpdate): Boolean = u == TimeSeriesUpdate()
+
   override def update(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesUpdates = rows.map(r => fromRow[TimeSeriesUpsertSchema](r))
     updateByIdOrExternalId[TimeSeriesUpsertSchema, TimeSeriesUpdate, TimeSeriesResource[IO], TimeSeries](
       timeSeriesUpdates,
-      client.timeSeries
+      client.timeSeries,
+      isUpdateEmpty
     )
   }
 
@@ -69,6 +72,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
             asCreate.withFieldComputed(_.legacyName, _.externalId).transform
         }
       },
+      isUpdateEmpty,
       client.timeSeries
     )
   }

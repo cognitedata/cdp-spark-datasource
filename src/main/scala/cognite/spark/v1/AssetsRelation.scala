@@ -61,11 +61,14 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .flatTap(_ => incMetrics(itemsCreated, assets.size)) *> IO.unit
   }
 
+  private def isUpdateEmpty(u: AssetUpdate): Boolean = u == AssetUpdate()
+
   override def update(rows: Seq[Row]): IO[Unit] = {
     val assetUpdates = rows.map(r => fromRow[AssetsUpsertSchema](r))
     updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate, Assets[IO], Asset](
       assetUpdates,
-      client.assets
+      client.assets,
+      isUpdateEmpty
     )
   }
 
@@ -88,6 +91,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     genericUpsert[Asset, AssetsUpsertSchema, AssetCreate, AssetUpdate, Assets[IO]](
       itemsToUpdate,
       itemsToCreate.map(_.into[AssetCreate].withFieldComputed(_.name, _.name.get).transform),
+      isUpdateEmpty,
       client.assets)
   }
 

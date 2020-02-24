@@ -637,6 +637,30 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     val rowsUpdatedAfterUpdate = getNumberOfRowsUpdated(metricsPrefix, "timeseries")
     assert(rowsUpdatedAfterUpdate == 5)
 
+    // Empty update. Does nothing, but should not fail
+    // NULL means "not updated", we check later that description is actually $updateDescription, not None
+    spark
+      .sql(s"""
+              |select
+              |null as description,
+              |id,
+              |null as assetId
+              |from destinationTimeSeries
+              |where unit = '$partialUpdateUnit'
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "update")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .save()
+
+    // We should not send anything when the update is empty
+    val rowsUpdatedAfterEmptyUpdates = getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+    assert(rowsUpdatedAfterEmptyUpdates == 5)
+
     val dfWithDescriptionUpdateTest = retryWhile[Array[Row]](
         spark
           .sql(s"select * from destinationTimeSeries where description = '$updateDescription'")
