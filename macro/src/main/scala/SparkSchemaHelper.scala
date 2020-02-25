@@ -6,6 +6,7 @@ import org.apache.spark.sql.types.StructType
 import com.cognite.sdk.scala.common.{NonNullableSetter, Setter}
 
 import scala.reflect.macros.blackbox.Context
+import scala.util.{Try, Failure, Success}
 
 class SparkSchemaHelperImpl(val c: Context) {
   def asRow[T: c.WeakTypeTag](x: c.Expr[T]): c.Expr[Row] = {
@@ -85,8 +86,10 @@ class SparkSchemaHelperImpl(val c: Context) {
             q"$setterType.optionToSetter[$rowType].transform(scala.util.Try(Option($r.getAs[$rowType]($name))).toOption.flatten)"
           } else if (isOptionNonNullableSetter) {
             q"$nonNullableSetterType.optionToNonNullableSetter[$rowType].transform(scala.util.Try(Option($r.getAs[$rowType]($name))).toOption.flatten)"
-          } else if (isOuterOption) { column } else {
-            q"""$column.getOrElse(throw new IllegalArgumentException("Row is missing required column named '" + $name + "'."))"""
+          } else if (isOuterOption) {
+            column
+          } else {
+            q"""$column.getOrElse(throw cognite.spark.v1.SparkSchemaHelper.badRowError($r, $name, scala.reflect.runtime.universe.typeOf[$rowType].toString))"""
           }
 
         val resExpr =
@@ -123,7 +126,7 @@ class SparkSchemaHelperImpl(val c: Context) {
           } else if (isOuterOption) {
             instantBaseExpr
           } else {
-            q"""$instantBaseExpr.getOrElse(throw new IllegalArgumentException("Row is missing required column named '" + $name + "'."))"""
+            q"""$instantBaseExpr.getOrElse(throw cognite.spark.v1.SparkSchemaHelper.badRowError($r, $name, scala.reflect.runtime.universe.typeOf[$rowType].toString))"""
           }
         } else {
           q"$resExpr.asInstanceOf[${param.typeSignature}]"
@@ -142,4 +145,28 @@ object SparkSchemaHelper {
 
   def asRow[T](x: T): Row = macro SparkSchemaHelperImpl.asRow[T]
   def fromRow[T](row: Row): T = macro SparkSchemaHelperImpl.fromRow[T]
+
+  def badRowError(row: Row, name: String, typeName: String): Throwable = {
+    val columns = row.schema.fieldNames
+    Try(row.getAs[Any](name)) match {
+      case Failure(error) =>
+        new IllegalArgumentException(s"Required column '$name' is missing on row [${columns.mkString(", ")}].")
+      case Success(value) => {
+        val rowIdentifier =
+          if (columns.contains("externalId")) {
+            s"with externalId='${row.getAs[Any]("externalId")}'"
+          } else if (columns.contains("id")) {
+            s"with id='${row.getAs[Any]("id")}'"
+          } else if (columns.contains("name")) {
+            s"with name='${row.getAs[Any]("name")}'"
+          } else {
+            row.toString
+          }
+        // this function is invoked only in case of an error -> we have some type issues
+        val valueString = if (value == null) { "NULL" } else { s"value '$value' of type '${value.getClass.toString}'" }
+        new IllegalArgumentException(s"Column '$name' was expected to have type $typeName, but $valueString was found (on row $rowIdentifier).")
+      }
+    }
+
+  }
 }
