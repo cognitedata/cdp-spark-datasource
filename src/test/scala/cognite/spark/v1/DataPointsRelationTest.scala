@@ -502,6 +502,64 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(dataPointsAfterPostByExternalId.length == timestamps.length)
   }
 
+  it should "fail reasonably when datapoint values are invalid" taggedAs WriteTest in {
+    val tsName = s"dps-insert1-${shortRandomString()}"
+
+    val destinationTimeSeriesDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .load()
+    destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
+
+    val destinationDataPointsDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "datapoints")
+      .load()
+    destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
+
+    spark
+      .sql(
+        s"""
+           |select '$tsName' as name,
+           |'$tsName' as externalId,
+           |false as isStep,
+           |false as isString
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "upsert")
+      .save()
+
+    val Array(tsId) = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select id from destinationTimeSeries where externalId = '$tsName'""")
+        .collect,
+      df => df.isEmpty)
+      .map(r => r.getLong(0).toString)
+
+    disableSparkLogging()
+    val exception = intercept[SparkException] {
+      spark
+        .sql(
+          s"""
+             |select $tsId as id,
+             |'this-should-be-ignored' as externalId,
+             |to_timestamp(1509500001) as timestamp,
+             |'non-numeric value' as value,
+             |null as aggregation,
+             |null as granularity
+      """.stripMargin)
+        .write
+        .insertInto("destinationDatapoints")
+    }
+    exception.getMessage should include ("Column 'value' was expected to have type Double")
+    enableSparkLogging()
+  }
+
   it should "be possible to create data points for several time series at the same time" taggedAs WriteTest in {
     val tsName1 = s"dps-insert1-${shortRandomString()}"
     val tsName2 = s"dps-insert2-${shortRandomString()}"
