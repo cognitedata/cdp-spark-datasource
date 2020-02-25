@@ -227,6 +227,7 @@ The schemas mirror the CDF API as closely as possible.
 | `lastUpdatedTime` | `timestamp`           | No        |
 | `rootId`          | `long`                | Yes       |
 | `aggregates`      | `map(string, long)`   | Yes       |
+| `dataSetId`       | `long`                | Yes       |
 
 ### Events schema
 | Column name       | Type                  |  Nullable |
@@ -243,6 +244,7 @@ The schemas mirror the CDF API as closely as possible.
 | `externalId`      | `string`              | Yes       |
 | `createdTime`     | `timestamp`           | No        |
 | `lastUpdatedTime` | `timestamp`           | No        |
+| `dataSetId`       | `long`                | Yes       |
 
 ### Files schema
 | Column name       | Type                  |  Nullable |
@@ -293,6 +295,7 @@ The schemas mirror the CDF API as closely as possible.
 | `externalId`         | `string`              | Yes       |
 | `createdTime`        | `timestamp`           | No        |
 | `lastUpdatedTime`    | `timestamp`           | No        |
+| `dataSetId`          | `long`                | Yes       |
 
 
 ### Asset Hierarchy
@@ -304,6 +307,7 @@ The schemas mirror the CDF API as closely as possible.
 | `name`               | `string`              | No        |
 | `description`        | `string`              | Yes       |
 | `metadata`           | `map(string, string)` | Yes       |
+| `dataSetId`          | `long`                | Yes       |
 
 
 ## Examples by resource types
