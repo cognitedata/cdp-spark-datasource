@@ -1,3 +1,14 @@
+# 1.2.14
+
+## Enhancements
+* `dataSetId` can now be set for asset hierarchies.
+
+* Metrics are now reported for deletes.
+
+## Fixes
+
+* Empty updates of assets, events, or time series no longer cause errors.
+
 # 1.2.13
 
 ## Enhancements
