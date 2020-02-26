@@ -325,7 +325,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "support upserts" taggedAs WriteTest in {
     val metricsPrefix = "upsert.event.metrics.insertInto"
-    val source = "spark-events-test-upsert"
+    val source = "spark-events-test-upsert" + shortRandomString()
 
     // Cleanup events
     val eventDescriptionsReturned =
@@ -396,6 +396,11 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .write
       .insertInto("destinationEventUpsert")
 
+    val eventsCreated2 = getNumberOfRowsCreated(metricsPrefix, "events")
+    assert(eventsCreated2 == 500)
+    val eventsUpdated = getNumberOfRowsUpdated(metricsPrefix, "events")
+    assert(eventsUpdated == 100)
+
     // Check if upsert worked
     val descriptionsAfterUpdate = retryWhile[Array[Row]](
       spark
@@ -412,6 +417,8 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       spark.sql(s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'").collect,
       rows => rows.length < 500)
     assert(dfWithCorrectAssetIds.length == 500)
+
+    cleanupEvents(source)
   }
 
   it should "allow inserts in savemode" taggedAs WriteTest in {
