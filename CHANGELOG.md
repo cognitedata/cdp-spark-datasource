@@ -17,8 +17,6 @@
 ## Fixes
 * Upserts are now supported when using `.option("useLegacyName", "externalId")`.
 
-## Fixes
-
 # 1.2.12
 
 ## Enhancements
