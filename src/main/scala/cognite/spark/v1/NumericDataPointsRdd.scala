@@ -61,7 +61,8 @@ case class NumericDataPointsRdd(
       granularity: Granularity,
       ranges: Seq[Range] = Seq.empty,
       countSum: Long = 0,
-      countStart: Option[Instant] = None): Seq[Range] =
+      countStart: Option[Instant] = None,
+      countEnd: Option[Instant] = None): Seq[Range] =
     counts match {
       case count +: moreCounts =>
         if (count.value > maxPointsPerPartition) {
@@ -87,13 +88,14 @@ case class NumericDataPointsRdd(
             granularity,
             ranges,
             accumulatedCount,
-            countStart.orElse(Some(count.timestamp))
+            countStart.orElse(Some(count.timestamp)),
+            Some(count.timestamp.plus(granularity.amount, granularity.unit))
           )
         }
       case _ =>
         countStart match {
           case Some(start) =>
-            val end = start.plus(granularity.amount, granularity.unit)
+            val end = countEnd.getOrElse(start.plus(granularity.amount, granularity.unit))
             val lastRange =
               DataPointsRange(id, start, end, Some(countSum))
             lastRange +: DataPointsRange(id, end, end.plus(granularity.amount, granularity.unit), None) +: ranges
