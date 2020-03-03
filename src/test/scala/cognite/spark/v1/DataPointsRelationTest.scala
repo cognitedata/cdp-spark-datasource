@@ -402,6 +402,105 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(dataPointsAfterPostByExternalId.length == 2)
   }
 
+  it should "read all the datapoints in a time series with infrequent datapoints" taggedAs WriteTest in {
+
+    val testUnit = "last datapoint testing"
+    val tsName = "lastpointtester"
+
+    val sourceTimeSeriesDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "timeseries")
+      .load()
+    sourceTimeSeriesDf.createOrReplaceTempView("sourceTimeSeries")
+
+    val destinationTimeSeriesDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .load()
+    destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
+
+    val destinationDataPointsDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "datapoints")
+      .option("collectMetrics", "true")
+      .load()
+    destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
+
+    // Clean up old time series data
+    spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""")
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "delete")
+      .save()
+
+    // Check that it's gone
+    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
+      spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""").collect
+    }, df => df.length > 0)
+    assert(testTimeSeriesAfterCleanup.length == 0)
+
+    // Insert new time series test data
+    spark
+      .sql(s"""
+              |select '' as description,
+              |'$tsName' as name,
+              |isString,
+              |metadata,
+              |'$testUnit' as unit,
+              |null as assetId,
+              |isStep,
+              |cast(array() as array<long>) as securityCategories,
+              |id,
+              |'$tsName' as externalId,
+              |createdTime,
+              |lastUpdatedTime,
+              |$testDataSetId as dataSetId
+              |from sourceTimeSeries
+              |limit 1
+     """.stripMargin)
+      .select(sourceTimeSeriesDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationTimeSeries")
+
+    // Check if post worked
+    val initialDescriptionsAfterPost = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select id from destinationTimeSeries where name = '$tsName' and dataSetId = $testDataSetId""")
+        .collect,
+      df => df.length < 1)
+    assert(initialDescriptionsAfterPost.length == 1)
+
+    // Insert data points that are few and far apart
+    val timestamps = Seq(1422713600, 1522713600,  1575000000, 1575000001)
+
+    for (i <- timestamps) {
+      spark
+        .sql(s"""
+                |select null as id,
+                |'$tsName' as externalId,
+                |to_timestamp($i) as timestamp,
+                |double(1.5) as value,
+                |null as aggregation,
+                |null as granularity
+      """.stripMargin)
+        .write
+        .insertInto("destinationDatapoints")
+    }
+
+    // Check if post worked
+    val dataPointsAfterPostByExternalId = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select * from destinationDatapoints where externalId = '$tsName'""")
+        .collect,
+      df => df.length < timestamps.length)
+    assert(dataPointsAfterPostByExternalId.length == timestamps.length)
+  }
+
   it should "be possible to create data points for several time series at the same time" taggedAs WriteTest in {
     val tsName1 = s"dps-insert1-${shortRandomString()}"
     val tsName2 = s"dps-insert2-${shortRandomString()}"
