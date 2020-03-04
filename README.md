@@ -48,11 +48,17 @@ The common options are:
 |    Option     |                                                                                                                                                    Description                                                                                                                                                    |                  Required                  |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `apiKey`      | The CDF [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) for authorization.                                                                                                                                                                                                     | Yes, if you don't specify a `bearerToken`. |
-| `bearerToken` | The CDP [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify an `apiKey`.      |
+| `bearerToken` | The CDF [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify an `apiKey`.      |
+| `project`     |  The CDF project. By default it's inferred from the API key. |  |
 | `type`        | The Cognite Data Fusion resource type. See below for more [resource type examples](#examples-by-resource-types).                                                                                                                                                                                                                        | Yes                                        |
 | `maxRetries`  | The maximum number of retries to be made when a request fails. Default: 10                                                                                                                                                                                                                                        |                                            |
 | `limitPerPartition`       | The number of items to fetch for this resource type to create the DataFrame. Note that this is different from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for items to fetch from CDF *per partition*, *before* filtering and other transformations are applied to limit the number of results. Not supported by data points. |                                            |
 | `batchSize`   | The maximum number of items to read/write per API call.                                                                                                                                                                                                                                                           |                                            |
+| `baseUrl`     | Address of the CDF API. For example might be changed to https://greenfield.cognitedata.com. By default it is set to https://api.cognitedata.com                        |   |
+| `collectMetrics` | `true` or `false` - if Spark metrics should be collected about number of reads, inserts, updates and deletes |
+| `metricsPrefix` | Common prefix for all collected metrics. Might be useful when working with multiple connections. |
+| `partitions`   | Number of [CDF partitions](https://docs.cognite.com/dev/concepts/pagination/#parallel-retrieval) to use. By default it's 200. |
+| `parallelismPerPartition` | How many parallel request should run for one Spark partition. Number of Spark partitions = `partitions` / `parallelismPerPartition` |
 
 ### Read data
 
@@ -513,6 +519,8 @@ Optionally, you can have Spark infer the DataFrame schema with the following opt
 - `inferSchema`: Set this to `"true"` to enable schema inference. You can also use the inferred schema can also be used for inserting new rows.
 
 - `inferSchemaLimit`: The number of rows to use for inferring the schema of the table. The default is to read all rows.
+
+- `collectSchemaInferenceMetrics`: Whether metrics should be collected about the read operations for schema inference.
 
 ```scala
 val df = spark.read.format("cognite.spark.v1")
