@@ -278,7 +278,8 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(pointsRead == 723074)
   }
 
-  it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest in {
+  // TODO: Reenable this when the issue with deleting the old time series has been resolved
+  it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest ignore {
     val metricsPrefix = "datapoints.insert"
     val testUnit = "datapoints testing"
     val tsName = s"datapoints-insert-${shortRandomString()}"

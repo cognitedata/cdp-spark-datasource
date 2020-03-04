@@ -1,3 +1,10 @@
+# 1.2.15
+
+## Fixes
+
+* Fixes a bug where not all data points would be read if a time series had less than 10,000 data points
+per 300 days.
+
 # 1.2.14
 
 ## Enhancements
