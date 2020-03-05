@@ -5,6 +5,7 @@ import BuildInfo.BuildInfo
 import scala.concurrent.duration._
 
 object Constants {
+  val CreateDataPointsLimit = 100000
   val DefaultMaxRetries = 10
   val DefaultBatchSize = 1000
   val DefaultRawBatchSize = 10000
