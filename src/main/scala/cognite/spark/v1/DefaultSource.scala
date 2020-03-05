@@ -233,28 +233,34 @@ class DefaultSource
           new StringDataPointsRelationV1(config)(sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
+      val batchSize = relation match {
+        case n: NumericDataPointsRelationV1 => Constants.CreateDataPointsLimit
+        case s: StringDataPointsRelationV1 => Constants.CreateDataPointsLimit
+        case _ => Constants.DefaultBatchSize
+      }
       data.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector._
-        val batches = rows.grouped(Constants.DefaultBatchSize).toVector
+
+        val groupedBatches = rows.grouped(batchSize).toVector.grouped(Constants.MaxConcurrentRequests)
 
         config.onConflict match {
           case OnConflict.Abort =>
-            batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+            groupedBatches.foreach { batchGroup =>
               batchGroup.parTraverse(relation.insert).unsafeRunSync()
             }
 
           case OnConflict.Upsert =>
-            batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+            groupedBatches.foreach { batchGroup =>
               batchGroup.parTraverse(relation.upsert).unsafeRunSync()
             }
 
           case OnConflict.Update =>
-            batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+            groupedBatches.foreach { batchGroup =>
               batchGroup.parTraverse(relation.update).unsafeRunSync()
             }
 
           case OnConflict.Delete =>
-            batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
+            groupedBatches.foreach { batchGroup =>
               batchGroup.parTraverse(relation.delete).unsafeRunSync()
             }
         }
