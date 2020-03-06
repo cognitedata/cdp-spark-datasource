@@ -17,7 +17,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   val sourceDf: DataFrame = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", readApiKey)
+    .option("apiKey", writeApiKey)
     .option("type", "events")
     .option("limitPerPartition", "1000")
     .option("partitions", "1")
@@ -33,10 +33,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     .option("onconflict", "delete")
     .save()
 
-  /*
-  Open Industrial Data will, every now and again, insert some more Events. To stop this from breaking our
-  tests we apply an upper bound filter on createdTime for all Events
-   */
   private def getBaseReader(
     collectMetrics: Boolean = false,
     metricsPrefix: String = "",
@@ -45,17 +41,16 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.read
       .format("cognite.spark.v1")
       .option("type", "events")
-      .option("apiKey", readApiKey)
+      .option("apiKey", writeApiKey)
       .option("collectMetrics", collectMetrics)
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"createdTime < to_timestamp($upperTimeBound)")
   }
 
-  "EventsRelation" should "allow simple reads" taggedAs ReadTest in {
+  "EventsRelation" should "allow simple reads" taggedAs WriteTest in {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+      .option("apiKey", writeApiKey)
       .option("type", "events")
       .option("batchSize", "500")
       .option("limitPerPartition", "100")
@@ -69,17 +64,17 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(res.length == 1000)
   }
 
-  it should "apply a single pushdown filter" taggedAs ReadTest in {
+  it should "apply a single pushdown filter" taggedAs WriteTest in {
     val metricsPrefix = "single.pushdown.filter"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type = '***'")
+      .where(s"type = 'Worktask'")
 
-    assert(df.count == 9)
+    assert(df.count == 227)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 9)
+    assert(eventsRead == 227)
   }
 
-  it should "get exception on invalid query" taggedAs ReadTest in {
+  it should "get exception on invalid query" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filter.dataSetId"
     val df = getBaseReader(true, metricsPrefix)
       .where("dataSetId = 0")
@@ -90,87 +85,87 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     thrown.getMessage should include ("id must be greater than or equal to 1")
   }
 
-  it should "apply a dataSetId pushdown filter" taggedAs ReadTest in {
+  it should "apply a dataSetId pushdown filter" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filter.dataSetId"
     val df = getBaseReader(true, metricsPrefix)
-        .where("type = '***' or dataSetId = 1")
+        .where("type = 'Worktask' or dataSetId = 86163806167772")
 
-    assert(df.count == 9)
+    assert(df.count == 232)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 9)
+    assert(eventsRead == 232)
   }
 
-  it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs ReadTest in {
+  it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.and.non.pushdown"
     // The contents of the parenthesis would need all content, but the left side should cancel that out
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"(type = 'Workitem' or description = 'Rule test rule broken.') and type = 'Workitem'")
+      .where(s"(type = 'Worktask' or description = 'Rule test rule broken.') and type = 'Worktask'")
 
-    assert(df.count == 334)
+    assert(df.count == 227)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 334)
+    assert(eventsRead == 227)
   }
 
-  it should "read all data when necessary" taggedAs ReadTest in {
+  it should "read all data when necessary" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.or.non.pushdown"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type = 'Workitem' or description = 'Rule test rule broken.'")
+      .where(s"type = 'Worktask' or description = 'Rule test rule broken.'")
 
-    assert(df.count == 334)
+    assert(df.count == 237)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead > 400)
+    assert(eventsRead > 25000)
   }
 
-  it should "handle duplicates in a pushdown filter scenario" taggedAs ReadTest in {
+  it should "handle duplicates in a pushdown filter scenario" taggedAs WriteTest in {
     val metricsPrefix = "single.pushdown.filter.duplicates"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type = 'Workitem' or subtype = '-LLibBzAJWfs1aBXHgg3'")
+      .where(s"type = 'NEWS' or subtype = 'HACK'")
 
-    assert(df.count == 334)
+    assert(df.count == 1029)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 334)
+    assert(eventsRead == 1029)
   }
 
-  it should "apply multiple pushdown filters" taggedAs ReadTest in {
+  it should "apply multiple pushdown filters" taggedAs WriteTest in {
     val metricsPrefix = "multiple.pushdown.filters"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type = 'Workitem' and assetIds = Array(3117826349444493)")
+      .where(s"type = '***' and assetIds = Array(2091657868296883)")
 
-    assert(df.count == 20)
+    assert(df.count == 83)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 20)
+    assert(eventsRead == 83)
   }
 
-  it should "handle or conditions" taggedAs ReadTest in {
+  it should "handle or conditions" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.or"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type = 'Workitem' or type = '***'")
+      .where(s"type = 'Workitem' or type = 'Worktask'")
 
-    assert(df.count == 343)
+    assert(df.count == 1483)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 343)
+    assert(eventsRead == 1483)
   }
 
-  it should "handle in() conditions" taggedAs ReadTest in {
+  it should "handle in() conditions" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.in"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type in('Workitem','Workorder')")
-    assert(df.count == 488)
+      .where(s"type in('Workitem','Worktask')")
+    assert(df.count == 1483)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 488)
+    assert(eventsRead == 1483)
   }
 
-  it should "handle and, or and in() in one query" taggedAs ReadTest in {
+  it should "handle and, or and in() in one query" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.and.or.in"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"(type = 'Workitem' or type = '***') and assetIds in(array(6191827428964450), array(3047932288982463))")
+      .where(s"(type = 'Workitem' or type = '***') and assetIds in(array(2091657868296883), array(8031965690878131))")
 
-    assert(df.count == 74)
+    assert(df.count == 172)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 79)
+    assert(eventsRead == 172)
   }
 
-  it should "handle pushdown filters on minimum startTime" taggedAs ReadTest in {
+  it should "handle pushdown filters on minimum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.minStartTime"
     val df = getBaseReader(true, metricsPrefix)
       .where("startTime > to_timestamp(1568105460)")
@@ -179,40 +174,40 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(eventsRead >= 179)
   }
 
-  it should "handle pushdown filters on maximum createdTime" taggedAs ReadTest in {
+  it should "handle pushdown filters on maximum createdTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.maxCreatedTime"
     val df = getBaseReader(true, metricsPrefix)
-      .where("createdTime <= to_timestamp(1535448052)")
-    assert(df.count == 54)
+      .where("createdTime <= timestamp('2018-10-26 00:00:00.000Z')")
+    assert(df.count == 1029)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 54)
+    assert(eventsRead == 1029)
   }
 
-  it should "handle pushdown filters on maximum startTime" taggedAs ReadTest in {
+  it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.maxStartTime"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"startTime < to_timestamp(1533132293) and source = 'akerbp-cdp'")
-    assert(df.count == 43)
+      .where(s"startTime < timestamp('1970-01-19 00:00:00.000Z')")
+    assert(df.count == 58)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 43)
+    assert(eventsRead == 58)
   }
 
-  it should "handle pushdown filters on minimum and maximum startTime" taggedAs ReadTest in {
+  it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.minMaxStartTime"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"startTime < to_timestamp(1533132293) and startTime > to_timestamp(1533000293)")
-    assert(df.count == 2)
+      .where(s"startTime < timestamp('1970-01-19 00:00:00.000Z') and startTime > timestamp('1970-01-18 23:00:00.000Z')")
+    assert(df.count == 9)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 2)
+    assert(eventsRead == 9)
   }
 
   it should "handle pushdown filters on assetIds" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.assetIds"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"assetIds In(Array(3047932288982463))")
-    assert(df.count == 54)
+      .where(s"assetIds In(Array(2091657868296883))")
+    assert(df.count == 89)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 78)
+    assert(eventsRead == 89)
   }
 
   it should "handle pusdown filters on eventIds" taggedAs WriteTest ignore {
