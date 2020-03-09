@@ -72,6 +72,7 @@ class RawTableRelation(
       val rdd =
         readRows(
           inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
+          Some(1),
           RawRowFilter(),
           collectSchemaInferenceMetrics)
 
@@ -96,9 +97,11 @@ class RawTableRelation(
 
   private def readRows(
       limit: Option[Int],
+      numPartitions: Option[Int],
       filter: RawRowFilter,
       collectMetrics: Boolean = config.collectMetrics): RDD[Row] = {
-    val configWithLimit = config.copy(limitPerPartition = limit)
+    val configWithLimit =
+      config.copy(limitPerPartition = limit, partitions = numPartitions.getOrElse(config.partitions))
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
@@ -123,7 +126,8 @@ class RawTableRelation(
 
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
 
-    val rdd = readRows(config.limitPerPartition, RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime))
+    val rdd =
+      readRows(config.limitPerPartition, None, RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime))
     val newRdd = if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
       rdd
     } else {
