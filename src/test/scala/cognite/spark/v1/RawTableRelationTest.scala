@@ -236,7 +236,7 @@ class RawTableRelationTest extends FlatSpec with Matchers with SparkTest {
 
     val numRowsReadDuringSchemaInferance =
       getNumberOfRowsRead(metricsPrefix, s"raw.$database.$table.rows")
-    numRowsReadDuringSchemaInferance should be(inferSchemaLimit * partitions)
+    numRowsReadDuringSchemaInferance should be(inferSchemaLimit)
   }
 
   "lastUpdatedTime" should "insert data without error" taggedAs (WriteTest) in {
