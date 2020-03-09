@@ -63,11 +63,10 @@ final case class NonUniqueAssetId(id: String)
     extends Exception(s"Asset tree contains asset '$id' multiple times.")
 final case class EmptyExternalIdException(message: String = s"ExternalId cannot be an empty String.")
     extends Exception(message)
-final case class CdfDoesNotSupportException(message: String)
-    extends Exception(message)
+final case class CdfDoesNotSupportException(message: String) extends Exception(message)
 final case class InvalidNodeReferenceException(nodeIds: Seq[String], referencedFrom: Seq[String])
     extends Exception({
-      def plural(sg: String, pl: String) = if (nodeIds.length == 1) sg else pl
+      val plural = (sg: String, pl: String) => if (nodeIds.length == 1) sg else pl
       val nodes = nodeIds.map(x => s"'$x'").mkString(", ")
       val refNodes = referencedFrom.map(x => s"'$x'").mkString(", ")
       s"${plural("Node", "Nodes")} $nodes referenced from $refNodes ${plural("does", "do")} not exist."
@@ -107,7 +106,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         subtrees
       }
 
-    if (subtrees.nonEmpty && subtrees2.isEmpty){
+    if (subtrees.nonEmpty && subtrees2.isEmpty) {
       // in case all nodes are dropped due to ignoreDisconnectedAssets
       throw NoRootException()
       // we can allow empty source data set, that won't really happen by accident
@@ -123,7 +122,6 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     } yield ()
   }
 
-
   def validateSubtreeRoots(roots: Seq[AssetsIngestSchema]): IO[Unit] = {
     // check that all parentExternalId exist
     val ids = roots.map(_.parentExternalId).filter(_.nonEmpty)
@@ -131,15 +129,18 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       IO.unit
     } else {
       // The API calls throws exception when any of the ids does not exist
-      client.assets.retrieveByExternalIds(ids)
-      .adaptError({
-        case e: CdpApiException if e.code == 400 && e.missing.nonEmpty => {
-          val missingNodes = e.missing.get.map(j => j("externalId").get.asString.get).take(10)
-          val referencingNodes =
-            missingNodes.flatMap(missing => roots.find(_.parentExternalId == missing)).map(_.externalId)
-          InvalidNodeReferenceException(missingNodes, referencingNodes)
-        }
-      }) *> IO.unit
+      client.assets
+        .retrieveByExternalIds(ids)
+        .adaptError({
+          case e: CdpApiException if e.code == 400 && e.missing.nonEmpty => {
+            val missingNodes = e.missing.get.map(j => j("externalId").get.asString.get).take(10)
+            val referencingNodes =
+              missingNodes
+                .flatMap(missing => roots.find(_.parentExternalId == missing))
+                .map(_.externalId)
+            InvalidNodeReferenceException(missingNodes, referencingNodes)
+          }
+        }) *> IO.unit
     }
   }
 
@@ -155,14 +156,14 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     } yield ()
 
   def insert(toInsert: Seq[AssetsIngestSchema], batchSize: Int): IO[Unit] = {
-      val assetCreatesToInsert = toInsert.map(AssetsIngestSchema.toAssetCreate)
-      // Traverse batches in order to ensure writing parents first
-      assetCreatesToInsert
-        .grouped(batchSize)
-        .toList
-        .traverse(client.assets.create)
-        .flatTap(x => incMetrics(itemsCreated, x.map(_.size).sum)) *> IO.unit
-    }
+    val assetCreatesToInsert = toInsert.map(AssetsIngestSchema.toAssetCreate)
+    // Traverse batches in order to ensure writing parents first
+    assetCreatesToInsert
+      .grouped(batchSize)
+      .toList
+      .traverse(client.assets.create)
+      .flatTap(x => incMetrics(itemsCreated, x.map(_.size).sum)) *> IO.unit
+  }
 
   def delete(toDelete: Seq[Asset], deleteMissingAssets: Boolean, batchSize: Int): IO[Unit] =
     if (deleteMissingAssets) {
@@ -194,10 +195,12 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     }
 
   def fetchCdfRoot(sourceRootExternalId: String): IO[Option[Asset]] =
-    client.assets.retrieveByExternalId(sourceRootExternalId)
+    client.assets
+      .retrieveByExternalId(sourceRootExternalId)
       .map(Some(_).asInstanceOf[Option[Asset]])
       .handleError {
-        case e: CdpApiException if e.code == 400 && e.missing.isDefined => None.asInstanceOf[Option[Asset]]
+        case e: CdpApiException if e.code == 400 && e.missing.isDefined =>
+          None.asInstanceOf[Option[Asset]]
       }
 
   def fetchCdfSubtree(root: AssetsIngestSchema): IO[List[Asset]] =
@@ -227,7 +230,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       Some(root.parentExternalId)
     }
 
-    // TODO: don't do the update when nothing is changed (waiting for )
+    // TODO: don't do the update when nothing is changed (waiting for Scala SDK parentExternalId)
     sourceRoot match {
       case None =>
         client.assets
@@ -235,22 +238,23 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           .flatTap(x => incMetrics(itemsCreated, x.size))
           .map(x => x.head)
       case Some(asset) => {
-          val parentIdUpdate = (parentId, asset.parentId) match {
-            case (None, Some(oldParent)) =>
-              throw CdfDoesNotSupportException(
-                s"Can not make root from asset '${}' which is already inside asset '${oldParent}."
+        val parentIdUpdate = (parentId, asset.parentId) match {
+          case (None, Some(oldParent)) =>
+            throw CdfDoesNotSupportException(
+              s"Can not make root from asset '${asset.externalId.get}' which is already inside asset '${oldParent}."
+              // TODO: include parentExternalId in the message
                 + " You might need to remove the asset and insert it again.")
-            case (None, None) => None
-            case (Some(newParent), _) => Some(SetValue(newParent))
-          }
-          client.assets
-            .updateByExternalId(
-              Seq(
-                root.externalId -> AssetsIngestSchema
-                  .toAssetUpdate(root)
-                  .copy(parentExternalId = parentIdUpdate)).toMap)
-            .flatTap(x => incMetrics(itemsUpdated, x.size))
-            .map(x => x.head)
+          case (None, None) => None
+          case (Some(newParent), _) => Some(SetValue(newParent))
+        }
+        client.assets
+          .updateByExternalId(
+            Seq(
+              root.externalId -> AssetsIngestSchema
+                .toAssetUpdate(root)
+                .copy(parentExternalId = parentIdUpdate)).toMap)
+          .flatTap(x => incMetrics(itemsUpdated, x.size))
+          .map(x => x.head)
       }
     }
   }
@@ -275,7 +279,10 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     (toDelete, toInsert, toUpdate)
   }
 
-  def needsUpdate(child: AssetsIngestSchema, cdfTreeByExternalId: Map[String, Asset], cdfTreeById: Map[Long, Asset]): Boolean = {
+  def needsUpdate(
+      child: AssetsIngestSchema,
+      cdfTreeByExternalId: Map[String, Asset],
+      cdfTreeById: Map[Long, Asset]): Boolean = {
     // Find the matching asset in CDF
     val cdfAsset = cdfTreeByExternalId.get(child.externalId)
     cdfAsset match {
