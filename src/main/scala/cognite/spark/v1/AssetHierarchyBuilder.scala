@@ -65,6 +65,13 @@ final case class EmptyExternalIdException(message: String = s"ExternalId cannot 
     extends Exception(message)
 final case class CdfDoesNotSupportException(message: String)
     extends Exception(message)
+final case class InvalidNodeReferenceException(nodeIds: Seq[String], referencedFrom: Seq[String])
+    extends Exception({
+      def plural(sg: String, pl: String) = if (nodeIds.length == 1) sg else pl
+      val nodes = nodeIds.map(x => s"'$x'").mkString(", ")
+      val refNodes = referencedFrom.map(x => s"'$x'").mkString(", ")
+      s"${plural("Node", "Nodes")} $nodes referenced from $refNodes ${plural("does", "do")} not exist."
+    })
 
 class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdfRelation(config, "assethierarchy") {
@@ -75,8 +82,8 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   val deleteMissingAssets = config.deleteMissingAssets
   val ignoreDisconnectedAssets = config.ignoreDisconnectedAssets
-  val allowMultipleRoots = true // TODO
-  val allowSubtreeIngestion = true // TODO
+  val allowMultipleRoots = config.allowMultipleRoots
+  val allowSubtreeIngestion = config.allowSubtreeIngestion
 
   def build(df: DataFrame): IO[Unit] = {
     val sourceTree = df.collect.map(r => fromRow[AssetsIngestSchema](r))
@@ -124,7 +131,15 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       IO.unit
     } else {
       // The API calls throws exception when any of the ids does not exist
-      client.assets.retrieveByExternalIds(ids) *> IO.unit
+      client.assets.retrieveByExternalIds(ids)
+      .adaptError({
+        case e: CdpApiException if e.code == 400 && e.missing.nonEmpty => {
+          val missingNodes = e.missing.get.map(j => j("externalId").get.asString.get).take(10)
+          val referencingNodes =
+            missingNodes.flatMap(missing => roots.find(_.parentExternalId == missing)).map(_.externalId)
+          InvalidNodeReferenceException(missingNodes, referencingNodes)
+        }
+      }) *> IO.unit
     }
   }
 
