@@ -110,15 +110,20 @@ lazy val library = (project in file("."))
     buildInfoPackage := "BuildInfo"
   )
 
-lazy val performanceBench = (project in file("performanceBench"))
+lazy val performanceBench = (project in file("performancebench"))
   .dependsOn(library)
   .settings(
     commonSettings,
     name := "cdf-spark-performance-bench",
+    fork := true,
     libraryDependencies ++= Seq(
       "io.prometheus" % "simpleclient" % prometheusVersion,
       "io.prometheus" % "simpleclient_httpserver" % prometheusVersion,
       "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
+      ("org.apache.spark" %% "spark-core" % sparkVersion)
+        .exclude("org.glassfish.hk2.external", "javax.inject"),
+      ("org.apache.spark" %% "spark-sql" % sparkVersion)
+        .exclude("org.glassfish.hk2.external", "javax.inject")
     )
   )
 
