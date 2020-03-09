@@ -105,6 +105,22 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     errorMessage should not include("daughterSon")
   }
 
+  it should "fail reasonably when parent does not exist" in {
+    val assetTree = Seq(
+      AssetCreate("testNode1", None, None, Some(testName),Some("testNode1"), None, Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
+      AssetCreate("testNode2", None, None, Some(testName),Some("testNode2"), None, None)
+    )
+
+    val writer = spark.sparkContext.parallelize(assetTree).toDF().write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assethierarchy")
+
+    val ex = intercept[Exception] { writer.save }
+    ex shouldBe an[InvalidNodeReferenceException]
+    ex.getMessage shouldBe "Node 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds' referenced from 'testNode1' does not exist."
+  }
+
   it should "ingest an asset tree" in {
     writeClient.assets.deleteByExternalIds(Seq("dad"), true, true)
 
@@ -138,6 +154,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
 
   it should "ingest an asset tree, then update it" in {
     writeClient.assets.deleteByExternalIds(Seq("dad"), true, true)
+    writeClient.assets.deleteByExternalIds(Seq("unusedZero"), true, true)
 
     val ds = Some(testDataSetId)
 
@@ -386,10 +403,10 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
       AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad")),
       AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
-      AssetCreate("cycleZero", None, None, Some(testName),Some("cycleZero"), None, Some("cycleThree")),
-      AssetCreate("cycleOne", None, None, Some(testName),Some("cycleOne"), None, Some("cycleZero")),
-      AssetCreate("cycleTwo", None, None, Some(testName),Some("cycleTwo"), None, Some("cycleOne")),
-      AssetCreate("cycleThree", None, None, Some(testName),Some("cycleThree"), None, Some("cycleTwo"))
+      AssetCreate("unusedZero", None, None, Some(testName),Some("unusedZero"), None, Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
+      AssetCreate("unusedOne", None, None, Some(testName),Some("unusedOne"), None, Some("unusedZero")),
+      AssetCreate("unusedTwo", None, None, Some(testName),Some("unusedTwo"), None, Some("unusedOne")),
+      AssetCreate("unusedThree", None, None, Some(testName),Some("unusedThree"), None, Some("unusedTwo"))
     )
 
     val metricsPrefix = "insert.assetsHierarchy.ignored"
@@ -398,6 +415,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", writeApiKey)
       .option("type", "assethierarchy")
       .option("batchSize", "2")
+      .option("allowSubtreeIngestion", "false")
       .option("ignoreDisconnectedAssets", "true")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
