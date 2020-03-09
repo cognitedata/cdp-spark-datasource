@@ -94,6 +94,8 @@ trait SparkTest {
       ignoreUnknownIds = true,
       deleteMissingAssets = false,
       ignoreDisconnectedAssets = false,
+      allowSubtreeIngestion = true,
+      allowMultipleRoots = true,
       legacyNameSource = LegacyNameSource.None
     )
 
