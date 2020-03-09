@@ -17,11 +17,16 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
 
   val testName = "assetHierarchyTest"
 
-  it should "throw an error on empty input" in {
+  it should "throw an error when everything is ignored" in {
+    val tree = Seq(
+      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("someNode"))
+    )
     val e = intercept[Exception] {
-      spark.sparkContext.parallelize(Seq[AssetCreate]()).toDF().write
+      spark.sparkContext.parallelize(tree).toDF().write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
+        .option("allowSubtreeIngestion", "false")
+        .option("ignoreDisconnectedAssets", "true")
         .option("type", "assethierarchy")
         .save
     }
@@ -40,6 +45,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("type", "assethierarchy")
+        .option("allowSubtreeIngestion", "false")
         .save
     }
     e shouldBe an[InvalidTreeException]
@@ -57,6 +63,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("type", "assethierarchy")
+        .option("allowMultipleRoots", "false")
         .save
     }
     e shouldBe an[MultipleRootsException]
@@ -108,7 +115,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
   it should "fail reasonably when parent does not exist" in {
     val assetTree = Seq(
       AssetCreate("testNode1", None, None, Some(testName),Some("testNode1"), None, Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
-      AssetCreate("testNode2", None, None, Some(testName),Some("testNode2"), None, None)
+      AssetCreate("testNode2", None, None, Some(testName),Some("testNode2"), None, Some(""))
     )
 
     val writer = spark.sparkContext.parallelize(assetTree).toDF().write
