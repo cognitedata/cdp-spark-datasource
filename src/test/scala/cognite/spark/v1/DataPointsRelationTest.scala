@@ -61,7 +61,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
       .where(
         s"timestamp >= to_timestamp(1509490000) and timestamp <= to_timestamp(1510358400) and aggregation = 'max' and granularity = '1d' and id = $valhallTimeSeriesId")
-    assert(df1Partitions.count() == 10)
+    assert(df1Partitions.count() == 11)
     val df2 = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -93,7 +93,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .where(
         s"timestamp >= to_timestamp(1509490001) and timestamp <= to_timestamp(1510358400) and aggregation = 'max' and granularity = '1d' and id = $valhallTimeSeriesId")
     val results1 = df1.collect()
-    assert(results1.length == 10)
+    assert(results1.length == 11)
     assert(results1(0).getTimestamp(2).getTime == 1509494400000L)
     val df2 = spark.read
       .format("cognite.spark.v1")
@@ -104,13 +104,13 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .where(
         s"timestamp >= to_timestamp(1509490001) and timestamp <= to_timestamp(1510358400) and aggregation = 'max' and granularity = '1d' and id = $valhallTimeSeriesId")
     val results2 = df2.collect()
-    assert(results2.length == 10)
+    assert(results2.length == 11)
     assert(results2(0).getTimestamp(2).getTime == 1509494400000L)
   }
 
   it should "be possible to specify multiple aggregation types in one query" taggedAs (ReadTest) in {
     val metricsPrefix = "multi.aggregation"
-    val df = spark.read
+    val results = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "datapoints")
@@ -118,12 +118,11 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("metricsPrefix", metricsPrefix)
       .load()
       .where(
-        s"timestamp >= to_timestamp(1508544000) and timestamp < to_timestamp(1511136000) and aggregation in ('sum', 'average', 'max') and granularity = '30d' and id = $valhallTimeSeriesId")
-      .orderBy(col("aggregation").asc)
-    val results = df.collect()
+        s"timestamp >= to_timestamp(1508544000) and timestamp < to_timestamp(1511135998) and aggregation in ('sum', 'average', 'max') and granularity = '30d' and id = $valhallTimeSeriesId")
+      .orderBy(col("aggregation").asc).collect()
     assert(results.length == 3)
     val pointsRead = getNumberOfRowsRead(metricsPrefix, "datapoints")
-    assert(pointsRead == 3)
+    assert(pointsRead == 6)
     val Array(avg, max, sum) = results
     val timeSeriesId = valhallTimeSeriesId
     assert(sum.getLong(0) == timeSeriesId)
@@ -246,7 +245,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "datapoints")
       .load()
       .where(
-        s"timestamp >= to_timestamp(1510358400) and timestamp <= to_timestamp(1510358401) and aggregation in ('max') and granularity = '1s' and id = $valhallTimeSeriesId")
+        s"timestamp >= to_timestamp(1510358400) and timestamp < to_timestamp(1510358401) and aggregation in ('max') and granularity = '1s' and id = $valhallTimeSeriesId")
     assert(oneDf.count() == 1)
 
     val df = spark.read
