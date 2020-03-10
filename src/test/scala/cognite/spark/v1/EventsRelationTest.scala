@@ -52,11 +52,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "events")
-      .option("batchSize", "500")
       .option("limitPerPartition", "100")
       .option("partitions", "10")
       .load()
-
     df.createTempView("events")
     val res = spark.sqlContext
       .sql("select * from events")
