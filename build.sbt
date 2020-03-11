@@ -1,3 +1,5 @@
+import com.typesafe.sbt.packager.docker.{Cmd, ExecCmd}
+
 val scala212 = "2.12.8"
 val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
@@ -110,6 +112,7 @@ lazy val library = (project in file("."))
   )
 
 lazy val performanceBench = (project in file("performancebench"))
+  .enablePlugins(JavaAppPackaging, UniversalPlugin, DockerPlugin)
   .dependsOn(library)
   .settings(
     commonSettings,
@@ -125,7 +128,15 @@ lazy val performanceBench = (project in file("performancebench"))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion
         exclude("org.glassfish.hk2.external", "javax.inject")
-    )
+    ),
+    dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",
+    dockerCommands := dockerCommands.value.filterNot {
+      case ExecCmd("ENTRYPOINT", args @ _*) => true
+      case cmd => false
+    } ++ Seq(
+      Cmd("ENV", s"JAVA_MAIN_CLASS=${mainClass.in(Compile).value.get}"),
+      Cmd("ENV", "JAVA_APP_DIR=/opt/docker/lib")
+    ),
   )
 
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
