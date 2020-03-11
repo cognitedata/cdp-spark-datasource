@@ -2,10 +2,12 @@ package cognite.spark.performancebench
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
+import org.log4s._
 
 case class PerformanceTest[A](testName: String, beforeTest: () => A, test: A => Unit)
 
 abstract class PerformanceSuite extends SparkUtil {
+  val logger = getLogger
   val tests: mutable.MutableList[PerformanceTest[Any]] = new mutable.MutableList[PerformanceTest[Any]]()
   def registerTest(testName: String, test: () => Unit): Unit =
     tests += PerformanceTest(testName, () => (), _ => test())
@@ -15,19 +17,23 @@ abstract class PerformanceSuite extends SparkUtil {
 
   def run(): Unit =
     tests.foreach(perfTest => {
-      println(s"Starting ${perfTest.testName}")
       val testResult = for {
         beforeTestResult <- Try(perfTest.beforeTest())
-        testResult <- Try(
-          Metrics.testTimeHistogram
-            .labels(perfTest.testName)
-            .time(new Runnable() { def run() = perfTest.test(beforeTestResult) }))
+        testResult <- {
+          logger.info(s"${perfTest.testName}: starting")
+          val startTime = System.currentTimeMillis()
+          val res = Try(
+            Metrics.testTimeSummary
+              .labels(perfTest.testName)
+              .time(new Runnable() { def run() = perfTest.test(beforeTestResult) }))
+          logger.info(s"${perfTest.testName}: finished after ${(System.currentTimeMillis() - startTime) / 1000}")
+          res
+        }
       } yield testResult
-      println(s"Done with ${perfTest.testName}")
 
       testResult match {
-        case Success(value) => ()
-        case Failure(exception) => println(s"Failed to run ${perfTest.testName}: $exception")
+        case Success(_) => ()
+        case Failure(exception) => logger.error(exception)(s"${perfTest.testName}: failed to run")
       }
     })
 }
