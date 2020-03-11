@@ -8,6 +8,7 @@ val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 val cogniteSdkVersion = "1.2.2"
 val prometheusVersion = "0.8.1"
+val log4sVersion = "1.8.2"
 
 resolvers += "libs-release".at(artifactory + "libs-release/")
 
@@ -120,6 +121,7 @@ lazy val performanceBench = (project in file("performancebench"))
       "io.prometheus" % "simpleclient" % prometheusVersion,
       "io.prometheus" % "simpleclient_httpserver" % prometheusVersion,
       "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
+      "org.log4s" %% "log4s" % log4sVersion,
       ("org.apache.spark" %% "spark-core" % sparkVersion)
         .exclude("org.glassfish.hk2.external", "javax.inject"),
       ("org.apache.spark" %% "spark-sql" % sparkVersion)
