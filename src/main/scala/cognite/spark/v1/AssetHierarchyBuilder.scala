@@ -87,7 +87,9 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   def build(df: DataFrame): IO[Unit] = {
     val sourceTree = df.collect.map(r => fromRow[AssetsIngestSchema](r))
 
-    val subtrees = validateAndOrderInput(sourceTree).toVector
+    val subtrees =
+      validateAndOrderInput(sourceTree)
+        .sortBy(_.root.externalId) // make potential errors deterministic
 
     val subtrees2 =
       if (allowSubtreeIngestion) {
