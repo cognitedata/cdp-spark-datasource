@@ -936,6 +936,40 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     assert(descriptionsAfterUpdate.length == 5)
   }
 
+  it should "support ignoring unknown ids in deletes" in {
+    spark
+      .sql(s"""
+              |select 1234567890123 as id
+        """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "delete")
+      .option("ignoreUnknownIds", "true")
+      .save()
+
+    // Should throw error if ignoreUnknownIds is false
+    disableSparkLogging() // Removing expected Spark executor Errors from the console
+    val e = intercept[SparkException] {
+      spark
+        .sql(s"""
+                |select 1234567890123 as id
+        """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "timeseries")
+        .option("onconflict", "delete")
+        .option("ignoreUnknownIds", "false")
+        .save()
+    }
+    enableSparkLogging()
+    e.getCause shouldBe a[CdpApiException]
+    val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+    assert(cdpApiException.code == 400)
+  }
+
   def cleanUpTimeSeriesTestDataByUnit(unit: String): Unit = {
     spark.sql(s"""select * from destinationTimeSeries where unit = '$unit'""")
         .write
