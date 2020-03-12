@@ -22,11 +22,14 @@ abstract class PerformanceSuite extends SparkUtil {
         testResult <- {
           logger.info(s"${perfTest.testName}: starting")
           val startTime = System.currentTimeMillis()
-          val res = Try(
-            Metrics.testTimeSummary
-              .labels(perfTest.testName)
-              .time(new Runnable() { def run() = perfTest.test(beforeTestResult) }))
-          logger.info(s"${perfTest.testName}: finished after ${(System.currentTimeMillis() - startTime) / 1000} secs")
+          val res = Try(perfTest.test(beforeTestResult))
+          val duration = (System.currentTimeMillis() - startTime).toDouble / 1000.0
+          val wasSuccess: Boolean = res.toOption.isDefined
+          Metrics.testTimeMetric
+            .labels(perfTest.testName, wasSuccess.toString)
+            .set(duration)
+          val durationAsString = f"$duration%1.2f"
+          logger.info(s"${perfTest.testName}: finished after ${durationAsString} secs")
           res
         }
       } yield testResult
