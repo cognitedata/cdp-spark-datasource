@@ -113,6 +113,7 @@ lazy val performanceBench = (project in file("performancebench"))
   .dependsOn(library)
   .settings(
     commonSettings,
+    publish / skip := true,
     name := "cdf-spark-performance-bench",
     fork := true,
     libraryDependencies ++= Seq(
