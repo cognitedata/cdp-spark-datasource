@@ -26,7 +26,7 @@ abstract class PerformanceSuite extends SparkUtil {
             Metrics.testTimeSummary
               .labels(perfTest.testName)
               .time(new Runnable() { def run() = perfTest.test(beforeTestResult) }))
-          logger.info(s"${perfTest.testName}: finished after ${(System.currentTimeMillis() - startTime) / 1000}")
+          logger.info(s"${perfTest.testName}: finished after ${(System.currentTimeMillis() - startTime) / 1000} secs")
           res
         }
       } yield testResult
