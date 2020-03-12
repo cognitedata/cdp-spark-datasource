@@ -145,15 +145,14 @@ Note: The asset hierarchy builder is currently in beta, and has not been suffici
 on production data.
 
 The `.option("type", "assethierarchy")` lets you write new asset hierarchies, or update existing ones,
-using the Spark Data Source. It currently supports writing a single root asset and any number of children.
-The asset hierarchy builder can ingest entire hierarchies, as long as all nodes are connected to the root asset
+using the Spark Data Source.
+The asset hierarchy builder can ingest entire hierarchies of nodes connected
 through the `externalId`/`parentExternalId` relationship. If input contains an update to data that already exists,
 i.e there's a match on `externalId` and there's a change to one of the other fields, the asset will be updated.
 There's also an option to delete assets from CDF that are not referenced in the input data.
 
 ### Requirements
-- The source data must contain a single root, denoted by setting its `parentExternalId` to the empty string `""`.
-- All assets, except root, must be connected to another asset in the input data by `parentExternalId`.
+- The root is denoted by setting its `parentExternalId` to the empty string `""`.
 - The input data must not have loops, to ensure all asset hierarchies are fully connected.
 - `externalId` can not be the empty string `""`.
 
@@ -162,6 +161,8 @@ There's also an option to delete assets from CDF that are not referenced in the 
 | -------------------------- | --------|------------------------------------------------------------------------------------------------------------------ |
 | `deleteMissingAssets`      | `false` | Whether or not you would like assets under the root to be deleted if they're not present in the input data.       |
 | `ignoreDisconnectedAssets` | `false` | This will ignore assets that are not connected to root, as opposed to throwing an error and stopping the program. |
+| `allowMultipleRoots`       | `true`  | Whether it's allowed to ingest more than one (sub)tree. |
+| `allowSubtreeIngestion`    | `true`  | Whether ingestion of trees without a root node is allowed. Otherwise, an error is raised or the items are ignored when `ignoreDisconnectedAssets` is set |
 | `batchSize`                | 1000    | The number of assets to write per API call.                                                                       |
 
 ### Example
