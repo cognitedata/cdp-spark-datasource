@@ -936,6 +936,83 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     assert(descriptionsAfterUpdate.length == 5)
   }
 
+  it should "support ignoring unknown ids in deletes" in {
+    val unit = "ignore-unknown-id-test"
+    cleanUpTimeSeriesTestDataByUnit(unit)
+    val dfWithDeletesAsUnit = retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationTimeSeries where unit = '$unit'").collect,
+      df => df.length > 0)
+    assert(dfWithDeletesAsUnit.length == 0)
+
+    // Insert some test data
+    spark
+      .sql(s"""
+              |select "foo" as description,
+              |name,
+              |false as isString,
+              |map("bar", "test") as metadata,
+              |'$unit' as unit,
+              |null as assetId,
+              |false as isStep,
+              |null as securityCategories,
+              |bigint(0) as id,
+              |'delete example' as externalId,
+              |now() as createdTime,
+              |now() lastUpdatedTime,
+              |dataSetId
+              |from sourceTimeSeries
+              |limit 1
+     """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationTimeSeries")
+
+    // Check if insert worked
+    val idsAfterInsert =
+      retryWhile[Array[Row]](
+        spark
+          .sql(s"select id from destinationTimeSeries where unit = '$unit'")
+          .collect,
+        df => df.length < 1)
+    assert(idsAfterInsert.length == 1)
+
+    spark
+      .sql(s"""
+              |select 1574865177148 as id
+              |from destinationTimeSeries
+              |where unit = '$unit'
+        """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "delete")
+      .option("ignoreUnknownIds", "true")
+      .save()
+
+    // Should throw error if ignoreUnknownIds is false
+    disableSparkLogging() // Removing expected Spark executor Errors from the console
+    val e = intercept[SparkException] {
+      spark
+        .sql(s"""
+                |select 1574865177148 as id
+                |from destinationTimeSeries
+                |where unit = '$unit'
+        """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "timeseries")
+        .option("onconflict", "delete")
+        .option("ignoreUnknownIds", "false")
+        .save()
+    }
+    enableSparkLogging()
+    e.getCause shouldBe a[CdpApiException]
+    val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+    assert(cdpApiException.code == 400)
+  }
+
   def cleanUpTimeSeriesTestDataByUnit(unit: String): Unit = {
     spark.sql(s"""select * from destinationTimeSeries where unit = '$unit'""")
         .write

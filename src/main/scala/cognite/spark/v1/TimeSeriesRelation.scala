@@ -36,10 +36,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val ids = rows.map(r => fromRow[DeleteItem](r).id)
-    client.timeSeries
-      .deleteByIds(ids)
-      .flatTap(_ => incMetrics(itemsDeleted, ids.length))
+    val deletes = rows.map(r => fromRow[DeleteItem](r))
+    deleteWithIgnoreUnknownIds(client.timeSeries, deletes, config.ignoreUnknownIds)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
