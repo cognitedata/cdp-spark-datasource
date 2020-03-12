@@ -10,7 +10,7 @@ val cogniteSdkVersion = "1.2.2"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
-resolvers += "libs-release".at(artifactory + "libs-release/")
+resolvers += "libs-release" at artifactory + "libs-release/"
 
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
@@ -50,13 +50,11 @@ lazy val commonSettings = Seq(
     )
   ),
   // Remove all additional repository other than Maven Central from POM
-  pomIncludeRepository := { _ =>
-    false
-  },
+  pomIncludeRepository := { _ => false },
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value) Some("snapshots".at(nexus + "content/repositories/snapshots"))
-    else Some("releases".at(nexus + "service/local/staging/deploy/maven2"))
+    if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
+    else Some("releases" at nexus + "service/local/staging/deploy/maven2")
   },
   publishMavenStyle := true,
   pgpPassphrase := {
@@ -89,17 +87,17 @@ lazy val library = (project in file("."))
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
-      ("com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion)
-        .exclude("io.netty", "netty-transport-native-epoll"),
+      "com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion
+        exclude("io.netty", "netty-transport-native-epoll"),
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
       "io.circe" %% "circe-generic" % circeVersion,
       "io.circe" %% "circe-generic-extras" % circeVersion,
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.3.24.v20180605" % Provided,
-      ("org.apache.spark" %% "spark-core" % sparkVersion % Provided)
-        .exclude("org.glassfish.hk2.external", "javax.inject"),
-      ("org.apache.spark" %% "spark-sql" % sparkVersion % Provided)
-        .exclude("org.glassfish.hk2.external", "javax.inject")
+      "org.apache.spark" %% "spark-core" % sparkVersion % Provided
+        exclude("org.glassfish.hk2.external", "javax.inject"),
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
+        exclude("org.glassfish.hk2.external", "javax.inject")
     ),
     mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
     mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,
@@ -122,10 +120,10 @@ lazy val performanceBench = (project in file("performancebench"))
       "io.prometheus" % "simpleclient_httpserver" % prometheusVersion,
       "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
       "org.log4s" %% "log4s" % log4sVersion,
-      ("org.apache.spark" %% "spark-core" % sparkVersion)
-        .exclude("org.glassfish.hk2.external", "javax.inject"),
-      ("org.apache.spark" %% "spark-sql" % sparkVersion)
-        .exclude("org.glassfish.hk2.external", "javax.inject")
+      "org.apache.spark" %% "spark-core" % sparkVersion
+        exclude("org.glassfish.hk2.external", "javax.inject"),
+      "org.apache.spark" %% "spark-sql" % sparkVersion
+        exclude("org.glassfish.hk2.external", "javax.inject")
     )
   )
 
