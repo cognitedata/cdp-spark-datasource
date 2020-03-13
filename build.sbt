@@ -111,7 +111,7 @@ lazy val library = (project in file("."))
     buildInfoPackage := "BuildInfo"
   )
 
-lazy val performanceBench = (project in file("performancebench"))
+lazy val performancebench = (project in file("performancebench"))
   .enablePlugins(JavaAppPackaging, UniversalPlugin, DockerPlugin)
   .dependsOn(library)
   .settings(
