@@ -3,39 +3,56 @@
 def label = "cdp-spark-${UUID.randomUUID().toString().substring(0, 5)}"
 
 podTemplate(label: label,
-            containers: [containerTemplate(name: 'sbt',
-                                           image: 'eu.gcr.io/cognitedata/openjdk8-sbt:2018-09-18-d077396',
-                                           resourceRequestCpu: '3800m',
-                                           resourceLimitCpu: '7800m',
-                                           resourceLimitMemory: '7500Mi',
-                                           envVars: [secretEnvVar(key: 'TEST_API_KEY_WRITE', secretName: 'jetfire-test-api-key', secretKey: 'jetfireTestApiKey.txt'),
-                                                     secretEnvVar(key: 'TEST_API_KEY_READ', secretName: 'jetfire-test-api-key', secretKey: 'publicDataApiKey'),
-                                                     secretEnvVar(key: 'TEST_API_KEY_GREENFIELD', secretName: 'jetfire-test-api-key', secretKey: 'greenfieldApiKey'),
-                                                     secretEnvVar(key: 'CODECOV_TOKEN', secretName: 'codecov-tokens', secretKey: 'cdp-spark-connector'),
-                                                     secretEnvVar(key: 'GPG_KEY_PASSWORD', secretName: 'sbt-credentials', secretKey: 'gpg-key-password'),
-                                                     // /codecov-script/upload-report.sh relies on the following
-                                                     // Jenkins and GitHub environment variables.
-                                                     envVar(key: 'JENKINS_URL', value: env.JENKINS_URL),
-                                                     envVar(key: 'BRANCH_NAME', value: env.BRANCH_NAME),
-                                                     envVar(key: 'BUILD_NUMBER', value: env.BUILD_NUMBER),
-                                                     envVar(key: 'BUILD_URL', value: env.BUILD_URL),
-                                                     envVar(key: 'CHANGE_ID', value: env.CHANGE_ID),
-                                                     envVar(key: 'SBT_OPTS', value: "-Xms512M -Xmx7g -Xss100M -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+CMSClassUnloadingEnabled -Xss2M -XX:MaxMetaspaceSize=1024M")],
-                                           ttyEnabled: true,
-                                           command: '/bin/cat -')],
+            containers: [
+                containerTemplate(
+                    name: 'sbt',
+                    image: 'eu.gcr.io/cognitedata/openjdk8-sbt:2018-09-18-d077396',
+                    resourceRequestCpu: '3800m',
+                    resourceLimitCpu: '7800m',
+                    resourceLimitMemory: '7500Mi',
+                    envVars: [secretEnvVar(key: 'TEST_API_KEY_WRITE', secretName: 'jetfire-test-api-key', secretKey: 'jetfireTestApiKey.txt'),
+                             secretEnvVar(key: 'TEST_API_KEY_READ', secretName: 'jetfire-test-api-key', secretKey: 'publicDataApiKey'),
+                             secretEnvVar(key: 'TEST_API_KEY_GREENFIELD', secretName: 'jetfire-test-api-key', secretKey: 'greenfieldApiKey'),
+                             secretEnvVar(key: 'CODECOV_TOKEN', secretName: 'codecov-tokens', secretKey: 'cdp-spark-connector'),
+                             secretEnvVar(key: 'GPG_KEY_PASSWORD', secretName: 'sbt-credentials', secretKey: 'gpg-key-password'),
+                             // /codecov-script/upload-report.sh relies on the following
+                             // Jenkins and GitHub environment variables.
+                             envVar(key: 'JENKINS_URL', value: env.JENKINS_URL),
+                             envVar(key: 'BRANCH_NAME', value: env.BRANCH_NAME),
+                             envVar(key: 'BUILD_NUMBER', value: env.BUILD_NUMBER),
+                             envVar(key: 'BUILD_URL', value: env.BUILD_URL),
+                             envVar(key: 'CHANGE_ID', value: env.CHANGE_ID),
+                             envVar(key: 'SBT_OPTS', value: "-Xms512M -Xmx7g -Xss100M -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+CMSClassUnloadingEnabled -Xss2M -XX:MaxMetaspaceSize=1024M")],
+                    ttyEnabled: true,
+                    command: '/bin/cat -'
+                ),
+                containerTemplate(
+                    name: 'docker',
+                    image: 'docker:18.09.2',
+                    command: '/bin/cat -',
+                    resourceRequestCpu: '200m',
+                    resourceLimitCpu: '2000m',
+                    resourceLimitMemory: '300Mi',
+                    ttyEnabled: true
+                )
+            ],
             nodeSelector: 'cloud.google.com/gke-local-ssd=true',
             volumes: [secretVolume(secretName: 'sbt-credentials', mountPath: '/sbt-credentials'),
                       configMapVolume(configMapName: 'codecov-script-configmap', mountPath: '/codecov-script'),
                       hostPathVolume(hostPath: '/mnt/disks/ssd0/ivy2', mountPath: '/root/.ivy2'),
-                      hostPathVolume(hostPath: '/mnt/disks/ssd0/sbt', mountPath: '/root/.sbt'),]) {
+                      hostPathVolume(hostPath: '/mnt/disks/ssd0/sbt', mountPath: '/root/.sbt'),
+                      hostPathVolume(hostPath: '/var/run/docker.sock', mountPath: '/var/run/docker.sock'),
+                     ]) {
     properties([buildDiscarder(logRotator(daysToKeepStr: '30', numToKeepStr: '20'))])
     node(label) {
-        def imageTag
         container('jnlp') {
             stage('Checkout') {
                 checkout(scm)
-                imageTag = sh(returnStdout: true,
+                imageRevision = sh(returnStdout: true,
                               script: 'echo \$(date +%Y-%m-%d)-\$(git rev-parse --short HEAD)').trim()
+                buildDate = sh(returnStdout: true, script: 'date +%Y-%m-%dT%H%M').trim()
+                dockerImageName = "eu.gcr.io/cognitedata/cdf-spark-performance-bench"
+                dockerImageTag = "${buildDate}-${imageRevision}"
             }
         }
         container('sbt') {
@@ -64,12 +81,28 @@ podTemplate(label: label,
                         + ' "set test in library := {}"'
                         + ' "set compile/skip := true"'
                         + ' "set macroSub/skip := true"'
-                        + " $libPackage")
+                        + " $libPackage"
+                        + ' performancebench/docker:stage'
+                    )
                 }
                 if (env.BRANCH_NAME == 'master') {
                     stage('Deploy') {
                         sh('sbt -Dsbt.log.noformat=true +library/publishSigned')
                     }
+                }
+            }
+        }
+        container('docker') {
+            stage("Build Docker image") {
+                sh('docker images | head')
+                sh('#!/bin/sh -e\n'
+                       + 'docker login -u _json_key -p "$(cat /jenkins-docker-builder/credentials.json)" https://eu.gcr.io')
+                sh('#!/bin/sh -e\n'
+                   + "docker build --pull -t ${dockerImageName}:${dockerImageTag} target/docker/stage/")
+            }
+            if (env.BRANCH_NAME == 'master') {
+                stage('Build and push Docker image') {
+                    sh("docker push ${dockerImageName}:${dockerImageTag}")
                 }
             }
         }
