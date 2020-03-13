@@ -36,7 +36,10 @@ abstract class PerformanceSuite extends SparkUtil {
 
       testResult match {
         case Success(_) => ()
-        case Failure(exception) => logger.error(exception)(s"${perfTest.testName}: failed to run")
+        case Failure(exception) => {
+          Metrics.testFailedCounter.inc()
+          logger.error(exception)(s"${perfTest.testName}: failed to run")
+        }
       }
     })
 }
