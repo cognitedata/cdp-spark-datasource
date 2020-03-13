@@ -103,7 +103,8 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val event = fromRow[EventsUpsertSchema](r)
       event.copy(metadata = filterMetadata(event.metadata))
     }
-    val (itemsToUpdate, itemsToCreate) = events.partition(r => r.id.exists(_ > 0))
+    val (itemsToUpdate, itemsToCreate) =
+      events.partition(r => r.id.exists(_ > 0) || r.externalId.exists(_.trim.nonEmpty))
 
     genericUpsert[Event, EventsUpsertSchema, EventCreate, EventUpdate, Events[IO]](
       itemsToUpdate,

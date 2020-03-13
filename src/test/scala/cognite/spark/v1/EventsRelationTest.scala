@@ -984,48 +984,10 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "support ignoring unknown ids in deletes" in {
-    val source = "ignore-unknown-id-test"
-    val dfWithDeletesAsSource = retryWhile[Array[Row]](cleanupEvents(source), df => df.length > 0)
-    assert(dfWithDeletesAsSource.length == 0)
-
-    // Insert some test data
-    spark
-      .sql(s"""
-              |select "foo" as description,
-              |least(startTime, endTime) as startTime,
-              |greatest(startTime, endTime) as endTime,
-              |type,
-              |subtype,
-              |null as assetIds,
-              |bigint(0) as id,
-              |map("foo", null, "bar", "test") as metadata,
-              |"$source" as source,
-              |concat("$source", string(id)) as externalId,
-              |0 as createdTime,
-              |lastUpdatedTime,
-              |dataSetId
-              |from sourceEvent
-              |limit 1
-      """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("destinationEvent")
-
-    // Check if insert worked
-    val idsAfterInsert =
-      retryWhile[Array[Row]](
-        spark
-          .sql(s"select id from destinationEvent where source = '$source'")
-          .collect,
-        df => df.length < 1)
-    assert(idsAfterInsert.length == 1)
-
     spark
       .sql(
         s"""
-           |select 1574865177148 as id
-           |from destinationEvent
-           |where source = '$source'
+           |select 1234567890123 as id
         """.stripMargin)
       .write
       .format("cognite.spark.v1")
@@ -1041,9 +1003,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       spark
         .sql(
           s"""
-             |select 1574865177148 as id
-             |from destinationEvent
-             |where source = '$source'
+             |select 1234567890123 as id
         """.stripMargin)
         .write
         .format("cognite.spark.v1")

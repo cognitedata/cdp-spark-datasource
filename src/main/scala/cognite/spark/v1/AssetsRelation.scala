@@ -82,7 +82,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val asset = fromRow[AssetsUpsertSchema](r)
       asset.copy(metadata = filterMetadata(asset.metadata))
     }
-    val (itemsToUpdate, itemsToCreate) = assets.partition(r => r.id.exists(_ > 0))
+    val (itemsToUpdate, itemsToCreate) =
+      assets.partition(r => r.id.exists(_ > 0) || r.externalId.exists(_.trim.nonEmpty))
 
     if (itemsToCreate.exists(_.name.isEmpty)) {
       throw new IllegalArgumentException("The name field must be set when creating assets.")

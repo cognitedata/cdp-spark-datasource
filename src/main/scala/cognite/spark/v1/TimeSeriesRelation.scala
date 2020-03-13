@@ -45,7 +45,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       val ts = fromRow[TimeSeriesUpsertSchema](r)
       ts.copy(metadata = filterMetadata(ts.metadata))
     }
-    val (itemsToUpdate, itemsToCreate) = timeSeries.partition(r => r.id.exists(_ > 0))
+    val (itemsToUpdate, itemsToCreate) =
+      timeSeries.partition(r => r.id.exists(_ > 0) || r.externalId.exists(_.trim.nonEmpty))
 
     // scalastyle:off no.whitespace.after.left.bracket
     genericUpsert[

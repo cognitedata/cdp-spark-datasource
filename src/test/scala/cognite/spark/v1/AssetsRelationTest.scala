@@ -616,50 +616,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "support ignoring unknown ids in deletes" in {
-    val source = "ignore-unknown-id-test"
-    cleanupAssets(source)
-    val dfWithDeletesAsSource = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
-      df => df.length > 0)
-    assert(dfWithDeletesAsSource.length == 0)
-
-    // Insert some test data
-    spark
-      .sql(s"""
-              |select id as externalId,
-              |name,
-              |null as parentId,
-              |'foo' as description,
-              |map("bar", "test") as metadata,
-              |'$source' as source,
-              |id,
-              |createdTime,
-              |lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |dataSetId
-              |from sourceAssets
-              |limit 1
-     """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("destinationAssets")
-
-    // Check if insert worked
-    val idsAfterInsert =
-      retryWhile[Array[Row]](
-        spark
-          .sql(s"select id from destinationAssets where source = '$source'")
-          .collect,
-        df => df.length < 1)
-    assert(idsAfterInsert.length == 1)
-
     spark
       .sql(
         s"""
-           |select 1574865177148 as id
-           |from destinationAssets
-           |where source = '$source'
+           |select 1234567890123 as id
         """.stripMargin)
       .write
       .format("cognite.spark.v1")
@@ -676,9 +636,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       spark
         .sql(
           s"""
-             |select 1574865177148 as id
-             |from destinationAssets
-             |where source = '$source'
+             |select 1234567890123 as id
         """.stripMargin)
         .write
         .format("cognite.spark.v1")
