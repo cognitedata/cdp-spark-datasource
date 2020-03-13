@@ -43,12 +43,11 @@ case class SdkV1Rdd[A, I](
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdfPartition]
-    val drainPool =
-      ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
 
     // Do not increase number of threads, as this will make processedIds non-blocking
+    val threadPool = Executors.newFixedThreadPool(1)
     implicit val singleThreadedCs: ContextShift[IO] =
-      IO.contextShift(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1)))
+      IO.contextShift(ExecutionContext.fromExecutor(threadPool))
 
     val processedIds = mutable.Set.empty[I]
 
@@ -70,11 +69,14 @@ case class SdkV1Rdd[A, I](
         .handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
 
     // Continuously read the stream data into the queue on a separate thread
-    val streamsToQueue = Future {
-      putOnQueueStream.compile.drain.unsafeRunSync()
-    }(drainPool)
+    val streamsToQueue =
+      putOnQueueStream.compile.drain.unsafeToFuture()
 
-    queueIterator(queue, streamsToQueue)
+    queueIterator(queue, streamsToQueue) {
+      if (!threadPool.isShutdown) {
+        threadPool.shutdown()
+      }
+    }
   }
 
   // To avoid draining all streams from CDF completely and then building the Iterator, we read the
@@ -96,7 +98,7 @@ case class SdkV1Rdd[A, I](
       }
     } yield put
 
-  def queueIterator(queue: EitherQueue, f: Future[Unit]): Iterator[Row] =
+  def queueIterator(queue: EitherQueue, f: Future[Unit])(doCleanup: => Unit): Iterator[Row] =
     new Iterator[Row] {
       var nextItems: Iterator[A] = Iterator.empty
 
@@ -111,6 +113,9 @@ case class SdkV1Rdd[A, I](
             Thread.sleep(1)
             nextItems = iteratorFromQueue()
           }
+          if (f.isCompleted) {
+            doCleanup
+          }
           nextItems.hasNext
         }
 
@@ -120,7 +125,9 @@ case class SdkV1Rdd[A, I](
         Option(queue.poll())
           .map {
             case Right(value) => value.toIterator
-            case Left(err) => throw err
+            case Left(err) =>
+              doCleanup
+              throw err
           }
           .getOrElse(Iterator.empty)
     }
