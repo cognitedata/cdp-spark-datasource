@@ -223,28 +223,29 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     }
 
   def upsertRoot(
-      root: AssetsIngestSchema,
+      newRoot: AssetsIngestSchema,
       sourceRoot: Option[Asset]
   ): IO[Unit] = {
-    val parentId = if (root.parentExternalId.isEmpty) {
+    val parentId = if (newRoot.parentExternalId.isEmpty) {
       None
     } else {
-      Some(root.parentExternalId)
+      Some(newRoot.parentExternalId)
     }
 
-    // TODO: don't do the update when nothing is changed (waiting for Scala SDK parentExternalId)
     sourceRoot match {
       case None =>
         client.assets
-          .create(Seq(AssetsIngestSchema.toAssetCreate(root).copy(parentExternalId = parentId)))
+          .create(Seq(AssetsIngestSchema.toAssetCreate(newRoot).copy(parentExternalId = parentId)))
           .flatTap(x => incMetrics(itemsCreated, x.size))
           .map(x => x.head)
+      case Some(asset) if isMostlyEqual(newRoot, asset) =>
+        IO.unit
       case Some(asset) => {
         val parentIdUpdate = (parentId, asset.parentId) match {
           case (None, Some(oldParent)) =>
             throw CdfDoesNotSupportException(
-              s"Can not make root from asset '${asset.externalId.get}' which is already inside asset '${oldParent}."
-              // TODO: include parentExternalId in the message
+              s"Can not make root from asset '${asset.externalId.get}' which is already inside asset ${oldParent}"
+                + s" (${asset.parentExternalId.getOrElse("without externalId")})."
                 + " You might need to remove the asset and insert it again.")
           case (None, None) => None
           case (Some(newParent), _) => Some(SetValue(newParent))
@@ -252,8 +253,8 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         client.assets
           .updateByExternalId(
             Seq(
-              root.externalId -> AssetsIngestSchema
-                .toAssetUpdate(root)
+              newRoot.externalId -> AssetsIngestSchema
+                .toAssetUpdate(newRoot)
                 .copy(parentExternalId = parentIdUpdate)).toMap)
           .flatTap(x => incMetrics(itemsUpdated, x.size))
           .map(x => x.head)
@@ -274,33 +275,20 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     // Insert assets that are not present in CDF
     val toInsert = children.filter(a => !cdfTreeMap.contains(a.externalId))
 
-    val cdfTreeIdMap = cdfTree.map(a => (a.id, a)).toMap
     // Filter out assets that would not be changed in an update
-    val toUpdate = children.filter(a => needsUpdate(a, cdfTreeMap, cdfTreeIdMap))
+    val toUpdate = children.filter(a => needsUpdate(a, cdfTreeMap))
 
     (toDelete, toInsert, toUpdate)
   }
 
   def needsUpdate(
       child: AssetsIngestSchema,
-      cdfTreeByExternalId: Map[String, Asset],
-      cdfTreeById: Map[Long, Asset]): Boolean = {
+      cdfTreeByExternalId: Map[String, Asset]): Boolean = {
     // Find the matching asset in CDF
     val cdfAsset = cdfTreeByExternalId.get(child.externalId)
     cdfAsset match {
-      case Some(asset) if asset.parentId.isEmpty =>
-        // it's root and should not be -> update
-        true
       case Some(asset) =>
-        // Find the parent asset in CDF to be able to get the externalId of the parent
-        cdfTreeById.get(asset.parentId.get) match {
-          case Some(parentAsset) =>
-            !isMostlyEqual(child, asset) || !parentAsset.externalId.contains(child.parentExternalId)
-          case None =>
-            // this should not happen, except for races
-            // in that case just do the update, just to be sure
-            true
-        }
+        !isMostlyEqual(child, asset)
       case None => false // this one will be inserted
     }
   }
@@ -315,12 +303,13 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     }
   }
 
-  def isMostlyEqual(child: AssetsIngestSchema, asset: Asset): Boolean =
-    child.description == asset.description &&
-      child.metadata == asset.metadata &&
-      child.name == asset.name &&
-      child.source == asset.source &&
-      child.dataSetId == asset.dataSetId
+  def isMostlyEqual(updatedAsset: AssetsIngestSchema, asset: Asset): Boolean =
+    updatedAsset.description == asset.description &&
+      updatedAsset.metadata == asset.metadata &&
+      updatedAsset.name == asset.name &&
+      updatedAsset.source == asset.source &&
+      updatedAsset.dataSetId == asset.dataSetId &&
+      (updatedAsset.parentExternalId == "" && asset.parentId.isEmpty || Some(updatedAsset.parentExternalId) == asset.parentExternalId)
 
   def buildAssetMap(source: Array[AssetsIngestSchema]): mutable.HashMap[String, AssetsIngestSchema] = {
     val map = mutable.HashMap[String, AssetsIngestSchema]()
