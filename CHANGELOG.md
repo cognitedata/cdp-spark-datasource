@@ -1,3 +1,23 @@
+# 1.2.16
+
+## Breaking changes
+* Include the latest data point when reading aggregates. Please note that this is a breaking change
+and that updating to this version  may change the result of reading aggregated data points.
+
+
+## Enhancements
+* Data points are now written in batches of 100,000 rather than 1,000.
+
+* The error messages thrown when one or more columns don't match will
+now say which columns have the wrong type.
+
+* Time series delete now supports the `ignoreUnkownIds` option.
+
+## Fixes
+* Schema for RAW tables will now correctly be inferred from the first 1,000 rows.
+
+* Release threads from the threadpool when they are no longer going to be used.
+
 # 1.2.15
 
 ## Fixes
