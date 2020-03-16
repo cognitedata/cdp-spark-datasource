@@ -162,6 +162,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         |select 1 as externalId,
         |'asset name' as name,
         |null as parentId,
+        |null as parentExternalId,
         |'asset description' as description,
         |null as metadata,
         |'$assetsTestSource' as source,
@@ -232,12 +233,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "assets")
       .load()
     sourceDf.createOrReplaceTempView("source_assets")
-    val df = spark.read
+    val destinationDf = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "assets")
       .load()
-    df.createOrReplaceTempView("assets")
+    destinationDf.createOrReplaceTempView("assets")
     cleanupAssets(assetsTestSource)
     retryWhile[Array[Row]](
       spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
@@ -246,7 +247,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .sql(s"""
          |select externalId,
          |name,
-         |null parentId,
+         |null as parentId,
+         |null as parentExternalId,
          |description,
          |metadata,
          |'$assetsTestSource' as source,
@@ -258,6 +260,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
          |dataSetId
          |from source_assets where id = 2675073401706610
       """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
       .write
       .insertInto("assets")
     retryWhile[Array[Row]](
@@ -292,6 +295,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |select concat(string(id), '${randomSuffix}') as externalId,
               |name,
               |null as parentId,
+              |null as parentExternalId,
               |'foo' as description,
               |map("bar", "test") as metadata,
               |'$source' as source,
@@ -322,7 +326,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .sql(s"""
               |select externalId,
               |name,
-              |null parentId,
+              |null as parentId,
+              |null as parentExternalId,
               |'bar' as description,
               |map("foo", null, "bar", "test") as metadata,
               |'$source'as source,
@@ -338,7 +343,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .sql(s"""
               |select concat(externalId, '${randomSuffix}_create') as externalId,
               |name,
-              |null parentId,
+              |null as parentId,
+              |null as parentExternalId,
               |'bar' as description,
               |metadata,
               |'$source' as source,
@@ -431,6 +437,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |select id as externalId,
                  |name,
                  |null as parentId,
+                 |null as parentExternalId,
                  |'foo' as description,
                  |map("bar", "test") as metadata,
                  |'$source' as source,
@@ -491,6 +498,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |select string(id) as externalId,
               |name,
               |null as parentId,
+              |null as parentExternalId,
               |'foo' as description,
               |map("bar", "test") as metadata,
               |'$source' as source,
@@ -503,6 +511,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |from sourceAssets
               |limit 100
      """.stripMargin)
+      .select(destinationDf.columns.map(col): _*)
       .write
       .insertInto("destinationAssets")
 
@@ -562,6 +571,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |select id as externalId,
               |name,
               |null as parentId,
+              |null as parentExternalId,
               |'foo' as description,
               |map("bar", "test") as metadata,
               |'$source' as source,
@@ -629,6 +639,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |select id as externalId,
               |name,
               |null as parentId,
+              |null as parentExternalId,
               |'foo' as description,
               |map("bar", "test") as metadata,
               |'$source' as source,
