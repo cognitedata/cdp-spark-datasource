@@ -11,7 +11,9 @@ and that updating to this version  may change the result of reading aggregated d
 * The error messages thrown when one or more columns don't match will
 now say which columns have the wrong type.
 
-* Time series delete now supports the `ignoreUnkownIds` option.
+* Time series delete now supports the `ignoreUnknownIds` option.
+
+* Assets now include `parentExternalId`.
 
 ## Fixes
 * Schema for RAW tables will now correctly be inferred from the first 1,000 rows.
