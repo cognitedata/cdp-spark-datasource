@@ -97,7 +97,7 @@ case class NumericDataPointsRdd(
           case Some(start) =>
             val end = countEnd
               .getOrElse(start.plus(granularity.amount, granularity.unit))
-              .plusMillis(1) //Adding 1 millisecond as end is exclusive
+              .plusMillis(1) // Add 1 millisecond as end is exclusive
             val lastRange =
               DataPointsRange(id, start, end, Some(countSum))
             lastRange +: DataPointsRange(id, end, end.plus(granularity.amount, granularity.unit), None) +: ranges
@@ -341,7 +341,7 @@ case class NumericDataPointsRdd(
           val aggStart = Instant.ofEpochMilli(floorToNearest(first.toEpochMilli, granularityMillis))
           val aggEnd = Instant
             .ofEpochMilli(ceilToNearest(latest.toEpochMilli, granularityMillis))
-            .plusMillis(1) //Adding 1 millisecond as end is exclusive
+            .plusMillis(1) // Add 1 millisecond as end is exclusive
 
           val d1 = Duration.between(aggStart, aggEnd)
           val numValues = d1.toMillis / granularity.unit.getDuration.toMillis
