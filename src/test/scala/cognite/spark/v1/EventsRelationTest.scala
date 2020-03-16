@@ -5,8 +5,9 @@ import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Ignore, Matchers}
 
+@Ignore
 class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
