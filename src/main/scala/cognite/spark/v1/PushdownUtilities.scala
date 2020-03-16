@@ -119,7 +119,7 @@ object PushdownUtilities {
         val minimumTimeAsInstant =
           minTime
             .map(java.sql.Timestamp.valueOf(_).toInstant)
-            .getOrElse(java.time.Instant.ofEpochMilli(0)) //API does not accept values < 0
+            .getOrElse(java.time.Instant.ofEpochMilli(0)) // API does not accept values < 0
         val maximumTimeAsInstant =
           maxTime
             .map(java.sql.Timestamp.valueOf(_).toInstant)
