@@ -44,6 +44,13 @@ case class SdkV1Rdd[A, I](
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdfPartition]
 
+    // This pool will be used for draining the queue
+    // Draining needs to have a separate pool to continuously drain the queue
+    // while another thread pool fills the queue with data from CDF
+    val drainPool = Executors.newFixedThreadPool(1)
+    val drainContext = ExecutionContext.fromExecutor(drainPool)
+
+    // This pool will be used for reading from CDF into the queue
     // Do not increase number of threads, as this will make processedIds non-blocking
     val threadPool = Executors.newFixedThreadPool(1)
     implicit val singleThreadedCs: ContextShift[IO] =
@@ -68,13 +75,17 @@ case class SdkV1Rdd[A, I](
       enqueueStreamResults(currentStreamsAsSingleStream, queue, processedIds, singleThreadedCs)
         .handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
 
-    // Continuously read the stream data into the queue on a separate thread
-    val streamsToQueue =
-      putOnQueueStream.compile.drain.unsafeToFuture()
+    // Continuously read the stream data into the queue on a separate thread pool
+    val streamsToQueue: Future[Unit] = Future {
+      putOnQueueStream.compile.drain.unsafeRunSync()
+    }(drainContext)
 
     queueIterator(queue, streamsToQueue) {
       if (!threadPool.isShutdown) {
         threadPool.shutdown()
+      }
+      if (!drainPool.isShutdown) {
+        drainPool.shutdown()
       }
     }
   }
