@@ -97,7 +97,7 @@ podTemplate(label: label,
                 sh('#!/bin/sh -e\n'
                        + 'docker login -u _json_key -p "$(cat /jenkins-docker-builder/credentials.json)" https://eu.gcr.io')
                 sh('#!/bin/sh -e\n'
-                   + "docker build --pull -t ${dockerImageName}:${dockerImageTag} target/docker/stage/")
+                   + "docker build --pull -t ${dockerImageName}:${dockerImageTag} performancebench/target/docker/stage/")
             }
             if (env.BRANCH_NAME == 'master') {
                 stage('Build and push Docker image') {
