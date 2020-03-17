@@ -79,8 +79,6 @@ podTemplate(label: label,
                     }
                     sh('sbt -Dsbt.log.noformat=true'
                         + ' "set test in library := {}"'
-                        + ' "set compile/skip := true"'
-                        + ' "set macroSub/skip := true"'
                         + " $libPackage"
                         + ' performancebench/docker:stage'
                     )
