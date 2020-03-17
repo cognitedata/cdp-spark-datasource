@@ -1,3 +1,8 @@
+# 1.2.17
+
+## Fixes
+* Reimplement draining the read queue on a separate thread pool.
+
 # 1.2.16
 
 ## Breaking changes
