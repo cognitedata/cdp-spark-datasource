@@ -42,6 +42,7 @@ podTemplate(label: label,
                       hostPathVolume(hostPath: '/mnt/disks/ssd0/ivy2', mountPath: '/root/.ivy2'),
                       hostPathVolume(hostPath: '/mnt/disks/ssd0/sbt', mountPath: '/root/.sbt'),
                       hostPathVolume(hostPath: '/var/run/docker.sock', mountPath: '/var/run/docker.sock'),
+                      secretVolume(secretName: 'jenkins-docker-builder', mountPath: '/jenkins-docker-builder'),
                      ]) {
     properties([buildDiscarder(logRotator(daysToKeepStr: '30', numToKeepStr: '20'))])
     node(label) {
