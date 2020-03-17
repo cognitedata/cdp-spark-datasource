@@ -172,6 +172,12 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
     val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
     val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
+
+    // Notify users that they need to supply one or more ids/externalIds when reading data points
+    if (ids.isEmpty && externalIds.isEmpty) {
+      throw new IllegalArgumentException(
+        "Please filter by one or more ids or externalIds when reading data points.")
+    }
     val (aggregations, stringGranularities) = getAggregationSettings(filters)
 
     val granularitiesOrErrors = stringGranularities

@@ -33,6 +33,18 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       )))
   }
 
+  it should "throw an error when no id/externalId filter is provided" taggedAs ReadTest in {
+    val thrown = the[IllegalArgumentException] thrownBy {
+      spark.read
+        .format("cognite.spark.v1")
+        .option("apiKey", readApiKey)
+        .option("type", "datapoints")
+        .load()
+        .show()
+    }
+    assert(thrown.getMessage.contains("Please filter by one or more ids or externalIds when reading data points."))
+  }
+
   it should "test that start/stop time are handled correctly for data points" taggedAs (ReadTest) in {
     val df = spark.read
       .format("cognite.spark.v1")
