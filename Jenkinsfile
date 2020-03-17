@@ -28,7 +28,7 @@ podTemplate(label: label,
                 ),
                 containerTemplate(
                     name: 'docker',
-                    image: 'docker:18.09.2',
+                    image: 'docker:19.03',
                     command: '/bin/cat -',
                     resourceRequestCpu: '200m',
                     resourceLimitCpu: '2000m',

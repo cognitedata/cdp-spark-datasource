@@ -130,10 +130,7 @@ lazy val performancebench = (project in file("performancebench"))
         exclude("org.glassfish.hk2.external", "javax.inject")
     ),
     dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",
-    dockerCommands := dockerCommands.value.filterNot {
-      case ExecCmd("ENTRYPOINT", args @ _*) => true
-      case cmd => false
-    } ++ Seq(
+    dockerCommands ++= Seq(
       Cmd("ENV", s"JAVA_MAIN_CLASS=${mainClass.in(Compile).value.get}"),
       Cmd("ENV", "JAVA_APP_DIR=/opt/docker/lib")
     ),
