@@ -334,8 +334,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           .map(getRoot(_, path + tree.externalId))
           .getOrElse(tree)
       }
-    //    val roots = tree.filter(a => a.parentExternalId.isEmpty || !assetMap.contains(a.parentExternalId))
-//    val rootBuckets = Map(roots.map(r => r -> mutable.ArrayBuffer()): _*)
+
     tree
       .groupBy(getRoot(_))
       .map({
