@@ -1,13 +1,15 @@
 package cognite.spark.v1
 
-import java.util.concurrent.{Executors, SynchronousQueue, ThreadPoolExecutor, TimeUnit}
+import java.util.concurrent.Executors
 
 import cats.Parallel
 import cats.effect.{ContextShift, IO, Timer}
 import com.cognite.sdk.scala.common.RetryingBackend
 import com.cognite.sdk.scala.v1.GenericClient
+import com.google.common.util.concurrent.ThreadFactoryBuilder
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import com.softwaremill.sttp._
+import com.softwaremill.sttp.asynchttpclient.SttpClientBackendFactory
 
 import scala.concurrent.ExecutionContext
 
@@ -20,14 +22,18 @@ case class Login(user: String, loggedIn: Boolean, project: String, projectId: Lo
 object CdpConnector {
   @transient lazy val cdpConnectorExecutionContext: ExecutionContext =
     ExecutionContext.fromExecutor(
-      Executors.newFixedThreadPool(Math.max(Runtime.getRuntime().availableProcessors(), 4) * 2))
+      Executors.newFixedThreadPool(
+        Math.max(Runtime.getRuntime().availableProcessors(), 4) * 2,
+        new ThreadFactoryBuilder().setDaemon(true).setNameFormat("CDF-Spark-Datasource-%d").build()
+      )
+    )
   @transient implicit lazy val cdpConnectorTimer: Timer[IO] = IO.timer(cdpConnectorExecutionContext)
   @transient implicit val cdpConnectorContextShift: ContextShift[IO] =
     IO.contextShift(cdpConnectorExecutionContext)
   @transient implicit lazy val cdpConnectorParallel: Parallel[IO, IO.Par] =
     IO.ioParallel(cdpConnectorContextShift)
   private val sttpBackend: SttpBackend[IO, Nothing] =
-    AsyncHttpClientCatsBackend[cats.effect.IO]()
+    AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create())
 
   def retryingSttpBackend(maxRetries: Int): SttpBackend[IO, Nothing] =
     new RetryingBackend[IO, Nothing](sttpBackend, maxRetries = Some(maxRetries))
