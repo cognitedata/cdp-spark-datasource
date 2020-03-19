@@ -152,7 +152,7 @@ i.e there's a match on `externalId` and there's a change to one of the other fie
 There's also an option to delete assets from CDF that are not referenced in the input data.
 
 ### Requirements
-- The root is denoted by setting its `parentExternalId` to the empty string `""`.
+- Root assets are denoted by setting their `parentExternalId` to the empty string `""`.
 - The input data must not have loops, to ensure all asset hierarchies are fully connected.
 - `externalId` can not be the empty string `""`.
 
