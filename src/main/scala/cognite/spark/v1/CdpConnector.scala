@@ -20,12 +20,7 @@ case class Login(user: String, loggedIn: Boolean, project: String, projectId: Lo
 object CdpConnector {
   @transient lazy val cdpConnectorExecutionContext: ExecutionContext =
     ExecutionContext.fromExecutor(
-      new ThreadPoolExecutor(
-        0,
-        Constants.MaxConcurrentRequests,
-        60L,
-        TimeUnit.SECONDS,
-        new SynchronousQueue()))
+      Executors.newFixedThreadPool(Math.max(Runtime.getRuntime().availableProcessors(), 4) * 2))
   @transient implicit lazy val cdpConnectorTimer: Timer[IO] = IO.timer(cdpConnectorExecutionContext)
   @transient implicit val cdpConnectorContextShift: ContextShift[IO] =
     IO.contextShift(cdpConnectorExecutionContext)
