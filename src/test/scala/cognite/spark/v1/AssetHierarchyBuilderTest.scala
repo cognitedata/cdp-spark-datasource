@@ -16,138 +16,179 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     .load()
   assetsSourceDf.createOrReplaceTempView("assets")
 
-  val testName = "assetHierarchyTest"
+  val testName = "assetHierarchyTest-"
 
   private def ingest(
+      key: String,
       tree: Seq[AssetCreate],
       metricsPrefix: Option[String] = None,
       batchSize: Int = 2,
       allowSubtreeIngestion: Boolean = true,
       ignoreDisconnectedAssets: Boolean = false,
       allowMultipleRoots: Boolean = true,
-      deleteMissingAssets: Boolean = false): Unit =
-      spark.sparkContext.parallelize(tree).toDF().write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "assethierarchy")
-        .option("collectMetrics", metricsPrefix.isDefined)
-        .option("allowSubtreeIngestion", allowSubtreeIngestion)
-        .option("ignoreDisconnectedAssets", ignoreDisconnectedAssets)
-        .option("allowMultipleRoots", allowMultipleRoots)
-        .option("deleteMissingAssets", deleteMissingAssets)
-        .option("batchSize", batchSize)
-        .option("metricsPrefix", metricsPrefix.getOrElse(""))
-        .save
+      deleteMissingAssets: Boolean = false): Unit = {
+    def addKey(id: String) = if (id == "") {
+      ""
+    } else {
+      s"$id$key"
+    }
+    val processedTree = tree.map(node => node.copy(
+      externalId = Some(addKey(node.externalId.get)),
+      parentExternalId = Some(addKey(node.parentExternalId.get)),
+      source = Some(s"$testName$key")
+    ))
+    spark.sparkContext
+      .parallelize(processedTree)
+      .toDF()
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assethierarchy")
+      .option("collectMetrics", metricsPrefix.isDefined)
+      .option("allowSubtreeIngestion", allowSubtreeIngestion)
+      .option("ignoreDisconnectedAssets", ignoreDisconnectedAssets)
+      .option("allowMultipleRoots", allowMultipleRoots)
+      .option("deleteMissingAssets", deleteMissingAssets)
+      .option("batchSize", batchSize)
+      .option("metricsPrefix", metricsPrefix.getOrElse(""))
+      .save
+  }
 
-  private def cleanDB() =
-    writeClient.assets.deleteByExternalIds(Seq("dad", "dad2", "unusedZero", "son"), true, true)
-
+  private def cleanDB(key: String) =
+    writeClient.assets.deleteByExternalIds(
+      Seq(s"dad$key", s"dad2$key", s"unusedZero$key", s"son$key"),
+      true,
+      true)
 
   it should "throw an error when everything is ignored" in {
+    val key = shortRandomString()
     val tree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("someNode"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("someNode"))
     )
     val e = intercept[Exception] {
-      ingest(tree, allowSubtreeIngestion = false, ignoreDisconnectedAssets = true)
+      ingest(key, tree, allowSubtreeIngestion = false, ignoreDisconnectedAssets = true)
     }
     e shouldBe an[NoRootException]
   }
 
   it should "throw an error if some nodes are disconnected from the root" in {
+    val key = shortRandomString()
     val brokenTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad")),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
-      AssetCreate("othertree", None, None, Some(testName),Some("other"), None, Some("otherDad"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
+      AssetCreate(
+        "daughterSon",
+        externalId = Some("daughterSon"),
+        parentExternalId = Some("daughter")),
+      AssetCreate("othertree", None, None, None, Some("other"), None, Some("otherDad"))
     )
     val e = intercept[Exception] {
-      ingest(brokenTree, allowSubtreeIngestion = false)
+      ingest(key, brokenTree, allowSubtreeIngestion = false)
     }
     e shouldBe an[InvalidTreeException]
   }
 
   it should "throw an error if there are multiple roots" in {
+    val key = shortRandomString()
     val multiRootTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("")),
-      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("")),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
-      AssetCreate("othertree", None, None, Some(testName),Some("other"), None, Some("otherDad"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("")),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("")),
+      AssetCreate(
+        "daughterSon",
+        externalId = Some("daughterSon"),
+        parentExternalId = Some("daughter")),
+      AssetCreate("othertree", None, None, None, Some("other"), None, Some("otherDad"))
     )
     val e = intercept[Exception] {
-      ingest(multiRootTree, allowMultipleRoots = false)
+      ingest(key, multiRootTree, allowMultipleRoots = false)
     }
     e shouldBe an[MultipleRootsException]
   }
 
   it should "throw an error if there is a cycle" in {
+    val key = shortRandomString()
     val cyclicHierarchy = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("daughter")),
-      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("daughterSon")),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("other")),
-      AssetCreate("othertree", None, None, Some(testName),Some("other"), None, Some("son"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("daughter")),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("daughterSon")),
+      AssetCreate("daughterSon", None, None, None, Some("daughterSon"), None, Some("other")),
+      AssetCreate("othertree", None, None, None, Some("other"), None, Some("son"))
     )
     val e = intercept[Exception] {
-      ingest(cyclicHierarchy)
+      ingest(key, cyclicHierarchy)
     }
     e shouldBe an[InvalidTreeException]
     val errorMessage = e.getMessage
-    errorMessage should include("son")
-    errorMessage should include("daughter")
-    errorMessage should include("daughterSon")
-    errorMessage should include("other")
+    errorMessage should include(s"son$key")
+    errorMessage should include(s"daughter$key")
+    errorMessage should include(s"daughterSon$key")
+    errorMessage should include(s"other$key")
   }
 
   it should "throw an error if one more externalIds are empty Strings" in {
+    val key = shortRandomString()
     val e = intercept[Exception] {
-      ingest(Seq(
-        AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-        AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-        AssetCreate("daughter", None, None, Some(testName),Some(""), None, Some("dad")),
-        AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
-        AssetCreate("othertree", None, None, Some(testName),Some(""), None, Some("otherDad"))
-      ))
+      ingest(
+        key,
+        Seq(
+          AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+          AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+          AssetCreate("daughter", None, None, None, Some(""), None, Some("dad")),
+          AssetCreate(
+            "daughterSon",
+            externalId = Some("daughterSon"),
+            parentExternalId = Some("daughter")),
+          AssetCreate("othertree", None, None, None, Some(""), None, Some("otherDad"))
+        )
+      )
     }
     e shouldBe an[EmptyExternalIdException]
     val errorMessage = e.getMessage
-    errorMessage should include("daughter")
-    errorMessage should include("othertree")
-    errorMessage should not include("daughterSon")
+    errorMessage should include(s"daughter")
+    errorMessage should include(s"othertree")
+    (errorMessage should not).include(s"daughterSon")
   }
 
   it should "fail reasonably when parent does not exist" in {
+    val key = shortRandomString()
     val tree = Seq(
-      AssetCreate("testNode1", None, None, Some(testName),Some("testNode1"), None, Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
-      AssetCreate("testNode2", None, None, Some(testName),Some("testNode2"), None, Some(""))
+      AssetCreate(
+        "testNode1",
+        externalId = Some("testNode1"),
+        parentExternalId = Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
+      AssetCreate("testNode2", None, None, None, Some("testNode2"), None, Some(""))
     )
 
-    val ex = intercept[Exception] { ingest(tree) }
+    val ex = intercept[Exception] { ingest(key, tree) }
     ex shouldBe an[InvalidNodeReferenceException]
-    ex.getMessage shouldBe "Node 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds' referenced from 'testNode1' does not exist."
+    ex.getMessage shouldBe s"Node 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds$key' referenced from 'testNode1$key' does not exist."
   }
 
   it should "fail when subtree is updated into being root" in {
-    cleanDB()
+    val key = shortRandomString()
 
     val assetTree = Seq(
-      AssetCreate("dad", None, None, Some(testName), Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName), Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad")),
-      AssetCreate("daughterSon", None, None, Some(testName), Some("daughterSon"), None, Some("daughter"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
+      AssetCreate("daughterSon", None, None, None, Some("daughterSon"), None, Some("daughter"))
     )
 
-    ingest(assetTree)
+    ingest(key, assetTree)
 
     val ex = intercept[Exception] {
-      ingest(Seq(
-        AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("")),
-      ))
+      ingest(
+        key,
+        Seq(
+          AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("")),
+        ))
     }
 
     ex shouldBe an[CdfDoesNotSupportException]
     ex.getMessage should include("daughter")
+    cleanDB(key)
   }
 
   // although these test basically only test what CDF does, we want
@@ -155,326 +196,421 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
   // * to be notified if this behavior changes, as then we should also support it
   //   or (at least) fail reasonably
   it should "fail when merging trees" in {
-    cleanDB()
+    val key = shortRandomString()
 
-    ingest(Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("dad2", None, None, Some(testName),Some("dad2"), None, Some("")),
-      AssetCreate("son2", None, None, Some(testName),Some("son2"), None, Some("dad2")),
-    ))
+    ingest(
+      key,
+      Seq(
+        AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+        AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+        AssetCreate("dad2", None, None, None, Some("dad2"), None, Some("")),
+        AssetCreate("son2", None, None, None, Some("son2"), None, Some("dad2")),
+      )
+    )
 
     val ex = intercept[CdpApiException] {
-      ingest(Seq(
-        AssetCreate("dad2-updated", None, None, Some(testName),Some("dad2"), None, Some("son")),
-      ))
+      ingest(
+        key,
+        Seq(
+          AssetCreate("dad2-updated", None, None, None, Some("dad2"), None, Some("son")),
+        ))
     }
     ex.getMessage should include("Changing from/to being root isn't allowed")
+    cleanDB(key)
   }
 
   it should "fail when node moves between trees" in {
-    cleanDB()
+    val key = shortRandomString()
 
-    ingest(Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("dad2", None, None, Some(testName),Some("dad2"), None, Some("")),
-    ))
+    ingest(
+      key,
+      Seq(
+        AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+        AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+        AssetCreate("dad2", None, None, None, Some("dad2"), None, Some("")),
+      )
+    )
 
     val ex = intercept[CdpApiException] {
-      ingest(Seq(
-        AssetCreate("son", None, None, Some(testName), Some("son"), None, Some("dad2")),
-      ))
+      ingest(
+        key,
+        Seq(
+          AssetCreate("son", None, None, None, Some("son"), None, Some("dad2")),
+        ))
     }
     ex.getMessage should include("Asset must stay within same asset hierarchy")
+    cleanDB(key)
   }
 
   it should "ingest an asset tree" in {
-    cleanDB()
+    val key = shortRandomString()
 
     val ds = Some(testDataSetId)
-
     val assetTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some(""), ds),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad"), ds),
-      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad"), ds),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter"), ds)
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some(""), ds),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad"), ds),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad"), ds),
+      AssetCreate(
+        "daughterSon",
+        externalId = Some("daughterSon"),
+        parentExternalId = Some("daughter"),
+        dataSetId = ds)
     )
 
-    ingest(assetTree)
+    ingest(key, assetTree)
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName' and dataSetId = $testDataSetId").collect,
-      rows => rows.map(r => r.getString(1)).toSet != assetTree.map(_.name).toSet
+      spark
+        .sql(s"select * from assets where source = '$testName$key' and dataSetId = $testDataSetId")
+        .collect,
+      rows => rows.map(r => r.getAs[String]("name")).toSet != assetTree.map(_.name).toSet
     )
 
     val extIdMap = getAssetsMap(result)
-    assert(extIdMap(Some("son")).parentId.contains(extIdMap(Some("dad")).id))
-    assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("dad")).id))
-    assert(extIdMap(Some("daughterSon")).parentId.contains(extIdMap(Some("daughter")).id))
-    assert(extIdMap(Some("dad")).dataSetId == ds)
+    assert(extIdMap(Some(s"son$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"daughter$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"daughterSon$key")).parentId.contains(extIdMap(Some(s"daughter$key")).id))
+    assert(extIdMap(Some(s"dad$key")).dataSetId == ds)
+    cleanDB(key)
   }
 
   it should "ingest an asset tree, then update it" in {
-    cleanDB()
+    val key = shortRandomString()
 
     val ds = Some(testDataSetId)
 
     val originalTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad"), dataSetId = ds),
-      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad")),
-      AssetCreate("sonDaughter", None, None, Some(testName),Some("sonDaughter"), None, Some("son")),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
-      AssetCreate("secondDaughterToBeDeleted", None, None, Some(testName),Some("secondDaughter"), None, Some("dad"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad"), dataSetId = ds),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
+      AssetCreate("sonDaughter", None, None, None, Some("sonDaughter"), None, Some("son")),
+      AssetCreate(
+        "daughterSon",
+        externalId = Some("daughterSon"),
+        parentExternalId = Some("daughter")),
+      AssetCreate(
+        "secondDaughterToBeDeleted",
+        externalId = Some("secondDaughter"),
+        parentExternalId = Some("dad"))
     )
 
-    ingest(originalTree, batchSize = 3)
+    ingest(key, originalTree, batchSize = 3)
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.length != 6)
     Thread.sleep(2000)
 
     val updatedTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some(""), dataSetId = None),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad"), dataSetId = None),
-      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad"), dataSetId = ds),
-      AssetCreate("sonDaughter", None, None, Some(testName), Some("sonDaughter"), None, Some("daughter")),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some(""), dataSetId = None),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad"), dataSetId = None),
+      AssetCreate(
+        "daughter",
+        externalId = Some("daughter"),
+        parentExternalId = Some("dad"),
+        dataSetId = ds),
+      AssetCreate(
+        "sonDaughter",
+        externalId = Some("sonDaughter"),
+        parentExternalId = Some("daughter")),
+      AssetCreate("daughterSon", None, None, None, Some("daughterSon"), None, Some("daughter"))
     ).map(a => a.copy(name = a.name + "Updated"))
 
-    ingest(updatedTree, deleteMissingAssets = true)
+    ingest(key, updatedTree, deleteMissingAssets = true)
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
-      rows => rows.map(r => r.getString(1)).toSet != updatedTree.map(_.name).toSet
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      rows => rows.map(r => r.getAs[String]("name")).toSet != updatedTree.map(_.name).toSet
     )
 
     val extIdMap = getAssetsMap(result)
-    assert(extIdMap(Some("sonDaughter")).parentId.contains(extIdMap(Some("daughter")).id))
-    assert(extIdMap.get(Some("secondDaughterToBeDeleted")).isEmpty)
-    assert(extIdMap(Some("daughter")).dataSetId == ds)
-    assert(extIdMap(Some("son")).dataSetId == ds)
-    assert(extIdMap(Some("dad")).dataSetId == None)
+    assert(extIdMap(Some(s"sonDaughter$key")).parentId.contains(extIdMap(Some(s"daughter$key")).id))
+    assert(extIdMap.get(Some(s"secondDaughterToBeDeleted$key")).isEmpty)
+    assert(extIdMap(Some(s"daughter$key")).dataSetId == ds)
+    assert(extIdMap(Some(s"son$key")).dataSetId == ds)
+    assert(extIdMap(Some(s"dad$key")).dataSetId == None)
+
+    cleanDB(key)
   }
 
   it should "move an asset to another asset that is being moved" in {
-    cleanDB()
+    val key = shortRandomString()
 
     val originalTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad")),
-      AssetCreate("sonChild", None, None, Some(testName),Some("sonChild"), None, Some("son"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
+      AssetCreate("sonChild", None, None, None, Some("sonChild"), None, Some("son"))
     )
 
-    ingest(originalTree, batchSize = 5)
+    ingest(key, originalTree, batchSize = 5)
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.length != 4)
     Thread.sleep(2000)
 
     val updatedTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("son")),
-      AssetCreate("daughterChildUpdated", None, None, Some(testName),Some("sonChild"), None, Some("daughter")),
-      AssetCreate("daughterChildTwo", None, None, Some(testName),Some("daughterChildTwo"), None, Some("daughter"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("son")),
+      AssetCreate(
+        "daughterChildUpdated",
+        externalId = Some("sonChild"),
+        parentExternalId = Some("daughter")),
+      AssetCreate(
+        "daughterChildTwo",
+        externalId = Some("daughterChildTwo"),
+        parentExternalId = Some("daughter"))
     ).map(a => a.copy(name = a.name + "Updated"))
 
-    ingest(updatedTree, batchSize = 1)
+    ingest(key, updatedTree, batchSize = 1)
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
-      rows => rows.map(r => r.getString(1)).toSet != updatedTree.map(_.name).toSet)
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      rows => rows.map(r => r.getAs[String]("name")).toSet != updatedTree.map(_.name).toSet)
 
     val extIdMap = getAssetsMap(result)
-    assert(extIdMap(Some("son")).parentId.contains(extIdMap(Some("dad")).id))
-    assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("son")).id))
-    assert(extIdMap(Some("sonChild")).parentId.contains(extIdMap(Some("daughter")).id))
-    assert(extIdMap(Some("daughterChildTwo")).parentId.contains(extIdMap(Some("daughter")).id))
+    assert(extIdMap(Some(s"son$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"daughter$key")).parentId.contains(extIdMap(Some(s"son$key")).id))
+    assert(extIdMap(Some(s"sonChild$key")).parentId.contains(extIdMap(Some(s"daughter$key")).id))
+    assert(extIdMap(Some(s"daughterChildTwo$key")).parentId.contains(extIdMap(Some(s"daughter$key")).id))
+
+    cleanDB(key)
   }
 
   it should "avoid deleting assets when deleteMissingAssets is false" in {
-    cleanDB()
+    val key = shortRandomString()
 
     val originalTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad"))
     )
 
-    ingest(originalTree, batchSize = 3)
+    ingest(key, originalTree, batchSize = 3)
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.length != 3)
     Thread.sleep(2000)
 
     val updatedTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("newSibling", None, None, Some(testName),Some("newSibling"), None, Some("dad"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("newSibling", None, None, None, Some("newSibling"), None, Some("dad"))
     )
 
-    ingest(updatedTree, deleteMissingAssets = false)
+    ingest(key, updatedTree, deleteMissingAssets = false)
 
     val allNames = updatedTree.map(_.name) ++ Seq("son", "daughter")
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.map(r => r.getString(1)).toSet != allNames.toSet)
 
     val extIdMap = getAssetsMap(result)
-    assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("dad")).id))
-    assert(extIdMap(Some("son")).parentId.contains(extIdMap(Some("dad")).id))
-    assert(extIdMap(Some("newSibling")).parentId.contains(extIdMap(Some("dad")).id))
+    assert(extIdMap(Some(s"daughter$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"son$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"newSibling$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+
+    cleanDB(key)
   }
 
   it should "allow rearranging orders and depth of assets" in {
-    cleanDB()
+    val key = shortRandomString()
 
     val metricsPrefix = "update.assetsHierarchy.subtreeDepth"
-    ingest(Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("dad")),
-      AssetCreate("daughterSon", None, None, Some(testName), Some("daughterSon"), None, Some("daughter")),
-      AssetCreate("daughterDaughter", None, None, Some(testName), Some("daughterDaughter"), None, Some("daughter")),
-      AssetCreate("sonSon", None, None, Some(testName), Some("sonSon"), None, Some("son")),
-      AssetCreate("sonDaughter", None, None, Some(testName), Some("sonDaughter"), None, Some("son"))
-    ))
+    ingest(
+      key,
+      Seq(
+        AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+        AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+        AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
+        AssetCreate(
+          "daughterSon",
+          externalId = Some("daughterSon"),
+          parentExternalId = Some("daughter")),
+        AssetCreate(
+          "daughterDaughter",
+          externalId = Some("daughterDaughter"),
+          parentExternalId = Some("daughter")),
+        AssetCreate("sonSon", None, None, None, Some("sonSon"), None, Some("son")),
+        AssetCreate("sonDaughter", None, None, None, Some("sonDaughter"), None, Some("son"))
+      ))
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.length != 7)
     Thread.sleep(2000)
 
     val updatedTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("daughter_ofDaughterSon", None, None, Some(testName), Some("daughter"), None, Some("daughterSon")),
-      AssetCreate("daughterSon_ofDad", None, None, Some(testName), Some("daughterSon"), None, Some("daughterDaughter")),
-      AssetCreate("daughterDaughter", None, None, Some(testName), Some("daughterDaughter"), None, Some("dad")),
-      AssetCreate("hen", None, None, Some(testName), Some("hen"), None, Some("dad"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate(
+        "daughter_ofDaughterSon",
+        externalId = Some("daughter"),
+        parentExternalId = Some("daughterSon")),
+      AssetCreate(
+        "daughterSon_ofDad",
+        externalId = Some("daughterSon"),
+        parentExternalId = Some("daughterDaughter")),
+      AssetCreate(
+        "daughterDaughter",
+        externalId = Some("daughterDaughter"),
+        parentExternalId = Some("dad")),
+      AssetCreate("hen", None, None, None, Some("hen"), None, Some("dad"))
     ).map(a => a.copy(name = a.name + "Updated"))
 
-    ingest(updatedTree, deleteMissingAssets = true, batchSize = 3, metricsPrefix = Some(metricsPrefix))
+    ingest(key, updatedTree, deleteMissingAssets = true, batchSize = 3, metricsPrefix = Some(metricsPrefix))
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.map(r => r.getString(1)).toSet != updatedTree.map(_.name).toSet)
 
     val extIdMap = getAssetsMap(result)
-    assert(extIdMap(Some("daughterDaughter")).parentId.contains(extIdMap(Some("dad")).id))
-    assert(extIdMap(Some("daughterSon")).parentId.contains(extIdMap(Some("daughterDaughter")).id))
-    assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("daughterSon")).id))
+    assert(extIdMap(Some(s"daughterDaughter$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"daughterSon$key")).parentId.contains(extIdMap(Some(s"daughterDaughter$key")).id))
+    assert(extIdMap(Some(s"daughter$key")).parentId.contains(extIdMap(Some(s"daughterSon$key")).id))
 
     getNumberOfRowsUpdated(metricsPrefix, "assethierarchy") shouldBe 4
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe 1
     getNumberOfRowsDeleted(metricsPrefix, "assethierarchy") shouldBe 3
+
+    cleanDB(key)
   }
 
   it should "ingest an asset tree, then successfully delete a subtree" in {
-    cleanDB()
+    val key = shortRandomString()
 
-    ingest(Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName), Some("daughter"), None, Some("son")),
-      AssetCreate("daughter2", None, None, Some(testName), Some("daughter2"), None, Some("daughter")),
-      AssetCreate("daughter3", None, None, Some(testName), Some("daughter3"), None, Some("daughter2")),
-      AssetCreate("daughter4", None, None, Some(testName), Some("daughter4"), None, Some("daughter3"))
-    ))
+    ingest(
+      key,
+      Seq(
+        AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+        AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+        AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("son")),
+        AssetCreate("daughter2", None, None, None, Some("daughter2"), None, Some("daughter")),
+        AssetCreate("daughter3", None, None, None, Some("daughter3"), None, Some("daughter2")),
+        AssetCreate("daughter4", None, None, None, Some("daughter4"), None, Some("daughter3"))
+      ))
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.length != 6)
     Thread.sleep(2000)
 
     val updatedTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some(""))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some(""))
     ).map(a => a.copy(name = a.name + "Updated"))
 
-    ingest(updatedTree, deleteMissingAssets = true)
+    ingest(key, updatedTree, deleteMissingAssets = true)
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.map(r => r.getString(1)).toSet != updatedTree.map(_.name).toSet
     )
     assert(result.map(r => r.getString(1)).toSet == updatedTree.map(_.name).toSet)
+
+    cleanDB(key)
   }
 
   it should "insert a tree while ignoring assets that are not connected when setting the ignoreDisconnectedAssets option to true" in {
-    writeClient.assets.deleteByExternalIds(Seq("dad"), true, true)
+    val key = shortRandomString()
 
     val assetTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad")),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
-      AssetCreate("unusedZero", None, None, Some(testName),Some("unusedZero"), None, Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
-      AssetCreate("unusedOne", None, None, Some(testName),Some("unusedOne"), None, Some("unusedZero")),
-      AssetCreate("unusedTwo", None, None, Some(testName),Some("unusedTwo"), None, Some("unusedOne")),
-      AssetCreate("unusedThree", None, None, Some(testName),Some("unusedThree"), None, Some("unusedTwo"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
+      AssetCreate(
+        "daughterSon",
+        externalId = Some("daughterSon"),
+        parentExternalId = Some("daughter")),
+      AssetCreate(
+        "unusedZero",
+        externalId = Some("unusedZero"),
+        parentExternalId = Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
+      AssetCreate("unusedOne", None, None, None, Some("unusedOne"), None, Some("unusedZero")),
+      AssetCreate("unusedTwo", None, None, None, Some("unusedTwo"), None, Some("unusedOne")),
+      AssetCreate(
+        "unusedThree",
+        externalId = Some("unusedThree"),
+        parentExternalId = Some("unusedTwo"))
     )
 
     val metricsPrefix = "insert.assetsHierarchy.ignored"
-    ingest(assetTree, allowSubtreeIngestion = false, ignoreDisconnectedAssets = true, metricsPrefix = Some(metricsPrefix))
+    ingest(
+      key,
+      assetTree,
+      allowSubtreeIngestion = false,
+      ignoreDisconnectedAssets = true,
+      metricsPrefix = Some(metricsPrefix))
 
     val namesOfAssetsToInsert = assetTree.slice(0, 4).map(_.name).toSet
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
-      rows => rows.map(r => r.getString(1)).toSet != namesOfAssetsToInsert
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      rows => rows.map(r => r.getAs[String]("name")).toSet != namesOfAssetsToInsert
     )
 
     val extIdMap = getAssetsMap(result)
-    assert(extIdMap(Some("son")).parentId.contains(extIdMap(Some("dad")).id))
-    assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("dad")).id))
-    assert(extIdMap(Some("daughterSon")).parentId.contains(extIdMap(Some("daughter")).id))
+    assert(extIdMap(Some(s"son$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"daughter$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"daughterSon$key")).parentId.contains(extIdMap(Some(s"daughter$key")).id))
 
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe 4
+
+    cleanDB(key)
   }
 
   it should "insert a tree and then add subtree" in {
-    cleanDB()
+    val key = shortRandomString()
 
     val metricsPrefix = "insert.assetsHierarchy.ingest.subtree"
 
-    ingest(Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad"))
-    ), metricsPrefix = Some(metricsPrefix))
+    ingest(
+      key,
+      Seq(
+        AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+        AssetCreate("son", None, None, None, Some("son"), None, Some("dad"))
+      ),
+      metricsPrefix = Some(metricsPrefix)
+    )
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.map(r => r.getString(1)).toSet != Set("dad", "son")
     )
 
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe 2
 
-    ingest(Seq(
-      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad")),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
-      AssetCreate("sonSon", None, None, Some(testName),Some("sonSon"), None, Some("son"))
-    ), metricsPrefix = Some(metricsPrefix))
+    ingest(
+      key,
+      Seq(
+        AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
+        AssetCreate(
+          "daughterSon",
+          externalId = Some("daughterSon"),
+          parentExternalId = Some("daughter")),
+        AssetCreate("sonSon", None, None, None, Some("sonSon"), None, Some("son"))
+      ),
+      metricsPrefix = Some(metricsPrefix)
+    )
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
-      rows => rows.map(r => r.getString(1)).toSet != Set("dad", "son", "daughter", "daughterSon", "sonSon")
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      rows =>
+        rows.map(r => r.getString(1)).toSet != Set("dad", "son", "daughter", "daughterSon", "sonSon")
     )
 
     val extIdMap = getAssetsMap(result)
-    assert(extIdMap(Some("sonSon")).parentId.contains(extIdMap(Some("son")).id))
-    assert(extIdMap(Some("daughter")).parentId.contains(extIdMap(Some("dad")).id))
-    assert(extIdMap(Some("daughterSon")).parentId.contains(extIdMap(Some("daughter")).id))
+    assert(extIdMap(Some(s"sonSon$key")).parentId.contains(extIdMap(Some(s"son$key")).id))
+    assert(extIdMap(Some(s"daughter$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"daughterSon$key")).parentId.contains(extIdMap(Some(s"daughter$key")).id))
 
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe 5
   }
 
   it should "allow updating different subtrees" in {
-    cleanDB()
+    val key = shortRandomString()
+
     val metricsPrefix = "insert.assetsHierarchy.update.subtrees"
 
     //                    dad
@@ -491,21 +627,27 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     //          path3
 
     val sourceTree = Seq(
-      AssetCreate("dad", None, None, Some(testName),Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, Some(testName),Some("son"), None, Some("dad")),
-      AssetCreate("daughter", None, None, Some(testName),Some("daughter"), None, Some("dad")),
-      AssetCreate("daughterSon", None, None, Some(testName),Some("daughterSon"), None, Some("daughter")),
-      AssetCreate("daughterDaughter", None, None, Some(testName),Some("daughterDaughter"), None, Some("daughter")),
-      AssetCreate("path0", None, None, Some(testName),Some("path0"), None, Some("son")),
-      AssetCreate("path1", None, None, Some(testName),Some("path1"), None, Some("path0")),
-      AssetCreate("path2", None, None, Some(testName),Some("path2"), None, Some("path1")),
-      AssetCreate("path3", None, None, Some(testName),Some("path3"), None, Some("path2"))
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
+      AssetCreate(
+        "daughterSon",
+        externalId = Some("daughterSon"),
+        parentExternalId = Some("daughter")),
+      AssetCreate(
+        "daughterDaughter",
+        externalId = Some("daughterDaughter"),
+        parentExternalId = Some("daughter")),
+      AssetCreate("path0", None, None, None, Some("path0"), None, Some("son")),
+      AssetCreate("path1", None, None, None, Some("path1"), None, Some("path0")),
+      AssetCreate("path2", None, None, None, Some("path2"), None, Some("path1")),
+      AssetCreate("path3", None, None, None, Some("path3"), None, Some("path2"))
     )
-    ingest(sourceTree, metricsPrefix = Some(metricsPrefix))
+    ingest(key, sourceTree, metricsPrefix = Some(metricsPrefix))
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe sourceTree.length
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.length != sourceTree.length
     )
 
@@ -524,29 +666,48 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     //                                         |
     //                                       path3
 
-    ingest(Seq(
-      AssetCreate("path0-updated", None, None, Some(testName), Some("path0"), None, Some("daughterDaughter")),
-      AssetCreate("path2-updated", None, Some("desc"), Some(testName), Some("path2"), None, Some("path1")),
-      AssetCreate("daughter-updated", None, Some("desc"), Some(testName),Some("daughter"), None, Some("dad")),
-      AssetCreate("dad-updated", None, Some("desc"), Some(testName),Some("dad"), None, Some("")),
-    ), metricsPrefix = Some(metricsPrefix))
+    ingest(
+      key,
+      Seq(
+        AssetCreate(
+          "path0-updated",
+          externalId = Some("path0"),
+          parentExternalId = Some("daughterDaughter")),
+        AssetCreate(
+          "path2-updated",
+          description = Some("desc"),
+          externalId = Some("path2"),
+          parentExternalId = Some("path1")),
+        AssetCreate(
+          "daughter-updated",
+          description = Some("desc"),
+          externalId = Some("daughter"),
+          parentExternalId = Some("dad")),
+        AssetCreate("dad-updated", None, Some("desc"), None, Some("dad"), None, Some("")),
+      ),
+      metricsPrefix = Some(metricsPrefix)
+    )
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
       rows => rows.map(r => r.getString(1)).count(_.endsWith("-updated")) != 4
     )
 
     val extIdMap = getAssetsMap(result)
-    assert(extIdMap(Some("path0")).parentId.contains(extIdMap(Some("daughterDaughter")).id))
-    assert(extIdMap(Some("daughter")).description.contains("desc"))
-    assert(extIdMap(Some("dad")).description.contains("desc"))
-    assert(extIdMap(Some("path2")).description.contains("desc"))
+    assert(extIdMap(Some(s"path0$key")).parentId.contains(extIdMap(Some(s"daughterDaughter$key")).id))
+    assert(extIdMap(Some(s"daughter$key")).description.contains("desc"))
+    assert(extIdMap(Some(s"dad$key")).description.contains("desc"))
+    assert(extIdMap(Some(s"path2$key")).description.contains("desc"))
 
     getNumberOfRowsUpdated(metricsPrefix, "assethierarchy") shouldBe 4
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe sourceTree.length
+
+    cleanDB(key)
   }
 
   def getAssetsMap(assets: Seq[Row]): Map[Option[String], AssetsReadSchema] =
-    assets.map(r => fromRow[AssetsReadSchema](r))
-      .map(a => a.externalId -> a).toMap
+    assets
+      .map(r => fromRow[AssetsReadSchema](r))
+      .map(a => a.externalId -> a)
+      .toMap
 }
