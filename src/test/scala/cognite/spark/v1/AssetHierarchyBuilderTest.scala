@@ -27,16 +27,19 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       ignoreDisconnectedAssets: Boolean = false,
       allowMultipleRoots: Boolean = true,
       deleteMissingAssets: Boolean = false): Unit = {
-    def addKey(id: String) = if (id == "") {
-      ""
-    } else {
-      s"$id$key"
-    }
-    val processedTree = tree.map(node => node.copy(
-      externalId = Some(addKey(node.externalId.get)),
-      parentExternalId = Some(addKey(node.parentExternalId.get)),
-      source = Some(s"$testName$key")
-    ))
+    def addKey(id: String) =
+      if (id == "") {
+        ""
+      } else {
+        s"$id$key"
+      }
+    val processedTree = tree.map(
+      node =>
+        node.copy(
+          externalId = Some(addKey(node.externalId.get)),
+          parentExternalId = Some(addKey(node.parentExternalId.get)),
+          source = Some(s"$testName$key")
+      ))
     spark.sparkContext
       .parallelize(processedTree)
       .toDF()
@@ -77,10 +80,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
       AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
       AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
-      AssetCreate(
-        "daughterSon",
-        externalId = Some("daughterSon"),
-        parentExternalId = Some("daughter")),
+      AssetCreate("daughterSon", externalId = Some("daughterSon"), parentExternalId = Some("daughter")),
       AssetCreate("othertree", None, None, None, Some("other"), None, Some("otherDad"))
     )
     val e = intercept[Exception] {
@@ -95,10 +95,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
       AssetCreate("son", None, None, None, Some("son"), None, Some("")),
       AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("")),
-      AssetCreate(
-        "daughterSon",
-        externalId = Some("daughterSon"),
-        parentExternalId = Some("daughter")),
+      AssetCreate("daughterSon", externalId = Some("daughterSon"), parentExternalId = Some("daughter")),
       AssetCreate("othertree", None, None, None, Some("other"), None, Some("otherDad"))
     )
     val e = intercept[Exception] {
@@ -163,7 +160,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
 
     val ex = intercept[Exception] { ingest(key, tree) }
     ex shouldBe an[InvalidNodeReferenceException]
-    ex.getMessage shouldBe s"Node 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds$key' referenced from 'testNode1$key' does not exist."
+    ex.getMessage shouldBe s"Parent 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds$key' referenced from 'testNode1$key' does not exist."
   }
 
   it should "fail when subtree is updated into being root" in {
@@ -284,10 +281,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("son", None, None, None, Some("son"), None, Some("dad"), dataSetId = ds),
       AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
       AssetCreate("sonDaughter", None, None, None, Some("sonDaughter"), None, Some("son")),
-      AssetCreate(
-        "daughterSon",
-        externalId = Some("daughterSon"),
-        parentExternalId = Some("daughter")),
+      AssetCreate("daughterSon", externalId = Some("daughterSon"), parentExternalId = Some("daughter")),
       AssetCreate(
         "secondDaughterToBeDeleted",
         externalId = Some("secondDaughter"),
@@ -309,10 +303,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
         externalId = Some("daughter"),
         parentExternalId = Some("dad"),
         dataSetId = ds),
-      AssetCreate(
-        "sonDaughter",
-        externalId = Some("sonDaughter"),
-        parentExternalId = Some("daughter")),
+      AssetCreate("sonDaughter", externalId = Some("sonDaughter"), parentExternalId = Some("daughter")),
       AssetCreate("daughterSon", None, None, None, Some("daughterSon"), None, Some("daughter"))
     ).map(a => a.copy(name = a.name + "Updated"))
 
@@ -368,7 +359,8 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
 
     val result = retryWhile[Array[Row]](
       spark.sql(s"select * from assets where source = '$testName$key'").collect,
-      rows => rows.map(r => r.getAs[String]("name")).toSet != updatedTree.map(_.name).toSet)
+      rows => rows.map(r => r.getAs[String]("name")).toSet != updatedTree.map(_.name).toSet
+    )
 
     val extIdMap = getAssetsMap(result)
     assert(extIdMap(Some(s"son$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
@@ -436,7 +428,8 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
           parentExternalId = Some("daughter")),
         AssetCreate("sonSon", None, None, None, Some("sonSon"), None, Some("son")),
         AssetCreate("sonDaughter", None, None, None, Some("sonDaughter"), None, Some("son"))
-      ))
+      )
+    )
 
     retryWhile[Array[Row]](
       spark.sql(s"select * from assets where source = '$testName$key'").collect,
@@ -460,7 +453,12 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("hen", None, None, None, Some("hen"), None, Some("dad"))
     ).map(a => a.copy(name = a.name + "Updated"))
 
-    ingest(key, updatedTree, deleteMissingAssets = true, batchSize = 3, metricsPrefix = Some(metricsPrefix))
+    ingest(
+      key,
+      updatedTree,
+      deleteMissingAssets = true,
+      batchSize = 3,
+      metricsPrefix = Some(metricsPrefix))
 
     val result = retryWhile[Array[Row]](
       spark.sql(s"select * from assets where source = '$testName$key'").collect,
@@ -468,7 +466,8 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
 
     val extIdMap = getAssetsMap(result)
     assert(extIdMap(Some(s"daughterDaughter$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
-    assert(extIdMap(Some(s"daughterSon$key")).parentId.contains(extIdMap(Some(s"daughterDaughter$key")).id))
+    assert(
+      extIdMap(Some(s"daughterSon$key")).parentId.contains(extIdMap(Some(s"daughterDaughter$key")).id))
     assert(extIdMap(Some(s"daughter$key")).parentId.contains(extIdMap(Some(s"daughterSon$key")).id))
 
     getNumberOfRowsUpdated(metricsPrefix, "assethierarchy") shouldBe 4
@@ -490,7 +489,8 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
         AssetCreate("daughter2", None, None, None, Some("daughter2"), None, Some("daughter")),
         AssetCreate("daughter3", None, None, None, Some("daughter3"), None, Some("daughter2")),
         AssetCreate("daughter4", None, None, None, Some("daughter4"), None, Some("daughter3"))
-      ))
+      )
+    )
 
     retryWhile[Array[Row]](
       spark.sql(s"select * from assets where source = '$testName$key'").collect,
@@ -519,20 +519,14 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
       AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
       AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
-      AssetCreate(
-        "daughterSon",
-        externalId = Some("daughterSon"),
-        parentExternalId = Some("daughter")),
+      AssetCreate("daughterSon", externalId = Some("daughterSon"), parentExternalId = Some("daughter")),
       AssetCreate(
         "unusedZero",
         externalId = Some("unusedZero"),
         parentExternalId = Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
       AssetCreate("unusedOne", None, None, None, Some("unusedOne"), None, Some("unusedZero")),
       AssetCreate("unusedTwo", None, None, None, Some("unusedTwo"), None, Some("unusedOne")),
-      AssetCreate(
-        "unusedThree",
-        externalId = Some("unusedThree"),
-        parentExternalId = Some("unusedTwo"))
+      AssetCreate("unusedThree", externalId = Some("unusedThree"), parentExternalId = Some("unusedTwo"))
     )
 
     val metricsPrefix = "insert.assetsHierarchy.ignored"
@@ -630,10 +624,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
       AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
       AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad")),
-      AssetCreate(
-        "daughterSon",
-        externalId = Some("daughterSon"),
-        parentExternalId = Some("daughter")),
+      AssetCreate("daughterSon", externalId = Some("daughterSon"), parentExternalId = Some("daughter")),
       AssetCreate(
         "daughterDaughter",
         externalId = Some("daughterDaughter"),
