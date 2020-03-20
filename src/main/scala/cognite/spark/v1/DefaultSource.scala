@@ -241,28 +241,16 @@ class DefaultSource
       data.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector._
 
-        val groupedBatches = rows.grouped(batchSize).toVector.grouped(Constants.MaxConcurrentRequests)
-
+        val batches = rows.grouped(batchSize).toVector
         config.onConflict match {
           case OnConflict.Abort =>
-            groupedBatches.foreach { batchGroup =>
-              batchGroup.parTraverse(relation.insert).unsafeRunSync()
-            }
-
+            batches.parTraverse(relation.insert).unsafeRunSync()
           case OnConflict.Upsert =>
-            groupedBatches.foreach { batchGroup =>
-              batchGroup.parTraverse(relation.upsert).unsafeRunSync()
-            }
-
+            batches.parTraverse(relation.upsert).unsafeRunSync()
           case OnConflict.Update =>
-            groupedBatches.foreach { batchGroup =>
-              batchGroup.parTraverse(relation.update).unsafeRunSync()
-            }
-
+            batches.parTraverse(relation.update).unsafeRunSync()
           case OnConflict.Delete =>
-            groupedBatches.foreach { batchGroup =>
-              batchGroup.parTraverse(relation.delete).unsafeRunSync()
-            }
+            batches.parTraverse(relation.delete).unsafeRunSync()
         }
 
         ()

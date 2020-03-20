@@ -54,11 +54,9 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     data.foreachPartition((rows: Iterator[Row]) => {
       import CdpConnector._
       val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
-      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-        batchGroup
-          .parTraverse(getFromRowsAndCreate(_))
-          .unsafeRunSync()
-      }
+      batches
+        .parTraverse(getFromRowsAndCreate(_))
+        .unsafeRunSync()
       ()
     })
 

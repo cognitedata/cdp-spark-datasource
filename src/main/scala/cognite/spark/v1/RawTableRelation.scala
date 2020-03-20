@@ -168,9 +168,9 @@ class RawTableRelation(
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df.drop(lastUpdatedTimeColName))
     dfWithUnRenamedKeyColumns.foreachPartition((rows: Iterator[Row]) => {
       val batches = rows.grouped(batchSize).toVector
-      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-        batchGroup.parTraverse(postRows(columnNames, _)).unsafeRunSync()
-      }
+      batches
+        .parTraverse(postRows(columnNames, _))
+        .unsafeRunSync()
       ()
     })
   }
