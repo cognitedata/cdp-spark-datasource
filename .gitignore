@@ -10,3 +10,4 @@ src/main/scripts/Pip*
 .metals/
 .bloop/
 .env
+project/metals.sbt
