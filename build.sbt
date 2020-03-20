@@ -1,6 +1,6 @@
 import com.typesafe.sbt.packager.docker.{Cmd, ExecCmd}
 
-val scala212 = "2.12.8"
+val scala212 = "2.12.11"
 val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
 val sparkVersion = "2.4.3"
@@ -70,6 +70,7 @@ lazy val commonSettings = Seq(
 lazy val macroSub = (project in file("macro"))
   .settings(
     commonSettings,
+    scalaVersion := scala212,
     publish := {},
     publishLocal := {},
     libraryDependencies ++= Seq(
@@ -86,6 +87,7 @@ lazy val library = (project in file("."))
     name := "cdf-spark-datasource",
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
+    scalaVersion := scala212,
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
