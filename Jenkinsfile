@@ -6,7 +6,7 @@ podTemplate(label: label,
             containers: [
                 containerTemplate(
                     name: 'sbt',
-                    image: 'eu.gcr.io/cognitedata/openjdk8-sbt:2018-09-18-d077396',
+                    image: 'eu.gcr.io/cognitedata/openjdk-sbt:jdk8-2020-03-20-3631d83',
                     resourceRequestCpu: '3800m',
                     resourceLimitCpu: '7800m',
                     resourceLimitMemory: '7500Mi',
