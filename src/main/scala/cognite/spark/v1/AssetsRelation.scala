@@ -65,8 +65,10 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val assetUpdates = rows.map(r => fromRow[AssetsUpsertSchema](r))
-    updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate, Assets[IO], Asset](
-      assetUpdates,
+    val (itemsToUpdateById, itemsToUpdateByExternalId) = assetUpdates.partition(r => r.id.exists(_ > 0))
+    updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate,AssetCreate, Assets[IO], Asset](
+      itemsToUpdateById,
+      itemsToUpdateByExternalId.map(_.into[AssetCreate].withFieldComputed(_.name, _.name.get).transform),
       client.assets,
       isUpdateEmpty
     )

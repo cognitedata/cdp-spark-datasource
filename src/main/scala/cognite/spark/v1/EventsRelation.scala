@@ -86,8 +86,10 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val eventUpdates = rows.map(r => fromRow[EventsUpsertSchema](r))
-    updateByIdOrExternalId[EventsUpsertSchema, EventUpdate, Events[IO], Event](
-      eventUpdates,
+    val (itemsToUpdateById, itemsToUpdateByExternalId) = eventUpdates.partition(r => r.id.exists(_ > 0))
+    updateByIdOrExternalId[EventsUpsertSchema, EventUpdate,  EventCreate,Events[IO], Event](
+      itemsToUpdateById,
+      itemsToUpdateByExternalId.map(_.transformInto[EventCreate]),
       client.events,
       isUpdateEmpty
     )

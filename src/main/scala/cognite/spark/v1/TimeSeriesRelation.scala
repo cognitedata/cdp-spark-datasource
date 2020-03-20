@@ -28,8 +28,24 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesUpdates = rows.map(r => fromRow[TimeSeriesUpsertSchema](r))
-    updateByIdOrExternalId[TimeSeriesUpsertSchema, TimeSeriesUpdate, TimeSeriesResource[IO], TimeSeries](
-      timeSeriesUpdates,
+    val (itemsToUpdateById, itemsToUpdateByExternalId) = timeSeriesUpdates.partition(r => r.id.exists(_ > 0))
+    updateByIdOrExternalId[TimeSeriesUpsertSchema, TimeSeriesUpdate, TimeSeriesCreate,TimeSeriesResource[IO], TimeSeries](
+      itemsToUpdateById,
+      itemsToUpdateByExternalId.map { c =>
+        val asCreate = c
+          .into[TimeSeriesCreate]
+          .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
+          .withFieldComputed(_.isString, _.isString.getOrElse(false))
+
+        config.legacyNameSource match {
+          case LegacyNameSource.None =>
+            asCreate.transform
+          case LegacyNameSource.Name =>
+            asCreate.withFieldComputed(_.legacyName, _.name).transform
+          case LegacyNameSource.ExternalId =>
+            asCreate.withFieldComputed(_.legacyName, _.externalId).transform
+        }
+      },
       client.timeSeries,
       isUpdateEmpty
     )

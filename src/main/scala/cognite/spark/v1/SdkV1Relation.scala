@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.v1._
-import com.cognite.sdk.scala.common._
+import com.cognite.sdk.scala.common.{WithExternalId, _}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan, TableScan}
@@ -75,19 +75,17 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   // scalastyle:off no.whitespace.after.left.bracket
   def updateByIdOrExternalId[
       P <: WithExternalId with WithId[Option[Long]],
-      U <: WithSetExternalId,
-      T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO],
-      R <: WithId[Long]](
+      U <: WithSetExternalId, C <: WithExternalId,
+      T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO] with Create[R, C, IO],
+      R <: WithExternalId with WithId[Long]
+](
       updates: Seq[P],
+      updatesByExternalId: Seq[C],
       resource: T,
       isUpdateEmpty: U => Boolean
-  )(implicit transform: Transformer[P, U]): IO[Unit] = {
-    require(
-      updates.forall(u => u.id.isDefined || u.externalId.isDefined),
-      "Update requires an id or externalId to be set for each row.")
-    val (rawUpdatesById, updatesByExternalId) = updates.partition(u => u.id.exists(_ > 0))
+  )(implicit transform: Transformer[P, U], transform1: Transformer[C,U]): IO[Unit] = {
     val updatesById =
-      rawUpdatesById
+      updates
         .map(u => u.id.get -> u.transformInto[U])
         .filter {
           case (_, update) => !isUpdateEmpty(update)
@@ -107,8 +105,9 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .updateByExternalId(updatesByExternalIdMap)
         .flatTap(_ => incMetrics(itemsUpdated, updatesByExternalIdMap.size))
         .map(_ => ())
+        .recoverWith{case CdpApiException(_,400,_,_,_,_,_) => createOrUpdateByExternalId[R,U,C,T](Set.empty,updatesByExternalId,resource,doUpsert=true)
+        }
     }
-
     (updateIds, updateExternalIds).parMapN((_, _) => ())
   }
 
@@ -134,17 +133,14 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resourceCreates: Seq[C],
       resource: T,
       doUpsert: Boolean)(implicit transform: Transformer[C, U]): IO[Unit] = {
-    val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
-      p => p.externalId.exists(id => existingExternalIds.contains(id))
-    )
-    val create = if (resourcesToCreate.isEmpty) {
+   if (resourceCreates.isEmpty) {
       IO.unit
     } else {
       resource
-        .create(resourcesToCreate)
-        .flatTap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
+        .create(resourceCreates)
+        .flatTap(_ => incMetrics(itemsCreated, resourceCreates.size))
         .map(_ => ())
-        .recoverWith {
+       /* .recoverWith {
           case CdpApiException(_, 409, _, _, Some(duplicated), _, requestId) if doUpsert =>
             val moreExistingExternalIds = config.legacyNameSource match {
               case LegacyNameSource.ExternalId =>
@@ -160,21 +156,22 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
               existingExternalIds ++ moreExistingExternalIds.toSet,
               resourcesToCreate,
               resource,
-              doUpsert = doUpsert)
-        }
+              doUpsert = doUpsert)*/
+
     }
-    val update = if (resourcesToUpdate.isEmpty) {
+  //  val update = IO.unit
+      /*if (resourceCreates.isEmpty) {
       IO.unit
     } else {
       resource
         .updateByExternalId(
-          resourcesToUpdate
+          resourceCreates
             .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
             .toMap)
-        .flatTap(_ => incMetrics(itemsUpdated, resourcesToUpdate.size))
+        .flatTap(_ => incMetrics(itemsUpdated, resourceCreates.size))
         .map(_ => ())
-    }
-    (create, update).parMapN((_, _) => ())
+    }*/
+  //  (create).parMapN((_) => ())
   }
 
   def deleteWithIgnoreUnknownIds(
@@ -217,14 +214,17 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       }
       .toSeq
 
-    val update = updateByIdOrExternalId[U, Up, Re, R](
+    val (itemsToUpdateByExternalId, createItems) = itemsToCreateWithoutDuplicatesByExternalId.partition(r => r.externalId.exists(_.trim.nonEmpty))
+
+    val update = updateByIdOrExternalId[U, Up, C, Re, R](
       itemsToUpdate,
+      itemsToUpdateByExternalId,
       resource,
       isUpdateEmpty
     )
     val createOrUpdate = createOrUpdateByExternalId[R, Up, C, Re](
       Set.empty,
-      itemsToCreateWithoutDuplicatesByExternalId,
+      createItems,
       resource,
       doUpsert = true)
     (update, createOrUpdate).parMapN((_, _) => ())
