@@ -37,9 +37,10 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
       val batches = rows.grouped(Constants.CreateDataPointsLimit).toVector
-      batches.grouped(Constants.MaxConcurrentRequests).foreach { batchGroup =>
-        batchGroup.parTraverse(insertSeqOfRows).unsafeRunSync()
-      }
+      batches
+        .parTraverse(insertSeqOfRows)
+        .unsafeRunSync()
+      ()
     })
 
   def insertSeqOfRows(rows: Seq[Row]): IO[Unit]
