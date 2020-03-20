@@ -546,6 +546,71 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(descriptionsAfterUpsert.length == 100)
   }
 
+  it should "be possible to make an upsert on externalId without name" in {
+    val source = "spark-assets-externalId-no-name"
+    // Cleanup old assets
+    cleanupAssets(source)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sourceAssets where source = '$source'").collect,
+      rows => rows.length > 0
+    )
+
+    val externalId = shortRandomString()
+    // Post new assets
+    spark
+      .sql(s"""
+              |select '$externalId' as externalId,
+              |'test' as name,
+              |null as parentId,
+              |'foo' as description,
+              |map("bar", "test") as metadata,
+              |'$source' as source,
+              |null as id,
+              |null as createdTime,
+              |null as lastUpdatedTime,
+              |0 as rootId,
+              |null as aggregates,
+              |null dataSetId
+     """.stripMargin)
+      .write
+      .insertInto("destinationAssets")
+
+    spark
+      .sql(s"""
+              |select '$externalId' as externalId,
+              |'bar' as description
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "upsert")
+      .save()
+
+    // TODO: Add a few more tests?
+
+    // spark
+    //   .sql(s"""
+    //           |select '$externalId' as externalId,
+    //           |'bar' as description
+    //  """.stripMargin)
+    //   .write
+    //   .format("cognite.spark.v1")
+    //   .option("apiKey", writeApiKey)
+    //   .option("type", "assets")
+    //   .option("onconflict", "upsert")
+    //   .save()
+
+    // Check if update worked
+    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+      spark
+        .sql(
+          s"select description from destinationAssets where source = '$source' and description = 'bar'")
+        .collect,
+      df => df.length != 1)
+    assert(descriptionsAfterUpsert.length == 1)
+  }
+
   it should "correctly have insert < read and upsert < read schema hierarchy" in {
     val assetInsert = AssetsInsertSchema(name = "test-asset")
     assetInsert.transformInto[AssetsReadSchema].copy(id = 1234L)
