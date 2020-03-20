@@ -68,7 +68,11 @@ podTemplate(label: label,
                     if (env.BRANCH_NAME == 'master') {
                         test = "+test"
                     }
-                    sh("sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage $test coverageReport")
+                    testStatus = sh(returnStatus: true, script: "sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage $test coverageReport")
+                    junit(allowEmptyResults: false, testResults: '**/target/test-reports/*.xml')
+                    if (testStatus != 0) {
+                        error("Tests failed")
+                    }
                 }
                 stage("Upload report to codecov.io") {
                     sh('bash </codecov-script/upload-report.sh')
