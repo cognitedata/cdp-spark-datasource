@@ -71,6 +71,7 @@ podTemplate(label: label,
                     testStatus = sh(returnStatus: true, script: "sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage $test coverageReport")
                     junit(allowEmptyResults: false, testResults: '**/target/test-reports/*.xml')
                     if (testStatus != 0) {
+                        summarizeTestResults()
                         error("Tests failed")
                     }
                 }
