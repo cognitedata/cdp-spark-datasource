@@ -11,7 +11,7 @@ object Main extends App {
     eventPerf.run()
   } finally {
     logger.info("Sleeping for 20 seconds before exiting, so that all metrics are scraped.")
-    Thread.sleep(20*1000) // Sleep for 20 seconds to make sure metrics are scraped
-    sys.exit(0) // Force shutdown as Spark creates threads that are not background threads
+    Thread.sleep(20 * 1000) // Sleep for 20 seconds to make sure metrics are scraped
+    metricsServer.stop()
   }
 }
