@@ -7,6 +7,8 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._
 import org.scalatest.{FlatSpec, Matchers}
 
+import scala.util.control.NonFatal
+
 class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   val sourceDf = spark.read
@@ -143,7 +145,8 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "be possible to create assets" taggedAs WriteTest in {
-    val assetsTestSource = "assets-relation-test-create"
+    val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
+    val externalId = s"assets-test-create-${shortRandomString()}"
     val metricsPrefix = "assets.test.create"
     val df = spark.read
       .format("cognite.spark.v1")
@@ -154,43 +157,51 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
     df.createOrReplaceTempView("assets")
     cleanupAssets(assetsTestSource)
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
-      rows => rows.length > 0)
-    spark
-      .sql(s"""
-        |select 1 as externalId,
-        |'asset name' as name,
-        |null as parentId,
-        |null as parentExternalId,
-        |'asset description' as description,
-        |null as metadata,
-        |'$assetsTestSource' as source,
-        |10 as id,
-        |0 as createdTime,
-        |0 as lastUpdatedTime,
-        |null as rootId,
-        |null as aggregates,
-        |$testDataSetId as dataSetId
+    try {
+      retryWhile[Array[Row]](
+        spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+        rows => rows.length > 0)
+      spark
+        .sql(s"""
+                |select '$externalId' as externalId,
+                |'asset name' as name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'asset description' as description,
+                |null as metadata,
+                |'$assetsTestSource' as source,
+                |10 as id,
+                |0 as createdTime,
+                |0 as lastUpdatedTime,
+                |null as rootId,
+                |null as aggregates,
+                |$testDataSetId as dataSetId
       """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("assets")
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("assets")
 
-    val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
-    assert(assetsCreated == 1)
+      val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
+      assert(assetsCreated == 1)
 
-    val Array(createdAsset) = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
-      rows => rows.length < 1)
+      val Array(createdAsset) = retryWhile[Array[Row]](
+        spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+        rows => rows.length < 1)
 
-    createdAsset.getAs[String]("name") shouldBe "asset name"
-    createdAsset.getAs[Long]("dataSetId") shouldBe testDataSetId
-    createdAsset.getAs[String]("externalId") shouldBe "1"
+      createdAsset.getAs[String]("name") shouldBe "asset name"
+      createdAsset.getAs[Long]("dataSetId") shouldBe testDataSetId
+      createdAsset.getAs[String]("externalId") shouldBe externalId
+    } finally {
+      try {
+        writeClient.assets.deleteByExternalId(externalId)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
   it should "handle null values in metadata when inserting in savemode" taggedAs WriteTest in {
-    val assetsTestSource = "assets-relation-test-create"
+    val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     val metricsPrefix = "assets.test.create.savemode"
     val df = spark.read
       .format("cognite.spark.v1")
@@ -198,35 +209,42 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "assets")
       .load()
     df.createOrReplaceTempView("assets")
-    cleanupAssets(assetsTestSource)
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
-      rows => rows.length > 0)
-    spark
-      .sql(s"""
-              |select "1" as externalId,
-              |'asset name' as name,
-              |null as parentId,
-              |'asset description' as description,
-              |map("foo", null, "bar", "test") as metadata,
-              |'$assetsTestSource' as source,
-              |bigint(10) as id
-      """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "abort")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .save
+    val externalId = shortRandomString()
 
-    val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
-    assert(assetsCreated == 1)
+    try {
+      spark
+        .sql(s"""
+                |select '$externalId' as externalId,
+                |'asset name' as name,
+                |null as parentId,
+                |'asset description' as description,
+                |map("foo", null, "bar", "test") as metadata,
+                |'$assetsTestSource' as source,
+                |bigint(10) as id
+      """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "abort")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .save
+
+      val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
+      assert(assetsCreated == 1)
+    } finally {
+      try {
+        writeClient.assets.deleteByExternalId(externalId)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
+
   }
 
   it should "be possible to copy assets from one tenant to another" taggedAs WriteTest in {
-    val assetsTestSource = "assets-relation-test-copy"
+    val assetsTestSource = s"assets-relation-test-copy-${shortRandomString()}"
     val sourceDf = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -239,45 +257,44 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("type", "assets")
       .load()
     destinationDf.createOrReplaceTempView("assets")
-    cleanupAssets(assetsTestSource)
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
-      rows => rows.length > 0)
-    spark
-      .sql(s"""
-         |select externalId,
-         |name,
-         |null as parentId,
-         |null as parentExternalId,
-         |description,
-         |metadata,
-         |'$assetsTestSource' as source,
-         |id,
-         |createdTime,
-         |lastUpdatedTime,
-         |0 as rootId,
-         |null as aggregates,
-         |dataSetId
-         |from source_assets where id = 2675073401706610
+    try {
+      spark
+        .sql(s"""
+                |select externalId,
+                |name,
+                |null as parentId,
+                |null as parentExternalId,
+                |description,
+                |metadata,
+                |'$assetsTestSource' as source,
+                |id,
+                |createdTime,
+                |lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |dataSetId
+                |from source_assets
+                |limit 1
       """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("assets")
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
-      rows => rows.length < 1)
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("assets")
+      retryWhile[Array[Row]](
+        spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+        rows => rows.length < 1)
+    } finally {
+      try {
+        cleanupAssets(assetsTestSource)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
+
   }
 
   it should "support upserts when using insertInto()" taggedAs WriteTest in {
     val source = s"spark-assets-upsert-testing${shortRandomString()}"
     val metricsPrefix = "assets.upsert.test"
-
-    // Cleanup old assets
-    cleanupAssets(source)
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from sourceAssets where source = '$source'").collect,
-      rows => rows.length > 0
-    )
 
     val destinationDf: DataFrame = spark.read
       .format("cognite.spark.v1")
@@ -289,91 +306,99 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     destinationDf.createOrReplaceTempView("destinationAssetsUpsert")
 
     val randomSuffix = shortRandomString()
-    // Post new assets
-    spark
-      .sql(s"""
-              |select concat(string(id), '${randomSuffix}') as externalId,
-              |name,
-              |null as parentId,
-              |null as parentExternalId,
-              |'foo' as description,
-              |map("bar", "test") as metadata,
-              |'$source' as source,
-              |id,
-              |createdTime,
-              |lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |dataSetId
-              |from sourceAssets
-              |limit 100
-     """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("destinationAssetsUpsert")
-
-    // Check if post worked
-    val assetsFromTestDf = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssetsUpsert where source = '$source' and description = 'foo'").collect,
-      df => df.length != 100)
-    assert(assetsFromTestDf.length == 100)
-
-    val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
-    assert(assetsCreated == 100)
-
-    // Upsert assets
-    spark
-      .sql(s"""
-              |select externalId,
-              |name,
-              |null as parentId,
-              |null as parentExternalId,
-              |'bar' as description,
-              |map("foo", null, "bar", "test") as metadata,
-              |'$source'as source,
-              |id,
-              |createdTime,
-              |lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |dataSetId
-              |from destinationAssetsUpsert
-              |where source = '$source'""".stripMargin)
-      .union(spark
-        .sql(s"""
-              |select concat(externalId, '${randomSuffix}_create') as externalId,
-              |name,
-              |null as parentId,
-              |null as parentExternalId,
-              |'bar' as description,
-              |metadata,
-              |'$source' as source,
-              |null as id,
-              |createdTime,
-              |lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |dataSetId
-              |from sourceAssets
-              |limit 100
-     """.stripMargin))
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("destinationAssetsUpsert")
-
-    // Check if upsert worked
-    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+    try {
+      // Post new assets
       spark
-        .sql(
-          s"select description from destinationAssets where source = '$source' and description = 'bar'")
-        .collect,
-      df => df.length != 200)
-    assert(descriptionsAfterUpsert.length == 200)
+        .sql(s"""
+                |select concat(string(id), '${randomSuffix}') as externalId,
+                |name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'foo' as description,
+                |map("bar", "test") as metadata,
+                |'$source' as source,
+                |id,
+                |createdTime,
+                |lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |dataSetId
+                |from sourceAssets
+                |limit 100
+     """.stripMargin)
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationAssetsUpsert")
 
-    val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
-    assert(assetsCreatedAfterUpsert == 200)
-    val assetsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "assets")
-    assert(assetsUpdatedAfterUpsert == 100)
+      // Check if post worked
+      val assetsFromTestDf = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationAssetsUpsert where source = '$source' and description = 'foo'").collect,
+        df => df.length != 100)
+      assert(assetsFromTestDf.length == 100)
+
+      val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
+      assert(assetsCreated == 100)
+
+      // Upsert assets
+      spark
+        .sql(s"""
+                |select externalId,
+                |name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'bar' as description,
+                |map("foo", null, "bar", "test") as metadata,
+                |'$source' as source,
+                |id,
+                |createdTime,
+                |lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |dataSetId
+                |from destinationAssetsUpsert
+                |where source = '$source'""".stripMargin)
+        .union(spark
+          .sql(s"""
+                  |select concat(externalId, '${randomSuffix}_create') as externalId,
+                  |name,
+                  |null as parentId,
+                  |null as parentExternalId,
+                  |'bar' as description,
+                  |metadata,
+                  |'$source' as source,
+                  |null as id,
+                  |createdTime,
+                  |lastUpdatedTime,
+                  |0 as rootId,
+                  |null as aggregates,
+                  |dataSetId
+                  |from sourceAssets
+                  |limit 100
+     """.stripMargin))
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationAssetsUpsert")
+
+      // Check if upsert worked
+      val descriptionsAfterUpsert = retryWhile[Array[Row]](
+        spark
+          .sql(
+            s"select description from destinationAssets where source = '$source' and description = 'bar'")
+          .collect,
+        df => df.length != 200)
+      assert(descriptionsAfterUpsert.length == 200)
+
+      val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
+      assert(assetsCreatedAfterUpsert == 200)
+      val assetsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "assets")
+      assert(assetsUpdatedAfterUpsert == 100)
+    } finally {
+      try {
+        cleanupAssets(source)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
   it should "allow partial updates" taggedAs WriteTest in {
@@ -410,7 +435,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     disableSparkLogging() // Removing expected Spark executor Errors from the console
 
-    val e = assertThrows[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       wdf.write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
@@ -422,299 +447,311 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "support some more partial updates" taggedAs WriteTest in  {
-    val source = "spark-assets-test"
+    val source = s"spark-assets-test-partial-${shortRandomString()}"
 
-    // Cleanup assets
-    cleanupAssets(source)
-    val oldAssetsFromTestDf = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
-      df => df.length > 0)
-    assert(oldAssetsFromTestDf.length == 0)
-
-    // Post new assets
-    spark
-      .sql(s"""
-                 |select id as externalId,
-                 |name,
-                 |null as parentId,
-                 |null as parentExternalId,
-                 |'foo' as description,
-                 |map("bar", "test") as metadata,
-                 |'$source' as source,
-                 |id,
-                 |createdTime,
-                 |lastUpdatedTime,
-                 |0 as rootId,
-                 |null as aggregates,
-                 |dataSetId
-                 |from sourceAssets
-                 |limit 100
+    try {
+      // Post new assets
+      spark
+        .sql(s"""
+                |select id as externalId,
+                |name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'foo' as description,
+                |map("bar", "test") as metadata,
+                |'$source' as source,
+                |id,
+                |createdTime,
+                |lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |dataSetId
+                |from sourceAssets
+                |limit 100
      """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("destinationAssets")
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationAssets")
 
-    // Check if post worked
-    val assetsFromTestDf = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
-      df => df.length < 100)
-    assert(assetsFromTestDf.length == 100)
+      // Check if post worked
+      val assetsFromTestDf = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationAssets where source = '$source'").collect,
+        df => df.length < 100)
+      assert(assetsFromTestDf.length == 100)
 
-    val description = "spark-testing-description"
+      val description = "spark-testing-description"
 
-    // Update assets
-    spark
-      .sql(s"""
-                 |select '$description' as description,
-                 |id from destinationAssets
-                 |where source = '$source'
+      // Update assets
+      spark
+        .sql(s"""
+                |select '$description' as description,
+                |id from destinationAssets
+                |where source = '$source'
      """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "update")
-      .save
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "update")
+        .save
 
-    // Check if update worked
-    val assetsWithNewNameDf = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where description = '$description'").collect,
-      df => df.length < 100)
-    assert(assetsFromTestDf.length == 100)
+      // Check if update worked
+      val assetsWithNewNameDf = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationAssets where description = '$description'").collect,
+        df => df.length < 100)
+      assert(assetsFromTestDf.length == 100)
+    } finally {
+      try {
+        cleanupAssets(source)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
   it should "allow null ids on asset update" taggedAs WriteTest in {
-    val source = "spark-assets-updateId-testing"
-    // Cleanup old assets
-    cleanupAssets(source)
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from sourceAssets where source = '$source'").collect,
-      rows => rows.length > 0
-    )
+    val source = s"spark-assets-updateId-${shortRandomString()}"
 
-    // Post new assets
-    spark
-      .sql(s"""
-              |select string(id) as externalId,
-              |name,
-              |null as parentId,
-              |null as parentExternalId,
-              |'foo' as description,
-              |map("bar", "test") as metadata,
-              |'$source' as source,
-              |null as id,
-              |createdTime,
-              |lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |dataSetId
-              |from sourceAssets
-              |limit 100
-     """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("destinationAssets")
-
-    // Check if post worked
-    val assetsFromTestDf = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source' and description = 'foo'").collect,
-      df => df.length != 100)
-    assert(assetsFromTestDf.length == 100)
-
-    // Upsert assets
-    spark
-      .sql(s"""
-              |select externalId,
-              |'bar' as description
-              |from destinationAssets
-              |where source = '$source'
-     """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "update")
-      .save()
-
-    // Check if update worked
-    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+    try {
+      // Post new assets
       spark
-        .sql(
-          s"select description from destinationAssets where source = '$source' and description = 'bar'")
-        .collect,
-      df => df.length != 100)
-    assert(descriptionsAfterUpsert.length == 100)
+        .sql(s"""
+                |select string(id) as externalId,
+                |name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'foo' as description,
+                |map("bar", "test") as metadata,
+                |'$source' as source,
+                |null as id,
+                |createdTime,
+                |lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |dataSetId
+                |from sourceAssets
+                |limit 100
+     """.stripMargin)
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationAssets")
+
+      // Check if post worked
+      val assetsFromTestDf = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationAssets where source = '$source' and description = 'foo'").collect,
+        df => df.length != 100)
+      assert(assetsFromTestDf.length == 100)
+
+      // Upsert assets
+      spark
+        .sql(s"""
+                |select externalId,
+                |'bar' as description
+                |from destinationAssets
+                |where source = '$source'
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "update")
+        .save()
+
+      // Check if update worked
+      val descriptionsAfterUpsert = retryWhile[Array[Row]](
+        spark
+          .sql(
+            s"select description from destinationAssets where source = '$source' and description = 'bar'")
+          .collect,
+        df => df.length != 100)
+      assert(descriptionsAfterUpsert.length == 100)
+    } finally {
+      try {
+        cleanupAssets(source)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
   it should "be possible to make an upsert on externalId without name" in {
-    val source = "spark-assets-externalId-no-name"
-    // Cleanup old assets
-    cleanupAssets(source)
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
-      rows => rows.length > 0
-    )
-
+    val source = s"spark-assets-no-name-${shortRandomString()}"
     val externalId = shortRandomString()
-    // Post new assets
-    spark
-      .sql(s"""
-              |select '$externalId' as externalId,
-              |'test' as name,
-              |null as parentId,
-              |null as parentExternalId,
-              |'foo' as description,
-              |map("bar", "test") as metadata,
-              |'$source' as source,
-              |null as id,
-              |null as createdTime,
-              |null as lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |null dataSetId
-     """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "upsert")
-      .save
 
-    spark
-      .sql(s"""
-              |select '$externalId' as externalId,
-              |'bar' as description
-     """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "upsert")
-      .save()
-
-    // Check if update worked
-    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+    try {
+      // Post new assets
       spark
-        .sql(
-          s"select description from destinationAssets where source = '$source' and description = 'bar'")
-        .collect,
-      df => df.length != 1)
-    assert(descriptionsAfterUpsert.length == 1)
+        .sql(s"""
+                |select '$externalId' as externalId,
+                |'test' as name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'foo' as description,
+                |map("bar", "test") as metadata,
+                |'$source' as source,
+                |null as id,
+                |null as createdTime,
+                |null as lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |null dataSetId
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "upsert")
+        .save
+
+      spark
+        .sql(s"""
+                |select '$externalId' as externalId,
+                |'bar' as description
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "upsert")
+        .save()
+
+      // Check if update worked
+      val descriptionsAfterUpsert = retryWhile[Array[Row]](
+        spark
+          .sql(
+            s"select description from destinationAssets where source = '$source' and description = 'bar'")
+          .collect,
+        df => df.length != 1)
+      assert(descriptionsAfterUpsert.length == 1)
+    } finally {
+      try {
+        writeClient.assets.deleteByExternalId(externalId)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
   it should "be possible to update name (using upsert) given only externalId" in {
-    val source = "spark-assets-update-name-using-extId"
-    // Cleanup old assets
-    cleanupAssets(source)
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
-      rows => rows.length > 0
-    )
-
+    val source = s"spark-assets-update-extId-${shortRandomString()}"
     val externalId = shortRandomString()
-    // Post new assets
-    spark
-      .sql(s"""
-              |select '$externalId' as externalId,
-              |'test' as name,
-              |null as parentId,
-              |null as parentExternalId,
-              |'foo' as description,
-              |map("bar", "test") as metadata,
-              |'$source' as source,
-              |null as id,
-              |null as createdTime,
-              |null as lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |null dataSetId
-     """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "upsert")
-      .save()
 
-    spark
-      .sql(s"""
-              |select '$externalId' as externalId,
-              |'updated-name' as name
-     """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "upsert")
-      .save()
-
-    // Check if update worked
-    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+    try {
+      // Post new assets
       spark
-        .sql(
-          s"select name from destinationAssets where source = '$source' and name = 'updated-name'")
-        .collect,
-      df => df.length != 1)
-    assert(descriptionsAfterUpsert.length == 1)
+        .sql(s"""
+                |select '$externalId' as externalId,
+                |'test' as name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'foo' as description,
+                |map("bar", "test") as metadata,
+                |'$source' as source,
+                |null as id,
+                |null as createdTime,
+                |null as lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |null dataSetId
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "upsert")
+        .save()
+
+      spark
+        .sql(s"""
+                |select '$externalId' as externalId,
+                |'updated-name' as name
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "upsert")
+        .save()
+
+      // Check if update worked
+      val descriptionsAfterUpsert = retryWhile[Array[Row]](
+        spark
+          .sql(
+            s"select name from destinationAssets where source = '$source' and name = 'updated-name'")
+          .collect,
+        df => df.length != 1)
+      assert(descriptionsAfterUpsert.length == 1)
+    } finally {
+      try {
+        writeClient.assets.deleteByExternalId(externalId)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
+
+
   }
 
   it should "be possible to update both name and externalId (using upsert) given id" in {
-    val source = "spark-assets-update-name-using-extId"
-    // Cleanup old assets
-    cleanupAssets(source)
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
-      rows => rows.length > 0
-    )
-
+    val source = s"spark-assets-update-both-extId-${shortRandomString()}"
     val externalId = shortRandomString()
-    // Post new assets
-    spark
-      .sql(s"""
-              |select '$externalId' as externalId,
-              |'test' as name,
-              |null as parentId,
-              |null as parentExternalId,
-              |'foo' as description,
-              |map("bar", "test") as metadata,
-              |'$source' as source,
-              |null as id,
-              |null as createdTime,
-              |null as lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |null dataSetId
-     """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "upsert")
-      .save()
+    val newExternalId = shortRandomString()
 
-    val id = writeClient.assets.retrieveByExternalId(externalId).id
-
-    spark
-      .sql(s"""
-              |select ${id.toString} as id,
-              |'updated-name' as name,
-              |'updated-externalId' as externalId
-     """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "upsert")
-      .save()
-
-    // Check if update worked
-    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+    try {
+      // Post new assets
       spark
-        .sql(
-          s"select name from destinationAssets where source = '$source' and name = 'updated-name' and externalId ='updated-externalId'")
-        .collect,
-      df => df.length != 1)
-    assert(descriptionsAfterUpsert.length == 1)
+        .sql(s"""
+                |select '$externalId' as externalId,
+                |'test' as name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'foo' as description,
+                |map("bar", "test") as metadata,
+                |'$source' as source,
+                |null as id,
+                |null as createdTime,
+                |null as lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |null dataSetId
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "upsert")
+        .save()
+
+      val id = writeClient.assets.retrieveByExternalId(externalId).id
+
+      spark
+        .sql(s"""
+                |select ${id.toString} as id,
+                |'updated-name' as name,
+                |'updated-$newExternalId' as externalId
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "upsert")
+        .save()
+
+      // Check if update worked
+      val descriptionsAfterUpsert = retryWhile[Array[Row]](
+        spark
+          .sql(
+            s"select name from destinationAssets where source = '$source' and name = 'updated-name' and externalId ='updated-$newExternalId'")
+          .collect,
+        df => df.length != 1)
+      assert(descriptionsAfterUpsert.length == 1)
+    } finally {
+      try {
+        writeClient.assets.deleteByExternalId(externalId)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
 
@@ -729,133 +766,112 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "allow deletes in savemode" taggedAs WriteTest in {
-    val source = "spark-savemode-asset-deletes-test"
+    val source = s"spark-savemode-asset-delete-${shortRandomString()}"
 
-    cleanupAssets(source)
-    val dfWithDeletesAsSource = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
-      df => df.length > 0)
-    assert(dfWithDeletesAsSource.length == 0)
-
-    // Insert some test data
-    spark
-      .sql(s"""
-              |select id as externalId,
-              |name,
-              |null as parentId,
-              |null as parentExternalId,
-              |'foo' as description,
-              |map("bar", "test") as metadata,
-              |'$source' as source,
-              |id,
-              |createdTime,
-              |lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |dataSetId
-              |from sourceAssets
-              |limit 100
+    try {
+      // Insert some test data
+      spark
+        .sql(s"""
+                |select id as externalId,
+                |name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'foo' as description,
+                |map("bar", "test") as metadata,
+                |'$source' as source,
+                |id,
+                |createdTime,
+                |lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |dataSetId
+                |from sourceAssets
+                |limit 100
      """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("destinationAssets")
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationAssets")
 
-    // Check if insert worked
-    val idsAfterInsert =
-      retryWhile[Array[Row]](
-        spark
-          .sql(s"select id from destinationAssets where source = '$source'")
-          .collect,
-        df => df.length < 100)
-    assert(idsAfterInsert.length == 100)
+      // Check if insert worked
+      val idsAfterInsert =
+        retryWhile[Array[Row]](
+          spark
+            .sql(s"select id from destinationAssets where source = '$source'")
+            .collect,
+          df => df.length < 100)
+      assert(idsAfterInsert.length == 100)
 
-    val metricsPrefix = "assets.delete"
-    // Delete the data
-    spark
-      .sql(s"""
-         |select id
-         |from destinationAssets
-         |where source = '$source'
+      val metricsPrefix = "assets.delete"
+      // Delete the data
+      spark
+        .sql(s"""
+                |select id
+                |from destinationAssets
+                |where source = '$source'
        """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "delete")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .save()
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assets")
+        .option("onconflict", "delete")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .save()
 
-    // Check if delete worked
-    val idsAfterDelete =
-      retryWhile[Array[Row]](
-        spark
-          .sql(s"select id from destinationAssets where source = '$source'")
-          .collect,
-        df => df.length > 0)
-    assert(idsAfterDelete.isEmpty)
-    getNumberOfRowsDeleted(metricsPrefix, "assets") shouldBe 100
+      // Check if delete worked
+      val idsAfterDelete =
+        retryWhile[Array[Row]](
+          spark
+            .sql(s"select id from destinationAssets where source = '$source'")
+            .collect,
+          df => df.length > 0)
+      assert(idsAfterDelete.isEmpty)
+      getNumberOfRowsDeleted(metricsPrefix, "assets") shouldBe 100
+    } finally {
+      try {
+        cleanupAssets(source)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
   it should "support ignoring unknown ids in deletes" in {
-    val source = "ignore-unknown-id-test"
-    cleanupAssets(source)
-    val dfWithDeletesAsSource = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
-      df => df.length > 0)
-    assert(dfWithDeletesAsSource.length == 0)
+    val source = s"ignore-unknown-id-test-${shortRandomString()}"
 
-    // Insert some test data
-    spark
-      .sql(s"""
-              |select id as externalId,
-              |name,
-              |null as parentId,
-              |null as parentExternalId,
-              |'foo' as description,
-              |map("bar", "test") as metadata,
-              |'$source' as source,
-              |id,
-              |createdTime,
-              |lastUpdatedTime,
-              |0 as rootId,
-              |null as aggregates,
-              |dataSetId
-              |from sourceAssets
-              |limit 1
+    try {
+      // Insert some test data
+      spark
+        .sql(s"""
+                |select id as externalId,
+                |name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'foo' as description,
+                |map("bar", "test") as metadata,
+                |'$source' as source,
+                |id,
+                |createdTime,
+                |lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |dataSetId
+                |from sourceAssets
+                |limit 1
      """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
-      .write
-      .insertInto("destinationAssets")
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationAssets")
 
-    // Check if insert worked
-    val idsAfterInsert =
-      retryWhile[Array[Row]](
-        spark
-          .sql(s"select id from destinationAssets where source = '$source'")
-          .collect,
-        df => df.length < 1)
-    assert(idsAfterInsert.length == 1)
+      // Check if insert worked
+      val idsAfterInsert =
+        retryWhile[Array[Row]](
+          spark
+            .sql(s"select id from destinationAssets where source = '$source'")
+            .collect,
+          df => df.length < 1)
+      assert(idsAfterInsert.length == 1)
 
-    spark
-      .sql(
-        s"""
-           |select 1574865177148 as id
-           |from destinationAssets
-           |where source = '$source'
-        """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .option("onconflict", "delete")
-      .option("ignoreUnknownIds", "true")
-      .save()
-
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
-
-    // Should throw error if ignoreUnknownIds is false
-    val e = intercept[SparkException] {
       spark
         .sql(
           s"""
@@ -868,17 +884,43 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("apiKey", writeApiKey)
         .option("type", "assets")
         .option("onconflict", "delete")
-        .option("ignoreUnknownIds", "false")
+        .option("ignoreUnknownIds", "true")
         .save()
+
+      disableSparkLogging() // Removing expected Spark executor Errors from the console
+
+      // Should throw error if ignoreUnknownIds is false
+      val e = intercept[SparkException] {
+        spark
+          .sql(
+            s"""
+               |select 1574865177148 as id
+               |from destinationAssets
+               |where source = '$source'
+        """.stripMargin)
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "assets")
+          .option("onconflict", "delete")
+          .option("ignoreUnknownIds", "false")
+          .save()
+      }
+      enableSparkLogging()
+      e.getCause shouldBe a[CdpApiException]
+      val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+      assert(cdpApiException.code == 400)
+    } finally {
+      try {
+        cleanupAssets(source)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
     }
-    enableSparkLogging()
-    e.getCause shouldBe a[CdpApiException]
-    val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
-    assert(cdpApiException.code == 400)
   }
 
   def cleanupAssets(source: String): Unit = {
-    spark.sql(s"""select * from destinationAssets where source = '$source'""")
+    spark.sql(s"""select id from destinationAssets where source = '$source'""")
       .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
