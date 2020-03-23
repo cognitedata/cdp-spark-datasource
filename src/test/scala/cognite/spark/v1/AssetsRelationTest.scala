@@ -551,7 +551,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     // Cleanup old assets
     cleanupAssets(source)
     retryWhile[Array[Row]](
-      spark.sql(s"select * from sourceAssets where source = '$source'").collect,
+      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
       rows => rows.length > 0
     )
 
@@ -562,6 +562,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |select '$externalId' as externalId,
               |'test' as name,
               |null as parentId,
+              |null as parentExternalId,
               |'foo' as description,
               |map("bar", "test") as metadata,
               |'$source' as source,
@@ -573,7 +574,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
               |null dataSetId
      """.stripMargin)
       .write
-      .insertInto("destinationAssets")
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "upsert")
+      .save
 
     spark
       .sql(s"""
@@ -587,20 +592,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("onconflict", "upsert")
       .save()
 
-    // TODO: Add a few more tests?
-
-    // spark
-    //   .sql(s"""
-    //           |select '$externalId' as externalId,
-    //           |'bar' as description
-    //  """.stripMargin)
-    //   .write
-    //   .format("cognite.spark.v1")
-    //   .option("apiKey", writeApiKey)
-    //   .option("type", "assets")
-    //   .option("onconflict", "upsert")
-    //   .save()
-
     // Check if update worked
     val descriptionsAfterUpsert = retryWhile[Array[Row]](
       spark
@@ -610,6 +601,122 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       df => df.length != 1)
     assert(descriptionsAfterUpsert.length == 1)
   }
+
+  it should "be possible to update name (using upsert) given only externalId" in {
+    val source = "spark-assets-update-name-using-extId"
+    // Cleanup old assets
+    cleanupAssets(source)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
+      rows => rows.length > 0
+    )
+
+    val externalId = shortRandomString()
+    // Post new assets
+    spark
+      .sql(s"""
+              |select '$externalId' as externalId,
+              |'test' as name,
+              |null as parentId,
+              |null as parentExternalId,
+              |'foo' as description,
+              |map("bar", "test") as metadata,
+              |'$source' as source,
+              |null as id,
+              |null as createdTime,
+              |null as lastUpdatedTime,
+              |0 as rootId,
+              |null as aggregates,
+              |null dataSetId
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "upsert")
+      .save()
+
+    spark
+      .sql(s"""
+              |select '$externalId' as externalId,
+              |'updated-name' as name
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "upsert")
+      .save()
+
+    // Check if update worked
+    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+      spark
+        .sql(
+          s"select name from destinationAssets where source = '$source' and name = 'updated-name'")
+        .collect,
+      df => df.length != 1)
+    assert(descriptionsAfterUpsert.length == 1)
+  }
+
+  it should "be possible to update both name and externalId (using upsert) given id" in {
+    val source = "spark-assets-update-name-using-extId"
+    // Cleanup old assets
+    cleanupAssets(source)
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from destinationAssets where source = '$source'").collect,
+      rows => rows.length > 0
+    )
+
+    val externalId = shortRandomString()
+    // Post new assets
+    spark
+      .sql(s"""
+              |select '$externalId' as externalId,
+              |'test' as name,
+              |null as parentId,
+              |null as parentExternalId,
+              |'foo' as description,
+              |map("bar", "test") as metadata,
+              |'$source' as source,
+              |null as id,
+              |null as createdTime,
+              |null as lastUpdatedTime,
+              |0 as rootId,
+              |null as aggregates,
+              |null dataSetId
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "upsert")
+      .save()
+
+    val id = writeClient.assets.retrieveByExternalId(externalId).id
+
+    spark
+      .sql(s"""
+              |select ${id.toString} as id,
+              |'updated-name' as name,
+              |'updated-externalId' as externalId
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "upsert")
+      .save()
+
+    // Check if update worked
+    val descriptionsAfterUpsert = retryWhile[Array[Row]](
+      spark
+        .sql(
+          s"select name from destinationAssets where source = '$source' and name = 'updated-name' and externalId ='updated-externalId'")
+        .collect,
+      df => df.length != 1)
+    assert(descriptionsAfterUpsert.length == 1)
+  }
+
 
   it should "correctly have insert < read and upsert < read schema hierarchy" in {
     val assetInsert = AssetsInsertSchema(name = "test-asset")
