@@ -34,7 +34,7 @@ class EventPerformance extends PerformanceSuite {
 
   private def prepareForDelete(): Array[Row] =
     readEvents()
-      .where(s"externalId LIKE 'externalIdPrefix%'")
+      .where(s"externalId LIKE '$externalIdPrefix%'")
       .select($"id")
       .collect()
 
