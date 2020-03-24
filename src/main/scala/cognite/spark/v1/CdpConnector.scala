@@ -20,6 +20,9 @@ case class Error[A](error: A)
 case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
 
 object CdpConnector {
+  // It's important that the threads made here are daemon threads
+  // so that we don't hang applications using our library during exit.
+  // See for more info https://github.com/cognitedata/cdp-spark-datasource/pull/415/files#r396774391
   @transient lazy val cdpConnectorExecutionContext: ExecutionContext =
     ExecutionContext.fromExecutor(
       Executors.newFixedThreadPool(
