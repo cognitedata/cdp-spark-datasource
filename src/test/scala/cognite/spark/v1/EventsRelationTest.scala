@@ -347,7 +347,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |concat("$source", cast(id as string)) as externalId,
                  |createdTime,
                  |lastUpdatedTime,
-                 |dataSetId
+                 |null as dataSetId
                  |from sourceEvent
                  |limit 100
      """.stripMargin)
@@ -379,7 +379,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                  |concat("$source", cast(id as string)) as externalId,
                  |createdTime,
                  |lastUpdatedTime,
-                 |dataSetId
+                 |null as dataSetId
                  |from sourceEvent
                  |limit 500
      """.stripMargin)
@@ -763,7 +763,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
              |concat("$source", string(id)) as externalId,
              |createdTime,
              |lastUpdatedTime,
-             |dataSetId
+             |null as dataSetId
              |from sourceEvent
              |limit 100
      """.stripMargin)
@@ -836,7 +836,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
          |externalId,
          |null as createdTime,
          |lastUpdatedTime,
-         |dataSetId
+         |null as dataSetId
          |from destinationEventsUpsertPartial
          |where source = '$source'
          |limit 1
@@ -940,7 +940,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
               |concat("$source", externalId) as externalId,
               |0 as createdTime,
               |lastUpdatedTime,
-              |dataSetId
+              |null as dataSetId
               |from sourceEvent
               |limit 100
      """.stripMargin)
@@ -1003,7 +1003,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
               |concat("$source", string(id)) as externalId,
               |0 as createdTime,
               |lastUpdatedTime,
-              |dataSetId
+              |null as dataSetId
               |from sourceEvent
               |limit 1
       """.stripMargin)
