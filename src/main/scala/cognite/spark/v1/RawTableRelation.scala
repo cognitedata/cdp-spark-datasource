@@ -169,9 +169,8 @@ class RawTableRelation(
     dfWithUnRenamedKeyColumns.foreachPartition((rows: Iterator[Row]) => {
       val batches = rows.grouped(batchSize).toVector
       batches
-        .parTraverse(postRows(columnNames, _))
+        .parTraverse_(postRows(columnNames, _))
         .unsafeRunSync()
-      ()
     })
   }
 

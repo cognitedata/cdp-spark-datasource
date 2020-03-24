@@ -55,9 +55,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       import CdpConnector._
       val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches
-        .parTraverse(getFromRowsAndCreate(_))
+        .parTraverse_(getFromRowsAndCreate(_))
         .unsafeRunSync()
-      ()
     })
 
   def toRow(item: A, requiredColumns: Array[String]): Row =

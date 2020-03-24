@@ -38,9 +38,8 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
     data.foreachPartition((rows: Iterator[Row]) => {
       val batches = rows.grouped(Constants.CreateDataPointsLimit).toVector
       batches
-        .parTraverse(insertSeqOfRows)
+        .parTraverse_(insertSeqOfRows)
         .unsafeRunSync()
-      ()
     })
 
   def insertSeqOfRows(rows: Seq[Row]): IO[Unit]
