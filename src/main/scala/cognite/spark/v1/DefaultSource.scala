@@ -53,97 +53,12 @@ class DefaultSource
     with CreatableRelationProvider
     with SchemaRelationProvider
     with DataSourceRegister {
+  import DefaultSource._
 
   override def shortName(): String = "cognite"
 
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation =
     createRelation(sqlContext, parameters, null) // scalastyle:off null
-
-  private def toBoolean(
-      parameters: Map[String, String],
-      parameterName: String,
-      defaultValue: Boolean = false): Boolean =
-    parameters.get(parameterName) match {
-      case Some(string) =>
-        if (string.equalsIgnoreCase("true")) {
-          true
-        } else if (string.equalsIgnoreCase("false")) {
-          false
-        } else {
-          sys.error("$parameterName must be 'true' or 'false'")
-        }
-      case None => defaultValue
-    }
-
-  private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
-    parameters.get(parameterName).map { intString =>
-      val intValue = intString.toInt
-      if (intValue <= 0) {
-        sys.error(s"$parameterName must be greater than 0")
-      }
-      intValue
-    }
-
-  private def parseSaveMode(parameters: Map[String, String]) = {
-    val onConflictName = parameters.getOrElse("onconflict", "ABORT")
-    OnConflict
-      .withNameOpt(onConflictName.toUpperCase())
-      .getOrElse(throw new IllegalArgumentException(
-        s"$onConflictName is not a valid onConflict option. Please choose one of the following options instead: ${OnConflict.values
-          .mkString(", ")}"))
-  }
-
-  def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = {
-    val maxRetries = toPositiveInt(parameters, "maxRetries")
-      .getOrElse(Constants.DefaultMaxRetries)
-    val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
-    val bearerToken = parameters
-      .get("bearerToken")
-      .map(bearerToken => BearerTokenAuth(bearerToken))
-    val apiKey = parameters
-      .get("apiKey")
-      .map(apiKey => ApiKeyAuth(apiKey))
-    val auth = apiKey
-      .orElse(bearerToken)
-      .getOrElse(sys.error("Either apiKey or bearerToken is required."))
-    val projectName = parameters
-      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, maxRetries, baseUrl))
-    val batchSize = toPositiveInt(parameters, "batchSize")
-    val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
-    val partitions = toPositiveInt(parameters, "partitions")
-      .getOrElse(Constants.DefaultPartitions)
-    val metricsPrefix = parameters.get("metricsPrefix") match {
-      case Some(prefix) => s"$prefix"
-      case None => ""
-    }
-    val collectMetrics = toBoolean(parameters, "collectMetrics")
-    val saveMode = parseSaveMode(parameters)
-    val parallelismPerPartition = {
-      toPositiveInt(parameters, "parallelismPerPartition").getOrElse(
-        Constants.DefaultParallelismPerPartition)
-    }
-    val ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", true)
-    val deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets", false)
-    val ignoreDisconnectedAssets = toBoolean(parameters, "ignoreDisconnectedAssets", false)
-    RelationConfig(
-      auth,
-      projectName,
-      batchSize,
-      limitPerPartition,
-      partitions,
-      maxRetries,
-      collectMetrics,
-      metricsPrefix,
-      baseUrl,
-      saveMode,
-      sqlContext.sparkContext.applicationId,
-      parallelismPerPartition,
-      ignoreUnknownIds,
-      deleteMissingAssets,
-      ignoreDisconnectedAssets,
-      legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
-    )
-  }
 
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
@@ -273,6 +188,92 @@ class DefaultSource
 }
 
 object DefaultSource {
+  private def toBoolean(
+      parameters: Map[String, String],
+      parameterName: String,
+      defaultValue: Boolean = false): Boolean =
+    parameters.get(parameterName) match {
+      case Some(string) =>
+        if (string.equalsIgnoreCase("true")) {
+          true
+        } else if (string.equalsIgnoreCase("false")) {
+          false
+        } else {
+          sys.error("$parameterName must be 'true' or 'false'")
+        }
+      case None => defaultValue
+    }
+
+  private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
+    parameters.get(parameterName).map { intString =>
+      val intValue = intString.toInt
+      if (intValue <= 0) {
+        sys.error(s"$parameterName must be greater than 0")
+      }
+      intValue
+    }
+
+  private def parseSaveMode(parameters: Map[String, String]) = {
+    val onConflictName = parameters.getOrElse("onconflict", "ABORT")
+    OnConflict
+      .withNameOpt(onConflictName.toUpperCase())
+      .getOrElse(throw new IllegalArgumentException(
+        s"$onConflictName is not a valid onConflict option. Please choose one of the following options instead: ${OnConflict.values
+          .mkString(", ")}"))
+  }
+
+  def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = {
+    val maxRetries = toPositiveInt(parameters, "maxRetries")
+      .getOrElse(Constants.DefaultMaxRetries)
+    val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
+    val bearerToken = parameters
+      .get("bearerToken")
+      .map(bearerToken => BearerTokenAuth(bearerToken))
+    val apiKey = parameters
+      .get("apiKey")
+      .map(apiKey => ApiKeyAuth(apiKey))
+    val auth = apiKey
+      .orElse(bearerToken)
+      .getOrElse(sys.error("Either apiKey or bearerToken is required."))
+    val projectName = parameters
+      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, maxRetries, baseUrl))
+    val batchSize = toPositiveInt(parameters, "batchSize")
+    val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
+    val partitions = toPositiveInt(parameters, "partitions")
+      .getOrElse(Constants.DefaultPartitions)
+    val metricsPrefix = parameters.get("metricsPrefix") match {
+      case Some(prefix) => s"$prefix"
+      case None => ""
+    }
+    val collectMetrics = toBoolean(parameters, "collectMetrics")
+    val saveMode = parseSaveMode(parameters)
+    val parallelismPerPartition = {
+      toPositiveInt(parameters, "parallelismPerPartition").getOrElse(
+        Constants.DefaultParallelismPerPartition)
+    }
+    val ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", true)
+    val deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets", false)
+    val ignoreDisconnectedAssets = toBoolean(parameters, "ignoreDisconnectedAssets", false)
+    RelationConfig(
+      auth,
+      projectName,
+      batchSize,
+      limitPerPartition,
+      partitions,
+      maxRetries,
+      collectMetrics,
+      metricsPrefix,
+      baseUrl,
+      saveMode,
+      Option(sqlContext).map(_.sparkContext.applicationId).getOrElse("CDF"),
+      parallelismPerPartition,
+      ignoreUnknownIds,
+      deleteMissingAssets,
+      ignoreDisconnectedAssets,
+      legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
+    )
+  }
+
   def getProjectFromAuth(auth: Auth, maxRetries: Int, baseUrl: String): String = {
     implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries)
     val getProject = for {
