@@ -61,7 +61,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
       (_: GenericClient[IO, Nothing], _: Option[Int], _: Int) => {
         val allStreams = 0.until(nStreams).map { i =>
           Stream.evalUnChunk {
-            IO.sleep((scala.math.random() * 300).millis)(cdpConnectorTimer) *> IO(
+            IO.sleep((scala.math.random * 300).millis)(cdpConnectorTimer) *> IO(
               Chunk.seq(1.to(nItemsPerStream).map(j => Event(id = i * nItemsPerStream + j))))
           }
         }
