@@ -25,6 +25,7 @@ class EventPerformance extends PerformanceSuite {
           s"This is a test row ($id)",
           java.sql.Timestamp.from(Instant.now().minus(Math.min(id, 100), ChronoUnit.HOURS)),
           java.sql.Timestamp.from(Instant.now().plus(Math.min(id, 100), ChronoUnit.HOURS))))
+    .toVector
 
   private def writeEvents(): Unit =
     write(spark.sparkContext.parallelize(eventsTestData, 300).toDF(eventsTestSchema: _*))
