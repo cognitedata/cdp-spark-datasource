@@ -9,6 +9,8 @@ object Main extends App {
   val metricsServer = new HTTPServer(8123, true)
   PrometheusDefaultExports.initialize()
   try {
+    // We need to warm-up our Spark cluster to get fair metrics
+    Warmup.run()
     val eventPerf = new EventPerformance()
     eventPerf.run()
   } finally {
