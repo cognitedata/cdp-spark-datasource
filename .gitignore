@@ -11,3 +11,4 @@ src/main/scripts/Pip*
 .bloop/
 .env
 project/metals.sbt
+.vscode/
