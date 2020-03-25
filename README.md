@@ -160,9 +160,7 @@ There's also an option to delete assets from CDF that are not referenced in the 
 |    Option                  | Default | Description |
 | -------------------------- | --------|------------------------------------------------------------------------------------------------------------------ |
 | `deleteMissingAssets`      | `false` | Whether or not you would like assets under the root to be deleted if they're not present in the input data.       |
-| `ignoreDisconnectedAssets` | `false` | This will ignore assets that are not connected to root, as opposed to throwing an error and stopping the program. |
-| `allowMultipleRoots`       | `true`  | Whether it's allowed to ingest more than one (sub)tree. |
-| `allowSubtreeIngestion`    | `true`  | Whether ingestion of trees without a root node is allowed. Otherwise, an error is raised or the items are ignored when `ignoreDisconnectedAssets` is set |
+| `subtrees` | `ingest` | Controls what should happen with subtrees without a root node in the input data. `ingest` says they will be processed and loaded into CDF, `ignore` will ignore all of them and `error` will stop the execution and raise an error (nothing will be ingested). |
 | `batchSize`                | 1000    | The number of assets to write per API call.                                                                       |
 
 ### Example
