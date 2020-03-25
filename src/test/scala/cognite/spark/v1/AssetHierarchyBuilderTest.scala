@@ -220,6 +220,22 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     cleanDB(key)
   }
 
+  it should "fail on duplicate externalId" in {
+    val key = shortRandomString()
+
+    val ex = intercept[NonUniqueAssetId] {
+      ingest(
+        key,
+        Seq(
+          AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+          AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+        )
+      )
+    }
+    ex.id shouldBe s"dad$key"
+    cleanDB(key)
+  }
+
   it should "ingest an asset tree" in {
     val key = shortRandomString()
 
@@ -301,6 +317,37 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     assert(extIdMap(Some(s"daughter$key")).dataSetId == ds)
     assert(extIdMap(Some(s"son$key")).dataSetId == ds)
     assert(extIdMap(Some(s"dad$key")).dataSetId == None)
+
+    cleanDB(key)
+  }
+
+  it should "ingest not update when nothing has changed" in {
+    val key = shortRandomString()
+    val metrics = "update.ignoreUnchanged"
+
+    val tree = Seq(
+      AssetCreate("dad", None, None, None, Some("dad"), Some(Map("Meta" -> "data")), Some("")),
+      AssetCreate("son", None, Some("description"), Some("source"), Some("son"), None, Some("dad"), dataSetId = Some(testDataSetId)),
+      AssetCreate("son2", None, None, None, Some("son2"), None, Some("dad")),
+    )
+
+    ingest(key, tree, metricsPrefix = Some(metrics))
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      rows => rows.length != 3)
+
+    getNumberOfRowsCreated(metrics, "assethierarchy") shouldBe 3
+
+    val updatedTree = tree.map({
+      case x if x.name == "son2" => x.copy(parentExternalId = Some("son"))
+      case x => x
+    })
+
+    ingest(key, updatedTree, metricsPrefix = Some(metrics))
+
+    getNumberOfRowsCreated(metrics, "assethierarchy") shouldBe 3
+    getNumberOfRowsUpdated(metrics, "assethierarchy") shouldBe 1
 
     cleanDB(key)
   }
