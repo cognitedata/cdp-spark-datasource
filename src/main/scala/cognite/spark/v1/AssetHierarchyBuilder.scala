@@ -52,8 +52,6 @@ private case class AssetSubtree(
     nodes: Array[AssetsIngestSchema]
 )
 
-final case class MultipleRootsException(roots: Seq[String])
-    extends Exception(s"Tree has more than one root: ${roots.mkString(", ")}")
 final case class NoRootException(
     message: String = """Tree has no root. Set parentExternalId to "" for the root Asset.""")
     extends Exception(message)
@@ -80,9 +78,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
 
   private val deleteMissingAssets = config.deleteMissingAssets
-  private val ignoreDisconnectedAssets = config.ignoreDisconnectedAssets
-  private val allowMultipleRoots = config.allowMultipleRoots
-  private val allowSubtreeIngestion = config.allowSubtreeIngestion
+  private val subtreeMode = config.subtrees
 
   def build(df: DataFrame): IO[Unit] = {
     val sourceTree = df.collect.map(r => fromRow[AssetsIngestSchema](r))
@@ -91,13 +87,13 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       validateAndOrderInput(sourceTree)
         .sortBy(_.root.externalId) // make potential errors deterministic
 
-    val subtrees2 =
-      if (allowSubtreeIngestion) {
+    val subtrees2 = subtreeMode match {
+      case AssetSubtreeOption.Ingest =>
         subtrees
-      } else if (ignoreDisconnectedAssets) {
+      case AssetSubtreeOption.Ignore =>
         // only take trees with proper roots
         subtrees.filter(t => t.root.parentExternalId.isEmpty)
-      } else {
+      case AssetSubtreeOption.Error =>
         val nonRoots = subtrees.filter(t => t.root.parentExternalId.nonEmpty)
         if (nonRoots.nonEmpty) {
           throw InvalidTreeException(
@@ -106,16 +102,12 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           )
         }
         subtrees
-      }
+    }
 
     if (subtrees.nonEmpty && subtrees2.isEmpty) {
       // in case all nodes are dropped due to ignoreDisconnectedAssets
       throw NoRootException()
       // we can allow empty source data set, that won't really happen by accident
-    }
-
-    if (!allowMultipleRoots && subtrees2.size > 1) {
-      throw MultipleRootsException(subtrees2.map(_.root.externalId))
     }
 
     for {

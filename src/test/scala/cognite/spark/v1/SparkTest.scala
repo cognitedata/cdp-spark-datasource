@@ -25,10 +25,12 @@ trait SparkTest {
   implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
+  assert(!writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
   implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
   val writeClient = GenericClient.forAuth[Id, Nothing]("cdp-spark-datasource-test", writeApiKeyAuth)
 
   val readApiKey = System.getenv("TEST_API_KEY_READ")
+  assert(!readApiKey.isEmpty, "Environment variable \"TEST_API_KEY_READ\" was not set")
   implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
   val readClient = GenericClient.forAuth[Id, Nothing]("cdp-spark-datasource-test", readApiKeyAuth)
 
@@ -93,9 +95,7 @@ trait SparkTest {
       Constants.DefaultParallelismPerPartition,
       ignoreUnknownIds = true,
       deleteMissingAssets = false,
-      ignoreDisconnectedAssets = false,
-      allowSubtreeIngestion = true,
-      allowMultipleRoots = true,
+      subtrees = AssetSubtreeOption.Ingest,
       legacyNameSource = LegacyNameSource.None
     )
 

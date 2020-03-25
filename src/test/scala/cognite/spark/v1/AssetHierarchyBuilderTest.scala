@@ -23,9 +23,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       tree: Seq[AssetCreate],
       metricsPrefix: Option[String] = None,
       batchSize: Int = 2,
-      allowSubtreeIngestion: Boolean = true,
-      ignoreDisconnectedAssets: Boolean = false,
-      allowMultipleRoots: Boolean = true,
+      subtrees: String = "ingest",
       deleteMissingAssets: Boolean = false): Unit = {
     def addKey(id: String) =
       if (id == "") {
@@ -48,9 +46,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       .option("apiKey", writeApiKey)
       .option("type", "assethierarchy")
       .option("collectMetrics", metricsPrefix.isDefined)
-      .option("allowSubtreeIngestion", allowSubtreeIngestion)
-      .option("ignoreDisconnectedAssets", ignoreDisconnectedAssets)
-      .option("allowMultipleRoots", allowMultipleRoots)
+      .option("subtrees", subtrees)
       .option("deleteMissingAssets", deleteMissingAssets)
       .option("batchSize", batchSize)
       .option("metricsPrefix", metricsPrefix.getOrElse(""))
@@ -69,7 +65,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("dad", None, None, None, Some("dad"), None, Some("someNode"))
     )
     val e = intercept[Exception] {
-      ingest(key, tree, allowSubtreeIngestion = false, ignoreDisconnectedAssets = true)
+      ingest(key, tree, subtrees = "ignore")
     }
     e shouldBe an[NoRootException]
   }
@@ -84,24 +80,9 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       AssetCreate("othertree", None, None, None, Some("other"), None, Some("otherDad"))
     )
     val e = intercept[Exception] {
-      ingest(key, brokenTree, allowSubtreeIngestion = false)
+      ingest(key, brokenTree, subtrees = "error")
     }
     e shouldBe an[InvalidTreeException]
-  }
-
-  it should "throw an error if there are multiple roots" in {
-    val key = shortRandomString()
-    val multiRootTree = Seq(
-      AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
-      AssetCreate("son", None, None, None, Some("son"), None, Some("")),
-      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("")),
-      AssetCreate("daughterSon", externalId = Some("daughterSon"), parentExternalId = Some("daughter")),
-      AssetCreate("othertree", None, None, None, Some("other"), None, Some("otherDad"))
-    )
-    val e = intercept[Exception] {
-      ingest(key, multiRootTree, allowMultipleRoots = false)
-    }
-    e shouldBe an[MultipleRootsException]
   }
 
   it should "throw an error if there is a cycle" in {
@@ -533,8 +514,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     ingest(
       key,
       assetTree,
-      allowSubtreeIngestion = false,
-      ignoreDisconnectedAssets = true,
+      subtrees = "ignore",
       metricsPrefix = Some(metricsPrefix))
 
     val namesOfAssetsToInsert = assetTree.slice(0, 4).map(_.name).toSet
