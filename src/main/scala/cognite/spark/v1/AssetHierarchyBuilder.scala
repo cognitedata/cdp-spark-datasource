@@ -160,17 +160,14 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def delete(toDelete: Seq[Asset], deleteMissingAssets: Boolean, batchSize: Int): IO[Unit] =
     if (deleteMissingAssets) {
-      toDelete.flatMap(_.externalId) match {
-        case Nil => IO.unit
-        case externalIds =>
-          externalIds
-            .grouped(batchSize)
-            .toVector
-            .parTraverse(id => client.assets.deleteByExternalIds(id, true, true))
-            // We report the total number of IDs that should not exist from this point, not the number of really deleted rows.
-            // The API does not give us this information :/
-            .flatTap(_ => incMetrics(itemsDeleted, externalIds.length)) *> IO.unit
-      }
+      val externalIds = toDelete.flatMap(_.externalId)
+      externalIds
+        .grouped(batchSize)
+        .toVector
+        .parTraverse(id => client.assets.deleteByExternalIds(id, true, true))
+        // We report the total number of IDs that should not exist from this point, not the number of really deleted rows.
+        // The API does not give us this information :/
+        .flatTap(_ => incMetrics(itemsDeleted, externalIds.length)) *> IO.unit
     } else {
       IO.unit
     }
@@ -293,7 +290,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def isMostlyEqual(updatedAsset: AssetsIngestSchema, asset: Asset): Boolean =
     updatedAsset.description == asset.description &&
-      updatedAsset.metadata == asset.metadata &&
+      updatedAsset.metadata.getOrElse(Map()) == asset.metadata.getOrElse(Map()) &&
       updatedAsset.name == asset.name &&
       updatedAsset.source == asset.source &&
       updatedAsset.dataSetId == asset.dataSetId &&
@@ -333,28 +330,6 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         }
       })
       .toVector
-  }
-
-  def getValidatedTree(
-      root: AssetsIngestSchema,
-      children: Array[AssetsIngestSchema],
-      ignoreDisconnectedAssets: Boolean): Seq[AssetsIngestSchema] = {
-    val visited = Seq[AssetsIngestSchema]()
-    val insertableTree = iterateChildren(children, Array(root.externalId), visited)
-    val insertableTreeExternalIds = insertableTree.map(_.externalId)
-
-    if (insertableTree.map(_.externalId).toSet == children.map(_.externalId).toSet) {
-      insertableTree
-    } else {
-      val (assetsInTree, assetsNotInTree) =
-        children.partition(a => insertableTreeExternalIds.contains(a.externalId))
-      if (ignoreDisconnectedAssets) {
-        assetsInTree
-      } else {
-        throw InvalidTreeException(
-          s"Tree contains assets that are not connected to the root: ${assetsNotInTree.map(_.externalId).mkString(", ")}")
-      }
-    }
   }
 
   def iterateChildren(
