@@ -1,18 +1,16 @@
 package cognite.spark.v1
 
-import java.util.concurrent.{ArrayBlockingQueue, Executors}
+import java.util.concurrent.{ArrayBlockingQueue, ConcurrentHashMap, Executors}
 
-import cats.effect.{ContextShift, IO}
-import cats.implicits._
-import com.cognite.sdk.scala.v1._
+import cats.effect.IO
 import com.cognite.sdk.scala.common.Auth
+import com.cognite.sdk.scala.v1._
 import com.softwaremill.sttp.SttpBackend
-import org.apache.spark.{Partition, SparkContext, TaskContext}
+import fs2.Stream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import fs2.Stream
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 
-import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 
 case class CdfPartition(index: Int) extends Partition
@@ -24,6 +22,7 @@ case class SdkV1Rdd[A, I](
     uniqueId: A => I,
     getStreams: (GenericClient[IO, Nothing], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
+  import CdpConnector._
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
 
@@ -44,35 +43,26 @@ case class SdkV1Rdd[A, I](
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdfPartition]
 
+    val streams = getStreams(client, config.limitPerPartition, config.partitions)
+    val groupedStreams = streams.grouped(config.parallelismPerPartition).toSeq
+    val currentStreamsAsSingleStream = groupedStreams(split.index)
+      .reduce(_.merge(_))
+
     // This pool will be used for draining the queue
     // Draining needs to have a separate pool to continuously drain the queue
     // while another thread pool fills the queue with data from CDF
     val drainPool = Executors.newFixedThreadPool(1)
     val drainContext = ExecutionContext.fromExecutor(drainPool)
 
-    // This pool will be used for reading from CDF into the queue
-    // Do not increase number of threads, as this will make processedIds non-blocking
-    val threadPool = Executors.newFixedThreadPool(1)
-    implicit val singleThreadedCs: ContextShift[IO] =
-      IO.contextShift(ExecutionContext.fromExecutor(threadPool))
-
-    val processedIds = mutable.Set.empty[I]
-
-    val streams =
-      getStreams(client, config.limitPerPartition, config.partitions)
-    val groupedStreams = streams.grouped(config.parallelismPerPartition).toSeq
-
-    val currentStreamsAsSingleStream = groupedStreams(split.index)
-      .reduce(_.merge(_))
+    val processedIds = new ConcurrentHashMap[I, Unit]
 
     // Local testing show this queue never holds more than 5 chunks since CDF is the bottleneck.
     // Still setting this to 2x the number of streams being read to makes sure this doesn't block
     // too early, for example in the event that all streams return a chunk at the same time.
-    val queue =
-      new EitherQueue(config.parallelismPerPartition * 2)
+    val queue = new EitherQueue(config.parallelismPerPartition * 2)
 
     val putOnQueueStream =
-      enqueueStreamResults(currentStreamsAsSingleStream, queue, processedIds, singleThreadedCs)
+      enqueueStreamResults(currentStreamsAsSingleStream, queue, processedIds)
         .handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
 
     // Continuously read the stream data into the queue on a separate thread pool
@@ -81,33 +71,27 @@ case class SdkV1Rdd[A, I](
     }(drainContext)
 
     queueIterator(queue, streamsToQueue) {
-      if (!threadPool.isShutdown) {
-        threadPool.shutdown()
-      }
       if (!drainPool.isShutdown) {
         drainPool.shutdown()
       }
     }
   }
 
-  // To avoid draining all streams from CDF completely and then building the Iterator, we read the
-  // streams in chunks and add the chunks to a queue continuously.
+  // We avoid draining all streams from CDF completely and then building the Iterator,
+  // by using a blocking EitherQueue.
   def enqueueStreamResults(
       stream: Stream[IO, A],
       queue: EitherQueue,
-      processedIds: mutable.Set[I],
-      singleThreadedCs: ContextShift[IO]): Stream[IO, Unit] =
-    for {
-      // Ensure that only one chunk is processed at a time
-      s <- stream.chunks.flatMap(c => Stream.eval(singleThreadedCs.shift *> IO.pure(c)))
-      put <- {
-        // Filter out and keep track of already seen items
-        // since overlapping pushdown filters may read duplicates.
-        val freshIds = s.toVector.filterNot(i => processedIds.contains(uniqueId(i)))
-        processedIds ++= freshIds.map(i => uniqueId(i))
-        Stream.eval(IO(queue.put(Right(freshIds))))
+      processedIds: ConcurrentHashMap[I, Unit]): Stream[IO, Unit] =
+    stream.chunks.parEvalMapUnordered(config.parallelismPerPartition * 2) { chunk =>
+      val freshIds = chunk.toVector.filterNot(i => processedIds.containsKey(uniqueId(i)))
+      IO {
+        freshIds.foreach { i =>
+          processedIds.put(uniqueId(i), ())
+        }
+        queue.put(Right(freshIds))
       }
-    } yield put
+    }
 
   def queueIterator(queue: EitherQueue, f: Future[Unit])(doCleanup: => Unit): Iterator[Row] =
     new Iterator[Row] {
