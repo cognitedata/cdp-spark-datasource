@@ -6,7 +6,7 @@ import cats.effect.IO
 import com.cognite.sdk.scala.common.Auth
 import com.cognite.sdk.scala.v1._
 import com.softwaremill.sttp.SttpBackend
-import fs2.Stream
+import fs2.{Chunk, Stream}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, SparkContext, TaskContext}
@@ -26,7 +26,7 @@ case class SdkV1Rdd[A, I](
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
 
-  type EitherQueue = ArrayBlockingQueue[Either[Throwable, Vector[A]]]
+  type EitherQueue = ArrayBlockingQueue[Either[Throwable, Chunk[A]]]
 
   implicit val auth: Auth = config.auth
   @transient lazy val client: GenericClient[IO, Nothing] =
@@ -84,7 +84,7 @@ case class SdkV1Rdd[A, I](
       queue: EitherQueue,
       processedIds: ConcurrentHashMap[I, Unit]): Stream[IO, Unit] =
     stream.chunks.parEvalMapUnordered(config.parallelismPerPartition * 2) { chunk =>
-      val freshIds = chunk.toVector.filterNot(i => processedIds.containsKey(uniqueId(i)))
+      val freshIds = chunk.filter(i => !processedIds.containsKey(uniqueId(i)))
       IO {
         freshIds.foreach { i =>
           processedIds.put(uniqueId(i), ())
@@ -119,7 +119,7 @@ case class SdkV1Rdd[A, I](
       def iteratorFromQueue(): Iterator[A] =
         Option(queue.poll())
           .map {
-            case Right(value) => value.toIterator
+            case Right(value) => value.iterator
             case Left(err) =>
               doCleanup
               throw err
