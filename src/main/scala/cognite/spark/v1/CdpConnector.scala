@@ -26,7 +26,7 @@ object CdpConnector {
   @transient lazy val cdpConnectorExecutionContext: ExecutionContext =
     ExecutionContext.fromExecutor(
       Executors.newFixedThreadPool(
-        Math.max(Runtime.getRuntime().availableProcessors(), 4) * 2,
+        Math.max(Runtime.getRuntime.availableProcessors(), 4) * 2,
         new ThreadFactoryBuilder().setDaemon(true).setNameFormat("CDF-Spark-Datasource-%d").build()
       )
     )
