@@ -54,15 +54,13 @@ case class SdkV1Rdd[A, I](
     val drainPool = Executors.newFixedThreadPool(1)
     val drainContext = ExecutionContext.fromExecutor(drainPool)
 
-    val processedIds = new ConcurrentHashMap[I, Unit]
-
     // Local testing show this queue never holds more than 5 chunks since CDF is the bottleneck.
     // Still setting this to 2x the number of streams being read to makes sure this doesn't block
     // too early, for example in the event that all streams return a chunk at the same time.
     val queue = new EitherQueue(config.parallelismPerPartition * 2)
 
     val putOnQueueStream =
-      enqueueStreamResults(currentStreamsAsSingleStream, queue, processedIds)
+      enqueueStreamResults(currentStreamsAsSingleStream, queue)
         .handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
 
     // Continuously read the stream data into the queue on a separate thread pool
@@ -79,11 +77,9 @@ case class SdkV1Rdd[A, I](
 
   // We avoid draining all streams from CDF completely and then building the Iterator,
   // by using a blocking EitherQueue.
-  def enqueueStreamResults(
-      stream: Stream[IO, A],
-      queue: EitherQueue,
-      processedIds: ConcurrentHashMap[I, Unit]): Stream[IO, Unit] =
-    stream.chunks.parEvalMapUnordered(config.parallelismPerPartition * 2) { chunk =>
+  def enqueueStreamResults(stream: Stream[IO, A], queue: EitherQueue): Stream[IO, Unit] = {
+    val processedIds = new ConcurrentHashMap[I, Unit]
+    stream.chunks.parEvalMapUnordered(config.parallelismPerPartition) { chunk =>
       val freshIds = chunk.filter(i => !processedIds.containsKey(uniqueId(i)))
       IO {
         freshIds.foreach { i =>
@@ -92,6 +88,7 @@ case class SdkV1Rdd[A, I](
         queue.put(Right(freshIds))
       }
     }
+  }
 
   def queueIterator(queue: EitherQueue, f: Future[Unit])(doCleanup: => Unit): Iterator[Row] =
     new Iterator[Row] {
