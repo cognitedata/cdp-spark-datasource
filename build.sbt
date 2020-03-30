@@ -3,12 +3,12 @@ import com.typesafe.sbt.packager.docker.{Cmd, ExecCmd}
 val scala212 = "2.12.11"
 val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
-val sparkVersion = "2.4.3"
+val sparkVersion = "2.4.5"
 val circeVersion = "0.11.1"
 val sttpVersion = "1.6.3"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.2.2"
+val cogniteSdkVersion = "1.2.3"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 

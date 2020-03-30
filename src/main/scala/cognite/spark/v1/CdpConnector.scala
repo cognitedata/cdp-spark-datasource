@@ -4,7 +4,7 @@ import java.util.concurrent.Executors
 
 import cats.Parallel
 import cats.effect.{ContextShift, IO, Timer}
-import com.cognite.sdk.scala.common.RetryingBackend
+import com.cognite.sdk.scala.common.{GzipSttpBackend, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
@@ -36,7 +36,8 @@ object CdpConnector {
   @transient implicit lazy val cdpConnectorParallel: Parallel[IO, IO.Par] =
     IO.ioParallel(cdpConnectorContextShift)
   private val sttpBackend: SttpBackend[IO, Nothing] =
-    AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create())
+    new GzipSttpBackend[IO, Nothing](
+      AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
   def retryingSttpBackend(maxRetries: Int): SttpBackend[IO, Nothing] =
     new RetryingBackend[IO, Nothing](sttpBackend, maxRetries = Some(maxRetries))
