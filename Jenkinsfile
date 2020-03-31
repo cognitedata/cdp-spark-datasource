@@ -64,7 +64,7 @@ podTemplate(label: label,
                     sh('mkdir -p /root/.sbt/gpg && cp /sbt-credentials/pubring.asc /sbt-credentials/secring.asc /root/.sbt/gpg/')
                 }
                 stage('Run tests') {
-                    def test = "test"
+                    def test = "test +Test/compile"
                     if (env.BRANCH_NAME == 'master') {
                         test = "+test"
                     }
