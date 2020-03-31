@@ -11,7 +11,7 @@ import org.apache.spark.sql.Row
 import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
 import com.softwaremill.sttp.SttpBackend
 import cats.implicits._
-import fs2.Stream
+import fs2.{Chunk, Stream}
 
 import Ordering.Implicits._
 import scala.util.Random
@@ -406,10 +406,14 @@ case class NumericDataPointsRdd(
     }
   }
 
-  private def queryDataPointsRange(dataPointsRange: DataPointsRange) =
+  private def queryDataPointsRange(dataPointsRange: DataPointsRange, limit: Option[Int] = None) =
     dataPointsRange.count match {
       case Some(_) =>
-        queryById(dataPointsRange.id, dataPointsRange.start, dataPointsRange.end, 100000)
+        queryById(
+          dataPointsRange.id,
+          dataPointsRange.start,
+          dataPointsRange.end,
+          limit.getOrElse(100000))
           .map(_.datapoints)
       case None =>
         // Page through this range since we don't know how many points it contains.
@@ -427,24 +431,26 @@ case class NumericDataPointsRdd(
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val bucket = _split.asInstanceOf[Bucket]
 
-    bucket.ranges.toVector
-      .parFlatTraverse {
+    val stream = Stream
+      .emits(bucket.ranges.toVector)
+      .covary[IO]
+      .parEvalMapUnordered(100) {
         case r: DataPointsRange =>
           queryDataPointsRange(r)
-            .map(
-              dataPoints =>
-                dataPoints
-                  .map { p =>
-                    DataPointsItem(
-                      r.id.left.toOption,
-                      r.id.right.toOption,
-                      p.timestamp,
-                      p.value,
-                      None,
-                      None)
-                  }
-                  .map(toRow)
-                  .toVector)
+            .map(dataPoints =>
+              dataPoints
+                .map { p =>
+                  DataPointsItem(
+                    r.id.left.toOption,
+                    r.id.right.toOption,
+                    p.timestamp,
+                    p.value,
+                    None,
+                    None)
+                }
+                .map(toRow))
+            .map(Stream.emits)
+            .map(_.covary[IO])
         case r: AggregationRange =>
           queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
             .map(queryResponse =>
@@ -463,13 +469,14 @@ case class NumericDataPointsRdd(
                         Some(r.granularity.toString))
                     }
                     .map(toRow)
-                    .toVector
                 case None =>
-                  Vector.empty
+                  Seq.empty[Row]
             })
+            .map(Stream.emits)
+            .map(_.covary[IO])
+        case _ =>
+          IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
       }
-      .map(r => config.limitPerPartition.fold(r)(limit => r.take(limit)))
-      .unsafeRunSync()
-      .toIterator
+    StreamIterator(stream.flatten, 200000, None)
   }
 }
