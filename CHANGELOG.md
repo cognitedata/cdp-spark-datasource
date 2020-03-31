@@ -1,3 +1,15 @@
+# 1.2.18
+
+## Enhancements
+
+* GZip compression is enabled for all requests.
+
+## Fixes
+* "name" is now optional for upserts on assets when external id is
+specified and the asset already exists.
+
+* More efficient usage of threads.
+
 # 1.2.17
 
 ## Fixes
