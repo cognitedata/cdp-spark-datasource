@@ -160,7 +160,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       ingest(
         key,
         Seq(
-          AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("")),
+          AssetCreate("daughter", None, None, None, Some("daughter"), None, Some(""))
         ))
     }
 
@@ -182,7 +182,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
         AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
         AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
         AssetCreate("dad2", None, None, None, Some("dad2"), None, Some("")),
-        AssetCreate("son2", None, None, None, Some("son2"), None, Some("dad2")),
+        AssetCreate("son2", None, None, None, Some("son2"), None, Some("dad2"))
       )
     )
 
@@ -190,7 +190,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       ingest(
         key,
         Seq(
-          AssetCreate("dad2-updated", None, None, None, Some("dad2"), None, Some("son")),
+          AssetCreate("dad2-updated", None, None, None, Some("dad2"), None, Some("son"))
         ))
     }
     ex.getMessage should include("Changing from/to being root isn't allowed")
@@ -205,7 +205,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       Seq(
         AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
         AssetCreate("son", None, None, None, Some("son"), None, Some("dad")),
-        AssetCreate("dad2", None, None, None, Some("dad2"), None, Some("")),
+        AssetCreate("dad2", None, None, None, Some("dad2"), None, Some(""))
       )
     )
 
@@ -213,7 +213,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
       ingest(
         key,
         Seq(
-          AssetCreate("son", None, None, None, Some("son"), None, Some("dad2")),
+          AssetCreate("son", None, None, None, Some("son"), None, Some("dad2"))
         ))
     }
     ex.getMessage should include("Asset must stay within same asset hierarchy")
@@ -228,7 +228,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
         key,
         Seq(
           AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
-          AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+          AssetCreate("dad", None, None, None, Some("dad"), None, Some(""))
         )
       )
     }
@@ -328,7 +328,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     val tree = Seq(
       AssetCreate("dad", None, None, None, Some("dad"), Some(Map("Meta" -> "data")), Some("")),
       AssetCreate("son", None, Some("description"), Some("source"), Some("son"), None, Some("dad"), dataSetId = Some(testDataSetId)),
-      AssetCreate("son2", None, None, None, Some("son2"), None, Some("dad")),
+      AssetCreate("son2", None, None, None, Some("son2"), None, Some("dad"))
     )
 
     ingest(key, tree, metricsPrefix = Some(metrics))
@@ -701,7 +701,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
           description = Some("desc"),
           externalId = Some("daughter"),
           parentExternalId = Some("dad")),
-        AssetCreate("dad-updated", None, Some("desc"), None, Some("dad"), None, Some("")),
+        AssetCreate("dad-updated", None, Some("desc"), None, Some("dad"), None, Some(""))
       ),
       metricsPrefix = Some(metricsPrefix)
     )
