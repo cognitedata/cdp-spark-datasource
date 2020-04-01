@@ -8,7 +8,7 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-case class StringDataPointsRdd(
+final case class StringDataPointsRdd(
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
     getIOs: GenericClient[IO, Nothing] => Seq[(StringDataPointsFilter, IO[Seq[StringDataPoint]])],

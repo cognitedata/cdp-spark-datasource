@@ -13,11 +13,11 @@ import com.softwaremill.sttp.asynchttpclient.SttpClientBackendFactory
 
 import scala.concurrent.ExecutionContext
 
-case class Data[A](data: A)
-case class Items[A](items: Seq[A])
-case class CdpApiErrorPayload(code: Int, message: String)
-case class Error[A](error: A)
-case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
+final case class Data[A](data: A)
+final case class Items[A](items: Seq[A])
+final case class CdpApiErrorPayload(code: Int, message: String)
+final case class Error[A](error: A)
+final case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
 
 object CdpConnector {
   // It's important that the threads made here are daemon threads

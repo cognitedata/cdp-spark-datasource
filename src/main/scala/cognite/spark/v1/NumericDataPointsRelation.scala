@@ -17,13 +17,13 @@ import cognite.spark.v1.SparkSchemaHelper.structType
 
 import scala.util.matching.Regex
 
-case class DataPointsFilter(
+final case class DataPointsFilter(
     id: Option[Long],
     externalId: Option[String],
     aggregates: Option[Seq[String]],
     granularity: Option[String])
 
-case class DataPointsItem(
+final case class DataPointsItem(
     id: Option[Long],
     externalId: Option[String],
     timestamp: Instant,
@@ -32,7 +32,7 @@ case class DataPointsItem(
     granularity: Option[String]
 )
 
-case class InsertDataPointsItem(
+final case class InsertDataPointsItem(
     id: Option[Long],
     externalId: Option[String],
     timestamp: Instant,
@@ -220,7 +220,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 }
 
 object NumericDataPointsRelation extends UpsertSchema {
-  val upsertSchema = structType[InsertDataPointsItem]
-  val readSchema = structType[DataPointsItem]
-  val insertSchema = structType[InsertDataPointsItem]
+  val upsertSchema: StructType = structType[InsertDataPointsItem]
+  val readSchema: StructType = structType[DataPointsItem]
+  val insertSchema: StructType = structType[InsertDataPointsItem]
 }

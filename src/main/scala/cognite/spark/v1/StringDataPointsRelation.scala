@@ -15,21 +15,21 @@ import org.apache.spark.sql.types._
 import PushdownUtilities.filtersToTimestampLimits
 import cognite.spark.v1.SparkSchemaHelper.structType
 
-case class StringDataPointsItem(
+final case class StringDataPointsItem(
     id: Option[Long],
     externalId: Option[String],
     timestamp: Instant,
     value: String
 )
 
-case class StringDataPointsInsertItem(
+final case class StringDataPointsInsertItem(
     id: Option[Long],
     externalId: Option[String],
     timestamp: Instant,
     value: String
 )
 
-case class StringDataPointsFilter(
+final case class StringDataPointsFilter(
     id: Option[Long],
     externalId: Option[String]
 )

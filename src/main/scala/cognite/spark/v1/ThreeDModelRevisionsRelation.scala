@@ -8,7 +8,7 @@ import com.cognite.sdk.scala.v1.{GenericClient, ThreeDRevision}
 import org.apache.spark.sql.sources.Filter
 import fs2.Stream
 
-case class ModelRevisionItem(
+final case class ModelRevisionItem(
     id: Long,
     fileId: Long,
     published: Boolean,

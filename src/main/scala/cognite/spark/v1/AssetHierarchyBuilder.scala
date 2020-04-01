@@ -45,7 +45,7 @@ object AssetsIngestSchema {
     )
 }
 
-private case class AssetSubtree(
+final case class AssetSubtree(
     // node that contains all the `nodes`
     // might be just a pseudo-root
     root: AssetsIngestSchema,
@@ -294,8 +294,8 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       updatedAsset.name == asset.name &&
       updatedAsset.source == asset.source &&
       updatedAsset.dataSetId == asset.dataSetId &&
-      (updatedAsset.parentExternalId == "" && asset.parentId.isEmpty || Some(
-        updatedAsset.parentExternalId) == asset.parentExternalId)
+      (updatedAsset.parentExternalId == "" && asset.parentId.isEmpty || asset.parentExternalId.contains(
+        updatedAsset.parentExternalId))
 
   def buildAssetMap(source: Array[AssetsIngestSchema]): mutable.HashMap[String, AssetsIngestSchema] = {
     val map = mutable.HashMap[String, AssetsIngestSchema]()
@@ -323,12 +323,11 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
     tree
       .groupBy(getRoot(_))
-      .map({
-        case (root, items) => {
+      .map {
+        case (root, items) =>
           assert(items.contains(root))
           AssetSubtree(root, orderChildren(root.externalId, items.filter(_ != root)))
-        }
-      })
+      }
       .toVector
   }
 
@@ -351,5 +350,5 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object AssetHierarchyBuilder {
-  val upsertSchema = structType[AssetsIngestSchema]
+  val upsertSchema: StructType = structType[AssetsIngestSchema]
 }

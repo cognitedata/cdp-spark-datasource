@@ -13,9 +13,9 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class CdfPartition(index: Int) extends Partition
+final case class CdfPartition(index: Int) extends Partition
 
-case class SdkV1Rdd[A, I](
+final case class SdkV1Rdd[A, I](
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
     toRow: A => Row,

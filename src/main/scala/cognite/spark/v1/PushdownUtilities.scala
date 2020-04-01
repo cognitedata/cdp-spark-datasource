@@ -8,7 +8,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import scala.util.Try
 
-case class DeleteItem(id: Long)
+final case class DeleteItem(id: Long)
 
 sealed trait PushdownExpression
 final case class PushdownFilter(fieldName: String, value: String) extends PushdownExpression
