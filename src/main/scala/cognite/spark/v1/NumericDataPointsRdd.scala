@@ -108,10 +108,14 @@ case class NumericDataPointsRdd(
   // We must not exceed this. We're assuming there are less than this many
   // points for the smallest interval (1s) which seems reasonable, but we
   // could choose to do paging when that is not the case.
-  val maxPointsPerPartition = Constants.DefaultDataPointsLimit
-  val partitionSize = 100000
-  val bucketSize = 2000000
-  val maxPointsPerAggregationRange = 10000
+  private val maxPointsPerPartition = Constants.DefaultDataPointsLimit
+  private val partitionSize = 100000
+  // This bucketSize results in a partition size of around 100-150 MiB,
+  // which is a reasonable number. We could increase this, at the cost
+  // of reducing the parallelism of smaller time series.
+  private val bucketSize = 5000000
+  // This must not exceed the limits of CDF.
+  private val maxPointsPerAggregationRange = 10000
 
   private val granularitiesToTry = Seq(
     Granularity(Some(300), ChronoUnit.DAYS),
