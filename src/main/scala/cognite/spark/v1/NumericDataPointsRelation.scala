@@ -176,7 +176,9 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     // Notify users that they need to supply one or more ids/externalIds when reading data points
     if (ids.isEmpty && externalIds.isEmpty) {
       throw new IllegalArgumentException(
-        "Please filter by one or more ids or externalIds when reading data points.")
+        "Please filter by one or more ids or externalIds when reading data points." +
+          " Note that specifying id or externalId through joins is not possible at the moment."
+      )
     }
     val (aggregations, stringGranularities) = getAggregationSettings(filters)
 
