@@ -11,8 +11,12 @@ import scala.concurrent.{ExecutionContext, Future}
 object StreamIterator {
   type EitherQueue = ArrayBlockingQueue[Either[Throwable, Chunk[Row]]]
 
-  def apply(stream: Stream[IO, Row], queueBufferSize: Int, toId: Option[Row => String] = None)(
-      implicit concurrent: Concurrent[IO]): Iterator[Row] = {
+  def apply(
+      stream: Stream[IO, Row],
+      queueBufferSize: Int,
+      // rename toId to processItem(s), add filterItem(s)
+      toId: Option[Row => String] = None,
+      limit: Option[Int])(implicit concurrent: Concurrent[IO]): Iterator[Row] = {
     // This pool will be used for draining the queue
     // Draining needs to have a separate pool to continuously drain the queue
     // while another thread pool fills the queue with data from CDF
@@ -33,7 +37,7 @@ object StreamIterator {
       putOnQueueStream.compile.drain.unsafeRunSync()
     }(drainContext)
 
-    queueIterator(queue, streamsToQueue) {
+    queueIterator(queue, streamsToQueue, limit) {
       if (!drainPool.isShutdown) {
         drainPool.shutdown()
       }
@@ -69,13 +73,18 @@ object StreamIterator {
     }
   }
 
-  def queueIterator(queue: EitherQueue, f: Future[Unit])(doCleanup: => Unit): Iterator[Row] =
+  def queueIterator(queue: EitherQueue, f: Future[Unit], limit: Option[Int])(
+      doCleanup: => Unit): Iterator[Row] =
     new Iterator[Row] {
       var nextItems: Iterator[Row] = Iterator.empty
+      var itemsProcessed: Long = 0
 
       override def hasNext: Boolean =
-        if (nextItems.hasNext) {
+        if (nextItems.hasNext && limit.forall(itemsProcessed < _)) {
           true
+        } else if (limit.exists(itemsProcessed >= _)) {
+          doCleanup
+          false
         } else {
           nextItems = iteratorFromQueue()
           // The queue might be empty even if all streams have not yet been completely drained.
@@ -90,7 +99,10 @@ object StreamIterator {
           nextItems.hasNext
         }
 
-      override def next(): Row = nextItems.next()
+      override def next(): Row = {
+        itemsProcessed += 1
+        nextItems.next()
+      }
 
       def iteratorFromQueue(): Iterator[Row] =
         Option(queue.poll())
