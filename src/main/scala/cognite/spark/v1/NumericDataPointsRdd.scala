@@ -118,6 +118,7 @@ case class NumericDataPointsRdd(
   private val maxPointsPerAggregationRange = 10000
 
   private val granularitiesToTry = Seq(
+    Granularity(Some(900), ChronoUnit.DAYS),
     Granularity(Some(300), ChronoUnit.DAYS),
     Granularity(Some(150), ChronoUnit.DAYS),
     Granularity(Some(75), ChronoUnit.DAYS),
