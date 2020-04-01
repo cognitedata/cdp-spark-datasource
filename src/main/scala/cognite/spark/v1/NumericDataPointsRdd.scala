@@ -326,9 +326,7 @@ case class NumericDataPointsRdd(
       .map(Stream.emits)
       .flatten
 
-    // Shuffle the ranges to get a more even distribution across potentially
-    // many time series and ranges, to reduce the possibility of hotspotting.
-    ranges.compile.toVector.map(Random.shuffle(_)).map(rangesToBuckets)
+    ranges.compile.toVector.map(rangesToBuckets)
   }
 
   private def aggregationBuckets(
@@ -368,7 +366,6 @@ case class NumericDataPointsRdd(
       .flatten
       .compile
       .toVector
-      .map(Random.shuffle(_))
       .map(rangesToBuckets)
   }
 
