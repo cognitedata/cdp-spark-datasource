@@ -242,6 +242,19 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(df.count() == df.distinct().count())
   }
 
+  it should "read data points while respecting limitPerPartition" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "datapoints")
+      .option("limitPerPartition", "1000")
+      .load()
+      .where(
+        s"timestamp >= to_timestamp(1510150000) and timestamp <= to_timestamp(1510358401) and id = $valhallTimeSeriesId")
+      .cache()
+    assert(df.count() < 10000)
+  }
+
   it should "read very many aggregates correctly and without duplicates" taggedAs ReadTest in {
     val emptyDf = spark.read
       .format("cognite.spark.v1")
