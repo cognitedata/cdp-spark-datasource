@@ -15,18 +15,20 @@ import fs2.{Chunk, Stream}
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import Ordering.Implicits._
-import scala.util.Random
+import scala.annotation.tailrec
 
 sealed trait Range {
   val count: Option[Long]
   val id: Either[Long, String]
 }
+
 final case class DataPointsRange(
     id: Either[Long, String],
     start: Instant,
     end: Instant,
     count: Option[Long])
     extends Range
+
 final case class AggregationRange(
     id: Either[Long, String],
     start: Instant,
@@ -38,7 +40,7 @@ final case class AggregationRange(
 
 final case class Bucket(index: Int, ranges: Seq[Range]) extends Partition
 
-case class NumericDataPointsRdd(
+final case class NumericDataPointsRdd(
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
     ids: Seq[Long],
@@ -58,6 +60,8 @@ case class NumericDataPointsRdd(
     CdpConnector.clientFromConfig(config)
 
   private val (lowerTimeLimit, upperTimeLimit) = timestampLimits
+
+  @tailrec
   private def countsToRanges(
       id: Either[Long, String],
       counts: Seq[SdkDataPoint],
@@ -443,7 +447,7 @@ case class NumericDataPointsRdd(
   }
 
   @inline
-  private final def toRowDataPointsRange(id: Either[Long, String], dataPoint: SdkDataPoint): Row = {
+  private def toRowDataPointsRange(id: Either[Long, String], dataPoint: SdkDataPoint): Row = {
     val array = new Array[Any](rowIndices.length)
     var i = 0
     for (f <- rowIndices) {
@@ -460,7 +464,7 @@ case class NumericDataPointsRdd(
   }
 
   @inline
-  private final def toRowAggregationRange(r: AggregationRange, dataPoint: SdkDataPoint): Row = {
+  private def toRowAggregationRange(r: AggregationRange, dataPoint: SdkDataPoint): Row = {
     val array = new Array[Any](rowIndices.length)
     var i = 0
     for (f <- rowIndices) {
@@ -500,8 +504,7 @@ case class NumericDataPointsRdd(
                 case None => IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
               }
             }
-        case _ =>
-          IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
+        case _ => IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
       }
     val maxParallelism = scala.math.max(bucket.ranges.size, 500)
     StreamIterator(stream.parJoin(maxParallelism), maxParallelism, None, config.limitPerPartition)

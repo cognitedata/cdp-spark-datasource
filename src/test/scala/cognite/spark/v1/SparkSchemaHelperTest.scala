@@ -7,8 +7,8 @@ import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.scalatest.{FlatSpec, Matchers}
 import SparkSchemaHelper._
 
-case class TestTypeBasic(a: Int, b: Double, c: Byte, d: Float, x: Map[String, String], g: Long, f: Seq[Long], s: String)
-case class TestTypeOption(a: Option[Int], b: Option[Double], c: Option[Byte],
+final case class TestTypeBasic(a: Int, b: Double, c: Byte, d: Float, x: Map[String, String], g: Long, f: Seq[Long], s: String)
+final case class TestTypeOption(a: Option[Int], b: Option[Double], c: Option[Byte],
                           d: Option[Float], x: Option[Map[String, Option[String]]],
                           g: Option[Long], f: Option[Seq[Option[Long]]], s: Option[String])
 

@@ -4,7 +4,7 @@ import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 import org.log4s._
 
-case class PerformanceTest[A](testName: String, beforeTest: () => A, test: A => Unit)
+final case class PerformanceTest[A](testName: String, beforeTest: () => A, test: A => Unit)
 
 abstract class PerformanceSuite extends SparkUtil {
   val logger = getLogger

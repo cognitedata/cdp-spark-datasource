@@ -109,7 +109,9 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     (updateIds, updateExternalIds).parMapN((_, _) => ())
   }
 
-  private def assertNoLegacyNameConflicts(duplicated: Seq[JsonObject], requestId: Option[String]) = {
+  private def assertNoLegacyNameConflicts(
+      duplicated: Seq[JsonObject],
+      requestId: Option[String]): Unit = {
     val legacyNameConflicts =
       duplicated.flatMap(j => j("legacyName")).map(_.asString.get)
 

@@ -46,7 +46,7 @@ class RawTableRelation(
 
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
 
-  @transient lazy val defaultSchema = StructType(
+  @transient lazy val defaultSchema: StructType = StructType(
     Seq(
       StructField("key", DataTypes.StringType),
       StructField(lastUpdatedTimeColName, DataTypes.TimestampType),
@@ -81,8 +81,8 @@ class RawTableRelation(
       val jsonDf =
         renameColumns(sqlContext.sparkSession.read.json(df.select($"columns").as[String]))
       StructType(
-        StructField("key", DataTypes.StringType, false)
-          +: StructField(lastUpdatedTimeColName, DataTypes.TimestampType, true)
+        StructField("key", DataTypes.StringType, nullable = false)
+          +: StructField(lastUpdatedTimeColName, DataTypes.TimestampType, nullable = true)
           +: jsonDf.schema.fields)
     } else {
       defaultSchema

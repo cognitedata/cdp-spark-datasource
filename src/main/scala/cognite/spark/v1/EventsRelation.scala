@@ -135,12 +135,12 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: Event): Long = a.id
 }
 object EventsRelation extends UpsertSchema {
-  val upsertSchema = structType[EventsUpsertSchema]
-  val insertSchema = structType[EventsInsertSchema]
-  val readSchema = structType[EventsReadSchema]
+  val upsertSchema: StructType = structType[EventsUpsertSchema]
+  val insertSchema: StructType = structType[EventsInsertSchema]
+  val readSchema: StructType = structType[EventsReadSchema]
 }
 
-case class EventsUpsertSchema(
+final case class EventsUpsertSchema(
     id: Option[Long] = None,
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
@@ -155,7 +155,7 @@ case class EventsUpsertSchema(
 ) extends WithExternalId
     with WithId[Option[Long]]
 
-case class EventsInsertSchema(
+final case class EventsInsertSchema(
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
     description: Option[String] = None,
@@ -168,7 +168,7 @@ case class EventsInsertSchema(
     dataSetId: Option[Long] = None
 )
 
-case class EventsReadSchema(
+final case class EventsReadSchema(
     id: Long = 0,
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,

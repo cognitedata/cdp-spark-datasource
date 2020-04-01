@@ -2,7 +2,6 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.OnConflict.values
 import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, BearerTokenAuth}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.softwaremill.sttp.SttpBackend
@@ -10,7 +9,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 
-case class RelationConfig(
+final case class RelationConfig(
     auth: Auth,
     projectName: String,
     batchSize: Option[Int],
@@ -157,8 +156,8 @@ class DefaultSource
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSize = relation match {
-        case n: NumericDataPointsRelationV1 => Constants.CreateDataPointsLimit
-        case s: StringDataPointsRelationV1 => Constants.CreateDataPointsLimit
+        case _: NumericDataPointsRelationV1 => Constants.CreateDataPointsLimit
+        case _: StringDataPointsRelationV1 => Constants.CreateDataPointsLimit
         case _ => Constants.DefaultBatchSize
       }
       data.foreachPartition((rows: Iterator[Row]) => {
@@ -281,8 +280,8 @@ object DefaultSource {
       saveMode,
       Option(sqlContext).map(_.sparkContext.applicationId).getOrElse("CDF"),
       parallelismPerPartition,
-      ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", true),
-      deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets", false),
+      ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", defaultValue = true),
+      deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
       subtrees = subtreesOption,
       legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
     )

@@ -117,13 +117,14 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: Asset): Long = a.id
 }
+
 object AssetsRelation extends UpsertSchema {
-  val upsertSchema = structType[AssetsUpsertSchema]
-  val insertSchema = structType[AssetsInsertSchema]
-  val readSchema = structType[AssetsReadSchema]
+  val upsertSchema: StructType = structType[AssetsUpsertSchema]
+  val insertSchema: StructType = structType[AssetsInsertSchema]
+  val readSchema: StructType = structType[AssetsReadSchema]
 }
 
-case class AssetsUpsertSchema(
+final case class AssetsUpsertSchema(
     id: Option[Long] = None,
     name: Option[String] = None,
     description: Option[String] = None,
@@ -136,7 +137,7 @@ case class AssetsUpsertSchema(
 ) extends WithExternalId
     with WithId[Option[Long]]
 
-case class AssetsInsertSchema(
+final case class AssetsInsertSchema(
     name: String,
     parentId: Option[Long] = None,
     description: Option[String] = None,
@@ -147,7 +148,7 @@ case class AssetsInsertSchema(
     dataSetId: Option[Long] = None
 )
 
-case class AssetsReadSchema(
+final case class AssetsReadSchema(
     externalId: Option[String] = None,
     name: String,
     parentId: Option[Long] = None,

@@ -8,7 +8,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.Filter
 import fs2.Stream
 
-case class ModelItem(id: Long, name: String, createdTime: Long)
+final case class ModelItem(id: Long, name: String, createdTime: Long)
 
 class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[ThreeDModel, Long](config, "threeDModels.read") {

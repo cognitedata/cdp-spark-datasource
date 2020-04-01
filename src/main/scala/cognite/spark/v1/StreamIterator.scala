@@ -20,7 +20,7 @@ object StreamIterator {
     // This pool will be used for draining the queue
     // Draining needs to have a separate pool to continuously drain the queue
     // while another thread pool fills the queue with data from CDF
-    val drainPool = Executors.newFixedThreadPool(1)
+    val drainPool = Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors())
     val drainContext = ExecutionContext.fromExecutor(drainPool)
 
     // Local testing show this queue never holds more than 5 chunks since CDF is the bottleneck.

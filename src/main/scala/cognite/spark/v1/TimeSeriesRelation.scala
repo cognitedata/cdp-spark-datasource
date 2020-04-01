@@ -136,12 +136,12 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     )
 }
 object TimeSeriesRelation extends UpsertSchema {
-  val upsertSchema = structType[TimeSeriesUpsertSchema]
-  val insertSchema = structType[TimeSeriesInsertSchema]
-  val readSchema = structType[TimeSeriesReadSchema]
+  val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]
+  val insertSchema: StructType = structType[TimeSeriesInsertSchema]
+  val readSchema: StructType = structType[TimeSeriesReadSchema]
 }
 
-case class TimeSeriesUpsertSchema(
+final case class TimeSeriesUpsertSchema(
     id: Option[Long] = None,
     name: Option[String] = None,
     externalId: Option[String] = None,
@@ -156,7 +156,7 @@ case class TimeSeriesUpsertSchema(
 ) extends WithExternalId
     with WithId[Option[Long]]
 
-case class TimeSeriesInsertSchema(
+final case class TimeSeriesInsertSchema(
     externalId: Option[String] = None,
     name: Option[String] = None,
     isString: Boolean = false,
@@ -169,7 +169,7 @@ case class TimeSeriesInsertSchema(
     dataSetId: Option[Long] = None
 )
 
-case class TimeSeriesReadSchema(
+final case class TimeSeriesReadSchema(
     name: Option[String] = None,
     isString: Boolean = false,
     metadata: Option[Map[String, String]] = None,
