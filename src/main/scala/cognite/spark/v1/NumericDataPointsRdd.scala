@@ -12,12 +12,14 @@ import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
 import com.softwaremill.sttp.SttpBackend
 import cats.implicits._
 import fs2.{Chunk, Stream}
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import Ordering.Implicits._
 import scala.util.Random
 
 sealed trait Range {
   val count: Option[Long]
+  val id: Either[Long, String]
 }
 final case class DataPointsRange(
     id: Either[Long, String],
@@ -44,7 +46,8 @@ case class NumericDataPointsRdd(
     timestampLimits: (Instant, Instant),
     aggregations: Array[AggregationFilter],
     granularities: Seq[Granularity],
-    toRow: DataPointsItem => Row
+    increaseReadMetrics: Int => Unit,
+    rowIndices: Array[Int]
 ) extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
   implicit val auth: Auth = config.auth
@@ -408,15 +411,18 @@ case class NumericDataPointsRdd(
     }
   }
 
-  private def queryDataPointsRange(dataPointsRange: DataPointsRange, limit: Option[Int] = None) =
-    dataPointsRange.count match {
+  private def queryDataPointsRange(dataPointsRange: DataPointsRange, limit: Option[Int] = None) = {
+    val points = dataPointsRange.count match {
       case Some(_) =>
         queryById(
           dataPointsRange.id,
           dataPointsRange.start,
           dataPointsRange.end,
           limit.getOrElse(100000))
-          .map(_.datapoints)
+          .map { response =>
+            increaseReadMetrics(response.datapoints.length)
+            response.datapoints.map(p => toRowDataPointsRange(dataPointsRange.id, p))
+          }
       case None =>
         // Page through this range since we don't know how many points it contains.
         val id: CogniteId = dataPointsRange.id
@@ -428,57 +434,76 @@ case class NumericDataPointsRdd(
             id,
             dataPointsRange.start,
             dataPointsRange.end)
+          .map { allDataPoints =>
+            increaseReadMetrics(allDataPoints.length)
+            allDataPoints.map(p => toRowDataPointsRange(dataPointsRange.id, p))
+          }
     }
+    Stream.evalUnChunk(points.map(Chunk.seq))
+  }
+
+  @inline
+  private final def toRowDataPointsRange(id: Either[Long, String], dataPoint: SdkDataPoint): Row = {
+    val array = new Array[Any](rowIndices.length)
+    var i = 0
+    for (f <- rowIndices) {
+      f match {
+        case 0 => array(i) = id.left.toOption
+        case 1 => array(i) = id.right.toOption
+        case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
+        case 3 => array(i) = dataPoint.value
+        case 4 | 5 => array(i) = None
+      }
+      i += 1
+    }
+    new GenericRow(array)
+  }
+
+  @inline
+  private final def toRowAggregationRange(r: AggregationRange, dataPoint: SdkDataPoint): Row = {
+    val array = new Array[Any](rowIndices.length)
+    var i = 0
+    for (f <- rowIndices) {
+      f match {
+        case 0 => array(i) = r.id.left.toOption
+        case 1 => array(i) = r.id.right.toOption
+        case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
+        case 3 => array(i) = dataPoint.value
+        case 4 => array(i) = Some(r.aggregation)
+        case 5 => array(i) = Some(r.granularity.toString)
+      }
+      i += 1
+    }
+    new GenericRow(array)
+  }
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val bucket = _split.asInstanceOf[Bucket]
 
-    val stream = Stream
+    val stream: Stream[IO, Stream[IO, Row]] = Stream
       .emits(bucket.ranges.toVector)
       .covary[IO]
       .parEvalMapUnordered(100) {
-        case r: DataPointsRange =>
-          queryDataPointsRange(r)
-            .map(dataPoints =>
-              dataPoints
-                .map { p =>
-                  DataPointsItem(
-                    r.id.left.toOption,
-                    r.id.right.toOption,
-                    p.timestamp,
-                    p.value,
-                    None,
-                    None)
-                }
-                .map(toRow))
-            .map(Stream.emits)
-            .map(_.covary[IO])
+        case r: DataPointsRange => IO(queryDataPointsRange(r))
         case r: AggregationRange =>
           queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
-            .map(queryResponse =>
-              queryResponse.mapValues(dataPointsResponse => dataPointsResponse.flatMap(_.datapoints)))
-            .map(dataPointsAggregates =>
+            .flatMap { queryResponse =>
+              val dataPointsAggregates =
+                queryResponse.mapValues(dataPointsResponse =>
+                  dataPointsResponse.flatMap(_.datapoints.map(toRowAggregationRange(r, _))))
               dataPointsAggregates.get(r.aggregation) match {
                 case Some(dataPoints) =>
-                  dataPoints
-                    .map { p =>
-                      DataPointsItem(
-                        r.id.left.toOption,
-                        r.id.right.toOption,
-                        p.timestamp,
-                        p.value,
-                        Some(r.aggregation),
-                        Some(r.granularity.toString))
-                    }
-                    .map(toRow)
-                case None =>
-                  Seq.empty[Row]
-            })
-            .map(Stream.emits)
-            .map(_.covary[IO])
+                  IO {
+                    increaseReadMetrics(dataPoints.size)
+                    Stream.chunk(Chunk.seq(dataPoints)).covary[IO]
+                  }
+                case None => IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
+              }
+            }
         case _ =>
           IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
       }
-    StreamIterator(stream.flatten, 200000, None)
+    val maxParallelism = scala.math.max(bucket.ranges.size, 500)
+    StreamIterator(stream.parJoin(maxParallelism), maxParallelism, None, config.limitPerPartition)
   }
 }

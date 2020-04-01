@@ -166,6 +166,15 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       .parMapN((_, _) => ())
   }
 
+  private val namesToFields: Map[String, Int] = Map(
+    "id" -> 0,
+    "externalId" -> 1,
+    "timestamp" -> 2,
+    "value" -> 3,
+    "aggregation" -> 4,
+    "granularity" -> 5
+  )
+
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val timestampLimits = filtersToTimestampLimits(filters, "timestamp")
@@ -200,12 +209,12 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       timestampLimits,
       aggregations,
       granularities,
-      (item: DataPointsItem) => {
+      (i: Int) => {
         if (config.collectMetrics) {
-          itemsRead.inc()
+          itemsRead.inc(i)
         }
-        toRow(requiredColumns)(item)
-      }
+      },
+      requiredColumns.map(namesToFields)
     )
   }
 }
