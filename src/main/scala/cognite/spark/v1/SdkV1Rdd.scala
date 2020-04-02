@@ -45,82 +45,22 @@ final case class SdkV1Rdd[A, I](
 
     val streams = getStreams(client, config.limitPerPartition, config.partitions)
     val groupedStreams = streams.grouped(config.parallelismPerPartition).toSeq
-    val currentStreamsAsSingleStream = groupedStreams(split.index)
-      .reduce(_.merge(_))
-
-    // This pool will be used for draining the queue
-    // Draining needs to have a separate pool to continuously drain the queue
-    // while another thread pool fills the queue with data from CDF
-    val drainPool = Executors.newFixedThreadPool(1)
-    val drainContext = ExecutionContext.fromExecutor(drainPool)
-
-    // Local testing show this queue never holds more than 5 chunks since CDF is the bottleneck.
-    // Still setting this to 2x the number of streams being read to makes sure this doesn't block
-    // too early, for example in the event that all streams return a chunk at the same time.
-    val queue = new EitherQueue(config.parallelismPerPartition * 2)
-
-    val putOnQueueStream =
-      enqueueStreamResults(currentStreamsAsSingleStream, queue)
-        .handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
-
-    // Continuously read the stream data into the queue on a separate thread pool
-    val streamsToQueue: Future[Unit] = Future {
-      putOnQueueStream.compile.drain.unsafeRunSync()
-    }(drainContext)
-
-    queueIterator(queue, streamsToQueue) {
-      if (!drainPool.isShutdown) {
-        drainPool.shutdown()
-      }
+    val currentStreamsAsSingleStream = config.limitPerPartition match {
+      case Some(limit) => groupedStreams(split.index).map(_.take(limit)).reduce(_.merge(_))
+      case None => groupedStreams(split.index).reduce(_.merge(_))
     }
-  }
 
-  // We avoid draining all streams from CDF completely and then building the Iterator,
-  // by using a blocking EitherQueue.
-  def enqueueStreamResults(stream: Stream[IO, A], queue: EitherQueue): Stream[IO, Unit] = {
     val processedIds = new ConcurrentHashMap[I, Unit]
-    stream.chunks.parEvalMapUnordered(config.parallelismPerPartition) { chunk =>
-      val freshIds = chunk.filter(i => !processedIds.containsKey(uniqueId(i)))
-      IO {
-        freshIds.foreach { i =>
-          processedIds.put(uniqueId(i), ())
-        }
-        queue.put(Right(freshIds))
+    val processChunk = (chunk: Chunk[A]) => {
+      chunk.filter { i =>
+        // Use .asInstanceOf[Object] to silence warning about
+        // "comparing values of types Unit and Null"
+        // putIfAbsent returns null if the key did not exist, in which ase we
+        // should keep (and process) the item.
+        processedIds.putIfAbsent(uniqueId(i), ()).asInstanceOf[Object] == null
       }
     }
+    StreamIterator(currentStreamsAsSingleStream, config.parallelismPerPartition * 2, Some(processChunk))
+      .map(toRow)
   }
-
-  def queueIterator(queue: EitherQueue, f: Future[Unit])(doCleanup: => Unit): Iterator[Row] =
-    new Iterator[Row] {
-      var nextItems: Iterator[A] = Iterator.empty
-
-      override def hasNext: Boolean =
-        if (nextItems.hasNext) {
-          true
-        } else {
-          nextItems = iteratorFromQueue()
-          // The queue might be empty even if all streams have not yet been completely drained.
-          // We keep polling the queue until new data is enqueued, or the stream is complete.
-          while (nextItems.isEmpty && !f.isCompleted) {
-            Thread.sleep(1)
-            nextItems = iteratorFromQueue()
-          }
-          if (f.isCompleted) {
-            doCleanup
-          }
-          nextItems.hasNext
-        }
-
-      override def next(): Row = toRow(nextItems.next())
-
-      def iteratorFromQueue(): Iterator[A] =
-        Option(queue.poll())
-          .map {
-            case Right(value) => value.iterator
-            case Left(err) =>
-              doCleanup
-              throw err
-          }
-          .getOrElse(Iterator.empty)
-    }
 }
