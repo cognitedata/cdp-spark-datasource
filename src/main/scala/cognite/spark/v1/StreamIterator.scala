@@ -1,22 +1,17 @@
 package cognite.spark.v1
 
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentHashMap, Executors}
+import java.util.concurrent.{ArrayBlockingQueue, Executors}
 
 import cats.effect.{Concurrent, IO}
 import fs2.{Chunk, Stream}
-import org.apache.spark.sql.Row
 
 import scala.concurrent.{ExecutionContext, Future}
 
 object StreamIterator {
-  type EitherQueue = ArrayBlockingQueue[Either[Throwable, Chunk[Row]]]
+  type EitherQueue[A] = ArrayBlockingQueue[Either[Throwable, Chunk[A]]]
 
-  def apply(
-      stream: Stream[IO, Row],
-      queueBufferSize: Int,
-      // rename toId to processItem(s), add filterItem(s)
-      toId: Option[Row => String] = None,
-      limit: Option[Int])(implicit concurrent: Concurrent[IO]): Iterator[Row] = {
+  def apply[A](stream: Stream[IO, A], queueBufferSize: Int, processChunk: Option[Chunk[A] => Chunk[A]])(
+      implicit concurrent: Concurrent[IO]): Iterator[A] = {
     // This pool will be used for draining the queue
     // Draining needs to have a separate pool to continuously drain the queue
     // while another thread pool fills the queue with data from CDF
@@ -26,10 +21,10 @@ object StreamIterator {
     // Local testing show this queue never holds more than 5 chunks since CDF is the bottleneck.
     // Still setting this to 2x the number of streams being read to makes sure this doesn't block
     // too early, for example in the event that all streams return a chunk at the same time.
-    val queue = new EitherQueue(queueBufferSize)
+    val queue = new EitherQueue[A](queueBufferSize)
 
     val putOnQueueStream =
-      enqueueStreamResults(stream, queue, queueBufferSize, toId)
+      enqueueStreamResults(stream, queue, queueBufferSize, processChunk)
         .handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
 
     // Continuously read the stream data into the queue on a separate thread pool
@@ -37,7 +32,7 @@ object StreamIterator {
       putOnQueueStream.compile.drain.unsafeRunSync()
     }(drainContext)
 
-    queueIterator(queue, streamsToQueue, limit) {
+    queueIterator(queue, streamsToQueue) {
       if (!drainPool.isShutdown) {
         drainPool.shutdown()
       }
@@ -46,45 +41,26 @@ object StreamIterator {
 
   // We avoid draining all streams from CDF completely and then building the Iterator,
   // by using a blocking EitherQueue.
-  def enqueueStreamResults(
-      stream: Stream[IO, Row],
-      queue: EitherQueue,
+  def enqueueStreamResults[A](
+      stream: Stream[IO, A],
+      queue: EitherQueue[A],
       queueBufferSize: Int,
-      toId: Option[Row => String] = None)(implicit concurrent: Concurrent[IO]): Stream[IO, Unit] = {
-    val maybeProcessedIds: Option[ConcurrentHashMap[String, Unit]] =
-      toId.map(_ => new ConcurrentHashMap[String, Unit])
+      processChunk: Option[Chunk[A] => Chunk[A]])(
+      implicit concurrent: Concurrent[IO]): Stream[IO, Unit] =
     stream.chunks.parEvalMapUnordered(queueBufferSize) { chunk =>
-      val freshIds = maybeProcessedIds match {
-        case Some(processedIds) =>
-          val toIdFunction = toId.get
-          chunk.filter(item => !processedIds.containsKey(toIdFunction(item)))
-        case None =>
-          chunk
-      }
       IO {
-        maybeProcessedIds.foreach { processedIds =>
-          val toIdFunction = toId.get
-          freshIds.foreach { item =>
-            processedIds.put(toIdFunction(item), ())
-          }
-        }
-        queue.put(Right(freshIds))
+        val processedChunk = processChunk.map(f => f(chunk)).getOrElse(chunk)
+        queue.put(Right(processedChunk))
       }
     }
-  }
 
-  def queueIterator(queue: EitherQueue, f: Future[Unit], limit: Option[Int])(
-      doCleanup: => Unit): Iterator[Row] =
-    new Iterator[Row] {
-      var nextItems: Iterator[Row] = Iterator.empty
-      var itemsProcessed: Long = 0
+  def queueIterator[A](queue: EitherQueue[A], f: Future[Unit])(doCleanup: => Unit): Iterator[A] =
+    new Iterator[A] {
+      var nextItems: Iterator[A] = Iterator.empty
 
       override def hasNext: Boolean =
-        if (nextItems.hasNext && limit.forall(itemsProcessed < _)) {
+        if (nextItems.hasNext) {
           true
-        } else if (limit.exists(itemsProcessed >= _)) {
-          doCleanup
-          false
         } else {
           nextItems = iteratorFromQueue()
           // The queue might be empty even if all streams have not yet been completely drained.
@@ -99,12 +75,9 @@ object StreamIterator {
           nextItems.hasNext
         }
 
-      override def next(): Row = {
-        itemsProcessed += 1
-        nextItems.next()
-      }
+      override def next(): A = nextItems.next()
 
-      def iteratorFromQueue(): Iterator[Row] =
+      def iteratorFromQueue(): Iterator[A] =
         Option(queue.poll())
           .map {
             case Right(value) => value.iterator

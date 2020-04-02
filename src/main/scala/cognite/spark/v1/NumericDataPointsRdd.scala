@@ -481,6 +481,12 @@ final case class NumericDataPointsRdd(
     new GenericRow(array)
   }
 
+  private def maybeLimitStream[A](stream: Stream[IO, A]) =
+    config.limitPerPartition match {
+      case Some(limit) => stream.take(limit)
+      case None => stream
+    }
+
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val bucket = _split.asInstanceOf[Bucket]
 
@@ -488,7 +494,7 @@ final case class NumericDataPointsRdd(
       .emits(bucket.ranges.toVector)
       .covary[IO]
       .parEvalMapUnordered(100) {
-        case r: DataPointsRange => IO(queryDataPointsRange(r))
+        case r: DataPointsRange => IO(maybeLimitStream(queryDataPointsRange(r)))
         case r: AggregationRange =>
           queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
             .flatMap { queryResponse =>
@@ -499,7 +505,7 @@ final case class NumericDataPointsRdd(
                 case Some(dataPoints) =>
                   IO {
                     increaseReadMetrics(dataPoints.size)
-                    Stream.chunk(Chunk.seq(dataPoints)).covary[IO]
+                    maybeLimitStream(Stream.chunk(Chunk.seq(dataPoints)).covary[IO])
                   }
                 case None => IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
               }
@@ -507,6 +513,6 @@ final case class NumericDataPointsRdd(
         case _ => IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
       }
     val maxParallelism = scala.math.max(bucket.ranges.size, 500)
-    StreamIterator(stream.parJoin(maxParallelism), maxParallelism, None, config.limitPerPartition)
+    StreamIterator(stream.parJoin(maxParallelism), maxParallelism, None)
   }
 }
