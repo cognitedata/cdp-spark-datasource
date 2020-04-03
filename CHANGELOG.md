@@ -1,3 +1,10 @@
+# 1.2.19
+
+## Enhancements
+
+* Improve data points read performance, concurrently reading different time
+ranges and streaming the results to Spark as the data is received.
+
 # 1.2.18
 
 ## Enhancements
