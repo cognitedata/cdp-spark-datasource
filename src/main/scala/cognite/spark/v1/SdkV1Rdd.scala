@@ -50,11 +50,9 @@ final case class SdkV1Rdd[A, I](
     val processedIds = new ConcurrentHashMap[I, Unit]
     val processChunk = (chunk: Chunk[A]) => {
       chunk.filter { i =>
-        // Use .asInstanceOf[Object] to silence warning about
-        // "comparing values of types Unit and Null"
         // putIfAbsent returns null if the key did not exist, in which ase we
         // should keep (and process) the item.
-        processedIds.putIfAbsent(uniqueId(i), ()).asInstanceOf[Object] == null
+        Option(processedIds.putIfAbsent(uniqueId(i), ())).isEmpty
       }
     }
     StreamIterator(currentStreamsAsSingleStream, config.parallelismPerPartition * 2, Some(processChunk))
