@@ -59,7 +59,11 @@ object PushdownUtilities {
   // scalastyle:off
   def getFilter(filter: Filter): PushdownExpression =
     filter match {
-      case IsNotNull(colName) => NoPushdown()
+      case IsNotNull(_) | IsNull(_) | EqualNullSafe(_, null) => NoPushdown()
+      case EqualTo(_, null) | GreaterThan(_, null) | GreaterThanOrEqual(_, null) | LessThan(_, null) |
+          LessThanOrEqual(_, null) =>
+        throw new Exception(
+          "Unexpected error, seems that Spark query optimizer is misbehaving. Please contact support@cognite.com and tell them.")
       case EqualTo(colName, value) => PushdownFilter(colName, value.toString)
       case EqualNullSafe(colName, value) => PushdownFilter(colName, value.toString)
       case GreaterThan(colName, value) =>
@@ -71,7 +75,15 @@ object PushdownUtilities {
       case LessThanOrEqual(colName, value) =>
         PushdownFilter("max" + colName.capitalize, value.toString)
       case In(colName, values) =>
-        PushdownFilters(values.map(v => PushdownFilter(colName, v.toString)))
+        PushdownFilters(
+          values
+          // X in (null, Y) will result in `NULL`, which is treated like false.
+          // X AND NULL is NULL (like with false)
+          // true OR NULL is true (like with false)
+          // false OR NULL is NULL. Almost like with false, since null is like false
+          // This is not true for negation, but we can't process negation in pushdown filters anyway
+            .filter(_ != null)
+            .map(v => PushdownFilter(colName, v.toString)))
       case And(f1, f2) => PushdownAnd(getFilter(f1), getFilter(f2))
       case Or(f1, f2) => PushdownFilters(Seq(getFilter(f1), getFilter(f2)))
       case _ => NoPushdown()
