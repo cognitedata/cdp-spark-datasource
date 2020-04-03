@@ -23,6 +23,8 @@ final case class DataPointsFilter(
     aggregates: Option[Seq[String]],
     granularity: Option[String])
 
+// Note that this *must* be kept in sync with NumericDataPointsRdd.dataPointToRow
+// and NumericDataPointsRdd.aggregationDataPointToRow.
 final case class DataPointsItem(
     id: Option[Long],
     externalId: Option[String],
