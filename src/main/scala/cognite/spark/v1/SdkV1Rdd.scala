@@ -45,10 +45,7 @@ final case class SdkV1Rdd[A, I](
 
     val streams = getStreams(client, config.limitPerPartition, config.partitions)
     val groupedStreams = streams.grouped(config.parallelismPerPartition).toSeq
-    val currentStreamsAsSingleStream = config.limitPerPartition match {
-      case Some(limit) => groupedStreams(split.index).map(_.take(limit)).reduce(_.merge(_))
-      case None => groupedStreams(split.index).reduce(_.merge(_))
-    }
+    val currentStreamsAsSingleStream = groupedStreams(split.index).reduce(_.merge(_))
 
     val processedIds = new ConcurrentHashMap[I, Unit]
     val processChunk = (chunk: Chunk[A]) => {
