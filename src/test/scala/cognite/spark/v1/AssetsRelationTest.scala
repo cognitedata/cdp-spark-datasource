@@ -73,6 +73,67 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
     assert(assetsRead == 1)
   }
 
+  it should "support pushdown filters with nulls" taggedAs ReadTest in {
+    val metricsPrefix = "pushdown.filters.assets.name.null"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .load()
+      .where("name in ('23-TT-92604B', NULL)")
+
+    assert(df.count() == 1)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
+    assert(assetsRead == 1)
+
+    // these just should not fail:
+
+    spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .load()
+      .where("name = NULL")
+      .collect() shouldBe empty
+
+    spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .load()
+      .where("name = '23-TT-92604B' and name <> NULL")
+      .collect() shouldBe empty
+
+    spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .load()
+      .where("createdTime > NULL")
+      .collect() shouldBe empty
+
+    spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .load()
+      .where("name in (NULL)")
+      .collect() shouldBe empty
+
+    spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .load()
+      .where("name = '23-TT-92604B' or name <> NULL")
+      .count() shouldBe 1
+  }
+
   it should "support pushdown filters on source" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.assets.source"
     val df = spark.read
