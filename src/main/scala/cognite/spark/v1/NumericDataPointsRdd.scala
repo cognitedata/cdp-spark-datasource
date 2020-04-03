@@ -425,7 +425,7 @@ final case class NumericDataPointsRdd(
           limit.getOrElse(100000))
           .map { response =>
             increaseReadMetrics(response.datapoints.length)
-            response.datapoints.map(p => toRowDataPointsRange(dataPointsRange.id, p))
+            response.datapoints.map(p => dataPointToRow(dataPointsRange.id, p))
           }
       case None =>
         // Page through this range since we don't know how many points it contains.
@@ -440,18 +440,23 @@ final case class NumericDataPointsRdd(
             dataPointsRange.end)
           .map { allDataPoints =>
             increaseReadMetrics(allDataPoints.length)
-            allDataPoints.map(p => toRowDataPointsRange(dataPointsRange.id, p))
+            allDataPoints.map(p => dataPointToRow(dataPointsRange.id, p))
           }
     }
     Stream.evalUnChunk(points.map(Chunk.seq))
   }
 
+  private val rowIndicesLength = rowIndices.length
+
+  // Those methods are made to go fast, not to look pretty.
+  // Called for every data point received. Make sure to run benchmarks checking
+  // total time taken, garbage collection time, and memory usage after changes.
   @inline
-  private def toRowDataPointsRange(id: Either[Long, String], dataPoint: SdkDataPoint): Row = {
-    val array = new Array[Any](rowIndices.length)
+  private def dataPointToRow(id: Either[Long, String], dataPoint: SdkDataPoint): Row = {
+    val array = new Array[Any](rowIndicesLength)
     var i = 0
-    for (f <- rowIndices) {
-      f match {
+    while (i < rowIndicesLength) {
+      rowIndices(i) match {
         case 0 => array(i) = id.left.toOption
         case 1 => array(i) = id.right.toOption
         case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
@@ -464,11 +469,11 @@ final case class NumericDataPointsRdd(
   }
 
   @inline
-  private def toRowAggregationRange(r: AggregationRange, dataPoint: SdkDataPoint): Row = {
-    val array = new Array[Any](rowIndices.length)
+  private def aggregationDataPointToRow(r: AggregationRange, dataPoint: SdkDataPoint): Row = {
+    val array = new Array[Any](rowIndicesLength)
     var i = 0
-    for (f <- rowIndices) {
-      f match {
+    while (i < rowIndicesLength) {
+      rowIndices(i) match {
         case 0 => array(i) = r.id.left.toOption
         case 1 => array(i) = r.id.right.toOption
         case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
@@ -500,7 +505,7 @@ final case class NumericDataPointsRdd(
             .flatMap { queryResponse =>
               val dataPointsAggregates =
                 queryResponse.mapValues(dataPointsResponse =>
-                  dataPointsResponse.flatMap(_.datapoints.map(toRowAggregationRange(r, _))))
+                  dataPointsResponse.flatMap(_.datapoints.map(aggregationDataPointToRow(r, _))))
               dataPointsAggregates.get(r.aggregation) match {
                 case Some(dataPoints) =>
                   IO {
