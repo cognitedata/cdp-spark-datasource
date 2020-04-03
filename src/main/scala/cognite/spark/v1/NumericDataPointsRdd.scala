@@ -498,7 +498,12 @@ final case class NumericDataPointsRdd(
     val stream: Stream[IO, Stream[IO, Row]] = Stream
       .emits(bucket.ranges.toVector)
       .covary[IO]
-      .parEvalMapUnordered(100) {
+      // We use Int.MaxValue because we want this to be limited only by the parallelism
+      // offered by the runtime environment (execution contexts etc.)
+      // which is similar to what parJoin does: parJoinUnbounded = parJoin(Int.MaxValue)
+      // As of 2020-04-03 there is no parEvalMapUnorderedUnbounded (which is a mouthful).
+      // In fact: parEvalMapUnordered = map(o => Stream.eval(f(o))).parJoin(maxConcurrent)
+      .parEvalMapUnordered(Int.MaxValue) {
         case r: DataPointsRange => IO(maybeLimitStream(queryDataPointsRange(r)))
         case r: AggregationRange =>
           queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
