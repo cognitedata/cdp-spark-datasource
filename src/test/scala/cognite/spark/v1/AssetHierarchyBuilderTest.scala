@@ -144,6 +144,56 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     ex.getMessage shouldBe s"Parent 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds$key' referenced from 'testNode1$key' does not exist."
   }
 
+  it should "fail reasonably when some subtree parents don't exist" in {
+    val key = shortRandomString()
+
+    ingest(key, Seq(
+      AssetCreate(
+        "testRootNode1",
+        externalId = Some("testRootNode1"),
+        parentExternalId = Some("")),
+      AssetCreate(
+        "testRootNode2",
+        externalId = Some("testRootNode2"),
+        parentExternalId = Some(""))
+    ))
+
+    val tree = Seq(
+      AssetCreate(
+        "testNode1",
+        externalId = Some("testNode1"),
+        parentExternalId = Some("testRootNode1")),
+      AssetCreate(
+        "testNode2",
+        externalId = Some("testNode2"),
+        parentExternalId = Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
+      AssetCreate(
+        "testNode3",
+        externalId = Some("testNode3"),
+        parentExternalId = Some("testRootNode1")),
+      AssetCreate(
+        "testNode4",
+        externalId = Some("testNode4"),
+        parentExternalId = Some("testRootNode2")),
+      AssetCreate(
+        "testNode5",
+        externalId = Some("testNode5"),
+        parentExternalId = Some("testNode4")),
+      AssetCreate(
+        "testNode6",
+        externalId = Some("testNode6"),
+        parentExternalId = Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
+      AssetCreate(
+        "testNode7",
+        externalId = Some("testNode7"),
+        parentExternalId = Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds2"))
+    )
+
+    val ex = intercept[Exception] { ingest(key, tree) }
+    ex shouldBe an[InvalidNodeReferenceException]
+    ex.getMessage shouldBe s"Parents 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds$key', 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds2$key' referenced from 'testNode2$key', 'testNode7$key' do not exist."
+  }
+
   it should "fail when subtree is updated into being root" in {
     val key = shortRandomString()
 
@@ -679,8 +729,8 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     //                                       path0
     //                                         |
     //                                       path1
-    //                                         |
-    //                                       path2*
+    //                                     /   |
+    //                              path2b   path2*
     //                                         |
     //                                       path3
 
@@ -697,6 +747,11 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
           externalId = Some("path2"),
           parentExternalId = Some("path1")),
         AssetCreate(
+          "path2b-updated",
+          description = Some("desc"),
+          externalId = Some("path2b"),
+          parentExternalId = Some("path1")),
+        AssetCreate(
           "daughter-updated",
           description = Some("desc"),
           externalId = Some("daughter"),
@@ -708,7 +763,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
 
     val result = retryWhile[Array[Row]](
       spark.sql(s"select * from assets where source = '$testName$key'").collect,
-      rows => rows.map(r => r.getString(1)).count(_.endsWith("-updated")) != 4
+      rows => rows.map(r => r.getString(1)).count(_.endsWith("-updated")) != 5
     )
 
     val extIdMap = getAssetsMap(result)
@@ -716,9 +771,10 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     assert(extIdMap(Some(s"daughter$key")).description.contains("desc"))
     assert(extIdMap(Some(s"dad$key")).description.contains("desc"))
     assert(extIdMap(Some(s"path2$key")).description.contains("desc"))
+    assert(extIdMap(Some(s"path2b$key")).description.contains("desc"))
 
     getNumberOfRowsUpdated(metricsPrefix, "assethierarchy") shouldBe 4
-    getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe sourceTree.length
+    getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe (sourceTree.length + 1)
 
     cleanDB(key)
   }

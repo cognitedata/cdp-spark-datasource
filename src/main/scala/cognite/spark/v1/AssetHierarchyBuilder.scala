@@ -124,13 +124,14 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     } else {
       // The API calls throw exception when any of the ids do not exist
       client.assets
-        .retrieveByExternalIds(ids)
+        .retrieveByExternalIds(ids.distinct)
         .adaptError({
           case e: CdpApiException if e.code == 400 && e.missing.nonEmpty =>
             val missingNodes = e.missing.get.map(j => j("externalId").get.asString.get).take(10)
             val referencingNodes =
               missingNodes
-                .flatMap(missing => roots.find(_.parentExternalId == missing))
+              // always take the one with "lowest" externalId, so the error are deterministic
+                .map(missing => roots.filter(_.parentExternalId == missing).minBy(_.externalId))
                 .map(_.externalId)
             InvalidNodeReferenceException(missingNodes, referencingNodes)
         }) *> IO.unit
