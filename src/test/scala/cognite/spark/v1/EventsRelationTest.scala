@@ -113,9 +113,13 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val df = getBaseReader(true, metricsPrefix)
       .where(s"type = 'NEWS' or subtype = 'HACK'")
 
-    assert(df.count == 1029)
+    val fetchedItems = df.collect()
+    // check that there are actually some items that satisfy both filters
+    assert(fetchedItems.exists(r => r.getAs[String]("type") == "NEWS" && r.getAs[String]("subtype") == "HACK"))
+    assert(fetchedItems.map(_.getAs[Long]("id")).distinct.length == fetchedItems.length)
+
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 1029)
+    assert(eventsRead == fetchedItems.length)
   }
 
   it should "apply multiple pushdown filters" taggedAs WriteTest in {

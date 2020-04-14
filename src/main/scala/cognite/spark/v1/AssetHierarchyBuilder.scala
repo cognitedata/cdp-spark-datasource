@@ -130,7 +130,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
             val missingNodes = e.missing.get.map(j => j("externalId").get.asString.get).take(10)
             val referencingNodes =
               missingNodes
-              // always take the one with "lowest" externalId, so the error are deterministic
+              // always take the one with "lowest" externalId, so the errors are deterministic
                 .map(missing => roots.filter(_.parentExternalId == missing).minBy(_.externalId))
                 .map(_.externalId)
             InvalidNodeReferenceException(missingNodes, referencingNodes)
