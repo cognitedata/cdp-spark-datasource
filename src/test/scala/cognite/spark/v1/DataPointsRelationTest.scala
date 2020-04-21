@@ -584,6 +584,78 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     enableSparkLogging()
   }
 
+  it should "fail reasonably when datapoint externalId has invalid type (save)" taggedAs WriteTest in {
+    disableSparkLogging()
+    val exception = intercept[SparkException] {
+      spark
+        .sql(
+          s"""
+             |select cast(1 as long) as id,
+             |1 as externalId,
+             |to_timestamp(1509500001) as timestamp,
+             |cast(1 as double) as value,
+             |null as aggregation,
+             |null as granularity
+        """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "datapoints")
+        .option("onconflict", "upsert")
+        .save
+    }
+    exception.getMessage should include ("Column 'externalId' was expected to have type String, but value '1' of type Int was found (on row with externalId='1')")
+    enableSparkLogging()
+  }
+
+  it should "fail reasonably when datapoint value has invalid type (save)" taggedAs WriteTest in {
+    disableSparkLogging()
+    val exception = intercept[SparkException] {
+      spark
+        .sql(
+          s"""
+             |select 1 as id,
+             |to_timestamp(1509500001) as timestamp,
+             |'non-numeric value' as value,
+             |null as aggregation,
+             |null as granularity
+      """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "datapoints")
+        .option("onconflict", "upsert")
+        .save
+    }
+    exception.getMessage should include ("Column 'value' was expected to have type Double, but value 'non-numeric value' of type String was found (on row with id='1')")
+    enableSparkLogging()
+  }
+
+  it should "fail reasonably when datapoint timestamp has invalid type (save)" taggedAs WriteTest in {
+    disableSparkLogging()
+    val exception = intercept[SparkException] {
+      spark
+        .sql(
+          s"""
+             |select 1 as id,
+             |1509500001 as timestamp,
+             |1 as value,
+             |null as aggregation,
+             |null as granularity
+      """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "datapoints")
+        .option("onconflict", "upsert")
+        .save
+    }
+    exception.getMessage should include ("Column 'timestamp' was expected to have type Timestamp, but value '1509500001' of type Int was found (on row with id='1')")
+    enableSparkLogging()
+  }
+
+  //  it should "fail reasonably "
+
   it should "be possible to create data points for several time series at the same time" taggedAs WriteTest in {
     val tsName1 = s"dps-insert1-${shortRandomString()}"
     val tsName2 = s"dps-insert2-${shortRandomString()}"
@@ -639,7 +711,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
            |select $id1 as id,
            |'this-should-be-ignored' as externalId,
            |to_timestamp(1509500001) as timestamp,
-           |double(1.0) as value,
+           |1.0 as value,
            |null as aggregation,
            |null as granularity
       """.stripMargin)
@@ -649,7 +721,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
              |select $id2 as id,
              |'this-should-be-ignored' as externalId,
              |to_timestamp(1509500001) as timestamp,
-             |double(9.0) as value,
+             |9.0 as value,
              |null as aggregation,
              |null as granularity
       """.stripMargin))
@@ -659,7 +731,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
              |select null as id,
              |'$tsName1' as externalId,
              |to_timestamp(1509900001) as timestamp,
-             |double(9.0) as value,
+             |9.0 as value,
              |null as aggregation,
              |null as granularity
       """.stripMargin))
@@ -669,7 +741,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
              |select null as id,
              |'$tsName2' as externalId,
              |to_timestamp(1509900001) as timestamp,
-             |double(1.0) as value,
+             |1.0 as value,
              |null as aggregation,
              |null as granularity
       """.stripMargin))
@@ -700,7 +772,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
                    |select 9999 as id,
                    |"" as externalId,
                    |bigint(123456789) as timestamp,
-                   |double(1) as value,
+                   |1 as value,
                    |null as aggregation,
                    |null as granularity
       """.stripMargin)
