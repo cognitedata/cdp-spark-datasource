@@ -286,6 +286,63 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     cleanDB(key)
   }
 
+  it should "fail reasonably on invalid source type" in {
+    val exception = intercept[IllegalArgumentException] {
+      spark.sql(
+        """
+          |select "test-asset-rV2yGok98VNzWMb9yWGk" as externalId,
+          |       "" as parentExternalId,
+          |       1 as source,
+          |       "my-test-asset" as name
+          |""".stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assethierarchy")
+        .save
+    }
+
+    exception.getMessage shouldBe "Column 'source' was expected to have type String, but value '1' of type Int was found (on row with externalId='test-asset-rV2yGok98VNzWMb9yWGk')."
+
+  }
+
+  it should "fail reasonably on invalid dataSetId type" in {
+    val exception = intercept[IllegalArgumentException] {
+      spark.sql(
+        """
+          |select "test-asset-MNwWje501UZ83dFA3S" as externalId,
+          |       "" as parentExternalId,
+          |       "" as dataSetId,
+          |       "my-test-asset" as name
+          |""".stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assethierarchy")
+        .save
+    }
+
+    exception.getMessage shouldBe "Column 'dataSetId' was expected to have type Long, but value '' of type String was found (on row with externalId='test-asset-MNwWje501UZ83dFA3S')."
+  }
+
+  it should "fail with hint on parentExternalId=NULL" in {
+    val exception = intercept[IllegalArgumentException] {
+      spark.sql(
+        """
+          |select "test-asset-55UbfFlTh2I95usWl7gnok" as externalId,
+          |       NULL as parentExternalId,
+          |       "my-test-asset" as name
+          |""".stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assethierarchy")
+        .save
+    }
+
+    exception.getMessage shouldBe "Column 'parentExternalId' was expected to have type String, but NULL was found (on row with externalId='test-asset-55UbfFlTh2I95usWl7gnok'). To mark the node as root, please use an empty string ('')."
+  }
+
   it should "ingest an asset tree" in {
     val key = shortRandomString()
 
