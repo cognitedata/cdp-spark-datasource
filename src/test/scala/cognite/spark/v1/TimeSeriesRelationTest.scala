@@ -15,6 +15,8 @@ import io.scalaland.chimney.dsl._
 import scala.util.Try
 
 class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with OptionValues {
+  import spark.implicits._
+
   val sourceDf = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", readApiKey)
@@ -710,6 +712,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     val upsertDescription = s"spark-upsert-test-savemode-${shortRandomString()}"
     val upsertUnit = s"upsert-save-${shortRandomString()}"
 
+    val metricsPrefix = "timeserie.test.upsert.save"
+
     // Clean up any old test data
     cleanUpTimeSeriesTestDataByUnit(upsertUnit)
     val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
@@ -719,28 +723,35 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
 
     // Insert new time series test data
     val randomSuffix = shortRandomString()
+    val defaultInsertTs = TimeSeriesUpsertSchema(
+      None,
+      None,
+      None,
+      Some(Map("foo" -> null, "bar" -> "test")), // scalastyle:off null
+      Some(upsertUnit),
+      None,
+      Some(insertDescription),
+      Some(Seq()),
+      isStep = Some(false),
+      isString = Some(false))
+    val insertData = Seq(
+      defaultInsertTs.copy(name = Some("TEST_A")),
+      defaultInsertTs.copy(name = Some("TEST_B"), isStep = Some(true)),
+      defaultInsertTs.copy(name = Some("TEST_C"), isString = Some(true)),
+      defaultInsertTs.copy(name = Some("TEST_D"), metadata = None),
+      defaultInsertTs.copy(name = Some("TEST_E"))
+    ).map(x => x.copy(externalId = Some(x.name.get + "_upsert_savemode_" + randomSuffix)))
     spark
-      .sql(s"""
-              |select '$insertDescription' as description,
-              |isString,
-              |concat('TEST_', name) as name,
-              |map("foo", null, "bar", "test") as metadata,
-              |'$upsertUnit' as unit,
-              |NULL as assetId,
-              |isStep,
-              |cast(array() as array<long>) as securityCategories,
-              |id,
-              |concat(string(id), "_upsert_savemode_$randomSuffix") as externalId,
-              |createdTime,
-              |lastUpdatedTime
-              |from sourceTimeSeries
-              |limit 5
-     """.stripMargin)
+      .sparkContext.parallelize(insertData).toDF()
       .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "timeseries")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save()
+
+    assert(getNumberOfRowsCreated(metricsPrefix, "timeseries") == 5)
 
     val dfWithDescriptionInsertTest = retryWhile[Array[Row]](
       spark.sql(s"select * from destinationTimeSeries where description = '$insertDescription'").collect,
@@ -750,40 +761,27 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
 
     // Test upserts
     val existingTimeSeriesDf =
-      spark.sql(s"""
-              |select '$upsertDescription' as description,
-              |isString,
-              |name,
-              |metadata,
-              |'${upsertUnit + "-ex"}' as unit,
-              |assetId,
-              |securityCategories,
-              |id,
-              |string(id)+"_upsert_savemode_$randomSuffix" as externalId,
-              |createdTime,
-              |lastUpdatedTime
-              |from destinationTimeSeries
-              |where unit = '$upsertUnit'
-     """.stripMargin)
+      spark.sparkContext.parallelize(
+        insertData.map(ts =>
+          ts.copy(
+            description = Some(upsertDescription),
+            unit = Some(upsertUnit + "-ex")
+          )
+        )
+      ).toDF()
 
     val nonExistingTimeSeriesDf =
-      spark.sql(
-        s"""
-           |select '$upsertDescription' as description,
-           |isString,
-           |'test-upserts' as name,
-           |map("foo", null, "bar", "test") as metadata,
-           |'${upsertUnit + "-non"}' as unit,
-           |assetId,
-           |securityCategories,
-           |null as id,
-           |null as externalId,
-           |createdTime,
-           |lastUpdatedTime
-           |from destinationTimeSeries
-           |where unit = '$upsertUnit'
-     """.stripMargin)
-        .cache()
+      spark.sparkContext.parallelize(
+        insertData.map(ts =>
+          ts.copy(
+            description = Some(upsertDescription),
+            name = Some("test-upserts"),
+            unit = Some(upsertUnit + "-non"),
+            externalId = None,
+            id = None
+          )
+        )
+      ).toDF()
 
     existingTimeSeriesDf
       .union(nonExistingTimeSeriesDf)
@@ -792,7 +790,12 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
       .option("apiKey", writeApiKey)
       .option("type", "timeseries")
       .option("onconflict", "upsert")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save()
+
+    assert(getNumberOfRowsCreated(metricsPrefix, "timeseries") == 10)
+    assert(getNumberOfRowsUpdated(metricsPrefix, "timeseries") == 5)
 
     val dfWithDescriptionUpsertTest = retryWhile[Array[Row]](
       spark.sql(s"select * from destinationTimeSeries where description = '$upsertDescription'").collect,
@@ -805,7 +808,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     // Attempting to upsert (insert in this case) multiple time series
     // with the same name should be an error when useLegacyName is true.
     disableSparkLogging()
-    val exception = the [SparkException] thrownBy nonExistingTimeSeriesDf
+    val exception = the[SparkException] thrownBy nonExistingTimeSeriesDf
       .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -854,6 +857,8 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
       .option("type", "timeseries")
       .option("onconflict", "upsert")
       .option("useLegacyName", "true")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
       .save()
 
     for (legacyName <- legacyNamesToCreate) {

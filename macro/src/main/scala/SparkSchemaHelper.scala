@@ -87,23 +87,23 @@ class SparkSchemaHelperImpl(val c: Context) {
           if (rowType <:< typeOf[Double]) {
             // do implicit conversion to double
             q"""($value match {
-             case x:Double => Some(x)
-             case x:Int => Some(x: Double)
-             case x:Long => Some(x: Double)
-             case x:BigDecimal => Some(x.toDouble)
-             case x:BigInt => Some(x.toDouble)
+             case x: Double => Some(x)
+             case x: Int => Some(x: Double)
+             case x: Long => Some(x: Double)
+             case x: BigDecimal => Some(x.toDouble)
+             case x: BigInt => Some(x.toDouble)
              case _ => $throwError
            })"""
           } else if (rowType <:< typeOf[Long]) {
             q"""($value match {
-             case x:Long => Some(x)
-             case x:Int => Some(x: Long)
+             case x: Long => Some(x)
+             case x: Int => Some(x: Long)
              case _ => $throwError
            })"""
           } else if (rowType <:< typeOf[java.time.Instant]) {
             q"""($value match {
-             case x:java.time.Instant => Some(x)
-             case x:java.sql.Timestamp => Some(x.toInstant())
+             case x: java.time.Instant => Some(x)
+             case x: java.sql.Timestamp => Some(x.toInstant())
              case _ => $throwError
            })"""
           } else {

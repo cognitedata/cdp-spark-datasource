@@ -391,14 +391,15 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .write
         .insertInto("destinationAssetsUpsert")
 
+      val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
+      assert(assetsCreated == 100)
+
       // Check if post worked
       val assetsFromTestDf = retryWhile[Array[Row]](
         spark.sql(s"select * from destinationAssetsUpsert where source = '$source' and description = 'foo'").collect,
         df => df.length != 100)
       assert(assetsFromTestDf.length == 100)
 
-      val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
-      assert(assetsCreated == 100)
 
       // Upsert assets
       spark
@@ -440,6 +441,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .write
         .insertInto("destinationAssetsUpsert")
 
+      val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
+      assert(assetsCreatedAfterUpsert == 200)
+      val assetsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "assets")
+      assert(assetsUpdatedAfterUpsert == 100)
+
       // Check if upsert worked
       val descriptionsAfterUpsert = retryWhile[Array[Row]](
         spark
@@ -449,10 +455,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         df => df.length != 200)
       assert(descriptionsAfterUpsert.length == 200)
 
-      val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
-      assert(assetsCreatedAfterUpsert == 200)
-      val assetsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "assets")
-      assert(assetsUpdatedAfterUpsert == 100)
     } finally {
       try {
         cleanupAssets(source)
