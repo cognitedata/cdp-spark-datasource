@@ -16,6 +16,7 @@ import scala.util.Random
 import cats.effect.{IO, Timer}
 import cats.implicits._
 import com.cognite.sdk.scala.v1._
+import org.scalactic.{Prettifier, source}
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
@@ -66,12 +67,12 @@ trait SparkTest {
   }
   // scalastyle:on cyclomatic.complexity
 
-  def retryWhile[A](action: => A, shouldRetry: A => Boolean): A =
+  def retryWhile[A](action: => A, shouldRetry: A => Boolean)(implicit prettifier: Prettifier, pos: source.Position): A =
     retryWithBackoff(
       IO {
         val actionValue = action
         if (shouldRetry(actionValue)) {
-          throw new TimeoutException("Retry")
+          throw new TimeoutException(s"Retry timed out at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
         }
         actionValue
       },
