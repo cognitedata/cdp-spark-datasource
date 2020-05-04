@@ -35,13 +35,13 @@ class SparkSchemaHelperImpl(val c: Context) {
     import c.universe._
     val optionType = typeOf[Option[_]]
     val optionSeq = typeOf[Seq[Option[_]]]
-    val optionMap = typeOf[Map[_, Option[_]]]
     val optionSetter = typeOf[Option[Setter[_]]]
     val optionNonNullableSetter = typeOf[Option[NonNullableSetter[_]]]
     val setterType = symbolOf[Setter.type].asClass.module
     val nonNullableSetterType = symbolOf[NonNullableSetter.type].asClass.module
     val seqAny = typeOf[Seq[Any]]
     val mapAny = typeOf[Map[Any, Any]]
+    val mapString = typeOf[Map[String, String]]
     val seqRow = typeOf[Seq[Row]]
 
     def fromRowRecurse(structType: Type, r: c.Expr[Row]): c.Tree = {
@@ -60,12 +60,16 @@ class SparkSchemaHelperImpl(val c: Context) {
           param.typeSignature
         }
         val isSequenceWithOptionalVal = innerType <:< optionSeq
-        val isMapWithOptionalVal = innerType <:< optionMap
         val isSequenceOfAny = innerType <:< seqAny
-        val isMapOfAny = innerType <:< mapAny
+        val isMapOfString = innerType <:< mapString
+        if (!isMapOfString && innerType.getClass == classOf[Map[_, _]]) {
+          throw new Exception(s"Only Map[String, String] is supported, not $innerType")
+        }
 
         val rowType = if (isSequenceWithOptionalVal) {
           seqAny
+        } else if (isMapOfString) {
+          mapAny
         } else if (isSequenceOfAny) {
           innerType.typeArgs.head match {
             case x if x =:= typeOf[String] => seqAny
@@ -74,36 +78,51 @@ class SparkSchemaHelperImpl(val c: Context) {
             case x if x =:= typeOf[Long] => seqAny
             case _ => seqRow
           }
-        } else if (isMapOfAny || isMapWithOptionalVal) {
-          mapAny
         } else {
           innerType
         }
 
         val throwError =
-          q"throw cognite.spark.v1.SparkSchemaHelper.badRowError($r, $name, ${rowType.toString}, ${structType.toString})"
+          q"throw cognite.spark.v1.SparkSchemaHelperRuntime.badRowError($r, $name, ${innerType.toString}, ${structType.toString})"
 
         def handleFieldValue(value: Tree) =
-          if (rowType <:< typeOf[Double]) {
+          if (rowType == typeOf[Double]) {
             // do implicit conversion to double
             q"""($value match {
              case x: Double => Some(x)
-             case x: Int => Some(x: Double)
-             case x: Long => Some(x: Double)
+             case x: Int => Some(x.toDouble)
+             case x: Float => Some(x.toDouble)
+             case x: Long => Some(x.toDouble)
              case x: BigDecimal => Some(x.toDouble)
              case x: BigInt => Some(x.toDouble)
              case _ => $throwError
            })"""
-          } else if (rowType <:< typeOf[Long]) {
+          } else if (rowType == typeOf[Float]) {
+            // do implicit conversion to float
+            q"""($value match {
+             case x: Double => Some(x.toFloat)
+             case x: Int => Some(x.toFloat)
+             case x: Float => Some(x)
+             case x: Long => Some(x.toFloat)
+             case x: BigDecimal => Some(x.toFloat)
+             case x: BigInt => Some(x.toFloat)
+             case _ => $throwError
+           })"""
+          } else if (rowType == typeOf[Long]) {
             q"""($value match {
              case x: Long => Some(x)
              case x: Int => Some(x: Long)
              case _ => $throwError
            })"""
-          } else if (rowType <:< typeOf[java.time.Instant]) {
+          } else if (rowType == typeOf[java.time.Instant]) {
             q"""($value match {
              case x: java.time.Instant => Some(x)
              case x: java.sql.Timestamp => Some(x.toInstant())
+             case _ => $throwError
+           })"""
+          } else if (rowType == mapAny) {
+            q"""($value match {
+             case x: scala.collection.immutable.Map[Any @unchecked, Any @unchecked] => Some(x: scala.collection.immutable.Map[Any,Any])
              case _ => $throwError
            })"""
           } else {
@@ -115,43 +134,32 @@ class SparkSchemaHelperImpl(val c: Context) {
 
         val column =
           q"""(scala.util.Try($r.getAs[Any]($name)) match {
-             case scala.util.Success(null) => None
-             case scala.util.Failure(_) => None
-             case scala.util.Success(x) => ${handleFieldValue(q"x")}
+             case scala.util.Success(null) => None: Option[$rowType]
+             case scala.util.Failure(_) => None: Option[$rowType]
+             case scala.util.Success(x) => (${handleFieldValue(q"x")}): Option[$rowType]
            })"""
-        val baseExpr =
-          if (isOptionSetter) {
-            q"$setterType.optionToSetter[$rowType].transform($column)"
-          } else if (isOptionNonNullableSetter) {
-            q"$nonNullableSetterType.optionToNonNullableSetter[$rowType].transform($column)"
-          } else if (isOuterOption) {
-            column
+
+        val mappedColumn =
+          if (isMapOfString) {
+            q"$column.map(cognite.spark.v1.SparkSchemaHelperRuntime.checkMetadataMap(_, $row))"
+          } else if (isSequenceWithOptionalVal) {
+            q"$column.map(_.map(Option(_)))"
+          } else if (rowType <:< seqRow) {
+            val x = innerType.typeArgs.head
+            q"$column.map(x => x.map(y => ${fromRowRecurse(x, c.Expr[Row](q"y"))}))"
           } else {
-            q"""$column.getOrElse($throwError)"""
+            column
           }
 
         val resExpr =
-          if (isMapWithOptionalVal) {
-            if (isOuterOption) {
-              q"$baseExpr.map(_.mapValues(Option(_)))"
-            } else {
-              q"$baseExpr.mapValues(Option(_))"
-            }
-          } else if (isSequenceWithOptionalVal) {
-            if (isOuterOption) {
-              q"$baseExpr.map(_.map(Option(_)))"
-            } else {
-              q"$baseExpr.map(Option(_))"
-            }
-          } else if (rowType <:< seqRow) {
-            val x = innerType.typeArgs.head
-            if (isOuterOption) {
-              q"$baseExpr.map(x => x.map(y => ${fromRowRecurse(x, c.Expr[Row](q"y"))}))"
-            } else {
-              q"$baseExpr.map(y => ${fromRowRecurse(x, c.Expr[Row](q"y"))})"
-            }
+          if (isOptionSetter) {
+            q"$setterType.optionToSetter[$rowType].transform($mappedColumn)"
+          } else if (isOptionNonNullableSetter) {
+            q"$nonNullableSetterType.optionToNonNullableSetter[$rowType].transform($mappedColumn)"
+          } else if (isOuterOption) {
+            mappedColumn
           } else {
-            baseExpr
+            q"""$mappedColumn.getOrElse($throwError)"""
           }
 
         q"$resExpr.asInstanceOf[${param.typeSignature}]"
@@ -169,47 +177,4 @@ object SparkSchemaHelper {
 
   def asRow[T](x: T): Row = macro SparkSchemaHelperImpl.asRow[T]
   def fromRow[T](row: Row): T = macro SparkSchemaHelperImpl.fromRow[T]
-
-  private def simplifyTypeName(name: String) =
-    name match {
-      case "java.time.Instant" => "Timestamp"
-      case "java.lang.Integer" => "Int"
-      case "java.lang.Long" => "Long"
-      case "java.lang.Double" => "Double"
-      case "java.lang.String" => "String"
-      case x => x
-    }
-
-  def badRowError(row: Row, name: String, typeName: String, rowType: String): Throwable = {
-    val columns = row.schema.fieldNames
-    Try(row.getAs[Any](name)) match {
-      case Failure(error) =>
-        new IllegalArgumentException(
-          s"Required column '$name' is missing on row [${columns.mkString(", ")}].")
-      case Success(value) =>
-        val rowIdentifier =
-          if (columns.contains("externalId")) {
-            s"with externalId='${row.getAs[Any]("externalId")}'"
-          } else if (columns.contains("id")) {
-            s"with id='${row.getAs[Any]("id")}'"
-          } else if (columns.contains("name")) {
-            s"with name='${row.getAs[Any]("name")}'"
-          } else {
-            row.toString
-          }
-
-        val hint = if (rowType == "cognite.spark.v1.AssetsIngestSchema" && name == "parentExternalId" && value == null) {
-          " To mark the node as root, please use an empty string ('')."
-        } else {
-          ""
-        }
-
-        // this function is invoked only in case of an error -> we have some type issues
-        val valueString =
-          if (value == null) { "NULL" } else { s"value '$value' of type ${simplifyTypeName(value.getClass.getName)}" }
-        new IllegalArgumentException(
-          s"Column '$name' was expected to have type ${simplifyTypeName(typeName)}, but $valueString was found (on row $rowIdentifier).$hint")
-    }
-
-  }
 }

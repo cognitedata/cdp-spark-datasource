@@ -604,7 +604,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("onconflict", "upsert")
         .save
     }
-    exception.getMessage should include ("Column 'externalId' was expected to have type String, but value '1' of type Int was found (on row with externalId='1')")
+    exception.getMessage should include ("Column 'externalId' was expected to have type String, but '1' of type Int was found (on row with externalId='1')")
     enableSparkLogging()
   }
 
@@ -627,7 +627,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("onconflict", "upsert")
         .save
     }
-    exception.getMessage should include ("Column 'value' was expected to have type Double, but value 'non-numeric value' of type String was found (on row with id='1')")
+    exception.getMessage should include ("Column 'value' was expected to have type Double, but 'non-numeric value' of type String was found (on row with id='1')")
     enableSparkLogging()
   }
 
@@ -650,7 +650,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("onconflict", "upsert")
         .save
     }
-    exception.getMessage should include ("Column 'timestamp' was expected to have type Timestamp, but value '1509500001' of type Int was found (on row with id='1')")
+    exception.getMessage should include ("Column 'timestamp' was expected to have type Timestamp, but '1509500001' of type Int was found (on row with id='1')")
     enableSparkLogging()
   }
 

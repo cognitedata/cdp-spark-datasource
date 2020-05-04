@@ -55,7 +55,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
-    val assets = fromRowWithFilteredMetadata(rows)
+    val assets = rows.map(fromRow[AssetCreate](_))
     client.assets
       .create(assets)
       .flatTap(_ => incMetrics(itemsCreated, assets.size)) *> IO.unit
@@ -78,10 +78,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val assets = rows.map { r =>
-      val asset = fromRow[AssetsUpsertSchema](r)
-      asset.copy(metadata = filterMetadata(asset.metadata))
-    }
+    val assets = rows.map(fromRow[AssetsUpsertSchema](_))
     val (itemsToUpdate, itemsToUpdateOrCreate) =
       assets.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.externalId.nonEmpty))
 
@@ -96,14 +93,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client.assets)
   }
 
-  private def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[AssetCreate] =
-    rows.map { r =>
-      val asset = fromRow[AssetCreate](r)
-      asset.copy(metadata = filterMetadata(asset.metadata))
-    }
-
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
-    val assets = fromRowWithFilteredMetadata(rows)
+    val assets = rows.map(fromRow[AssetCreate](_))
     createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, Assets[IO]](
       Set.empty,
       assets,
