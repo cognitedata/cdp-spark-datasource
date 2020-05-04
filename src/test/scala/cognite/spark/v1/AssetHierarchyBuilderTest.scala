@@ -302,7 +302,27 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
         .save
     }
 
-    exception.getMessage shouldBe "Column 'source' was expected to have type String, but value '1' of type Int was found (on row with externalId='test-asset-rV2yGok98VNzWMb9yWGk')."
+    exception.getMessage shouldBe "Column 'source' was expected to have type String, but '1' of type Int was found (on row with externalId='test-asset-rV2yGok98VNzWMb9yWGk')."
+
+  }
+
+  it should "fail reasonably on NULLs" in {
+    val exception = intercept[IllegalArgumentException] {
+      spark.sql(
+        """
+          |select "test-asset-rV2yGok98VNzWMb9yWGk" as externalId,
+          |       "" as parentExternalId,
+          |       1 as source,
+          |       "my-test-asset" as name
+          |""".stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "assethierarchy")
+        .save
+    }
+
+    exception.getMessage shouldBe "Column 'source' was expected to have type String, but '1' of type Int was found (on row with externalId='test-asset-rV2yGok98VNzWMb9yWGk')."
 
   }
 
@@ -322,7 +342,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
         .save
     }
 
-    exception.getMessage shouldBe "Column 'dataSetId' was expected to have type Long, but value '' of type String was found (on row with externalId='test-asset-MNwWje501UZ83dFA3S')."
+    exception.getMessage shouldBe "Column 'dataSetId' was expected to have type Long, but '' of type String was found (on row with externalId='test-asset-MNwWje501UZ83dFA3S')."
   }
 
   it should "fail with hint on parentExternalId=NULL" in {
@@ -372,6 +392,31 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
     assert(extIdMap(Some(s"daughter$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
     assert(extIdMap(Some(s"daughterSon$key")).parentId.contains(extIdMap(Some(s"daughter$key")).id))
     assert(extIdMap(Some(s"dad$key")).dataSetId == ds)
+    cleanDB(key)
+  }
+
+
+  it should "ignore on nulls in metadata" in {
+    val key = shortRandomString()
+
+    val nullString: String = null
+    ingest(
+      key,
+      Seq(
+        AssetCreate("dad", None, None, None, Some("dad"), Some(Map("foo" -> nullString, "bar" -> "a")), Some(""))
+      )
+    )
+
+    val result = retryWhile[Array[Row]](
+      spark
+        .sql(s"select * from assets where source = '$testName$key'")
+        .collect,
+      rows => rows.map(r => r.getAs[String]("externalId")).toSet != Set(s"dad$key")
+    )
+
+    val ingestedNode = fromRow[AssetsReadSchema](result.head)
+    ingestedNode.metadata shouldBe Some(Map("bar" -> "a"))
+
     cleanDB(key)
   }
 

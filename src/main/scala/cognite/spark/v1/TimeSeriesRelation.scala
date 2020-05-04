@@ -41,10 +41,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val timeSeries = rows.map { r =>
-      val ts = fromRow[TimeSeriesUpsertSchema](r)
-      ts.copy(metadata = filterMetadata(ts.metadata))
-    }
+    val timeSeries = rows.map(fromRow[TimeSeriesUpsertSchema](_))
     val (itemsToUpdate, itemsToCreate) = timeSeries.partition(r => r.id.exists(_ > 0))
 
     // scalastyle:off no.whitespace.after.left.bracket
@@ -78,12 +75,11 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val timeSeriesSeq = rows.map { r =>
       val timeSeries = fromRow[TimeSeriesCreate](r)
-      val timeSeriesWithMetadata = timeSeries.copy(metadata = filterMetadata(timeSeries.metadata))
       config.legacyNameSource match {
-        case LegacyNameSource.None => timeSeriesWithMetadata
-        case LegacyNameSource.Name => timeSeriesWithMetadata.copy(legacyName = timeSeries.name)
+        case LegacyNameSource.None => timeSeries
+        case LegacyNameSource.Name => timeSeries.copy(legacyName = timeSeries.name)
         case LegacyNameSource.ExternalId =>
-          timeSeriesWithMetadata.copy(legacyName = timeSeries.externalId)
+          timeSeries.copy(legacyName = timeSeries.externalId)
       }
     }
 

@@ -14,10 +14,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with InsertableRelation {
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
-    val files = rows.map { r =>
-      val file = fromRow[File](r)
-      file.copy(metadata = CdpConnector.filterMetadata(file.metadata))
-    }
+    val files = rows.map(fromRow[File](_))
     client.files.updateFromRead(files) *> IO.unit
   }
 
