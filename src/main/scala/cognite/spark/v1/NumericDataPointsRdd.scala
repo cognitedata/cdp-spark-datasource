@@ -212,7 +212,11 @@ final case class NumericDataPointsRdd(
         }
     }
 
-  private def queryById(idOrExternalId: Either[Long, String], start: Instant, end: Instant, limit: Int) =
+  private def queryDatapointsById(
+      idOrExternalId: Either[Long, String],
+      start: Instant,
+      end: Instant,
+      limit: Int) =
     idOrExternalId match {
       case Left(id) =>
         client.dataPoints
@@ -222,6 +226,7 @@ final case class NumericDataPointsRdd(
             end,
             limit = Some(limit)
           )
+          .map(_.datapoints)
       case Right(externalId) =>
         client.dataPoints
           .queryByExternalId(
@@ -230,6 +235,7 @@ final case class NumericDataPointsRdd(
             end,
             limit = Some(limit)
           )
+          .map(_.datapoints)
     }
 
   private def getFirstAndLastConcurrentlyById(
@@ -237,8 +243,8 @@ final case class NumericDataPointsRdd(
       start: Instant,
       end: Instant): IO[Vector[(Either[Long, String], Option[Instant], Option[Instant])]] = {
     val firsts = idOrExternalIds.map { id =>
-      queryById(id, start, end.max(start.plusMillis(1)), 1)
-        .map(response => id -> response.datapoints.headOption)
+      queryDatapointsById(id, start, end.max(start.plusMillis(1)), 1)
+        .map(datapoints => id -> datapoints.headOption)
     }.parSequence
     val ids = idOrExternalIds.flatMap(_.left.toOption)
     val externalIds = idOrExternalIds.flatMap(_.right.toOption)
@@ -404,12 +410,15 @@ final case class NumericDataPointsRdd(
       nPointsRemaining: Option[Int]) = {
     val responses = id match {
       case CogniteInternalId(internalId) =>
-        client.dataPoints.queryById(internalId, lowerLimit, upperLimit, nPointsRemaining)
+        client.dataPoints
+          .queryById(internalId, lowerLimit, upperLimit, nPointsRemaining)
+          .map(_.datapoints)
       case CogniteExternalId(externalId) =>
-        client.dataPoints.queryByExternalId(externalId, lowerLimit, upperLimit, nPointsRemaining)
+        client.dataPoints
+          .queryByExternalId(externalId, lowerLimit, upperLimit, nPointsRemaining)
+          .map(_.datapoints)
     }
-    responses.map { response =>
-      val dataPoints = response.datapoints
+    responses.map { dataPoints =>
       val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
       (lastTimestamp, dataPoints)
     }
@@ -418,14 +427,14 @@ final case class NumericDataPointsRdd(
   private def queryDataPointsRange(dataPointsRange: DataPointsRange, limit: Option[Int] = None) = {
     val points = dataPointsRange.count match {
       case Some(_) =>
-        queryById(
+        queryDatapointsById(
           dataPointsRange.id,
           dataPointsRange.start,
           dataPointsRange.end,
           limit.getOrElse(100000))
-          .map { response =>
-            increaseReadMetrics(response.datapoints.length)
-            response.datapoints.map(p => dataPointToRow(dataPointsRange.id, p))
+          .map { datapoints =>
+            increaseReadMetrics(datapoints.length)
+            datapoints.map(p => dataPointToRow(dataPointsRange.id, p))
           }
       case None =>
         // Page through this range since we don't know how many points it contains.
