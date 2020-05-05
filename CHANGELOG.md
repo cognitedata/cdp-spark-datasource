@@ -1,3 +1,15 @@
+# 1.2.20
+
+## Enhancements
+
+* Improved error message when a column has a incorrect type
+
+## Fixes
+
+* Filter pushdown can now handle null values in cases like `p in (NULL, 1, 2)`.
+* Asset hierarchy now handles duplicated root parentExternalId.
+* NULL fields in metadata are ignored for all resource types.
+
 # 1.2.19
 
 ## Enhancements
