@@ -15,7 +15,7 @@ private[spark] object SparkSchemaHelperRuntime {
       case x => x
     }
 
-  private def rowIdentifier(row: Row) = {
+  def rowIdentifier(row: Row): String = {
     val columns = row.schema.fieldNames
     if (columns.contains("externalId")) {
       s"with externalId='${row.getAs[Any]("externalId")}'"

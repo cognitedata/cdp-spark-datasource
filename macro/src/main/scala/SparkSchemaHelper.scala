@@ -12,17 +12,33 @@ class SparkSchemaHelperImpl(val c: Context) {
   def asRow[T: c.WeakTypeTag](x: c.Expr[T]): c.Expr[Row] = {
     import c.universe._
 
+    val seqAny = typeOf[Seq[Any]]
+    // says if the type can be handled by Spark on itself or we should "help" by recursively applying the asRow macro
+    def isPrimitive(t: c.Type): Boolean = {
+      if (t <:< seqAny) {
+        isPrimitive(t.typeArgs.head)
+      } else {
+        val fullName = t.typeSymbol.fullName
+        fullName.startsWith("scala.") || fullName.startsWith("java.")
+      }
+    }
+
     val constructor = weakTypeOf[T].decl(termNames.CONSTRUCTOR).asMethod
     val params = constructor.paramLists.flatten
       .map(param => {
         val baseExpr = q"$x.${param.name.toTermName}"
         def toSqlTimestamp(expr: c.Tree) = q"java.sql.Timestamp.from($expr)"
-        if (param.typeSignature <:< weakTypeOf[java.time.Instant]) {
+        val valueType = param.typeSignature
+        if (valueType <:< weakTypeOf[java.time.Instant]) {
           q"${toSqlTimestamp(baseExpr)}"
-        } else if (param.typeSignature <:< weakTypeOf[Option[java.time.Instant]]) {
+        } else if (valueType <:< weakTypeOf[Option[java.time.Instant]]) {
           q"$baseExpr.map(a => ${toSqlTimestamp(q"a")})"
-        } else {
+        } else if (isPrimitive(valueType)) {
           q"$baseExpr"
+        } else if (valueType <:< typeOf[Seq[Any]]) {
+          q"$baseExpr.map(a => cognite.spark.v1.SparkSchemaHelper.asRow(a))"
+        } else {
+          q"cognite.spark.v1.SparkSchemaHelper.asRow($baseExpr)"
         }
       })
 
