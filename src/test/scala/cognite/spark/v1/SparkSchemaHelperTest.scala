@@ -70,12 +70,14 @@ class SparkSchemaHelperTest extends FlatSpec with Matchers {
   }
 
   "SparkSchemaHelper asRow" should "construct Row from type" in {
-    asRow(TestTypeBasic(1, 2, 3, 4, Map("foo" -> "bar"), 5, Seq(10), "foo")) should
+    val x = TestTypeBasic(1, 2, 3, 4, Map("foo" -> "bar"), 5, Seq(10), "foo")
+    asRow(x) should
       be(Row(1, 2.toDouble, 3.toByte, 4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"))
   }
 
   it should "construct Row from optional map type" in {
-    asRow(TestTypeOption(None, None, None, None, Some(Map("foo" -> "row", "bar" -> "a")), None, None, None)) should
+    val x = TestTypeOption(None, None, None, None, Some(Map("foo" -> "row", "bar" -> "a")), None, None, None)
+    asRow(x) should
       be(Row(None, None, None, None, Some(Map("foo" -> "row", "bar" -> "a")), None, None, None))
   }
 

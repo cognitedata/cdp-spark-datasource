@@ -126,6 +126,8 @@ class DefaultSource
         val revisionId =
           parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
         new ThreeDModelRevisionNodesRelation(config, modelId, revisionId)(sqlContext)
+      case "sequences" =>
+        new SequencesRelation(config)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -155,6 +157,8 @@ class DefaultSource
           new StringDataPointsRelationV1(config)(sqlContext)
         case "files" =>
           new FilesRelation(config)(sqlContext)
+        case "sequences" =>
+          new SequencesRelation(config)(sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSize = relation match {
