@@ -153,6 +153,8 @@ class DefaultSource
           new NumericDataPointsRelationV1(config)(sqlContext)
         case "stringdatapoints" =>
           new StringDataPointsRelationV1(config)(sqlContext)
+        case "files" =>
+          new FilesRelation(config)(sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSize = relation match {
