@@ -846,7 +846,7 @@ To **skip the read/write tests in assembly**, add `test in assembly := {}` to bu
 To download the spark data source, simply add the maven coordinates for the package using the
 `--packages` flag.
 
-Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following commands (replace <release> with the release you'd like, for example 1.2.0):
+Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following commands (replace \<release\> with the release you'd like, for example 1.2.0):
 
 ``` cmd
 $> spark-shell --packages com.cognite.spark.datasource:cdf-spark-datasource_2.11:<latest-release>
