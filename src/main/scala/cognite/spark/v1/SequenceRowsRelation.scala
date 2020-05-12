@@ -66,19 +66,31 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, ProjectedSequenceRow]] =
     filters.toVector.map { filter =>
+      val requestedColumns =
+        if (expectedColumns.isEmpty) {
+          // when no columns are needed, the API does not like it, so we have to request something
+          // prefer non-string columns since they can't contain too much data
+          Array(
+            sequenceInfo.columns
+              .find(_.valueType != "STRING")
+              .getOrElse(sequenceInfo.columns.head)
+              .externalId
+          )
+        } else {
+          expectedColumns
+        }
       val projectedRows =
-        query(filter, limit, Some(expectedColumns), client)
+        query(filter, limit, Some(requestedColumns), client)
           .map {
-            case (columns, rows) =>
+            case (_, rows) =>
               rows.map { r =>
-                val values = r.values
-                  .zip(expectedColumns)
+                val values = expectedColumns
+                  .zip(r.values)
                   .map {
-                    case (value, column) =>
+                    case (column, value) =>
                       parseJsonValue(value, columnTypes(column))
                         .getOrElse(throw new Exception(s"Unexpected value $value in column $column"))
                   }
-                  .toArray
                 ProjectedSequenceRow(r.rowNumber, values)
               }
           }
@@ -280,11 +292,15 @@ object SequenceRowsRelation {
       .collect { case (filter, count) if count == 2 => filter }
 
   def parseJsonValue(v: Json, columnType: String): Option[Any] =
-    columnType match {
-      case "STRING" => v.asString
-      case "DOUBLE" => v.asNumber.map(_.toDouble)
-      case "LONG" => v.asNumber.flatMap(_.toLong)
-      case a => throw new Exception(s"Unknown column type $a")
+    if (v.isNull) {
+      Some(null)
+    } else {
+      columnType match {
+        case "STRING" => v.asString
+        case "DOUBLE" => v.asNumber.map(_.toDouble)
+        case "LONG" => v.asNumber.flatMap(_.toLong)
+        case a => throw new Exception(s"Unknown column type $a")
+      }
     }
 
   def sequenceTypeToSparkType(columnType: String): DataType =
