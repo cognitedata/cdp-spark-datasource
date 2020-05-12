@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
-import org.apache.spark.sql.{Row}
+import io.scalaland.chimney.dsl._
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -305,6 +306,14 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
         case NonFatal(_) => // ignore
       }
     }
+  }
+
+  it should "correctly have insert < read and upsert < read schema hierarchy" in {
+    val filesInsert = FilesInsertSchema("test")
+    filesInsert.transformInto[FilesReadSchema]
+
+    val filesUpsert = FilesUpsertSchema()
+    filesUpsert.into[FilesReadSchema].withFieldComputed(_.id, eu => eu.id.getOrElse(0L))
   }
 
   def cleanupFiles(source: String): Unit =

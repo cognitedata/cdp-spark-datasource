@@ -848,7 +848,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                   |bigint(1) as id,
                   |metadata,
                   |source,
-                  |externalId,
+                  |"not-existing-id" as externalId,
                   |null as createdTime,
                   |lastUpdatedTime,
                   |null as dataSetId
