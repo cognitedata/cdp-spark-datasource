@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, BearerTokenAuth}
-import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
 import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
@@ -67,6 +67,21 @@ class DefaultSource
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation =
     createRelation(sqlContext, parameters, null) // scalastyle:off null
 
+  private def createSequenceRows(parameters: Map[String, String], config: RelationConfig, sqlContext: SQLContext) = {
+    val sequenceId =
+      parameters.get("sequenceId").map(id => CogniteInternalId(id.toInt))
+        .orElse(
+          parameters.get("sequenceExternalId").map(CogniteExternalId)
+        )
+        .getOrElse(
+          sys.error("sequenceId or sequenceExternalId option must be specified.")
+        )
+
+    new SequenceRowsRelation(
+      config,
+      sequenceId)(sqlContext)
+  }
+
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
       sqlContext: SQLContext,
@@ -102,6 +117,8 @@ class DefaultSource
           inferSchema,
           inferSchemaLimit,
           collectSchemaInferenceMetrics)(sqlContext)
+      case "sequenceRows" =>
+        createSequenceRows(parameters, config, sqlContext)
       case "assets" =>
         new AssetsRelation(config)(sqlContext)
       case "events" =>
@@ -159,6 +176,8 @@ class DefaultSource
           new FilesRelation(config)(sqlContext)
         case "sequences" =>
           new SequencesRelation(config)(sqlContext)
+        case "sequenceRows" =>
+          createSequenceRows(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSize = relation match {
