@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.{Row}
 import org.apache.spark.sql.functions.col
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -27,8 +27,6 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
     val res = spark.sqlContext
       .sql("select * from sourceFiles")
       .collect()
-    // as of 2019-02-19 there are 11 files, but more might be added in the future,
-    // which should not be allowed to break this test.
     assert(res.length == 18)
   }
 
@@ -100,45 +98,27 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "updates.files"
 
     try {
-      val destinationDf: DataFrame = spark.read
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "files")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .load()
-      destinationDf.createOrReplaceTempView("destinationFilesUpdate")
-
       spark
         .sql(s"""
                 |select "name-$source" as name,
                 |null as id,
                 |'$source' as source,
-                |'externalId-$source' as externalId,
-                |null as mimeType,
-                |null as metadata,
-                |null as assetIds,
-                |null as datasetId,
-                |null as sourceCreatedTime,
-                |null as sourceModifiedTime,
-                |null as securityCategories,
-                |null as uploaded,
-                |null as createdTime,
-                |null as lastUpdatedTime,
-                |null as uploadedTime,
-                |null as uploadUrl
+                |'externalId-$source' as externalId
      """.stripMargin)
-        .select(sourceDf.columns.map(col): _*)
         .write
-        .insertInto("destinationFilesUpdate")
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "files")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .save()
 
       val rows = retryWhile[Array[Row]](
-        spark.sql(s"""select * from destinationFilesUpdate where source = "$source"""").collect,
+        spark.sql(s"""select * from destinationFiles where source = "$source"""").collect,
         rows => rows.length < 1)
       assert(rows.length == 1)
 
-      val filesCreated = getNumberOfRowsCreated(metricsPrefix, "files")
-      assert(filesCreated == 1)
+      assert(getNumberOfRowsCreated(metricsPrefix, "files") == 1)
 
       val id = writeClient.files.retrieveByExternalId(s"externalId-$source").id
 
@@ -158,16 +138,13 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("metricsPrefix", metricsPrefix)
         .save()
 
-      val filesCreated2 = getNumberOfRowsCreated(metricsPrefix, "files")
-      assert(filesCreated2 == 1)
-      var updatedFiles = getNumberOfRowsUpdated(metricsPrefix, "files")
-      assert(updatedFiles == 1)
+      assert(getNumberOfRowsCreated(metricsPrefix, "files") == 1)
+      assert(getNumberOfRowsUpdated(metricsPrefix, "files") == 1)
 
       val updatedById =
         retryWhile[Array[Row]](
           spark
-            .sql(
-              s"select * from destinationFilesUpdate where externalId = 'updatedById-externalId-$source'")
+            .sql(s"select * from destinationFiles where externalId = 'updatedById-externalId-$source'")
             .collect,
           df => df.length < 1)
       assert(updatedById.length == 1)
@@ -187,15 +164,13 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("metricsPrefix", metricsPrefix)
         .save()
 
-      val filesCreated3 = getNumberOfRowsCreated(metricsPrefix, "files")
-      assert(filesCreated3 == 1)
-      updatedFiles = getNumberOfRowsUpdated(metricsPrefix, "files")
-      assert(updatedFiles == 2)
+      assert(getNumberOfRowsCreated(metricsPrefix, "files") == 1)
+      assert(getNumberOfRowsUpdated(metricsPrefix, "files") == 2)
 
       val updatedByExternalId =
         retryWhile[Array[Row]](
           spark
-            .sql(s"select * from destinationFilesUpdate where source = 'updatedByExternalId-$source'")
+            .sql(s"select * from destinationFiles where source = 'updatedByExternalId-$source'")
             .collect,
           df => df.length < 1)
       assert(updatedByExternalId.length == 1)
@@ -289,23 +264,13 @@ class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
                 |select "name-$source" as name,
                 |null as id,
                 |'$source' as source,
-                |'externalId-$source' as externalId,
-                |null as mimeType,
-                |null as metadata,
-                |null as assetIds,
-                |null as datasetId,
-                |null as sourceCreatedTime,
-                |null as sourceModifiedTime,
-                |null as securityCategories,
-                |null as uploaded,
-                |null as createdTime,
-                |null as lastUpdatedTime,
-                |null as uploadedTime,
-                |null as uploadUrl
+                |'externalId-$source' as externalId
      """.stripMargin)
-        .select(sourceDf.columns.map(col): _*)
         .write
-        .insertInto("destinationFiles")
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "files")
+        .save()
 
       val rows = retryWhile[Array[Row]](
         spark.sql(s"select * from destinationFiles where source = '$source'").collect,

@@ -10,7 +10,6 @@ import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import cats.implicits._
-import cognite.spark.v1.CdpConnector.filterMetadata
 import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1.resources.Files
 import fs2.Stream
@@ -21,19 +20,13 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with WritableRelation {
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
-    val files = fromRowWithFilteredMetadata(rows)
+    val files = rows.map(fromRow[FileCreate](_))
     createOrUpdateByExternalId[File, FileUpdate, FileCreate, Files[IO]](
       Set.empty,
       files,
       client.files,
       doUpsert)
   }
-
-  def fromRowWithFilteredMetadata(rows: Seq[Row]): Seq[FileCreate] =
-    rows.map { r =>
-      val file = fromRow[FileCreate](r)
-      file.copy(metadata = filterMetadata(file.metadata))
-    }
 
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
@@ -42,7 +35,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     Seq(client.files.list(limit))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
-    val files = fromRowWithFilteredMetadata(rows)
+    val files = rows.map(fromRow[FileCreate](_))
     client.files
       .create(files)
       .flatTap(_ => incMetrics(itemsCreated, files.size)) *> IO.unit
@@ -68,10 +61,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val files = rows.map { r =>
-      val file = fromRow[FilesUpsertSchema](r)
-      file.copy(metadata = filterMetadata(file.metadata))
-    }
+    val files = rows.map(fromRow[FilesUpsertSchema](_))
 
     val (itemsToUpdate, itemsToUpdateOrCreate) =
       files.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.externalId.nonEmpty))
@@ -115,7 +105,6 @@ final case class FilesUpsertSchema(
     with WithId[Option[Long]]
 
 final case class FilesInsertSchema(
-    id: Option[Long] = None,
     name: String,
     source: Option[String] = None,
     externalId: Option[String] = None,
