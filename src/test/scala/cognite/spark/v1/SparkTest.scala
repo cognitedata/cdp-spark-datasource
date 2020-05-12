@@ -26,12 +26,12 @@ trait SparkTest {
   implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-  assert(!writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
+  assert(writeApiKey != null && !writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
   implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
   val writeClient = GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
 
   val readApiKey = System.getenv("TEST_API_KEY_READ")
-  assert(!readApiKey.isEmpty, "Environment variable \"TEST_API_KEY_READ\" was not set")
+  assert(readApiKey != null && !readApiKey.isEmpty, "Environment variable \"TEST_API_KEY_READ\" was not set")
   implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
   val readClient = GenericClient.forAuth[Id]("cdp-spark-datasource-test", readApiKeyAuth)
 
