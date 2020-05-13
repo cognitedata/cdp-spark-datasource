@@ -25,24 +25,12 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client: GenericClient[IO, Nothing],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, SequenceReadSchema]] =
-    // TODO: partitions and filters!!!
+    // TODO: filters
     Seq(
       client.sequences
         .list()
-        .map(
-          s =>
-            SequenceReadSchema(
-              s.id,
-              s.name,
-              s.description,
-              s.assetId,
-              s.externalId,
-              s.metadata,
-              s.columns.toList,
-              s.createdTime,
-              s.lastUpdatedTime,
-              s.dataSetId
-          )))
+        .map(_.into[SequenceReadSchema].withFieldComputed(_.columns, _.columns.toList).transform)
+    )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val sequences = rows.map { row =>
@@ -107,6 +95,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: SequenceReadSchema): Long = a.id
 }
+
 object SequenceRelation extends UpsertSchema {
   val upsertSchema: StructType = structType[SequenceUpdateSchema]
   val insertSchema: StructType = structType[SequenceInsertSchema]

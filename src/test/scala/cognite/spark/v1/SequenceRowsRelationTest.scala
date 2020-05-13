@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import java.util.UUID
+
 import cats.data.NonEmptyList
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{Sequence, SequenceColumn, SequenceColumnCreate}
@@ -52,7 +54,6 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
   )
 
   it should "create and read rows" in withSequences(Seq(sequenceA)) { case Seq(sequenceId) =>
-
     spark.sparkContext
       .parallelize(1 to 100)
       .toDF()
@@ -62,9 +63,10 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
       sequenceId,
       spark
         .sql("select value as rowNumber, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers"))
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
     val allColumns = retryWhile[Array[Row]](
-      spark.sql(s"select * from sequenceRows_a order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_a order by rowNumber").collect,
       _.length != 100
     )
     allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
@@ -73,14 +75,27 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     allColumns(0).get(2) shouldBe "abc"
     allColumns(0).get(3) shouldBe 1.1
 
+    val sparkReadResult = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "sequencerows")
+      .option("sequenceExternalId", sequenceId)
+      .option("metricsPrefix", sequenceId)
+      .option("collectMetrics", true)
+      .load()
+      .collect
+    getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe 100
+
+    sparkReadResult should contain theSameElementsAs(allColumns)
+
     val rowNumberOnly = retryWhile[Array[Row]](
-      spark.sql(s"select rowNumber from sequenceRows_a order by rowNumber").collect,
+      spark.sql(s"select rowNumber from sequencerows_a order by rowNumber").collect,
       _.length != 100
     )
     rowNumberOnly(0).get(0) shouldBe 1L
 
     val differentOrderProjection = retryWhile[Array[Row]](
-      spark.sql(s"select num1, num2, rowNumber, str1 from sequenceRows_a order by rowNumber").collect,
+      spark.sql(s"select num1, num2, rowNumber, str1 from sequencerows_a order by rowNumber").collect,
       _.length != 100
     )
     differentOrderProjection(0).get(2) shouldBe 1L
@@ -89,11 +104,12 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     differentOrderProjection(0).get(0) shouldBe 6L
 
     val oneColumn = retryWhile[Array[Row]](
-      spark.sql(s"select num2 from sequenceRows_a order by rowNumber").collect,
+      spark.sql(s"select num2 from sequencerows_a order by rowNumber").collect,
       _.length != 100
     )
     oneColumn.map(_.get(0)) shouldBe Seq.fill(100)(1.1)
   }
+
   it should "insert NULL values" in withSequences(Seq(sequenceA)) { case Seq(sequenceId) =>
     // num1, str1, num2
     insertRows(
@@ -110,9 +126,10 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
       sequenceId,
       spark
         .sql("select 3 as rowNumber, 2 as num1, NULL as str1, NULL as num2"))
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 3
 
     val rows = retryWhile[Array[Row]](
-      spark.sql(s"select * from sequenceRows_a order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_a order by rowNumber").collect,
       _.length != 3
     )
     rows.map(_.getAs[Long]("rowNumber")) shouldBe Array(1, 2, 3)
@@ -134,10 +151,12 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
         .sql("select 1 as rowNumber, 2 as num1"))
 
     val rows = retryWhile[Array[Row]](
-      spark.sql(s"select * from sequenceRows_a order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_a order by rowNumber").collect,
       rows => rows.length != 1 || rows(0).getAs[Long]("num1") != 2
     )
-    println(rows(0))
+    rows(0).getAs[Long]("num1") shouldBe 2 // the updated value
+    rows(0).getAs[Long]("str1") shouldBe "a" // an old value is not replaced
+    rows(0).getAs[Long]("num2") shouldBe 1.0
   }
 
   it should "create and read many rows" in withSequences(Seq(sequenceB)) { case Seq(sequenceId) =>
@@ -151,9 +170,10 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
       sequenceId,
       spark
         .sql("select value as rowNumber, value * 6 as num1 from numbers"))
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe testSize
 
     val allColumns = retryWhile[Array[Row]](
-      spark.sql(s"select * from sequenceRows_b order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_b order by rowNumber").collect,
       _.length != testSize
     )
     allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1")
@@ -161,7 +181,6 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "create and delete rows" in withSequences(Seq(sequenceB)) { case Seq(sequenceId) =>
-    // exceed the page size
     spark.sparkContext
       .parallelize(1 to 100)
       .toDF()
@@ -171,11 +190,12 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
       spark
         .sql("select value as rowNumber, value * 6 as num1 from numbers"))
 
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
+
     retryWhile[Array[Row]](
-      spark.sql(s"select * from sequenceRows_b order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_b order by rowNumber").collect,
       _.length != 100
     )
-
 
     // delete every second row
     insertRows(
@@ -184,10 +204,68 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
         .sql("select value * 2 as rowNumber from numbers"),
       "delete")
 
+    // we count even the items that are not deleted
+    getNumberOfRowsDeleted(sequenceId, "sequencerows") shouldBe 100
+
     retryWhile[Array[Row]](
-      spark.sql(s"select * from sequenceRows_b order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_b order by rowNumber").collect,
       _.length != 50
     )
+  }
+
+  private def testPushdown(sequenceId: String, query: String, shouldBeExact: Boolean = false) = {
+    val prefix = shortRandomString()
+    val sparkReadResult = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "sequencerows")
+      .option("sequenceExternalId", sequenceId)
+      .option("metricsPrefix", prefix)
+      .option("collectMetrics", "true")
+      .load()
+      .where(query)
+      .collect
+    if (shouldBeExact) {
+      sparkReadResult.length shouldBe getNumberOfRowsRead(prefix, "sequencerows")
+    }
+    (sparkReadResult, getNumberOfRowsRead(prefix, "sequencerows"))
+  }
+
+  it should "support filter pushdown on rowNumber" in withSequences(Seq(sequenceB)) { case Seq(sequenceId) =>
+    spark.sparkContext
+      .parallelize(1 to 100)
+      .toDF()
+      .createOrReplaceTempView("numbers")
+    insertRows(
+      sequenceId,
+      spark
+        .sql("select value as rowNumber, value * 6 as num1 from numbers"))
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_b order by rowNumber").collect,
+      _.length != 100
+    )
+
+    testPushdown(sequenceId, "rowNumber = 1", shouldBeExact = true)._2 shouldBe 1
+    testPushdown(sequenceId, "rowNumber in (1, 2, 3, 4, 5, 6, 7, 8)", shouldBeExact = true)._2 shouldBe 8
+    testPushdown(sequenceId, "rowNumber not in (1, 2, 3, 4, 5, 6, 7, 8)", shouldBeExact = true)._2 shouldBe 92
+    testPushdown(sequenceId, "rowNumber < 50", shouldBeExact = true)._2 shouldBe 49
+    testPushdown(sequenceId, "rowNumber <= 50 and rowNumber not in (30, 80)", shouldBeExact = true)._2 shouldBe 49
+    testPushdown(sequenceId, "(rowNumber >= 50 and rowNumber != 80) or rowNumber = 2", shouldBeExact = true)._2 shouldBe 51
+    testPushdown(sequenceId, "(rowNumber >= 50 and rowNumber != 80 and rowNumber > 50) or rowNumber = 2", shouldBeExact = true)._2 shouldBe 50
+    testPushdown(sequenceId, "(rowNumber >= 50 and rowNumber < 60) or (rowNumber >= 70 and rowNumber < 80) or (rowNumber >= 10 and rowNumber < 20)", shouldBeExact = true)._2 shouldBe 30
+    testPushdown(sequenceId, "rowNumber in (2, NULL, 1)", shouldBeExact = true)._2 shouldBe 2
+    val (readResult, numberRead) = testPushdown(sequenceId, "rowNumber <= 50 and num1 <= 60")
+    numberRead shouldBe 50
+    readResult.length shouldBe 10
+    // should not read more rows, even though the disjunction would suggest that
+    testPushdown(sequenceId, "rowNumber <= 50 or rowNumber >= 30", shouldBeExact = true)._2 shouldBe 100
+    testPushdown(sequenceId, "(rowNumber < 50 and rowNumber >= 30) or (rowNumber >= 40 and rowNumber < 60)", shouldBeExact = true)._2 shouldBe 30
+    testPushdown(sequenceId, "(rowNumber < 50 and rowNumber >= 30 and num1 > 0) or (rowNumber >= 40 and rowNumber < 60 and num1 < 3000)", shouldBeExact = true)._2 shouldBe 30
+    val (readResult2, numberRead2) = testPushdown(sequenceId, "rowNumber <= 50 and (rowNumber >= 30 or num1 <= 30)")
+    numberRead2 shouldBe 50
+    readResult2.length shouldBe 26
   }
 
   // ----------
@@ -196,7 +274,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     val key = shortRandomString()
     createSequences(key, sequences)
     for (s <- sequences) {
-      createRowsRelation(s"${s.externalId.get}|$key").createOrReplaceTempView(s"sequenceRows_${s.externalId.get}")
+      createRowsRelation(s"${s.externalId.get}|$key").createOrReplaceTempView(s"sequencerows_${s.externalId.get}")
     }
     try {
       testCode(sequences.map(s => s"${s.externalId.get}|$key"))
@@ -209,17 +287,19 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
-      .option("type", "sequenceRows")
+      .option("type", "sequencerows")
       .option("sequenceExternalId", externalId)
       .load()
 
   def insertRows(seqId: String, df: DataFrame, onconflict: String = "upsert") =
     df.write
       .format("cognite.spark.v1")
-      .option("type", "sequenceRows")
+      .option("type", "sequencerows")
       .option("apiKey", writeApiKey)
       .option("sequenceExternalId", seqId)
       .option("onconflict", onconflict)
+      .option("collectMetrics", true)
+      .option("metricsPrefix", seqId)
       .save
 
   def createSequences(

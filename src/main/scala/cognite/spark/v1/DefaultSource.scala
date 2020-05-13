@@ -117,7 +117,7 @@ class DefaultSource
           inferSchema,
           inferSchemaLimit,
           collectSchemaInferenceMetrics)(sqlContext)
-      case "sequenceRows" =>
+      case "sequencerows" =>
         createSequenceRows(parameters, config, sqlContext)
       case "assets" =>
         new AssetsRelation(config)(sqlContext)
@@ -176,7 +176,7 @@ class DefaultSource
           new FilesRelation(config)(sqlContext)
         case "sequences" =>
           new SequencesRelation(config)(sqlContext)
-        case "sequenceRows" =>
+        case "sequencerows" =>
           createSequenceRows(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
