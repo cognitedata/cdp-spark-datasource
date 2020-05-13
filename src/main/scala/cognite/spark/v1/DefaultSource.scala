@@ -183,6 +183,7 @@ class DefaultSource
       val batchSize = relation match {
         case _: NumericDataPointsRelationV1 => Constants.CreateDataPointsLimit
         case _: StringDataPointsRelationV1 => Constants.CreateDataPointsLimit
+        case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
         case _ => Constants.DefaultBatchSize
       }
       data.foreachPartition((rows: Iterator[Row]) => {

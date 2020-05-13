@@ -152,14 +152,42 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
       spark
         .sql("select value as rowNumber, value * 6 as num1 from numbers"))
 
-    createRowsRelation(sequenceId).createOrReplaceTempView("sequenceRows_b")
-
     val allColumns = retryWhile[Array[Row]](
       spark.sql(s"select * from sequenceRows_b order by rowNumber").collect,
       _.length != testSize
     )
     allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1")
     allColumns.map(_.getAs[Long]("num1")) shouldBe (1 to testSize).map(_ * 6)
+  }
+
+  it should "create and delete rows" in withSequences(Seq(sequenceB)) { case Seq(sequenceId) =>
+    // exceed the page size
+    spark.sparkContext
+      .parallelize(1 to 100)
+      .toDF()
+      .createOrReplaceTempView("numbers")
+    insertRows(
+      sequenceId,
+      spark
+        .sql("select value as rowNumber, value * 6 as num1 from numbers"))
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sequenceRows_b order by rowNumber").collect,
+      _.length != 100
+    )
+
+
+    // delete every second row
+    insertRows(
+      sequenceId,
+      spark
+        .sql("select value * 2 as rowNumber from numbers"),
+      "delete")
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sequenceRows_b order by rowNumber").collect,
+      _.length != 50
+    )
   }
 
   // ----------
@@ -185,13 +213,13 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("sequenceExternalId", externalId)
       .load()
 
-  def insertRows(seqId: String, df: DataFrame) =
+  def insertRows(seqId: String, df: DataFrame, onconflict: String = "upsert") =
     df.write
       .format("cognite.spark.v1")
       .option("type", "sequenceRows")
       .option("apiKey", writeApiKey)
       .option("sequenceExternalId", seqId)
-      .option("onconflict", "upsert")
+      .option("onconflict", onconflict)
       .save
 
   def createSequences(

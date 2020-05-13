@@ -36,31 +36,6 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       .toList
   )
 
-  private def query(
-      filter: SequenceRowFilter,
-      limit: Option[Int],
-      columns: Option[Seq[String]],
-      client: GenericClient[IO, Nothing]) =
-    sequenceId match {
-      case CogniteExternalId(externalId) =>
-        client.sequenceRows.queryByExternalId(
-          externalId,
-          filter.inclusiveStart,
-          filter.exclusiveEnd,
-          limit,
-          columns)
-      case CogniteInternalId(id) =>
-        client.sequenceRows.queryById(id, filter.inclusiveStart, filter.exclusiveEnd, limit, columns)
-    }
-
-  private def insert(columns: Seq[String], rows: Seq[SequenceRow], client: GenericClient[IO, Nothing]) =
-    sequenceId match {
-      case CogniteExternalId(externalId) =>
-        client.sequenceRows.insertByExternalId(externalId, columns, rows)
-      case CogniteInternalId(id) =>
-        client.sequenceRows.insertById(id, columns, rows)
-    }
-
   def getStreams(filters: Seq[SequenceRowFilter], expectedColumns: Array[String])(
       client: GenericClient[IO, Nothing],
       limit: Option[Int],
@@ -80,7 +55,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
           expectedColumns
         }
       val projectedRows =
-        query(filter, limit, Some(requestedColumns), client)
+        client.sequenceRows.queryById(sequenceInfo.id, filter.inclusiveStart, filter.exclusiveEnd, limit, Some(requestedColumns))
           .map {
             case (_, rows) =>
               rows.map { r =>
@@ -156,7 +131,10 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     (columns.map(_._2.externalId), parseRow)
   }
 
-  def delete(rows: Seq[Row]): IO[Unit] = ???
+  def delete(rows: Seq[Row]): IO[Unit] = {
+    val deletes = rows.map(r => SparkSchemaHelper.fromRow[SequenceRowDeleteSchema](r))
+    client.sequenceRows.deleteById(sequenceInfo.id, deletes.map(_.rowNumber))
+  }
   def insert(rows: Seq[Row]): IO[Unit] =
     throw new Exception("Insert not supported for sequenceRows. Use upsert instead.")
   def update(rows: Seq[Row]): IO[Unit] =
@@ -167,9 +145,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     val (columns, fromRowFn) = fromRow(rows.head.schema)
     val projectedRows = rows.map(fromRowFn)
 
-    val batches = projectedRows.grouped(Constants.DefaultSequencesLimit).toVector
-    batches
-      .traverse_(batch => insert(columns, batch, client))
+    client.sequenceRows.insertById(sequenceInfo.id, columns, projectedRows)
   }
 
   private def readRows(
@@ -316,3 +292,4 @@ final case class ProjectedSequenceRow(rowNumber: Long, values: Array[Any])
 final case class SequenceRowFilter(
     inclusiveStart: Option[Long] = None,
     exclusiveEnd: Option[Long] = None)
+final case class SequenceRowDeleteSchema(rowNumber: Long)
