@@ -69,12 +69,12 @@ class DefaultSource
 
   private def createSequenceRows(parameters: Map[String, String], config: RelationConfig, sqlContext: SQLContext) = {
     val sequenceId =
-      parameters.get("sequenceId").map(id => CogniteInternalId(id.toInt))
+      parameters.get("id").map(id => CogniteInternalId(id.toInt))
         .orElse(
-          parameters.get("sequenceExternalId").map(CogniteExternalId)
+          parameters.get("externalId").map(CogniteExternalId)
         )
         .getOrElse(
-          sys.error("sequenceId or sequenceExternalId option must be specified.")
+          sys.error("id or externalId option must be specified.")
         )
 
     new SequenceRowsRelation(
