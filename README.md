@@ -388,6 +388,32 @@ The schemas mirror the CDF API as closely as possible.
 | `metadata`           | `map(string, string)` | Yes       |
 | `dataSetId`          | `long`                | Yes       |
 
+### Sequences
+| Column name          | Type                  |  Nullable |
+| ---------------------| ----------------------| --------- |
+| `externalId`         | `string`              | Yes        |
+| `name`   | `string`              | Yes        |
+| `description`             | `string`              | Yes       |
+| `assetId`               | `long`              | Yes        |
+| `metadata`           | `map(string, string)` | Yes       |
+| `dataSetId`          | `long`                | Yes       |
+| `columns`        | `array(SequenceColumn)`              | No       |
+
+The `columns` field should be an array of `SequenceColumn`s, which are rows with the following fields:
+
+| Column name          | Type                  |  Nullable |
+| ---------------------| ----------------------| --------- |
+| `externalId`         | `string`              | No        |
+| `name`   | `string`              | Yes        |
+| `description`             | `string`              | Yes       |
+| `valueType`               | `string`              | No        |
+| `metadata`           | `map(string, string)` | Yes       |
+| `dataSetId`          | `long`                | Yes       |
+| `columns`        | `array(SequenceColumn)`              | No       |
+
+### Sequence rows
+
+The schema of `sequencerows` relation matches the sequence that is specified in `id` or `externalId` option. Apart from the sequence columns, there is a non-nullable `rowNumber` column of type `long`
 
 ## Examples by resource types
 
@@ -803,6 +829,56 @@ df = spark.read.format("cognite.spark.v1") \
     .load()
 
 df.show()
+```
+
+### Sequence Rows
+
+Learn more about sequences [here](https://docs.cognite.com/dev/concepts/resource_types/sequences.html)
+
+One of two additional options must be specified:
+* `id`: Cognite internal id of the sequence that is read or written to
+* `externalId`: the external Id of the sequence that is read or written to
+
+```scala
+// Scala Example. See Python example below.
+
+// Read sequence rows
+val df = spark.read.format("cognite.spark.v1")
+  .option("apiKey", myApiKey)
+  .option("type", "sequencerows")
+  .option("id", sequenceId) // or you can use "externalId" option
+  .load()
+
+// Insert the rows into another sequence using .save()
+import org.apache.spark.sql.functions._
+df
+  .write.format("cognite.spark.v1")
+  .option("apiKey", myApiKey)
+  .option("type", "sequencerows")
+  .option("onconflict", "upsert")
+  .option("externalId", "my-sequence")
+  .save()
+```
+
+```python
+# Python Example
+
+# Read sequence rows
+df = spark.read.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "sequencerows") \
+    .option("id", sequenceId) \
+    .load()
+
+# Insert the rows into another sequence using .save()
+from pyspark.sql.functions import lit
+df \
+    .write.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "sequencerows") \
+    .option("onconflict", "upsert") \
+    .option("externalId", "my-sequence") \
+    .save()
 ```
 
 ### RAW tables
