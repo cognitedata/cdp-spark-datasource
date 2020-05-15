@@ -37,7 +37,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   )
 
   def getStreams(filters: Seq[SequenceRowFilter], expectedColumns: Array[String])(
-      client: GenericClient[IO, Nothing],
+      client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, ProjectedSequenceRow]] =
     filters.toVector.map { filter =>
@@ -81,10 +81,10 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
 
   private def jsonFromDouble(num: Double): Json =
     Json.fromDouble(num).getOrElse(throw new Exception(s"Numeric value $num"))
-  private def tryGetValue(columnType: String): PartialFunction[Any, Json] =
+  private def tryGetValue(columnType: String): PartialFunction[Any, Json] = // scalastyle:off
     columnType match {
       case "DOUBLE" => {
-        case null => Json.Null
+        case null => Json.Null // scalastyle:off null
         case x: Double => jsonFromDouble(x)
         case x: Int => jsonFromDouble(x.toDouble)
         case x: Float => jsonFromDouble(x.toDouble)
@@ -93,12 +93,12 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
       }
       case "LONG" => {
-        case null => Json.Null
+        case null => Json.Null // scalastyle:off null
         case x: Int => Json.fromInt(x)
         case x: Long => Json.fromLong(x)
       }
       case "STRING" => {
-        case null => Json.Null
+        case null => Json.Null // scalastyle:off null
         case x: String => Json.fromString(x)
       }
     }
@@ -141,7 +141,8 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
 
   def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[SequenceRowDeleteSchema](r))
-    client.sequenceRows.deleteById(sequenceInfo.id, deletes.map(_.rowNumber))
+    client.sequenceRows
+      .deleteById(sequenceInfo.id, deletes.map(_.rowNumber))
       .flatTap(_ => incMetrics(itemsDeleted, rows.length))
   }
   def insert(rows: Seq[Row]): IO[Unit] =
@@ -150,15 +151,17 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   def update(rows: Seq[Row]): IO[Unit] =
     throw new Exception("Update not supported for sequencerows. Use upsert instead.")
 
-  def upsert(rows: Seq[Row]): IO[Unit] = {
-    if (rows.isEmpty) return IO.unit
+  def upsert(rows: Seq[Row]): IO[Unit] =
+    if (rows.isEmpty) {
+      IO.unit
+    } else {
+      val (columns, fromRowFn) = fromRow(rows.head.schema)
+      val projectedRows = rows.map(fromRowFn)
 
-    val (columns, fromRowFn) = fromRow(rows.head.schema)
-    val projectedRows = rows.map(fromRowFn)
-
-    client.sequenceRows.insertById(sequenceInfo.id, columns, projectedRows)
-      .flatTap(_ => incMetrics(itemsCreated, rows.length))
-  }
+      client.sequenceRows
+        .insertById(sequenceInfo.id, columns, projectedRows)
+        .flatTap(_ => incMetrics(itemsCreated, rows.length))
+    }
 
   private def readRows(
       limit: Option[Int],
@@ -206,7 +209,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
 object SequenceRowsRelation {
 
   private def parseValue(value: Any, offset: Long = 0) = Some(value.asInstanceOf[Long] + offset)
-  def getSeqFilter(filter: Filter): Seq[SequenceRowFilter] =
+  def getSeqFilter(filter: Filter): Seq[SequenceRowFilter] = // scalastyle:off
     filter match {
       case EqualTo("rowNumber", value) =>
         Seq(SequenceRowFilter(parseValue(value), parseValue(value, +1)))
@@ -261,9 +264,12 @@ object SequenceRowsRelation {
       borderLabels
         .zip(borderLabels.drop(1))
         .map { case (low, high) => SequenceRowFilter(low, high) }
-    segmentLabels.zip(segmentCounts)
+    segmentLabels
+      .zip(segmentCounts)
       // filter out empty segments
-      .filter { case (filter, _) => filter.exclusiveEnd.forall(end => filter.inclusiveStart.forall(_ < end)) }
+      .filter {
+        case (filter, _) => filter.exclusiveEnd.forall(end => filter.inclusiveStart.forall(_ < end))
+      }
   }
 
   def normalizeFilterSet(f: Seq[SequenceRowFilter]): Vector[SequenceRowFilter] =

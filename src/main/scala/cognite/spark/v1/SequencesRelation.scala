@@ -22,7 +22,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   import CdpConnector._
 
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO, Nothing],
+      client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, SequenceReadSchema]] =
     // TODO: filters

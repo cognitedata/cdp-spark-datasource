@@ -831,6 +831,69 @@ df = spark.read.format("cognite.spark.v1") \
 df.show()
 ```
 
+### Sequences
+
+Learn more about sequences [here](https://docs.cognite.com/dev/concepts/resource_types/sequences.html)
+
+```scala
+// Scala Example. See Python example below.
+
+// List all sequences
+val df = spark.read.format("cognite.spark.v1")
+  .option("apiKey", myApiKey)
+  .option("type", "sequences")
+  .load()
+
+// Create new sequence using Spark SQL
+spark.sql("""
+ |select 'c|$key' as externalId,
+ |'c seq' as name,
+ |'Sequence C detailed description' as description,
+ |array(
+ |  named_struct(
+ |    'metadata', map('foo', 'bar', 'nothing', NULL),
+ |    'name', 'column 1',
+ |    'externalId', 'c_col1',
+ |    'valueType', 'STRING'
+ |  )
+ |) as columns
+""".stripMargin)
+.write.format("cognite.spark.v1")
+.option("apiKey", myApiKey)
+.option("type", "sequences")
+.option("onconflict", "abort")
+.save()
+```
+
+```python
+# Python Example
+
+# List all sequences
+df = spark.read.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "sequences") \
+    .load()
+
+# Create new sequence using Spark SQL
+spark.sql(
+    "select 'c|$key' as externalId," \
+    " 'c seq' as name," \
+    " 'Sequence C detailed description' as description," \
+    " array(" \
+    "   named_struct(" \
+    "     'metadata', map('foo', 'bar', 'nothing', NULL)," \
+    "     'name', 'column 1'," \
+    "     'externalId', 'c_col1'," \
+    "     'valueType', 'STRING'" \
+    "   )" \
+    " ) as columns") \
+    .write.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "sequences") \
+    .option("onconflict", "abort") \
+    .save()
+```
+
 ### Sequence Rows
 
 Learn more about sequences [here](https://docs.cognite.com/dev/concepts/resource_types/sequences.html)
