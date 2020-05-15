@@ -67,9 +67,14 @@ class DefaultSource
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation =
     createRelation(sqlContext, parameters, null) // scalastyle:off null
 
-  private def createSequenceRows(parameters: Map[String, String], config: RelationConfig, sqlContext: SQLContext) = {
+  private def createSequenceRows(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext) = {
     val sequenceId =
-      parameters.get("id").map(id => CogniteInternalId(id.toInt))
+      parameters
+        .get("id")
+        .map(id => CogniteInternalId(id.toInt))
         .orElse(
           parameters.get("externalId").map(CogniteExternalId)
         )
@@ -77,9 +82,7 @@ class DefaultSource
           sys.error("id or externalId option must be specified.")
         )
 
-    new SequenceRowsRelation(
-      config,
-      sequenceId)(sqlContext)
+    new SequenceRowsRelation(config, sequenceId)(sqlContext)
   }
 
   // scalastyle:off cyclomatic.complexity method.length

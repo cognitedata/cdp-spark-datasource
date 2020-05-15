@@ -53,6 +53,45 @@ class SequencesRelationTest extends FlatSpec with Matchers with SparkTest {
     cleanupSequence(key, "a")
   }
 
+  it should "create using SQL" in {
+    val key = shortRandomString()
+    spark.sql(
+      s"""select 'c|$key' as externalId,
+         |       'c seq' as name,
+         |       'Sequence C detailed description' as description,
+         |       array(
+         |           named_struct(
+         |               'metadata', map('foo', 'bar', 'nothing', NULL),
+         |               'name', 'column 1',
+         |               'externalId', 'c_col1',
+         |               'valueType', 'STRING'
+         |           )
+         |       ) as columns
+         |""".stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "sequences")
+      .option("onconflict", "abort")
+      .save
+
+    val sequence = writeClient.sequences.retrieveByExternalId(s"c|$key")
+    sequence.name shouldBe Some("c seq")
+    sequence.description shouldBe Some("Sequence C detailed description")
+    sequence.assetId shouldBe None
+    sequence.dataSetId shouldBe None
+    sequence.columns should have size 1
+    val col = sequence.columns.head
+    col.externalId shouldBe "c_col1"
+    col.name shouldBe Some("column 1")
+    col.valueType shouldBe "STRING"
+    col.metadata shouldBe Some(Map("foo" -> "bar"))
+    col.description shouldBe None
+
+
+    cleanupSequence(key, "c")
+  }
+
   it should "create and update sequence" in {
     val key = shortRandomString()
     val sequence = SequenceUpdateSchema(
@@ -92,10 +131,10 @@ class SequencesRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   def ingest(
-              key: String,
-              tree: Seq[SequenceUpdateSchema],
-              metricsPrefix: Option[String] = None,
-              conflictMode: String = "abort"
+    key: String,
+    tree: Seq[SequenceUpdateSchema],
+    metricsPrefix: Option[String] = None,
+    conflictMode: String = "abort"
   ): Unit = {
     val processedTree = tree.map(s => s.copy(
       externalId = s.externalId.map(id => s"$id|$key")
