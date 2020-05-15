@@ -1,0 +1,65 @@
+name: CI
+
+on: ["push"]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: olafurpg/setup-scala@v5
+      - name: Set variables
+        run: |
+          IMAGE_REVISION=$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date +%Y-%m-%dT%H%M)
+          DOCKER_IMAGE_NAME=eu.gcr.io/cognitedata/cdf-spark-performance-bench
+          DOCKER_IMAGE_TAG="$BUILD_DATE-$IMAGE_REVISION"
+
+          echo "::set-env name=DOCKER_IMAGE_NAME::$DOCKER_IMAGE_NAME"
+          echo "::set-env name=DOCKER_IMAGE_TAG::$DOCKER_IMAGE_TAG"
+      - name: Install SBT config and credentials
+        env:
+          SECRETS_KEY: ${{ secrets.SECRETS_KEY }}
+        run: |
+          mkdir -p ~/.sbt
+          ./secrets/decrypt.sh secrets/repositories.gpg ~/.sbt/repositories
+
+          mkdir -p ~/.sbt/1.0
+          ./secrets/decrypt.sh secrets/credentials.sbt.gpg ~/.sbt/1.0/credentials.sbt
+
+          mkdir -p ~/.sbt/gpg
+          ./secrets/decrypt.sh secrets/pubring.asc.gpg ~/.sbt/gpg/pubring.asc
+          ./secrets/decrypt.sh secrets/secring.asc.gpg ~/.sbt/gpg/secring.asc
+      - name: Run tests
+        env:
+          TEST_API_KEY_WRITE: ${{ secrets.TEST_API_KEY_WRITE }}
+          TEST_API_KEY_READ: ${{ secrets.TEST_API_KEY_READ }}
+          TEST_API_KEY_GREENFIELD: ${{ secrets.TEST_API_KEY_GREENFIELD }}
+        run: |
+          TEST="test +Test/compile"
+          if [ ${{github.ref }} == "refs/heads/master" ]; then
+            TEST="+test"
+          fi
+          sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage $TEST coverageReport
+      - name: Upload report to codecov.io
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+      - name: Build JAR file
+        run: |
+          LIB_PACKAGE="library/package"
+          if [ ${{github.ref }} == "refs/heads/master" ]; then
+            LIB_PACKAGE="+library/package"
+          fi
+          sbt -Dsbt.log.noformat=true "set test in library := {}" $LIB_PACKAGE performancebench/docker:stage
+      - name: Deploy JAR
+        if: github.ref == 'refs/heads/master'
+        env:
+          SECRETS_KEY: ${{ secrets.SECRETS_KEY }}
+        run: |
+          ./secrets/decrypt.sh secrets/gpg-key-password.gpg secrets/gpg-key-password
+          export GPG_KEY_PASSWORD=$(cat secrets/gpg-key-password)
+          sbt -Dsbt.log.noformat=true +library/publishSigned
