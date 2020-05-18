@@ -322,20 +322,24 @@ The schemas mirror the CDF API as closely as possible.
 | `dataSetId`       | `long`                | Yes       |
 
 ### Files schema
-| Column name       | Type                  |  Nullable |
-| ------------------| ----------------------| --------- |
-| `id`              | `long`                | No        |
-| `name`            | `string`              | No        |
-| `source`          | `long`                | Yes       |
-| `externalId`      | `string`              | Yes       |
-| `mimeType`        | `string`              | Yes       |
-| `metadata`        | `map(string, string)` | Yes       |
-| `assetIds`        | `array(long)`         | Yes       |
-| `uploaded`        | `boolean`             | No        |
-| `uploadedTime`    | `timestamp`           | Yes       |
-| `createdTime`     | `timestamp`           | No        |
-| `lastUpdatedTime` | `timestamp`           | No        |
-| `uploadUrl`       | `string`              | Yes       |
+| Column name          | Type                  |  Nullable |
+| ---------------------| ----------------------| --------- |
+| `id`                 | `long`                | No        |
+| `name`               | `string`              | No        |
+| `source`             | `long`                | Yes       |
+| `externalId`         | `string`              | Yes       |
+| `mimeType`           | `string`              | Yes       |
+| `metadata`           | `map(string, string)` | Yes       |
+| `assetIds`           | `array(long)`         | Yes       |
+| `uploaded`           | `boolean`             | No        |
+| `uploadedTime`       | `timestamp`           | Yes       |
+| `createdTime`        | `timestamp`           | No        |
+| `lastUpdatedTime`    | `timestamp`           | No        |
+| `sourceCreatedTime`  | `timestamp`           | Yes       |
+| `sourceModifiedTime` | `timestamp`           | Yes       |
+| `securityCategories` | `array(long)`         | Yes       |
+| `uploadUrl`          | `string`              | Yes       |
+| `dataSetId`          | `long`                | Yes       |
 
 ### Data points schema
 | Column name   | Type        |  Nullable |
@@ -703,6 +707,44 @@ val df = spark.read.format("cognite.spark.v1")
   .load()
 
 df.groupBy("fileType").count().show()
+
+// Register your files in a temporary view
+df.createTempView("files")
+
+
+// Insert the files in your own project using .save()
+spark.sql(s"""
+      |select 'example-externalId' as externalId, 
+      |'example-name' as name, 
+      |'text' as source""")
+  .write.format("cognite.spark.v1")
+  .option("apiKey", "myApiKey")
+  .option("type", "files")
+  .option("onconflict", "abort")
+  .save()
+
+//You can also insert using insertInto(). But you need to make sure the the schema is matched correctly.
+ spark.sql(s"""
+                |select "name-using-insertInto()" as name,
+                |null as id,
+                |'text' as source,
+                |'externalId-using-insertInto()' as externalId,
+                |null as mimeType,
+                |null as metadata,
+                |null as assetIds,
+                |null as datasetId,
+                |null as sourceCreatedTime,
+                |null as sourceModifiedTime,
+                |null as securityCategories,
+                |null as uploaded,
+                |null as createdTime,
+                |null as lastUpdatedTime,
+                |null as uploadedTime,
+                |null as uploadUrl
+     """.stripMargin)
+      .select(df.columns.map(col):_*)
+      .write
+      .insertInto("files")
 ```
 
 ```python
@@ -715,6 +757,23 @@ df = spark.read.format("cognite.spark.v1") \
   .load()
 
 df.groupBy("fileType").count().show()
+
+# Register your files in a temporary view
+df.createTempView("files")
+
+# Insert the files in your own project using .save()
+spark.sql(
+    "select 'example-externalId' as externalId," \
+    " 'example-name' as name," \
+    " 'text' as source") \
+  .write.format("cognite.spark.v1") \
+  .option("apiKey", "myApiKey") \
+  .option("type", "files") \
+  .option("onconflict", "abort") \
+  .save()
+
+# You can also insert data using insertInto(). But you need to make sure the the schema is matched correctly.
+# The example using insertInto() is given above in Scala example.
 ```
 
 ### 3D models and revisions metadata

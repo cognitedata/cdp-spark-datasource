@@ -82,9 +82,9 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val df = getBaseReader(true, metricsPrefix)
         .where("type = 'Worktask' or dataSetId = 86163806167772")
 
-    assert(df.count == 232)
+    assert(df.count == 234)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 232)
+    assert(eventsRead == 234)
   }
 
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {
