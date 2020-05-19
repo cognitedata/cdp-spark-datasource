@@ -1,3 +1,21 @@
+# 1.3.0
+
+## Breaking changes
+
+Although not breaking for most users, this release updates some core
+dependencies to new major releases. In particular, it is therefore
+not possible to load 1.3.x releases at the same time as 0.4.x releases.
+
+## Enhancements
+
+* Sequences are now supported, see README.md for examples using
+`sequences` and `sequencerows`.
+
+* Files now support upsert, delete, and several new fields like
+`dataSetId` have been added.
+
+* Files now supports parallel retrieval.
+
 # 1.2.20
 
 ## Enhancements
