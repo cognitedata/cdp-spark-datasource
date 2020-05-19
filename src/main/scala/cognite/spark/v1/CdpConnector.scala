@@ -33,7 +33,7 @@ object CdpConnector {
   @transient implicit lazy val cdpConnectorTimer: Timer[IO] = IO.timer(cdpConnectorExecutionContext)
   @transient implicit val cdpConnectorContextShift: ContextShift[IO] =
     IO.contextShift(cdpConnectorExecutionContext)
-  @transient implicit lazy val cdpConnectorParallel: Parallel[IO, IO.Par] =
+  @transient implicit lazy val cdpConnectorParallel: Parallel[IO] =
     IO.ioParallel(cdpConnectorContextShift)
   private val sttpBackend: SttpBackend[IO, Nothing] =
     new GzipSttpBackend[IO, Nothing](
@@ -42,12 +42,12 @@ object CdpConnector {
   def retryingSttpBackend(maxRetries: Int): SttpBackend[IO, Nothing] =
     new RetryingBackend[IO, Nothing](sttpBackend, maxRetries = Some(maxRetries))
 
-  def clientFromConfig(config: RelationConfig): GenericClient[IO, Nothing] =
-    new GenericClient[IO, Nothing](
+  def clientFromConfig(config: RelationConfig): GenericClient[IO] =
+    new GenericClient[IO](
       Constants.SparkDatasourceVersion,
       config.projectName,
-      config.auth,
-      config.baseUrl)(implicitly, retryingSttpBackend(config.maxRetries))
+      config.baseUrl,
+      config.auth)(implicitly, retryingSttpBackend(config.maxRetries))
 
   type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]

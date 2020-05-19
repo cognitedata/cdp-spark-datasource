@@ -23,7 +23,7 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
 
-  @transient lazy val client: GenericClient[IO, Nothing] =
+  @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
   def incMetrics(counter: Counter, count: Int): IO[Unit] =

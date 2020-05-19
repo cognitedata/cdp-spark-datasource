@@ -11,14 +11,14 @@ import org.apache.spark.sql.Row
 final case class StringDataPointsRdd(
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
-    getIOs: GenericClient[IO, Nothing] => Seq[(StringDataPointsFilter, IO[Seq[StringDataPoint]])],
+    getIOs: GenericClient[IO] => Seq[(StringDataPointsFilter, IO[Seq[StringDataPoint]])],
     toRow: StringDataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
 
   implicit val auth: Auth = config.auth
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
-  @transient lazy val client: GenericClient[IO, Nothing] =
+  @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
   override def getPartitions: Array[Partition] = {

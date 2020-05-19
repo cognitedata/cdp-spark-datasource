@@ -19,7 +19,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
     val errorMessage = "Some exception"
 
     def getStreams(
-        client: GenericClient[IO, Nothing],
+        client: GenericClient[IO],
         limit: Option[Int],
         numPartitions: Int): Seq[Stream[IO, String]] =
       Seq(
@@ -58,7 +58,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
         .copy(parallelismPerPartition = nStreams),
       (e: Event) => asRow(e),
       (e: Event) => e.id,
-      (_: GenericClient[IO, Nothing], _: Option[Int], _: Int) => {
+      (_: GenericClient[IO], _: Option[Int], _: Int) => {
         val allStreams = 0.until(nStreams).map { i =>
           Stream.evalUnChunk {
             IO.sleep((scala.math.random * 300).millis)(cdpConnectorTimer) *> IO(

@@ -41,7 +41,7 @@ class RawTableRelation(
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
   implicit val auth: Auth = config.auth
-  @transient lazy val client: GenericClient[IO, Nothing] =
+  @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
@@ -90,7 +90,7 @@ class RawTableRelation(
   }
 
   def getStreams(filter: RawRowFilter)(
-      client: GenericClient[IO, Nothing],
+      client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, RawRow]] =
     client.rawRows(database, table).filterPartitionsF(filter, numPartitions, limit).unsafeRunSync()
