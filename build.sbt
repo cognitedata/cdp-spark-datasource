@@ -4,11 +4,14 @@ val scala212 = "2.12.11"
 val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
 val sparkVersion = "2.4.5"
-val circeVersion = "0.11.1"
-val sttpVersion = "1.6.3"
+val circeVersion: Option[(Long, Long)] => String = {
+  case Some((2, 11)) => "0.12.0-M3"
+  case _ => "0.13.0"
+}
+val sttpVersion = "1.7.2"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.2.4"
+val cogniteSdkVersion = "1.3.0"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
@@ -20,7 +23,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.2.20",
+  version := "1.3.0-SNAPSHOT",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -94,8 +97,8 @@ lazy val library = (project in file("."))
       "com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion
         exclude("io.netty", "netty-transport-native-epoll"),
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
-      "io.circe" %% "circe-generic" % circeVersion,
-      "io.circe" %% "circe-generic-extras" % circeVersion,
+      "io.circe" %% "circe-generic" % circeVersion(CrossVersion.partialVersion(scalaVersion.value)),
+      "io.circe" %% "circe-generic-extras" % circeVersion(CrossVersion.partialVersion(scalaVersion.value)),
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.3.24.v20180605" % Provided,
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided

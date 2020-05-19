@@ -30,7 +30,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     sys.error(s"Resource type $shortName does not support writing.")
 
   def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO, Nothing],
+      client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, A]]
 

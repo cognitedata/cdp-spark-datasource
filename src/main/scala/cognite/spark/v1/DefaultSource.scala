@@ -290,7 +290,7 @@ object DefaultSource {
   def getProjectFromAuth(auth: Auth, maxRetries: Int, baseUrl: String): String = {
     implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries)
     val getProject = for {
-      client <- GenericClient.forAuth[IO, Nothing](Constants.SparkDatasourceVersion, auth, baseUrl)
+      client <- GenericClient.forAuth[IO](Constants.SparkDatasourceVersion, auth, baseUrl)
     } yield client.projectName
     getProject.unsafeRunSync()
   }

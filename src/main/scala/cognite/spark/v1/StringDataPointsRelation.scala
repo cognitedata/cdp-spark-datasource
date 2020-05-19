@@ -104,7 +104,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
       })
 
   def getIOs(filters: Array[Filter])(
-      client: GenericClient[IO, Nothing]): Seq[(StringDataPointsFilter, IO[Seq[StringDataPoint]])] = {
+      client: GenericClient[IO]): Seq[(StringDataPointsFilter, IO[Seq[StringDataPoint]])] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
 

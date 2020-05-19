@@ -20,7 +20,7 @@ class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: ThreeDModel): Long = a.id
 
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO, Nothing],
+      client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, ThreeDModel]] =
     Seq(client.threeDModels.list(limit))

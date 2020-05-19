@@ -28,12 +28,12 @@ trait SparkTest {
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
   assert(!writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
   implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
-  val writeClient = GenericClient.forAuth[Id, Nothing]("cdp-spark-datasource-test", writeApiKeyAuth)
+  val writeClient = GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
 
   val readApiKey = System.getenv("TEST_API_KEY_READ")
   assert(!readApiKey.isEmpty, "Environment variable \"TEST_API_KEY_READ\" was not set")
   implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
-  val readClient = GenericClient.forAuth[Id, Nothing]("cdp-spark-datasource-test", readApiKeyAuth)
+  val readClient = GenericClient.forAuth[Id]("cdp-spark-datasource-test", readApiKeyAuth)
 
   val testDataSetId = 86163806167772L
 

@@ -56,7 +56,7 @@ final case class NumericDataPointsRdd(
 
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
     CdpConnector.retryingSttpBackend(config.maxRetries)
-  @transient lazy val client: GenericClient[IO, Nothing] =
+  @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
   private val (lowerTimeLimit, upperTimeLimit) = timestampLimits

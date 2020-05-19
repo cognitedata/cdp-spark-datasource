@@ -20,7 +20,7 @@ final case class SdkV1Rdd[A, I](
     config: RelationConfig,
     toRow: A => Row,
     uniqueId: A => I,
-    getStreams: (GenericClient[IO, Nothing], Option[Int], Int) => Seq[Stream[IO, A]])
+    getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
   @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
@@ -29,7 +29,7 @@ final case class SdkV1Rdd[A, I](
   type EitherQueue = ArrayBlockingQueue[Either[Throwable, Chunk[A]]]
 
   implicit val auth: Auth = config.auth
-  @transient lazy val client: GenericClient[IO, Nothing] =
+  @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
   override def getPartitions: Array[Partition] = {

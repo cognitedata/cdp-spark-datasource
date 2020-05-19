@@ -19,7 +19,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO, Nothing],
+      client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, File]] =
     Seq(client.files.list(limit))
