@@ -118,7 +118,7 @@ class SequencesRelationTest extends FlatSpec with Matchers with SparkTest {
       externalId = Some("a"),
       name = Some("a"),
       description = Some("description abc"),
-      columns = None,
+      columns = None
     )
 
     ingest(key, Seq(sequenceUpdate), conflictMode = "update")
