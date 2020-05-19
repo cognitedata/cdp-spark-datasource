@@ -5,11 +5,33 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{LongType, StringType, StructField, TimestampType}
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
-class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
+class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val valhallTimeSeries = "'VAL_23-PIC-96153:MODE'"
   val valhallTimeSeriesId = 6536948395539605L
+
+  val sourceTimeSeriesDf = spark.read
+    .format("cognite.spark.v1")
+    .option("apiKey", readApiKey)
+    .option("type", "timeseries")
+    .load()
+  sourceTimeSeriesDf.createOrReplaceTempView("sourceTimeSeries")
+
+  val destinationTimeSeriesDf = spark.read
+    .format("cognite.spark.v1")
+    .option("apiKey", writeApiKey)
+    .option("type", "timeseries")
+    .load()
+  destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
+
+  val destinationStringDataPointsDf = spark.read
+    .format("cognite.spark.v1")
+    .option("apiKey", writeApiKey)
+    .option("type", "stringdatapoints")
+    .option("collectMetrics", "true")
+    .load()
+  destinationStringDataPointsDf.createOrReplaceTempView("destinationStringDatapoints")
 
   "StringDataPointsRelation" should "use our own schema for data points" taggedAs ReadTest in {
     val df = spark.read.format("cognite.spark.v1")
@@ -76,6 +98,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
     assert(df.count() == 100)
   }
 
+  // Ignored as we currently attempt to read all string data points in a single partition.
   it should "apply limit to each partition" taggedAs ReadTest ignore {
     val df = spark.read.format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -84,7 +107,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
       .option("limitPerPartition", "100")
       .option("partitions", "2")
       .load()
-      .where(s"timestamp >= to_timestamp(1395666380607) and timestamp <= to_timestamp(1557485862500) and id = $valhallTimeSeriesId")
+      .where(s"timestamp >= to_timestamp(1395666380) and id = $valhallTimeSeriesId")
     assert(df.count() == 200)
 
     val df2 = spark.read.format("cognite.spark.v1")
@@ -94,7 +117,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
       .option("limitPerPartition", "100")
       .option("partitions", "3")
       .load()
-      .where(s"timestamp >= to_timestamp(1395666380607) and timestamp <= to_timestamp(1425187835353) and id = $valhallTimeSeriesId")
+      .where(s"timestamp >= to_timestamp(1395666380) and timestamp <= to_timestamp(1425187835) and id = $valhallTimeSeriesId")
     assert(df2.count() == 300)
   }
 
@@ -158,13 +181,6 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
   }
 
   it should "be an error to specify an invalid (time series) name" taggedAs WriteTest in {
-    val destinationDf = spark.read.format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "stringdatapoints")
-      .load()
-    destinationDf.createTempView("destinationStringDatapoints")
-
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val e = intercept[Exception] {
       spark.sql(s"""
                    |select 9999 as id,
@@ -175,14 +191,13 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
                    |bigint(123456789) as timestamp,
                    |"somevalue" as value
       """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationStringDataPointsDf.columns.map(col): _*)
         .write
         .insertInto("destinationStringDatapoints")
     }
     e.getCause shouldBe a[CdpApiException]
     val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
     assert(cdpApiException.code == 400)
-    enableSparkLogging()
   }
 
   it should "be possible to write string data points" taggedAs WriteTest in {
@@ -191,43 +206,14 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
     val testUnit = s"stringdatapoints${randomSuffix}"
     val tsName = s"stringdatapoints-${randomSuffix}"
 
-    val sourceTimeSeriesDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "timeseries")
-      .load()
-    sourceTimeSeriesDf.createOrReplaceTempView("sourceTimeSeries")
-
-    val destinationTimeSeriesDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "timeseries")
-      .load()
-    destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
-
-    val destinationDataPointsDf = spark.read
+    val stringDataPointsInsertDf = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "stringdatapoints")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-    destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
-
-    // Clean up old time series data
-    spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""")
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "timeseries")
-      .option("onconflict", "delete")
-      .save()
-
-    // Check that it's gone
-    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
-      spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""").collect
-    }, df => df.length > 0)
-    assert(testTimeSeriesAfterCleanup.length == 0)
+    stringDataPointsInsertDf.createOrReplaceTempView("destinationStringDatapointsInsert")
 
     // Insert new time series test data
     spark
@@ -241,7 +227,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
               |isStep,
               |cast(array() as array<long>) as securityCategories,
               |id,
-              |'stringdatapoints-testing${randomSuffix}' as externalId,
+              |'string-test${randomSuffix}' as externalId,
               |createdTime,
               |lastUpdatedTime,
               |dataSetId
@@ -266,19 +252,19 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
     spark
       .sql(s"""
               |select $id as id,
-              |'insert-test-data' as externalId,
+              |'use-id-if-given' as externalId,
               |to_timestamp(1509490001) as timestamp,
               |'testing' as value
       """.stripMargin)
       .write
-      .insertInto("destinationDatapoints")
+      .insertInto("destinationStringDatapointsInsert")
     val pointsCreated = getNumberOfRowsCreated(metricsPrefix, "stringdatapoints")
     assert(pointsCreated == 1)
 
     // Check if post worked
     val dataPointsAfterPost = retryWhile[Array[Row]](
       spark
-        .sql(s"""select * from destinationDatapoints where id = '$id'""")
+        .sql(s"""select * from destinationStringDatapointsInsert where id = '$id'""")
         .collect,
       df => df.length < 1)
     assert(dataPointsAfterPost.length == 1)
@@ -287,12 +273,12 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
     spark
       .sql(s"""
               |select null as id,
-              |'stringdatapoints-testing${randomSuffix}' as externalId,
+              |'string-test${randomSuffix}' as externalId,
               |to_timestamp(1509500001) as timestamp,
               |'externalId' as value
       """.stripMargin)
       .write
-      .insertInto("destinationDatapoints")
+      .insertInto("destinationStringDatapointsInsert")
 
     val pointsAfterInsertByExternalId = getNumberOfRowsCreated(metricsPrefix, "stringdatapoints")
     assert(pointsAfterInsertByExternalId == 2)
@@ -300,39 +286,30 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with SparkTest
     // Check if post worked
     val dataPointsAfterPostByExternalId = retryWhile[Array[Row]](
       spark
-        .sql(s"""select * from destinationDatapoints where id = $id""")
+        .sql(s"""select * from destinationStringDatapointsInsert where externalId = 'string-test${randomSuffix}'""")
         .collect,
       df => df.length < 2)
     assert(dataPointsAfterPostByExternalId.length == 2)
   }
 
   it should "be an error to specify an invalid (time series) id" taggedAs (WriteTest) in {
-    val destinationDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "datapoints")
-      .load()
-    destinationDf.createOrReplaceTempView("destinationDatapoints")
-
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val e = intercept[SparkException] {
       spark
         .sql(s"""
                 |select 9999 as id,
-                |"" as externalId,
+                |"ignore-external-id-if-id-given" as externalId,
                 |bigint(123456789) as timestamp,
                 |double(1) as value,
                 |null as aggregation,
                 |null as granularity
       """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationStringDataPointsDf.columns.map(col): _*)
         .write
-        .insertInto("destinationDatapoints")
+        .insertInto("destinationStringDatapoints")
     }
     e.getCause shouldBe a[CdpApiException]
     val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
     assert(cdpApiException.code == 400)
-    enableSparkLogging()
   }
 
   it should "be possible to delete string data points" taggedAs WriteTest in {

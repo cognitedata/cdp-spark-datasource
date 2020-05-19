@@ -4,9 +4,9 @@ import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.AssetCreate
 import org.apache.spark.sql.Row
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
-class AssetHierarchyBuilderTest extends FlatSpec with Matchers with SparkTest {
+class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   import spark.implicits._
 
   private val assetsSourceDf = spark.read

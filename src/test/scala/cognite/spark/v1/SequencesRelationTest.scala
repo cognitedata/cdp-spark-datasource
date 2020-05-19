@@ -6,11 +6,11 @@ import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 import scala.util.control.NonFatal
 
-class SequencesRelationTest extends FlatSpec with Matchers with SparkTest {
+class SequencesRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   import spark.implicits._
 
   private val sequencesSourceDf = spark.read

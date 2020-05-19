@@ -5,7 +5,7 @@ import java.util.UUID
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.TimeSeries
 import org.apache.spark.sql.Row
-import org.scalatest.{FlatSpec, Matchers, OptionValues}
+import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
 import com.softwaremill.sttp._
@@ -14,7 +14,7 @@ import io.scalaland.chimney.dsl._
 
 import scala.util.Try
 
-class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with OptionValues {
+class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest with OptionValues {
   import spark.implicits._
 
   val sourceDf = spark.read
@@ -203,7 +203,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
 
     // Attempting to insert the same name should be an error when legacyName is set.
     // Note that we use a different externalId.
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val exception = the[SparkException] thrownBy spark
       .sql(s"""
               |select null as description,
@@ -223,7 +222,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
       .select(sourceDf.columns.map(col): _*)
       .write
       .insertInto("destinationTimeSeriesWithLegacyName")
-    enableSparkLogging()
     assert(exception.getCause.isInstanceOf[IllegalArgumentException])
 
     val before2 = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(externalId2)
@@ -527,7 +525,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     assert(dfWithDescriptionInsertTest.length == 7)
 
     // Trying to insert existing rows should throw a CdpApiException
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val insertError = intercept[SparkException] {
       spark
         .sql(s"""
@@ -560,7 +557,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     val rowsCreatedAfterAbort = getNumberOfRowsCreated(metricsPrefix, "timeseries")
     assert(rowsCreatedAfterAbort == 7)
     assertThrows[NoSuchElementException](getNumberOfRowsUpdated(metricsPrefix, "timeseries"))
-    enableSparkLogging()
   }
 
   it should "support partial update in savemode" taggedAs WriteTest in {
@@ -672,7 +668,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     assert(dfWithDescriptionUpdateTest.length == 5)
 
     // Trying to update non-existing Time Series should throw a CdpApiException
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val updateError = intercept[SparkException] {
       spark
         .sql(s"""
@@ -702,7 +697,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
     updateError.getCause shouldBe a[CdpApiException]
     val updateCdpApiException = updateError.getCause.asInstanceOf[CdpApiException]
     assert(updateCdpApiException.code == 400)
-    enableSparkLogging()
     val rowsUpdatedAfterFailedUpdate = getNumberOfRowsUpdated(metricsPrefix, "timeseries")
     assert(rowsUpdatedAfterFailedUpdate == 5)
   }
@@ -807,7 +801,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
 
     // Attempting to upsert (insert in this case) multiple time series
     // with the same name should be an error when useLegacyName is true.
-    disableSparkLogging()
     val exception = the[SparkException] thrownBy nonExistingTimeSeriesDf
       .write
       .format("cognite.spark.v1")
@@ -817,7 +810,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
       .option("useLegacyName", "true")
       .save()
     assert(exception.getCause.isInstanceOf[IllegalArgumentException])
-    enableSparkLogging()
 
     val nonExistingTimeSeriesWithLegacyNameDf =
       spark.sql(
@@ -970,7 +962,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
         .option("ignoreUnknownIds", "false")
         .save()
     }
-    enableSparkLogging()
     e.getCause shouldBe a[CdpApiException]
     val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
     assert(cdpApiException.code == 400)

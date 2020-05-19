@@ -7,13 +7,14 @@ import com.cognite.sdk.scala.v1.{Event, GenericClient}
 import fs2.{Chunk, Stream}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import com.softwaremill.sttp._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import org.apache.spark.sql.types.{DataTypes, StructType}
+
 import scala.concurrent.duration._
 
-class SdkV1RddTest extends FlatSpec with Matchers with SparkTest {
+class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   it should "throw an error when passed streams that return an error" in {
 
     val errorMessage = "Some exception"
