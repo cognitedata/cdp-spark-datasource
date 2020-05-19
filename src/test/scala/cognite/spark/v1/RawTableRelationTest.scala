@@ -7,9 +7,9 @@ import io.circe.Json
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
-class RawTableRelationTest extends FlatSpec with Matchers with SparkTest {
+class RawTableRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   import RawTableRelation._
   import spark.implicits._
 

@@ -3,11 +3,11 @@ package cognite.spark.v1
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 import scala.util.control.NonFatal
 
-class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
+class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val sourceDf = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", readApiKey)

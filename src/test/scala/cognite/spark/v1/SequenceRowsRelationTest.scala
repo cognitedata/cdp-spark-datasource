@@ -1,19 +1,11 @@
 package cognite.spark.v1
 
-import java.util.UUID
-
-import cats.data.NonEmptyList
-import com.cognite.sdk.scala.common.CdpApiException
-import com.cognite.sdk.scala.v1.{Sequence, SequenceColumn, SequenceColumnCreate}
+import com.cognite.sdk.scala.v1.SequenceColumnCreate
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.sql.functions.col
-import org.apache.spark.SparkException
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
-import scala.util.control.NonFatal
-
-class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
+class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   import spark.implicits._
 
   private val sequencesSourceDf = spark.read
@@ -57,16 +49,16 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext
       .parallelize(1 to 100)
       .toDF()
-      .createOrReplaceTempView("numbers")
+      .createOrReplaceTempView("numbers_create")
 
     insertRows(
       sequenceId,
       spark
-        .sql("select value as rowNumber, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers"))
+        .sql("select value as rowNumber, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create"))
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
     val allColumns = retryWhile[Array[Row]](
-      spark.sql(s"select * from sequencerows_a order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
       _.length != 100
     )
     allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
@@ -89,13 +81,13 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     sparkReadResult should contain theSameElementsAs(allColumns)
 
     val rowNumberOnly = retryWhile[Array[Row]](
-      spark.sql(s"select rowNumber from sequencerows_a order by rowNumber").collect,
+      spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect,
       _.length != 100
     )
     rowNumberOnly(0).get(0) shouldBe 1L
 
     val differentOrderProjection = retryWhile[Array[Row]](
-      spark.sql(s"select num1, num2, rowNumber, str1 from sequencerows_a order by rowNumber").collect,
+      spark.sql(s"select num1, num2, rowNumber, str1 from sequencerows_${sequenceId} order by rowNumber").collect,
       _.length != 100
     )
     differentOrderProjection(0).get(2) shouldBe 1L
@@ -104,7 +96,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     differentOrderProjection(0).get(0) shouldBe 6L
 
     val oneColumn = retryWhile[Array[Row]](
-      spark.sql(s"select num2 from sequencerows_a order by rowNumber").collect,
+      spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect,
       _.length != 100
     )
     oneColumn.map(_.get(0)) shouldBe Seq.fill(100)(1.1)
@@ -129,7 +121,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 3
 
     val rows = retryWhile[Array[Row]](
-      spark.sql(s"select * from sequencerows_a order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
       _.length != 3
     )
     rows.map(_.getAs[Long]("rowNumber")) shouldBe Array(1, 2, 3)
@@ -143,7 +135,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     insertRows(
       sequenceId,
       spark
-        .sql("select 1 as rowNumber, 1 as num1, 1 as num2, 'a' as str1"))
+        .sql("select 1 as rowNumber, 1 as num1, 1.0 as num2, 'a' as str1"))
 
     insertRows(
       sequenceId,
@@ -165,15 +157,15 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext
       .parallelize(1 to testSize)
       .toDF()
-      .createOrReplaceTempView("numbers")
+      .createOrReplaceTempView("numbers_many")
     insertRows(
       sequenceId,
       spark
-        .sql("select value as rowNumber, value * 6 as num1 from numbers"))
+        .sql("select value as rowNumber, value * 6 as num1 from numbers_many"))
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe testSize
 
     val allColumns = retryWhile[Array[Row]](
-      spark.sql(s"select * from sequencerows_b order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
       _.length != testSize
     )
     allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1")
@@ -184,16 +176,16 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext
       .parallelize(1 to 100)
       .toDF()
-      .createOrReplaceTempView("numbers")
+      .createOrReplaceTempView("numbers_delete")
     insertRows(
       sequenceId,
       spark
-        .sql("select value as rowNumber, value * 6 as num1 from numbers"))
+        .sql("select value as rowNumber, value * 6 as num1 from numbers_delete"))
 
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from sequencerows_b order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
       _.length != 100
     )
 
@@ -201,14 +193,14 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     insertRows(
       sequenceId,
       spark
-        .sql("select value * 2 as rowNumber from numbers"),
+        .sql("select value * 2 as rowNumber from numbers_delete"),
       "delete")
 
     // we count even the items that are not deleted
     getNumberOfRowsDeleted(sequenceId, "sequencerows") shouldBe 100
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from sequencerows_b order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
       _.length != 50
     )
   }
@@ -235,15 +227,15 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     spark.sparkContext
       .parallelize(1 to 100)
       .toDF()
-      .createOrReplaceTempView("numbers")
+      .createOrReplaceTempView("numbers_pushdown")
     insertRows(
       sequenceId,
       spark
-        .sql("select value as rowNumber, value * 6 as num1 from numbers"))
+        .sql("select value as rowNumber, value * 6 as num1 from numbers_pushdown"))
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from sequencerows_b order by rowNumber").collect,
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
       _.length != 100
     )
 
@@ -274,10 +266,10 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     val key = shortRandomString()
     createSequences(key, sequences)
     for (s <- sequences) {
-      createRowsRelation(s"${s.externalId.get}|$key").createOrReplaceTempView(s"sequencerows_${s.externalId.get}")
+      createRowsRelation(s"${s.externalId.get}_$key").createOrReplaceTempView(s"sequencerows_${s.externalId.get}_$key")
     }
     try {
-      testCode(sequences.map(s => s"${s.externalId.get}|$key"))
+      testCode(sequences.map(s => s"${s.externalId.get}_$key"))
     } finally {
       cleanupSequence(key, sequences.map(_.externalId.get) :_*)
     }
@@ -311,7 +303,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
     val processedTree = tree.map(
       s =>
         s.copy(
-          externalId = s.externalId.map(id => s"$id|$key")
+          externalId = s.externalId.map(id => s"${id}_$key")
       ))
     spark.sparkContext
       .parallelize(processedTree)
@@ -346,6 +338,6 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   def cleanupSequence(key: String, ids: String*): Unit =
-    writeClient.sequences.deleteByExternalIds(ids.map(id => s"$id|$key"))
+    writeClient.sequences.deleteByExternalIds(ids.map(id => s"${id}_$key"))
 
 }

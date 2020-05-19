@@ -111,7 +111,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     // Notify users that they need to supply one or more ids/externalIds when reading data points
     if (ids.isEmpty && externalIds.isEmpty) {
       throw new IllegalArgumentException(
-        "Please filter by one or more ids or externalIds when reading data points.")
+        "Please filter by one or more ids or externalIds when reading string data points.")
     }
 
     val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters, "timestamp")

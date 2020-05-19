@@ -1,8 +1,8 @@
 package cognite.spark.v1
 
-import org.scalatest.FlatSpec
+import org.scalatest.{FlatSpec, ParallelTestExecution}
 
-class ThreeDModelRevisionMappingsRelationTest extends FlatSpec with SparkTest {
+class ThreeDModelRevisionMappingsRelationTest extends FlatSpec with ParallelTestExecution with SparkTest {
   "ThreeDModelRevisionsRelationTest" should "pass a smoke test" taggedAs WriteTest in {
     val model = writeClient.threeDModels.list().compile.toList.head
     val revision = writeClient.threeDRevisions(model.id).list().compile.toList.head

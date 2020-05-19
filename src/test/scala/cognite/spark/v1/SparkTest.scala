@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.Executors
 
 import cats.Id
 import com.codahale.metrics.Counter
@@ -23,7 +24,7 @@ object WriteTest extends Tag("WriteTest")
 object GreenfieldTest extends Tag("GreenfieldTest")
 
 trait SparkTest {
-  implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.global)
+  implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4)))
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
   assert(writeApiKey != null && !writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
@@ -46,7 +47,7 @@ trait SparkTest {
     .config("spark.app.id", this.getClass.getName + math.floor(math.random * 1000).toLong.toString)
     .getOrCreate()
 
-  enableSparkLogging()
+  disableSparkLogging()
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 

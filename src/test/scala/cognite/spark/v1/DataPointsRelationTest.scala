@@ -3,11 +3,11 @@ package cognite.spark.v1
 import com.cognite.sdk.scala.common.CdpApiException
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField, TimestampType}
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
-class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
+class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val valhallTimeSeries = "'VAL_23-FT-92537-04:X.Value'"
 
   val valhallTimeSeriesId = 3385857257491234L
@@ -174,7 +174,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "be an error to specify an invalid granularity" taggedAs (ReadTest) in {
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
     for (granularity <- Seq("30", "dd", "d30", "1", "0", "1.2d", "1.4y", "1.4seconds")) {
       val df = spark.read
         .format("cognite.spark.v1")
@@ -188,7 +187,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       }
       e shouldBe an[IllegalArgumentException]
     }
-    enableSparkLogging()
   }
 
   it should "accept valid granularity specifications" taggedAs (ReadTest) in {
@@ -295,17 +293,15 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
       .where(
         s"timestamp >= to_timestamp(1349732220) and timestamp <= to_timestamp(1572931920) and aggregation = 'average' and granularity = '5m' and id = $withMissingAggregatesId")
-    // TODO: Check if this is the correct number.
     assert(df.count() == 723073)
     val pointsRead = getNumberOfRowsRead(metricsPrefix, "datapoints")
     // We read one more than strictly necessary, but it's filtered out by Spark.
     assert(pointsRead == 723074)
   }
 
-  // TODO: Reenable this when the issue with deleting the old time series has been resolved
-  it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest ignore {
+  it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest in {
     val metricsPrefix = "datapoints.insert"
-    val testUnit = "datapoints testing"
+    val testUnit = s"test ${shortRandomString()}"
     val tsName = s"datapoints-insert-${shortRandomString()}"
 
     val sourceTimeSeriesDf = spark.read
@@ -329,22 +325,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-    destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
-
-    // Clean up old time series data
-    spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""")
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "timeseries")
-      .option("onconflict", "delete")
-      .save()
-
-    // Check that it's gone
-    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
-      spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""").collect
-    }, df => df.length > 0)
-    assert(testTimeSeriesAfterCleanup.length == 0)
+    destinationDataPointsDf.createOrReplaceTempView("destinationDatapointsInsert")
 
     // Insert new time series test data
     spark
@@ -390,7 +371,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
               |null as granularity
       """.stripMargin)
       .write
-      .insertInto("destinationDatapoints")
+      .insertInto("destinationDatapointsInsert")
     val pointsCreated = getNumberOfRowsCreated(metricsPrefix, "datapoints")
     assert(pointsCreated == 1)
 
@@ -413,7 +394,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
               |null as granularity
       """.stripMargin)
       .write
-      .insertInto("destinationDatapoints")
+      .insertInto("destinationDatapointsInsert")
 
     val pointsAfterInsertByExternalId = getNumberOfRowsCreated(metricsPrefix, "datapoints")
     assert(pointsAfterInsertByExternalId == 2)
@@ -429,8 +410,8 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   it should "read all the datapoints in a time series with infrequent datapoints" taggedAs WriteTest in {
 
-    val testUnit = "last datapoint testing"
-    val tsName = "lastpointtester"
+    val testUnit = s"last testing ${shortRandomString()}"
+    val tsName = s"lastpoint${shortRandomString()}"
 
     val sourceTimeSeriesDf = spark.read
       .format("cognite.spark.v1")
@@ -453,21 +434,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("collectMetrics", "true")
       .load()
     destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
-
-    // Clean up old time series data
-    spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""")
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "timeseries")
-      .option("onconflict", "delete")
-      .save()
-
-    // Check that it's gone
-    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
-      spark.sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""").collect
-    }, df => df.length > 0)
-    assert(testTimeSeriesAfterCleanup.length == 0)
 
     // Insert new time series test data
     spark
@@ -565,7 +531,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       df => df.isEmpty)
       .map(r => r.getLong(0).toString)
 
-    disableSparkLogging()
     val exception = intercept[SparkException] {
       spark
         .sql(
@@ -581,11 +546,9 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .insertInto("destinationDatapoints")
     }
     exception.getMessage should include ("Column 'value' was expected to have type Double")
-    enableSparkLogging()
   }
 
   it should "fail reasonably when datapoint externalId has invalid type (save)" taggedAs WriteTest in {
-    disableSparkLogging()
     val exception = intercept[SparkException] {
       spark
         .sql(
@@ -605,11 +568,9 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .save
     }
     exception.getMessage should include ("Column 'externalId' was expected to have type String, but '1' of type Int was found (on row with externalId='1')")
-    enableSparkLogging()
   }
 
   it should "fail reasonably when datapoint value has invalid type (save)" taggedAs WriteTest in {
-    disableSparkLogging()
     val exception = intercept[SparkException] {
       spark
         .sql(
@@ -628,11 +589,9 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .save
     }
     exception.getMessage should include ("Column 'value' was expected to have type Double, but 'non-numeric value' of type String was found (on row with id='1')")
-    enableSparkLogging()
   }
 
   it should "fail reasonably when datapoint timestamp has invalid type (save)" taggedAs WriteTest in {
-    disableSparkLogging()
     val exception = intercept[SparkException] {
       spark
         .sql(
@@ -651,7 +610,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
         .save
     }
     exception.getMessage should include ("Column 'timestamp' was expected to have type Timestamp, but '1509500001' of type Int was found (on row with id='1')")
-    enableSparkLogging()
   }
 
   it should "be possible to create data points for several time series at the same time" taggedAs WriteTest in {
@@ -763,7 +721,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       .load()
     destinationDf.createOrReplaceTempView("destinationDatapoints")
 
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val e = intercept[SparkException] {
       spark
         .sql(s"""
@@ -781,7 +738,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     e.getCause shouldBe a[CdpApiException]
     val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
     assert(cdpApiException.code == 400)
-    enableSparkLogging()
   }
 
   it should "fail reasonably on invalid delete (empty range)" in {

@@ -5,25 +5,25 @@ import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 import scala.util.control.NonFatal
 
-class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
+class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
 
   val sourceDf = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", readApiKey)
     .option("type", "assets")
     .load()
-  sourceDf.createTempView("sourceAssets")
+  sourceDf.createOrReplaceTempView("sourceAssets")
 
   val destinationDf = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", writeApiKey)
     .option("type", "assets")
     .load()
-  destinationDf.createTempView("destinationAssets")
+  destinationDf.createOrReplaceTempView("destinationAssets")
 
   it should "read assets" taggedAs ReadTest in {
     val df = spark.read
@@ -216,12 +216,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-    df.createOrReplaceTempView("assets")
+    df.createOrReplaceTempView("createAssets")
     cleanupAssets(assetsTestSource)
     try {
-      retryWhile[Array[Row]](
-        spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
-        rows => rows.length > 0)
       spark
         .sql(s"""
                 |select '$externalId' as externalId,
@@ -240,13 +237,13 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       """.stripMargin)
         .select(destinationDf.columns.map(col): _*)
         .write
-        .insertInto("assets")
+        .insertInto("createAssets")
 
       val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
       assert(assetsCreated == 1)
 
       val Array(createdAsset) = retryWhile[Array[Row]](
-        spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+        spark.sql(s"select * from createAssets where source = '$assetsTestSource'").collect,
         rows => rows.length < 1)
 
       createdAsset.getAs[String]("name") shouldBe "asset name"
@@ -452,7 +449,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
           .sql(
             s"select description from destinationAssets where source = '$source' and description = 'bar'")
           .collect,
-        df => df.length != 200)
+        df => df.length < 200)
       assert(descriptionsAfterUpsert.length == 200)
 
     } finally {
@@ -496,8 +493,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         |select 'upsertTestThree' as name, id from invalid
       """.stripMargin)
 
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
-
     assertThrows[IllegalArgumentException] {
       wdf.write
         .format("cognite.spark.v1")
@@ -506,17 +501,24 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("onconflict", "does-not-exists")
         .save()
     }
-    enableSparkLogging()
   }
 
   it should "support some more partial updates" taggedAs WriteTest in  {
     val source = s"spark-assets-test-partial-${shortRandomString()}"
+    val destinationDf: DataFrame = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "false")
+      .load()
+    destinationDf.createOrReplaceTempView("destinationAssetsMorePartial")
 
+    val randomSuffix = shortRandomString()
     try {
       // Post new assets
       spark
         .sql(s"""
-                |select id as externalId,
+                |select concat(string(id), '${randomSuffix}') as externalId,
                 |name,
                 |null as parentId,
                 |null as parentExternalId,
@@ -534,11 +536,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
      """.stripMargin)
         .select(destinationDf.columns.map(col): _*)
         .write
-        .insertInto("destinationAssets")
+        .insertInto("destinationAssetsMorePartial")
 
       // Check if post worked
       val assetsFromTestDf = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationAssets where source = '$source'").collect,
+        spark.sql(s"select * from destinationAssetsMorePartial where source = '$source'").collect,
         df => df.length < 100)
       assert(assetsFromTestDf.length == 100)
 
@@ -548,7 +550,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       spark
         .sql(s"""
                 |select '$description' as description,
-                |id from destinationAssets
+                |id from destinationAssetsMorePartial
                 |where source = '$source'
      """.stripMargin)
         .write
@@ -560,9 +562,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
       // Check if update worked
       val assetsWithNewNameDf = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationAssets where source = '$source' and description = '$description'").collect,
+        spark.sql(s"select * from destinationAssetsMorePartial where source = '$source' and description = '$description'").collect,
         df => df.length < 100)
-      assert(assetsFromTestDf.length == 100)
+      assert(assetsWithNewNameDf.length == 100)
     } finally {
       try {
         cleanupAssets(source)
@@ -575,11 +577,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "allow null ids on asset update" taggedAs WriteTest in {
     val source = s"spark-assets-updateId-${shortRandomString()}"
 
+    val randomSuffix = shortRandomString()
     try {
       // Post new assets
       spark
         .sql(s"""
-                |select string(id) as externalId,
+                |select concat(string(id), '${randomSuffix}') as externalId,
                 |name,
                 |null as parentId,
                 |null as parentExternalId,
@@ -602,7 +605,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
       // Check if post worked
       val assetsFromTestDf = retryWhile[Array[Row]](
         spark.sql(s"select * from destinationAssets where source = '$source' and description = 'foo'").collect,
-        df => df.length != 100)
+        df => df.length < 100)
       assert(assetsFromTestDf.length == 100)
 
       // Upsert assets
@@ -831,11 +834,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "allow deletes in savemode" taggedAs WriteTest in {
     val source = s"spark-savemode-asset-delete-${shortRandomString()}"
 
+    val randomSuffix = shortRandomString()
     try {
       // Insert some test data
       spark
         .sql(s"""
-                |select id as externalId,
+                |select concat(string(id), '${randomSuffix}') as externalId,
                 |name,
                 |null as parentId,
                 |null as parentExternalId,
@@ -950,14 +954,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("ignoreUnknownIds", "true")
         .save()
 
-      disableSparkLogging() // Removing expected Spark executor Errors from the console
-
       // Should throw error if ignoreUnknownIds is false
       val e = intercept[SparkException] {
         spark
           .sql(
             s"""
-               |select 1574865177148 as id
+               |select 1234 as id
                |from destinationAssets
                |where source = '$source'
         """.stripMargin)
@@ -969,7 +971,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
           .option("ignoreUnknownIds", "false")
           .save()
       }
-      enableSparkLogging()
       e.getCause shouldBe a[CdpApiException]
       val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
       assert(cdpApiException.code == 400)

@@ -5,11 +5,11 @@ import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 import scala.util.control.NonFatal
 
-class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
+class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", writeApiKey)
@@ -71,9 +71,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val df = getBaseReader(true, metricsPrefix)
       .where("dataSetId = 0")
 
-    disableSparkLogging()
     val thrown = the[SparkException] thrownBy df.count()
-    enableSparkLogging()
     thrown.getMessage should include ("id must be greater than or equal to 1")
   }
 
@@ -81,7 +79,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
     val metricsPrefix = "pushdown.filter.dataSetId"
     val df = getBaseReader(true, metricsPrefix)
       .where(
-        "type = 'Worktask' or dataSetId = 86163806167772 and createdTime < from_utc_timestamp('2020-03-31', 'GMT+1')")
+        "type = 'Worktask' or dataSetId = 86163806167772 and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
 
     assert(df.count == 232)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -314,7 +312,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   }
 
   it should "support upserts" taggedAs WriteTest in {
-    val metricsPrefix = "upsert.event.metrics.insertInto"
+    val metricsPrefix = s"upsert.event.metrics.insertInto"
     val source = "spark-events-test-upsert" + shortRandomString()
 
     // Cleanup events
@@ -373,7 +371,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
                 |type,
                 |subtype,
                 |array(2091657868296883) as assetIds,
-                |bigint(0) as id,
+                |null as id,
                 |map("some", null, "metadata", "test") as metadata,
                 |"$source" as source,
                 |concat("$source", cast(id as string)) as externalId,
@@ -461,7 +459,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       assert(dfWithSourceInsertTest.length == 100)
 
       // Trying to insert existing rows should throw a CdpApiException
-      disableSparkLogging() // Removing expected Spark executor Errors from the console
       val e = intercept[SparkException] {
         df.write
           .format("cognite.spark.v1")
@@ -474,7 +471,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       assert(cdpApiException.code == 409)
       val eventsCreatedAfterFailure = getNumberOfRowsCreated(metricsPrefix, "events")
       assert(eventsCreatedAfterFailure == 100)
-      enableSparkLogging()
     } finally {
       try {
         cleanupEvents(source)
@@ -835,7 +831,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       assert(eventsUpdatedAfterUpsert == 100)
 
       // Trying to update non-existing ids should throw a 400 CdpApiException
-      disableSparkLogging() // Removing expected Spark executor Errors from the console
       val e = intercept[SparkException] {
         // Update the data
         spark
@@ -871,7 +866,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
       assert(eventsCreatedAfterFail == 100)
       val eventsUpdatedAfterFail = getNumberOfRowsUpdated(metricsPrefix, "events")
       assert(eventsUpdatedAfterFail == 100)
-      enableSparkLogging()
     } finally {
       try {
         cleanupEvents(source)
@@ -983,7 +977,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
           df => df.length < 100)
       assert(idsAfterInsert.length == 100)
 
-      disableSparkLogging() // Removing expected Spark executor Errors from the console
       // Delete the data
       spark
         .sql(s"""
@@ -997,7 +990,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
         .option("type", "events")
         .option("onconflict", "delete")
         .save()
-      enableSparkLogging()
 
       // Check if delete worked
       val idsAfterDelete =
@@ -1068,12 +1060,11 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
         .save()
 
       // Should throw error if ignoreUnknownIds is false
-      disableSparkLogging() // Removing expected Spark executor Errors from the console
       val e = intercept[SparkException] {
         spark
           .sql(
             s"""
-               |select 1574865177148 as id
+               |select 123 as id
                |from destinationEvent
                |where source = '$source'
         """.stripMargin)
@@ -1085,7 +1076,6 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
           .option("ignoreUnknownIds", "false")
           .save()
       }
-      enableSparkLogging()
       e.getCause shouldBe a[CdpApiException]
       val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
       assert(cdpApiException.code == 400)
