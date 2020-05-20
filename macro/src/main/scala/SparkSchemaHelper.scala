@@ -111,6 +111,8 @@ class SparkSchemaHelperImpl(val c: Context) {
              case x: Long => Some(x.toDouble)
              case x: BigDecimal => Some(x.toDouble)
              case x: BigInt => Some(x.toDouble)
+             case x: java.math.BigDecimal => Some(x.doubleValue)
+             case x: java.math.BigInteger => Some(x.doubleValue)
              case _ => $throwError
            })"""
           } else if (rowType == typeOf[Float]) {
@@ -122,6 +124,8 @@ class SparkSchemaHelperImpl(val c: Context) {
              case x: Long => Some(x.toFloat)
              case x: BigDecimal => Some(x.toFloat)
              case x: BigInt => Some(x.toFloat)
+             case x: java.math.BigDecimal => Some(x.floatValue)
+             case x: java.math.BigInteger => Some(x.floatValue)
              case _ => $throwError
            })"""
           } else if (rowType == typeOf[Long]) {

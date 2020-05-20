@@ -51,6 +51,12 @@ class SparkSchemaHelperTest extends FlatSpec with Matchers {
     fromRow[TestTypeBasic](r) should be(TestTypeBasic(1, 2, 3, 4, Map("foo" -> "bar"), 5, Seq(10), "foo"))
   }
 
+  "SparkSchemaHelper fromRow" should "construct type from Row doing implicit conversions 2" in {
+    val r = new GenericRowWithSchema(Array(1, new java.math.BigDecimal(2).pow(100), 3.toByte,
+      java.math.BigInteger.valueOf(4), Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
+    fromRow[TestTypeBasic](r) should be(TestTypeBasic(1, math.pow(2, 100), 3, 4, Map("foo" -> "bar"), 5, Seq(10), "foo"))
+  }
+
   it should "construct optional type from Row of null" in {
     val r = new GenericRowWithSchema(Array(null, null, null, null, null, null, null, null), structType[TestTypeOption])
     fromRow[TestTypeOption](r) should be(
