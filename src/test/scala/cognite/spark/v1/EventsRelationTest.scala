@@ -126,7 +126,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "apply multiple pushdown filters" taggedAs WriteTest in {
     val metricsPrefix = "multiple.pushdown.filters"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type = '***' and assetIds = Array(2091657868296883)")
+      .where(s"type = '***' and assetIds = Array(2091657868296883) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
 
     assert(df.count == 83)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -136,7 +136,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "handle or conditions" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.or"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type = 'Workitem' or type = 'Worktask'")
+      .where(s"(type = 'Workitem' or type = 'Worktask') and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
 
     assert(df.count == 1483)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -146,7 +146,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "handle in() conditions" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.in"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type in('Workitem','Worktask')")
+      .where(s"type in('Workitem','Worktask') and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
     assert(df.count == 1483)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 1483)
@@ -155,7 +155,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "handle and, or and in() in one query" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.and.or.in"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"(type = 'Workitem' or type = '***') and assetIds in(array(2091657868296883), array(8031965690878131))")
+      .where(s"(type = 'Workitem' or type = '***') and assetIds in(array(2091657868296883), array(8031965690878131)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
 
     assert(df.count == 172)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -165,7 +165,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "handle pushdown filters on minimum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.minStartTime"
     val df = getBaseReader(true, metricsPrefix)
-      .where("startTime > to_timestamp(1568105460)")
+      .where("startTime > to_timestamp(1568105460) and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
     assert(df.count >= 179)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead >= 179)
@@ -183,7 +183,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.maxStartTime"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"startTime < timestamp('1970-01-19 00:00:00.000Z')")
+      .where(s"startTime < timestamp('1970-01-19 00:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
     assert(df.count > 10)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == df.count)
@@ -192,7 +192,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.minMaxStartTime"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"startTime < timestamp('1970-01-19 00:00:00.000Z') and startTime > timestamp('1970-01-18 23:00:00.000Z')")
+      .where(s"startTime < timestamp('1970-01-19 00:00:00.000Z') and startTime > timestamp('1970-01-18 23:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
     assert(df.count == 9)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 9)
@@ -201,7 +201,7 @@ class EventsRelationTest extends FlatSpec with Matchers with SparkTest {
   it should "handle pushdown filters on assetIds" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.assetIds"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"assetIds In(Array(2091657868296883))")
+      .where(s"assetIds In(Array(2091657868296883)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
     assert(df.count == 89)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 89)
