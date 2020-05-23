@@ -115,9 +115,6 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new RuntimeException("Update not supported for datapoints. Use upsert instead.")
 
-  override def delete(rows: Seq[Row]): IO[Unit] =
-    throw new RuntimeException("Delete not supported for datapoints.")
-
   override def schema: StructType =
     StructType(
       Seq(
@@ -225,4 +222,5 @@ object NumericDataPointsRelation extends UpsertSchema {
   val upsertSchema: StructType = structType[InsertDataPointsItem]
   val readSchema: StructType = structType[DataPointsItem]
   val insertSchema: StructType = structType[InsertDataPointsItem]
+  val deleteSchema: StructType = structType[DeleteDataPointsItem]
 }

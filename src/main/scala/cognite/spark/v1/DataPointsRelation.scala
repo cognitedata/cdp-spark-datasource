@@ -21,6 +21,8 @@ sealed case class Max(value: Instant) extends Limit
 
 final case class AggregationFilter(aggregation: String)
 
+import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+
 abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String)(
     override val sqlContext: SQLContext)
     extends CdfRelation(config, shortName)
@@ -29,10 +31,19 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
     with Serializable
     with InsertableRelation {
   import CdpConnector._
+  import DataPointsRelationV1._
 
   def toRow(a: A): Row
 
   def toRow(requiredColumns: Array[String])(item: A): Row
+
+  def delete(rows: Seq[Row]): IO[Unit] = {
+    val deleteRanges =
+      rows
+        .map(fromRow[DeleteDataPointsItem](_))
+        .map(processDeleteRow)
+    client.dataPoints.deleteRanges(deleteRanges)
+  }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
@@ -172,4 +183,57 @@ object DataPointsRelationV1 {
               newAllPoints)
         }
     }
+
+  // The API only supports exclusiveEnd and inclusiveBegin, so we must adjust the row format for this
+  // Since the minimum datapoint precision is 1ms, we can just assume exclusiveEnd = inclusiveEnd + 1ms
+  // and inclusiveBegin = exclusiveBegin + 1ms
+  private def toLowerbound(
+      lower: Option[Instant],
+      upper: Option[Instant],
+      part: String,
+      row: Any): Long =
+    (lower, upper) match {
+      case (Some(_), Some(_)) =>
+        throw new IllegalArgumentException(
+          s"Delete row for data points can not contain both inclusive$part and exclusive$part (on row $row)")
+      case (Some(lower), None) =>
+        lower.toEpochMilli
+      case (None, Some(upper)) =>
+        upper.toEpochMilli + 1
+      case (None, None) =>
+        throw new IllegalArgumentException(
+          s"Delete row for data points must contain inclusive$part or exclusive$part (on row $row)")
+    }
+
+  def processDeleteRow(x: DeleteDataPointsItem): DeleteDataPointsRange = {
+    val id = (x.id, x.externalId) match {
+      case (Some(id), _) => CogniteInternalId(id)
+      case (None, Some(externalId)) => CogniteExternalId(externalId)
+      case (None, None) =>
+        throw new IllegalArgumentException(
+          s"Delete row for data points must contain id or externalId (on row $x)")
+    }
+
+    val inclusiveBegin = toLowerbound(x.inclusiveBegin, x.exclusiveBegin, "Begin", x)
+    val exclusiveEnd = toLowerbound(x.exclusiveEnd, x.inclusiveEnd, "End", x)
+    if (exclusiveEnd <= inclusiveBegin) {
+      throw new IllegalArgumentException(
+        s"Delete range [$inclusiveBegin, $exclusiveEnd) is invalid (on row $x)")
+    }
+    id match {
+      case CogniteInternalId(id) =>
+        DeleteRangeById(id, inclusiveBegin, exclusiveEnd)
+      case CogniteExternalId(externalId) =>
+        DeleteRangeByExternalId(externalId, inclusiveBegin, exclusiveEnd)
+    }
+  }
 }
+
+final case class DeleteDataPointsItem(
+    id: Option[Long],
+    externalId: Option[String],
+    exclusiveBegin: Option[Instant],
+    inclusiveBegin: Option[Instant],
+    exclusiveEnd: Option[Instant],
+    inclusiveEnd: Option[Instant]
+)

@@ -148,6 +148,29 @@ Assets and events will ignore existing ids on deletes. If you prefer to abort th
 when attempting to delete an unknown id, use `.option("ignoreUnknownIds", "false")`
 for those resources types.
 
+Expected schema for delete of Time series, Assets, Events or Files is:
+
+| Column name       | Type                  |  Nullable |
+| ------------------| ----------------------| --------- |
+| `id`              | `long`                | No        |
+
+Expected schema for delete of Datapoints or String Datapoints is:
+
+| Column name       | Type                  |  Nullable |
+| ------------------| ----------------------| --------- |
+| `id`             |  `long`                Yes      |
+| `externalId`      | `string`             | Yes     |
+| `inclusiveBegin`  | `timestamp`          | Yes     |
+| `exclusiveBegin`  | `timestamp`          | Yes     |
+| `inclusiveEnd`    | `timestamp`          | Yes     |
+| `exclusiveEnd`    | `timestamp`          | Yes     |
+
+One of `id` & `externalId`, `inclusiveBegin` & `exclusiveBegin` and `inclusiveEnd` & `exclusiveEnd` must be specified.
+Data points are deleted by a range and both bound must be specified.
+To delete a single data point, set `inclusiveBegin` and `inclusiveEnd` to the same value.
+To delete a range between two points, set `exclusiveBegin` to the first point and `exclusiveEnd` to the second one;
+this will not delete the boundaries, but everything between them.
+
 ## Asset hierarchy builder (beta)
 Note: The asset hierarchy builder is currently in beta, and has not been sufficiently tested to be used 
 on production data.

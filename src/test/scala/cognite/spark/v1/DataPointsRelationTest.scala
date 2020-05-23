@@ -654,8 +654,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     enableSparkLogging()
   }
 
-  //  it should "fail reasonably "
-
   it should "be possible to create data points for several time series at the same time" taggedAs WriteTest in {
     val tsName1 = s"dps-insert1-${shortRandomString()}"
     val tsName2 = s"dps-insert2-${shortRandomString()}"
@@ -784,5 +782,196 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
     val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
     assert(cdpApiException.code == 400)
     enableSparkLogging()
+  }
+
+  it should "fail reasonably on invalid delete (empty range)" in {
+    disableSparkLogging()
+    val e = intercept[SparkException] {
+      spark
+        .sql(s"""select
+                |9999 as id,
+                |to_timestamp(1509900000) as exclusiveEnd,
+                |to_timestamp(1509900000) as inclusiveBegin
+      """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "datapoints")
+        .option("onconflict", "delete")
+        .save
+    }
+    e.getCause shouldBe a[IllegalArgumentException]
+    e.getCause.getMessage should startWith("Delete range [1509900000000, 1509900000000) is invalid")
+    enableSparkLogging()
+  }
+
+  it should "fail reasonably on invalid delete (inclusiveEnd and exclusiveEnd)" in {
+    disableSparkLogging()
+    val e = intercept[SparkException] {
+      spark
+        .sql(s"""select
+                |"some id" as externalId,
+                |to_timestamp(1509900000) as inclusiveEnd,
+                |to_timestamp(1509900000) as exclusiveEnd,
+                |to_timestamp(1509900000) as inclusiveBegin
+      """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "datapoints")
+        .option("onconflict", "delete")
+        .save
+    }
+    e.getCause shouldBe a[IllegalArgumentException]
+    e.getCause.getMessage should startWith("Delete row for data points can not contain both inclusiveEnd and exclusiveEnd ")
+    enableSparkLogging()
+  }
+
+  it should "fail reasonably on invalid delete (no Begin)" in {
+    disableSparkLogging()
+    val e = intercept[SparkException] {
+      spark
+        .sql(s"""select
+                |"some id" as externalId,
+                |to_timestamp(1509900000) as inclusiveEnd
+      """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "datapoints")
+        .option("onconflict", "delete")
+        .save
+    }
+    e.getCause shouldBe a[IllegalArgumentException]
+    e.getCause.getMessage should startWith("Delete row for data points must contain inclusiveBegin or exclusiveBegin ")
+    enableSparkLogging()
+  }
+
+  it should "fail reasonably on invalid delete (no id)" in {
+    disableSparkLogging()
+    val e = intercept[SparkException] {
+      spark
+        .sql(s"""select
+                |to_timestamp(1509900000) as inclusiveEnd,
+                |to_timestamp(1509900000) as inclusiveBegin
+      """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "datapoints")
+        .option("onconflict", "delete")
+        .save
+    }
+    e.getCause shouldBe a[IllegalArgumentException]
+    e.getCause.getMessage should startWith("Delete row for data points must contain id or externalId ")
+    enableSparkLogging()
+  }
+
+
+  it should "be possible to delete data points" taggedAs WriteTest in {
+    val destinationDataPointsDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "datapoints")
+      .load()
+    destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
+
+    val tsName = s"dps-delete1-${shortRandomString()}"
+
+    val destinationTimeSeriesDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .load()
+    destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
+
+    spark
+      .sql(
+        s"""
+           |select '$tsName' as name,
+           |'$tsName' as externalId,
+           |false as isStep,
+           |false as isString
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "upsert")
+      .save()
+
+    val Array(tsIdRow) = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select id from destinationTimeSeries where externalId = '$tsName'""")
+        .collect,
+      df => df.isEmpty)
+    val tsId = tsIdRow.getAs[Long]("id")
+
+    spark
+      .sql(
+        s"""
+           |select $tsId as id,
+           |to_timestamp(1509500001) as timestamp,
+           |1.0 as value
+           |
+           |union all
+           |
+           |select $tsId as id,
+           |to_timestamp(1509500002) as timestamp,
+           |2.0 as value
+           |
+           |union all
+           |
+           |select $tsId as id,
+           |to_timestamp(1509500003) as timestamp,
+           |3.0 as value
+        """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "datapoints")
+      .option("onconflict", "upsert")
+      .save
+
+    // Check if post worked
+    val dataPointsAfterPost = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select * from destinationDatapoints where id = $tsId""")
+        .collect,
+      df => df.length < 3)
+
+    spark
+      .sql(
+        s"""
+           |select
+           |$tsId as id,
+           |NULL as externalId,
+           |to_timestamp(1509500001) as inclusiveBegin,
+           |NULL as exclusiveBegin,
+           |to_timestamp(1509500001) as inclusiveEnd,
+           |NULL as exclusiveEnd
+           |
+           |union all
+           |
+           |select NULL as id,
+           |'$tsName' as externalId,
+           |NULL as inclusiveBegin,
+           |to_timestamp(1509500002) as exclusiveBegin,
+           |NULL as inclusiveEnd,
+           |to_timestamp(1509500060) as exclusiveEnd
+         """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "datapoints")
+      .option("onconflict", "delete")
+      .save
+
+    val dataPointsAfterDelete = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select value from destinationDatapoints where id = $tsId""")
+        .collect,
+      df => df.length != 1)
+    dataPointsAfterDelete.head.getAs[Double]("value") shouldBe 2.0
   }
 }
