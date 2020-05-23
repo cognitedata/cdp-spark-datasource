@@ -46,9 +46,6 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new RuntimeException("Update not supported for stringdatapoints. Please use upsert instead.")
 
-  override def delete(rows: Seq[Row]): IO[Unit] =
-    throw new RuntimeException("Delete not supported for stringdatapoints.")
-
   def toRow(a: StringDataPointsItem): Row = asRow(a)
 
   override def schema: StructType =
@@ -193,4 +190,5 @@ object StringDataPointsRelation extends UpsertSchema {
   val upsertSchema = structType[StringDataPointsInsertItem]
   val readSchema = structType[StringDataPointsItem]
   val insertSchema = structType[StringDataPointsInsertItem]
+  val deleteSchema = structType[DeleteDataPointsItem]
 }
