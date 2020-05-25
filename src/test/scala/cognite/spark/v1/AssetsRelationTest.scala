@@ -34,9 +34,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("partitions", "1")
       .load()
 
-    df.createOrReplaceTempView("assets")
+    df.createOrReplaceTempView("assetsRead")
     val res = spark
-      .sql("select * from assets")
+      .sql("select * from assetsRead")
       .collect()
     assert(res.length == 1000)
   }
@@ -266,7 +266,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("apiKey", writeApiKey)
       .option("type", "assets")
       .load()
-    df.createOrReplaceTempView("assets")
     val externalId = shortRandomString()
 
     try {
@@ -303,18 +302,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "be possible to copy assets from one tenant to another" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-copy-${shortRandomString()}"
-    val sourceDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
-      .option("type", "assets")
-      .load()
-    sourceDf.createOrReplaceTempView("source_assets")
-    val destinationDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .load()
-    destinationDf.createOrReplaceTempView("assets")
     try {
       spark
         .sql(s"""
@@ -331,14 +318,14 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |0 as rootId,
                 |null as aggregates,
                 |dataSetId
-                |from source_assets
+                |from sourceAssets
                 |limit 1
       """.stripMargin)
         .select(destinationDf.columns.map(col): _*)
         .write
         .insertInto("assets")
       retryWhile[Array[Row]](
-        spark.sql(s"select * from assets where source = '$assetsTestSource'").collect,
+        spark.sql(s"select * from destinationAssets where source = '$assetsTestSource'").collect,
         rows => rows.length < 1)
     } finally {
       try {
