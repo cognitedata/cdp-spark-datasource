@@ -79,7 +79,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = "pushdown.filter.dataSetId"
     val df = getBaseReader(true, metricsPrefix)
       .where(
-        "type = 'Worktask' or dataSetId = 86163806167772 and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
+        "type = 'Worktask' or dataSetId = 86163806167772 and createdTime < timestamp('2020-03-31 00:00:00.000Z')")
 
     assert(df.count == 232)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -1045,12 +1045,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(idsAfterInsert.length == 1)
 
       spark
-        .sql(
-          s"""
-             |select 1574865177148 as id
-             |from destinationEvent
-             |where source = '$source'
-        """.stripMargin)
+        .sql("select 1574865177148 as id".stripMargin)
         .write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
@@ -1062,12 +1057,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       // Should throw error if ignoreUnknownIds is false
       val e = intercept[SparkException] {
         spark
-          .sql(
-            s"""
-               |select 123 as id
-               |from destinationEvent
-               |where source = '$source'
-        """.stripMargin)
+          .sql("select 123 as id")
           .write
           .format("cognite.spark.v1")
           .option("apiKey", writeApiKey)
