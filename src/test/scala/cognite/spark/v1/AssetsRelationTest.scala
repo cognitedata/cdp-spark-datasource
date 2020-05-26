@@ -560,7 +560,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
       // Check if update worked
       val assetsWithNewNameDf = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationAssets where description = '$description'").collect,
+        spark.sql(s"select * from destinationAssets where source = '$source' and description = '$description'").collect,
         df => df.length < 100)
       assert(assetsFromTestDf.length == 100)
     } finally {
