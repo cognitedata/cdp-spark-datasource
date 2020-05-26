@@ -152,11 +152,11 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
 
     val rows = retryWhile[Array[Row]](
       spark.sql(s"select * from sequencerows_a order by rowNumber").collect,
-      rows => rows.length != 1 || rows(0).getAs[Long]("num1") != 2
+      rows => rows.length != 1 || rows(0).getAs[Long]("num1") != 2 || rows(0).getAs[Double]("num2") < 1.0
     )
     rows(0).getAs[Long]("num1") shouldBe 2 // the updated value
     rows(0).getAs[Long]("str1") shouldBe "a" // an old value is not replaced
-    rows(0).getAs[Long]("num2") shouldBe 1.0
+    rows(0).getAs[Double]("num2") shouldBe 1.0
   }
 
   it should "create and read many rows" in withSequences(Seq(sequenceB)) { case Seq(sequenceId) =>
