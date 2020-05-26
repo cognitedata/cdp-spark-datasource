@@ -887,6 +887,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
       rows => rows.length > 0
     )
 
+    val randomSuffix = shortRandomString()
     spark.sql(s"""
                  |select 'foo' as description,
                  |isString,
@@ -897,7 +898,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with SparkTest with 
                  |isStep,
                  |securityCategories,
                  |null as id,
-                 |string(id) as externalId,
+                 |concat(string(id), "_null_id_${randomSuffix}") as externalId,
                  |createdTime,
                  |lastUpdatedTime,
                  |dataSetId
