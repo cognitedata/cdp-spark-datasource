@@ -1,3 +1,13 @@
+# 1.3.1
+
+## Enhancements
+
+* Deletes are now supported for `datapoints`. See README.md for examples.
+
+## Fixes
+
+* An incorrect version was used for one of the library dependencies.
+
 # 1.3.0
 
 ## Breaking changes
