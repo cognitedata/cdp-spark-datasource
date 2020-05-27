@@ -312,13 +312,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support upserts" taggedAs WriteTest in {
-    val metricsPrefix = s"upsert.event.metrics.insertInto"
+    val metricsPrefix = s"upsert.event.insertInto.${shortRandomString()}"
     val source = "spark-events-test-upsert" + shortRandomString()
-
-    // Cleanup events
-    val eventDescriptionsReturned =
-      retryWhile[Array[Row]](cleanupEvents(source), rows => rows.nonEmpty)
-    assert(eventDescriptionsReturned.isEmpty)
 
     try {
       val destinationDf: DataFrame = spark.read
@@ -419,7 +414,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "allow inserts in savemode" taggedAs WriteTest in {
     val source = s"spark-events-insert-savemode-${shortRandomString()}"
-    val metricsPrefix = "insert.event.metrics.savemode"
+    val metricsPrefix = s"insert.event.savemode.${shortRandomString()}"
 
     try {
       // Test inserts
@@ -482,7 +477,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "allow duplicated ids and external ids when using upsert in savemode" in {
     val source = s"spark-events-test-${shortRandomString()}"
-    val metricsPrefix = "upsert.duplicate.event.metrics.save"
+    val metricsPrefix = s"upsert.duplicate.event.save.${shortRandomString()}"
 
     try {
       val externalId = shortRandomString()
@@ -608,7 +603,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "allow upsert in savemode" taggedAs WriteTest in {
     val source = s"spark-events-test-${shortRandomString()}"
-    val metricsPrefix = "upsert.event.metrics.save"
+    val metricsPrefix = s"upsert.event.save.${shortRandomString()}"
 
     try {
       // Post new events
@@ -743,7 +738,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "allow partial updates in savemode" taggedAs WriteTest in {
     val source = s"spark-events-upsert-save-${shortRandomString()}"
-    val metricsPrefix = "events.test.upsert.partial"
+    val metricsPrefix = s"events.upsert.partial.${shortRandomString()}"
 
     try {
       // Cleanup old events
@@ -799,36 +794,36 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(eventsCreatedAfterUpsert == 100)
 
       // Update the data
-      spark
-        .sql(s"""
-                |select "bar" as description,
-                |id
-                |from destinationEventsUpsertPartial
-                |where source = '$source'
-      """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "events")
-        .option("onconflict", "update")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
-
-      // Check if update worked
       val descriptionsAfterUpdate =
-        retryWhile[Array[Row]](
+        retryWhile[Array[Row]]({
+          spark
+            .sql(
+              s"""
+                 |select "bar" as description,
+                 |id
+                 |from destinationEventsUpsertPartial
+                 |where source = '$source'
+      """.stripMargin)
+            .write
+            .format("cognite.spark.v1")
+            .option("apiKey", writeApiKey)
+            .option("type", "events")
+            .option("onconflict", "update")
+            .option("collectMetrics", "true")
+            .option("metricsPrefix", metricsPrefix)
+            .save()
           spark
             .sql(
               s"select description from destinationEventsUpsertPartial " +
                 s"where source = '$source' and description = 'bar'")
-            .collect,
-          df => df.length < 100)
+            .collect
+        }, df => df.length < 100)
       assert(descriptionsAfterUpdate.length == 100)
       assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
 
       val eventsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "events")
-      assert(eventsUpdatedAfterUpsert == 100)
+      // Due to retries, this may exceed 100
+      assert(eventsUpdatedAfterUpsert >= 100)
 
       // Trying to update non-existing ids should throw a 400 CdpApiException
       val e = intercept[SparkException] {
@@ -863,9 +858,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
       assert(cdpApiException.code == 400)
       val eventsCreatedAfterFail = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreatedAfterFail == 100)
+      assert(eventsCreatedAfterFail == eventsCreatedAfterUpsert)
       val eventsUpdatedAfterFail = getNumberOfRowsUpdated(metricsPrefix, "events")
-      assert(eventsUpdatedAfterFail == 100)
+      assert(eventsUpdatedAfterFail == eventsUpdatedAfterUpsert)
     } finally {
       try {
         cleanupEvents(source)
@@ -910,27 +905,24 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(eventsFromTestDf.length == 5)
 
       // Upsert events
-      spark
-        .sql(
-          s"""
-             |select externalId,
-             |'bar' as description
-             |from destinationEvent
-             |where source = '$source'
-       """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "events")
-        .option("onconflict", "update")
-        .save()
-
-      // Check if update worked
-      val descriptionsAfterUpdate = retryWhile[Array[Row]](
+      val descriptionsAfterUpdate = retryWhile[Array[Row]]({
         spark
-          .sql(s"select description from destinationEvent where source = '$source' and description = 'bar'").collect,
-        df => df.length < 5
-      )
+          .sql(
+            s"""
+               |select externalId,
+               |'bar' as description
+               |from destinationEvent
+               |where source = '$source'
+       """.stripMargin)
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "events")
+          .option("onconflict", "update")
+          .save()
+        spark
+          .sql(s"select description from destinationEvent where source = '$source' and description = 'bar'").collect
+      }, df => df.length < 5)
       assert(descriptionsAfterUpdate.length == 5)
     } finally {
       try {
@@ -978,26 +970,20 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(idsAfterInsert.length == 100)
 
       // Delete the data
-      spark
-        .sql(s"""
-                |select id
-                |from destinationEvent
-                |where source = '$source'
-      """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "events")
-        .option("onconflict", "delete")
-        .save()
-
-      // Check if delete worked
       val idsAfterDelete =
-        retryWhile[Array[Row]](
+        retryWhile[Array[Row]]({
           spark
             .sql(s"select id from destinationEvent where source = '$source'")
-            .collect,
-          df => df.length > 0)
+            .write
+            .format("cognite.spark.v1")
+            .option("apiKey", writeApiKey)
+            .option("type", "events")
+            .option("onconflict", "delete")
+            .save()
+          spark
+            .sql(s"select id from destinationEvent where source = '$source'")
+            .collect
+        }, df => df.length > 0)
       assert(idsAfterDelete.length == 0)
     } finally {
       try {
@@ -1045,7 +1031,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(idsAfterInsert.length == 1)
 
       spark
-        .sql("select 1574865177148 as id".stripMargin)
+        .sql("select 123 as id".stripMargin)
         .write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)

@@ -55,7 +55,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support pushdown filters on name" taggedAs ReadTest in {
-    val metricsPrefix = "pushdown.filters.assets.name"
+    val metricsPrefix = s"pushdown.assets.name.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -74,7 +74,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support pushdown filters with nulls" taggedAs ReadTest in {
-    val metricsPrefix = "pushdown.filters.assets.name.null"
+    val metricsPrefix = s"pushdown.assets.name.null.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -135,7 +135,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support pushdown filters on source" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filters.assets.source"
+    val metricsPrefix = s"pushdown.assets.source.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -154,7 +154,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support pushdown filters on dataSetId" taggedAs ReadTest in {
-    val metricsPrefix = "pushdown.filters.assets.dataSetId"
+    val metricsPrefix = s"pushdown.assets.dataSetId.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -187,7 +187,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "handle duplicates in a pushdown filter scenario" taggedAs ReadTest in {
-    val metricsPrefix = "pushdown.filters.assets.duplicates"
+    val metricsPrefix = s"pushdown.assets.duplicates.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -208,7 +208,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "be possible to create assets" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     val externalId = s"assets-test-create-${shortRandomString()}"
-    val metricsPrefix = "assets.test.create"
+    val metricsPrefix = s"assets.test.create.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -260,7 +260,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "handle null values in metadata when inserting in savemode" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
-    val metricsPrefix = "assets.test.create.savemode"
+    val metricsPrefix = s"assets.create.savemode.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -339,7 +339,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "support upserts when using insertInto()" taggedAs WriteTest in {
     val source = s"spark-assets-upsert-testing${shortRandomString()}"
-    val metricsPrefix = "assets.upsert.test"
+    val metricsPrefix = s"assets.upsert.test.${shortRandomString()}"
 
     val destinationDf: DataFrame = spark.read
       .format("cognite.spark.v1")
@@ -532,25 +532,23 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(assetsFromTestDf.length == 100)
 
       val description = "spark-testing-description"
-
       // Update assets
-      spark
-        .sql(s"""
-                |select '$description' as description,
-                |id from destinationAssetsMorePartial
-                |where source = '$source'
+      val assetsWithNewNameDf = retryWhile[Array[Row]]({
+        spark
+          .sql(
+            s"""
+               |select '$description' as description,
+               |id from destinationAssetsMorePartial
+               |where source = '$source'
      """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "assets")
-        .option("onconflict", "update")
-        .save
-
-      // Check if update worked
-      val assetsWithNewNameDf = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationAssetsMorePartial where source = '$source' and description = '$description'").collect,
-        df => df.length < 100)
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "assets")
+          .option("onconflict", "update")
+          .save
+        spark.sql(s"select * from destinationAssetsMorePartial where source = '$source' and description = '$description'").collect
+      }, df => df.length < 100)
       assert(assetsWithNewNameDf.length == 100)
     } finally {
       try {
@@ -596,27 +594,26 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(assetsFromTestDf.length == 100)
 
       // Upsert assets
-      spark
-        .sql(s"""
-                |select externalId,
-                |'bar' as description
-                |from destinationAssets
-                |where source = '$source'
+      val descriptionsAfterUpsert = retryWhile[Array[Row]]({
+        spark
+          .sql(
+            s"""
+               |select externalId,
+               |'bar' as description
+               |from destinationAssets
+               |where source = '$source'
      """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "assets")
-        .option("onconflict", "update")
-        .save()
-
-      // Check if update worked
-      val descriptionsAfterUpsert = retryWhile[Array[Row]](
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "assets")
+          .option("onconflict", "update")
+          .save()
         spark
           .sql(
             s"select description from destinationAssets where source = '$source' and description = 'bar'")
-          .collect,
-        df => df.length != 100)
+          .collect
+      }, df => df.length != 100)
       assert(descriptionsAfterUpsert.length == 100)
     } finally {
       try {
@@ -656,25 +653,25 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .option("onconflict", "upsert")
         .save
 
-      spark
-        .sql(s"""
-                |select '$externalId' as externalId,
-                |'bar' as description
-     """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "assets")
-        .option("onconflict", "upsert")
-        .save()
-
       // Check if update worked
-      val descriptionsAfterUpsert = retryWhile[Array[Row]](
+      val descriptionsAfterUpsert = retryWhile[Array[Row]]({
+        spark
+          .sql(
+            s"""
+               |select '$externalId' as externalId,
+               |'bar' as description
+     """.stripMargin)
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "assets")
+          .option("onconflict", "upsert")
+          .save()
         spark
           .sql(
             s"select description from destinationAssets where source = '$source' and description = 'bar'")
-          .collect,
-        df => df.length != 1)
+          .collect
+      }, df => df.length != 1)
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
       try {
@@ -714,25 +711,25 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .option("onconflict", "upsert")
         .save()
 
-      spark
-        .sql(s"""
-                |select '$externalId' as externalId,
-                |'updated-name' as name
-     """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "assets")
-        .option("onconflict", "upsert")
-        .save()
-
       // Check if update worked
-      val descriptionsAfterUpsert = retryWhile[Array[Row]](
+      val descriptionsAfterUpsert = retryWhile[Array[Row]]({
+        spark
+          .sql(
+            s"""
+               |select '$externalId' as externalId,
+               |'updated-name' as name
+     """.stripMargin)
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "assets")
+          .option("onconflict", "upsert")
+          .save()
         spark
           .sql(
             s"select name from destinationAssets where source = '$source' and name = 'updated-name'")
-          .collect,
-        df => df.length != 1)
+          .collect
+      }, df => df.length != 1)
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
       try {
@@ -777,26 +774,26 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
       val id = writeClient.assets.retrieveByExternalId(externalId).id
 
-      spark
-        .sql(s"""
-                |select ${id.toString} as id,
-                |'updated-name' as name,
-                |'updated-$newExternalId' as externalId
-     """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "assets")
-        .option("onconflict", "upsert")
-        .save()
-
       // Check if update worked
-      val descriptionsAfterUpsert = retryWhile[Array[Row]](
+      val descriptionsAfterUpsert = retryWhile[Array[Row]]({
+        spark
+          .sql(
+            s"""
+               |select ${id.toString} as id,
+               |'updated-name' as name,
+               |'updated-$newExternalId' as externalId
+     """.stripMargin)
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "assets")
+          .option("onconflict", "upsert")
+          .save()
         spark
           .sql(
             s"select name from destinationAssets where source = '$source' and name = 'updated-name' and externalId ='updated-$newExternalId'")
-          .collect,
-        df => df.length != 1)
+          .collect
+      }, df => df.length != 1)
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
       try {
@@ -855,32 +852,27 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           df => df.length < 100)
       assert(idsAfterInsert.length == 100)
 
-      val metricsPrefix = "assets.delete"
+      val metricsPrefix = s"assets.delete.${shortRandomString()}"
       // Delete the data
-      spark
-        .sql(s"""
-                |select id
-                |from destinationAssets
-                |where source = '$source'
-       """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "assets")
-        .option("onconflict", "delete")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
-
-      // Check if delete worked
       val idsAfterDelete =
-        retryWhile[Array[Row]](
+        retryWhile[Array[Row]]({
           spark
             .sql(s"select id from destinationAssets where source = '$source'")
-            .collect,
-          df => df.length > 0)
+            .write
+            .format("cognite.spark.v1")
+            .option("apiKey", writeApiKey)
+            .option("type", "assets")
+            .option("onconflict", "delete")
+            .option("collectMetrics", "true")
+            .option("metricsPrefix", metricsPrefix)
+            .save()
+          spark
+            .sql(s"select id from destinationAssets where source = '$source'")
+            .collect
+        }, df => df.length > 0)
       assert(idsAfterDelete.isEmpty)
-      getNumberOfRowsDeleted(metricsPrefix, "assets") shouldBe 100
+      // Due to retries, rows deleted may exceed 100
+      getNumberOfRowsDeleted(metricsPrefix, "assets") should be >= 100L
     } finally {
       try {
         cleanupAssets(source)
@@ -891,83 +883,31 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support ignoring unknown ids in deletes" in {
-    val source = s"ignore-unknown-id-test-${shortRandomString()}"
+    spark
+      .sql("select 1234 as id")
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "delete")
+      .option("ignoreUnknownIds", "true")
+      .save()
 
-    try {
-      // Insert some test data
+    // Should throw error if ignoreUnknownIds is false
+    val e = intercept[SparkException] {
       spark
-        .sql(s"""
-                |select id as externalId,
-                |name,
-                |null as parentId,
-                |null as parentExternalId,
-                |'foo' as description,
-                |map("bar", "test") as metadata,
-                |'$source' as source,
-                |id,
-                |createdTime,
-                |lastUpdatedTime,
-                |0 as rootId,
-                |null as aggregates,
-                |dataSetId
-                |from sourceAssets
-                |limit 1
-     """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
-        .write
-        .insertInto("destinationAssets")
-
-      // Check if insert worked
-      val idsAfterInsert =
-        retryWhile[Array[Row]](
-          spark
-            .sql(s"select id from destinationAssets where source = '$source'")
-            .collect,
-          df => df.length < 1)
-      assert(idsAfterInsert.length == 1)
-
-      spark
-        .sql(
-          s"""
-             |select 1574865177148 as id
-             |from destinationAssets
-             |where source = '$source'
-        """.stripMargin)
+        .sql("select 1234 as id")
         .write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("type", "assets")
         .option("onconflict", "delete")
-        .option("ignoreUnknownIds", "true")
+        .option("ignoreUnknownIds", "false")
         .save()
-
-      // Should throw error if ignoreUnknownIds is false
-      val e = intercept[SparkException] {
-        spark
-          .sql(
-            s"""
-               |select 1234 as id
-               |from destinationAssets
-               |where source = '$source'
-        """.stripMargin)
-          .write
-          .format("cognite.spark.v1")
-          .option("apiKey", writeApiKey)
-          .option("type", "assets")
-          .option("onconflict", "delete")
-          .option("ignoreUnknownIds", "false")
-          .save()
-      }
-      e.getCause shouldBe a[CdpApiException]
-      val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
-      assert(cdpApiException.code == 400)
-    } finally {
-      try {
-        cleanupAssets(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
     }
+    e.getCause shouldBe a[CdpApiException]
+    val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+    assert(cdpApiException.code == 400)
   }
 
   def cleanupAssets(source: String): Unit = {
