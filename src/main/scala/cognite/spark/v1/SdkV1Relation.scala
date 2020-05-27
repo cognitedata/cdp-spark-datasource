@@ -93,8 +93,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     val updateIds = if (updatesById.isEmpty) { IO.unit } else {
       resource
         .updateById(updatesById)
-        .flatTap(_ => incMetrics(itemsUpdated, updatesById.size))
-        .map(_ => ())
+        .flatMap(_ => incMetrics(itemsUpdated, updatesById.size))
     }
     val updateExternalIds = if (updatesByExternalId.isEmpty) { IO.unit } else {
       val updatesByExternalIdMap = updatesByExternalId
@@ -102,8 +101,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .toMap
       resource
         .updateByExternalId(updatesByExternalIdMap)
-        .flatTap(_ => incMetrics(itemsUpdated, updatesByExternalIdMap.size))
-        .map(_ => ())
+        .flatMap(_ => incMetrics(itemsUpdated, updatesByExternalIdMap.size))
     }
 
     (updateIds, updateExternalIds).parMapN((_, _) => ())
@@ -141,8 +139,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     } else {
       resource
         .create(resourcesToCreate)
-        .flatTap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
-        .map(_ => ())
+        .flatMap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
         .recoverWith {
           case CdpApiException(_, 409, _, _, Some(duplicated), _, requestId) if doUpsert =>
             val moreExistingExternalIds = config.legacyNameSource match {
