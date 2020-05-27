@@ -13,6 +13,7 @@ import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 
 import scala.util.Try
+import scala.util.control.NonFatal
 
 class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest with OptionValues {
   import spark.implicits._
@@ -873,65 +874,65 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
 
   it should "allow null ids on time series update" taggedAs WriteTest in {
     val updateTestUnit = s"test-null-id-${shortRandomString()}"
-    cleanUpTimeSeriesTestDataByUnit(updateTestUnit)
-    retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationTimeSeries where unit = '$updateTestUnit'").collect,
-      rows => rows.length > 0
-    )
-
     val randomSuffix = shortRandomString()
-    spark.sql(s"""
-                 |select 'foo' as description,
-                 |isString,
-                 |name,
-                 |map() as metadata,
-                 |'$updateTestUnit' as unit,
-                 |assetId,
-                 |isStep,
-                 |securityCategories,
-                 |null as id,
-                 |concat(string(id), "_null_id_${randomSuffix}") as externalId,
-                 |createdTime,
-                 |lastUpdatedTime,
-                 |dataSetId
-                 |from destinationTimeSeries
-                 |limit 5
+    try {
+      spark.sql(s"""
+                   |select 'foo' as description,
+                   |isString,
+                   |name,
+                   |map() as metadata,
+                   |'$updateTestUnit' as unit,
+                   |assetId,
+                   |isStep,
+                   |securityCategories,
+                   |null as id,
+                   |concat(string(id), "_null_id_${randomSuffix}") as externalId,
+                   |createdTime,
+                   |lastUpdatedTime,
+                   |dataSetId
+                   |from destinationTimeSeries
+                   |limit 5
      """.stripMargin)
-      .select(sourceDf.columns.map(col): _*)
-      .write
-      .insertInto("destinationTimeSeries")
+        .select(sourceDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationTimeSeries")
 
-    // Check if post worked
-    val timeSeriesFromTestdf = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationTimeSeries where unit = '$updateTestUnit'").collect,
-      df => df.length < 5
+      // Check if post worked
+      val timeSeriesFromTestdf = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationTimeSeries where unit = '$updateTestUnit'").collect,
+        df => df.length < 5
       )
-    assert(timeSeriesFromTestdf.length == 5)
+      assert(timeSeriesFromTestdf.length == 5)
 
-    // Upsert time series
-    spark
-      .sql(s"""
-              |select externalId,
-              |'bar' as description
-              |from destinationTimeSeries
-              |where unit = '$updateTestUnit'
+      // Upsert time series
+      val descriptionsAfterUpdate = retryWhile[Array[Row]]({
+        spark
+          .sql(s"""
+                  |select externalId,
+                  |'bar' as description
+                  |from destinationTimeSeries
+                  |where unit = '$updateTestUnit'
      """.stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "timeseries")
-      .option("onconflict", "update")
-      .save()
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "timeseries")
+          .option("onconflict", "update")
+          .save()
+        spark
+          .sql(
+            s"select description from destinationTimeSeries where unit = '$updateTestUnit' and description = 'bar'")
+          .collect
+      }, df => df.length < 5)
+      assert(descriptionsAfterUpdate.length == 5)
+    } finally {
+      try {
+        cleanUpTimeSeriesTestDataByUnit(updateTestUnit)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
 
-
-    // Check if upsert worked
-    val descriptionsAfterUpdate = retryWhile[Array[Row]](
-      spark
-        .sql(
-          s"select description from destinationTimeSeries where unit = '$updateTestUnit' and description = 'bar'")
-        .collect,
-      df => df.length < 5)
-    assert(descriptionsAfterUpdate.length == 5)
   }
 
   it should "support ignoring unknown ids in deletes" in {

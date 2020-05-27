@@ -137,6 +137,11 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       spark
         .sql("select 1 as rowNumber, 1 as num1, 1.0 as num2, 'a' as str1"))
 
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+      rows => rows.length != 1
+    )
+
     insertRows(
       sequenceId,
       spark

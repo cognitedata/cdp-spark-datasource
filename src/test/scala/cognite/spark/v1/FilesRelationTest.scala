@@ -274,17 +274,13 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .save()
 
       val rows = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationFiles where source = '$source'").collect,
+        spark.sql(s"select id from destinationFiles where source = '$source'").collect,
         rows => rows.length < 1)
       assert(rows.length == 1)
 
       //Delete using id
       spark
-        .sql(s"""
-                |select id
-                |from destinationFiles
-                |where source = '$source'
-     """.stripMargin)
+        .sql(s"select ${rows.head.getLong(0)} as id")
         .write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
@@ -293,8 +289,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .save()
 
       val idsAfterDelete =
-        retryWhile[Array[Row]](
-          spark
+        retryWhile[Array[Row]](spark
             .sql(s"select id from destinationFiles where source = '$source'")
             .collect,
           df => df.length > 0)

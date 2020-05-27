@@ -121,7 +121,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   }
 
   it should "be possible to specify multiple aggregation types in one query" taggedAs (ReadTest) in {
-    val metricsPrefix = "multi.aggregation"
+    val metricsPrefix = s"multi.aggregation.${shortRandomString()}"
     val results = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -283,7 +283,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   }
 
   it should "handle missing aggregates" taggedAs ReadTest in {
-    val metricsPrefix = "missing.aggregates"
+    val metricsPrefix = s"missing.aggregates.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -300,7 +300,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   }
 
   it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest in {
-    val metricsPrefix = "datapoints.insert"
+    val metricsPrefix = s"datapoints.insert.${shortRandomString()}"
     val testUnit = s"test ${shortRandomString()}"
     val tsName = s"datapoints-insert-${shortRandomString()}"
 

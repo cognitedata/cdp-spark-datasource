@@ -77,7 +77,7 @@ trait SparkTest {
         }
         actionValue
       },
-      Constants.DefaultInitialRetryDelay,
+      1.second,
       Constants.DefaultMaxRetries
     ).unsafeRunSync()
 
