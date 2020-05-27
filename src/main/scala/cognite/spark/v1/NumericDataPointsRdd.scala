@@ -349,8 +349,6 @@ final case class NumericDataPointsRdd(
   private def aggregationBuckets(
       aggregations: Seq[AggregationFilter],
       granularity: Granularity,
-      ids: Seq[Long],
-      externalIds: Seq[String],
       firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])]
   ): IO[Vector[Bucket]] = {
     val granularityMillis = granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis
@@ -399,7 +397,7 @@ final case class NumericDataPointsRdd(
       buckets(ids, externalIds, firstLatest)
     } else {
       granularities.toVector
-        .map(g => aggregationBuckets(aggregations, g, ids, externalIds, firstLatest))
+        .map(g => aggregationBuckets(aggregations, g, firstLatest))
         .parFlatSequence
     }
     partitions
