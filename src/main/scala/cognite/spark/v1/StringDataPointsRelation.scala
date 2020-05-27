@@ -153,20 +153,22 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     val responses = id match {
       case CogniteInternalId(internalId) =>
         client.dataPoints
-          .queryStringsById(
-            internalId,
+          .queryStringsByIds(
+            Seq(internalId),
             lowerLimit,
             upperLimit,
-            DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize))
-          .map(_.datapoints)
+            DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize),
+            ignoreUnknownIds = true)
+          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
       case CogniteExternalId(externalId) =>
         client.dataPoints
-          .queryStringsByExternalId(
-            externalId,
+          .queryStringsByExternalIds(
+            Seq(externalId),
             lowerLimit,
             upperLimit,
-            DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize))
-          .map(_.datapoints)
+            DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize),
+            ignoreUnknownIds = true)
+          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
     }
     responses.map { dataPoints =>
       val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
