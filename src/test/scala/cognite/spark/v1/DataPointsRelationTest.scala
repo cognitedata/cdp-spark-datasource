@@ -974,4 +974,17 @@ class DataPointsRelationTest extends FlatSpec with Matchers with SparkTest {
       df => df.length != 1)
     dataPointsAfterDelete.head.getAs[Double]("value") shouldBe 2.0
   }
+
+  it should "be empty set when id does not exist" in {
+    val destinationDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "datapoints")
+      .load()
+    destinationDf.createOrReplaceTempView("destinationDatapoints")
+    val idDoesNotExist = spark
+      .sql(s"select * from destinationDatapoints where externalId = '2QEuQHKxStrhMG83wFgg9Rxd3NjZe8Y9ubyRXWciP'")
+
+    idDoesNotExist shouldBe empty
+  }
 }

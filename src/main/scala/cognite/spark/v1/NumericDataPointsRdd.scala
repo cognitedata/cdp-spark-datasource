@@ -152,23 +152,25 @@ final case class NumericDataPointsRdd(
       limit: Int) = idOrExternalId match {
     case Left(id) =>
       client.dataPoints
-        .queryAggregatesById(
-          id,
+        .queryAggregatesByIds(
+          Seq(id),
           start,
           end,
           granularity.toString,
           aggregates,
-          limit = Some(limit)
+          limit = Some(limit),
+          ignoreUnknownIds = true
         )
     case Right(externalId) =>
       client.dataPoints
-        .queryAggregatesByExternalId(
-          externalId,
+        .queryAggregatesByExternalIds(
+          Seq(externalId),
           start,
           end,
           granularity.toString,
           aggregates,
-          limit = Some(limit)
+          limit = Some(limit),
+          ignoreUnknownIds = true
         )
   }
 
@@ -220,22 +222,24 @@ final case class NumericDataPointsRdd(
     idOrExternalId match {
       case Left(id) =>
         client.dataPoints
-          .queryById(
-            id,
+          .queryByIds(
+            Seq(id),
             start,
             end,
-            limit = Some(limit)
+            limit = Some(limit),
+            ignoreUnknownIds = true
           )
-          .map(_.datapoints)
+          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
       case Right(externalId) =>
         client.dataPoints
-          .queryByExternalId(
-            externalId,
+          .queryByExternalIds(
+            Seq(externalId),
             start,
             end,
-            limit = Some(limit)
+            limit = Some(limit),
+            ignoreUnknownIds = true
           )
-          .map(_.datapoints)
+          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
     }
 
   private def getFirstAndLastConcurrentlyById(
@@ -249,12 +253,12 @@ final case class NumericDataPointsRdd(
     val ids = idOrExternalIds.flatMap(_.left.toOption)
     val externalIds = idOrExternalIds.flatMap(_.right.toOption)
     val latestByInternalIds = if (ids.nonEmpty) {
-      client.dataPoints.getLatestDataPointsByIds(ids)
+      client.dataPoints.getLatestDataPointsByIds(ids, ignoreUnknownIds = true)
     } else {
       IO.pure(Map.empty)
     }
     val latestByExternalIds = if (externalIds.nonEmpty) {
-      client.dataPoints.getLatestDataPointsByExternalIds(externalIds)
+      client.dataPoints.getLatestDataPointsByExternalIds(externalIds, ignoreUnknownIds = true)
     } else {
       IO.pure(Map.empty)
     }
@@ -411,12 +415,17 @@ final case class NumericDataPointsRdd(
     val responses = id match {
       case CogniteInternalId(internalId) =>
         client.dataPoints
-          .queryById(internalId, lowerLimit, upperLimit, nPointsRemaining)
-          .map(_.datapoints)
+          .queryByIds(Seq(internalId), lowerLimit, upperLimit, nPointsRemaining, ignoreUnknownIds = true)
+          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
       case CogniteExternalId(externalId) =>
         client.dataPoints
-          .queryByExternalId(externalId, lowerLimit, upperLimit, nPointsRemaining)
-          .map(_.datapoints)
+          .queryByExternalIds(
+            Seq(externalId),
+            lowerLimit,
+            upperLimit,
+            nPointsRemaining,
+            ignoreUnknownIds = true)
+          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
     }
     responses.map { dataPoints =>
       val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
