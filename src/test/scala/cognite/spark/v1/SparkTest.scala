@@ -52,14 +52,14 @@ trait SparkTest {
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
   // scalastyle:off cyclomatic.complexity
-  def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int): IO[A] = {
+  def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int, maxDelay: FiniteDuration = 20.seconds): IO[A] = {
     val exponentialDelay = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2)
     val randomDelayScale = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
     val nextDelay = Random.nextInt(randomDelayScale.toInt).millis + exponentialDelay
     ioa.handleErrorWith {
       case exception @ (_: TimeoutException | _: IOException) =>
         if (maxRetries > 0) {
-          IO.sleep(initialDelay) *> retryWithBackoff(ioa, nextDelay, maxRetries - 1)
+          IO.sleep(initialDelay) *> retryWithBackoff(ioa, nextDelay.min(maxDelay), maxRetries - 1)
         } else {
           IO.raiseError(exception)
         }
@@ -79,7 +79,7 @@ trait SparkTest {
       },
       1.second,
       Constants.DefaultMaxRetries
-    ).unsafeRunSync()
+    ).unsafeRunTimed(2.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
 
   def getDefaultConfig(auth: Auth): RelationConfig =
     RelationConfig(
