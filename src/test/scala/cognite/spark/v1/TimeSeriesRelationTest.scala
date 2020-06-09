@@ -762,7 +762,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
         insertData.map(ts =>
           ts.copy(
             description = Some(upsertDescription),
-            name = Some("test-upserts"),
+            name = Some(s"test-upserts-${randomSuffix}"),
             unit = Some(upsertUnit + "-non"),
             externalId = None,
             id = None
