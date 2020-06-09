@@ -706,15 +706,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     val insertDescription = s"spark-insert-test-savemode-${shortRandomString()}"
     val upsertDescription = s"spark-upsert-test-savemode-${shortRandomString()}"
     val upsertUnit = s"upsert-save-${shortRandomString()}"
-
-    val metricsPrefix = "timeserie.test.upsert.save"
-
-    // Clean up any old test data
-    cleanUpTimeSeriesTestDataByUnit(upsertUnit)
-    val testTimeSeriesAfterCleanup = retryWhile[Array[Row]]({
-      spark.sql(s"""select * from destinationTimeSeries where unit = '$upsertUnit'""").collect
-    }, df => df.length > 0)
-    assert(testTimeSeriesAfterCleanup.length == 0)
+    val metricsPrefix = "timeserie.upsert.save-${shortRandomString()}"
 
     // Insert new time series test data
     val randomSuffix = shortRandomString()
