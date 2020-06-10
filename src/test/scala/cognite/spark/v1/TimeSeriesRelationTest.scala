@@ -149,7 +149,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     // Check if post worked
     val dfAfterPost = retryWhile[Array[Row]](
       spark
-        .sql(s"""select * from destinationTimeSeries where description = '$description'""")
+        .sql(s"""select * from destinationTimeSeries where unit = '$insertNoNameUnit' and description = '$description'""")
         .collect,
       df => df.length != 1)
     assert(dfAfterPost.length == 1)
@@ -426,7 +426,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     val initialDescriptionsAfterPost = retryWhile[Int](
       (for (_ <- 1 to 5)
         yield spark
-          .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where description = '$initialDescription'""")
+          .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where unit = '$insertTestUnit' and description = '$initialDescription'""")
           .collect
           .length).min,
       length => length < 5)
@@ -463,7 +463,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     // Check if update worked
     val updatedDescriptionsAfterUpdate = retryWhile[Array[Row]](
         spark
-        .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where description = '$updatedDescription'""")
+        .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where unit = '$insertTestUnit' and description = '$updatedDescription'""")
         .collect,
       df => df.length < 5
     )
@@ -471,7 +471,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
 
     val initialDescriptionsAfterUpdate = retryWhile[Array[Row]](
       spark
-        .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where description = '$initialDescription'""")
+        .sql(s"""select * from destinationTimeSeriesInsertAndUpdate where unit = '$insertTestUnit' and description = '$initialDescription'""")
         .collect,
       df => df.length > 0)
     assert(initialDescriptionsAfterUpdate.length == 0)
@@ -520,7 +520,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(rowsCreated == 7)
 
     val dfWithDescriptionInsertTest = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationTimeSeries where description = '$abortDescription'").collect,
+      spark.sql(s"select * from destinationTimeSeries where unit = '$abortUnit' and description = '$abortDescription'").collect,
       df => df.length < 7
     )
     assert(dfWithDescriptionInsertTest.length == 7)
@@ -662,7 +662,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
 
     val dfWithDescriptionUpdateTest = retryWhile[Array[Row]](
         spark
-          .sql(s"select * from destinationTimeSeries where description = '$updateDescription'")
+          .sql(s"select * from destinationTimeSeries where unit = '$partialUpdateUnit' and description = '$updateDescription'")
           .collect,
       df => df.length < 5
     )
@@ -741,7 +741,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(getNumberOfRowsCreated(metricsPrefix, "timeseries") == 5)
 
     val dfWithDescriptionInsertTest = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationTimeSeries where description = '$insertDescription'").collect,
+      spark.sql(s"select * from destinationTimeSeries where unit = '$upsertUnit' and description = '$insertDescription'").collect,
       df => df.length < 5
     )
     assert(dfWithDescriptionInsertTest.length == 5)
@@ -752,7 +752,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
         insertData.map(ts =>
           ts.copy(
             description = Some(upsertDescription),
-            unit = Some(upsertUnit + "-ex")
+            unit = Some(upsertUnit)
           )
         )
       ).toDF()
@@ -763,7 +763,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
           ts.copy(
             description = Some(upsertDescription),
             name = Some(s"test-upserts-${randomSuffix}"),
-            unit = Some(upsertUnit + "-non"),
+            unit = Some(upsertUnit),
             externalId = None,
             id = None
           )
@@ -785,7 +785,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(getNumberOfRowsUpdated(metricsPrefix, "timeseries") == 5)
 
     val dfWithDescriptionUpsertTest = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationTimeSeries where description = '$upsertDescription'").collect,
+      spark.sql(s"select * from destinationTimeSeries where unit = '$upsertUnit' and description = '$upsertDescription'").collect,
       df => {
         df.length < 10
       }
