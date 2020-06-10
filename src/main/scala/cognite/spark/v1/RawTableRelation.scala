@@ -38,9 +38,6 @@ class RawTableRelation(
   import RawTableRelation._
   import CdpConnector._
 
-  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
-    CdpConnector.retryingSttpBackend(config.maxRetries)
-  implicit val auth: Auth = config.auth
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 

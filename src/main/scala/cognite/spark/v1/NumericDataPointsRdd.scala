@@ -52,10 +52,7 @@ final case class NumericDataPointsRdd(
     rowIndices: Array[Int]
 ) extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
-  implicit val auth: Auth = config.auth
 
-  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
-    CdpConnector.retryingSttpBackend(config.maxRetries)
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 

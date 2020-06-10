@@ -23,12 +23,9 @@ final case class SdkV1Rdd[A, I](
     getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
-  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
-    CdpConnector.retryingSttpBackend(config.maxRetries)
 
   type EitherQueue = ArrayBlockingQueue[Either[Throwable, Chunk[A]]]
 
-  implicit val auth: Auth = config.auth
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
