@@ -741,7 +741,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   }
 
   it should "fail reasonably on invalid delete (empty range)" in {
-    disableSparkLogging()
     val e = intercept[SparkException] {
       spark
         .sql(s"""select
@@ -758,11 +757,9 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     }
     e.getCause shouldBe a[IllegalArgumentException]
     e.getCause.getMessage should startWith("Delete range [1509900000000, 1509900000000) is invalid")
-    enableSparkLogging()
   }
 
   it should "fail reasonably on invalid delete (inclusiveEnd and exclusiveEnd)" in {
-    disableSparkLogging()
     val e = intercept[SparkException] {
       spark
         .sql(s"""select
@@ -780,11 +777,9 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     }
     e.getCause shouldBe a[IllegalArgumentException]
     e.getCause.getMessage should startWith("Delete row for data points can not contain both inclusiveEnd and exclusiveEnd ")
-    enableSparkLogging()
   }
 
   it should "fail reasonably on invalid delete (no Begin)" in {
-    disableSparkLogging()
     val e = intercept[SparkException] {
       spark
         .sql(s"""select
@@ -800,11 +795,9 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     }
     e.getCause shouldBe a[IllegalArgumentException]
     e.getCause.getMessage should startWith("Delete row for data points must contain inclusiveBegin or exclusiveBegin ")
-    enableSparkLogging()
   }
 
   it should "fail reasonably on invalid delete (no id)" in {
-    disableSparkLogging()
     val e = intercept[SparkException] {
       spark
         .sql(s"""select
@@ -820,7 +813,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     }
     e.getCause shouldBe a[IllegalArgumentException]
     e.getCause.getMessage should startWith("Delete row for data points must contain id or externalId ")
-    enableSparkLogging()
   }
 
 

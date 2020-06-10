@@ -47,7 +47,8 @@ trait SparkTest {
     .config("spark.app.id", this.getClass.getName + math.floor(math.random * 1000).toLong.toString)
     .getOrCreate()
 
-  disableSparkLogging()
+  // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
+  spark.sparkContext.setLogLevel("OFF")
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
@@ -119,10 +120,4 @@ trait SparkTest {
 
   def getNumberOfRowsUpdated(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.updated")
-
-  def disableSparkLogging(): Unit =
-    spark.sparkContext.setLogLevel("OFF")
-
-  def enableSparkLogging(): Unit =
-    spark.sparkContext.setLogLevel("ERROR")
 }
