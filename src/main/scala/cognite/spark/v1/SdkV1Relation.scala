@@ -208,8 +208,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     val itemsToCreateWithoutDuplicatesByExternalId = itemsToCreate
       .groupBy(_.externalId)
       .flatMap {
-        case (None, events) => events
-        case (Some(_), events) => events.take(1)
+        case (None, items) => items
+        case (Some(_), items) => items.take(1)
       }
       .toSeq
 
