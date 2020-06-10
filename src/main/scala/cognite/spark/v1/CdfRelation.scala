@@ -20,9 +20,6 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
   @transient lazy protected val itemsDeleted: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.deleted")
 
-  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
-    CdpConnector.retryingSttpBackend(config.maxRetries)
-
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 

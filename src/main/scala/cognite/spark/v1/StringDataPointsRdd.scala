@@ -15,9 +15,6 @@ final case class StringDataPointsRdd(
     toRow: StringDataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
 
-  implicit val auth: Auth = config.auth
-  @transient lazy implicit val retryingSttpBackend: SttpBackend[IO, Nothing] =
-    CdpConnector.retryingSttpBackend(config.maxRetries)
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
