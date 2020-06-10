@@ -941,7 +941,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
       .save()
 
     // Should throw error if ignoreUnknownIds is false
-    disableSparkLogging() // Removing expected Spark executor Errors from the console
     val e = intercept[SparkException] {
       spark
         .sql(s"""
