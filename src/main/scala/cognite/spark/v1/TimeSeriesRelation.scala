@@ -44,6 +44,32 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val timeSeries = rows.map(fromRow[TimeSeriesUpsertSchema](_))
     val (itemsToUpdate, itemsToCreate) = timeSeries.partition(r => r.id.exists(_ > 0))
 
+    val uniqueItemsToCreate = itemsToCreate.map { c =>
+      val asCreate = c
+        .into[TimeSeriesCreate]
+        .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
+        .withFieldComputed(_.isString, _.isString.getOrElse(false))
+
+      config.legacyNameSource match {
+        case LegacyNameSource.None =>
+          asCreate.transform
+        case LegacyNameSource.Name =>
+          asCreate.withFieldComputed(_.legacyName, _.name).transform
+        case LegacyNameSource.ExternalId =>
+          asCreate.withFieldComputed(_.legacyName, _.externalId).transform
+      }
+    }
+
+    val duplicatedLegacyNames =
+      uniqueItemsToCreate.filter(_.legacyName.isDefined).groupBy(_.legacyName).collect {
+        case (Some(legacyName), items) if items.length > 1 => legacyName
+      }
+    if (config.legacyNameSource != LegacyNameSource.None && duplicatedLegacyNames.nonEmpty) {
+      throw new IllegalArgumentException(
+        "Found legacyName duplicates, upserts only supported with legacyName when using externalId as legacy name." +
+          s" Duplicated legacyNames: ${duplicatedLegacyNames.mkString(", ")}.")
+    }
+
     // scalastyle:off no.whitespace.after.left.bracket
     genericUpsert[
       TimeSeries,
@@ -52,21 +78,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       TimeSeriesUpdate,
       TimeSeriesResource[IO]](
       itemsToUpdate,
-      itemsToCreate.map { c =>
-        val asCreate = c
-          .into[TimeSeriesCreate]
-          .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
-          .withFieldComputed(_.isString, _.isString.getOrElse(false))
-
-        config.legacyNameSource match {
-          case LegacyNameSource.None =>
-            asCreate.transform
-          case LegacyNameSource.Name =>
-            asCreate.withFieldComputed(_.legacyName, _.name).transform
-          case LegacyNameSource.ExternalId =>
-            asCreate.withFieldComputed(_.legacyName, _.externalId).transform
-        }
-      },
+      uniqueItemsToCreate,
       isUpdateEmpty,
       client.timeSeries
     )
