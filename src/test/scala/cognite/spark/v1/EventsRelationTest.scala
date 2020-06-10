@@ -426,10 +426,10 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |null as type,
                 |null as subtype,
                 |array(8031965690878131) as assetIds,
-                |bigint(0) as id,
+                |null as id,
                 |map("foo", null, "bar", "test") as metadata,
                 |"$source" as source,
-                |string(id+1) as externalId,
+                |concat("$source", string(id)) as externalId,
                 |createdTime,
                 |lastUpdatedTime
                 |from sourceEvent
