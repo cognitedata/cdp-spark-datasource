@@ -115,7 +115,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
     if (legacyNameConflicts.nonEmpty) {
       throw new IllegalArgumentException(
-        "Found legacyName conflicts, upserts are not supported with legacyName." +
+        "Found legacyName conflicts, upserts only supported with legacyName when using externalId as legacy name." +
           s" Conflicting legacyNames: ${legacyNameConflicts.mkString(", ")}." +
           requestId.map(id => s" Request ID: $id").getOrElse(""))
     }
