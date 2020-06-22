@@ -18,7 +18,6 @@ object Constants {
   val DefaultParallelismPerPartition = 1
   val DefaultInitialRetryDelay: FiniteDuration = 150.millis
   val DefaultMaxBackoffDelay: FiniteDuration = 15.seconds
-  // val DefaultBaseUrl = "http://localhost:4001"
   val DefaultBaseUrl = "https://api.cognitedata.com"
   val MetadataValuePostMaxLength = 512
   val SparkDatasourceVersion = s"${BuildInfo.organization}-${BuildInfo.version}"
