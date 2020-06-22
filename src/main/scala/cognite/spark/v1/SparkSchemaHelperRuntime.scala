@@ -84,5 +84,4 @@ private[spark] object SparkSchemaHelperRuntime {
   def filterMetadata(metadata: Map[String, String]): Map[String, String] =
     metadata
       .filter { case (k, v) => k != null && v != null }
-      .mapValues(_.slice(0, Constants.MetadataValuePostMaxLength))
 }

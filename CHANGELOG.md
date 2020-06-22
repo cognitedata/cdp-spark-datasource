@@ -1,3 +1,9 @@
+# 1.4.0
+
+## Breaking changes
+
+* Metadata values are no longer silently truncated to 512 characters.
+
 # 1.3.1
 
 ## Enhancements
