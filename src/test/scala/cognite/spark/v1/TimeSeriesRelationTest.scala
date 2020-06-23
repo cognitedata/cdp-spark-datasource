@@ -4,7 +4,7 @@ import java.util.UUID
 
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.TimeSeries
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
@@ -519,31 +519,18 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
     assert(rowsCreated == 7)
 
-    val dfWithDescriptionInsertTest = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationTimeSeries where unit = '$abortUnit' and description = '$abortDescription'").collect,
-      df => df.length < 7
+    val dfWithDescriptionInsertTest = retryWhile[DataFrame](
+      spark
+        .sql(
+          s"select * from destinationTimeSeries where unit = '$abortUnit' and description = '$abortDescription'")
+        .cache(),
+      df => df.count() < 7
     )
-    assert(dfWithDescriptionInsertTest.length == 7)
+    assert(dfWithDescriptionInsertTest.count() == 7)
 
     // Trying to insert existing rows should throw a CdpApiException
     val insertError = intercept[SparkException] {
-      spark
-        .sql(s"""
-           |select description,
-           |isString,
-           |name,
-           |metadata,
-           |unit,
-           |assetId,
-           |isStep,
-           |securityCategories,
-           |id,
-           |externalId,
-           |createdTime,
-           |lastUpdatedTime
-           |from destinationTimeSeries
-           |where unit = '$abortUnit'
-     """.stripMargin)
+      dfWithDescriptionInsertTest
         .write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)

@@ -79,8 +79,8 @@ trait SparkTest {
         actionValue
       },
       1.second,
-      Constants.DefaultMaxRetries
-    ).unsafeRunTimed(2.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
+      20
+    ).unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
 
   def getDefaultConfig(auth: Auth): RelationConfig =
     RelationConfig(

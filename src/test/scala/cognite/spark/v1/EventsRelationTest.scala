@@ -276,39 +276,42 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "allow null values for all event fields except id" taggedAs WriteTest in {
-    val source = "spark-events-test-null"
-    cleanupEvents(source)
-    val eventDescriptionsAfterCleanup =
-      retryWhile[Array[Row]](eventDescriptions(source), rows => rows.nonEmpty)
-    assert(eventDescriptionsAfterCleanup.isEmpty)
-
-    spark
-      .sql(s"""
+    val source = s"spark-events-test-null-${shortRandomString()}"
+    try {
+      spark
+        .sql(s"""
               select
-                 |10 as id,
-                 |null as startTime,
-                 |null as endTime,
-                 |null as description,
-                 |null as type,
-                 |null as subtype,
-                 |map('foo', 'bar', 'nullValue', null) as metadata,
-                 |null as assetIds,
-                 |'$source' as source,
-                 |null as externalId,
-                 |0 as createdTime,
-                 |0 as lastUpdatedTime,
-                 |null as dataSetId
+                |10 as id,
+                |null as startTime,
+                |null as endTime,
+                |null as description,
+                |null as type,
+                |null as subtype,
+                |map('foo', 'bar', 'nullValue', null) as metadata,
+                |null as assetIds,
+                |'$source' as source,
+                |null as externalId,
+                |0 as createdTime,
+                |0 as lastUpdatedTime,
+                |null as dataSetId
      """.stripMargin)
-      .write
-      .insertInto("destinationEvent")
+        .write
+        .insertInto("destinationEvent")
 
-    val rows = retryWhile[Array[Row]](
-      spark.sql(s"""select * from destinationEvent where source = "$source"""").collect,
-      rows => rows.length < 1)
-    assert(rows.length == 1)
-    val storedMetadata = rows.head.getAs[Map[String, String]](6)
-    assert(storedMetadata.size == 1)
-    assert(storedMetadata.get("foo").contains("bar"))
+      val rows = retryWhile[Array[Row]](
+        spark.sql(s"""select * from destinationEvent where source = "$source"""").collect,
+        rows => rows.length < 1)
+      assert(rows.length == 1)
+      val storedMetadata = rows.head.getAs[Map[String, String]](6)
+      assert(storedMetadata.size == 1)
+      assert(storedMetadata.get("foo").contains("bar"))
+    }  finally {
+      try {
+        cleanupEvents(source)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
   it should "support upserts" taggedAs WriteTest in {
