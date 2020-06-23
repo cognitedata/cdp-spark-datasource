@@ -23,7 +23,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.0",
+  version := "1.4.1-SNAPSHOT",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -92,13 +92,28 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     scalaVersion := scala212,
     libraryDependencies ++= Seq(
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
+        exclude("com.softwaremill.sttp", "circe_2.11")
+        exclude("com.softwaremill.sttp", "circe_2.12")
+        exclude("org.typelevel", "cats-core_2.11")
+        exclude("org.typelevel", "cats-core_2.12"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
       "com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion
-        exclude("io.netty", "netty-transport-native-epoll"),
+        exclude("io.netty", "netty-transport-native-epoll")
+        exclude("com.softwaremill.sttp", "circe_2.11")
+        exclude("com.softwaremill.sttp", "circe_2.12")
+        exclude("org.typelevel", "cats-effect_2.11")
+        exclude("org.typelevel", "cats-effect_2.12")
+        exclude("org.typelevel", "cats-core_2.11")
+        exclude("org.typelevel", "cats-core_2.12")
+        exclude("io.netty", "netty-handler"),
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
-      "io.circe" %% "circe-generic" % circeVersion(CrossVersion.partialVersion(scalaVersion.value)),
-      "io.circe" %% "circe-generic-extras" % circeVersion(CrossVersion.partialVersion(scalaVersion.value)),
+      "io.circe" %% "circe-generic" % circeVersion(CrossVersion.partialVersion(scalaVersion.value))
+        exclude("org.typelevel", "cats-core_2.11")
+        exclude("org.typelevel", "cats-core_2.12"),
+      "io.circe" %% "circe-generic-extras" % circeVersion(CrossVersion.partialVersion(scalaVersion.value))
+        exclude("org.typelevel", "cats-core_2.11")
+        exclude("org.typelevel", "cats-core_2.12"),
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.3.24.v20180605" % Provided,
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided
