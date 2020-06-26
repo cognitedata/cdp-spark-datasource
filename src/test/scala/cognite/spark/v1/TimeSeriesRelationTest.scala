@@ -63,9 +63,11 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     val dfreader = spark.read.format("cognite.spark.v1")
       .option("apiKey", readApiKey)
       .option("type", "timeseries")
-    for (np <- Seq(1, 4, 8, 12)){
+    val singlePartitionCount = dfreader.option("partitions", 1).load().count()
+    assert(singlePartitionCount > 0)
+    for (np <- Seq(4, 8, 12)) {
       val df = dfreader.option("partitions", np.toString).load()
-      assert(df.count == 363)
+      assert(df.count == singlePartitionCount)
     }
   }
 
