@@ -23,7 +23,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.2",
+  version := "1.4.3-SNAPSHOT",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -95,14 +95,12 @@ lazy val library = (project in file("."))
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
       "com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion
-        exclude("io.netty", "netty-transport-native-epoll")
         exclude("com.softwaremill.sttp", "circe_2.11")
         exclude("com.softwaremill.sttp", "circe_2.12")
         exclude("org.typelevel", "cats-effect_2.11")
         exclude("org.typelevel", "cats-effect_2.12")
         exclude("org.typelevel", "cats-core_2.11")
-        exclude("org.typelevel", "cats-core_2.12")
-        exclude("io.netty", "netty-handler"),
+        exclude("org.typelevel", "cats-core_2.12"),
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
       "io.circe" %% "circe-generic" % circeVersion(CrossVersion.partialVersion(scalaVersion.value))
         exclude("org.typelevel", "cats-core_2.11")
