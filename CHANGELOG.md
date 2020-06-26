@@ -1,3 +1,18 @@
+# 1.4.2
+
+## Enhancements
+* Clean up dependencies to avoid evictions.
+This resolves issues on Databricks where some evicted dependencies were loaded,
+which were incompatible with the versions of the dependencies that should have
+been used.
+
+# 1.4.1
+
+We excluded too many dependencies in this release. Please use 1.4.2 instead.
+
+## Enhancements
+* Clean up dependencies to avoid evictions.
+
 # 1.4.0
 
 ## Breaking changes
