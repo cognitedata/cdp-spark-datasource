@@ -65,8 +65,8 @@ final case class CdfDoesNotSupportException(message: String) extends Exception(m
 final case class InvalidNodeReferenceException(nodeIds: Seq[String], referencedFrom: Seq[String])
     extends Exception({
       val plural = (sg: String, pl: String) => if (nodeIds.length == 1) sg else pl
-      val nodes = nodeIds.map(x => s"'$x'").mkString(", ")
-      val refNodes = referencedFrom.map(x => s"'$x'").mkString(", ")
+      val nodes = nodeIds.map(x => s"'$x'").sorted.mkString(", ")
+      val refNodes = referencedFrom.map(x => s"'$x'").sorted.mkString(", ")
       s"${plural("Parent", "Parents")} $nodes referenced from $refNodes ${plural("does", "do")} not exist."
     })
 
