@@ -166,7 +166,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
       AssetCreate(
         "testNode2",
         externalId = Some("testNode2"),
-        parentExternalId = Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
+        parentExternalId = Some("nonExistentNode-aakdhdslfskgslfuwfvbnvwbqrvotfeds")),
       AssetCreate(
         "testNode3",
         externalId = Some("testNode3"),
@@ -182,7 +182,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
       AssetCreate(
         "testNode6",
         externalId = Some("testNode6"),
-        parentExternalId = Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds")),
+        parentExternalId = Some("nonExistentNode-aakdhdslfskgslfuwfvbnvwbqrvotfeds")),
       AssetCreate(
         "testNode7",
         externalId = Some("testNode7"),
@@ -191,7 +191,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
 
     val ex = intercept[Exception] { ingest(key, tree) }
     ex shouldBe an[InvalidNodeReferenceException]
-    ex.getMessage shouldBe s"Parents 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds$key', 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds2$key' referenced from 'testNode2$key', 'testNode7$key' do not exist."
+    ex.getMessage shouldBe s"Parents 'nonExistentNode-aakdhdslfskgslfuwfvbnvwbqrvotfeds$key', 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds2$key' referenced from 'testNode2$key', 'testNode7$key' do not exist."
   }
 
   it should "fail when subtree is updated into being root" in {
