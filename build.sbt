@@ -11,7 +11,7 @@ val circeVersion: Option[(Long, Long)] => String = {
 val sttpVersion = "1.7.2"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.3.1"
+val cogniteSdkVersion = "1.3.2"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
@@ -92,11 +92,7 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     scalaVersion := scala212,
     libraryDependencies ++= Seq(
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
-        exclude("com.softwaremill.sttp", "circe_2.11")
-        exclude("com.softwaremill.sttp", "circe_2.12")
-        exclude("org.typelevel", "cats-core_2.11")
-        exclude("org.typelevel", "cats-core_2.12"),
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
       "com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion
         exclude("io.netty", "netty-transport-native-epoll")
