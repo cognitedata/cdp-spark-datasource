@@ -8,11 +8,11 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
 class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
-  val valhallTimeSeries = "'VAL_23-FT-92537-04:X.Value'"
+  val valhallTimeSeries = "'pi:195975'"
 
-  val valhallTimeSeriesId = 3385857257491234L
+  val valhallTimeSeriesId = 3278479880462408L
   // VAL_23-TT-92533:X.Value has some null aggregate values
-  val withMissingAggregatesId = 3644806523397779L
+  val withMissingAggregatesId = 5662453767080168L
 
   "DataPointsRelation" should "use our own schema for data points" taggedAs (ReadTest) in {
     val df = spark.read
