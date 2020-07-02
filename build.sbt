@@ -95,6 +95,7 @@ lazy val library = (project in file("."))
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
       "com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion
+        exclude("io.netty", "netty-transport-native-epoll")
         exclude("com.softwaremill.sttp", "circe_2.11")
         exclude("com.softwaremill.sttp", "circe_2.12")
         exclude("org.typelevel", "cats-effect_2.11")
