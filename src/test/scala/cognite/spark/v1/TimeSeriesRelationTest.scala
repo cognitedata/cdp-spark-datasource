@@ -1,18 +1,13 @@
 package cognite.spark.v1
 
-import java.util.UUID
-
 import com.cognite.sdk.scala.common.CdpApiException
-import com.cognite.sdk.scala.v1.TimeSeries
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
 import com.softwaremill.sttp._
-import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 
-import scala.util.Try
 import scala.util.control.NonFatal
 
 class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest with OptionValues {
@@ -71,7 +66,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     }
   }
 
-  it should "handle pushdown filters on assetId with multiple assetIds" taggedAs WriteTest in {
+  it should "handle pushdown filters on assetId with multiple assetIds" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.assetIds"
     val df = spark.read
       .format("cognite.spark.v1")
@@ -81,10 +76,11 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
       .option("metricsPrefix", metricsPrefix)
       .option("partitions", "1")
       .load()
+      .where("createdTime < to_timestamp(1593698800)")
       .where(s"assetId In(6191827428964450, 3424990723231138, 3047932288982463)")
-    assert(df.count == 87)
+    assert(df.count == 55)
     val timeSeriesRead = getNumberOfRowsRead(metricsPrefix, "timeseries")
-    assert(timeSeriesRead == 87)
+    assert(timeSeriesRead == 55)
   }
 
   it should "handle pushdown filters on assetId, dataSetId" taggedAs WriteTest in {
@@ -97,15 +93,15 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
       .option("metricsPrefix", metricsPrefix)
       .option("partitions", "1")
       .load()
-      .where("createdTime < to_timestamp(1580000000)")
-      .where(s"assetId In(6191827428964450, 3424990723231138, 3047932288982463) or dataSetId in (1, 2, 3)")
-    assert(df.count == 87)
+      .where("createdTime < to_timestamp(1593698800)")
+      .where(s"assetId In(6191827428964450, 3424990723231138, 3047932288982463) or dataSetId in (6973832320392714)")
+    assert(df.count == 55)
     val timeSeriesRead = getNumberOfRowsRead(metricsPrefix, "timeseries")
-    assert(timeSeriesRead == 87)
+    assert(timeSeriesRead == 55)
   }
 
 
-  it should "handle pushdown filters on assetId on nonexisting assetId" taggedAs WriteTest in {
+  it should "handle pushdown filters on assetId on nonexisting assetId" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.assetIds.nonexisting"
     val df = spark.read
       .format("cognite.spark.v1")

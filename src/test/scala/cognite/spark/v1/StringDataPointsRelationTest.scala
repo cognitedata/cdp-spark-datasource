@@ -8,8 +8,8 @@ import org.apache.spark.sql.types.{LongType, StringType, StructField, TimestampT
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
-  val valhallTimeSeries = "'VAL_23-PIC-96153:MODE'"
-  val valhallTimeSeriesId = 6536948395539605L
+  val valhallTimeSeries = "'pi:160671'"
+  val valhallTimeSeriesId = 1470524308850282L
 
   val sourceTimeSeriesDf = spark.read
     .format("cognite.spark.v1")
@@ -165,7 +165,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
       .option("batchSize", "100")
       .load()
       .where(s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1573081192) and id = $valhallTimeSeriesId")
-    assert(df.count() == 2146)
+    assert(df.count() == 2368)
   }
 
   it should "fetch all string data points from a time series using paging and respect limitPerPartition" taggedAs ReadTest in {
