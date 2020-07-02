@@ -1,3 +1,14 @@
+# 1.4.4
+
+## Fixes
+* Excludes the netty-transport-native-epoll dependency, which isn't handled
+correctly by Spark's --packages support.
+
+# 1.4.3
+
+## Fixes
+* Still too many dependencies excluded. Please use 1.4.4 instead.
+
 # 1.4.2
 
 ## Enhancements
