@@ -78,9 +78,6 @@ private[spark] object SparkSchemaHelperRuntime {
   // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
   // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
   // Since null keys don't make sense to CDP either, remove them as well.
-  // Additionally, values are limited to 512 characters, yet we still have data where values have
-  // more characters than that, so truncate them to the valid length if required: it's necessary for
-  // copying existing data, and probably for upserts as well.
   def filterMetadata(metadata: Map[String, String]): Map[String, String] =
     metadata
       .filter { case (k, v) => k != null && v != null }
