@@ -3,11 +3,18 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, BearerTokenAuth}
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, FunctionCall, GenericClient}
 import com.softwaremill.sttp.SttpBackend
+import io.circe.{Json, JsonObject, parser}
+import io.circe.generic.auto._
+import io.circe.syntax._
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
+import org.apache.spark.sql.functions.to_json
+
+import scala.util.parsing.json.JSONObject
 
 final case class RelationConfig(
     auth: Auth,
@@ -60,7 +67,8 @@ class DefaultSource
     extends RelationProvider
     with CreatableRelationProvider
     with SchemaRelationProvider
-    with DataSourceRegister {
+    with DataSourceRegister
+    with Serializable {
   import DefaultSource._
 
   override def shortName(): String = "cognite"
@@ -91,8 +99,10 @@ class DefaultSource
       sqlContext: SQLContext,
       parameters: Map[String, String],
       schema: StructType): BaseRelation = {
+
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
     val config = parseRelationConfig(parameters, sqlContext)
+
     resourceType match {
       case "datapoints" =>
         new NumericDataPointsRelationV1(config)(sqlContext)
@@ -297,6 +307,7 @@ object DefaultSource {
           throw new CdfSparkIllegalArgumentException(
             s"Can not specify both ignoreDisconnectedAssets=$ignoreDisconnectedAssets and subtree=$subtree")
       }
+
     RelationConfig(
       auth,
       projectName,
@@ -316,7 +327,6 @@ object DefaultSource {
       legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
     )
   }
-
   def getProjectFromAuth(auth: Auth, maxRetries: Int, baseUrl: String): String = {
     implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries)
     val getProject = for {
