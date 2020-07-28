@@ -67,7 +67,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       files.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.externalId.nonEmpty))
 
     if (itemsToUpdateOrCreate.exists(_.name.isEmpty)) {
-      throw new IllegalArgumentException("The name field must be set when creating files.")
+      throw new CdfSparkIllegalArgumentException("The name field must be set when creating files.")
     }
 
     genericUpsert[File, FilesUpsertSchema, FileCreate, FileUpdate, Files[IO]](

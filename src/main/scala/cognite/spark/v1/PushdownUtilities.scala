@@ -62,7 +62,7 @@ object PushdownUtilities {
       case IsNotNull(_) | IsNull(_) | EqualNullSafe(_, null) => NoPushdown()
       case EqualTo(_, null) | GreaterThan(_, null) | GreaterThanOrEqual(_, null) | LessThan(_, null) |
           LessThanOrEqual(_, null) =>
-        throw new Exception(
+        throw new CdfSparkException(
           "Unexpected error, seems that Spark query optimizer is misbehaving. Please contact support@cognite.com and tell them.")
       case EqualTo(colName, value) => PushdownFilter(colName, value.toString)
       case EqualNullSafe(colName, value) => PushdownFilter(colName, value.toString)

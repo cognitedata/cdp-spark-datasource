@@ -229,7 +229,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
       .select(sourceDf.columns.map(col): _*)
       .write
       .insertInto("destinationTimeSeriesWithLegacyName")
-    assert(exception.getCause.isInstanceOf[IllegalArgumentException])
+    assert(exception.getCause.isInstanceOf[CdfSparkIllegalArgumentException])
 
     val before2 = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(externalId2)
     before2.code shouldBe 400
@@ -377,7 +377,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     LegacyNameSource.fromSparkOption(Some("externalId")) shouldBe LegacyNameSource.ExternalId
     LegacyNameSource.fromSparkOption(Some("ExternalID")) shouldBe LegacyNameSource.ExternalId
 
-    assertThrows[IllegalArgumentException] {
+    assertThrows[CdfSparkIllegalArgumentException] {
       LegacyNameSource.fromSparkOption(Some("bogus"))
     }
   }
@@ -805,7 +805,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
         .option("onconflict", "upsert")
         .option("useLegacyName", "true")
         .save()
-      assert(exception.getCause.isInstanceOf[IllegalArgumentException])
+      assert(exception.getCause.isInstanceOf[CdfSparkIllegalArgumentException])
 
       val nonExistingTimeSeriesWithLegacyNameDf =
         spark.sql(

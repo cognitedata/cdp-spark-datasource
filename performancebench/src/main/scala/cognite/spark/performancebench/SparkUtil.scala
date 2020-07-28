@@ -1,10 +1,11 @@
 package cognite.spark.performancebench
 
+import cognite.spark.v1.CdfSparkException
 import org.apache.spark.sql.{DataFrame, DataFrameReader, DataFrameWriter, Row, SparkSession}
 
 trait SparkUtil {
   val spark = SparkUtil.spark
-  val cogniteApiKey = sys.env.getOrElse("COGNITE_API_KEY", throw new Exception("'COGNITE_API_KEY' is not set"))
+  val cogniteApiKey = sys.env.getOrElse("COGNITE_API_KEY", throw new CdfSparkException("'COGNITE_API_KEY' is not set"))
 
   def read(): DataFrameReader =
     spark.read

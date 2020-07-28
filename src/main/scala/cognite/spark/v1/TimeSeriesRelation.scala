@@ -65,7 +65,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         case (Some(legacyName), items) if items.length > 1 => legacyName
       }
     if (config.legacyNameSource != LegacyNameSource.None && duplicatedLegacyNames.nonEmpty) {
-      throw new IllegalArgumentException(
+      throw new CdfSparkIllegalArgumentException(
         "Found legacyName duplicates, upserts only supported with legacyName when using externalId as legacy name." +
           s" Duplicated legacyNames: ${duplicatedLegacyNames.mkString(", ")}.")
     }

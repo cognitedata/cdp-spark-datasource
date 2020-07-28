@@ -44,7 +44,8 @@ object LegacyNameSource extends Enumeration {
       case "false" => LegacyNameSource.None
       case "true" | "name" => LegacyNameSource.Name
       case "externalid" => LegacyNameSource.ExternalId
-      case invalid => throw new IllegalArgumentException(s"Invalid value for useLegacyName: $invalid")
+      case invalid =>
+        throw new CdfSparkIllegalArgumentException(s"Invalid value for useLegacyName: $invalid")
     }
 }
 
@@ -241,7 +242,7 @@ object DefaultSource {
     val onConflictName = parameters.getOrElse("onconflict", "ABORT")
     OnConflict
       .withNameOpt(onConflictName.toUpperCase())
-      .getOrElse(throw new IllegalArgumentException(
+      .getOrElse(throw new CdfSparkIllegalArgumentException(
         s"$onConflictName is not a valid onConflict option. Please choose one of the following options instead: ${OnConflict.values
           .mkString(", ")}"))
   }
@@ -283,7 +284,7 @@ object DefaultSource {
           AssetSubtreeOption
             .withNameOpt(x)
             .getOrElse(
-              throw new IllegalArgumentException(
+              throw new CdfSparkIllegalArgumentException(
                 s"`$x` is an invalid value for option subtree. You can use ingest, ignore or value."))
         case (Some(_), None) =>
           if (toBoolean(parameters, "ignoreDisconnectedAssets")) {
@@ -293,7 +294,7 @@ object DefaultSource {
             AssetSubtreeOption.Error
           }
         case (Some(ignoreDisconnectedAssets), Some(subtree)) =>
-          throw new IllegalArgumentException(
+          throw new CdfSparkIllegalArgumentException(
             s"Can not specify both ignoreDisconnectedAssets=$ignoreDisconnectedAssets and subtree=$subtree")
       }
     RelationConfig(

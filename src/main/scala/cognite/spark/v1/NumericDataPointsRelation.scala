@@ -50,7 +50,7 @@ final case class Granularity(
     case ChronoUnit.HOURS => if (isLongFormat) "hour" else "h"
     case ChronoUnit.MINUTES => if (isLongFormat) "minute" else "m"
     case ChronoUnit.SECONDS => if (isLongFormat) "second" else "s"
-    case _ => throw new RuntimeException("Invalid granularity unit")
+    case _ => throw new CdfSparkException("Invalid granularity unit")
   }
 
   val amount: Long = amountOption.getOrElse(1)
@@ -97,7 +97,7 @@ object Granularity {
       }
       .recoverWith {
         case _: RuntimeException =>
-          Left(new IllegalArgumentException(s"Invalid granularity specification: $s."))
+          Left(new CdfSparkIllegalArgumentException(s"Invalid granularity specification: $s."))
       }
 }
 
@@ -108,12 +108,12 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 
   import PushdownUtilities.filtersToTimestampLimits
   override def insert(rows: Seq[Row]): IO[Unit] =
-    throw new RuntimeException("Insert not supported for datapoints. Use upsert instead.")
+    throw new CdfSparkException("Insert not supported for datapoints. Use upsert instead.")
 
   override def upsert(rows: Seq[Row]): IO[Unit] = insertSeqOfRows(rows)
 
   override def update(rows: Seq[Row]): IO[Unit] =
-    throw new RuntimeException("Update not supported for datapoints. Use upsert instead.")
+    throw new CdfSparkException("Update not supported for datapoints. Use upsert instead.")
 
   override def schema: StructType =
     StructType(
@@ -140,7 +140,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       rows.map(r => fromRow[InsertDataPointsItem](r)).partition(p => p.id.exists(_ > 0))
 
     if (dataPointsWithExternalId.exists(_.externalId.isEmpty)) {
-      throw new IllegalArgumentException(
+      throw new CdfSparkIllegalArgumentException(
         "The id or externalId fields must be set when inserting data points.")
     }
 
@@ -157,7 +157,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
           .insertByExternalId(externalId, dataPoints.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
           .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
       case (None, _) =>
-        throw new IllegalArgumentException(
+        throw new CdfSparkIllegalArgumentException(
           "The id or externalId fields must be set when inserting data points.")
     }
 
@@ -183,7 +183,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
     if (ids.isEmpty && externalIds.isEmpty) {
-      throw new IllegalArgumentException(
+      throw new CdfSparkIllegalArgumentException(
         "Please filter by one or more ids or externalIds when reading data points." +
           " Note that specifying id or externalId through joins is not possible at the moment."
       )
@@ -198,7 +198,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       case Valid(granularities) => granularities
       case Invalid(errors) =>
         val errorMessages = errors.map(_.getMessage).mkString_("\n")
-        throw new IllegalArgumentException(errorMessages)
+        throw new CdfSparkIllegalArgumentException(errorMessages)
     }
     NumericDataPointsRdd(
       sqlContext.sparkContext,

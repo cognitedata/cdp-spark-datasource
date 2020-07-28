@@ -24,7 +24,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     case CogniteInternalId(id) => client.sequences.retrieveById(id)
   }).handleError {
       case e: CdpApiException =>
-        throw new Exception(s"Could not resolve schema of sequence $sequenceId.", e)
+        throw new CdfSparkException(s"Could not resolve schema of sequence $sequenceId.", e)
     }
     .unsafeRunSync()
   val columnTypes: Map[String, String] =
@@ -70,7 +70,8 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
                   .map {
                     case (column, value) =>
                       parseJsonValue(value, columnTypes(column))
-                        .getOrElse(throw new Exception(s"Unexpected value $value in column $column"))
+                        .getOrElse(
+                          throw new CdfSparkException(s"Unexpected value $value in column $column"))
                   }
                 ProjectedSequenceRow(r.rowNumber, values)
               }
@@ -80,7 +81,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     }
 
   private def jsonFromDouble(num: Double): Json =
-    Json.fromDouble(num).getOrElse(throw new Exception(s"Numeric value $num"))
+    Json.fromDouble(num).getOrElse(throw new CdfSparkException(s"Numeric value $num"))
   private def tryGetValue(columnType: String): PartialFunction[Any, Json] = // scalastyle:off
     columnType match {
       case "DOUBLE" => {
@@ -106,15 +107,16 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   def fromRow(schema: StructType): (Array[String], Row => SequenceRow) = {
     val rowNumberIndex = schema.fieldNames.indexOf("rowNumber")
     if (rowNumberIndex < 0) {
-      throw new Exception("Can't upsert sequence rows, column `rowNumber` is missing.")
+      throw new CdfSparkException("Can't upsert sequence rows, column `rowNumber` is missing.")
     }
 
     val columns = schema.fields.zipWithIndex.filter(_._1.name != "rowNumber").map {
       case (field, index) =>
         val columnType = columnTypes.getOrElse(
           field.name,
-          throw new Exception(
-            s"Can't insert column `${field.name}` into sequence $sequenceId, the column does not exist in the sequence definition"))
+          throw new CdfSparkException(
+            s"Can't insert column `${field.name}` into sequence $sequenceId, the column does not exist in the sequence definition")
+        )
         (index, field.name, columnType)
     }
 
@@ -146,10 +148,10 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       .flatTap(_ => incMetrics(itemsDeleted, rows.length))
   }
   def insert(rows: Seq[Row]): IO[Unit] =
-    throw new Exception("Insert not supported for sequencerows. Use upsert instead.")
+    throw new CdfSparkException("Insert not supported for sequencerows. Use upsert instead.")
 
   def update(rows: Seq[Row]): IO[Unit] =
-    throw new Exception("Update not supported for sequencerows. Use upsert instead.")
+    throw new CdfSparkException("Update not supported for sequencerows. Use upsert instead.")
 
   def upsert(rows: Seq[Row]): IO[Unit] =
     if (rows.isEmpty) {
@@ -294,7 +296,7 @@ object SequenceRowsRelation {
         case "STRING" => v.asString
         case "DOUBLE" => v.asNumber.map(_.toDouble)
         case "LONG" => v.asNumber.flatMap(_.toLong)
-        case a => throw new Exception(s"Unknown column type $a")
+        case a => throw new CdfSparkException(s"Unknown column type $a")
       }
     }
 
@@ -303,7 +305,7 @@ object SequenceRowsRelation {
       case "STRING" => DataTypes.StringType
       case "DOUBLE" => DataTypes.DoubleType
       case "LONG" => DataTypes.LongType
-      case a => throw new Exception(s"Unknown column type $a")
+      case a => throw new CdfSparkException(s"Unknown column type $a")
     }
 }
 

@@ -44,7 +44,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         NonEmptyList
           .fromList(s.columns.toList)
           .getOrElse(
-            throw new IllegalArgumentException(
+            throw new CdfSparkIllegalArgumentException(
               s"columns must not be empty (on row ${SparkSchemaHelperRuntime.rowIdentifier(row)})")
           ),
         s.dataSetId
@@ -77,7 +77,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def upsert(rows: Seq[Row]): IO[Unit] =
     // Sequences fail with 400 error code when id already exists:
     // /api/v1/projects/jetfiretest2/sequences failed with status 400: The following external id(s) are already in the database:
-    throw new RuntimeException("Upsert not supported for sequences.")
+    throw new CdfSparkException("Upsert not supported for sequences.")
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val sequences = rows.map(fromRow[SequenceCreate](_))
