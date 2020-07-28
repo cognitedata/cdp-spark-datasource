@@ -114,7 +114,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       duplicated.flatMap(j => j("legacyName")).map(_.asString.get)
 
     if (legacyNameConflicts.nonEmpty) {
-      throw new IllegalArgumentException(
+      throw new CdfSparkIllegalArgumentException(
         "Found legacyName conflicts, upserts only supported with legacyName when using externalId as legacy name." +
           s" Conflicting legacyNames: ${legacyNameConflicts.mkString(", ")}." +
           requestId.map(id => s" Request ID: $id").getOrElse(""))

@@ -54,16 +54,16 @@ final case class AssetSubtree(
 
 final case class NoRootException(
     message: String = """Tree has no root. Set parentExternalId to "" for the root Asset.""")
-    extends Exception(message)
+    extends CdfSparkException(message)
 final case class InvalidTreeException(message: String = s"The tree has an invalid structure.")
-    extends Exception(message)
+    extends CdfSparkException(message)
 final case class NonUniqueAssetId(id: String)
-    extends Exception(s"Asset tree contains asset '$id' multiple times.")
+    extends CdfSparkException(s"Asset tree contains asset '$id' multiple times.")
 final case class EmptyExternalIdException(message: String = s"ExternalId cannot be an empty String.")
-    extends Exception(message)
-final case class CdfDoesNotSupportException(message: String) extends Exception(message)
+    extends CdfSparkException(message)
+final case class CdfDoesNotSupportException(message: String) extends CdfSparkException(message)
 final case class InvalidNodeReferenceException(nodeIds: Seq[String], referencedFrom: Seq[String])
-    extends Exception({
+    extends CdfSparkException({
       val plural = (sg: String, pl: String) => if (nodeIds.length == 1) sg else pl
       val nodes = nodeIds.map(x => s"'$x'").sorted.mkString(", ")
       val refNodes = referencedFrom.map(x => s"'$x'").sorted.mkString(", ")

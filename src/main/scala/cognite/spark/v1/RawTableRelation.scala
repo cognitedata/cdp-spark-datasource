@@ -159,7 +159,8 @@ class RawTableRelation(
 
   override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
     if (!df.columns.contains("key")) {
-      throw new IllegalArgumentException("The dataframe used for insertion must have a \"key\" column.")
+      throw new CdfSparkIllegalArgumentException(
+        "The dataframe used for insertion must have a \"key\" column.")
     }
 
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df.drop(lastUpdatedTimeColName))
@@ -199,7 +200,7 @@ object RawTableRelation {
       row =>
         RawRow(
           Option(row.getString(row.fieldIndex(temporaryKeyName)))
-            .getOrElse(throw new IllegalArgumentException("\"key\" can not be null.")),
+            .getOrElse(throw new CdfSparkIllegalArgumentException("\"key\" can not be null.")),
           io.circe.parser
             .decode[Map[String, Json]](
               mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames)))

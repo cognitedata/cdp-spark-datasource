@@ -5,7 +5,7 @@ import org.scalatest.FlatSpec
 class URLTest extends FlatSpec with SparkTest {
   private val greenfieldApiKey =
     Option(System.getenv("TEST_API_KEY_GREENFIELD"))
-      .getOrElse(throw new Exception("Greenfield API key was not specified in the TEST_API_KEY_GREENFIELD env variable."))
+      .getOrElse(throw new CdfSparkException("Greenfield API key was not specified in the TEST_API_KEY_GREENFIELD env variable."))
 
   it should "read different files metadata from greenfield and api" taggedAs GreenfieldTest in {
 

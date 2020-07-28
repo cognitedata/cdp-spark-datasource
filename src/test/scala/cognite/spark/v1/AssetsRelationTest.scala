@@ -480,7 +480,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         |select 'upsertTestThree' as name, id from invalid
       """.stripMargin)
 
-    assertThrows[IllegalArgumentException] {
+    assertThrows[CdfSparkIllegalArgumentException] {
       wdf.write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)

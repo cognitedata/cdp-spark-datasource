@@ -101,35 +101,35 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
 
   it should "fail nicely on different type in map" in {
     val x = new GenericRowWithSchema(Array(null, null, null, null, Map("foo" -> "row", "bar" -> 1), null, null, null), structType[TestTypeOption])
-    val ex = intercept[IllegalArgumentException] { fromRow[TestTypeOption](x) }
+    val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeOption](x) }
     ex.getMessage shouldBe "Map with string values was expected, but '1' of type Int was found (under key 'bar' on row [null,null,null,null,Map(foo -> row, bar -> 1),null,null,null])"
   }
 
   it should "fail nicely on type mismatch" in {
     val x = new GenericRowWithSchema(Array("shouldBeInt", 2.toDouble, 3.toByte,
       4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
-    val ex = intercept[IllegalArgumentException] { fromRow[TestTypeBasic](x) }
+    val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeBasic](x) }
     ex.getMessage shouldBe "Column 'a' was expected to have type Int, but 'shouldBeInt' of type String was found (on row [shouldBeInt,2.0,3,4.0,Map(foo -> bar),5,List(10),foo])."
   }
 
   it should "fail nicely on unexpected NULL in int" in {
     val x = new GenericRowWithSchema(Array(null, 2.toDouble, 3.toByte,
       4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
-    val ex = intercept[IllegalArgumentException] { fromRow[TestTypeBasic](x) }
+    val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeBasic](x) }
     ex.getMessage shouldBe "Column 'a' was expected to have type Int, but NULL was found (on row [null,2.0,3,4.0,Map(foo -> bar),5,List(10),foo])."
   }
 
   it should "fail nicely on unexpected NULL in string" in {
     val x = new GenericRowWithSchema(Array(1, 2.toDouble, 3.toByte,
       4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), null), structType[TestTypeBasic])
-    val ex = intercept[IllegalArgumentException] { fromRow[TestTypeBasic](x) }
+    val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeBasic](x) }
     ex.getMessage shouldBe "Column 's' was expected to have type String, but NULL was found (on row [1,2.0,3,4.0,Map(foo -> bar),5,List(10),null])."
   }
 
   it should "fail nicely on unexpected NULL in map" in {
     val x = new GenericRowWithSchema(Array(1, 2.toDouble, 3.toByte,
       4.toFloat, null, 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
-    val ex = intercept[IllegalArgumentException] { fromRow[TestTypeBasic](x) }
+    val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeBasic](x) }
     ex.getMessage shouldBe "Column 'x' was expected to have type Map[String,String], but NULL was found (on row [1,2.0,3,4.0,null,5,List(10),foo])."
   }
 }

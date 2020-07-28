@@ -39,12 +39,12 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     with WritableRelation {
   import CdpConnector._
   override def insert(rows: Seq[Row]): IO[Unit] =
-    throw new RuntimeException("Insert not supported for stringdatapoints. Please use upsert instead.")
+    throw new CdfSparkException("Insert not supported for stringdatapoints. Please use upsert instead.")
 
   override def upsert(rows: Seq[Row]): IO[Unit] = insertSeqOfRows(rows)
 
   override def update(rows: Seq[Row]): IO[Unit] =
-    throw new RuntimeException("Update not supported for stringdatapoints. Please use upsert instead.")
+    throw new CdfSparkException("Update not supported for stringdatapoints. Please use upsert instead.")
 
   def toRow(a: StringDataPointsItem): Row = asRow(a)
 
@@ -62,7 +62,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
       rows.map(r => fromRow[StringDataPointsInsertItem](r)).partition(p => p.id.exists(_ > 0))
 
     if (dataPointsWithExternalId.exists(_.externalId.isEmpty)) {
-      throw new IllegalArgumentException(
+      throw new CdfSparkIllegalArgumentException(
         "The id or externalId fields must be set when inserting data points.")
     }
 
@@ -80,7 +80,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
             dataPoints.map(dp => StringDataPoint(dp.timestamp, dp.value)))
           .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
       case (None, _) =>
-        throw new IllegalArgumentException(
+        throw new CdfSparkIllegalArgumentException(
           "The id or externalId fields must be set when inserting data points.")
     }
 
@@ -110,7 +110,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
     if (ids.isEmpty && externalIds.isEmpty) {
-      throw new IllegalArgumentException(
+      throw new CdfSparkIllegalArgumentException(
         "Please filter by one or more ids or externalIds when reading string data points.")
     }
 

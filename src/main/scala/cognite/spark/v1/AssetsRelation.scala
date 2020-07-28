@@ -83,7 +83,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       assets.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.externalId.nonEmpty))
 
     if (itemsToUpdateOrCreate.exists(_.name.isEmpty)) {
-      throw new IllegalArgumentException("The name field must be set when creating assets.")
+      throw new CdfSparkIllegalArgumentException("The name field must be set when creating assets.")
     }
 
     genericUpsert[Asset, AssetsUpsertSchema, AssetCreate, AssetUpdate, Assets[IO]](

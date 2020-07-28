@@ -287,7 +287,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
   }
 
   it should "fail reasonably on invalid source type" in {
-    val exception = intercept[IllegalArgumentException] {
+    val exception = intercept[CdfSparkIllegalArgumentException] {
       spark.sql(
         """
           |select "test-asset-rV2yGok98VNzWMb9yWGk" as externalId,
@@ -307,7 +307,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
   }
 
   it should "fail reasonably on NULLs" in {
-    val exception = intercept[IllegalArgumentException] {
+    val exception = intercept[CdfSparkIllegalArgumentException] {
       spark.sql(
         """
           |select "test-asset-rV2yGok98VNzWMb9yWGk" as externalId,
@@ -327,7 +327,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
   }
 
   it should "fail reasonably on invalid dataSetId type" in {
-    val exception = intercept[IllegalArgumentException] {
+    val exception = intercept[CdfSparkIllegalArgumentException] {
       spark.sql(
         """
           |select "test-asset-MNwWje501UZ83dFA3S" as externalId,
@@ -346,7 +346,7 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
   }
 
   it should "fail with hint on parentExternalId=NULL" in {
-    val exception = intercept[IllegalArgumentException] {
+    val exception = intercept[CdfSparkIllegalArgumentException] {
       spark.sql(
         """
           |select "test-asset-55UbfFlTh2I95usWl7gnok" as externalId,

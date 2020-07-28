@@ -51,7 +51,7 @@ private[spark] object SparkSchemaHelperRuntime {
       }
 
     (badKeys ++ badValues).headOption match {
-      case Some(error) => throw new IllegalArgumentException(error)
+      case Some(error) => throw new CdfSparkIllegalArgumentException(error)
       case None => filterMetadata(map.asInstanceOf[Map[String, String]])
     }
   }
@@ -59,7 +59,7 @@ private[spark] object SparkSchemaHelperRuntime {
   def badRowError(row: Row, name: String, typeName: String, rowType: String): Throwable =
     Try(row.getAs[Any](name)) match {
       case Failure(error) =>
-        new IllegalArgumentException(
+        new CdfSparkIllegalArgumentException(
           s"Required column '$name' is missing on row [${row.schema.fieldNames.mkString(", ")}].")
       case Success(value) =>
         val hint =
@@ -71,7 +71,7 @@ private[spark] object SparkSchemaHelperRuntime {
 
         // this function is invoked only in case of an error -> we have some type issues
         val valueString = valueToString(value)
-        new IllegalArgumentException(s"Column '$name' was expected to have type ${simplifyTypeName(
+        new CdfSparkIllegalArgumentException(s"Column '$name' was expected to have type ${simplifyTypeName(
           typeName)}, but $valueString was found (on row ${rowIdentifier(row)}).$hint")
     }
 

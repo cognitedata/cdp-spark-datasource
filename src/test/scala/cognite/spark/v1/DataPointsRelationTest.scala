@@ -34,7 +34,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   }
 
   it should "throw an error when no id/externalId filter is provided" taggedAs ReadTest in {
-    val thrown = the[IllegalArgumentException] thrownBy {
+    val thrown = the[CdfSparkIllegalArgumentException] thrownBy {
       spark.read
         .format("cognite.spark.v1")
         .option("apiKey", readApiKey)
@@ -157,7 +157,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     val e = intercept[Exception] {
       df.count()
     }
-    e shouldBe an[IllegalArgumentException]
+    e shouldBe an[CdfSparkIllegalArgumentException]
   }
 
   it should "be an error to specify a granularity without specifying an aggregation" taggedAs (ReadTest) in {
@@ -170,7 +170,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     val e = intercept[Exception] {
       df.count()
     }
-    e shouldBe an[IllegalArgumentException]
+    e shouldBe an[CdfSparkIllegalArgumentException]
   }
 
   it should "be an error to specify an invalid granularity" taggedAs (ReadTest) in {
@@ -185,7 +185,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
       val e = intercept[Exception] {
         df.count()
       }
-      e shouldBe an[IllegalArgumentException]
+      e shouldBe an[CdfSparkIllegalArgumentException]
     }
   }
 
@@ -755,7 +755,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
         .option("onconflict", "delete")
         .save
     }
-    e.getCause shouldBe a[IllegalArgumentException]
+    e.getCause shouldBe a[CdfSparkIllegalArgumentException]
     e.getCause.getMessage should startWith("Delete range [1509900000000, 1509900000000) is invalid")
   }
 
@@ -775,7 +775,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
         .option("onconflict", "delete")
         .save
     }
-    e.getCause shouldBe a[IllegalArgumentException]
+    e.getCause shouldBe a[CdfSparkIllegalArgumentException]
     e.getCause.getMessage should startWith("Delete row for data points can not contain both inclusiveEnd and exclusiveEnd ")
   }
 
@@ -793,7 +793,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
         .option("onconflict", "delete")
         .save
     }
-    e.getCause shouldBe a[IllegalArgumentException]
+    e.getCause shouldBe a[CdfSparkIllegalArgumentException]
     e.getCause.getMessage should startWith("Delete row for data points must contain inclusiveBegin or exclusiveBegin ")
   }
 
@@ -811,7 +811,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
         .option("onconflict", "delete")
         .save
     }
-    e.getCause shouldBe a[IllegalArgumentException]
+    e.getCause shouldBe a[CdfSparkIllegalArgumentException]
     e.getCause.getMessage should startWith("Delete row for data points must contain id or externalId ")
   }
 

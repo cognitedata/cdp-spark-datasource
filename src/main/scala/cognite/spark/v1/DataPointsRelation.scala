@@ -62,11 +62,12 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
     val granularities = filters.flatMap(getGranularity).distinct
 
     if (aggregations.nonEmpty && granularities.isEmpty) {
-      throw new IllegalArgumentException(s"Aggregations requested but granularity is not specified")
+      throw new CdfSparkIllegalArgumentException(
+        s"Aggregations requested but granularity is not specified")
     }
 
     if (aggregations.isEmpty && granularities.nonEmpty) {
-      throw new IllegalArgumentException(s"Granularity specified but no aggregation requested")
+      throw new CdfSparkIllegalArgumentException(s"Granularity specified but no aggregation requested")
     }
 
     (aggregations, granularities)
@@ -194,14 +195,14 @@ object DataPointsRelationV1 {
       row: Any): Long =
     (lower, upper) match {
       case (Some(_), Some(_)) =>
-        throw new IllegalArgumentException(
+        throw new CdfSparkIllegalArgumentException(
           s"Delete row for data points can not contain both inclusive$part and exclusive$part (on row $row)")
       case (Some(lower), None) =>
         lower.toEpochMilli
       case (None, Some(upper)) =>
         upper.toEpochMilli + 1
       case (None, None) =>
-        throw new IllegalArgumentException(
+        throw new CdfSparkIllegalArgumentException(
           s"Delete row for data points must contain inclusive$part or exclusive$part (on row $row)")
     }
 
@@ -210,14 +211,14 @@ object DataPointsRelationV1 {
       case (Some(id), _) => CogniteInternalId(id)
       case (None, Some(externalId)) => CogniteExternalId(externalId)
       case (None, None) =>
-        throw new IllegalArgumentException(
+        throw new CdfSparkIllegalArgumentException(
           s"Delete row for data points must contain id or externalId (on row $x)")
     }
 
     val inclusiveBegin = toLowerbound(x.inclusiveBegin, x.exclusiveBegin, "Begin", x)
     val exclusiveEnd = toLowerbound(x.exclusiveEnd, x.inclusiveEnd, "End", x)
     if (exclusiveEnd <= inclusiveBegin) {
-      throw new IllegalArgumentException(
+      throw new CdfSparkIllegalArgumentException(
         s"Delete range [$inclusiveBegin, $exclusiveEnd) is invalid (on row $x)")
     }
     id match {

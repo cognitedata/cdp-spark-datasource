@@ -201,11 +201,11 @@ class RawTableRelationTest extends FlatSpec with Matchers with ParallelTestExecu
     rawItems.map(_.columns) should equal(expectedResult)
   }
 
-  it should "throw an IllegalArgumentException when DataFrame has null key" in {
+  it should "throw an CDFSparkIllegalArgumentException when DataFrame has null key" in {
     val dfWithKey = dfWithNullKeyData.toDF("key", "lastUpdatedTime", "columns")
     val processedWithKey = flattenAndRenameColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
     val (columnNames, unRenamed) = prepareForInsert(processedWithKey)
-    an[IllegalArgumentException] should be thrownBy rowsToRawItems(
+    an[CdfSparkIllegalArgumentException] should be thrownBy rowsToRawItems(
       columnNames,
       unRenamed.collect.toSeq,
       mapper)
