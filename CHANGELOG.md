@@ -1,3 +1,8 @@
+# 1.4.5
+
+## Fixes
+* Make all exceptions be custom exceptions with common base type.
+
 # 1.4.4
 
 ## Fixes
