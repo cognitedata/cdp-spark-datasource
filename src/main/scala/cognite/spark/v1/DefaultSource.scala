@@ -194,12 +194,13 @@ class DefaultSource
           createSequenceRows(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
-      val batchSize = relation match {
+      val batchSizeDefault = relation match {
         case _: NumericDataPointsRelationV1 => Constants.CreateDataPointsLimit
         case _: StringDataPointsRelationV1 => Constants.CreateDataPointsLimit
         case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
         case _ => Constants.DefaultBatchSize
       }
+      val batchSize = config.batchSize.getOrElse(batchSizeDefault)
       data.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector._
 
