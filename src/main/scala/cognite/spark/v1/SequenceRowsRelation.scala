@@ -17,8 +17,6 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     with PrunedFilteredScan {
   import SequenceRowsRelation._
 
-  @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
-
   val sequenceInfo: Sequence = (sequenceId match {
     case CogniteExternalId(externalId) => client.sequences.retrieveByExternalId(externalId)
     case CogniteInternalId(id) => client.sequences.retrieveById(id)
