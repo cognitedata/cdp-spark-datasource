@@ -28,8 +28,7 @@ final case class RelationConfig(
     parallelismPerPartition: Int,
     ignoreUnknownIds: Boolean,
     deleteMissingAssets: Boolean,
-    subtrees: AssetSubtreeOption.AssetSubtreeOption,
-    legacyNameSource: LegacyNameSource.Value
+    subtrees: AssetSubtreeOption.AssetSubtreeOption
 )
 
 object OnConflict extends Enumeration {
@@ -37,20 +36,6 @@ object OnConflict extends Enumeration {
   val Abort, Update, Upsert, Delete = Value
 
   def withNameOpt(s: String): Option[Value] = values.find(_.toString.toLowerCase == s.toLowerCase())
-}
-
-object LegacyNameSource extends Enumeration {
-  type LegacyNameSource = Value
-  val None, Name, ExternalId = Value
-
-  def fromSparkOption(configValue: Option[String]): LegacyNameSource =
-    configValue.map(_.toLowerCase).getOrElse("false") match {
-      case "false" => LegacyNameSource.None
-      case "true" | "name" => LegacyNameSource.Name
-      case "externalid" => LegacyNameSource.ExternalId
-      case invalid =>
-        throw new CdfSparkIllegalArgumentException(s"Invalid value for useLegacyName: $invalid")
-    }
 }
 
 object AssetSubtreeOption extends Enumeration {
@@ -361,8 +346,7 @@ object DefaultSource {
       parallelismPerPartition,
       ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", defaultValue = true),
       deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
-      subtrees = subtreesOption,
-      legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
+      subtrees = subtreesOption
     )
   }
 
