@@ -44,30 +44,11 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val timeSeries = rows.map(fromRow[TimeSeriesUpsertSchema](_))
     val (itemsToUpdate, itemsToCreate) = timeSeries.partition(r => r.id.exists(_ > 0))
 
-    val uniqueItemsToCreate = itemsToCreate.map { c =>
-      val asCreate = c
-        .into[TimeSeriesCreate]
+    val uniqueItemsToCreate = itemsToCreate.map { it =>
+      it.into[TimeSeriesCreate]
         .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
         .withFieldComputed(_.isString, _.isString.getOrElse(false))
-
-      config.legacyNameSource match {
-        case LegacyNameSource.None =>
-          asCreate.transform
-        case LegacyNameSource.Name =>
-          asCreate.withFieldComputed(_.legacyName, _.name).transform
-        case LegacyNameSource.ExternalId =>
-          asCreate.withFieldComputed(_.legacyName, _.externalId).transform
-      }
-    }
-
-    val duplicatedLegacyNames =
-      uniqueItemsToCreate.filter(_.legacyName.isDefined).groupBy(_.legacyName).collect {
-        case (Some(legacyName), items) if items.length > 1 => legacyName
-      }
-    if (config.legacyNameSource != LegacyNameSource.None && duplicatedLegacyNames.nonEmpty) {
-      throw new CdfSparkIllegalArgumentException(
-        "Found legacyName duplicates, upserts only supported with legacyName when using externalId as legacy name." +
-          s" Duplicated legacyNames: ${duplicatedLegacyNames.mkString(", ")}.")
+        .transform
     }
 
     // scalastyle:off no.whitespace.after.left.bracket
@@ -85,15 +66,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
-    val timeSeriesSeq = rows.map { r =>
-      val timeSeries = fromRow[TimeSeriesCreate](r)
-      config.legacyNameSource match {
-        case LegacyNameSource.None => timeSeries
-        case LegacyNameSource.Name => timeSeries.copy(legacyName = timeSeries.name)
-        case LegacyNameSource.ExternalId =>
-          timeSeries.copy(legacyName = timeSeries.externalId)
-      }
-    }
+    val timeSeriesSeq = rows.map(fromRow[TimeSeriesCreate](_))
 
     createOrUpdateByExternalId[TimeSeries, TimeSeriesUpdate, TimeSeriesCreate, TimeSeriesResource[IO]](
       Set.empty,
