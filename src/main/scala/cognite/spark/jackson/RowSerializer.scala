@@ -9,15 +9,18 @@ import org.apache.spark.sql.Row
 private[spark] class RowSerializer extends StdSerializer[Row](classOf[Row]) {
   def serialize(row: Row, gen: JsonGenerator, provider: SerializerProvider): Unit =
     if (row.schema != null) {
+      val entries = row.schema.fieldNames.map(key => key -> row(row.fieldIndex(key)))
+
       gen.writeStartObject()
-      for (field <- row.schema.fields) {
-        val value = row(row.fieldIndex(field.name))
-        provider.defaultSerializeField(field.name, value, gen)
+      for ((key, value) <- entries) {
+        provider.defaultSerializeField(key, value, gen)
       }
       gen.writeEndObject()
     } else {
+      val values = row.toSeq
+
       gen.writeStartArray()
-      for (value <- row.toSeq) {
+      for (value <- values) {
         provider.defaultSerializeValue(value, gen)
       }
       gen.writeEndArray()
