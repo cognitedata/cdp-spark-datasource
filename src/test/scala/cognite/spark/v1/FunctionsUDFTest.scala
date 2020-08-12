@@ -12,7 +12,7 @@ import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}
 
 class FunctionsUDFTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest with Inspectors {
 
-  it should "read assets with functionUDF" taggedAs ReadTest in {
+  ignore should "read assets with functionUDF" taggedAs ReadTest in {
     implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(DefaultMaxRetries)
     val df = spark.read
       .format("cognite.spark.v1")
