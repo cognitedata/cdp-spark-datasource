@@ -52,6 +52,7 @@ class RawTableRelation(
   @transient lazy val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
+    mapper.registerModule(cognite.spark.jackson.SparkModule)
     mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
     mapper
