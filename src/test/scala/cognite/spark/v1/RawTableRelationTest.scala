@@ -1,15 +1,21 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.v1.RawRow
+import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.v1.{RawRow, RawTable}
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.circe.Json
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.scalatest.{FlatSpec, LoneElement, Matchers, ParallelTestExecution}
 
-class RawTableRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+class RawTableRelationTest
+  extends FlatSpec
+    with Matchers
+    with ParallelTestExecution
+    with SparkTest
+    with LoneElement {
   import RawTableRelation._
   import spark.implicits._
 
@@ -181,6 +187,7 @@ class RawTableRelationTest extends FlatSpec with Matchers with ParallelTestExecu
   val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
+    mapper.registerModule(cognite.spark.jackson.SparkModule)
     mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
     mapper
@@ -288,6 +295,78 @@ class RawTableRelationTest extends FlatSpec with Matchers with ParallelTestExecu
       .load()
       .where(s"lastUpdatedTime >= timestamp('2019-06-21 11:48:00.000Z') and lastUpdatedTime <= timestamp('2019-06-21 11:50:00.000Z')")
     assert(df.count() == 10)
+    }
+  }
+
+  it should "write nested struct values" in {
+    val database = "testdb"
+    val table = "struct-test"
+
+    try {
+      writeClient.rawTables(database).createOne(RawTable(table))
+    } catch {
+      case e: CdpApiException if e.code == 400 => // Ignore if already exists
+    }
+
+    val key = shortRandomString()
+    val tempView = "struct_test_" + shortRandomString()
+
+    val source = spark.sql(
+      s"""select
+         |  '$key' as key,
+         |  struct(
+         |    123                        as long,
+         |    'foo'                      as string,
+         |    struct(123 as foo)         as struct,
+         |    array(struct(123 as foo))  as array_of_struct
+         |  ) as value
+         |""".stripMargin)
+    val destination = spark.read
+      .format("cognite.spark.v1")
+      .schema(source.schema)
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", database)
+      .option("table", table)
+      .load()
+    destination.createTempView(tempView)
+    source
+      .select(destination.columns.map(c => col(c)): _*)
+      .write
+      .insertInto(tempView)
+
+    try {
+      val df = spark.read
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "raw")
+        .option("database", database)
+        .option("table", table)
+        .option("inferSchema", true)
+        .load()
+        .where(s"key = '$key'")
+
+      assert(df.count() == 1)
+      val row = df.first()
+
+      val struct = row.getStruct(row.fieldIndex("value"))
+
+      assert(struct.getAs[Long]("long") == 123L)
+      assert(struct.getAs[String]("string") == "foo")
+
+      val nestedStruct = struct.getStruct(struct.fieldIndex("struct"))
+      assert(nestedStruct.schema != null)
+      nestedStruct.schema.fieldNames.toSeq.loneElement shouldBe "foo"
+      nestedStruct.toSeq.loneElement shouldBe 123L
+
+      val arrayOfStruct = struct.getSeq[Row](struct.fieldIndex("array_of_struct"))
+      val structInArray = arrayOfStruct.loneElement
+
+      assert(structInArray.schema != null)
+      structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
+      structInArray.toSeq.loneElement shouldBe 123L
+    } finally {
+      writeClient.rawRows(database, table).deleteById(key)
     }
   }
 }
