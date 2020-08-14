@@ -7,9 +7,9 @@ import cats.effect.{ContextShift, IO, Timer}
 import com.cognite.sdk.scala.common.{GzipSttpBackend, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
-import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import com.softwaremill.sttp._
 import com.softwaremill.sttp.asynchttpclient.SttpClientBackendFactory
+import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import scala.concurrent.ExecutionContext
 
@@ -44,10 +44,11 @@ object CdpConnector {
 
   def clientFromConfig(config: RelationConfig): GenericClient[IO] =
     new GenericClient[IO](
-      Constants.SparkDatasourceVersion,
+      config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       config.projectName,
       config.baseUrl,
-      config.auth)(implicitly, retryingSttpBackend(config.maxRetries))
+      config.auth,
+      clientTag = config.clientTag)(implicitly, retryingSttpBackend(config.maxRetries))
 
   type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]

@@ -18,6 +18,8 @@ import scala.util.parsing.json.JSONObject
 
 final case class RelationConfig(
     auth: Auth,
+    clientTag: Option[String],
+    applicationName: Option[String],
     projectName: String,
     batchSize: Option[Int],
     limitPerPartition: Option[Int],
@@ -262,6 +264,8 @@ object DefaultSource {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
+    val clientTag = parameters.get("clientTag")
+    val applicationName = parameters.get("applicationName")
     val bearerToken = parameters
       .get("bearerToken")
       .map(bearerToken => BearerTokenAuth(bearerToken))
@@ -311,6 +315,8 @@ object DefaultSource {
 
     RelationConfig(
       auth,
+      clientTag,
+      applicationName,
       projectName,
       batchSize,
       limitPerPartition,

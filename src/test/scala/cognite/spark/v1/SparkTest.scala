@@ -85,6 +85,8 @@ trait SparkTest {
   def getDefaultConfig(auth: Auth): RelationConfig =
     RelationConfig(
       auth,
+      Some("SparkDatasourceTestTag"),
+      Some("SparkDatasourceTestApp"),
       DefaultSource.getProjectFromAuth(auth, Constants.DefaultMaxRetries, Constants.DefaultBaseUrl),
       Some(Constants.DefaultBatchSize),
       None,
