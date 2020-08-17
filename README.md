@@ -67,6 +67,8 @@ The common options are:
 | `metricsPrefix` | Common prefix for all collected metrics. Might be useful when working with multiple connections. |
 | `partitions`   | Number of [CDF partitions](https://docs.cognite.com/dev/concepts/pagination/#parallel-retrieval) to use. By default it's 200. |
 | `parallelismPerPartition` | How many parallel request should run for one Spark partition. Number of Spark partitions = `partitions` / `parallelismPerPartition` |
+| `applicationName` | Identifies the application making requests by including a `X-CDP-App` header. Defaults to `com.cognite.spark.datasource-(version)` |
+| `clientTag` | If set, will be included as a `X-CDP-ClientTag` header in requests. This is typically used to group sets of requests as belonging to some definition of a job or workload for debugging. |
 
 ### Read data
 
