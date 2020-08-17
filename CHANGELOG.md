@@ -1,3 +1,13 @@
+# 1.4.7
+
+## Enhancements
+* The `X-CDP-App` and `X-CDP-ClientTag` headers can now be configured using the `applicationName` and `clientTag` options.
+  See the [Common Options](README.md#common-options) section for more info.
+
+## Fixes
+* Nested rows/structs are now correctly encoded as plain JSON objects when writing to RAW tables.
+  These were previously encoded according to the internal structure of `org.apache.spark.sql.Row`.
+
 # 1.4.6
 
 ## Fixes
