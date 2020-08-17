@@ -1,3 +1,8 @@
+# 1.4.6
+
+## Fixes
+* Use the configured batch size also when using savemode
+
 # 1.4.5
 
 ## Fixes
