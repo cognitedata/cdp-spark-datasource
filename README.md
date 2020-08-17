@@ -1,3 +1,4 @@
+![Maven Central](https://img.shields.io/maven-central/v/com.cognite.spark.datasource/cdf-spark-datasource_2.12?label=version)
 # Spark Data Source
 
 The Cognite Spark Data Source lets you use [Spark](https://spark.apache.org/) to read and write data from and to [Cognite Data Fusion](https://docs.cognite.com/dev/) (CDF).
