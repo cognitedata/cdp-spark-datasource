@@ -79,9 +79,10 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resource: T,
       isUpdateEmpty: U => Boolean
   )(implicit transform: Transformer[P, U]): IO[Unit] = {
-    require(
-      updates.forall(u => u.id.isDefined || u.externalId.isDefined),
-      "Update requires an id or externalId to be set for each row.")
+    if (!updates.forall(u => u.id.isDefined || u.externalId.isDefined)) {
+      throw new CdfSparkException("Update requires an id or externalId to be set for each row.")
+    }
+
     val (rawUpdatesById, updatesByExternalId) = updates.partition(u => u.id.exists(_ > 0))
     val updatesById =
       rawUpdatesById
