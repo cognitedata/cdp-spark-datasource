@@ -395,6 +395,41 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
     cleanDB(key)
   }
 
+  it should "ingest an asset tree 2" in {
+    val key = shortRandomString()
+
+    val ds = Some(testDataSetId)
+    val assetTree = Seq(
+      AssetCreate("dad", None, None, None, Some("dad"), None, Some(""), ds),
+      AssetCreate("son", None, None, None, Some("son"), None, Some("dad"), ds),
+      AssetCreate("daughter", None, None, None, Some("daughter"), None, Some("dad"), ds),
+      AssetCreate(
+        "daughterSon",
+        externalId = Some("daughterSon"),
+        parentExternalId = Some("daughter"),
+        dataSetId = ds)
+    )
+
+    writeClient
+      .assets
+      .createOne(AssetCreate("son", None, None, None, Some("son"), None, Some("dad"), ds))
+
+    ingest(key, assetTree)
+
+    val result = retryWhile[Array[Row]](
+      spark
+        .sql(s"select * from assets where source = '$testName$key' and dataSetId = $testDataSetId")
+        .collect,
+      rows => rows.map(r => r.getAs[String]("name")).toSet != assetTree.map(_.name).toSet
+    )
+
+    val extIdMap = getAssetsMap(result)
+    assert(extIdMap(Some(s"son$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"daughter$key")).parentId.contains(extIdMap(Some(s"dad$key")).id))
+    assert(extIdMap(Some(s"daughterSon$key")).parentId.contains(extIdMap(Some(s"daughter$key")).id))
+    assert(extIdMap(Some(s"dad$key")).dataSetId == ds)
+    cleanDB(key)
+  }
 
   it should "ignore on nulls in metadata" in {
     val key = shortRandomString()
