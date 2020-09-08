@@ -69,6 +69,26 @@ final case class InvalidNodeReferenceException(nodeIds: Seq[String], referencedF
       val refNodes = referencedFrom.map(x => s"'$x'").sorted.mkString(", ")
       s"${plural("Parent", "Parents")} $nodes referenced from $refNodes ${plural("does", "do")} not exist."
     })
+final case class InvalidRootChangeException(cause: CdpApiException, newSubtreeRoot: Asset)
+    extends CdfSparkException(
+      {
+        val commaSeparatedAssets =
+          cause.duplicated.get
+            .map {
+              _.toIterable
+                .map { case (key, value) => s"$key=${value.asString.getOrElse(value.toString)}" }
+                .mkString("(", ", ", ")")
+            }
+            .mkString(", ")
+
+        val withRootAssetId = newSubtreeRoot.rootId.map(id => s" with id $id").getOrElse("")
+
+        s"Attempted to move some assets to a different root asset$withRootAssetId. " +
+          "If this is intended, the assets must be manually deleted and re-created under the new root asset. " +
+          s"The following assets were attempted to be moved: $commaSeparatedAssets."
+      },
+      cause
+    )
 
 class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdfRelation(config, "assethierarchy") {
@@ -141,22 +161,30 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   def buildSubtree(root: AssetsIngestSchema, children: Array[AssetsIngestSchema]): IO[Unit] =
     for {
       cdfRoot <- fetchCdfRoot(root.externalId)
-      _ <- upsertRoot(root, cdfRoot)
+      upsertedCdfRoot <- upsertRoot(root, cdfRoot)
       cdfSubtree <- fetchCdfSubtree(root)
       (toDelete, toInsert, toUpdate) = nodesToDeleteInsertUpdate(root, children, cdfSubtree)
-      _ <- insert(toInsert, batchSize)
+      _ <- insert(toInsert, upsertedCdfRoot, batchSize)
       _ <- update(toUpdate, batchSize)
       _ <- delete(toDelete, deleteMissingAssets, batchSize)
     } yield ()
 
-  def insert(toInsert: Seq[AssetsIngestSchema], batchSize: Int): IO[Unit] = {
+  def insert(toInsert: Seq[AssetsIngestSchema], newSubtreeRoot: Asset, batchSize: Int): IO[Unit] = {
     val assetCreatesToInsert = toInsert.map(AssetsIngestSchema.toAssetCreate)
     // Traverse batches in order to ensure writing parents first
     assetCreatesToInsert
       .grouped(batchSize)
       .toList
       .traverse(client.assets.create)
-      .flatTap(x => incMetrics(itemsCreated, x.map(_.size).sum)) *> IO.unit
+      .flatTap(x => incMetrics(itemsCreated, x.map(_.size).sum))
+      .as(())
+      .recoverWith {
+        case ex: CdpApiException if ex.duplicated.isDefined =>
+          // If we've hit this case, the assets already exist in CDF, but under a different root asset.
+          // Since we didn't find them under the subtree, we assumed they did not exist, and attempted to to insert them,
+          // resulting in this error.
+          IO.raiseError(InvalidRootChangeException(ex, newSubtreeRoot))
+      }
   }
 
   def delete(toDelete: Seq[Asset], deleteMissingAssets: Boolean, batchSize: Int): IO[Unit] =
@@ -213,7 +241,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def upsertRoot( // scalastyle:off
       newRoot: AssetsIngestSchema,
-      sourceRoot: Option[Asset]): IO[Unit] = {
+      sourceRoot: Option[Asset]): IO[Asset] = {
     val parentId = if (newRoot.parentExternalId.isEmpty) {
       None
     } else {
@@ -225,9 +253,9 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         client.assets
           .create(Seq(AssetsIngestSchema.toAssetCreate(newRoot).copy(parentExternalId = parentId)))
           .flatTap(x => incMetrics(itemsCreated, x.size))
-          .map(x => x.head)
+          .map(_.head)
       case Some(asset) if isMostlyEqual(newRoot, asset) =>
-        IO.unit
+        IO(asset)
       case Some(asset) =>
         val parentIdUpdate = (parentId, asset.parentId) match {
           case (None, Some(oldParent)) =>
@@ -246,7 +274,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
                 .toAssetUpdate(newRoot)
                 .copy(parentExternalId = parentIdUpdate)).toMap)
           .flatTap(x => incMetrics(itemsUpdated, x.size))
-          .map(x => x.head)
+          .map(_.head)
     }
   }
 

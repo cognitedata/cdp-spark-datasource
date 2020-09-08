@@ -3,10 +3,15 @@ package cognite.spark.v1
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.AssetCreate
-import org.apache.spark.sql.Row
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.apache.spark.sql.{DataFrame, Row}
+import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
-class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+class AssetHierarchyBuilderTest
+    extends FlatSpec
+    with Matchers
+    with OptionValues
+    with ParallelTestExecution
+    with SparkTest {
   import spark.implicits._
 
   private val assetsSourceDf = spark.read
@@ -927,6 +932,66 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
 
     getNumberOfRowsUpdated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 1
     getNumberOfRowsCreated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 0
+
+    cleanDB(key)
+  }
+
+  it should "throw a proper error when attempting to move an asset to a different root" in {
+    val key = shortRandomString()
+    val metricsPrefix = "insert.assetHierarchy.errorOnDifferentRoot"
+
+    //     root1       root2
+    //       |           |
+    //    subtree1    subtree2
+    //       |
+    //     child
+
+    val sourceTree = Seq(
+      AssetCreate("root1", externalId = Some("root1"), parentExternalId = Some("")),
+      AssetCreate("subtree1", externalId = Some("subtree1"), parentExternalId = Some("root1")),
+
+      AssetCreate("root2", externalId = Some("root2"), parentExternalId = Some("")),
+      AssetCreate("subtree2", externalId = Some("subtree2"), parentExternalId = Some("root2")),
+
+      AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree1"))
+    )
+
+    ingest(key, sourceTree, metricsPrefix = Some(metricsPrefix))
+
+    getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe sourceTree.length
+
+    val assetRows = retryWhile[DataFrame](
+      spark.sql(s"select * from assets where source = '$testName$key'"),
+      rows => rows.count != sourceTree.length
+    )
+
+    val apiException = the[CdpApiException] thrownBy {
+      // Attempting to move the subtree root to a different root asset will result in a proper error from CDF.
+      // The "child" asset is the subtree root in this case.
+      ingest(key, Seq(
+        AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree2"))
+      ))
+    }
+
+    apiException.message should startWith("Asset must stay within same asset hierarchy root")
+
+    val rootChangeException = the[InvalidRootChangeException] thrownBy {
+      // However, when attempting to move any of the subtree's children to a different root, we fail to find the asset,
+      // and assume it doesn't exist. So we attempt to create it, which results in a duplicated error, which we catch
+      // and convert to a more helpful error message.
+      ingest(key, Seq(
+        AssetCreate("subtree2", externalId = Some("subtree2"), parentExternalId = Some("root2")),
+        AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree2"))
+      ))
+    }
+
+    val newRootAssetId = assetRows.where(s"externalId = 'root2$key'").head.getAs[Long]("id")
+
+    rootChangeException.getMessage shouldBe (
+      s"Attempted to move some assets to a different root asset with id $newRootAssetId. " +
+        "If this is intended, the assets must be manually deleted and re-created under the new root asset. " +
+        s"The following assets were attempted to be moved: (externalId=child$key)."
+    )
 
     cleanDB(key)
   }
