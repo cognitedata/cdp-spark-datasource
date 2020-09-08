@@ -881,6 +881,56 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
     cleanDB(key)
   }
 
+  it should "allow moving an asset to become a child of its former grandparent" in {
+    val key = shortRandomString()
+    val initialStateMetricsPrefix = "insert.assetHierarchy.moveToGrandma.initialState"
+    val afterMoveMetricsPrefix = "insert.assetHierarchy.moveToGrandma.afterMove"
+
+    //    grandma
+    //       |
+    //      dad
+    //       |
+    //     child
+
+    val sourceTree = Seq(
+      AssetCreate("grandma", externalId = Some("grandma"), parentExternalId = Some("")),
+      AssetCreate("dad", externalId = Some("dad"), parentExternalId = Some("grandma")),
+      AssetCreate("child", externalId = Some("child"), parentExternalId = Some("dad"))
+    )
+
+    ingest(key, sourceTree, metricsPrefix = Some(initialStateMetricsPrefix))
+
+    getNumberOfRowsCreated(initialStateMetricsPrefix, "assethierarchy") shouldBe sourceTree.length
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      rows => rows.length != sourceTree.length
+    )
+
+    //      grandma
+    //     /      \
+    //   dad    child
+
+    ingest(
+      key,
+      Seq(AssetCreate("child-updated", externalId = Some("child"), parentExternalId = Some("grandma"))),
+      metricsPrefix = Some(afterMoveMetricsPrefix)
+    )
+
+    val result = retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$testName$key' and name = 'child-updated'").collect,
+      rows => rows.length < 1
+    )
+
+    val row = result.head
+    row.getAs[String]("parentExternalId") shouldBe s"grandma$key"
+
+    getNumberOfRowsUpdated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 1
+    getNumberOfRowsCreated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 0
+
+    cleanDB(key)
+  }
+
   def getAssetsMap(assets: Seq[Row]): Map[Option[String], AssetsReadSchema] =
     assets
       .map(r => fromRow[AssetsReadSchema](r))
