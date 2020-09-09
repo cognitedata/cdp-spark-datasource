@@ -1,16 +1,16 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.common.sequenceColumnToCreateTransformer
 import com.cognite.sdk.scala.v1.SequenceColumnCreate
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
 import scala.util.control.NonFatal
 
-class SequencesRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+class SequencesRelationTest extends FlatSpec with Matchers with OptionValues with ParallelTestExecution with SparkTest {
   import spark.implicits._
 
   private val sequencesSourceDf = spark.read
@@ -82,7 +82,7 @@ class SequencesRelationTest extends FlatSpec with Matchers with ParallelTestExec
     sequence.dataSetId shouldBe None
     sequence.columns should have size 1
     val col = sequence.columns.head
-    col.externalId shouldBe "c_col1"
+    col.externalId.value shouldBe "c_col1"
     col.name shouldBe Some("column 1")
     col.valueType shouldBe "STRING"
     col.metadata shouldBe Some(Map("foo" -> "bar"))
