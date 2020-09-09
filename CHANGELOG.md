@@ -1,3 +1,9 @@
+# 1.4.9
+
+## Enhancements
+* Upgrade to Cognite Scala SDK 1.4.1
+* Throw a more helpful error message when attempting to use sequences that contain columns without an externalId.
+
 # 1.4.8
 
 ## Fixes
