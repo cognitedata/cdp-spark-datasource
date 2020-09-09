@@ -26,11 +26,11 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     }
     .unsafeRunSync()
   val columnTypes: Map[String, String] =
-    sequenceInfo.columns.map(c => c.externalId -> c.valueType).toList.toMap
+    sequenceInfo.columns.map(c => c.externalId.get -> c.valueType).toList.toMap
 
   override val schema: StructType = new StructType(
     Array(StructField("rowNumber", DataTypes.LongType, nullable = false)) ++ sequenceInfo.columns
-      .map(col => StructField(col.externalId, sequenceTypeToSparkType(col.valueType)))
+      .map(col => StructField(col.externalId.get, sequenceTypeToSparkType(col.valueType)))
       .toList
   )
 
@@ -48,6 +48,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
               .find(_.valueType != "STRING")
               .getOrElse(sequenceInfo.columns.head)
               .externalId
+              .get
           )
         } else {
           expectedColumns
