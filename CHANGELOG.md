@@ -1,3 +1,8 @@
+# 1.4.8
+
+## Fixes
+* Attempting an update without specifying either `id` or `externalId` will now result in a `CdfSparkException` instead of an `IllegalArgumentException`.
+
 # 1.4.7
 
 ## Enhancements
