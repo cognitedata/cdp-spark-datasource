@@ -936,6 +936,58 @@ class AssetHierarchyBuilderTest
     cleanDB(key)
   }
 
+  it should "allow moving an asset to become a child of one of its former siblings" in {
+    val key = shortRandomString()
+    val initialStateMetricsPrefix = "insert.assetHierarchy.moveToSibling.initialState"
+    val afterMoveMetricsPrefix = "insert.assetHierarchy.moveToSibling.afterMove"
+
+    //          root
+    //         /    \
+    //     child1  child2
+
+    val sourceTree = Seq(
+      AssetCreate("root", externalId = Some("root"), parentExternalId = Some("")),
+      AssetCreate("child1", externalId = Some("child1"), parentExternalId = Some("root")),
+      AssetCreate("child2", externalId = Some("child2"), parentExternalId = Some("root"))
+    )
+
+    ingest(key, sourceTree, metricsPrefix = Some(initialStateMetricsPrefix))
+
+    getNumberOfRowsCreated(initialStateMetricsPrefix, "assethierarchy") shouldBe sourceTree.length
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      rows => rows.length != sourceTree.length
+    )
+
+    //      root
+    //       |
+    //     child1
+    //       |
+    //     child2
+
+    ingest(
+      key,
+      Seq(AssetCreate("child2-updated", externalId = Some("child2"), parentExternalId = Some("child1"))),
+      metricsPrefix = Some(afterMoveMetricsPrefix)
+    )
+
+    val result = retryWhile[Array[Row]](
+      spark
+        .sql(s"select * from assets where source = '$testName$key' and name = 'child2-updated'")
+        .collect,
+      rows => rows.length < 1
+    )
+
+    val row = result.head
+    row.getAs[String]("parentExternalId") shouldBe s"child1$key"
+
+    getNumberOfRowsUpdated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 1
+    getNumberOfRowsCreated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 0
+
+    cleanDB(key)
+  }
+
   it should "throw a proper error when attempting to move an asset to a different root" in {
     val key = shortRandomString()
     val metricsPrefix = "insert.assetHierarchy.errorOnDifferentRoot"
