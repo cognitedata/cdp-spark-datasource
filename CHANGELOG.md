@@ -1,3 +1,8 @@
+# 1.4.10
+
+## Enhancements
+* Improved error message when attempting to use the asset hierarchy builder to move an asset between different root assets.
+
 # 1.4.9
 
 ## Enhancements
