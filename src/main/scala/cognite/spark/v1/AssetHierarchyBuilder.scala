@@ -217,7 +217,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     client.assets
       .retrieveByExternalId(sourceRootExternalId)
       .map(Some(_): Option[Asset])
-      .handleError {
+      .recover {
         case e: CdpApiException if e.code == 400 && e.missing.isDefined =>
           None: Option[Asset]
       }
