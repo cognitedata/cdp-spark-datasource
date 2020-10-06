@@ -20,9 +20,9 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   val sequenceInfo: Sequence = (sequenceId match {
     case CogniteExternalId(externalId) => client.sequences.retrieveByExternalId(externalId)
     case CogniteInternalId(id) => client.sequences.retrieveById(id)
-  }).handleError {
+  }).adaptError {
       case e: CdpApiException =>
-        throw new CdfSparkException(s"Could not resolve schema of sequence $sequenceId.", e)
+        new CdfSparkException(s"Could not resolve schema of sequence $sequenceId.", e)
     }
     .unsafeRunSync()
 
