@@ -1,3 +1,9 @@
+# 1.4.11
+
+## Fixes
+
+* Fix a bug where certain operations would throw a `MatchError` instead of the intended exception type.
+
 # 1.4.10
 
 ## Enhancements
