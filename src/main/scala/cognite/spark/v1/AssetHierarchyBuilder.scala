@@ -159,18 +159,23 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       IO.unit
     } else {
       // The API calls throw exception when any of the ids do not exist
-      client.assets
-        .retrieveByExternalIds(ids.distinct)
-        .adaptError({
-          case e: CdpApiException if e.code == 400 && e.missing.nonEmpty =>
-            val missingNodes = e.missing.get.map(j => j("externalId").get.asString.get).take(10)
-            val referencingNodes =
-              missingNodes
-              // always take the one with "lowest" externalId, so the errors are deterministic
-                .map(missing => roots.filter(_.parentExternalId == missing).minBy(_.externalId))
-                .map(_.externalId)
-            InvalidNodeReferenceException(missingNodes, referencingNodes)
-        }) *> IO.unit
+      ids
+        .grouped(1000)
+        .toVector
+        .parTraverse(
+          id =>
+            client.assets
+              .retrieveByExternalIds(id.distinct)
+              .adaptError({
+                case e: CdpApiException if e.code == 400 && e.missing.nonEmpty =>
+                  val missingNodes = e.missing.get.map(j => j("externalId").get.asString.get).take(10)
+                  val referencingNodes =
+                    missingNodes
+                    // always take the one with "lowest" externalId, so the errors are deterministic
+                      .map(missing => roots.filter(_.parentExternalId == missing).minBy(_.externalId))
+                      .map(_.externalId)
+                  InvalidNodeReferenceException(missingNodes, referencingNodes)
+              })) *> IO.unit
     }
   }
 
