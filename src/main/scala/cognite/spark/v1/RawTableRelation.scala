@@ -43,12 +43,6 @@ class RawTableRelation(
 
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
 
-  @transient lazy val defaultSchema: StructType = StructType(
-    Seq(
-      StructField("key", DataTypes.StringType),
-      StructField(lastUpdatedTimeColName, DataTypes.TimestampType),
-      StructField("columns", DataTypes.StringType)
-    ))
   @transient lazy val mapper: ObjectMapper = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
@@ -190,6 +184,13 @@ object RawTableRelation {
   private val lastUpdatedTimeColName = "lastUpdatedTime"
   private val keyColumnPattern = """^_*key$""".r
   private val lastUpdatedTimeColumnPattern = """^_*lastUpdatedTime$""".r
+
+  val defaultSchema: StructType = StructType(
+    Seq(
+      StructField("key", DataTypes.StringType),
+      StructField(lastUpdatedTimeColName, DataTypes.TimestampType),
+      StructField("columns", DataTypes.StringType)
+    ))
 
   private def keyColumns(schema: StructType): Array[String] =
     schema.fieldNames.filter(keyColumnPattern.findFirstIn(_).isDefined)

@@ -1,3 +1,8 @@
+# Unreleased
+
+## Enhancements
+* Moved `RawTableRelation.defaultSchema` to its companion object.
+
 # 1.4.11
 
 ## Fixes
