@@ -1056,9 +1056,9 @@ class AssetHierarchyBuilderTest
 
     val kids = (1 to 1100).flatMap(k => Seq(
       AssetCreate(s"kid$k", None, None, None, Some(s"kid$k"), None, Some("dad"))))
-    val grandkids = (1 to 1100).flatMap(k => Seq(
+    val grandkids = (1 to 1100).map(k =>
       AssetCreate(s"grandkid$k", None, None, None, Some(s"grandkid$k"), None, Some(s"kid$k"))
-    ))
+    )
 
     // Ingest the first two levels of the tree
     ingest(key, kids :+ dad)

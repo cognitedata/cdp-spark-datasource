@@ -160,7 +160,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     } else {
       // The API calls throw exception when any of the ids do not exist
       ids
-        .grouped(1000)
+        .grouped(batchSize)
         .toVector
         .parTraverse(
           id =>
