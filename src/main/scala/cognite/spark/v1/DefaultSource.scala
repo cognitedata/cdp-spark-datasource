@@ -161,6 +161,8 @@ class DefaultSource
         new ThreeDModelRevisionNodesRelation(config, modelId, revisionId)(sqlContext)
       case "sequences" =>
         new SequencesRelation(config)(sqlContext)
+      case "labels" =>
+        new LabelsRelation(config)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -192,6 +194,8 @@ class DefaultSource
           new FilesRelation(config)(sqlContext)
         case "sequences" =>
           new SequencesRelation(config)(sqlContext)
+        case "labels" =>
+          new LabelsRelation(config)(sqlContext)
         case "sequencerows" =>
           createSequenceRows(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
