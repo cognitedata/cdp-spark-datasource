@@ -3,7 +3,7 @@ import com.typesafe.sbt.packager.docker.{Cmd, ExecCmd}
 val scala212 = "2.12.11"
 val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
-val sparkVersion = "2.4.5"
+val sparkVersion = "3.0.1"
 val circeVersion: Option[(Long, Long)] => String = {
   case Some((2, 11)) => "0.12.0-M3"
   case _ => "0.13.0"

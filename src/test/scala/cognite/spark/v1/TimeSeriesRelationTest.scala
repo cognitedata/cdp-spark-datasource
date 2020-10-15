@@ -497,6 +497,15 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     val abortUnit = s"insert-abort-${shortRandomString()}"
 
     try {
+      val df = spark.read
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "timeseries")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .load()
+      df.createOrReplaceTempView("destinationTimeSeriesAbort")
+
       // Insert new time series test data
       spark
         .sql(s"""
@@ -530,8 +539,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
       val dfWithDescriptionInsertTest = retryWhile[DataFrame](
         spark
           .sql(
-            s"select * from destinationTimeSeries where unit = '$abortUnit' and description = '$abortDescription'")
-          .cache(),
+            s"select * from destinationTimeSeries where unit = '$abortUnit' and description = '$abortDescription'"),
         df => df.count() < 7
       )
       assert(dfWithDescriptionInsertTest.count() == 7)

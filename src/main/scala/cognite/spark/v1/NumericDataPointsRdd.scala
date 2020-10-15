@@ -470,11 +470,11 @@ final case class NumericDataPointsRdd(
     var i = 0
     while (i < rowIndicesLength) {
       rowIndices(i) match {
-        case 0 => array(i) = id.left.toOption
-        case 1 => array(i) = id.right.toOption
+        case 0 => array(i) = id.left.getOrElse(null) // scalastyle:off null
+        case 1 => array(i) = id.right.getOrElse(null) // scalastyle:off null
         case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
         case 3 => array(i) = dataPoint.value
-        case 4 | 5 => array(i) = None
+        case 4 | 5 => array(i) = null // scalastyle:off null
       }
       i += 1
     }
@@ -487,12 +487,12 @@ final case class NumericDataPointsRdd(
     var i = 0
     while (i < rowIndicesLength) {
       rowIndices(i) match {
-        case 0 => array(i) = r.id.left.toOption
-        case 1 => array(i) = r.id.right.toOption
+        case 0 => array(i) = r.id.left.getOrElse(null) // scalastyle:off null
+        case 1 => array(i) = r.id.right.getOrElse(null) // scalastyle:off null
         case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
         case 3 => array(i) = dataPoint.value
-        case 4 => array(i) = Some(r.aggregation)
-        case 5 => array(i) = Some(r.granularity.toString)
+        case 4 => array(i) = r.aggregation
+        case 5 => array(i) = r.granularity.toString
       }
       i += 1
     }
