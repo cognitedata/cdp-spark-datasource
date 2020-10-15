@@ -32,7 +32,9 @@ class SparkSchemaHelperImpl(val c: Context) {
         if (valueType <:< weakTypeOf[java.time.Instant]) {
           q"${toSqlTimestamp(baseExpr)}"
         } else if (valueType <:< weakTypeOf[Option[java.time.Instant]]) {
-          q"$baseExpr.map(a => ${toSqlTimestamp(q"a")})"
+          q"$baseExpr.map(a => ${toSqlTimestamp(q"a")}).orNull"
+        } else if (valueType <:< weakTypeOf[Option[_]]) {
+          q"$baseExpr.orNull"
         } else if (isPrimitive(valueType)) {
           q"$baseExpr"
         } else if (valueType <:< typeOf[Seq[Any]]) {
