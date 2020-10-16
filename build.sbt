@@ -95,9 +95,21 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     scalaVersion := scala212,
     libraryDependencies ++= Seq(
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
+        // scala-collection-compat is used in TransformerF, but we don't use that,
+        // and this dependency causes issues with Livy.
+        exclude("org.scala-lang.modules", "scala-collection-compat_2.11")
+        exclude("org.scala-lang.modules", "scala-collection-compat_2.12"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
       "com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion
+        // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
+        exclude("io.netty", "netty-buffer")
+        exclude("io.netty", "netty-codec-http")
+        exclude("io.netty", "netty-codec-http")
+        exclude("io.netty", "netty-codec-socks")
+        exclude("io.netty", "netty-handler")
+        exclude("io.netty", "netty-handler-proxy")
+        exclude("io.netty", "netty-resolver-dns")
         exclude("io.netty", "netty-transport-native-epoll")
         exclude("com.softwaremill.sttp", "circe_2.11")
         exclude("com.softwaremill.sttp", "circe_2.12")
