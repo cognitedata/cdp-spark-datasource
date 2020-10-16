@@ -1,9 +1,12 @@
 import com.typesafe.sbt.packager.docker.{Cmd, ExecCmd}
 
-val scala212 = "2.12.11"
+val scala212 = "2.12.12"
 val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
-val sparkVersion = "3.0.1"
+val sparkVersion: Option[(Long, Long)] => String = {
+  case Some((2, 11)) => "2.4.7"
+  case _ => "3.0.1"
+}
 val circeVersion: Option[(Long, Long)] => String = {
   case Some((2, 11)) => "0.12.0-M3"
   case _ => "0.13.0"
@@ -77,8 +80,8 @@ lazy val macroSub = (project in file("macro"))
     publish := {},
     publishLocal := {},
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
-      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
+      "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
+      "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
     )
   )
@@ -111,9 +114,9 @@ lazy val library = (project in file("."))
         exclude("org.typelevel", "cats-core_2.12"),
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.3.24.v20180605" % Provided,
-      "org.apache.spark" %% "spark-core" % sparkVersion % Provided
+      "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
+      "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
         exclude("org.glassfish.hk2.external", "javax.inject")
     ),
     mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
@@ -139,9 +142,9 @@ lazy val performancebench = (project in file("performancebench"))
       "io.prometheus" % "simpleclient_httpserver" % prometheusVersion,
       "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
       "org.log4s" %% "log4s" % log4sVersion,
-      "org.apache.spark" %% "spark-core" % sparkVersion
+      "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion
+      "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
         exclude("org.glassfish.hk2.external", "javax.inject")
     ),
     dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",
