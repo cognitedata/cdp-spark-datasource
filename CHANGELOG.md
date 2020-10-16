@@ -1,7 +1,7 @@
 # Unreleased
 
 ## Enhancements
-* Moved `RawTableRelation.defaultSchema` to its companion object.
+* Spark 3 is now supported!
 
 # 1.4.11
 
