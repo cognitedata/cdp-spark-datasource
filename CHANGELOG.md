@@ -1,7 +1,9 @@
-# Unreleased
+# 1.4.12
 
 ## Enhancements
 * Spark 3 is now supported!
+* `labels` have been added as a new resource type. See [Labels](README.md#labels)
+for more information.
 
 # 1.4.11
 
