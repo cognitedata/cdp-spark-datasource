@@ -30,7 +30,10 @@ The instructions below explain how to read from, and write to, the different res
     - [Data points schema](#data-points-schema)
     - [String data points schema](#string-data-points-schema)
     - [Time series schema](#time-series-schema)
-    - [Asset Hierarchy](#asset-hierarchy)
+    - [Asset Hierarchy schema](#asset-hierarchy-schema)
+    - [Sequences schema](#sequences-schema)
+    - [Sequence rows schema](#sequence-rows-schema)
+    - [Labels schema](#labels-schema)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -40,7 +43,10 @@ The instructions below explain how to read from, and write to, the different res
     - [Events](#events)
     - [Files metadata](#files-metadata)
     - [3D models and revisions metadata](#3d-models-and-revisions-metadata)
+    - [Sequences](#sequences)
+    - [Sequence rows](#sequence-rows)
     - [RAW tables](#raw-tables)
+    - [Labels](#labels)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
     - [Run the tests](#run-the-tests)
@@ -425,7 +431,7 @@ The schemas mirror the CDF API as closely as possible.
 | `dataSetId`          | `long`                | Yes       |
 
 
-### Asset Hierarchy
+### Asset Hierarchy schema
 | Column name          | Type                  |  Nullable |
 | ---------------------| ----------------------| --------- |
 | `externalId`         | `string`              | No        |
@@ -436,7 +442,7 @@ The schemas mirror the CDF API as closely as possible.
 | `metadata`           | `map(string, string)` | Yes       |
 | `dataSetId`          | `long`                | Yes       |
 
-### Sequences
+### Sequences schema
 | Column name          | Type                  |  Nullable |
 | ---------------------| ----------------------| --------- |
 | `externalId`         | `string`              | Yes        |
@@ -459,9 +465,17 @@ The `columns` field should be an array of `SequenceColumn`s, which are rows with
 | `dataSetId`          | `long`                | Yes       |
 | `columns`        | `array(SequenceColumn)`              | No       |
 
-### Sequence rows
+### Sequence rows schema
 
 The schema of `sequencerows` relation matches the sequence that is specified in `id` or `externalId` option. Apart from the sequence columns, there is a non-nullable `rowNumber` column of type `long`
+
+### Labels schema
+| Column name   | Type     |  Nullable |
+| --------------| ---------| --------- |
+| `externalId`  | `string` | No        |
+| `name`        | `string` | No        |
+| `description` | `string` | Yes       |
+
 
 ## Examples by resource types
 
@@ -990,6 +1004,38 @@ df \
     .option("onconflict", "upsert") \
     .option("externalId", "my-sequence") \
     .save()
+```
+
+### Labels
+
+Learn more about labels [here](https://docs.cognite.com/dev/concepts/resource_types/labels.html)
+
+Note that labels can not be updated, but can only be read, created, or deleted.
+If you want to change a label, you can first delete it, and then recreate it
+with the same external id, but the new label will have a different Cognite
+internal id.
+
+```python
+# Python Example
+
+# Read labels
+df = spark.read.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "labels") \
+    .load()
+
+df.show()
+
+
+# Write labels
+spark.sql(
+    "select 'label-externalId' as externalId," \
+    " 'new-label' as name," \
+    " 'text' as description") \
+  .write.format("cognite.spark.v1") \
+  .option("apiKey", "myApiKey") \
+  .option("type", "labels") \
+  .save()
 ```
 
 ### RAW tables
