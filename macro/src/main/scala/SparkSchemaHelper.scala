@@ -51,144 +51,161 @@ class SparkSchemaHelperImpl(val c: Context) {
   // scalastyle:off
   def fromRow[T: c.WeakTypeTag](row: c.Expr[Row]): c.Expr[T] = {
     import c.universe._
-    val optionType = typeOf[Option[_]]
-    val optionSeq = typeOf[Seq[Option[_]]]
-    val optionSetter = typeOf[Option[Setter[_]]]
-    val optionNonNullableSetter = typeOf[Option[NonNullableSetter[_]]]
     val setterType = symbolOf[Setter.type].asClass.module
     val nonNullableSetterType = symbolOf[NonNullableSetter.type].asClass.module
-    val seqAny = typeOf[Seq[Any]]
-    val mapAny = typeOf[Map[Any, Any]]
-    val mapString = typeOf[Map[String, String]]
-    val seqRow = typeOf[Seq[Row]]
 
-    def fromRowRecurse(structType: Type, r: c.Expr[Row]): c.Tree = {
+    def transformValue(value: c.Tree, ty: c.Type): c.Tree = {
+      val throwError = q"???" // TODO
+
+      if (ty <:< typeOf[Option[Any]]) {
+        q"Option($value).map(x => ${transformValue(q"x", ty.typeArgs.head)})"
+      }
+      else if (ty <:< typeOf[Seq[Any]]) {
+        q"""($value match {
+            case seq: Seq[_] =>
+              seq.map(x => ${transformValue(q"x", ty.typeArgs.head)})
+            case _ => $throwError
+          })"""
+      }
+      else if (ty <:< typeOf[cats.data.NonEmptyList[Any]]) {
+        q"""($value match {
+            case seq: Seq[_] =>
+              NonEmptyList.fromList(seq.toList)
+                .getOrElse($throwError)
+                .map(x => ${transformValue(q"x", ty.typeArgs.head)})
+            case _ => $throwError
+          })"""
+      }
+      else if (ty <:< weakTypeOf[Map[_, _]]) {
+        val List(keyType, valueType) = ty.typeArgs
+        q"""($value match {
+            case map: Map[Any @unchecked, Any @unchecked] =>
+              for {
+                (key, value) <- map
+                if key != null && value != null
+              } yield (${transformValue(q"key", keyType)}, ${transformValue(q"value", valueType)})
+            case _ => $throwError
+          })"""
+        //cognite.spark.v1.SparkSchemaHelperRuntime.checkMetadataMap(map, $row)
+      }
+      else if (ty <:< typeOf[Setter[Any]]) {
+        val innerType = ty.typeArgs.head
+        q"$setterType.anyToSetter[$innerType].transform(${transformValue(value, innerType)})"
+      }
+      else if (ty <:< typeOf[NonNullableSetter[Any]]) {
+        val innerType = ty.typeArgs.head
+        q"$nonNullableSetterType.toNonNullableSetter[$innerType].transform(${transformValue(value, innerType)})"
+      }
+      else if (ty == typeOf[Double]) {
+        q"""($value match {
+             case x: Double => x
+             case x: Float => x.toDouble
+             case x: Byte => x.toFloat
+             case x: Short => x.toFloat
+             case x: Int => x.toDouble
+             case x: Long => x.toDouble
+             case x: BigDecimal => x.toDouble
+             case x: BigInt => x.toDouble
+             case x: java.math.BigDecimal => x.doubleValue
+             case x: java.math.BigInteger => x.doubleValue
+             case _ => $throwError
+           })"""
+      }
+      else if (ty == typeOf[Float]) {
+        q"""($value match {
+             case x: Float => x
+             case x: Double => x.toFloat
+             case x: Byte => x.toFloat
+             case x: Short => x.toFloat
+             case x: Int => x.toFloat
+             case x: Long => x.toFloat
+             case x: BigDecimal => x.toFloat
+             case x: BigInt => x.toFloat
+             case x: java.math.BigDecimal => x.floatValue
+             case x: java.math.BigInteger => x.floatValue
+             case _ => $throwError
+           })"""
+      }
+      else if (ty == typeOf[Long]) {
+        q"""($value match {
+             case x: Long => x
+             case x: Int => x: Long
+             case x: Short => x: Long
+             case x: Byte => x: Long
+            case x: BigInt => x.longValue
+             case x: java.math.BigInteger => x.longValue
+             case _ => $throwError
+           })"""
+      }
+      else if (ty == typeOf[Int]) {
+        q"""($value match {
+             case x: Int => x
+             case x: Short => x: Int
+             case x: Byte => x: Int
+            case x: BigInt => x.intValue
+             case x: java.math.BigInteger => x.intValue
+             case _ => $throwError
+           })"""
+      }
+      else if (ty == typeOf[Short]) {
+        q"""($value match {
+            case x: Short => x
+            case x: Byte => x: Short
+            case x: java.math.BigInteger => x.shortValue
+             case _ => $throwError
+           })"""
+      }
+      else if (ty == typeOf[Byte]) {
+        q"""($value match {
+            case x: Byte => x
+            case x: java.math.BigInteger => x.byteValue
+            case _ => $throwError
+          })"""
+      }
+      else if (
+          ty == typeOf[String] ||
+          ty == typeOf[Boolean]
+      ) {
+        q"""($value match {
+             case x: $ty => x
+             case _ => $throwError
+           })"""
+      }
+      else if (ty == typeOf[java.time.Instant]) {
+        q"""($value match {
+            case x: java.time.Instant => x
+            case x: java.sql.Timestamp => x.toInstant()
+            case _ => $throwError
+          })"""
+      }
+      else {
+        q"""($value match {
+             case row: ${typeOf[Row]} => ${transformRow(q"row", ty)}
+             case _ => $throwError
+           })"""
+      }
+    }
+
+    def transformRow(row: c.Tree, structType: c.Type): c.Tree = {
       val constructor = structType.decl(termNames.CONSTRUCTOR).asMethod
-      val params = constructor.paramLists.flatten.map((param: Symbol) => {
-        val name = param.name.toString
-        val isOuterOption = param.typeSignature <:< optionType
-        val isOptionNonNullableSetter = param.typeSignature <:< optionNonNullableSetter
-
-        val isOptionSetter = param.typeSignature <:< optionSetter
-        val innerType = if (isOptionSetter || isOptionNonNullableSetter) {
-          param.typeSignature.typeArgs.head.typeArgs.head
-        } else if (isOuterOption) {
-          param.typeSignature.typeArgs.head
-        } else {
-          param.typeSignature
-        }
-        val isSequenceWithOptionalVal = innerType <:< optionSeq
-        val isSequenceOfAny = innerType <:< seqAny
-        val isMapOfString = innerType <:< mapString
-        if (!isMapOfString && innerType.getClass == classOf[Map[_, _]]) {
-          throw new Exception(s"Only Map[String, String] is supported, not $innerType")
-        }
-
-        val rowType = if (isSequenceWithOptionalVal) {
-          seqAny
-        } else if (isMapOfString) {
-          mapAny
-        } else if (isSequenceOfAny) {
-          innerType.typeArgs.head match {
-            case x if x =:= typeOf[String] => seqAny
-            case x if x =:= typeOf[Int] => seqAny
-            case x if x =:= typeOf[Boolean] => seqAny
-            case x if x =:= typeOf[Long] => seqAny
-            case _ => seqRow
-          }
-        } else {
-          innerType
-        }
-
-        val throwError =
-          q"throw cognite.spark.v1.SparkSchemaHelperRuntime.badRowError($r, $name, ${innerType.toString}, ${structType.toString})"
-
-        def handleFieldValue(value: Tree) =
-          if (rowType == typeOf[Double]) {
-            // do implicit conversion to double
-            q"""($value match {
-             case x: Double => Some(x)
-             case x: Int => Some(x.toDouble)
-             case x: Float => Some(x.toDouble)
-             case x: Long => Some(x.toDouble)
-             case x: BigDecimal => Some(x.toDouble)
-             case x: BigInt => Some(x.toDouble)
-             case x: java.math.BigDecimal => Some(x.doubleValue)
-             case x: java.math.BigInteger => Some(x.doubleValue)
-             case _ => $throwError
-           })"""
-          } else if (rowType == typeOf[Float]) {
-            // do implicit conversion to float
-            q"""($value match {
-             case x: Double => Some(x.toFloat)
-             case x: Int => Some(x.toFloat)
-             case x: Float => Some(x)
-             case x: Long => Some(x.toFloat)
-             case x: BigDecimal => Some(x.toFloat)
-             case x: BigInt => Some(x.toFloat)
-             case x: java.math.BigDecimal => Some(x.floatValue)
-             case x: java.math.BigInteger => Some(x.floatValue)
-             case _ => $throwError
-           })"""
-          } else if (rowType == typeOf[Long]) {
-            q"""($value match {
-             case x: Long => Some(x)
-             case x: Int => Some(x: Long)
-             case _ => $throwError
-           })"""
-          } else if (rowType == typeOf[java.time.Instant]) {
-            q"""($value match {
-             case x: java.time.Instant => Some(x)
-             case x: java.sql.Timestamp => Some(x.toInstant())
-             case _ => $throwError
-           })"""
-          } else if (rowType == mapAny) {
-            q"""($value match {
-             case x: scala.collection.immutable.Map[Any @unchecked, Any @unchecked] => Some(x: scala.collection.immutable.Map[Any,Any])
-             case _ => $throwError
-           })"""
-          } else {
-            q"""($value match {
-             case x: $rowType => Some(x)
-             case _ => $throwError
-           })"""
-          }
+      val params = constructor.paramLists.head.map((param: Symbol) => {
+        val paramName = param.name.toString
+        val paramType = param.typeSignature
 
         val column =
-          q"""(scala.util.Try($r.getAs[Any]($name)) match {
-             case scala.util.Success(null) => None: Option[$rowType]
-             case scala.util.Failure(_) => None: Option[$rowType]
-             case scala.util.Success(x) => (${handleFieldValue(q"x")}): Option[$rowType]
+          q"""(scala.util.Try($row.getAs[Any]($paramName)) match {
+             case scala.util.Failure(_) => null
+             case scala.util.Success(x) => x
            })"""
 
-        val mappedColumn =
-          if (isMapOfString) {
-            q"$column.map(cognite.spark.v1.SparkSchemaHelperRuntime.checkMetadataMap(_, $row))"
-          } else if (isSequenceWithOptionalVal) {
-            q"$column.map(_.map(Option(_)))"
-          } else if (rowType <:< seqRow) {
-            val x = innerType.typeArgs.head
-            q"$column.map(x => x.map(y => ${fromRowRecurse(x, c.Expr[Row](q"y"))}))"
-          } else {
-            column
-          }
+        val resExpr = transformValue(column, paramType)
 
-        val resExpr =
-          if (isOptionSetter) {
-            q"$setterType.optionToSetter[$rowType].transform($mappedColumn)"
-          } else if (isOptionNonNullableSetter) {
-            q"$nonNullableSetterType.optionToNonNullableSetter[$rowType].transform($mappedColumn)"
-          } else if (isOuterOption) {
-            mappedColumn
-          } else {
-            q"""$mappedColumn.getOrElse($throwError)"""
-          }
-
-        q"$resExpr.asInstanceOf[${param.typeSignature}]"
+        q"$resExpr.asInstanceOf[$paramType]"
       })
       q"new ${structType}(..$params)"
     }
-    c.Expr[T](fromRowRecurse(weakTypeOf[T], row))
+
+    c.Expr[T](transformRow(row.tree, weakTypeOf[T]))
   }
   // scalastyle:on
 }

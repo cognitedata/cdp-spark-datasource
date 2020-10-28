@@ -3,9 +3,10 @@ package cognite.spark.v1
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
-import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+import org.apache.spark.sql.types.{ArrayType, DataTypes, DoubleType, StructField, StructType}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import SparkSchemaHelper._
+import com.cognite.sdk.scala.v1.EventCreate
 
 final case class TestTypeBasic(a: Int, b: Double, c: Byte, d: Float, x: Map[String, String], g: Long, f: Seq[Long], s: String)
 final case class TestTypeOption(a: Option[Int], b: Option[Double], c: Option[Byte],
@@ -131,5 +132,14 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
       4.toFloat, null, 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
     val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeBasic](x) }
     ex.getMessage shouldBe "Column 'x' was expected to have type Map[String,String], but NULL was found (on row [1,2.0,3,4.0,null,5,List(10),foo])."
+  }
+
+  it should "fail nicely on assetIds containing double" in {
+    val row = new GenericRowWithSchema(
+      Array(Seq(1.2D)),
+      StructType(Seq(StructField("assetIds", ArrayType(DoubleType))))
+    )
+
+    val eventCreate = intercept[CdfSparkIllegalArgumentException] { fromRow[EventCreate](row) }
   }
 }
