@@ -89,10 +89,9 @@ private[spark] object SparkSchemaHelperRuntime {
       .toList
       .mkString(" in ")
 
-    val valueStr = value match {
-      case null => "NULL"
-      case value => s"$value (${value.getClass.getName})"
-    }
+    val valueStr =
+      if (value == null) { "NULL" }
+      else { s"$value (${value.getClass.getName})" }
 
     val message = (
       s"""Row cannot be converted into a $typeName:
