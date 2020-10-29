@@ -3,7 +3,7 @@ package cognite.spark.v1
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
-import org.apache.spark.sql.types.{ArrayType, DataTypes, DoubleType, StructField, StructType}
+import org.apache.spark.sql.types.{ArrayType, DataTypes, DoubleType, MapType, StructField, StructType}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import SparkSchemaHelper._
 import com.cognite.sdk.scala.v1.EventCreate
@@ -141,5 +141,20 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
     )
 
     val eventCreate = intercept[CdfSparkIllegalArgumentException] { fromRow[EventCreate](row) }
+  }
+
+  it should "produce error messages for more complex types" in {
+    case class TestRow(foo: Map[String, String])
+
+    val row = new GenericRowWithSchema(
+      Array(Map("foo" -> 123)),
+      StructType.fromDDL("foo map<string, int>")
+    )
+
+    //val ex = intercept[CdfSparkIllegalArgumentException] {
+      fromRow[TestRow](row)
+    //}
+
+    //println(ex)
   }
 }

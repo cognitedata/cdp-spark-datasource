@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.data.NonEmptyList
 import org.apache.spark.sql.Row
 
 import scala.util.{Failure, Success, Try}
@@ -74,6 +75,32 @@ private[spark] object SparkSchemaHelperRuntime {
         new CdfSparkIllegalArgumentException(s"Column '$name' was expected to have type ${simplifyTypeName(
           typeName)}, but $valueString was found (on row ${rowIdentifier(row)}).$hint")
     }
+
+  case class PathSegment(description: String, key: String, expectedType: String)
+
+  def fromRowError(row: Row, typeName: String, path: NonEmptyList[PathSegment], value: Any): Throwable = {
+    val reversePath = path//.reverse // Convert from bottom-up to top-down
+
+    val traceback =
+      reversePath.map {
+        case PathSegment(description, key, expectedType) =>
+          s"$description $key ($expectedType)"
+      }
+      .toList
+      .mkString(" in ")
+
+    val valueStr = value match {
+      case null => "NULL"
+      case value => s"$value (${value.getClass.getName})"
+    }
+
+    val message = (
+      s"""Row cannot be converted into a $typeName:
+         |The $traceback was expected to have a value of type ${reversePath.head.expectedType}, but found $valueStr""".stripMargin
+    )
+
+    new CdfSparkIllegalArgumentException(message)
+  }
 
   // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
   // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.

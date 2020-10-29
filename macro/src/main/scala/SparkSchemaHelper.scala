@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import cats.data.NonEmptyList
+
 import scala.language.experimental.macros
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
@@ -51,109 +53,155 @@ class SparkSchemaHelperImpl(val c: Context) {
   // scalastyle:off
   def fromRow[T: c.WeakTypeTag](row: c.Expr[Row]): c.Expr[T] = {
     import c.universe._
+
+    val targetType = weakTypeOf[T]
+
+    val SparkSchemaHelperRuntime = q"cognite.spark.v1.SparkSchemaHelperRuntime"
+
     val setterType = symbolOf[Setter.type].asClass.module
     val nonNullableSetterType = symbolOf[NonNullableSetter.type].asClass.module
 
-    def transformValue(value: c.Tree, ty: c.Type): c.Tree = {
-      val throwError = q"???" // TODO
+    final case class PathSegment(
+      description: String,
+      key: c.Tree,
+      expectedType: c.Type
+    )
+
+    def transformValue(value: c.Tree, ty: c.Type, path: NonEmptyList[PathSegment]): c.Tree = {
+      lazy val pathArgs = path.map {
+        case PathSegment(description, key, expectedType) =>
+          q"""
+            $SparkSchemaHelperRuntime.PathSegment(
+              $description,
+              $key match { case null => "NULL"; case x => x.toString },
+              ${expectedType.toString}
+            )
+          """
+      }.toList
+
+      lazy val throwError =
+        q"""
+          throw $SparkSchemaHelperRuntime.fromRowError(
+            rootRow,
+            ${targetType.typeSymbol.fullName},
+            cats.data.NonEmptyList.of(..$pathArgs),
+            $value
+          )
+          """
+
+      def transformFromSeq(intoCollection: c.Tree => c.Tree) = {
+        val elementType = ty.typeArgs.head
+        val seqName = c.freshName(TermName("seq"))
+        val valueName = c.freshName(TermName("value"))
+        val indexName = c.freshName(TermName("index"))
+        val newPath = PathSegment("index", q"$indexName.toString", elementType) :: path
+        q"""($value match {
+            case $seqName: Seq[_] =>
+              ${intoCollection(q"$seqName")}
+                .zipWithIndex
+                .map {
+                  case ($valueName, $indexName) =>
+                    ${transformValue(q"$valueName", elementType, newPath)}
+                }
+            case _ => $throwError
+         })"""
+      }
 
       if (ty <:< typeOf[Option[Any]]) {
-        q"Option($value).map(x => ${transformValue(q"x", ty.typeArgs.head)})"
+        q"Option($value).map(x => ${transformValue(q"x", ty.typeArgs.head, path)})"
       }
       else if (ty <:< typeOf[Seq[Any]]) {
-        q"""($value match {
-            case seq: Seq[_] =>
-              seq.map(x => ${transformValue(q"x", ty.typeArgs.head)})
-            case _ => $throwError
-          })"""
+        transformFromSeq(identity)
       }
       else if (ty <:< typeOf[cats.data.NonEmptyList[Any]]) {
-        q"""($value match {
-            case seq: Seq[_] =>
-              NonEmptyList.fromList(seq.toList)
-                .getOrElse($throwError)
-                .map(x => ${transformValue(q"x", ty.typeArgs.head)})
-            case _ => $throwError
-          })"""
+        transformFromSeq(seq => q"NonEmptyList.fromList($seq.toList).getOrElse($throwError)")
       }
       else if (ty <:< weakTypeOf[Map[_, _]]) {
         val List(keyType, valueType) = ty.typeArgs
+        val keyName = c.freshName(TermName("key"))
+        val valueName = c.freshName(TermName("value"))
+
+        val keyPath = PathSegment("key", q"$keyName", keyType) :: path
+        val valuePath = PathSegment("value at key", q"$keyName", valueType) :: path
+
         q"""($value match {
             case map: Map[Any @unchecked, Any @unchecked] =>
               for {
-                (key, value) <- map
-                if key != null && value != null
-              } yield (${transformValue(q"key", keyType)}, ${transformValue(q"value", valueType)})
+                ($keyName, $valueName) <- map
+                if $keyName != null && $valueName != null
+              } yield (
+                ${transformValue(q"$keyName", keyType, keyPath)},
+                ${transformValue(q"$valueName", valueType, valuePath)}
+              )
             case _ => $throwError
           })"""
-        //cognite.spark.v1.SparkSchemaHelperRuntime.checkMetadataMap(map, $row)
       }
       else if (ty <:< typeOf[Setter[Any]]) {
         val innerType = ty.typeArgs.head
-        q"$setterType.anyToSetter[$innerType].transform(${transformValue(value, innerType)})"
+        q"$setterType.anyToSetter[$innerType].transform(${transformValue(value, innerType, path)})"
       }
       else if (ty <:< typeOf[NonNullableSetter[Any]]) {
         val innerType = ty.typeArgs.head
-        q"$nonNullableSetterType.toNonNullableSetter[$innerType].transform(${transformValue(value, innerType)})"
+        q"$nonNullableSetterType.toNonNullableSetter[$innerType].transform(${transformValue(value, innerType, path)})"
       }
       else if (ty == typeOf[Double]) {
         q"""($value match {
-             case x: Double => x
-             case x: Float => x.toDouble
-             case x: Byte => x.toFloat
-             case x: Short => x.toFloat
-             case x: Int => x.toDouble
-             case x: Long => x.toDouble
-             case x: BigDecimal => x.toDouble
-             case x: BigInt => x.toDouble
-             case x: java.math.BigDecimal => x.doubleValue
-             case x: java.math.BigInteger => x.doubleValue
-             case _ => $throwError
-           })"""
+            case x: Double => x
+            case x: Float => x.toDouble
+            case x: Byte => x.toFloat
+            case x: Short => x.toFloat
+            case x: Int => x.toDouble
+            case x: Long => x.toDouble
+            case x: BigDecimal => x.toDouble
+            case x: BigInt => x.toDouble
+            case x: java.math.BigDecimal => x.doubleValue
+            case x: java.math.BigInteger => x.doubleValue
+            case _ => $throwError
+          })"""
       }
       else if (ty == typeOf[Float]) {
         q"""($value match {
-             case x: Float => x
-             case x: Double => x.toFloat
-             case x: Byte => x.toFloat
-             case x: Short => x.toFloat
-             case x: Int => x.toFloat
-             case x: Long => x.toFloat
-             case x: BigDecimal => x.toFloat
-             case x: BigInt => x.toFloat
-             case x: java.math.BigDecimal => x.floatValue
-             case x: java.math.BigInteger => x.floatValue
-             case _ => $throwError
-           })"""
+            case x: Float => x
+            case x: Double => x.toFloat
+            case x: Byte => x.toFloat
+            case x: Short => x.toFloat
+            case x: Int => x.toFloat
+            case x: Long => x.toFloat
+            case x: BigDecimal => x.toFloat
+            case x: BigInt => x.toFloat
+            case x: java.math.BigDecimal => x.floatValue
+            case x: java.math.BigInteger => x.floatValue
+            case _ => $throwError
+          })"""
       }
       else if (ty == typeOf[Long]) {
         q"""($value match {
-             case x: Long => x
-             case x: Int => x: Long
-             case x: Short => x: Long
-             case x: Byte => x: Long
+            case x: Long => x
+            case x: Int => x: Long
+            case x: Short => x: Long
+            case x: Byte => x: Long
             case x: BigInt => x.longValue
-             case x: java.math.BigInteger => x.longValue
-             case _ => $throwError
-           })"""
+            case x: java.math.BigInteger => x.longValue
+            case _ => $throwError
+          })"""
       }
       else if (ty == typeOf[Int]) {
         q"""($value match {
-             case x: Int => x
-             case x: Short => x: Int
-             case x: Byte => x: Int
+            case x: Int => x
+            case x: Short => x: Int
+            case x: Byte => x: Int
             case x: BigInt => x.intValue
-             case x: java.math.BigInteger => x.intValue
-             case _ => $throwError
-           })"""
+            case x: java.math.BigInteger => x.intValue
+            case _ => $throwError
+          })"""
       }
       else if (ty == typeOf[Short]) {
         q"""($value match {
             case x: Short => x
             case x: Byte => x: Short
             case x: java.math.BigInteger => x.shortValue
-             case _ => $throwError
-           })"""
+            case _ => $throwError
+          })"""
       }
       else if (ty == typeOf[Byte]) {
         q"""($value match {
@@ -163,13 +211,13 @@ class SparkSchemaHelperImpl(val c: Context) {
           })"""
       }
       else if (
-          ty == typeOf[String] ||
-          ty == typeOf[Boolean]
+        ty == typeOf[String] ||
+        ty == typeOf[Boolean]
       ) {
         q"""($value match {
-             case x: $ty => x
-             case _ => $throwError
-           })"""
+            case x: $ty => x
+            case _ => $throwError
+          })"""
       }
       else if (ty == typeOf[java.time.Instant]) {
         q"""($value match {
@@ -180,16 +228,19 @@ class SparkSchemaHelperImpl(val c: Context) {
       }
       else {
         q"""($value match {
-             case row: ${typeOf[Row]} => ${transformRow(q"row", ty)}
-             case _ => $throwError
-           })"""
+            case row: ${typeOf[Row]} => ${transformRow(q"row", ty, path.toList)}
+            case _ => $throwError
+          })"""
       }
     }
 
-    def transformRow(row: c.Tree, structType: c.Type): c.Tree = {
+    def transformRow(row: c.Tree, structType: c.Type, path: List[PathSegment] = List.empty): c.Tree = {
       val constructor = structType.decl(termNames.CONSTRUCTOR).asMethod
-      val params = constructor.paramLists.head.map((param: Symbol) => {
+      val paramList = constructor.paramLists.head
+
+      val params = paramList.map((param: Symbol) => {
         val paramName = param.name.toString
+        val quotedParamName = s"`${paramName.replace("`", "``")}`"
         val paramType = param.typeSignature
 
         val column =
@@ -198,14 +249,22 @@ class SparkSchemaHelperImpl(val c: Context) {
              case scala.util.Success(x) => x
            })"""
 
-        val resExpr = transformValue(column, paramType)
+        val path = NonEmptyList(
+          PathSegment("column", q"$quotedParamName", paramType),
+          path
+        )
+
+        val resExpr = transformValue(column, paramType, path)
 
         q"$resExpr.asInstanceOf[$paramType]"
       })
       q"new ${structType}(..$params)"
     }
 
-    c.Expr[T](transformRow(row.tree, weakTypeOf[T]))
+    c.Expr[T](q"""{
+      val rootRow = ${row.tree} // Assign a separate name to the root row, so we have a reference that won't be shadowed
+      ${transformRow(q"rootRow", weakTypeOf[T])}
+    }""")
   }
   // scalastyle:on
 }
