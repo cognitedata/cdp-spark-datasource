@@ -78,20 +78,25 @@ private[spark] object SparkSchemaHelperRuntime {
 
   case class PathSegment(description: String, key: String, expectedType: String)
 
-  def fromRowError(row: Row, typeName: String, path: NonEmptyList[PathSegment], value: Any): Throwable = {
-    val reversePath = path//.reverse // Convert from bottom-up to top-down
+  def fromRowError(
+      row: Row,
+      typeName: String,
+      path: NonEmptyList[PathSegment],
+      value: Any
+  ): Throwable = {
+    val reversePath = path //.reverse // Convert from bottom-up to top-down
 
     val traceback =
-      reversePath.map {
-        case PathSegment(description, key, expectedType) =>
-          s"$description $key ($expectedType)"
-      }
-      .toList
-      .mkString(" in ")
+      reversePath
+        .map {
+          case PathSegment(description, key, expectedType) =>
+            s"$description $key ($expectedType)"
+        }
+        .toList
+        .mkString(" in ")
 
     val valueStr =
-      if (value == null) { "NULL" }
-      else { s"$value (${value.getClass.getName})" }
+      if (value == null) { "NULL" } else { s"$value (${value.getClass.getName})" }
 
     val message = (
       s"""Row cannot be converted into a $typeName:
