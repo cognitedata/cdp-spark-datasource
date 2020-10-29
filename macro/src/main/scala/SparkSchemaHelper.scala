@@ -249,12 +249,12 @@ class SparkSchemaHelperImpl(val c: Context) {
              case scala.util.Success(x) => x
            })"""
 
-        val path = NonEmptyList(
+        val newPath = NonEmptyList(
           PathSegment("column", q"$quotedParamName", paramType),
           path
         )
 
-        val resExpr = transformValue(column, paramType, path)
+        val resExpr = transformValue(column, paramType, newPath)
 
         q"$resExpr.asInstanceOf[$paramType]"
       })
