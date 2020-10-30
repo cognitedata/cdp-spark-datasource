@@ -121,8 +121,10 @@ class SparkSchemaHelperImpl(val c: Context) {
         val keyName = c.freshName(TermName("key"))
         val valueName = c.freshName(TermName("value"))
 
+        def quote(str: c.Tree): c.Tree = { q""" ("'" + $str + "'") """}
+
         val keyPath = PathSegment("key", q"$keyName", keyType) :: path
-        val valuePath = PathSegment("value at key", q"$keyName", valueType) :: path
+        val valuePath = PathSegment("value at key", quote(q"$keyName"), valueType) :: path
 
         q"""($value match {
             case map: Map[Any @unchecked, Any @unchecked] =>

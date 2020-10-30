@@ -84,23 +84,32 @@ private[spark] object SparkSchemaHelperRuntime {
       path: NonEmptyList[PathSegment],
       value: Any
   ): Throwable = {
-    val reversePath = path //.reverse // Convert from bottom-up to top-down
-
     val traceback =
-      reversePath
+      path.zipWithIndex.reverse
         .map {
-          case PathSegment(description, key, expectedType) =>
-            s"$description $key ($expectedType)"
+          case (PathSegment(description, key, expectedType), index) =>
+            val str = s"in $description $key"
+            if (index == 0) { str } else { s"$str ($expectedType)" }
         }
         .toList
-        .mkString(" in ")
+        .mkString(", ")
 
-    val valueStr =
-      if (value == null) { "NULL" } else { s"$value (${value.getClass.getName})" }
+    val actualValueDescription = {
+      if (value == null) { "NULL" } else {
+        val actualType = value.getClass
+        val actualTypeDisplayName = actualType.getPackage.getName match {
+          case "java.lang" => actualType.getSimpleName
+          case _ => actualType.getName match {
+            case "java.time.Instant" => "Timestamp"
+            case name => name
+          }
+        }
+        s"$actualTypeDisplayName: $value"
+      }
+    }
 
     val message = (
-      s"""Row cannot be converted into a $typeName:
-         |The $traceback was expected to have a value of type ${reversePath.head.expectedType}, but found $valueStr""".stripMargin
+      s"""Type mismatch $traceback: expected ${path.head.expectedType}, found $actualValueDescription.""".stripMargin
     )
 
     new CdfSparkIllegalArgumentException(message)
