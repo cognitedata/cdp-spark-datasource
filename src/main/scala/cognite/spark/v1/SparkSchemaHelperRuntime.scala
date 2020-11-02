@@ -112,7 +112,7 @@ private[spark] object SparkSchemaHelperRuntime {
     }
 
     val message = (
-      s"""Type mismatch $traceback: expected ${path.head.expectedType}, found $actualValueDescription.""".stripMargin
+      s"Type mismatch $traceback: expected ${path.head.expectedType}, found $actualValueDescription (on row ${rowIdentifier(row)})."
     )
 
     new CdfSparkIllegalArgumentException(message)
