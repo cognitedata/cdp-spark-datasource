@@ -71,7 +71,7 @@ class SparkSchemaHelperImpl(val c: Context) {
           q"""
             $SparkSchemaHelperRuntime.PathSegment(
               $description,
-              $key match { case null => "NULL"; case x => x.toString },
+              $key,
               ${expectedType.toString}
             )
           """
@@ -84,7 +84,7 @@ class SparkSchemaHelperImpl(val c: Context) {
             cats.data.NonEmptyList.of(..$pathArgs),
             $value
           )
-          """
+        """
 
       def transformFromSeq(intoCollection: c.Tree => c.Tree) = {
         val elementType = ty.typeArgs.head
@@ -118,10 +118,16 @@ class SparkSchemaHelperImpl(val c: Context) {
         val keyName = c.freshName(TermName("key"))
         val valueName = c.freshName(TermName("value"))
 
-        def quote(str: c.Tree): c.Tree = { q""" ("'" + $str + "'") """}
+        val formattedKey = q"""
+          ($keyName match {
+            case null => "NULL"
+            case s: String => "'" + s + "'"
+            case x => x.toString
+          })
+        """
 
-        val keyPath = PathSegment("key", q"$keyName", keyType) :: path
-        val valuePath = PathSegment("value at key", quote(q"$keyName"), valueType) :: path
+        val keyPath = PathSegment("key", formattedKey, keyType) :: path
+        val valuePath = PathSegment("value at key", formattedKey, valueType) :: path
 
         q"""($value match {
             case map: Map[Any @unchecked, Any @unchecked] =>
