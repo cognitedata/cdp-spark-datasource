@@ -80,7 +80,6 @@ private[spark] object SparkSchemaHelperRuntime {
 
   def fromRowError(
       row: Row,
-      typeName: String,
       path: NonEmptyList[PathSegment],
       value: Any
   ): Throwable = {

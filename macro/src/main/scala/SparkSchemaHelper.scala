@@ -54,8 +54,6 @@ class SparkSchemaHelperImpl(val c: Context) {
   def fromRow[T: c.WeakTypeTag](row: c.Expr[Row]): c.Expr[T] = {
     import c.universe._
 
-    val targetType = weakTypeOf[T]
-
     val SparkSchemaHelperRuntime = q"cognite.spark.v1.SparkSchemaHelperRuntime"
 
     val setterType = symbolOf[Setter.type].asClass.module
@@ -83,7 +81,6 @@ class SparkSchemaHelperImpl(val c: Context) {
         q"""
           throw $SparkSchemaHelperRuntime.fromRowError(
             rootRow,
-            ${targetType.typeSymbol.fullName},
             cats.data.NonEmptyList.of(..$pathArgs),
             $value
           )
