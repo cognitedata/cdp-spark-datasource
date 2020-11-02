@@ -76,6 +76,9 @@ private[spark] object SparkSchemaHelperRuntime {
           typeName)}, but $valueString was found (on row ${rowIdentifier(row)}).$hint")
     }
 
+  /** Represents a step on the traversal path when converting from a Spark Row into a SDK object.
+    * This is effectively a frame of a stack trace, used to communicate where the value of incorrect type was found.
+    * For example, when traversing into a Map entry, we construct a PathSegment("value at key", "the_key", "String") */
   case class PathSegment(description: String, key: String, expectedType: String)
 
   def fromRowError(
