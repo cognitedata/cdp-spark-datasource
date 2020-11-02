@@ -99,10 +99,11 @@ private[spark] object SparkSchemaHelperRuntime {
         val actualType = value.getClass
         val actualTypeDisplayName = actualType.getPackage.getName match {
           case "java.lang" => actualType.getSimpleName
-          case _ => actualType.getName match {
-            case "java.time.Instant" => "Timestamp"
-            case name => name
-          }
+          case _ =>
+            actualType.getName match {
+              case "java.time.Instant" => "Timestamp"
+              case name => name
+            }
         }
         s"$actualTypeDisplayName: $value"
       }
