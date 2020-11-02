@@ -153,8 +153,8 @@ class SparkSchemaHelperImpl(val c: Context) {
         q"""($value match {
             case x: Double => x
             case x: Float => x.toDouble
-            case x: Byte => x.toFloat
-            case x: Short => x.toFloat
+            case x: Byte => x.toDouble
+            case x: Short => x.toDouble
             case x: Int => x.toDouble
             case x: Long => x.toDouble
             case x: BigDecimal => x.toDouble
