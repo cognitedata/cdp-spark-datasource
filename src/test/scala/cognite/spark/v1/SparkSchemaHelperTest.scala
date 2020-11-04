@@ -104,6 +104,7 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
     val x = new GenericRowWithSchema(Array(null, null, null, null, Map("foo" -> "row", "bar" -> 1), null, null, null), structType[TestTypeOption])
     val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeOption](x) }
     ex.getMessage shouldBe "Map with string values was expected, but '1' of type Int was found (under key 'bar' on row [null,null,null,null,Map(foo -> row, bar -> 1),null,null,null])"
+    ex.getMessage shouldBe "Type mismatch in column `x`, in value at key 'bar': expected String, found Integer: 1 (on row [null,null,null,null,Map(foo -> row, bar -> 1),null,null,null])"
   }
 
   it should "fail nicely on type mismatch" in {
@@ -151,10 +152,7 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
       StructType.fromDDL("foo map<string, int>")
     )
 
-    //val ex = intercept[CdfSparkIllegalArgumentException] {
-      fromRow[TestRow](row)
-    //}
-
-    //println(ex)
+    val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestRow](row) }
+    ex.getMessage shouldBe "Type mismatch in column `foo`, in value at key 'foo': "
   }
 }
