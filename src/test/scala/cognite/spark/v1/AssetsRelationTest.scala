@@ -385,6 +385,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         df => df.length != 100)
       assert(assetsFromTestDf.length == 100)
 
+      Thread.sleep(2000)
 
       // Upsert assets
       spark
