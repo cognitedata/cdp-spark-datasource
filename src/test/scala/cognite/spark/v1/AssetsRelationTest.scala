@@ -261,11 +261,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "handle null values in metadata when inserting in savemode" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     val metricsPrefix = s"assets.create.savemode.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .load()
     val externalId = shortRandomString()
 
     try {
@@ -302,6 +297,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "be possible to copy assets from one tenant to another" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-copy-${shortRandomString()}"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .load()
+    df.createOrReplaceTempView("assets")
     try {
       spark
         .sql(s"""
