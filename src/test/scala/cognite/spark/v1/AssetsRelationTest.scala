@@ -385,27 +385,26 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         df => df.length != 100)
       assert(assetsFromTestDf.length == 100)
 
-      Thread.sleep(2000)
-
       // Upsert assets
-      spark
+      val dfToUpdate = spark
         .sql(s"""
                 |select externalId,
                 |name,
-                |null as parentId,
-                |null as parentExternalId,
+                |parentId,
+                |parentExternalId,
                 |'bar' as description,
                 |map("foo", null, "bar", "test") as metadata,
-                |'$source' as source,
+                |source,
                 |id,
                 |createdTime,
                 |lastUpdatedTime,
-                |0 as rootId,
-                |null as aggregates,
+                |rootId,
+                |aggregates,
                 |dataSetId
                 |from destinationAssetsUpsert
                 |where source = '$source'""".stripMargin)
-        .union(spark
+      println(s"Updating ${dfToUpdate.count} items")
+      val dfToInsert = spark
           .sql(s"""
                   |select concat(externalId, '${randomSuffix}_create') as externalId,
                   |name,
@@ -422,7 +421,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                   |dataSetId
                   |from sourceAssets
                   |limit 100
-     """.stripMargin))
+     """.stripMargin)
+
+      println(s"Updating ${dfToInsert.count} items")
+
+      dfToUpdate.union(dfToInsert)
         .select(destinationDf.columns.map(col): _*)
         .write
         .insertInto("destinationAssetsUpsert")
