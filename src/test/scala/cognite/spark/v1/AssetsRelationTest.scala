@@ -406,7 +406,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
       val dfToInsert = spark
         .sql(s"""
-                |select concat(externalId, '${randomSuffix}_create') as externalId,
+                |select null as externalId,
                 |name,
                 |null as parentId,
                 |null as parentExternalId,
@@ -420,7 +420,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |null as aggregates,
                 |dataSetId
                 |from sourceAssets
-                |where source = '$source'
                 |limit 100
       """.stripMargin)
 
