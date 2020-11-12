@@ -404,8 +404,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               |from destinationAssetsUpsert
               |where source = '$source'""".stripMargin)
 
-      println(s"Inserting ${dfToUpdate.count} items")
-
       val dfToInsert = spark
         .sql(s"""
                 |select concat(externalId, '${randomSuffix}_create') as externalId,
@@ -422,24 +420,19 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |null as aggregates,
                 |dataSetId
                 |from sourceAssets
+                |where source = '$source'
                 |limit 100
       """.stripMargin)
-
-      println(s"Updating ${dfToInsert.count} items")
 
       dfToUpdate.union(dfToInsert)
         .select(destinationDf.columns.map(col): _*)
         .write
         .insertInto("destinationAssetsUpsert")
 
-/*      val assetsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "assets")
+      val assetsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "assets")
       assert(assetsUpdatedAfterUpsert == 100)
       val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
-      assert(assetsCreatedAfterUpsert == 200)*/
-
-      val dfWithBar = spark.sql(
-        s"select externalId, name, description, source, id, createdTime, lastUpdatedTime from destinationAssets where source = '$source' and description = 'bar'")
-      dfWithBar.show(500, false)
+      assert(assetsCreatedAfterUpsert == 200)
 
       // Check if upsert worked
       val descriptionsAfterUpsert = retryWhile[Array[Row]](
