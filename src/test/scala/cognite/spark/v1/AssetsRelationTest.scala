@@ -437,6 +437,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
       assert(assetsCreatedAfterUpsert == 200)*/
 
+      val dfWithBar = spark.sql(
+        s"select description from destinationAssets where source = '$source' and description = 'bar'")
+      dfWithBar.show(500, false)
+
       // Check if upsert worked
       val descriptionsAfterUpsert = retryWhile[Array[Row]](
         spark
