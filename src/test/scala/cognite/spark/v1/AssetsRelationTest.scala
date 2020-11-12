@@ -438,7 +438,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(assetsCreatedAfterUpsert == 200)*/
 
       val dfWithBar = spark.sql(
-        s"select externalId, name, dsecription, source, id, createdTime, lastUpdatedTime from destinationAssets where source = '$source' and description = 'bar'")
+        s"select externalId, name, description, source, id, createdTime, lastUpdatedTime from destinationAssets where source = '$source' and description = 'bar'")
       dfWithBar.show(500, false)
 
       // Check if upsert worked
