@@ -372,9 +372,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceAssets
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
-        .write
-        .insertInto("destinationAssetsUpsert")
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationAssetsUpsert")
 
       val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
       assert(assetsCreated == 100)
@@ -387,41 +387,42 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
       // Upsert assets
       val dfToUpdate = spark
-        .sql(s"""
-                |select externalId,
-                |name,
-                |parentId,
-                |parentExternalId,
-                |'bar' as description,
-                |map("foo", null, "bar", "test") as metadata,
-                |source,
-                |id,
-                |createdTime,
-                |lastUpdatedTime,
-                |rootId,
-                |aggregates,
-                |dataSetId
-                |from destinationAssetsUpsert
-                |where source = '$source'""".stripMargin)
+      .sql(s"""
+              |select externalId,
+              |name,
+              |parentId,
+              |parentExternalId,
+              |'bar' as description,
+              |map("foo", null, "bar", "test") as metadata,
+              |source,
+              |id,
+              |createdTime,
+              |lastUpdatedTime,
+              |rootId,
+              |aggregates,
+              |dataSetId
+              |from destinationAssetsUpsert
+              |where source = '$source'""".stripMargin)
+
       println(s"Inserting ${dfToUpdate.count} items")
       val dfToInsert = spark
-          .sql(s"""
-                  |select concat(externalId, '${randomSuffix}_create') as externalId,
-                  |name,
-                  |null as parentId,
-                  |null as parentExternalId,
-                  |'bar' as description,
-                  |metadata,
-                  |'$source' as source,
-                  |null as id,
-                  |createdTime,
-                  |lastUpdatedTime,
-                  |0 as rootId,
-                  |null as aggregates,
-                  |dataSetId
-                  |from sourceAssets
-                  |limit 100
-     """.stripMargin)
+        .sql(s"""
+                |select concat(externalId, '${randomSuffix}_create') as externalId,
+                |name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'bar' as description,
+                |metadata,
+                |'$source' as source,
+                |null as id,
+                |createdTime,
+                |lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |dataSetId
+                |from sourceAssets
+                |limit 100
+      """.stripMargin)
 
       println(s"Updating ${dfToInsert.count} items")
 
