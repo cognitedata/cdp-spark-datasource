@@ -138,7 +138,6 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     val create = if (resourcesToCreate.isEmpty) {
       IO.unit
     } else {
-      println(s"On the metal create: ${resourcesToCreate.size}")
       resource
         .create(resourcesToCreate)
         .flatMap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
@@ -164,7 +163,6 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     val update = if (resourcesToUpdate.isEmpty) {
       IO.unit
     } else {
-      println(s"On the metal update: ${resourcesToCreate.size}")
       resource
         .updateByExternalId(
           resourcesToUpdate
