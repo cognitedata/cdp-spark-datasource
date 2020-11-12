@@ -82,7 +82,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val (itemsToUpdate, itemsToUpdateOrCreate) =
       assets.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.externalId.nonEmpty))
 
-    println(s"Should update ${itemsToUpdate.length} Assets and try to create ${itemsToUpdateOrCreate.length} Assets")
     if (itemsToUpdateOrCreate.exists(_.name.isEmpty)) {
       throw new CdfSparkIllegalArgumentException("The name field must be set when creating assets.")
     }
