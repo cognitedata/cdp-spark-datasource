@@ -1,12 +1,16 @@
 package cognite.spark.v1
 
-import cats.effect.IO
+import java.util.concurrent.Executor
+
+import cats.effect.{Clock, IO}
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.Auth
 import com.cognite.sdk.scala.v1._
 import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources.BaseRelation
+
+import scala.concurrent.ExecutionContext
 
 abstract class CdfRelation(config: RelationConfig, shortName: String)
     extends BaseRelation

@@ -37,6 +37,9 @@ jobs:
           TEST_API_KEY_WRITE: ${{ secrets.TEST_API_KEY_WRITE }}
           TEST_API_KEY_READ: ${{ secrets.TEST_API_KEY_READ }}
           TEST_API_KEY_GREENFIELD: ${{ secrets.TEST_API_KEY_GREENFIELD }}
+          TEST_CLIENT_ID_BLUEFIELD: ${{ secrets.BLUEFIELD_CLIENT_ID }}
+          TEST_CLIENT_SECRET_BLUEFIELD: ${{ secrets.BLUEFIELD_CLIENT_SECRET }}
+          TEST_AAD_TENANT_BLUEFIELD: "a9ae5b54-3600-4917-a9dc-3020723360b3"
         run: |
           TEST="test +Test/compile"
           if [ ${{github.ref }} == "refs/heads/master" ]; then

@@ -1,10 +1,11 @@
 package cognite.spark.v1
 
-import cats.effect.IO
+import cats.effect.{Clock, ContextShift, IO}
 import cats.implicits._
-import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, BearerTokenAuth}
+import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, AuthProvider, BearerTokenAuth, OAuth2}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, FunctionCall, GenericClient}
-import com.softwaremill.sttp.SttpBackend
+import com.softwaremill.sttp.{SttpBackend, Uri}
+import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import io.circe.{Json, JsonObject, parser}
 import io.circe.generic.auto._
 import io.circe.syntax._
@@ -17,7 +18,7 @@ import org.apache.spark.sql.functions.to_json
 import scala.util.parsing.json.JSONObject
 
 final case class RelationConfig(
-    auth: Auth,
+    auth: CdfSparkAuth,
     clientTag: Option[String],
     applicationName: Option[String],
     projectName: String,
@@ -264,21 +265,39 @@ object DefaultSource {
           .mkString(", ")}"))
   }
 
+  def parseAuth(parameters: Map[String, String]): Option[CdfSparkAuth] = {
+    val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
+    val apiKey = parameters.get("apiKey").map(apiKey => ApiKeyAuth(apiKey))
+    val clientCredentials = for {
+      tokenUri <- parameters.get("tokenUri").map { tokenUriString =>
+        Uri
+          .parse(tokenUriString)
+          .getOrElse(throw new CdfSparkIllegalArgumentException("Invalid URI in tokenUri parameter"))
+      }
+      clientId <- parameters.get("clientId")
+      clientSecret <- parameters.get("clientSecret")
+      scopes <- parameters.get("scopes").map(_.split(" ").toList)
+      clientCredentials = OAuth2.ClientCredentials(tokenUri, clientId, clientSecret, scopes)
+    } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
+
+    apiKey
+      .orElse(bearerToken)
+      .map(CdfSparkAuth.Static)
+      .orElse(clientCredentials)
+  }
+
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
-    val bearerToken = parameters
-      .get("bearerToken")
-      .map(bearerToken => BearerTokenAuth(bearerToken))
-    val apiKey = parameters
-      .get("apiKey")
-      .map(apiKey => ApiKeyAuth(apiKey))
-    val auth = apiKey
-      .orElse(bearerToken)
-      .getOrElse(sys.error("Either apiKey or bearerToken is required."))
+
+    val auth = parseAuth(parameters) match {
+      case Some(x) => x
+      case None => sys.error("Either apiKey or bearerToken is required.")
+    }
+
     val projectName = parameters
       .getOrElse("project", DefaultSource.getProjectFromAuth(auth, maxRetries, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
@@ -338,10 +357,19 @@ object DefaultSource {
       legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
     )
   }
-  def getProjectFromAuth(auth: Auth, maxRetries: Int, baseUrl: String): String = {
+  def getProjectFromAuth(
+      auth: CdfSparkAuth,
+      maxRetries: Int,
+      baseUrl: String
+  )(
+      implicit
+      cs: ContextShift[IO],
+      clock: Clock[IO]): String = {
     implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries)
     val getProject = for {
-      client <- GenericClient.forAuth[IO](Constants.SparkDatasourceVersion, auth, baseUrl)
+      authProvider <- auth.provider
+      client <- GenericClient
+        .forAuthProvider[IO](Constants.SparkDatasourceVersion, authProvider, baseUrl)
     } yield client.projectName
     getProject.unsafeRunSync()
   }

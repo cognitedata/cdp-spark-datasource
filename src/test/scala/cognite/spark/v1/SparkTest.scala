@@ -6,7 +6,7 @@ import java.util.concurrent.Executors
 
 import cats.Id
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth}
+import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, AuthProvider}
 import org.apache.spark.sql.SparkSession
 import org.scalatest.Tag
 import org.apache.spark.datasource.MetricsSource
@@ -14,7 +14,7 @@ import org.apache.spark.datasource.MetricsSource
 import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import scala.util.Random
-import cats.effect.{IO, Timer}
+import cats.effect.{Clock, IO, Timer}
 import cats.implicits._
 import com.cognite.sdk.scala.v1._
 import org.scalactic.{Prettifier, source}
@@ -83,7 +83,7 @@ trait SparkTest {
       20
     ).unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
 
-  def getDefaultConfig(auth: Auth): RelationConfig =
+  def getDefaultConfig(auth: CdfSparkAuth): RelationConfig =
     RelationConfig(
       auth,
       Some("SparkDatasourceTestTag"),
