@@ -403,7 +403,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |dataSetId
                 |from destinationAssetsUpsert
                 |where source = '$source'""".stripMargin)
-      println(s"Updating ${dfToUpdate.count} items")
+      println(s"Inserting ${dfToUpdate.count} items")
       val dfToInsert = spark
           .sql(s"""
                   |select concat(externalId, '${randomSuffix}_create') as externalId,
@@ -430,10 +430,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .write
         .insertInto("destinationAssetsUpsert")
 
-      val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
-      assert(assetsCreatedAfterUpsert == 200)
       val assetsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "assets")
       assert(assetsUpdatedAfterUpsert == 100)
+      val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
+      assert(assetsCreatedAfterUpsert == 200)
 
       // Check if upsert worked
       val descriptionsAfterUpsert = retryWhile[Array[Row]](
