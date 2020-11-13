@@ -124,7 +124,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     }
   }
 
-  // scalastyle:off no.whitespace.after.left.bracket
+  // scalastyle:off no.whitespace.after.left.bracket method.length
   def createOrUpdateByExternalId[
       R <: WithExternalId,
       U <: WithSetExternalId,
