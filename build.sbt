@@ -129,7 +129,8 @@ lazy val library = (project in file("."))
       "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
-        exclude("org.glassfish.hk2.external", "javax.inject")
+        exclude("org.glassfish.hk2.external", "javax.inject"),
+      "org.log4s" %% "log4s" % log4sVersion
     ),
     mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
     mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,
