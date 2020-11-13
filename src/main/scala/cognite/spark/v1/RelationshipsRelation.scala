@@ -19,7 +19,8 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Relationship, Long](config, "relationships")
-    with InsertableRelation {
+    with InsertableRelation
+      with WritableRelation {
   import CdpConnector._
   override def getStreams(filters: Array[Filter])(
     client: GenericClient[IO],
@@ -82,6 +83,43 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     client.relationships
       .create(relationships)
       .flatTap(_ => incMetrics(itemsCreated, relationships.size)) *> IO.unit
+  }
+
+  private def isUpdateEmpty(u: RelationshipUpdate): Boolean = u == RelationshipUpdate()
+
+  override def update(rows: Seq[Row]): IO[Unit] = {
+    val relationshipUpdates = rows.map(r => fromRow[RelationshipsUpsertSchema](r))
+    updateByIdOrExternalId[RelationshipsUpsertSchema, RelationshipUpdate, Relationships[IO], Relationship](
+      relationshipUpdates,
+      client.relationships,
+      isUpdateEmpty
+    )
+  }
+
+  override def delete(rows: Seq[Row]): IO[Unit] = {
+    val deletes = rows.map(r => fromRow[DeleteItem](r))
+    deleteWithIgnoreUnknownIds(client.relationships, deletes, config.ignoreUnknownIds)
+  }
+
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
+    val relationships = rows.map(fromRow[RelationshipsUpsertSchema](_))
+    val (itemsToUpdate, itemsToCreate) = relationships.partition(r => r.id.exists(_ > 0))
+
+    genericUpsert[Relationship, RelationshipsUpsertSchema, RelationshipCreate, RelationshipUpdate, Relationships[IO]](
+      itemsToUpdate,
+      itemsToCreate.map(_.transformInto[RelationshipCreate]),
+      isUpdateEmpty,
+      client.relationships)
+  }
+
+  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
+    val relationships = rows.map(fromRow[RelationshipCreate](_))
+
+    createOrUpdateByExternalId[Relationship, RelationshipUpdate, RelationshipCreate, Relationships[IO]](
+      Set.empty,
+      relationships,
+      client.relationships,
+      doUpsert = true)
   }
   override def schema: StructType = structType[Relationship]
 
