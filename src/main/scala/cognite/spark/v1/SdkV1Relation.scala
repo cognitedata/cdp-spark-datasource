@@ -138,7 +138,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
       p => p.externalId.exists(id => existingExternalIds.contains(id))
     )
-    logger.info(s"resourceToCreate: ${resourcesToCreate.length}, resourcesToUpdate: ${resourcesToUpdate.length}")
+    logger.info(
+      s"resourceToCreate: ${resourcesToCreate.length}, resourcesToUpdate: ${resourcesToUpdate.length}")
     val create = if (resourcesToCreate.isEmpty) {
       IO.unit
     } else {
@@ -218,7 +219,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         case (Some(_), items) => items.take(1)
       }
       .toSeq
-    logger.info(s"itemsToCreateWithoutDuplicatesByExternalId: ${itemsToCreateWithoutDuplicatesByExternalId.length}")
+    logger.info(
+      s"itemsToCreateWithoutDuplicatesByExternalId: ${itemsToCreateWithoutDuplicatesByExternalId.length}")
     val update = updateByIdOrExternalId[U, Up, Re, R](
       itemsToUpdate,
       resource,
