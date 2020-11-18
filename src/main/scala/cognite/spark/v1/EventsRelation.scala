@@ -69,10 +69,10 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       subtype = m.get("subtype"),
       startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
-      assetIds = m.get("assetIds").map(assetIdsFromWrappedArray),
+      assetIds = m.get("assetIds").map(idsFromWrappedArray),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
       lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
-      dataSetIds = m.get("dataSetId").map(assetIdsFromWrappedArray(_).map(CogniteInternalId))
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId))
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
