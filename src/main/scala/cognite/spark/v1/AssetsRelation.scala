@@ -51,7 +51,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     AssetsFilter(
       name = m.get("name"),
       source = m.get("source"),
-      dataSetIds = m.get("dataSetId").map(assetIdsFromWrappedArray(_).map(CogniteInternalId))
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId))
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
