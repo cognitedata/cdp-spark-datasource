@@ -74,7 +74,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
       lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
-      dataSetIds = m.get("dataSetId").map(assetIdsFromWrappedArray(_).map(CogniteInternalId)), // ???????
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId)), // ???????
       labels = m.get("labels") // ???????
     )
 

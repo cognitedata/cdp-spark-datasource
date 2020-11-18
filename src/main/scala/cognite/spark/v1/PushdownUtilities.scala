@@ -103,7 +103,7 @@ object PushdownUtilities {
       case NoPushdown() => false
     }
 
-  def assetIdsFromWrappedArray(wrappedArray: String): Seq[Long] =
+  def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
     wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
 
   def filtersToTimestampLimits(filters: Array[Filter], colName: String): (Instant, Instant) = {
