@@ -14,7 +14,6 @@ class OAuth2Test
   val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
 
   it should "authenticate using client credentials" in {
-
     val df = (
       spark.read.format("cognite.spark.v1")
         .option("baseUrl", "https://bluefield.cognitedata.com")
