@@ -386,6 +386,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(assetsFromTestDf.length == 100)
 
       // Upsert assets
+      // To avoid issues with eventual consistency, we create a new view for the assets we just created an will update.
+      spark
+        .createDataFrame(spark.sparkContext.parallelize(assetsFromTestDf), destinationDf.schema)
+        .createOrReplaceTempView("destinationAssetsUpsertCreated")
       val dfToUpdate = spark
       .sql(s"""
               |select externalId,
@@ -401,7 +405,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               |rootId,
               |aggregates,
               |dataSetId
-              |from destinationAssetsUpsert
+              |from destinationAssetsUpsertCreated
               |where source = '$source'""".stripMargin)
 
       val dfToInsert = spark
