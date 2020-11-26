@@ -26,7 +26,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def toRow(a: Relationship): Row = asRow(a)
 
-  override def uniqueId(a: Label): String = a.externalId
+  override def uniqueId(a: Relationship): String = a.externalId
 
   override def getStreams(filters: Array[Filter])(
     client: GenericClient[IO],
