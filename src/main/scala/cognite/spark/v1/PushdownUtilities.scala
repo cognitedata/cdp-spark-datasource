@@ -136,7 +136,7 @@ object PushdownUtilities {
           maxTime
             .map(java.sql.Timestamp.valueOf(_).toInstant)
             .getOrElse(java.time.Instant.ofEpochMilli(Long.MaxValue))
-        Some(TimeRange(minimumTimeAsInstant, maximumTimeAsInstant))
+        Some(TimeRange(Some(minimumTimeAsInstant), Some(maximumTimeAsInstant)))
     }
 
   def getTimestampLimit(filter: Filter, colName: String): Seq[Limit] =
