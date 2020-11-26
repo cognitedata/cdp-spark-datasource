@@ -2,10 +2,11 @@ package cognite.spark.v1
 
 import java.time.Instant
 
-import com.cognite.sdk.scala.v1.TimeRange
+import com.cognite.sdk.scala.v1.{ConfidenceRange, ContainsAny, LabelContainsFilter, TimeRange}
 import com.softwaremill.sttp._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+
 import scala.util.Try
 
 final case class DeleteItem(id: Long)
@@ -106,6 +107,9 @@ object PushdownUtilities {
   def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
     wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
 
+  def stringSeqFromWrappedArray(wrappedArray: String): Seq[String] =
+    wrappedArray.split("\\D+").filter(_.nonEmpty)
+
   def filtersToTimestampLimits(filters: Array[Filter], colName: String): (Instant, Instant) = {
     val timestampLimits = filters.flatMap(getTimestampLimit(_, colName))
 
@@ -137,6 +141,28 @@ object PushdownUtilities {
             .map(java.sql.Timestamp.valueOf(_).toInstant)
             .getOrElse(java.time.Instant.ofEpochMilli(Long.MaxValue))
         Some(TimeRange(Some(minimumTimeAsInstant), Some(maximumTimeAsInstant)))
+    }
+
+  def getLabelsFilter(labels: Option[String]): Option[LabelContainsFilter] =
+  {
+    // TODO
+    Some(ContainsAny(containsAny = Seq()))
+  }
+
+  def confidenceRangeFromMinAndMax(
+      minConfidence: Option[String],
+      maxConfidence: Option[String]): Option[ConfidenceRange] =
+    (minConfidence, maxConfidence) match {
+      case (None, None) => None
+      case (Some(String), None) =>
+        Some(ConfidenceRange(min = Some(minConfidence.asInstanceOf[Double])))
+      case (None, Some(String)) =>
+        Some(ConfidenceRange(max = Some(maxConfidence.asInstanceOf[Double])))
+      case _ =>
+        Some(
+          ConfidenceRange(
+            min = Some(minConfidence.asInstanceOf[Double]),
+            max = Some(maxConfidence.asInstanceOf[Double])))
     }
 
   def getTimestampLimit(filter: Filter, colName: String): Seq[Limit] =
