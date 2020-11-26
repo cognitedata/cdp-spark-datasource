@@ -4,18 +4,11 @@ import java.time.Instant
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.cognite.sdk.scala.common.{Create, DeleteByIdsWithIgnoreUnknownIds, UpdateByExternalId, UpdateById, WithExternalId, WithId, WithSetExternalId}
-import com.cognite.sdk.scala.v1.resources.Relationship
 import com.cognite.sdk.scala.v1._
-import fs2.Stream
-import io.scalaland.chimney.Transformer
-import io.scalaland.chimney.dsl._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
-import org.apache.spark.sql.types.{DataTypes, StructType}
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.{Row, SQLContext}
 
 class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   extends SdkV1Relation[Relationship, String](config, "relationships")
@@ -32,7 +25,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     client: GenericClient[IO],
     limit: Option[Int],
     numPartitions: Int): Seq[fs2.Stream[IO, Relationship]] =
-    Seq(client.relationships.filter(RelationshipFilter()))
+    Seq(client.relationships.filter(RelationshipsFilter()))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val relationships = rows.map(fromRow[RelationshipCreate](_))
