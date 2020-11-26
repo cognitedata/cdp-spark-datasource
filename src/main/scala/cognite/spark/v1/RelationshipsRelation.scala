@@ -18,135 +18,52 @@ import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[Relationship, Long](config, "relationships")
+  extends SdkV1Relation[Relationship, String](config, "relationships")
     with InsertableRelation
-      with WritableRelation {
-  import CdpConnector._
+    with WritableRelation {
+
+  override def schema: StructType = structType[Relationship]
+
+  override def toRow(a: Relationship): Row = asRow(a)
+
+  override def uniqueId(a: Label): String = a.externalId
+
   override def getStreams(filters: Array[Filter])(
     client: GenericClient[IO],
     limit: Option[Int],
-    numPartitions: Int): Seq[Stream[IO, Relationship]] = {
-    val fieldNames =
-      Array(
-        "sourceExternalId",
-        "sourceType",
-        "targetExternalId",
-        "targetType",
-        "minStartTime",
-        "maxStartTime",
-        "minEndTime",
-        "maxEndTime",
-        "confidence",
-        "minCreatedTime",
-        "maxCreatedTime",
-        "minLastUpdatedTime",
-        "maxLastUpdatedTime",
-        "dataSetId",
-        "labels"
-      )
-    val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
-    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-
-    val relationshipsFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
-      Seq(RelationshipsFilter())
-    } else {
-      filtersAsMaps.distinct.map(relationshipsFilterFromMap)
-    }
-
-    val streamsPerFilter = relationshipsFilterSeq
-      .map { f =>
-        client.relationships.filterPartitions(f, numPartitions, limit)
-      }
-
-    // Merge streams related to each partition to make sure duplicate values are read into
-    // the same RDD partition
-    streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_)))
-  }
-  def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter =
-    RelationshipsFilter(
-      sourceExternalId = m.get("sourceExternalId"),
-      sourceType = m.get("sourceType"),
-      targetExternalId = m.get("targetExternalId"),
-      targetType = m.get("targetType"),
-      startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
-      endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
-      createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
-      lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId)), // ???????
-      labels = m.get("labels") // ???????
-    )
+    numPartitions: Int): Seq[fs2.Stream[IO, Relationship]] =
+    Seq(client.relationships.filter(RelationshipFilter()))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val relationships = rows.map(fromRow[RelationshipCreate](_))
     client.relationships
       .create(relationships)
-      .flatTap(_ => incMetrics(itemsCreated, relationships.size)) *> IO.unit
-  }
-
-  private def isUpdateEmpty(u: RelationshipUpdate): Boolean = u == RelationshipUpdate()
-
-  override def update(rows: Seq[Row]): IO[Unit] = {
-    val relationshipUpdates = rows.map(r => fromRow[RelationshipsUpsertSchema](r))
-    updateByIdOrExternalId[RelationshipsUpsertSchema, RelationshipUpdate, Relationships[IO], Relationship](
-      relationshipUpdates,
-      client.relationships,
-      isUpdateEmpty
-    )
+      .flatTap(_ => incMetrics(itemsCreated, relationships.length)) *> IO.unit
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val deletes = rows.map(r => fromRow[DeleteItem](r))
-    deleteWithIgnoreUnknownIds(client.relationships, deletes, config.ignoreUnknownIds)
+    val relationshipIds = rows.map(fromRow[RelationshipsDeleteSchema](_)).map(_.externalId)
+    client.relationships
+      .deleteByExternalIds(relationshipIds)
+      .flatTap(_ => incMetrics(itemsDeleted, relationshipIds.length))
   }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val relationships = rows.map(fromRow[RelationshipsUpsertSchema](_))
-    val (itemsToUpdate, itemsToCreate) = relationships.partition(r => r.id.exists(_ > 0))
+  override def upsert(rows: Seq[Row]): IO[Unit] =
+    throw new CdfSparkException("Upsert is not supported for relationships")
 
-    genericUpsert[Relationship, RelationshipsUpsertSchema, RelationshipCreate, RelationshipUpdate, Relationships[IO]](
-      itemsToUpdate,
-      itemsToCreate.map(_.transformInto[RelationshipCreate]),
-      isUpdateEmpty,
-      client.relationships)
-  }
-
-  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
-    val relationships = rows.map(fromRow[RelationshipCreate](_))
-
-    createOrUpdateByExternalId[Relationship, RelationshipUpdate, RelationshipCreate, Relationships[IO]](
-      Set.empty,
-      relationships,
-      client.relationships,
-      doUpsert = true)
-  }
-  override def schema: StructType = structType[Relationship]
-
-  override def toRow(a: Relationship): Row = asRow(a)
-
-  override def uniqueId(a: Relationship): Long = a.id
-}
-object RelationshipsRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[RelationshipsUpsertSchema]
-  val insertSchema: StructType = structType[RelationshipsInsertSchema]
-  val readSchema: StructType = structType[RelationshipsReadSchema]
+  override def update(rows: Seq[Row]): IO[Unit] =
+    throw new CdfSparkException("Update is not supported for relationships")
 }
 
-final case class RelationshipsUpsertSchema(
-   id: Long = 0,
-   externalId: Option[String] = None,
-   sourceExternalId: String,
-   sourceType: String,
-   targetExternalId: String,
-   targetType: String,
-   startTime: Option[Instant] = None,
-   endTime: Option[Instant] = None,
-   confidence: Float = 0,
-   labels: Option[Seq[Map[String, String]]] = None,
-   dataSetId: Option[Long] = None
- ) extends WithExternalId
-  with WithId[Option[Long]]
+object RelationshipsRelation {
+  var insertSchema: StructType = structType[RelationshipsInsertSchema]
+  var readSchema: StructType = structType[RelationshipsReadSchema]
+  var deleteSchema: StructType = structType[RelationshipsDeleteSchema]
+}
+
+final case class RelationshipsDeleteSchema(
+    externalId: String
+  )
 
 final case class RelationshipsInsertSchema(
     externalId: Option[String] = None,
@@ -157,12 +74,11 @@ final case class RelationshipsInsertSchema(
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
     confidence: Float = 0,
-    labels: Option[Seq[Map[String, String]]] = None,
+    labels: Option[Seq[CogniteExternalId]] = None,
     dataSetId: Option[Long] = None
  )
 
 final case class RelationshipsReadSchema(
-   id: Long = 0,
    externalId: Option[String] = None,
    sourceExternalId: String,
    sourceType: String,
@@ -171,7 +87,7 @@ final case class RelationshipsReadSchema(
    startTime: Option[Instant] = None,
    endTime: Option[Instant] = None,
    confidence: Float = 0,
-   labels: Option[Seq[Map[String, String]]] = None,
+   labels: Option[Seq[CogniteExternalId]] = None,
    createdTime: Instant = Instant.ofEpochMilli(0),
    lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
    dataSetId: Option[Long] = None
