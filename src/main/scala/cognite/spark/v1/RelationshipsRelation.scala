@@ -4,8 +4,19 @@ import java.time.Instant
 
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.PushdownUtilities.{
+  confidenceRangeFromMinAndMax,
+  getLabelsFilter,
+  idsFromWrappedArray,
+  pushdownToParameters,
+  shouldGetAll,
+  stringSeqFromWrappedArray,
+  timeRangeFromMinAndMax,
+  toPushdownFilterExpression
+}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.v1._
+import fs2.Stream
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -14,6 +25,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Relationship, String](config, "relationships")
     with InsertableRelation
     with WritableRelation {
+  import CdpConnector._
 
   override def schema: StructType = structType[Relationship]
 
@@ -24,8 +36,65 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[fs2.Stream[IO, Relationship]] =
-    Seq(client.relationships.filter(RelationshipsFilter()))
+      numPartitions: Int): Seq[Stream[IO, Relationship]] = {
+    val fieldNames =
+      Array(
+        "sourceExternalId",
+        "sourceType",
+        "subtype",
+        "targetExternalId",
+        "targetType",
+        "minStartTime",
+        "maxStartTime",
+        "minEndTime",
+        "maxEndTime",
+        "minActiveAtTime",
+        "maxActiveAtTime",
+        "minConfidence",
+        "maxConfidence",
+        "dataSetId",
+        "labels",
+        "minCreatedTime",
+        "maxCreatedTime",
+        "minLastUpdatedTime",
+        "maxLastUpdatedTime"
+      )
+    val pushdownFilterExpression = toPushdownFilterExpression(filters)
+    val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
+    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
+
+    val relationshipsFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
+      Seq(RelationshipsFilter())
+    } else {
+      filtersAsMaps.distinct.map(relationshipsFilterFromMap)
+    }
+
+    val streamsPerFilter = relationshipsFilterSeq
+      .map { f =>
+        client.relationships.filterPartitions(f, numPartitions, limit)
+      }
+
+    // Merge streams related to each partition to make sure duplicate values are read into
+    // the same RDD partition
+    streamsPerFilter.transpose
+      .map(s => s.reduce(_.merge(_)))
+  }
+
+  def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter =
+    RelationshipsFilter(
+      sourceExternalIds = m.get("sourceExternalIds").map(stringSeqFromWrappedArray),
+      sourceTypes = m.get("sourceTypes").map(stringSeqFromWrappedArray),
+      targetExternalIds = m.get("targetExternalIds").map(stringSeqFromWrappedArray),
+      targetTypes = m.get("targetTypes").map(stringSeqFromWrappedArray),
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId)),
+      startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
+      endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
+      activeAtTime = timeRangeFromMinAndMax(m.get("minActiveAtTime"), m.get("maxActiveAtTime")),
+      labels = getLabelsFilter(m.get("labels")),
+      confidence = confidenceRangeFromMinAndMax(m.get("minConfidence"), m.get("maxConfidence")),
+      createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
+      lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime"))
+    )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val relationships = rows.map(fromRow[RelationshipCreate](_))
@@ -67,7 +136,7 @@ final case class RelationshipsInsertSchema(
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
     confidence: Float = 0,
-    labels: Option[Seq[CogniteExternalId]] = None,
+    labels: Option[Seq[Map[String, String]]] = None,
     dataSetId: Option[Long] = None
 )
 
@@ -80,7 +149,7 @@ final case class RelationshipsReadSchema(
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
     confidence: Float = 0,
-    labels: Option[Seq[CogniteExternalId]] = None,
+    labels: Option[Seq[Map[String, String]]] = None,
     createdTime: Instant = Instant.ofEpochMilli(0),
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
     dataSetId: Option[Long] = None
