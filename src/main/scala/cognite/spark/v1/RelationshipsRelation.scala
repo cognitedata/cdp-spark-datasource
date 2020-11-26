@@ -11,7 +11,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-  extends SdkV1Relation[Relationship, String](config, "relationships")
+    extends SdkV1Relation[Relationship, String](config, "relationships")
     with InsertableRelation
     with WritableRelation {
 
@@ -22,9 +22,9 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: Relationship): String = a.externalId
 
   override def getStreams(filters: Array[Filter])(
-    client: GenericClient[IO],
-    limit: Option[Int],
-    numPartitions: Int): Seq[fs2.Stream[IO, Relationship]] =
+      client: GenericClient[IO],
+      limit: Option[Int],
+      numPartitions: Int): Seq[fs2.Stream[IO, Relationship]] =
     Seq(client.relationships.filter(RelationshipsFilter()))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
@@ -56,7 +56,7 @@ object RelationshipsRelation {
 
 final case class RelationshipsDeleteSchema(
     externalId: String
-  )
+)
 
 final case class RelationshipsInsertSchema(
     externalId: Option[String] = None,
@@ -69,19 +69,19 @@ final case class RelationshipsInsertSchema(
     confidence: Float = 0,
     labels: Option[Seq[CogniteExternalId]] = None,
     dataSetId: Option[Long] = None
- )
+)
 
 final case class RelationshipsReadSchema(
-   externalId: Option[String] = None,
-   sourceExternalId: String,
-   sourceType: String,
-   targetExternalId: String,
-   targetType: String,
-   startTime: Option[Instant] = None,
-   endTime: Option[Instant] = None,
-   confidence: Float = 0,
-   labels: Option[Seq[CogniteExternalId]] = None,
-   createdTime: Instant = Instant.ofEpochMilli(0),
-   lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
-   dataSetId: Option[Long] = None
- )
+    externalId: Option[String] = None,
+    sourceExternalId: String,
+    sourceType: String,
+    targetExternalId: String,
+    targetType: String,
+    startTime: Option[Instant] = None,
+    endTime: Option[Instant] = None,
+    confidence: Float = 0,
+    labels: Option[Seq[CogniteExternalId]] = None,
+    createdTime: Instant = Instant.ofEpochMilli(0),
+    lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
+    dataSetId: Option[Long] = None
+)
