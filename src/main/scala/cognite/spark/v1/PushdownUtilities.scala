@@ -2,7 +2,13 @@ package cognite.spark.v1
 
 import java.time.Instant
 
-import com.cognite.sdk.scala.v1.{ConfidenceRange, ContainsAny, LabelContainsFilter, TimeRange}
+import com.cognite.sdk.scala.v1.{
+  CogniteExternalId,
+  ConfidenceRange,
+  ContainsAny,
+  LabelContainsFilter,
+  TimeRange
+}
 import com.softwaremill.sttp._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
@@ -111,6 +117,14 @@ object PushdownUtilities {
   def stringSeqFromWrappedArray(wrappedArray: String): Seq[String] = {
     val regQuotes: Regex = "\"(.*?)\"|'(.*?)'".r
     regQuotes.findAllIn(wrappedArray).toSeq
+  }
+
+  def stringToContainsAny(externalIds: String): Option[ContainsAny] = {
+    val externalIdSeq = stringSeqFromWrappedArray(externalIds)
+    externalIdSeq.isEmpty match {
+      case true => None
+      case _ => Some(ContainsAny(containsAny = externalIdSeq.map(CogniteExternalId)))
+    }
   }
 
   def filtersToTimestampLimits(filters: Array[Filter], colName: String): (Instant, Instant) = {
