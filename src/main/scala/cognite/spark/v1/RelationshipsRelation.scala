@@ -136,7 +136,7 @@ final case class RelationshipsInsertSchema(
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
     confidence: Float = 0,
-    labels: Option[Seq[Map[String, String]]] = None,
+    labels: Option[Seq[String]] = None,
     dataSetId: Option[Long] = None
 )
 
@@ -149,7 +149,7 @@ final case class RelationshipsReadSchema(
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
     confidence: Float = 0,
-    labels: Option[Seq[Map[String, String]]] = None,
+    labels: Option[Seq[String]] = None,
     createdTime: Instant = Instant.ofEpochMilli(0),
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
     dataSetId: Option[Long] = None
