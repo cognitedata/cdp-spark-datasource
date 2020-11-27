@@ -114,9 +114,11 @@ object PushdownUtilities {
   def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
     wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
 
+  def eliminateQuotations(externalId: String): String = externalId.slice(1, externalId.length - 1)
+
   def stringSeqFromWrappedArray(wrappedArray: String): Seq[String] = {
     val regQuotes: Regex = "\"(.*?)\"|'(.*?)'".r
-    regQuotes.findAllIn(wrappedArray).toSeq
+    regQuotes.findAllIn(wrappedArray).toArray.map(eliminateQuotations)
   }
 
   def stringToContainsAny(externalIds: String): Option[ContainsAny] = {
@@ -165,9 +167,9 @@ object PushdownUtilities {
       maxConfidence: Option[String]): Option[ConfidenceRange] =
     (minConfidence, maxConfidence) match {
       case (None, None) => None
-      case (Some(String), None) =>
+      case (_, None) =>
         Some(ConfidenceRange(min = Some(minConfidence.asInstanceOf[Double])))
-      case (None, Some(String)) =>
+      case (None, _) =>
         Some(ConfidenceRange(max = Some(maxConfidence.asInstanceOf[Double])))
       case _ =>
         Some(

@@ -63,21 +63,16 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
 
-    val relationshipsFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
-      Seq(RelationshipsFilter())
+    if (filtersAsMaps.isEmpty || shouldGetAllRows) {
+      Seq(client.relationships.filter(RelationshipsFilter()))
     } else {
-      filtersAsMaps.distinct.map(relationshipsFilterFromMap)
+      val relationshipsFilterSeq = filtersAsMaps.distinct.map(relationshipsFilterFromMap)
+      relationshipsFilterSeq
+        .map { f =>
+          client.relationships.filter(f, limit)
+        }
     }
 
-    val streamsPerFilter = relationshipsFilterSeq
-      .map { f =>
-        client.relationships.filterPartitions(f, numPartitions, limit)
-      }
-
-    // Merge streams related to each partition to make sure duplicate values are read into
-    // the same RDD partition
-    streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_)))
   }
 
   def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter =
