@@ -6,11 +6,11 @@ import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
   confidenceRangeFromMinAndMax,
-  getLabelsFilter,
   idsFromWrappedArray,
   pushdownToParameters,
   shouldGetAll,
   stringSeqFromWrappedArray,
+  stringToContainsAny,
   timeRangeFromMinAndMax,
   toPushdownFilterExpression
 }
@@ -90,7 +90,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
       activeAtTime = timeRangeFromMinAndMax(m.get("minActiveAtTime"), m.get("maxActiveAtTime")),
-      labels = m.get("labels").map(stringSeqFromWrappedArray),
+      labels = m.get("labels").map(stringToContainsAny).get,
       confidence = confidenceRangeFromMinAndMax(m.get("minConfidence"), m.get("maxConfidence")),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
       lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime"))
