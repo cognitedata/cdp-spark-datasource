@@ -90,7 +90,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
       activeAtTime = timeRangeFromMinAndMax(m.get("minActiveAtTime"), m.get("maxActiveAtTime")),
-      labels = getLabelsFilter(m.get("labels")),
+      labels = m.get("labels").map(stringSeqFromWrappedArray),
       confidence = confidenceRangeFromMinAndMax(m.get("minConfidence"), m.get("maxConfidence")),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
       lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime"))
