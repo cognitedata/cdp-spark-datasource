@@ -8,6 +8,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 
 import scala.util.Try
+import scala.util.matching.Regex
 
 final case class DeleteItem(id: Long)
 
@@ -107,8 +108,10 @@ object PushdownUtilities {
   def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
     wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
 
-  def stringSeqFromWrappedArray(wrappedArray: String): Seq[String] =
-    wrappedArray.split("\\D+").filter(_.nonEmpty)
+  def stringSeqFromWrappedArray(wrappedArray: String): Seq[String] = {
+    val regQuotes: Regex = "\"(.*?)\"|'(.*?)'".r
+    regQuotes.findAllIn(wrappedArray).toSeq
+  }
 
   def filtersToTimestampLimits(filters: Array[Filter], colName: String): (Instant, Instant) = {
     val timestampLimits = filters.flatMap(getTimestampLimit(_, colName))
@@ -142,12 +145,6 @@ object PushdownUtilities {
             .getOrElse(java.time.Instant.ofEpochMilli(Long.MaxValue))
         Some(TimeRange(Some(minimumTimeAsInstant), Some(maximumTimeAsInstant)))
     }
-
-  def getLabelsFilter(labels: Option[String]): Option[LabelContainsFilter] =
-  {
-    // TODO
-    Some(ContainsAny(containsAny = Seq()))
-  }
 
   def confidenceRangeFromMinAndMax(
       minConfidence: Option[String],
