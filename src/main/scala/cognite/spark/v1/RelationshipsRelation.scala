@@ -5,7 +5,7 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
-  confidenceRangeFromMinAndMax,
+  confidenceRangeFromLimitStrings,
   getExternalIdSeq,
   idsFromWrappedArray,
   pushdownToParameters,
@@ -83,7 +83,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
       labels = m.get("labels").map(stringToContainsAny).getOrElse(None),
-      confidence = confidenceRangeFromMinAndMax(m.get("minConfidence"), m.get("maxConfidence")),
+      confidence = confidenceRangeFromLimitStrings(m.get("minConfidence"), m.get("maxConfidence")),
       lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime"))
     )
@@ -160,7 +160,7 @@ final case class RelationshipsInsertSchema(
     targetType: String,
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
-    confidence: Option[Double] = Some(0.0),
+    confidence: Option[Double] = None,
     labels: Option[Seq[String]] = None,
     dataSetId: Option[Long] = None
 )
@@ -173,7 +173,7 @@ final case class RelationshipsReadSchema(
     targetType: String,
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
-    confidence: Option[Double] = Some(0.0),
+    confidence: Option[Double] = None,
     labels: Option[Seq[String]] = None,
     createdTime: Instant = Instant.ofEpochMilli(0),
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
