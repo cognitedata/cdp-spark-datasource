@@ -5,12 +5,13 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
-  confidenceRangeFromLimitStrings,
-  getExternalIdSeq,
+  cogniteExternalIdSeqToStringSeq,
+  externalIdsToContainsAny,
+  getExternalIdSeqFromExternalId,
   idsFromWrappedArray,
   pushdownToParameters,
   shouldGetAll,
-  stringToContainsAny,
+  stringSeqToCogniteExternalIdSeq,
   timeRangeFromMinAndMax,
   toPushdownFilterExpression
 }
@@ -75,14 +76,14 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter =
     RelationshipsFilter(
-      sourceExternalIds = getExternalIdSeq(m.get("sourceExternalId")),
-      sourceTypes = getExternalIdSeq(m.get("sourceType")),
-      targetExternalIds = getExternalIdSeq(m.get("targetExternalId")),
-      targetTypes = getExternalIdSeq(m.get("targetType")),
+      sourceExternalIds = getExternalIdSeqFromExternalId(m.get("sourceExternalId")),
+      sourceTypes = getExternalIdSeqFromExternalId(m.get("sourceType")),
+      targetExternalIds = getExternalIdSeqFromExternalId(m.get("targetExternalId")),
+      targetTypes = getExternalIdSeqFromExternalId(m.get("targetType")),
       dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId)),
       startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
-      labels = m.get("labels").map(stringToContainsAny).getOrElse(None),
+      labels = m.get("labels").map(externalIdsToContainsAny).getOrElse(None),
       confidence = confidenceRangeFromLimitStrings(m.get("minConfidence"), m.get("maxConfidence")),
       lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime"))
@@ -119,7 +120,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       startTime = relationship.startTime,
       endTime = relationship.endTime,
       confidence = relationship.confidence,
-      labels = Option(relationship.labels.getOrElse(Seq()).map(_.externalId)),
+      labels = cogniteExternalIdSeqToStringSeq(relationship.labels),
       createdTime = relationship.createdTime,
       lastUpdatedTime = relationship.lastUpdatedTime,
       dataSetId = relationship.dataSetId
@@ -136,9 +137,18 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       startTime = relationship.startTime,
       endTime = relationship.endTime,
       confidence = relationship.confidence,
-      labels = Option(relationship.labels.getOrElse(Seq()).map(CogniteExternalId)),
+      labels = stringSeqToCogniteExternalIdSeq(relationship.labels),
       dataSetId = relationship.dataSetId
     )
+
+  def confidenceRangeFromLimitStrings(
+      minConfidence: Option[String],
+      maxConfidence: Option[String]): Option[ConfidenceRange] =
+    (minConfidence, maxConfidence) match {
+      case (None, None) => None
+      case (_, None) => Some(ConfidenceRange(min = Some(minConfidence.get.toDouble), max = None))
+      case _ => Some(ConfidenceRange(min = None, max = Some(maxConfidence.get.toDouble)))
+    }
 
 }
 
