@@ -4,7 +4,16 @@ import java.time.Instant
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.PushdownUtilities.{confidenceRangeFromMinAndMax, getExternalIdSeq, idsFromWrappedArray, pushdownToParameters, shouldGetAll, stringSeqFromWrappedArray, stringToContainsAny, timeRangeFromMinAndMax, toPushdownFilterExpression}
+import cognite.spark.v1.PushdownUtilities.{
+  confidenceRangeFromMinAndMax,
+  getExternalIdSeq,
+  idsFromWrappedArray,
+  pushdownToParameters,
+  shouldGetAll,
+  stringToContainsAny,
+  timeRangeFromMinAndMax,
+  toPushdownFilterExpression
+}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
@@ -13,21 +22,21 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[Relationship, String](config, "relationships")
+    extends SdkV1Relation[RelationshipsReadSchema, String](config, "relationships")
     with InsertableRelation
     with WritableRelation {
   import CdpConnector._
 
-  override def schema: StructType = structType[Relationship]
+  override def schema: StructType = structType[RelationshipsReadSchema]
 
-  override def toRow(a: Relationship): Row = asRow(a)
+  override def toRow(a: RelationshipsReadSchema): Row = asRow(a)
 
-  override def uniqueId(a: Relationship): String = a.externalId
+  override def uniqueId(a: RelationshipsReadSchema): String = a.externalId
 
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, Relationship]] = {
+      numPartitions: Int): Seq[Stream[IO, RelationshipsReadSchema]] = {
     val fieldNames =
       Array(
         "sourceExternalId",
@@ -49,25 +58,22 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         "maxLastUpdatedTime"
       )
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    println(pushdownFilterExpression)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
-    println(shouldGetAllRows)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-    println(filtersAsMaps)
 
     if (filtersAsMaps.isEmpty || shouldGetAllRows) {
-      Seq(client.relationships.filter(RelationshipsFilter()))
+      Seq(client.relationships.filter(RelationshipsFilter()).map(relationshipToRelationshipReadSchema))
     } else {
       val relationshipsFilterSeq = filtersAsMaps.distinct.map(relationshipsFilterFromMap)
       relationshipsFilterSeq
         .map { f =>
-          client.relationships.filter(f, limit)
+          client.relationships.filter(f, limit).map(relationshipToRelationshipReadSchema)
         }
     }
 
   }
 
-  def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter = {
+  def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter =
     RelationshipsFilter(
       sourceExternalIds = getExternalIdSeq(m.get("sourceExternalId")),
       sourceTypes = getExternalIdSeq(m.get("sourceType")),
@@ -81,10 +87,10 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime"))
     )
-  }
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
-    val relationships = rows.map(fromRow[RelationshipCreate](_))
+    val relationships =
+      rows.map(fromRow[RelationshipsInsertSchema](_)).map(relationshipInsertSchemaToRelationshipCreate)
     client.relationships
       .create(relationships)
       .flatTap(_ => incMetrics(itemsCreated, relationships.length)) *> IO.unit
@@ -102,6 +108,38 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for relationships")
+
+  def relationshipToRelationshipReadSchema(relationship: Relationship): RelationshipsReadSchema =
+    RelationshipsReadSchema(
+      externalId = relationship.externalId,
+      sourceExternalId = relationship.sourceExternalId,
+      sourceType = relationship.sourceType,
+      targetExternalId = relationship.targetExternalId,
+      targetType = relationship.targetType,
+      startTime = relationship.startTime,
+      endTime = relationship.endTime,
+      confidence = relationship.confidence,
+      labels = Option(relationship.labels.getOrElse(Seq()).map(_.externalId)),
+      createdTime = relationship.createdTime,
+      lastUpdatedTime = relationship.lastUpdatedTime,
+      dataSetId = relationship.dataSetId
+    )
+
+  def relationshipInsertSchemaToRelationshipCreate(
+      relationship: RelationshipsInsertSchema): RelationshipCreate =
+    RelationshipCreate(
+      externalId = relationship.externalId,
+      sourceExternalId = relationship.sourceExternalId,
+      sourceType = relationship.sourceType,
+      targetExternalId = relationship.targetExternalId,
+      targetType = relationship.targetType,
+      startTime = relationship.startTime,
+      endTime = relationship.endTime,
+      confidence = relationship.confidence,
+      labels = Option(relationship.labels.getOrElse(Seq()).map(CogniteExternalId)),
+      dataSetId = relationship.dataSetId
+    )
+
 }
 
 object RelationshipsRelation {
@@ -115,27 +153,27 @@ final case class RelationshipsDeleteSchema(
 )
 
 final case class RelationshipsInsertSchema(
-    externalId: Option[String] = None,
+    externalId: String,
     sourceExternalId: String,
     sourceType: String,
     targetExternalId: String,
     targetType: String,
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
-    confidence: Float = 0,
+    confidence: Option[Double] = Some(0.0),
     labels: Option[Seq[String]] = None,
     dataSetId: Option[Long] = None
 )
 
 final case class RelationshipsReadSchema(
-    externalId: Option[String] = None,
+    externalId: String,
     sourceExternalId: String,
     sourceType: String,
     targetExternalId: String,
     targetType: String,
     startTime: Option[Instant] = None,
     endTime: Option[Instant] = None,
-    confidence: Float = 0,
+    confidence: Option[Double] = Some(0.0),
     labels: Option[Seq[String]] = None,
     createdTime: Instant = Instant.ofEpochMilli(0),
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
