@@ -4,16 +4,7 @@ import java.time.Instant
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.PushdownUtilities.{
-  confidenceRangeFromMinAndMax,
-  idsFromWrappedArray,
-  pushdownToParameters,
-  shouldGetAll,
-  stringSeqFromWrappedArray,
-  stringToContainsAny,
-  timeRangeFromMinAndMax,
-  toPushdownFilterExpression
-}
+import cognite.spark.v1.PushdownUtilities.{confidenceRangeFromMinAndMax, getExternalIdSeq, idsFromWrappedArray, pushdownToParameters, shouldGetAll, stringSeqFromWrappedArray, stringToContainsAny, timeRangeFromMinAndMax, toPushdownFilterExpression}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
@@ -48,8 +39,6 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         "maxStartTime",
         "minEndTime",
         "maxEndTime",
-        "minActiveAtTime",
-        "maxActiveAtTime",
         "minConfidence",
         "maxConfidence",
         "dataSetId",
@@ -60,8 +49,11 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         "maxLastUpdatedTime"
       )
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
+    println(pushdownFilterExpression)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
+    println(shouldGetAllRows)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
+    println(filtersAsMaps)
 
     if (filtersAsMaps.isEmpty || shouldGetAllRows) {
       Seq(client.relationships.filter(RelationshipsFilter()))
@@ -75,21 +67,21 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   }
 
-  def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter =
+  def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter = {
     RelationshipsFilter(
-      sourceExternalIds = m.get("sourceExternalIds").map(stringSeqFromWrappedArray),
-      sourceTypes = m.get("sourceTypes").map(stringSeqFromWrappedArray),
-      targetExternalIds = m.get("targetExternalIds").map(stringSeqFromWrappedArray),
-      targetTypes = m.get("targetTypes").map(stringSeqFromWrappedArray),
+      sourceExternalIds = getExternalIdSeq(m.get("sourceExternalId")),
+      sourceTypes = getExternalIdSeq(m.get("sourceType")),
+      targetExternalIds = getExternalIdSeq(m.get("targetExternalId")),
+      targetTypes = getExternalIdSeq(m.get("targetType")),
       dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId)),
       startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
-      activeAtTime = timeRangeFromMinAndMax(m.get("minActiveAtTime"), m.get("maxActiveAtTime")),
-      labels = m.get("labels").map(stringToContainsAny).get,
+      labels = m.get("labels").map(stringToContainsAny).getOrElse(None),
       confidence = confidenceRangeFromMinAndMax(m.get("minConfidence"), m.get("maxConfidence")),
-      createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
-      lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime"))
+      lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
+      createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime"))
     )
+  }
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val relationships = rows.map(fromRow[RelationshipCreate](_))
