@@ -111,6 +111,11 @@ object PushdownUtilities {
       case NoPushdown() => false
     }
 
+  def getExternalIdSeq(externalId: Option[String]): Option[Seq[String]] =
+  externalId match {
+      case None => None
+      case _ => Some(Seq(externalId.get))
+    }
   def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
     wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
 
