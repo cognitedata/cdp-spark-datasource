@@ -112,27 +112,28 @@ object PushdownUtilities {
     }
 
   def getExternalIdSeq(externalId: Option[String]): Option[Seq[String]] =
-  externalId match {
+    externalId match {
       case None => None
       case _ => Some(Seq(externalId.get))
     }
-  def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
-    wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
 
   def eliminateQuotations(externalId: String): String = externalId.slice(1, externalId.length - 1)
 
-  def stringSeqFromWrappedArray(wrappedArray: String): Seq[String] = {
+  def externalIdsSeqFromWrappedArray(wrappedArray: String): Seq[String] = {
     val regQuotes: Regex = "\"(.*?)\"|'(.*?)'".r
     regQuotes.findAllIn(wrappedArray).toArray.map(eliminateQuotations)
   }
 
   def stringToContainsAny(externalIds: String): Option[ContainsAny] = {
-    val externalIdSeq = stringSeqFromWrappedArray(externalIds)
+    val externalIdSeq = externalIdsSeqFromWrappedArray(externalIds)
     externalIdSeq.isEmpty match {
       case true => None
       case _ => Some(ContainsAny(containsAny = externalIdSeq.map(CogniteExternalId)))
     }
   }
+
+  def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
+    wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
 
   def filtersToTimestampLimits(filters: Array[Filter], colName: String): (Instant, Instant) = {
     val timestampLimits = filters.flatMap(getTimestampLimit(_, colName))
