@@ -105,27 +105,13 @@ object PushdownUtilities {
       case NoPushdown() => false
     }
 
-  def getExternalIdSeq(externalId: Option[String]): Option[Seq[String]] =
-    externalId match {
-      case None => None
-      case _ => Some(Seq(externalId.get))
-    }
-
   def externalIdsSeqFromWrappedArray(wrappedArray: String): Seq[String] =
     // We get "WrappedArray(ext1, ext2)" here, so we can remove irrelevant parts of the string
-    // and extract strings from it.
+    // and extract ext1 and ext2 from it -> return Seq('ext1', 'ext2')
     wrappedArray.length match {
-      case 14 => Seq()
+      case 14 => Seq() // "WrappedArray()".length
       case _ => wrappedArray.slice(13, wrappedArray.length - 1).split(',')
     }
-
-  def stringToContainsAny(externalIds: String): Option[ContainsAny] = {
-    val externalIdSeq = externalIdsSeqFromWrappedArray(externalIds)
-    externalIdSeq.isEmpty match {
-      case true => None
-      case _ => Some(ContainsAny(containsAny = externalIdSeq.map(CogniteExternalId)))
-    }
-  }
 
   def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
     wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
@@ -182,14 +168,35 @@ object PushdownUtilities {
   def timeStampStringToMax(value: Any, adjustment: Long): Max =
     Max(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
 
-  def confidenceRangeFromLimitStrings(
-      minConfidence: Option[String],
-      maxConfidence: Option[String]): Option[ConfidenceRange] =
-    (minConfidence, maxConfidence) match {
-      case (None, None) => None
-      case (_, None) => Some(ConfidenceRange(min = Some(minConfidence.get.toDouble), max = None))
-      case _ => Some(ConfidenceRange(min = None, max = Some(maxConfidence.get.toDouble)))
+  def getExternalIdSeqFromExternalId(externalId: Option[String]): Option[Seq[String]] =
+    externalId match {
+      case None => None
+      case _ => Some(Seq(externalId.get))
     }
+
+  def cogniteExternalIdSeqToStringSeq(
+      cogniteExternalIds: Option[Seq[CogniteExternalId]]): Option[Seq[String]] =
+    cogniteExternalIds match {
+      case None => None
+      case Some(Seq()) => None
+      case _ => Some(cogniteExternalIds.get.map(_.externalId))
+    }
+
+  def stringSeqToCogniteExternalIdSeq(
+      strExternalIds: Option[Seq[String]]): Option[Seq[CogniteExternalId]] =
+    strExternalIds match {
+      case None => None
+      case Some(Seq()) => None
+      case _ => Some(strExternalIds.get.map(CogniteExternalId))
+    }
+
+  def externalIdsToContainsAny(externalIds: String): Option[ContainsAny] = {
+    val externalIdSeq = externalIdsSeqFromWrappedArray(externalIds)
+    externalIdSeq.isEmpty match {
+      case true => None
+      case _ => Some(ContainsAny(containsAny = externalIdSeq.map(CogniteExternalId)))
+    }
+  }
 
 }
 
