@@ -2,13 +2,7 @@ package cognite.spark.v1
 
 import java.time.Instant
 
-import com.cognite.sdk.scala.v1.{
-  CogniteExternalId,
-  ConfidenceRange,
-  ContainsAny,
-  LabelContainsFilter,
-  TimeRange
-}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, ConfidenceRange, ContainsAny, TimeRange}
 import com.softwaremill.sttp._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
@@ -117,12 +111,13 @@ object PushdownUtilities {
       case _ => Some(Seq(externalId.get))
     }
 
-  def eliminateQuotations(externalId: String): String = externalId.slice(1, externalId.length - 1)
-
-  def externalIdsSeqFromWrappedArray(wrappedArray: String): Seq[String] = {
-    val regQuotes: Regex = "\"(.*?)\"|'(.*?)'".r
-    regQuotes.findAllIn(wrappedArray).toArray.map(eliminateQuotations)
-  }
+  def externalIdsSeqFromWrappedArray(wrappedArray: String): Seq[String] =
+    // We get "WrappedArray(ext1, ext2)" here, so we can remove irrelevant parts of the string
+    // and extract strings from it.
+    wrappedArray.length match {
+      case 14 => Seq()
+      case _ => wrappedArray.slice(13, wrappedArray.length - 1).split(',')
+    }
 
   def stringToContainsAny(externalIds: String): Option[ContainsAny] = {
     val externalIdSeq = externalIdsSeqFromWrappedArray(externalIds)
@@ -168,22 +163,6 @@ object PushdownUtilities {
         Some(TimeRange(Some(minimumTimeAsInstant), Some(maximumTimeAsInstant)))
     }
 
-  def confidenceRangeFromMinAndMax(
-      minConfidence: Option[String],
-      maxConfidence: Option[String]): Option[ConfidenceRange] =
-    (minConfidence, maxConfidence) match {
-      case (None, None) => None
-      case (_, None) =>
-        Some(ConfidenceRange(min = Some(minConfidence.asInstanceOf[Double])))
-      case (None, _) =>
-        Some(ConfidenceRange(max = Some(maxConfidence.asInstanceOf[Double])))
-      case _ =>
-        Some(
-          ConfidenceRange(
-            min = Some(minConfidence.asInstanceOf[Double]),
-            max = Some(maxConfidence.asInstanceOf[Double])))
-    }
-
   def getTimestampLimit(filter: Filter, colName: String): Seq[Limit] =
     filter match {
       case LessThan(colName, value) => Seq(timeStampStringToMax(value, -1))
@@ -202,6 +181,16 @@ object PushdownUtilities {
 
   def timeStampStringToMax(value: Any, adjustment: Long): Max =
     Max(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
+
+  def confidenceRangeFromLimitStrings(
+      minConfidence: Option[String],
+      maxConfidence: Option[String]): Option[ConfidenceRange] =
+    (minConfidence, maxConfidence) match {
+      case (None, None) => None
+      case (_, None) => Some(ConfidenceRange(min = Some(minConfidence.get.toDouble), max = None))
+      case _ => Some(ConfidenceRange(min = None, max = Some(maxConfidence.get.toDouble)))
+    }
+
 }
 
 trait InsertSchema {
