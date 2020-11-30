@@ -233,6 +233,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |0 as lastUpdatedTime,
                 |null as rootId,
                 |null as aggregates,
+                |null as labels,
                 |$testDataSetId as dataSetId
       """.stripMargin)
         .select(destinationDf.columns.map(col): _*)
@@ -317,6 +318,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 1
@@ -367,6 +369,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
@@ -517,6 +520,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
@@ -579,6 +583,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
@@ -835,6 +840,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
