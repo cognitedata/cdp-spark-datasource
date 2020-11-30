@@ -407,6 +407,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               |lastUpdatedTime,
               |rootId,
               |aggregates,
+              |labels,
               |dataSetId
               |from destinationAssetsUpsertCreated
               |where source = '$source'""".stripMargin)
@@ -425,6 +426,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
