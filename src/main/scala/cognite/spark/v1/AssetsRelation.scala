@@ -51,8 +51,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     AssetsFilter(
       name = m.get("name"),
       source = m.get("source"),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId)),
-      labels = None
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId))
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
@@ -128,8 +127,7 @@ final case class AssetsUpsertSchema(
     metadata: Option[Map[String, String]] = None,
     parentId: Option[Long] = None,
     parentExternalId: Option[String] = None,
-    dataSetId: Option[Long] = None,
-    labels: Option[Seq[CogniteExternalId]] = None
+    dataSetId: Option[Long] = None
 ) extends WithExternalId
     with WithId[Option[Long]]
 
@@ -141,8 +139,7 @@ final case class AssetsInsertSchema(
     externalId: Option[String] = None,
     metadata: Option[Map[String, String]] = None,
     parentExternalId: Option[String] = None,
-    dataSetId: Option[Long] = None,
-    labels: Option[Seq[CogniteExternalId]] = None
+    dataSetId: Option[Long] = None
 )
 
 final case class AssetsReadSchema(
@@ -157,6 +154,5 @@ final case class AssetsReadSchema(
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
     rootId: Long = 0,
     aggregates: Option[Map[String, Long]] = None,
-    dataSetId: Option[Long] = None,
-    labels: Option[Seq[CogniteExternalId]] = None
+    dataSetId: Option[Long] = None
 )
