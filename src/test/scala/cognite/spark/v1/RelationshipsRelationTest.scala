@@ -51,7 +51,8 @@ class RelationshipsRelationTest
           targetType = "asset",
           confidence = Some(0.3),
           startTime = Some(Instant.ofEpochMilli(1601565769000L)),
-          endTime = Some(Instant.ofEpochMilli(1603207369000L))
+          endTime = Some(Instant.ofEpochMilli(1603207369000L)),
+          dataSetId = Some(dataSetId)
         ),
         RelationshipCreate(
           externalId = s"${externalIdPrefix}-2",
@@ -68,8 +69,8 @@ class RelationshipsRelationTest
           sourceType = "asset",
           targetExternalId = assetExtId2,
           targetType = "asset",
-          dataSetId = Some(dataSetId),
-          labels = Some(labelList)
+          labels = Some(labelList),
+          dataSetId = Some(dataSetId)
         ),
         RelationshipCreate(
           externalId = s"${externalIdPrefix}-4",
@@ -78,7 +79,8 @@ class RelationshipsRelationTest
           targetExternalId = assetExtId2,
           targetType = "asset",
           startTime = Some(Instant.ofEpochMilli(1604244169000L)),
-          labels = Some(labelList)
+          labels = Some(labelList),
+          dataSetId = Some(dataSetId)
         )
       )
     )
@@ -166,7 +168,7 @@ class RelationshipsRelationTest
 
   it should "support filtering on null" taggedAs (ReadTest) in {
     val countRows =  spark.sql(s"select * from destinationRelationship where confidence is null and dataSetId = ${dataSetId}").count
-    assert(countRows == 1)
+    assert(countRows == 2)
   }
 
   it should "get exception on invalid query" taggedAs (ReadTest) in {
@@ -218,11 +220,92 @@ class RelationshipsRelationTest
   }
 
   it should "support pushdown filters on sourceType" taggedAs (ReadTest) in {
+    val countRows =  spark.sql(
+      s"""select * from destinationRelationship
+         |where sourceType = 'event' and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countRows == 1)
 
+    val countRowsIn =  spark.sql(
+      s"""select * from destinationRelationship
+         |where sourceType in('asset', 'timeSeries') and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countRowsIn == 3)
   }
+
   it should "support pushdown filters on targetType" taggedAs (ReadTest) in {
-
+    val countRows =  spark.sql(
+      s"""select * from destinationRelationship
+         |where targetType = 'asset' and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countRows == 4)
   }
+
+  it should "handle pushdown filters on startTime" taggedAs (ReadTest) in {
+    val countMaxStartTime =  spark.sql(
+      s"""select * from destinationRelationship
+         |where startTime < cast(from_unixtime(1601565779) as timestamp) and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countMaxStartTime == 1)
+
+    val countMinStartTime =  spark.sql(
+      s"""select * from destinationRelationship
+         |where startTime > cast(from_unixtime(1601565779) as timestamp) and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countMinStartTime == 1)
+
+    val countNullStartTime =  spark.sql(
+      s"""select * from destinationRelationship
+         |where startTime is null and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countNullStartTime == 2)
+  }
+
+  it should "handle pushdown filters on endTime" taggedAs (ReadTest) in {
+    val countMaxStartTime =  spark.sql(
+      s"""select * from destinationRelationship
+         |where endTime <= cast(from_unixtime(1603207379) as timestamp) and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countMaxStartTime == 1)
+
+    val countMinStartTime =  spark.sql(
+      s"""select * from destinationRelationship
+         |where endTime > cast(from_unixtime(1603207379) as timestamp) and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countMinStartTime == 0)
+
+    val countNullStartTime =  spark.sql(
+      s"""select * from destinationRelationship
+         |where endTime is null and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countNullStartTime == 3)
+  }
+
+  it should "handle pushdown filters on confidence" taggedAs (ReadTest) in {
+    val countMaxConfidence =  spark.sql(
+      s"""select * from destinationRelationship
+         |where confidence < 0.4 and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countMaxConfidence == 1)
+
+    val countMinConfidence =  spark.sql(
+      s"""select * from destinationRelationship
+         |where confidence > 0.4 and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countMinConfidence == 1)
+
+    val countNullConfidence =  spark.sql(
+      s"""select * from destinationRelationship
+         |where confidence is null and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countNullConfidence == 2)
+  }
+
+  it should "handle pushdown filters on labels" taggedAs (ReadTest) in {
+    val countLabelsEqual =  spark.sql(
+      s"""select * from destinationRelationship
+         |where labels = array('scala-sdk-relationships-test-label1') and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countLabelsEqual == 2)
+
+    val countLabelsIn =  spark.sql(
+      s"""select * from destinationRelationship
+         |where labels in(array('scala-sdk-relationships-test-label1'), NULL, array('madeUpLabel', 'someMore')) and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countLabelsIn == 2)
+
+    val countLabelsNull =  spark.sql(
+      s"""select * from destinationRelationship
+         |where labels is null and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countLabelsNull == 2)
+  }
+
 
   it should "be able to delete relationships" taggedAs (WriteTest) in {
     spark

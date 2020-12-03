@@ -145,7 +145,7 @@ object PushdownUtilities {
         val maximumTimeAsInstant =
           maxTime
             .map(java.sql.Timestamp.valueOf(_).toInstant)
-            .getOrElse(java.time.Instant.ofEpochMilli(Long.MaxValue))
+            .getOrElse(java.time.Instant.ofEpochMilli(32503680000000L)) // 01.01.3000 (hardcoded for relationships instead of Long.MaxValue)
         Some(TimeRange(Some(minimumTimeAsInstant), Some(maximumTimeAsInstant)))
     }
 
