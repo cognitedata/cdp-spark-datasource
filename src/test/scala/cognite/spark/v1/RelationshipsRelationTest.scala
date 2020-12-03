@@ -241,12 +241,14 @@ class RelationshipsRelationTest
   it should "handle pushdown filters on startTime" taggedAs (ReadTest) in {
     val countMaxStartTime =  spark.sql(
       s"""select * from destinationRelationship
-         |where startTime < cast(from_unixtime(1601565779) as timestamp) and dataSetId = ${dataSetId}""".stripMargin).count
+         |where startTime < cast(from_unixtime(1601565779) as timestamp)
+         |and dataSetId = ${dataSetId}""".stripMargin).count
     assert(countMaxStartTime == 1)
 
     val countMinStartTime =  spark.sql(
       s"""select * from destinationRelationship
-         |where startTime > cast(from_unixtime(1601565779) as timestamp) and dataSetId = ${dataSetId}""".stripMargin).count
+         |where startTime > cast(from_unixtime(1601565779) as timestamp)
+         |and dataSetId = ${dataSetId}""".stripMargin).count
     assert(countMinStartTime == 1)
 
     val countNullStartTime =  spark.sql(
@@ -297,7 +299,8 @@ class RelationshipsRelationTest
 
     val countLabelsIn =  spark.sql(
       s"""select * from destinationRelationship
-         |where labels in(array('scala-sdk-relationships-test-label1'), NULL, array('madeUpLabel', 'someMore')) and dataSetId = ${dataSetId}""".stripMargin).count
+         |where labels in(array('scala-sdk-relationships-test-label1'), NULL, array('madeUpLabel', 'someMore'))
+         | and dataSetId = ${dataSetId}""".stripMargin).count
     assert(countLabelsIn == 2)
 
     val countLabelsNull =  spark.sql(
@@ -306,6 +309,19 @@ class RelationshipsRelationTest
     assert(countLabelsNull == 2)
   }
 
+  it should "handle and, or and in() in one query" taggedAs (ReadTest) in {
+    val countRows =  spark.sql(
+      s"""select * from destinationRelationship
+         |where (sourceType = 'asset' or labels in(array('scala-sdk-relationships-test-label1'), NULL))
+         | and dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countRows == 4)
+
+    val countRows2 =  spark.sql(
+      s"""select * from destinationRelationship
+         |where (sourceType = 'asset' or labels is not null or startTime > cast(from_unixtime(1603207369) as timestamp))
+         |and endTime is null and  dataSetId = ${dataSetId}""".stripMargin).count
+    assert(countRows2 == 3)
+  }
 
   it should "be able to delete relationships" taggedAs (WriteTest) in {
     spark
