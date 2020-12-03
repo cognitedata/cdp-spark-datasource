@@ -318,7 +318,7 @@ class RelationshipsRelationTest
 
     val countRows2 =  spark.sql(
       s"""select * from destinationRelationship
-         |where (sourceType = 'asset' or labels is not null or startTime > cast(from_unixtime(1603207369) as timestamp))
+         |where (sourceType = 'asset' or size(labels) != 0 or startTime > cast(from_unixtime(1603207369) as timestamp))
          |and endTime is null and  dataSetId = ${dataSetId}""".stripMargin).count
     assert(countRows2 == 3)
   }
