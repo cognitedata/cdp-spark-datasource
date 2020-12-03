@@ -81,12 +81,18 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       targetExternalIds = getExternalIdSeqFromExternalId(m.get("targetExternalId")),
       targetTypes = getExternalIdSeqFromExternalId(m.get("targetType")),
       dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId)),
-      startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
-      endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
+      startTime =
+        timeRangeFromMinAndMax(minTime = m.get("minStartTime"), maxTime = m.get("maxStartTime")),
+      endTime = timeRangeFromMinAndMax(minTime = m.get("minEndTime"), maxTime = m.get("maxEndTime")),
       labels = m.get("labels").map(externalIdsToContainsAny).getOrElse(None),
-      confidence = confidenceRangeFromLimitStrings(m.get("minConfidence"), m.get("maxConfidence")),
-      lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
-      createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime"))
+      confidence = confidenceRangeFromLimitStrings(
+        minConfidence = m.get("minConfidence"),
+        maxConfidence = m.get("maxConfidence")),
+      lastUpdatedTime = timeRangeFromMinAndMax(
+        minTime = m.get("minLastUpdatedTime"),
+        maxTime = m.get("maxLastUpdatedTime")),
+      createdTime =
+        timeRangeFromMinAndMax(minTime = m.get("minCreatedTime"), maxTime = m.get("maxCreatedTime"))
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
