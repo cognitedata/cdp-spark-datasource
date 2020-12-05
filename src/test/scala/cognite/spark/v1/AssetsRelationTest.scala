@@ -73,6 +73,30 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(assetsRead == 1)
   }
 
+  it should "support pushdown filters on labels" taggedAs ReadTest in {
+    writeClient.assets.deleteByExternalId("asset_with_label", ignoreUnknownIds = true)
+    spark
+      .sql(
+        s"""select 'asset_with_label' as externalId,
+           |'asset_with_label' as name,
+           |'assets_label_test' as source,
+           |array('scala-sdk-relationships-test-label1') as labels""".stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("type", "assets")
+      .option("apiKey", writeApiKey)
+      .save()
+
+    val assetWithLabelCount = spark.sql("select * from destinationAssets where labels = array('scala-sdk-relationships-test-label1')").count
+    assert(assetWithLabelCount == 1)
+
+    val assetWithLabelInCount = spark.sql("select * from destinationAssets where labels in(array('scala-sdk-relationships-test-label1'), NULL)").count
+    assert(assetWithLabelInCount == 1)
+
+    val assetWithWrongLabelCount = spark.sql("select * from destinationAssets where labels in(array('nonExistingLabel'), NULL)").count
+    assert(assetWithWrongLabelCount == 0)
+  }
+
   it should "support pushdown filters with nulls" taggedAs ReadTest in {
     val metricsPrefix = s"pushdown.assets.name.null.${shortRandomString()}"
     val df = spark.read
@@ -233,7 +257,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |0 as lastUpdatedTime,
                 |null as rootId,
                 |null as aggregates,
-                |null as labels,
+                |array('scala-sdk-relationships-test-label1') as labels,
                 |$testDataSetId as dataSetId
       """.stripMargin)
         .select(destinationDf.columns.map(col): _*)
@@ -319,7 +343,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
-                |null as labels,
+                |labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 1
@@ -849,7 +873,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
-                |null as labels,
+                |array('scala-sdk-relationships-test-label1') as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
