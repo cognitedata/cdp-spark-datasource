@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
@@ -73,27 +74,38 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(assetsRead == 1)
   }
 
-  it should "support pushdown filters on labels" taggedAs ReadTest in {
-    writeClient.assets.deleteByExternalId("asset_with_label", ignoreUnknownIds = true)
-    spark
+  it should "support pushdown filters on labels" taggedAs WriteTest in {
+    val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
+    writeClient.assets.deleteByExternalId("asset_with_label_spark_datasource", ignoreUnknownIds = true)
+    val waitForCreate = spark
       .sql(
-        s"""select 'asset_with_label' as externalId,
-           |'asset_with_label' as name,
-           |'assets_label_test' as source,
-           |array('scala-sdk-relationships-test-label1') as labels""".stripMargin)
+        s"""select 'asset_with_label_spark_datasource' as externalId,
+           |'asset_with_label_spark_datasource' as name,
+           |'${assetsTestSource}' as source,
+           |$testDataSetId as dataSetId,
+           |array('scala-sdk-relationships-test-label2') as labels""".stripMargin)
       .write
       .format("cognite.spark.v1")
       .option("type", "assets")
       .option("apiKey", writeApiKey)
       .save()
 
-    val assetWithLabelCount = spark.sql("select * from destinationAssets where labels = array('scala-sdk-relationships-test-label1')").count
+    val assetWithLabelCount = spark.sql(
+      s"""select * from destinationAssets
+         |where labels = array('scala-sdk-relationships-test-label2')
+         |and source='${assetsTestSource}'""".stripMargin).count
     assert(assetWithLabelCount == 1)
 
-    val assetWithLabelInCount = spark.sql("select * from destinationAssets where labels in(array('scala-sdk-relationships-test-label1'), NULL)").count
+    val assetWithLabelInCount = spark.sql(
+      s"""select * from destinationAssets
+         |where labels in(array('scala-sdk-relationships-test-label2'), NULL)
+         |and source='${assetsTestSource}'""".stripMargin).count
     assert(assetWithLabelInCount == 1)
 
-    val assetWithWrongLabelCount = spark.sql("select * from destinationAssets where labels in(array('nonExistingLabel'), NULL)").count
+    val assetWithWrongLabelCount = spark.sql(
+      s"""select * from destinationAssets
+         |where labels in(array('nonExistingLabel'), NULL)
+         |and source='${assetsTestSource}'""".stripMargin).count
     assert(assetWithWrongLabelCount == 0)
   }
 
