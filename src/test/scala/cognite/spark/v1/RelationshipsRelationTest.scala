@@ -3,7 +3,7 @@ package cognite.spark.v1
 import java.time.Instant
 
 import cognite.spark.v1.SparkSchemaHelper.fromRow
-import com.cognite.sdk.scala.v1.{CogniteExternalId, RelationshipCreate, RelationshipsFilter}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, RelationshipCreate}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Inspectors, Matchers}
@@ -22,13 +22,12 @@ class RelationshipsRelationTest
   destinationDf.createOrReplaceTempView("destinationRelationship")
 
   private def getBaseReader(
-     collectMetrics: Boolean = false,
      metricsPrefix: String = ""): DataFrame = {
     spark.read
       .format("cognite.spark.v1")
       .option("type", "relationships")
       .option("apiKey", writeApiKey)
-      .option("collectMetrics", collectMetrics)
+      .option("collectMetrics", true)
       .option("metricsPrefix", metricsPrefix)
       .load()
   }
@@ -41,7 +40,7 @@ class RelationshipsRelationTest
   val externalIdPrefix = s"sparktest-relationship-${shortRandomString()}"
 
   def createResources(externalIdPrefix: String): Unit = {
-    val createdRelationships = writeClient.relationships.create(
+    writeClient.relationships.create(
       Seq(
         RelationshipCreate(
           externalId = s"${externalIdPrefix}-1",
@@ -159,7 +158,7 @@ class RelationshipsRelationTest
 
   it should "support pushdown filters with nulls" taggedAs (ReadTest) in {
     val metricsPrefix = s"pushdown.filter.nulls.${shortRandomString()}"
-    val df = getBaseReader(true, metricsPrefix)
+    val df = getBaseReader(metricsPrefix)
       .where(s"sourceExternalId in('${assetExtId2}', NULL)")
     assert(df.count == 1)
     val relationshipsRead = getNumberOfRowsRead(metricsPrefix, "relationships")
@@ -173,7 +172,7 @@ class RelationshipsRelationTest
 
   it should "get exception on invalid query" taggedAs (ReadTest) in {
     val metricsPrefix = s"pushdown.filter.invalid.${shortRandomString()}"
-    val df = getBaseReader(true, metricsPrefix)
+    val df = getBaseReader(metricsPrefix)
       .where("dataSetId = 0")
 
     val thrown = the[SparkException] thrownBy df.count()
@@ -182,7 +181,7 @@ class RelationshipsRelationTest
 
   it should "apply a single pushdown filter" taggedAs (ReadTest) in {
     val metricsPrefix = s"single.pushdown.filter.${shortRandomString()}"
-    val df = getBaseReader(true, metricsPrefix)
+    val df = getBaseReader(metricsPrefix)
       .where(s"sourceExternalId = '${assetExtId2}'")
 
     assert(df.count == 1)

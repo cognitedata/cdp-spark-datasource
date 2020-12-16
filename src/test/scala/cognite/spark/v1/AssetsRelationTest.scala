@@ -90,23 +90,23 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("apiKey", writeApiKey)
       .save()
 
-    val assetWithLabelCount = spark.sql(
-      s"""select * from destinationAssets
-         |where labels = array('scala-sdk-relationships-test-label2')
-         |and source='${assetsTestSource}'""".stripMargin).count
-    assert(assetWithLabelCount == 1)
+    retryWhile[Array[Row]](
+      spark.sql(s"""select * from destinationAssets
+                   |where labels = array('scala-sdk-relationships-test-label2')
+                   |and source='${assetsTestSource}'""".stripMargin).collect,
+      df => df.length != 1)
 
-    val assetWithLabelInCount = spark.sql(
-      s"""select * from destinationAssets
-         |where labels in(array('scala-sdk-relationships-test-label2'), NULL)
-         |and source='${assetsTestSource}'""".stripMargin).count
-    assert(assetWithLabelInCount == 1)
+    retryWhile[Array[Row]](
+      spark.sql(s"""select * from destinationAssets
+                    |where labels in(array('scala-sdk-relationships-test-label2'), NULL)
+                    |and source='${assetsTestSource}'""".stripMargin).collect,
+      df => df.length != 1)
 
-    val assetWithWrongLabelCount = spark.sql(
-      s"""select * from destinationAssets
-         |where labels in(array('nonExistingLabel'), NULL)
-         |and source='${assetsTestSource}'""".stripMargin).count
-    assert(assetWithWrongLabelCount == 0)
+    retryWhile[Array[Row]](
+      spark.sql(s"""select * from destinationAssets
+                |where labels in(array('nonExistingLabel'), NULL)
+                |and source='${assetsTestSource}'""".stripMargin).collect,
+      df => df.length != 0)
   }
 
   it should "support pushdown filters with nulls" taggedAs ReadTest in {
