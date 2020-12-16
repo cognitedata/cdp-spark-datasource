@@ -42,7 +42,6 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       Array(
         "sourceExternalId",
         "sourceType",
-        "subtype",
         "targetExternalId",
         "targetType",
         "minStartTime",
