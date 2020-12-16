@@ -1,3 +1,42 @@
+# 1.4.12
+
+## Enhancements
+* Spark 3 is now supported!
+* `labels` have been added as a new resource type. See [Labels](README.md#labels)
+for more information.
+
+# 1.4.11
+
+## Fixes
+
+* Fix a bug where certain operations would throw a `MatchError` instead of the intended exception type.
+
+# 1.4.10
+
+## Enhancements
+* Improved error message when attempting to use the asset hierarchy builder to move an asset between different root assets.
+
+# 1.4.9
+
+## Enhancements
+* Upgrade to Cognite Scala SDK 1.4.1
+* Throw a more helpful error message when attempting to use sequences that contain columns without an externalId.
+
+# 1.4.8
+
+## Fixes
+* Attempting an update without specifying either `id` or `externalId` will now result in a `CdfSparkException` instead of an `IllegalArgumentException`.
+
+# 1.4.7
+
+## Enhancements
+* The `X-CDP-App` and `X-CDP-ClientTag` headers can now be configured using the `applicationName` and `clientTag` options.
+  See the [Common Options](README.md#common-options) section for more info.
+
+## Fixes
+* Nested rows/structs are now correctly encoded as plain JSON objects when writing to RAW tables.
+  These were previously encoded according to the internal structure of `org.apache.spark.sql.Row`.
+
 # 1.4.6
 
 ## Fixes

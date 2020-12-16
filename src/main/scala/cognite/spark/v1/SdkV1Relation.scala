@@ -13,6 +13,7 @@ import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import CdpConnector._
 import io.circe.JsonObject
+import org.log4s._
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends CdfRelation(config, shortName)
@@ -20,6 +21,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     with TableScan
     with PrunedFilteredScan {
 
+  val logger = getLogger
   def schema: StructType
 
   def toRow(a: A): Row
@@ -79,9 +81,10 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resource: T,
       isUpdateEmpty: U => Boolean
   )(implicit transform: Transformer[P, U]): IO[Unit] = {
-    require(
-      updates.forall(u => u.id.isDefined || u.externalId.isDefined),
-      "Update requires an id or externalId to be set for each row.")
+    if (!updates.forall(u => u.id.isDefined || u.externalId.isDefined)) {
+      throw new CdfSparkException("Update requires an id or externalId to be set for each row.")
+    }
+
     val (rawUpdatesById, updatesByExternalId) = updates.partition(u => u.id.exists(_ > 0))
     val updatesById =
       rawUpdatesById
@@ -121,7 +124,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     }
   }
 
-  // scalastyle:off no.whitespace.after.left.bracket
+  // scalastyle:off no.whitespace.after.left.bracket method.length
   def createOrUpdateByExternalId[
       R <: WithExternalId,
       U <: WithSetExternalId,
@@ -131,9 +134,12 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resourceCreates: Seq[C],
       resource: T,
       doUpsert: Boolean)(implicit transform: Transformer[C, U]): IO[Unit] = {
+    logger.info("I'm in createOrUpdateByExternalId now")
     val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
       p => p.externalId.exists(id => existingExternalIds.contains(id))
     )
+    logger.info(
+      s"resourceToCreate: ${resourcesToCreate.length}, resourcesToUpdate: ${resourcesToUpdate.length}")
     val create = if (resourcesToCreate.isEmpty) {
       IO.unit
     } else {
@@ -152,6 +158,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
                 assertNoLegacyNameConflicts(duplicated, requestId)
                 duplicated.flatMap(j => j("externalId")).map(_.asString.get)
             }
+            logger.info(s"Duplicates found: ${moreExistingExternalIds.length}")
             createOrUpdateByExternalId[R, U, C, T](
               existingExternalIds ++ moreExistingExternalIds.toSet,
               resourcesToCreate,
@@ -212,7 +219,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         case (Some(_), items) => items.take(1)
       }
       .toSeq
-
+    logger.info(
+      s"itemsToCreateWithoutDuplicatesByExternalId: ${itemsToCreateWithoutDuplicatesByExternalId.length}")
     val update = updateByIdOrExternalId[U, Up, Re, R](
       itemsToUpdate,
       resource,

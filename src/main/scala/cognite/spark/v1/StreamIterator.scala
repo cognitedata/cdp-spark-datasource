@@ -3,6 +3,7 @@ package cognite.spark.v1
 import java.util.concurrent.{ArrayBlockingQueue, Executors}
 
 import cats.effect.{Concurrent, IO}
+import com.google.common.util.concurrent.ThreadFactoryBuilder
 import fs2.{Chunk, Stream}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -10,12 +11,17 @@ import scala.concurrent.{ExecutionContext, Future}
 object StreamIterator {
   type EitherQueue[A] = ArrayBlockingQueue[Either[Throwable, Chunk[A]]]
 
+  private val threadFactory = new ThreadFactoryBuilder()
+    .setNameFormat("CDF-Spark-Drain-%d")
+    .setDaemon(true)
+    .build()
+
   def apply[A](stream: Stream[IO, A], queueBufferSize: Int, processChunk: Option[Chunk[A] => Chunk[A]])(
       implicit concurrent: Concurrent[IO]): Iterator[A] = {
     // This pool will be used for draining the queue
     // Draining needs to have a separate pool to continuously drain the queue
     // while another thread pool fills the queue with data from CDF
-    val drainPool = Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors())
+    val drainPool = Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors(), threadFactory)
     val drainContext = ExecutionContext.fromExecutor(drainPool)
 
     // Local testing show this queue never holds more than 5 chunks since CDF is the bottleneck.

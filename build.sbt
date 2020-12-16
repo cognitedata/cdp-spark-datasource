@@ -1,9 +1,12 @@
 import com.typesafe.sbt.packager.docker.{Cmd, ExecCmd}
 
-val scala212 = "2.12.11"
+val scala212 = "2.12.12"
 val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
-val sparkVersion = "2.4.5"
+val sparkVersion: Option[(Long, Long)] => String = {
+  case Some((2, 11)) => "2.4.7"
+  case _ => "3.0.1"
+}
 val circeVersion: Option[(Long, Long)] => String = {
   case Some((2, 11)) => "0.12.0-M3"
   case _ => "0.13.0"
@@ -11,7 +14,7 @@ val circeVersion: Option[(Long, Long)] => String = {
 val sttpVersion = "1.7.2"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.3.6"
+val cogniteSdkVersion = "1.4.2"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
@@ -23,7 +26,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.6",
+  version := "1.4.13-SNAPSHOT",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -77,8 +80,8 @@ lazy val macroSub = (project in file("macro"))
     publish := {},
     publishLocal := {},
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
-      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
+      "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
+      "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
     )
   )
@@ -92,9 +95,21 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     scalaVersion := scala212,
     libraryDependencies ++= Seq(
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
+        // scala-collection-compat is used in TransformerF, but we don't use that,
+        // and this dependency causes issues with Livy.
+        exclude("org.scala-lang.modules", "scala-collection-compat_2.11")
+        exclude("org.scala-lang.modules", "scala-collection-compat_2.12"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
       "com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion
+        // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
+        exclude("io.netty", "netty-buffer")
+        exclude("io.netty", "netty-codec-http")
+        exclude("io.netty", "netty-codec-http")
+        exclude("io.netty", "netty-codec-socks")
+        exclude("io.netty", "netty-handler")
+        exclude("io.netty", "netty-handler-proxy")
+        exclude("io.netty", "netty-resolver-dns")
         exclude("io.netty", "netty-transport-native-epoll")
         exclude("com.softwaremill.sttp", "circe_2.11")
         exclude("com.softwaremill.sttp", "circe_2.12")
@@ -111,10 +126,11 @@ lazy val library = (project in file("."))
         exclude("org.typelevel", "cats-core_2.12"),
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.3.24.v20180605" % Provided,
-      "org.apache.spark" %% "spark-core" % sparkVersion % Provided
+      "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
-        exclude("org.glassfish.hk2.external", "javax.inject")
+      "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
+        exclude("org.glassfish.hk2.external", "javax.inject"),
+      "org.log4s" %% "log4s" % log4sVersion
     ),
     mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
     mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,
@@ -139,9 +155,9 @@ lazy val performancebench = (project in file("performancebench"))
       "io.prometheus" % "simpleclient_httpserver" % prometheusVersion,
       "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
       "org.log4s" %% "log4s" % log4sVersion,
-      "org.apache.spark" %% "spark-core" % sparkVersion
+      "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion
+      "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
         exclude("org.glassfish.hk2.external", "javax.inject")
     ),
     dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",

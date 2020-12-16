@@ -84,13 +84,13 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
   it should "construct Row from optional map type" in {
     val x = TestTypeOption(None, None, None, None, Some(Map("foo" -> "row", "bar" -> "a")), None, None, None)
     asRow(x) should
-      be(Row(None, None, None, None, Some(Map("foo" -> "row", "bar" -> "a")), None, None, None))
+      be(Row(null, null, null, null, Map("foo" -> "row", "bar" -> "a"), null, null, null))
   }
 
   it should "construct Row from optional seq type" in {
     val x = TestTypeOption(None, None, None, None, None, None, Some(Seq(None, Some(10L))), None)
     asRow(x) should
-      be(Row(None, None, None, None, None, None, Some(Seq(None, Some(10L))), None))
+      be(Row(null, null, null, null, null, null, Seq(None, Some(10L)), null))
   }
 
   it should "ignore null in map" in {

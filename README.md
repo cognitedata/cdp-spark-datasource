@@ -1,6 +1,8 @@
+![Maven Central](https://img.shields.io/maven-central/v/com.cognite.spark.datasource/cdf-spark-datasource_2.12?label=version)
 # Spark Data Source
 
-The Cognite Spark Data Source lets you use [Spark](https://spark.apache.org/) to read and write data from and to [Cognite Data Fusion](https://docs.cognite.com/dev/) (CDF).
+The [Cognite Spark Data Source](https://github.com/cognitedata/cdp-spark-datasource)
+lets you use [Spark](https://spark.apache.org/) to read and write data from and to [Cognite Data Fusion](https://docs.cognite.com/dev/) (CDF).
 
 Reads and writes are done in parallel using asynchronous calls.
 
@@ -9,6 +11,7 @@ The instructions below explain how to read from, and write to, the different res
 **In this article**
 
 - [Spark Data Source](#spark-data-source)
+  - [Quickstart](#quickstart)
   - [Read and write to CDF](#read-and-write-to-cdf)
     - [Common options](#common-options)
     - [Read data](#read-data)
@@ -27,7 +30,10 @@ The instructions below explain how to read from, and write to, the different res
     - [Data points schema](#data-points-schema)
     - [String data points schema](#string-data-points-schema)
     - [Time series schema](#time-series-schema)
-    - [Asset Hierarchy](#asset-hierarchy)
+    - [Asset Hierarchy schema](#asset-hierarchy-schema)
+    - [Sequences schema](#sequences-schema)
+    - [Sequence rows schema](#sequence-rows-schema)
+    - [Labels schema](#labels-schema)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -37,11 +43,34 @@ The instructions below explain how to read from, and write to, the different res
     - [Events](#events)
     - [Files metadata](#files-metadata)
     - [3D models and revisions metadata](#3d-models-and-revisions-metadata)
+    - [Sequences](#sequences)
+    - [Sequence rows](#sequence-rows)
     - [RAW tables](#raw-tables)
+    - [Labels](#labels)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
     - [Run the tests](#run-the-tests)
   - [Run the project locally with spark-shell](#run-the-project-locally-with-spark-shell)
+
+## Quickstart
+
+Add the Spark data source to your cluster. We recommend using the [latest version](https://mvnrepository.com/artifact/com.cognite.spark.datasource/cdf-spark-datasource).
+If using `spark-submit` or `spark-shell`, use `--packages com.cognite.spark.datasource:cdf-spark-datasource_2.11:<latest-release>` (change to 2.12 if you're using Scala 2.12).
+If you're using Databricks, add the Maven coordinate `com.cognite.spark.datasource:cdf-spark-datasource_2.11:<latest-release>` as a library to your cluster.
+
+You can also use `spark.jars.packages` to include this data source using the same coordinate.
+See the [official documentation](https://spark.apache.org/docs/latest/configuration.html) for more information.
+Note that you should *not* use `--jars` or `spark.jars`, as those options will not download and add the dependencies of our Spark data source.
+
+Then, try it out!
+
+```python
+df = spark.read.format("cognite.spark.v1")
+  .option("apiKey", "your-api-key")
+  .option("type", "assets")
+  .load()
+df.count
+```
 
 ## Read and write to CDF
 
@@ -100,7 +129,7 @@ You can write to CDF with:
 To write to a resource using the insert into pattern, you'll need to register a DataFrame that was read from
 the resource, as a temporary view. You also need write access to the project and resources. In the examples below, replace  `myApiKey` with your own API key.
 
-Your schema must match that of the target exactly. To ensure this, copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`. See the [time series example below](#time-series). 
+Your schema must match that of the target exactly. To ensure this, copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`. See the [time series example below](#time-series).
 
 `.insertInto()` does upserts (updates existing rows and inserts new rows) for events, assets, and time series.
 `.insertInto()` upserts use `externalId` (ignoring `id`), attempting to create a row with `externalId`
@@ -174,7 +203,7 @@ To delete a range between two points, set `exclusiveBegin` to the first point an
 this will not delete the boundaries, but everything between them.
 
 ## Asset hierarchy builder (beta)
-Note: The asset hierarchy builder is currently in beta, and has not been sufficiently tested to be used 
+Note: The asset hierarchy builder is currently in beta, and has not been sufficiently tested to be used
 on production data.
 
 The `.option("type", "assethierarchy")` lets you write new asset hierarchies, or update existing ones,
@@ -402,7 +431,7 @@ The schemas mirror the CDF API as closely as possible.
 | `dataSetId`          | `long`                | Yes       |
 
 
-### Asset Hierarchy
+### Asset Hierarchy schema
 | Column name          | Type                  |  Nullable |
 | ---------------------| ----------------------| --------- |
 | `externalId`         | `string`              | No        |
@@ -413,7 +442,7 @@ The schemas mirror the CDF API as closely as possible.
 | `metadata`           | `map(string, string)` | Yes       |
 | `dataSetId`          | `long`                | Yes       |
 
-### Sequences
+### Sequences schema
 | Column name          | Type                  |  Nullable |
 | ---------------------| ----------------------| --------- |
 | `externalId`         | `string`              | Yes        |
@@ -436,9 +465,17 @@ The `columns` field should be an array of `SequenceColumn`s, which are rows with
 | `dataSetId`          | `long`                | Yes       |
 | `columns`        | `array(SequenceColumn)`              | No       |
 
-### Sequence rows
+### Sequence rows schema
 
 The schema of `sequencerows` relation matches the sequence that is specified in `id` or `externalId` option. Apart from the sequence columns, there is a non-nullable `rowNumber` column of type `long`
+
+### Labels schema
+| Column name   | Type     |  Nullable |
+| --------------| ---------| --------- |
+| `externalId`  | `string` | No        |
+| `name`        | `string` | No        |
+| `description` | `string` | Yes       |
+
 
 ## Examples by resource types
 
@@ -450,7 +487,7 @@ Learn more about assets [here](https://doc.cognitedata.com/dev/concepts/resource
 // Scala Example. See Python example below.
 
 // Read assets from your project into a DataFrame
-val df = spark.sqlContext.read.format("cognite.spark.v1")
+val df = spark.read.format("cognite.spark.v1")
  .option("apiKey", "myApiKey")
  .option("type", "assets")
  .load()
@@ -463,7 +500,7 @@ df.createTempView("assets")
 val assetColumns = Seq("externalId", "name", "parentId", "description", "metadata", "source",
 "id", "createdTime", "lastupdatedTime")
 val someAsset = Seq(
-("Some external ID", "asset name", "This is another asset", Map("sourceSystem"->"MySparkJob"), "some source", 
+("Some external ID", "asset name", "This is another asset", Map("sourceSystem"->"MySparkJob"), "some source",
 99L, 0L, 0L))
 
 val someAssetDf = spark
@@ -765,8 +802,8 @@ df.createTempView("files")
 
 // Insert the files in your own project using .save()
 spark.sql(s"""
-      |select 'example-externalId' as externalId, 
-      |'example-name' as name, 
+      |select 'example-externalId' as externalId,
+      |'example-name' as name,
       |'text' as source""")
   .write.format("cognite.spark.v1")
   .option("apiKey", "myApiKey")
@@ -969,6 +1006,38 @@ df \
     .save()
 ```
 
+### Labels
+
+Learn more about labels [here](https://docs.cognite.com/dev/concepts/resource_types/labels.html)
+
+Note that labels can not be updated, but can only be read, created, or deleted.
+If you want to change a label, you can first delete it, and then recreate it
+with the same external id, but the new label will have a different Cognite
+internal id.
+
+```python
+# Python Example
+
+# Read labels
+df = spark.read.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "labels") \
+    .load()
+
+df.show()
+
+
+# Write labels
+spark.sql(
+    "select 'label-externalId' as externalId," \
+    " 'new-label' as name," \
+    " 'text' as description") \
+  .write.format("cognite.spark.v1") \
+  .option("apiKey", "myApiKey") \
+  .option("type", "labels") \
+  .save()
+```
+
 ### RAW tables
 
 Learn more about RAW tables [here](https://doc.cognitedata.com/api/v1/#tag/Raw).
@@ -1066,7 +1135,7 @@ To **skip the read/write tests in assembly**, add `test in assembly := {}` to bu
 
 ## Run the project locally with spark-shell
 
-To download the spark data source, simply add the maven coordinates for the package using the
+To download the spark data source, simply add the Maven coordinates for the package using the
 `--packages` flag.
 
 Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following commands (replace \<release\> with the release you'd like, for example 1.2.0):
@@ -1074,7 +1143,7 @@ Get an API-key for the Open Industrial Data project at https://openindustrialdat
 ``` cmd
 $> spark-shell --packages com.cognite.spark.datasource:cdf-spark-datasource_2.11:<latest-release>
 scala> val apiKey="secret-key-you-have"
-scala> val df = spark.sqlContext.read.format("cognite.spark.v1")
+scala> val df = spark.read.format("cognite.spark.v1")
   .option("apiKey", apiKey)
   .option("batchSize", "1000")
   .option("limitPerPartition", "1000")

@@ -20,17 +20,46 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   val sequenceInfo: Sequence = (sequenceId match {
     case CogniteExternalId(externalId) => client.sequences.retrieveByExternalId(externalId)
     case CogniteInternalId(id) => client.sequences.retrieveById(id)
-  }).handleError {
+  }).adaptError {
       case e: CdpApiException =>
-        throw new CdfSparkException(s"Could not resolve schema of sequence $sequenceId.", e)
+        new CdfSparkException(s"Could not resolve schema of sequence $sequenceId.", e)
     }
     .unsafeRunSync()
+
+  private val columnsWithoutExternalId =
+    sequenceInfo.columns.zipWithIndex
+      .filter { case (column, _) => column.externalId.isEmpty }
+
+  if (columnsWithoutExternalId.nonEmpty) {
+    val formattedId = sequenceId match {
+      case CogniteExternalId(externalId) => s"with externalId '$externalId'"
+      case CogniteInternalId(id) => s"with id $id"
+    }
+    val commaSeparatedInvalidColumns =
+      columnsWithoutExternalId
+        .map {
+          case (column, index) =>
+            Seq(
+              Some(s"index=$index"),
+              Some(s"type=${column.valueType}"),
+              column.name.map(x => s"name=$x"),
+              column.description.map(x => s"description=$x")
+            ).flatten.mkString("(", ", ", ")")
+        }
+        .mkString(", ")
+
+    throw new CdfSparkException(
+      s"Sequence $formattedId contains columns without an externalId. " +
+        "This is no longer supported, and is now required when creating new sequences. " +
+        s"Invalid columns: [$commaSeparatedInvalidColumns]")
+  }
+
   val columnTypes: Map[String, String] =
-    sequenceInfo.columns.map(c => c.externalId -> c.valueType).toList.toMap
+    sequenceInfo.columns.map(c => c.externalId.get -> c.valueType).toList.toMap
 
   override val schema: StructType = new StructType(
     Array(StructField("rowNumber", DataTypes.LongType, nullable = false)) ++ sequenceInfo.columns
-      .map(col => StructField(col.externalId, sequenceTypeToSparkType(col.valueType)))
+      .map(col => StructField(col.externalId.get, sequenceTypeToSparkType(col.valueType)))
       .toList
   )
 
@@ -48,6 +77,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
               .find(_.valueType != "STRING")
               .getOrElse(sequenceInfo.columns.head)
               .externalId
+              .get
           )
         } else {
           expectedColumns

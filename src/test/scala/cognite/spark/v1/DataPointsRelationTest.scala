@@ -378,7 +378,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     // Check if post worked
     val dataPointsAfterPost = retryWhile[Array[Row]](
       spark
-        .sql(s"""select * from destinationDatapoints where id = '$id'""")
+        .sql(s"""select * from destinationDatapointsInsert where id = '$id'""")
         .collect,
       df => df.length < 1)
     assert(dataPointsAfterPost.length == 1)
@@ -402,7 +402,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     // Check if post worked
     val dataPointsAfterPostByExternalId = retryWhile[Array[Row]](
       spark
-        .sql(s"""select * from destinationDatapoints where id = '$id'""")
+        .sql(s"""select * from destinationDatapointsInsert where id = '$id'""")
         .collect,
       df => df.length < 2)
     assert(dataPointsAfterPostByExternalId.length == 2)

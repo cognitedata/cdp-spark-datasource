@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
@@ -71,6 +72,41 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
     assert(assetsRead == 1)
+  }
+
+  it should "support pushdown filters on labels" taggedAs WriteTest in {
+    val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
+    writeClient.assets.deleteByExternalId("asset_with_label_spark_datasource", ignoreUnknownIds = true)
+    val waitForCreate = spark
+      .sql(
+        s"""select 'asset_with_label_spark_datasource' as externalId,
+           |'asset_with_label_spark_datasource' as name,
+           |'${assetsTestSource}' as source,
+           |$testDataSetId as dataSetId,
+           |array('scala-sdk-relationships-test-label2') as labels""".stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("type", "assets")
+      .option("apiKey", writeApiKey)
+      .save()
+
+    val assetWithLabelCount = spark.sql(
+      s"""select * from destinationAssets
+         |where labels = array('scala-sdk-relationships-test-label2')
+         |and source='${assetsTestSource}'""".stripMargin).count
+    assert(assetWithLabelCount == 1)
+
+    val assetWithLabelInCount = spark.sql(
+      s"""select * from destinationAssets
+         |where labels in(array('scala-sdk-relationships-test-label2'), NULL)
+         |and source='${assetsTestSource}'""".stripMargin).count
+    assert(assetWithLabelInCount == 1)
+
+    val assetWithWrongLabelCount = spark.sql(
+      s"""select * from destinationAssets
+         |where labels in(array('nonExistingLabel'), NULL)
+         |and source='${assetsTestSource}'""".stripMargin).count
+    assert(assetWithWrongLabelCount == 0)
   }
 
   it should "support pushdown filters with nulls" taggedAs ReadTest in {
@@ -233,6 +269,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |0 as lastUpdatedTime,
                 |null as rootId,
                 |null as aggregates,
+                |array('scala-sdk-relationships-test-label1') as labels,
                 |$testDataSetId as dataSetId
       """.stripMargin)
         .select(destinationDf.columns.map(col): _*)
@@ -261,11 +298,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "handle null values in metadata when inserting in savemode" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     val metricsPrefix = s"assets.create.savemode.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "assets")
-      .load()
     val externalId = shortRandomString()
 
     try {
@@ -302,6 +334,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "be possible to copy assets from one tenant to another" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-copy-${shortRandomString()}"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .load()
+    df.createOrReplaceTempView("assets")
     try {
       spark
         .sql(s"""
@@ -317,6 +355,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 1
@@ -367,13 +406,14 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
-        .write
-        .insertInto("destinationAssetsUpsert")
+      .select(destinationDf.columns.map(col): _*)
+      .write
+      .insertInto("destinationAssetsUpsert")
 
       val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
       assert(assetsCreated == 100)
@@ -384,51 +424,59 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         df => df.length != 100)
       assert(assetsFromTestDf.length == 100)
 
-
       // Upsert assets
+      // To avoid issues with eventual consistency, we create a new view for the assets we just created an will update.
       spark
+        .createDataFrame(spark.sparkContext.parallelize(assetsFromTestDf), destinationDf.schema)
+        .createOrReplaceTempView("destinationAssetsUpsertCreated")
+      val dfToUpdate = spark
+      .sql(s"""
+              |select externalId,
+              |name,
+              |parentId,
+              |parentExternalId,
+              |'bar' as description,
+              |map("foo", null, "bar", "test") as metadata,
+              |source,
+              |id,
+              |createdTime,
+              |lastUpdatedTime,
+              |rootId,
+              |aggregates,
+              |labels,
+              |dataSetId
+              |from destinationAssetsUpsertCreated
+              |where source = '$source'""".stripMargin)
+
+      val dfToInsert = spark
         .sql(s"""
-                |select externalId,
+                |select null as externalId,
                 |name,
                 |null as parentId,
                 |null as parentExternalId,
                 |'bar' as description,
-                |map("foo", null, "bar", "test") as metadata,
+                |metadata,
                 |'$source' as source,
-                |id,
+                |null as id,
                 |createdTime,
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
-                |from destinationAssetsUpsert
-                |where source = '$source'""".stripMargin)
-        .union(spark
-          .sql(s"""
-                  |select concat(externalId, '${randomSuffix}_create') as externalId,
-                  |name,
-                  |null as parentId,
-                  |null as parentExternalId,
-                  |'bar' as description,
-                  |metadata,
-                  |'$source' as source,
-                  |null as id,
-                  |createdTime,
-                  |lastUpdatedTime,
-                  |0 as rootId,
-                  |null as aggregates,
-                  |dataSetId
-                  |from sourceAssets
-                  |limit 100
-     """.stripMargin))
+                |from sourceAssets
+                |limit 100
+      """.stripMargin)
+
+      dfToUpdate.union(dfToInsert)
         .select(destinationDf.columns.map(col): _*)
         .write
         .insertInto("destinationAssetsUpsert")
 
-      val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
-      assert(assetsCreatedAfterUpsert == 200)
       val assetsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "assets")
       assert(assetsUpdatedAfterUpsert == 100)
+      val assetsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "assets")
+      assert(assetsCreatedAfterUpsert == 200)
 
       // Check if upsert worked
       val descriptionsAfterUpsert = retryWhile[Array[Row]](
@@ -517,6 +565,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
@@ -579,6 +628,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |null as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
@@ -835,6 +885,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
+                |array('scala-sdk-relationships-test-label1') as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100

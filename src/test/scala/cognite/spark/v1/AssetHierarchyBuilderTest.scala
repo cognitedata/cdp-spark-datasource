@@ -3,10 +3,15 @@ package cognite.spark.v1
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.AssetCreate
-import org.apache.spark.sql.Row
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.apache.spark.sql.{DataFrame, Row}
+import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
-class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+class AssetHierarchyBuilderTest
+    extends FlatSpec
+    with Matchers
+    with OptionValues
+    with ParallelTestExecution
+    with SparkTest {
   import spark.implicits._
 
   private val assetsSourceDf = spark.read
@@ -877,6 +882,168 @@ class AssetHierarchyBuilderTest extends FlatSpec with Matchers with ParallelTest
 
     getNumberOfRowsUpdated(metricsPrefix, "assethierarchy") shouldBe 4
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe (sourceTree.length + 1)
+
+    cleanDB(key)
+  }
+
+  it should "allow moving an asset to become a child of its former grandparent" in {
+    val key = shortRandomString()
+    val initialStateMetricsPrefix = "insert.assetHierarchy.moveToGrandma.initialState"
+    val afterMoveMetricsPrefix = "insert.assetHierarchy.moveToGrandma.afterMove"
+
+    //    grandma
+    //       |
+    //      dad
+    //       |
+    //     child
+
+    val sourceTree = Seq(
+      AssetCreate("grandma", externalId = Some("grandma"), parentExternalId = Some("")),
+      AssetCreate("dad", externalId = Some("dad"), parentExternalId = Some("grandma")),
+      AssetCreate("child", externalId = Some("child"), parentExternalId = Some("dad"))
+    )
+
+    ingest(key, sourceTree, metricsPrefix = Some(initialStateMetricsPrefix))
+
+    getNumberOfRowsCreated(initialStateMetricsPrefix, "assethierarchy") shouldBe sourceTree.length
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      rows => rows.length != sourceTree.length
+    )
+
+    //      grandma
+    //     /      \
+    //   dad    child
+
+    ingest(
+      key,
+      Seq(AssetCreate("child-updated", externalId = Some("child"), parentExternalId = Some("grandma"))),
+      metricsPrefix = Some(afterMoveMetricsPrefix)
+    )
+
+    val result = retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$testName$key' and name = 'child-updated'").collect,
+      rows => rows.length < 1
+    )
+
+    val row = result.head
+    row.getAs[String]("parentExternalId") shouldBe s"grandma$key"
+
+    getNumberOfRowsUpdated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 1
+    getNumberOfRowsCreated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 0
+
+    cleanDB(key)
+  }
+
+  it should "allow moving an asset to become a child of one of its former siblings" in {
+    val key = shortRandomString()
+    val initialStateMetricsPrefix = "insert.assetHierarchy.moveToSibling.initialState"
+    val afterMoveMetricsPrefix = "insert.assetHierarchy.moveToSibling.afterMove"
+
+    //          root
+    //         /    \
+    //     child1  child2
+
+    val sourceTree = Seq(
+      AssetCreate("root", externalId = Some("root"), parentExternalId = Some("")),
+      AssetCreate("child1", externalId = Some("child1"), parentExternalId = Some("root")),
+      AssetCreate("child2", externalId = Some("child2"), parentExternalId = Some("root"))
+    )
+
+    ingest(key, sourceTree, metricsPrefix = Some(initialStateMetricsPrefix))
+
+    getNumberOfRowsCreated(initialStateMetricsPrefix, "assethierarchy") shouldBe sourceTree.length
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      rows => rows.length != sourceTree.length
+    )
+
+    //      root
+    //       |
+    //     child1
+    //       |
+    //     child2
+
+    ingest(
+      key,
+      Seq(AssetCreate("child2-updated", externalId = Some("child2"), parentExternalId = Some("child1"))),
+      metricsPrefix = Some(afterMoveMetricsPrefix)
+    )
+
+    val result = retryWhile[Array[Row]](
+      spark
+        .sql(s"select * from assets where source = '$testName$key' and name = 'child2-updated'")
+        .collect,
+      rows => rows.length < 1
+    )
+
+    val row = result.head
+    row.getAs[String]("parentExternalId") shouldBe s"child1$key"
+
+    getNumberOfRowsUpdated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 1
+    getNumberOfRowsCreated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 0
+
+    cleanDB(key)
+  }
+
+  it should "throw a proper error when attempting to move an asset to a different root" in {
+    val key = shortRandomString()
+    val metricsPrefix = "insert.assetHierarchy.errorOnDifferentRoot"
+
+    //     root1       root2
+    //       |           |
+    //    subtree1    subtree2
+    //       |
+    //     child
+
+    val sourceTree = Seq(
+      AssetCreate("root1", externalId = Some("root1"), parentExternalId = Some("")),
+      AssetCreate("subtree1", externalId = Some("subtree1"), parentExternalId = Some("root1")),
+
+      AssetCreate("root2", externalId = Some("root2"), parentExternalId = Some("")),
+      AssetCreate("subtree2", externalId = Some("subtree2"), parentExternalId = Some("root2")),
+
+      AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree1"))
+    )
+
+    ingest(key, sourceTree, metricsPrefix = Some(metricsPrefix))
+
+    getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe sourceTree.length
+
+    val assetRows = retryWhile[DataFrame](
+      spark.sql(s"select * from assets where source = '$testName$key'"),
+      rows => rows.count != sourceTree.length
+    )
+
+    val apiException = the[CdpApiException] thrownBy {
+      // Attempting to move the subtree root to a different root asset will result in a proper error from CDF.
+      // The "child" asset is the subtree root in this case.
+      ingest(key, Seq(
+        AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree2"))
+      ))
+    }
+
+    apiException.message should startWith("Asset must stay within same asset hierarchy root")
+
+    val rootChangeException = the[InvalidRootChangeException] thrownBy {
+      // However, when attempting to move any of the subtree's children to a different root, we fail to find the asset,
+      // and assume it doesn't exist. So we attempt to create it, which results in a duplicated error, which we catch
+      // and convert to a more helpful error message.
+      ingest(key, Seq(
+        AssetCreate("subtree2", externalId = Some("subtree2"), parentExternalId = Some("root2")),
+        AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree2"))
+      ))
+    }
+
+    val newRootAssetId = assetRows.where(s"externalId = 'root2$key'").head.getAs[Long]("id")
+
+    rootChangeException.getMessage shouldBe (
+      s"Attempted to move some assets to a different root asset with id $newRootAssetId. " +
+        "If this is intended, the assets must be manually deleted and re-created under the new root asset. " +
+        s"The following assets were attempted to be moved: (externalId=child$key)."
+    )
 
     cleanDB(key)
   }
