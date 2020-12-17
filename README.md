@@ -1058,10 +1058,10 @@ spark.sql(
 
 Learn more about relationships [here](https://docs.cognite.com/api/v1/#tag/Relationships)
 
-Note that relationships can not be updated, but can only be read, created, or deleted.
+Note that relationships can't be updated, but can only be read, created, or deleted.
 If you want to change a relationship, you can first delete it, and then recreate it
-with the same external id. externalId, sourceExternalId, sourceType, targetExternalId, 
-targetType can not be null.
+with the same external id. `externalId`, `sourceExternalId`, `sourceType`, `targetExternalId`, 
+`targetType` can't be null.
 
 ```scala
 // Scala Example
