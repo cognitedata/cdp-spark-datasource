@@ -8,15 +8,16 @@ class FilesMetadataGenerator:
     def __init__(cls):
         cls.apiKey = os.environ["TEST_API_KEY_WRITE"]
         cls.project = os.environ["PROJECT"]
-        cls.client = CogniteClient(cls.apiKey, cls.project)
+        cls.clientName = os.environ["COGNITE_CLIENT_NAME"]
+        cls.baseUrl = os.environ["COGNITE_BASE_URL"]
+        cls.client = CogniteClient(api_key=cls.apiKey, project=cls.project, client_name=cls.clientName, base_url=cls.baseUrl)
 
-    def upload_file(self, file_name):
-        upload_link = self.client.files.upload_file(
-            file_name,
-            file_path = "testfile.txt",
-            directory = "testdata",
+    def upload_file(self, name):
+        upload_link = self.client.files.upload(
+            name= name,
+            path = "testfile.txt",
             source = "spark datasource upsert test",
-            content_type = "text/plain"
+            mime_type = "text/plain"
         )
 
 fmg = FilesMetadataGenerator()
