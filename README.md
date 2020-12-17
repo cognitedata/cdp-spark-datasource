@@ -34,6 +34,7 @@ The instructions below explain how to read from, and write to, the different res
     - [Sequences schema](#sequences-schema)
     - [Sequence rows schema](#sequence-rows-schema)
     - [Labels schema](#labels-schema)
+    - [Relationships schema](#relationships-schema)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -47,6 +48,7 @@ The instructions below explain how to read from, and write to, the different res
     - [Sequence rows](#sequence-rows)
     - [RAW tables](#raw-tables)
     - [Labels](#labels)
+    - [Relationships](#relationships)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
     - [Run the tests](#run-the-tests)
@@ -476,6 +478,19 @@ The schema of `sequencerows` relation matches the sequence that is specified in 
 | `name`        | `string` | No        |
 | `description` | `string` | Yes       |
 
+### Relationships schema
+| Column name        | Type            | Nullable |
+|--------------------|-----------------|----------|
+| `externalId`       | `string`        | No       |
+| `sourceExternalId` | `string`        | No       |
+| `sourceType`       | `string`        | No       |
+| `targetExternalId` | `string`        | No       |
+| `targetType`       | `string`        | No       |
+| `startTime`        | `timestamp`     | Yes      |
+| `endTime`          | `timestamp`     | Yes      |
+| `confidence`       | `double`        | Yes      |
+| `labels`           | `array(string)` | Yes      |
+| `dataSetId`        | `long`          | Yes      |
 
 ## Examples by resource types
 
@@ -1037,6 +1052,87 @@ spark.sql(
   .option("type", "labels") \
   .save()
 ```
+
+
+### Relationships
+
+Learn more about relationships [here](https://docs.cognite.com/api/v1/#tag/Relationships)
+
+Note that relationships can't be updated, but can only be read, created, or deleted.
+If you want to change a relationship, you can first delete it, and then recreate it
+with the same external id. `externalId`, `sourceExternalId`, `sourceType`, `targetExternalId`, 
+`targetType` can't be null.
+
+```scala
+// Scala Example
+
+// Read relationships
+df = spark.read
+  .format("cognite.spark.v1")
+  .option("apiKey", myApiKey)
+  .option("type", "relationships")
+  .load()
+
+df.show()
+
+
+// Write relationships
+spark
+  .sql(
+    s"""select 'relationships_external_id' as externalId,
+       |'my_asset1' as sourceExternalId,
+       |'asset' as sourceType,
+       |'my_asset2' as targetExternalId,
+       |'asset' as targetType,
+       | array('scala-sdk-relationships-test-label1') as labels,
+       | 0.7 as confidence,
+       | cast(from_unixtime(0) as timestamp) as startTime,
+       | cast(from_unixtime(1) as timestamp) as endTime""".stripMargin)
+  .write
+  .format("cognite.spark.v1")
+  .option("type", "relationships")
+  .option("apiKey", myApiKey)
+  .save() 
+```
+
+```python
+# Python Example
+
+df = spark.read.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "relationships") \
+    .load()
+
+df.show()
+
+
+# Get a reference to the relationships in your project
+myProjectDf = spark.read.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "relationships") \
+    .load()
+myProjectDf.createTempView("relationships")
+
+
+# Insert the relationships in your own project using .save()
+spark.sql(
+    "select 'relationships_external_id' as externalId, \
+      'my_asset1' as sourceExternalId, \
+      'asset' as sourceType, \
+      'my_asset2' as targetExternalId, \
+      'asset' as targetType, \
+      array('scala-sdk-relationships-test-label1') as labels, \
+      0.7 as confidence, \
+      cast(from_unixtime(0) as timestamp) as startTime, \
+      cast(from_unixtime(1) as timestamp) as endTime") \
+  .write.format("cognite.spark.v1") \
+  .option("apiKey", "myApiKey") \
+  .option("type", "relationships") \
+  .option("onconflict", "abort") \
+  .save()
+
+```
+
 
 ### RAW tables
 

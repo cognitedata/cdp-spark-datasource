@@ -1,3 +1,10 @@
+# 1.4.13
+
+## Enhancements
+* `relationships` have been added as a new resource type. See [relationships](README.md#relationships)
+for more information.
+* The `labels` field is now available for assets on read and insert operations.
+
 # 1.4.12
 
 ## Enhancements
