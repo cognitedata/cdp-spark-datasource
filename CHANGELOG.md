@@ -1,3 +1,9 @@
+# 1.4.14
+
+## Enhancements
+* Set max retry delay on requests to 30 seconds by default, configurable via
+`maxRetryDelay` option.
+
 # 1.4.13
 
 ## Enhancements

@@ -25,6 +25,7 @@ final case class RelationConfig(
     limitPerPartition: Option[Int],
     partitions: Int,
     maxRetries: Int,
+    maxRetryDelaySeconds: Int,
     collectMetrics: Boolean,
     metricsPrefix: String,
     baseUrl: String,
@@ -271,6 +272,8 @@ object DefaultSource {
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
+    val maxRetryDelaySeconds = toPositiveInt(parameters, "maxRetryDelay")
+      .getOrElse(Constants.DefaultMaxRetryDelaySeconds)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
@@ -284,7 +287,9 @@ object DefaultSource {
       .orElse(bearerToken)
       .getOrElse(sys.error("Either apiKey or bearerToken is required."))
     val projectName = parameters
-      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, maxRetries, baseUrl))
+      .getOrElse(
+        "project",
+        DefaultSource.getProjectFromAuth(auth, maxRetries, maxRetryDelaySeconds, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
@@ -330,6 +335,7 @@ object DefaultSource {
       limitPerPartition,
       partitions,
       maxRetries,
+      maxRetryDelaySeconds,
       collectMetrics,
       metricsPrefix,
       baseUrl,
@@ -342,8 +348,14 @@ object DefaultSource {
       legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
     )
   }
-  def getProjectFromAuth(auth: Auth, maxRetries: Int, baseUrl: String): String = {
-    implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries)
+
+  def getProjectFromAuth(
+      auth: Auth,
+      maxRetries: Int,
+      maxRetryDelaySeconds: Int,
+      baseUrl: String): String = {
+    implicit val backend: SttpBackend[IO, Nothing] =
+      CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
     val getProject = for {
       client <- GenericClient.forAuth[IO](Constants.SparkDatasourceVersion, auth, baseUrl)
     } yield client.projectName
