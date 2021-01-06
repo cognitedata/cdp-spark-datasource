@@ -1,7 +1,7 @@
 package cognite.spark.v1.udf
 
 import cats.effect.IO
-import cognite.spark.v1.Constants.{DefaultBaseUrl, DefaultMaxRetries}
+import cognite.spark.v1.Constants.{DefaultBaseUrl, DefaultMaxRetries, DefaultMaxRetryDelaySeconds}
 import cognite.spark.v1.udf.CogniteUdfs.{
   callFunctionAndGetResult,
   callFunctionByExternalId,
@@ -51,7 +51,7 @@ class CogniteUdfs(sparkSession: SparkSession) {
 
 object CogniteUdfs {
   @transient implicit lazy val backend: SttpBackend[IO, Nothing] =
-    CdpConnector.retryingSttpBackend(DefaultMaxRetries)
+    CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)
 
   private def getFunctionResult(
       client: GenericClient[IO],
