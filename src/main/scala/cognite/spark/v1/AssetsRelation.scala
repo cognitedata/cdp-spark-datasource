@@ -10,6 +10,7 @@ import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1.resources.Assets
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
+import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
@@ -115,6 +116,43 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: AssetsReadSchema): Long = a.id
 
+  implicit val upsertToUpdateTransformer: Transformer[AssetsUpsertSchema, AssetUpdate] =
+    Transformer
+      .define[AssetsUpsertSchema, AssetUpdate]
+      .withFieldComputed(
+        _.labels,
+        u =>
+          u.labels match {
+            case None => None
+            case _ => Some(LabelsOnUpdate(add = Some(u.labels.get.map(CogniteExternalId))))
+        })
+      .buildTransformer
+
+  implicit val createToUpdateTransformer: Transformer[AssetCreate, AssetUpdate] =
+    Transformer
+      .define[AssetCreate, AssetUpdate]
+      .withFieldComputed(
+        _.labels,
+        u =>
+          u.labels match {
+            case None => None
+            case _ => Some(LabelsOnUpdate(add = u.labels))
+        })
+      .buildTransformer
+
+  implicit val upsertToCreateTransformer: Transformer[AssetsUpsertSchema, AssetCreate] =
+    Transformer
+      .define[AssetsUpsertSchema, AssetCreate]
+      .withFieldComputed(
+        _.labels,
+        u =>
+          u.labels match {
+            case None => None
+            case _ => Some(u.labels.get.map(CogniteExternalId))
+          })
+      .withFieldComputed(_.name, u => u.name.get)
+      .buildTransformer
+
   def toAssetReadSchema(a: Asset): AssetsReadSchema =
     AssetsReadSchema(
       externalId = a.externalId,
@@ -155,7 +193,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       externalId = a.externalId,
       metadata = a.metadata,
       parentExternalId = a.parentExternalId,
-      dataSetId = a.dataSetId
+      dataSetId = a.dataSetId,
+      labels = stringSeqToCogniteExternalIdSeq(a.labels)
     )
 }
 
@@ -174,7 +213,8 @@ final case class AssetsUpsertSchema(
     metadata: Option[Map[String, String]] = None,
     parentId: Option[Long] = None,
     parentExternalId: Option[String] = None,
-    dataSetId: Option[Long] = None
+    dataSetId: Option[Long] = None,
+    labels: Option[Seq[String]] = None
 ) extends WithExternalId
     with WithId[Option[Long]]
 
