@@ -94,9 +94,14 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     genericUpsert[Asset, AssetsUpsertSchema, AssetCreate, AssetUpdate, Assets[IO]](
       itemsToUpdate,
-      itemsToUpdateOrCreate.map(_.into[AssetCreate].withFieldComputed(_.name, _.name.get).transform),
+      itemsToUpdateOrCreate.map(
+        _.into[AssetCreate]
+          .withFieldComputed(_.name, _.name.get)
+          .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
+          .transform),
       isUpdateEmpty,
-      client.assets)
+      client.assets
+    )
   }
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
@@ -124,7 +129,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         u =>
           u.labels match {
             case None => None
-            case _ => Some(LabelsOnUpdate(add = Some(u.labels.get.map(CogniteExternalId))))
+            case _ => Some(LabelsOnUpdate(add = stringSeqToCogniteExternalIdSeq(u.labels)))
         })
       .buildTransformer
 
@@ -138,19 +143,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
             case None => None
             case _ => Some(LabelsOnUpdate(add = u.labels))
         })
-      .buildTransformer
-
-  implicit val upsertToCreateTransformer: Transformer[AssetsUpsertSchema, AssetCreate] =
-    Transformer
-      .define[AssetsUpsertSchema, AssetCreate]
-      .withFieldComputed(
-        _.labels,
-        u =>
-          u.labels match {
-            case None => None
-            case _ => Some(u.labels.get.map(CogniteExternalId))
-          })
-      .withFieldComputed(_.name, u => u.name.get)
       .buildTransformer
 
   def toAssetReadSchema(a: Asset): AssetsReadSchema =
