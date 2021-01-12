@@ -121,30 +121,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: AssetsReadSchema): Long = a.id
 
-  implicit val upsertToUpdateTransformer: Transformer[AssetsUpsertSchema, AssetUpdate] =
-    Transformer
-      .define[AssetsUpsertSchema, AssetUpdate]
-      .withFieldComputed(
-        _.labels,
-        u =>
-          u.labels match {
-            case None => None
-            case _ => Some(LabelsOnUpdate(add = stringSeqToCogniteExternalIdSeq(u.labels)))
-        })
-      .buildTransformer
-
-  implicit val createToUpdateTransformer: Transformer[AssetCreate, AssetUpdate] =
-    Transformer
-      .define[AssetCreate, AssetUpdate]
-      .withFieldComputed(
-        _.labels,
-        u =>
-          u.labels match {
-            case None => None
-            case _ => Some(LabelsOnUpdate(add = u.labels))
-        })
-      .buildTransformer
-
   def toAssetReadSchema(a: Asset): AssetsReadSchema =
     AssetsReadSchema(
       externalId = a.externalId,
