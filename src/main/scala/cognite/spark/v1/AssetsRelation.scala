@@ -6,11 +6,10 @@ import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper._
-import com.cognite.sdk.scala.common.{WithExternalId, WithId}
+import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1.resources.Assets
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
-import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
@@ -45,7 +44,13 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
     streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_)).map(toAssetReadSchema))
+      .map(
+        s =>
+          s.reduce(_.merge(_))
+            .map(
+              _.into[AssetsReadSchema]
+                .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
+                .transform))
   }
 
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
@@ -58,7 +63,10 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val assetsInsertions = rows.map(fromRow[AssetsInsertSchema](_))
-    val assets = assetsInsertions.map(toAssetCreate)
+    val assets = assetsInsertions.map(
+      _.into[AssetCreate]
+        .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
+        .transform)
     client.assets
       .create(assets)
       .flatTap(_ => incMetrics(itemsCreated, assets.size)) *> IO.unit
@@ -106,7 +114,11 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val assetsUpserts = rows.map(fromRow[AssetsUpsertSchema](_))
-    val assets = assetsUpserts.map(assetUpsertSchemaToAssetCreate)
+    val assets = assetsUpserts.map(
+      _.into[AssetCreate]
+        .withFieldComputed(_.name, u => u.name.get)
+        .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
+        .transform)
     createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, Assets[IO]](
       Set.empty,
       assets,
@@ -120,50 +132,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def toRow(a: AssetsReadSchema): Row = asRow(a)
 
   override def uniqueId(a: AssetsReadSchema): Long = a.id
-
-  def toAssetReadSchema(a: Asset): AssetsReadSchema =
-    AssetsReadSchema(
-      externalId = a.externalId,
-      name = a.name,
-      parentId = a.parentId,
-      parentExternalId = a.parentExternalId,
-      description = a.description,
-      metadata = a.metadata,
-      source = a.source,
-      id = a.id,
-      createdTime = a.createdTime,
-      lastUpdatedTime = a.lastUpdatedTime,
-      rootId = a.rootId,
-      aggregates = a.aggregates,
-      dataSetId = a.dataSetId,
-      labels = cogniteExternalIdSeqToStringSeq(a.labels)
-    )
-
-  def toAssetCreate(a: AssetsInsertSchema): AssetCreate =
-    AssetCreate(
-      name = a.name,
-      parentId = a.parentId,
-      description = a.description,
-      source = a.source,
-      externalId = a.externalId,
-      metadata = a.metadata,
-      parentExternalId = a.parentExternalId,
-      dataSetId = a.dataSetId,
-      labels = stringSeqToCogniteExternalIdSeq(a.labels)
-    )
-
-  def assetUpsertSchemaToAssetCreate(a: AssetsUpsertSchema): AssetCreate =
-    AssetCreate(
-      name = a.name.get,
-      parentId = a.parentId,
-      description = a.description,
-      source = a.source,
-      externalId = a.externalId,
-      metadata = a.metadata,
-      parentExternalId = a.parentExternalId,
-      dataSetId = a.dataSetId,
-      labels = stringSeqToCogniteExternalIdSeq(a.labels)
-    )
 }
 
 object AssetsRelation extends UpsertSchema {
