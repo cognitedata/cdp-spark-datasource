@@ -21,7 +21,7 @@ object StreamIterator {
     // This pool will be used for draining the queue
     // Draining needs to have a separate pool to continuously drain the queue
     // while another thread pool fills the queue with data from CDF
-    val drainPool = Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors(), threadFactory)
+    val drainPool = Executors.newFixedThreadPool(1, threadFactory)
     val drainContext = ExecutionContext.fromExecutor(drainPool)
 
     // Local testing show this queue never holds more than 5 chunks since CDF is the bottleneck.
@@ -31,18 +31,26 @@ object StreamIterator {
 
     val putOnQueueStream =
       enqueueStreamResults(stream, queue, queueBufferSize, processChunk)
-        .handleErrorWith(e => Stream.eval(IO(queue.put(Left(e)))) ++ Stream.raiseError[IO](e))
+        .handleErrorWith(e =>
+          Stream.eval(IO(queue.put(Left(e)))) ++ Stream.eval(IO {
+            if (!drainPool.isShutdown) {
+              drainPool.shutdownNow()
+            }
+          }))
 
     // Continuously read the stream data into the queue on a separate thread pool
     val streamsToQueue: Future[Unit] = Future {
-      putOnQueueStream.compile.drain.unsafeRunSync()
+      try {
+        putOnQueueStream.compile.drain.unsafeRunSync()
+      } catch {
+        case _: InterruptedException =>
+        // Ignore this, as it means there was an exception thrown while draining the
+        // stream which caused our thread pool to be shutdown, and an exception thrown
+        // in iteratorFromQueue will abort this job.
+      }
     }(drainContext)
 
-    queueIterator(queue, streamsToQueue) {
-      if (!drainPool.isShutdown) {
-        drainPool.shutdown()
-      }
-    }
+    queueIterator(queue, streamsToQueue)
   }
 
   // We avoid draining all streams from CDF completely and then building the Iterator,
@@ -60,7 +68,7 @@ object StreamIterator {
       }
     }
 
-  def queueIterator[A](queue: EitherQueue[A], f: Future[Unit])(doCleanup: => Unit): Iterator[A] =
+  def queueIterator[A](queue: EitherQueue[A], f: Future[Unit]): Iterator[A] =
     new Iterator[A] {
       var nextItems: Iterator[A] = Iterator.empty
 
@@ -75,9 +83,6 @@ object StreamIterator {
             Thread.sleep(1)
             nextItems = iteratorFromQueue()
           }
-          if (f.isCompleted) {
-            doCleanup
-          }
           nextItems.hasNext
         }
 
@@ -87,9 +92,7 @@ object StreamIterator {
         Option(queue.poll())
           .map {
             case Right(value) => value.iterator
-            case Left(err) =>
-              doCleanup
-              throw err
+            case Left(err) => throw err
           }
           .getOrElse(Iterator.empty)
     }
