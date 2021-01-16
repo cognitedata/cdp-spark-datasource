@@ -1,3 +1,9 @@
+# 1.4.15
+
+## Enhancements
+* The `labels` field is now available for assets on update and upsert operations.
+* The `labels` field is now available for asset hierarchy builder on upsert operation.
+
 # 1.4.14
 
 ## Enhancements
