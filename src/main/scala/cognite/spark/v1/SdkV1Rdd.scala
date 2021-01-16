@@ -18,7 +18,7 @@ final case class CdfPartition(index: Int) extends Partition
 final case class SdkV1Rdd[A, I](
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
-    toRow: A => Row,
+    toRow: (A, Option[Int]) => Row,
     uniqueId: A => I,
     getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
@@ -53,6 +53,6 @@ final case class SdkV1Rdd[A, I](
       }
     }
     StreamIterator(currentStreamsAsSingleStream, config.parallelismPerPartition * 2, Some(processChunk))
-      .map(toRow)
+      .map(toRow(_, Some(split.index)))
   }
 }

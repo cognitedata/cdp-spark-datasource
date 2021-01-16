@@ -98,9 +98,14 @@ class RawTableRelation(
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
       configWithLimit,
-      (item: RawRow) => {
+      (item: RawRow, partitionIndex: Option[Int]) => {
         if (collectMetrics) {
+          @transient lazy val partitionSize =
+            MetricsSource.getOrCreateCounter(
+              config.metricsPrefix,
+              s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
           rowsRead.inc()
+          partitionSize.inc()
         }
         Row(
           item.key,
