@@ -66,7 +66,8 @@ class RawTableRelation(
           inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
           Some(1),
           RawRowFilter(),
-          collectSchemaInferenceMetrics)
+          collectSchemaInferenceMetrics,
+          false)
 
       import sqlContext.sparkSession.implicits._
       val df = sqlContext.createDataFrame(rdd, defaultSchema)
@@ -91,7 +92,8 @@ class RawTableRelation(
       limit: Option[Int],
       numPartitions: Option[Int],
       filter: RawRowFilter,
-      collectMetrics: Boolean = config.collectMetrics): RDD[Row] = {
+      collectMetrics: Boolean = config.collectMetrics,
+      collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
     val configWithLimit =
       config.copy(limitPerPartition = limit, partitions = numPartitions.getOrElse(config.partitions))
 
@@ -102,7 +104,7 @@ class RawTableRelation(
         if (collectMetrics) {
           rowsRead.inc()
         }
-        if (config.collectTestMetrics) {
+        if (collectTestMetrics) {
           @transient lazy val partitionSize =
             MetricsSource.getOrCreateCounter(
               config.metricsPrefix,
