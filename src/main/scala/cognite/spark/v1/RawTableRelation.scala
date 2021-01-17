@@ -100,12 +100,15 @@ class RawTableRelation(
       configWithLimit,
       (item: RawRow, partitionIndex: Option[Int]) => {
         if (collectMetrics) {
+          rowsRead.inc()
+        }
+        if (config.collectTestMetrics) {
           @transient lazy val partitionSize =
             MetricsSource.getOrCreateCounter(
               config.metricsPrefix,
               s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
-          rowsRead.inc()
           partitionSize.inc()
+
         }
         Row(
           item.key,
@@ -120,7 +123,6 @@ class RawTableRelation(
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
 
     val rdd =

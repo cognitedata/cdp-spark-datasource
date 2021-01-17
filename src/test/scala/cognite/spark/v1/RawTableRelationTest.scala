@@ -87,8 +87,9 @@ class RawTableRelationTest
       .option("inferSchema", "true")
       .option("inferSchemaLimit", "100")
       .load()
-
+    println("loadfirst")
     df.createTempView("raw")
+    println("loaded")
     val res = spark.sqlContext
       .sql("select * from raw")
     assert(res.count == limit * partitions)
@@ -280,6 +281,35 @@ class RawTableRelationTest
       .load()
       .where(s"lastUpdatedTime >= timestamp('2019-06-21 11:48:00.000Z') and lastUpdatedTime <= timestamp('2019-06-21 11:50:00.000Z')")
     assert(df.count() == 10)
+  }
+
+  it should "check partition sizes" taggedAs (ReadTest) in {
+    val metricsPrefix = "partitionSizeTest"
+    val resourceType = "raw.testdb.future-event"
+    val partitions = 10
+    val df = spark.read.format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("metricsPrefix",  metricsPrefix)
+      .option("partitions", partitions)
+      .option("database", "testdb")
+      .option("table", "future-event")
+      .option("inferSchema", "true")
+      .option("collectSchemaInferenceMetrics", false)
+      .option("collectTestMetrics", true)
+      .option("parallelismPerPartition", 1)
+      .load()
+
+    df.createTempView("futureEvents")
+    val res = spark.sqlContext
+      .sql("select * from futureEvents").count()
+
+//    for(a <- MetricsSource.metricsMap.keys)
+//      println(a)
+    for (partitionIndex <- 0 until partitions){
+      println( getPartitionSize( "partitionSizeTest", resourceType, partitionIndex))
+    }
+    // todo implement equality check between partitions, should it be exact equality?
   }
 
   it should "handle various numbers of partitions" taggedAs (ReadTest) in {
