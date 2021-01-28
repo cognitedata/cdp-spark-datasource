@@ -14,7 +14,7 @@ import org.apache.spark.datasource.MetricsSource
 import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import scala.util.Random
-import cats.effect.{Clock, IO, Timer}
+import cats.effect.{Clock, ContextShift, IO, Timer}
 import cats.implicits._
 import com.cognite.sdk.scala.v1._
 import org.scalactic.{Prettifier, source}
@@ -24,6 +24,7 @@ object WriteTest extends Tag("WriteTest")
 object GreenfieldTest extends Tag("GreenfieldTest")
 
 trait SparkTest {
+  implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4)))
   implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4)))
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")

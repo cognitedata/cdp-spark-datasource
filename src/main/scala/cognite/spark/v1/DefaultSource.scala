@@ -1,6 +1,8 @@
 package cognite.spark.v1
 
-import cats.effect.{Clock, ContextShift, IO}
+import java.util.concurrent.Executors
+
+import cats.effect.{Clock, ContextShift, IO, Timer}
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, AuthProvider, BearerTokenAuth, OAuth2}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, FunctionCall, GenericClient}
@@ -15,6 +17,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 import org.apache.spark.sql.functions.to_json
 
+import scala.concurrent.ExecutionContext
 import scala.util.parsing.json.JSONObject
 
 final case class RelationConfig(
@@ -231,6 +234,9 @@ class DefaultSource
 }
 
 object DefaultSource {
+  implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
+
   private def toBoolean(
       parameters: Map[String, String],
       parameterName: String,

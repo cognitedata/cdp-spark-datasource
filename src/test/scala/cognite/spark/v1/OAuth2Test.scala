@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import org.scalatest.{FlatSpec, LoneElement, Matchers, ParallelTestExecution}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 class OAuth2Test
   extends FlatSpec
@@ -12,7 +12,6 @@ class OAuth2Test
   val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
   val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
   val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
-
   it should "authenticate using client credentials" in {
     val df = (
       spark.read.format("cognite.spark.v1")
