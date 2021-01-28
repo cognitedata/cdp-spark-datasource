@@ -234,8 +234,6 @@ class DefaultSource
 }
 
 object DefaultSource {
-  implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-  implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
 
   private def toBoolean(
       parameters: Map[String, String],
@@ -303,7 +301,7 @@ object DefaultSource {
       case Some(x) => x
       case None => sys.error("Either apiKey or bearerToken is required.")
     }
-
+    import CdpConnector._
     val projectName = parameters
       .getOrElse("project", DefaultSource.getProjectFromAuth(auth, maxRetries, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
@@ -369,7 +367,7 @@ object DefaultSource {
       baseUrl: String
   )(
       implicit
-      cs: ContextShift[IO],
+      cs: ContextShift[IO] = CdpConnector.cdpConnectorContextShift,
       clock: Clock[IO]): String = {
     implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries)
     val getProject = for {
