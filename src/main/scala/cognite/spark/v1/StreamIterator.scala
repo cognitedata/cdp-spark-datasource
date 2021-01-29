@@ -48,6 +48,11 @@ object StreamIterator {
         // stream which caused our thread pool to be shutdown, and an exception thrown
         // in iteratorFromQueue will abort this job.
       }
+    }(drainContext).map { _ =>
+      if (!drainPool.isShutdown) {
+        drainPool.shutdownNow()
+      }
+      ()
     }(drainContext)
 
     queueIterator(queue, streamsToQueue)
