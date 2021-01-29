@@ -20,6 +20,7 @@ class OAuth2Test
         .option("tokenUri", tokenUri)
         .option("clientId", clientId)
         .option("clientSecret", clientSecret)
+        .option("project", "extractor-bluefield-testing")
         .option("scopes", "https://bluefield.cognitedata.com/.default")
         .load()
     )

@@ -1,24 +1,13 @@
 package cognite.spark.v1
 
-import java.util.concurrent.Executors
-
-import cats.effect.{Clock, ContextShift, IO, Timer}
+import cats.effect.{Clock, ContextShift, IO}
 import cats.implicits._
-import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth, AuthProvider, BearerTokenAuth, OAuth2}
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, FunctionCall, GenericClient}
+import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
 import com.softwaremill.sttp.{SttpBackend, Uri}
-import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
-import io.circe.{Json, JsonObject, parser}
-import io.circe.generic.auto._
-import io.circe.syntax._
-import org.apache.spark.SparkContext
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
-import org.apache.spark.sql.functions.to_json
-
-import scala.concurrent.ExecutionContext
-import scala.util.parsing.json.JSONObject
 
 final case class RelationConfig(
     auth: CdfSparkAuth,
