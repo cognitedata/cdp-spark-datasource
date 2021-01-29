@@ -14,7 +14,7 @@ val circeVersion: Option[(Long, Long)] => String = {
 val sttpVersion = "1.7.2"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.4.1"
+val cogniteSdkVersion = "1.4.3"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
@@ -26,7 +26,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.12",
+  version := "1.4.15",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -129,7 +129,8 @@ lazy val library = (project in file("."))
       "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
-        exclude("org.glassfish.hk2.external", "javax.inject")
+        exclude("org.glassfish.hk2.external", "javax.inject"),
+      "org.log4s" %% "log4s" % log4sVersion
     ),
     mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
     mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,

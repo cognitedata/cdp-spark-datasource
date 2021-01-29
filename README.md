@@ -34,6 +34,7 @@ The instructions below explain how to read from, and write to, the different res
     - [Sequences schema](#sequences-schema)
     - [Sequence rows schema](#sequence-rows-schema)
     - [Labels schema](#labels-schema)
+    - [Relationships schema](#relationships-schema)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -47,6 +48,7 @@ The instructions below explain how to read from, and write to, the different res
     - [Sequence rows](#sequence-rows)
     - [RAW tables](#raw-tables)
     - [Labels](#labels)
+    - [Relationships](#relationships)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
     - [Run the tests](#run-the-tests)
@@ -85,19 +87,20 @@ The common options are:
 |    Option     |                                                                                                                                                    Description                                                                                                                                                    |                  Required                  |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `apiKey`      | The CDF [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) for authorization.                                                                                                                                                                                                     | Yes, if you don't specify a `bearerToken`. |
-| `bearerToken` | The CDF [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify an `apiKey`.      |
-| `project`     |  The CDF project. By default it's inferred from the API key. |  |
-| `type`        | The Cognite Data Fusion resource type. See below for more [resource type examples](#examples-by-resource-types).                                                                                                                                                                                                                        | Yes                                        |
+| `bearerToken` | The CDF [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify an `apiKey`.     |
+| `project`     | The CDF project. By default it's inferred from the API key.                                                                                                                                                                                                                                                       |                                            |
+| `type`        | The Cognite Data Fusion resource type. See below for more [resource type examples](#examples-by-resource-types).                                                                                                                                                                                                  | Yes                                        |
 | `maxRetries`  | The maximum number of retries to be made when a request fails. Default: 10                                                                                                                                                                                                                                        |                                            |
+| `maxRetryDelay` | The maximum number of seconds to wait between retrying requests. Default: 30                                                                                                                                                                                                                                        |                                            |
 | `limitPerPartition`       | The number of items to fetch for this resource type to create the DataFrame. Note that this is different from the SQL `SELECT * FROM ... LIMIT 1000` limit. This option specifies the limit for items to fetch from CDF *per partition*, *before* filtering and other transformations are applied to limit the number of results. Not supported by data points. |                                            |
 | `batchSize`   | The maximum number of items to read/write per API call.                                                                                                                                                                                                                                                           |                                            |
 | `baseUrl`     | Address of the CDF API. For example might be changed to https://greenfield.cognitedata.com. By default it is set to https://api.cognitedata.com                        |   |
-| `collectMetrics` | `true` or `false` - if Spark metrics should be collected about number of reads, inserts, updates and deletes |
-| `metricsPrefix` | Common prefix for all collected metrics. Might be useful when working with multiple connections. |
-| `partitions`   | Number of [CDF partitions](https://docs.cognite.com/dev/concepts/pagination/#parallel-retrieval) to use. By default it's 200. |
-| `parallelismPerPartition` | How many parallel request should run for one Spark partition. Number of Spark partitions = `partitions` / `parallelismPerPartition` |
-| `applicationName` | Identifies the application making requests by including a `X-CDP-App` header. Defaults to `com.cognite.spark.datasource-(version)` |
-| `clientTag` | If set, will be included as a `X-CDP-ClientTag` header in requests. This is typically used to group sets of requests as belonging to some definition of a job or workload for debugging. |
+| `collectMetrics` | `true` or `false` - if Spark metrics should be collected about number of reads, inserts, updates and deletes | |
+| `metricsPrefix` | Common prefix for all collected metrics. Might be useful when working with multiple connections. | |
+| `partitions`   | Number of [CDF partitions](https://docs.cognite.com/dev/concepts/pagination/#parallel-retrieval) to use. By default it's 200. | |
+| `parallelismPerPartition` | How many parallel request should run for one Spark partition. Number of Spark partitions = `partitions` / `parallelismPerPartition` | |
+| `applicationName` | Identifies the application making requests by including a `X-CDP-App` header. Defaults to `com.cognite.spark.datasource-(version)` | |
+| `clientTag` | If set, will be included as a `X-CDP-ClientTag` header in requests. This is typically used to group sets of requests as belonging to some definition of a job or workload for debugging. | |
 
 ### Read data
 
@@ -476,6 +479,19 @@ The schema of `sequencerows` relation matches the sequence that is specified in 
 | `name`        | `string` | No        |
 | `description` | `string` | Yes       |
 
+### Relationships schema
+| Column name        | Type            | Nullable |
+|--------------------|-----------------|----------|
+| `externalId`       | `string`        | No       |
+| `sourceExternalId` | `string`        | No       |
+| `sourceType`       | `string`        | No       |
+| `targetExternalId` | `string`        | No       |
+| `targetType`       | `string`        | No       |
+| `startTime`        | `timestamp`     | Yes      |
+| `endTime`          | `timestamp`     | Yes      |
+| `confidence`       | `double`        | Yes      |
+| `labels`           | `array(string)` | Yes      |
+| `dataSetId`        | `long`          | Yes      |
 
 ## Examples by resource types
 
@@ -1037,6 +1053,87 @@ spark.sql(
   .option("type", "labels") \
   .save()
 ```
+
+
+### Relationships
+
+Learn more about relationships [here](https://docs.cognite.com/api/v1/#tag/Relationships)
+
+Note that relationships can't be updated, but can only be read, created, or deleted.
+If you want to change a relationship, you can first delete it, and then recreate it
+with the same external id. `externalId`, `sourceExternalId`, `sourceType`, `targetExternalId`, 
+`targetType` can't be null.
+
+```scala
+// Scala Example
+
+// Read relationships
+df = spark.read
+  .format("cognite.spark.v1")
+  .option("apiKey", myApiKey)
+  .option("type", "relationships")
+  .load()
+
+df.show()
+
+
+// Write relationships
+spark
+  .sql(
+    s"""select 'relationships_external_id' as externalId,
+       |'my_asset1' as sourceExternalId,
+       |'asset' as sourceType,
+       |'my_asset2' as targetExternalId,
+       |'asset' as targetType,
+       | array('scala-sdk-relationships-test-label1') as labels,
+       | 0.7 as confidence,
+       | cast(from_unixtime(0) as timestamp) as startTime,
+       | cast(from_unixtime(1) as timestamp) as endTime""".stripMargin)
+  .write
+  .format("cognite.spark.v1")
+  .option("type", "relationships")
+  .option("apiKey", myApiKey)
+  .save() 
+```
+
+```python
+# Python Example
+
+df = spark.read.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "relationships") \
+    .load()
+
+df.show()
+
+
+# Get a reference to the relationships in your project
+myProjectDf = spark.read.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "relationships") \
+    .load()
+myProjectDf.createTempView("relationships")
+
+
+# Insert the relationships in your own project using .save()
+spark.sql(
+    "select 'relationships_external_id' as externalId, \
+      'my_asset1' as sourceExternalId, \
+      'asset' as sourceType, \
+      'my_asset2' as targetExternalId, \
+      'asset' as targetType, \
+      array('scala-sdk-relationships-test-label1') as labels, \
+      0.7 as confidence, \
+      cast(from_unixtime(0) as timestamp) as startTime, \
+      cast(from_unixtime(1) as timestamp) as endTime") \
+  .write.format("cognite.spark.v1") \
+  .option("apiKey", "myApiKey") \
+  .option("type", "relationships") \
+  .option("onconflict", "abort") \
+  .save()
+
+```
+
 
 ### RAW tables
 

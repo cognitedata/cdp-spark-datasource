@@ -1,3 +1,25 @@
+# 1.4.15
+
+## Enhancements
+* The `labels` field is now available for assets on update and upsert operations.
+* The `labels` field is now available for asset hierarchy builder on upsert operation.
+
+# 1.4.14
+
+## Enhancements
+* Set max retry delay on requests to 30 seconds by default, configurable via
+`maxRetryDelay` option.
+
+## Fixes
+* Fix a potential deadlock in handling exceptions when reading and writing data from CDF.
+
+# 1.4.13
+
+## Enhancements
+* `relationships` have been added as a new resource type. See [relationships](README.md#relationships)
+for more information.
+* The `labels` field is now available for assets on read and insert operations.
+
 # 1.4.12
 
 ## Enhancements

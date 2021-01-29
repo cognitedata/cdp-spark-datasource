@@ -4,9 +4,17 @@ import cats.effect.IO
 import cats.effect.syntax._
 import cats.implicits._
 import cats.syntax._
+import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
 import com.cognite.sdk.scala.common.{CdpApiException, SetNull, SetValue}
-import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, CogniteExternalId}
+import com.cognite.sdk.scala.v1.{
+  Asset,
+  AssetCreate,
+  AssetUpdate,
+  AssetsFilter,
+  CogniteExternalId,
+  LabelsOnUpdate
+}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
@@ -19,7 +27,8 @@ final case class AssetsIngestSchema(
     name: String,
     description: Option[String],
     metadata: Option[Map[String, String]],
-    dataSetId: Option[Long])
+    dataSetId: Option[Long],
+    labels: Option[Seq[String]])
 
 object AssetsIngestSchema {
   def toAssetCreate(a: AssetsIngestSchema): AssetCreate =
@@ -30,7 +39,8 @@ object AssetsIngestSchema {
       metadata = a.metadata,
       source = a.source,
       parentExternalId = Some(a.parentExternalId),
-      dataSetId = a.dataSetId
+      dataSetId = a.dataSetId,
+      labels = stringSeqToCogniteExternalIdSeq(a.labels)
     )
 
   def toAssetUpdate(a: AssetsIngestSchema): AssetUpdate =
@@ -41,8 +51,14 @@ object AssetsIngestSchema {
       metadata = a.metadata.map(SetValue(_)),
       source = a.source.map(SetValue(_)),
       parentExternalId = Some(SetValue(a.parentExternalId)),
-      dataSetId = a.dataSetId.map(SetValue(_))
+      dataSetId = a.dataSetId.map(SetValue(_)),
+      labels = a.labels match {
+        case labelList: Some[Seq[String]] =>
+          Some(LabelsOnUpdate(add = stringSeqToCogniteExternalIdSeq(labelList)))
+        case _ => None
+      }
     )
+
 }
 
 final case class AssetSubtree(
@@ -323,6 +339,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       updatedAsset.name == asset.name &&
       updatedAsset.source == asset.source &&
       updatedAsset.dataSetId == asset.dataSetId &&
+      updatedAsset.labels.getOrElse(Seq()).map(CogniteExternalId) == asset.labels.getOrElse(Seq()) &&
       (updatedAsset.parentExternalId == "" && asset.parentId.isEmpty || asset.parentExternalId.contains(
         updatedAsset.parentExternalId))
 

@@ -2,11 +2,13 @@ package cognite.spark.v1
 
 import java.time.Instant
 
-import com.cognite.sdk.scala.v1.TimeRange
+import com.cognite.sdk.scala.v1.{CogniteExternalId, ConfidenceRange, ContainsAny, TimeRange}
 import com.softwaremill.sttp._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+
 import scala.util.Try
+import scala.util.matching.Regex
 
 final case class DeleteItem(id: Long)
 
@@ -103,7 +105,15 @@ object PushdownUtilities {
       case NoPushdown() => false
     }
 
-  def assetIdsFromWrappedArray(wrappedArray: String): Seq[Long] =
+  def externalIdsSeqFromWrappedArray(wrappedArray: String): Seq[String] =
+    // We get "WrappedArray(ext1, ext2)" here, so we can remove irrelevant parts of the string
+    // and extract ext1 and ext2 from it -> return Seq('ext1', 'ext2')
+    wrappedArray.length match {
+      case 14 => Seq() // "WrappedArray()".length
+      case _ => wrappedArray.slice(13, wrappedArray.length - 1).split(',')
+    }
+
+  def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
     wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
 
   def filtersToTimestampLimits(filters: Array[Filter], colName: String): (Instant, Instant) = {
@@ -135,8 +145,8 @@ object PushdownUtilities {
         val maximumTimeAsInstant =
           maxTime
             .map(java.sql.Timestamp.valueOf(_).toInstant)
-            .getOrElse(java.time.Instant.ofEpochMilli(Long.MaxValue))
-        Some(TimeRange(minimumTimeAsInstant, maximumTimeAsInstant))
+            .getOrElse(java.time.Instant.ofEpochMilli(32503680000000L)) // 01.01.3000 (hardcoded for relationships instead of Long.MaxValue)
+        Some(TimeRange(Some(minimumTimeAsInstant), Some(maximumTimeAsInstant)))
     }
 
   def getTimestampLimit(filter: Filter, colName: String): Seq[Limit] =
@@ -157,6 +167,37 @@ object PushdownUtilities {
 
   def timeStampStringToMax(value: Any, adjustment: Long): Max =
     Max(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
+
+  def getExternalIdSeqFromExternalId(externalId: Option[String]): Option[Seq[String]] =
+    externalId match {
+      case None => None
+      case _ => Some(Seq(externalId.get))
+    }
+
+  def cogniteExternalIdSeqToStringSeq(
+      cogniteExternalIds: Option[Seq[CogniteExternalId]]): Option[Seq[String]] =
+    cogniteExternalIds match {
+      case None => None
+      case Some(Seq()) => None
+      case _ => Some(cogniteExternalIds.get.map(_.externalId))
+    }
+
+  def stringSeqToCogniteExternalIdSeq(
+      strExternalIds: Option[Seq[String]]): Option[Seq[CogniteExternalId]] =
+    strExternalIds match {
+      case None => None
+      case Some(Seq()) => None
+      case _ => Some(strExternalIds.get.map(CogniteExternalId))
+    }
+
+  def externalIdsToContainsAny(externalIds: String): Option[ContainsAny] = {
+    val externalIdSeq = externalIdsSeqFromWrappedArray(externalIds)
+    externalIdSeq.isEmpty match {
+      case true => None
+      case _ => Some(ContainsAny(containsAny = externalIdSeq.map(CogniteExternalId)))
+    }
+  }
+
 }
 
 trait InsertSchema {

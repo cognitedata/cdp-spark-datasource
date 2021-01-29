@@ -18,6 +18,7 @@ final case class RelationConfig(
     limitPerPartition: Option[Int],
     partitions: Int,
     maxRetries: Int,
+    maxRetryDelaySeconds: Int,
     collectMetrics: Boolean,
     metricsPrefix: String,
     baseUrl: String,
@@ -156,6 +157,8 @@ class DefaultSource
         new SequencesRelation(config)(sqlContext)
       case "labels" =>
         new LabelsRelation(config)(sqlContext)
+      case "relationships" =>
+        new RelationshipsRelation(config)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -191,6 +194,8 @@ class DefaultSource
           new LabelsRelation(config)(sqlContext)
         case "sequencerows" =>
           createSequenceRows(parameters, config, sqlContext)
+        case "relationships" =>
+          new RelationshipsRelation(config)(sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {
@@ -282,6 +287,8 @@ object DefaultSource {
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
+    val maxRetryDelaySeconds = toPositiveInt(parameters, "maxRetryDelay")
+      .getOrElse(Constants.DefaultMaxRetryDelaySeconds)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
@@ -292,7 +299,9 @@ object DefaultSource {
     }
     import CdpConnector._
     val projectName = parameters
-      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, maxRetries, baseUrl))
+      .getOrElse(
+        "project",
+        DefaultSource.getProjectFromAuth(auth, maxRetries, maxRetryDelaySeconds, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
@@ -338,6 +347,7 @@ object DefaultSource {
       limitPerPartition,
       partitions,
       maxRetries,
+      maxRetryDelaySeconds,
       collectMetrics,
       metricsPrefix,
       baseUrl,
@@ -350,15 +360,18 @@ object DefaultSource {
       legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
     )
   }
+
   def getProjectFromAuth(
       auth: CdfSparkAuth,
       maxRetries: Int,
+      maxRetryDelaySeconds: Int,
       baseUrl: String
   )(
       implicit
       cs: ContextShift[IO] = CdpConnector.cdpConnectorContextShift,
       clock: Clock[IO]): String = {
-    implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries)
+    implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
+
     val getProject = for {
       authProvider <- auth.provider
       client <- GenericClient

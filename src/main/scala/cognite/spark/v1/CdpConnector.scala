@@ -12,6 +12,7 @@ import com.softwaremill.sttp.asynchttpclient.SttpClientBackendFactory
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 final case class Data[A](data: A)
 final case class Items[A](items: Seq[A])
@@ -39,8 +40,11 @@ object CdpConnector {
     new GzipSttpBackend[IO, Nothing](
       AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
-  def retryingSttpBackend(maxRetries: Int): SttpBackend[IO, Nothing] =
-    new RetryingBackend[IO, Nothing](sttpBackend, maxRetries = Some(maxRetries))
+  def retryingSttpBackend(maxRetries: Int, maxRetryDelaySeconds: Int): SttpBackend[IO, Nothing] =
+    new RetryingBackend[IO, Nothing](
+      sttpBackend,
+      maxRetries = Some(maxRetries),
+      maxRetryDelay = maxRetryDelaySeconds.seconds)
 
   def clientFromConfig(config: RelationConfig): GenericClient[IO] =
     new GenericClient(
@@ -50,7 +54,7 @@ object CdpConnector {
       baseUrl = config.baseUrl,
       apiVersion = None,
       clientTag = config.clientTag
-    )(implicitly, retryingSttpBackend(config.maxRetries))
+    )(implicitly, retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds))
 
   type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]
