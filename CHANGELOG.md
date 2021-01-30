@@ -1,3 +1,8 @@
+# 1.4.17
+
+## Fixes
+* Handle additional uncaught exceptions locally, instead of having them kill the executor.
+
 # 1.4.16
 
 ## Fixes
