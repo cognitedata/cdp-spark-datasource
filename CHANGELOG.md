@@ -1,3 +1,10 @@
+# 1.4.18
+
+## Fixes
+* Stop reading from CDF immediately on task completion/cancellation.
+This will allow Spark to start processing other tasks more quickly, especially when
+there are exceptions thrown by tasks.
+
 # 1.4.17
 
 ## Fixes
