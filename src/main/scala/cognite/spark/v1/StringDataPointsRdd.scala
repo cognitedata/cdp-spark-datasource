@@ -4,7 +4,7 @@ import cats.effect.IO
 import com.cognite.sdk.scala.common.{Auth, StringDataPoint}
 import com.cognite.sdk.scala.v1._
 import com.softwaremill.sttp.SttpBackend
-import org.apache.spark.{Partition, SparkContext, TaskContext}
+import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
@@ -25,22 +25,21 @@ final case class StringDataPointsRdd(
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdfPartition]
-    val io = getIOs(client)(split.index)
-    val filter = io._1
+    val (filter, io) = getIOs(client)(split.index)
 
-    io._2
-      .unsafeRunSync()
-      .map { sdp =>
-        {
-          StringDataPointsItem(
-            filter.id,
-            filter.externalId,
-            sdp.timestamp,
-            sdp.value
-          )
+    new InterruptibleIterator(
+      context,
+      io.unsafeRunSync()
+        .map { sdp =>
+          toRow(
+            StringDataPointsItem(
+              filter.id,
+              filter.externalId,
+              sdp.timestamp,
+              sdp.value
+            ))
         }
-      }
-      .map(toRow)
-      .toIterator
+        .toIterator
+    )
   }
 }
