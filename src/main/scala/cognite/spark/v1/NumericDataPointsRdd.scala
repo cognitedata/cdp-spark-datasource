@@ -1,20 +1,19 @@
 package cognite.spark.v1
 
-import java.time.{Duration, Instant}
-import java.time.temporal.ChronoUnit
 import cats.effect.IO
-import com.cognite.sdk.scala.v1._
-import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
-import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
-import com.softwaremill.sttp.SttpBackend
 import cats.implicits._
+import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
+import com.cognite.sdk.scala.v1._
 import fs2.concurrent.SignallingRef
 import fs2.{Chunk, Stream}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRow
+import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 
-import Ordering.Implicits._
+import java.time.temporal.ChronoUnit
+import java.time.{Duration, Instant}
+import scala.Ordering.Implicits._
 import scala.annotation.tailrec
 
 sealed trait Range {
