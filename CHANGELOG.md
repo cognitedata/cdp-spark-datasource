@@ -1,3 +1,8 @@
+# 1.4.19
+
+## Fixes
+* New exception type `CdfInternalSparkException` has been introduced. 
+
 # 1.4.18
 
 ## Fixes
