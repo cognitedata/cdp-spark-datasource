@@ -370,7 +370,8 @@ object DefaultSource {
       implicit
       cs: ContextShift[IO] = CdpConnector.cdpConnectorContextShift,
       clock: Clock[IO]): String = {
-    implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
+    implicit val backend: SttpBackend[IO, Nothing] =
+      CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
 
     val getProject = for {
       authProvider <- auth.provider
