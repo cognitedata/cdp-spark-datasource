@@ -69,7 +69,7 @@ final case class NumericDataPointsRdd(
     counts match {
       case count +: moreCounts =>
         if (count.value > maxPointsPerPartition) {
-          throw new CdfSparkException(
+          throw new CDFInternalSparkException(
             s"More than ${maxPointsPerPartition} for id $id in interval starting at ${count.timestamp.toString}" +
               " with granularity ${granularity.toString}. Please report this to Cognite.")
         }
