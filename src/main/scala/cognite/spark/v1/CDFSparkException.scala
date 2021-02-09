@@ -22,4 +22,4 @@ class CdfSparkIllegalArgumentException(message: String) extends CdfSparkExceptio
   }
 }
 
-class CDFInternalSparkException(message: String) extends CdfSparkException(message)
+class CdfInternalSparkException(message: String) extends CdfSparkException(message)
