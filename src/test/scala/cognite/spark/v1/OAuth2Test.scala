@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import org.apache.spark.SparkException
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 class OAuth2Test
@@ -25,6 +26,6 @@ class OAuth2Test
         .load()
     )
 
-    noException should be thrownBy df.head()
+    assert(df.head().size > 0)
   }
 }
