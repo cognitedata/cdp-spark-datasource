@@ -1,14 +1,16 @@
 package cognite.spark.v1
 
 import java.util.concurrent.{ArrayBlockingQueue, Executors}
-
 import cats.effect.{Concurrent, IO}
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import fs2.{Chunk, Stream}
+import org.log4s._
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 
 object StreamIterator {
+  @transient private val logger = getLogger
   type EitherQueue[A] = ArrayBlockingQueue[Either[Throwable, Chunk[A]]]
 
   private val threadFactory = new ThreadFactoryBuilder()
@@ -47,7 +49,13 @@ object StreamIterator {
         // Ignore this, as it means there was an exception thrown while draining the
         // stream which caused our thread pool to be shutdown, and an exception thrown
         // in iteratorFromQueue will abort this job.
+        case NonFatal(e) =>
+          logger.warn(e)("Ignored, will be rethrown by queueIterator")
       }
+      if (!drainPool.isShutdown) {
+        drainPool.shutdownNow()
+      }
+      ()
     }(drainContext)
 
     queueIterator(queue, streamsToQueue)

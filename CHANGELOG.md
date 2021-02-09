@@ -1,3 +1,25 @@
+# 1.4.19
+
+## Fixes
+* New exception type `CdfInternalSparkException` has been introduced. 
+
+# 1.4.18
+
+## Fixes
+* Stop reading from CDF immediately on task completion/cancellation.
+This will allow Spark to start processing other tasks more quickly, especially when
+there are exceptions thrown by tasks.
+
+# 1.4.17
+
+## Fixes
+* Handle additional uncaught exceptions locally, instead of having them kill the executor.
+
+# 1.4.16
+
+## Fixes
+* Handle some uncaught exceptions locally, instead of having them kill the executor.
+
 # 1.4.15
 
 ## Enhancements
