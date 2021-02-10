@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import com.cognite.sdk.scala.common.InvalidAuthentication
 import org.apache.spark.SparkException
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
@@ -28,4 +29,48 @@ class OAuth2Test
 
     assert(df.head().size > 0)
   }
+
+  it should "throw InvalidAuthentication when project is not provided" in {
+    try{
+      val df = (
+        spark.read.format("cognite.spark.v1")
+          .option("baseUrl", "https://bluefield.cognitedata.com")
+          .option("type", "timeseries")
+          .option("tokenUri", tokenUri)
+          .option("clientId", clientId)
+          .option("clientSecret", clientSecret)
+          .option("scopes", "https://bluefield.cognitedata.com/.default")
+          .load()
+        )
+      df.count()
+      assert(false) // fail if it works
+    }
+    catch {
+      case e: InvalidAuthentication => assert(true)
+      case _ => assert(false)
+    }
+  }
+
+  it should "throw SparkException when using invalid client credentials" in {
+    val df = (
+      spark.read.format("cognite.spark.v1")
+        .option("baseUrl", "https://bluefield.cognitedata.com")
+        .option("type", "timeseries")
+        .option("tokenUri", tokenUri)
+        .option("clientId", "1")
+        .option("clientSecret", "1")
+        .option("project", "extractor-bluefield-testing")
+        .option("scopes", "https://bluefield.cognitedata.com/.default")
+        .load()
+      )
+    try{
+      df.count()
+      assert(false) // fail if it works
+    }
+    catch {
+      case e: SparkException => assert(true)
+      case _ => assert(false)
+    }
+  }
+
 }
