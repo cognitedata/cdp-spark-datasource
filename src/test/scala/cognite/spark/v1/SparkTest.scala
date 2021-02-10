@@ -15,6 +15,7 @@ import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import scala.util.Random
 import cats.effect.{IO, Timer}
+import cats.implicits.catsSyntaxFlatMapOps
 import com.cognite.sdk.scala.v1._
 import org.scalactic.{Prettifier, source}
 
@@ -60,7 +61,7 @@ trait SparkTest {
     ioa.handleErrorWith {
       case exception @ (_: TimeoutException | _: IOException) =>
         if (maxRetries > 0) {
-          IO.sleep(initialDelay) *> retryWithBackoff(ioa, nextDelay.min(maxDelay), maxRetries - 1)
+          IO.sleep(initialDelay) >> retryWithBackoff(ioa, nextDelay.min(maxDelay), maxRetries - 1)
         } else {
           IO.raiseError(exception)
         }

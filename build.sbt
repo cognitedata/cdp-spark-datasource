@@ -1,5 +1,4 @@
 import com.typesafe.sbt.packager.docker.{Cmd, ExecCmd}
-addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 
 val scala212 = "2.12.12"
 val scala211 = "2.11.12"
@@ -167,5 +166,7 @@ lazy val performancebench = (project in file("performancebench"))
       Cmd("ENV", "JAVA_APP_DIR=/opt/docker/lib")
     ),
   )
+
+addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
