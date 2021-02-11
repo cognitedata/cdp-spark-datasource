@@ -275,7 +275,7 @@ object DefaultSource {
       }
       clientId <- parameters.get("clientId")
       clientSecret <- parameters.get("clientSecret")
-      scopes <- Some(parameters.getOrElse("scopes", s"$baseUrl/.default")).map(_.split(" ").toList)
+      scopes <- Some(parameters.getOrElse("scopes", s"$baseUrl/.default").split(" ").toList)
       clientCredentials = OAuth2.ClientCredentials(tokenUri, clientId, clientSecret, scopes)
     } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 

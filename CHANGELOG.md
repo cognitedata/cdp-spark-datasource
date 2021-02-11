@@ -1,3 +1,8 @@
+# 1.4.20
+
+## Enhancements
+* Native tokens can now be used for authentication.
+
 # 1.4.15
 
 ## Enhancements
