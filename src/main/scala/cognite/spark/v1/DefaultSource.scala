@@ -266,6 +266,7 @@ object DefaultSource {
   def parseAuth(parameters: Map[String, String]): Option[CdfSparkAuth] = {
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
     val apiKey = parameters.get("apiKey").map(apiKey => ApiKeyAuth(apiKey))
+    val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
     val clientCredentials = for {
       tokenUri <- parameters.get("tokenUri").map { tokenUriString =>
         Uri
@@ -274,7 +275,7 @@ object DefaultSource {
       }
       clientId <- parameters.get("clientId")
       clientSecret <- parameters.get("clientSecret")
-      scopes <- parameters.get("scopes").map(_.split(" ").toList)
+      scopes <- Some(parameters.getOrElse("scopes", s"$baseUrl/.default")).map(_.split(" ").toList)
       clientCredentials = OAuth2.ClientCredentials(tokenUri, clientId, clientSecret, scopes)
     } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 
