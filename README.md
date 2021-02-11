@@ -87,7 +87,7 @@ The common options are:
 |    Option     |                                                                                                                                                    Description                                                                                                                                                    |                  Required                  |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `apiKey`      | The CDF [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) for authorization.                                                                                                                                                                                                     | Yes, if you don't specify a `bearerToken`. |
-| `bearerToken` | The CDF [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify an `apiKey`.     |
+| `bearerToken` | The CDF [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.
 | `project`     | The CDF project. By default it's inferred from the API key.                                                                                                                                                                                                                                                       |                                            |
 | `type`        | The Cognite Data Fusion resource type. See below for more [resource type examples](#examples-by-resource-types).                                                                                                                                                                                                  | Yes                                        |
 | `maxRetries`  | The maximum number of retries to be made when a request fails. Default: 10                                                                                                                                                                                                                                        |                                            |
@@ -101,6 +101,15 @@ The common options are:
 | `parallelismPerPartition` | How many parallel request should run for one Spark partition. Number of Spark partitions = `partitions` / `parallelismPerPartition` | |
 | `applicationName` | Identifies the application making requests by including a `X-CDP-App` header. Defaults to `com.cognite.spark.datasource-(version)` | |
 | `clientTag` | If set, will be included as a `X-CDP-ClientTag` header in requests. This is typically used to group sets of requests as belonging to some definition of a job or workload for debugging. | |
+
+The options to use native tokens for authentication are:
+|    Option      |                                                                   Description                                                                            |   Required     |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------  |
+| `tokenUri`     | Token uri to request a token from. (Example: s"https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")                             | Yes            |
+| `clientId`     | Application (client) ID associated with the target CDF project.                                                                                          | Yes            |
+| `clientSecret` | Client secret for the application.                                                                                                                       | Yes            |
+| `project`      | The CDF project.                                                                                                                                         | Yes            |
+| `scopes`       | Scopes needed for the user, set to `<baseUrl>/.default` by default.                                                                                      | No             |
 
 ### Read data
 
