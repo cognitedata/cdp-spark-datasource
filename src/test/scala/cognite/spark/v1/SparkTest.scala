@@ -6,7 +6,7 @@ import java.util.concurrent.Executors
 
 import cats.Id
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common.{ApiKeyAuth, Auth}
+import com.cognite.sdk.scala.common.ApiKeyAuth
 import org.apache.spark.sql.SparkSession
 import org.scalatest.Tag
 import org.apache.spark.datasource.MetricsSource
@@ -15,7 +15,7 @@ import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import scala.util.Random
 import cats.effect.{IO, Timer}
-import cats.implicits._
+import cats.implicits.catsSyntaxFlatMapOps
 import com.cognite.sdk.scala.v1._
 import org.scalactic.{Prettifier, source}
 
@@ -24,7 +24,7 @@ object WriteTest extends Tag("WriteTest")
 object GreenfieldTest extends Tag("GreenfieldTest")
 
 trait SparkTest {
-  implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4)))
+  implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1)))
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
   assert(writeApiKey != null && !writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
@@ -61,7 +61,7 @@ trait SparkTest {
     ioa.handleErrorWith {
       case exception @ (_: TimeoutException | _: IOException) =>
         if (maxRetries > 0) {
-          IO.sleep(initialDelay) *> retryWithBackoff(ioa, nextDelay.min(maxDelay), maxRetries - 1)
+          IO.sleep(initialDelay) >> retryWithBackoff(ioa, nextDelay.min(maxDelay), maxRetries - 1)
         } else {
           IO.raiseError(exception)
         }
@@ -83,7 +83,7 @@ trait SparkTest {
       20
     ).unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
 
-  def getDefaultConfig(auth: Auth): RelationConfig =
+  def getDefaultConfig(auth: CdfSparkAuth): RelationConfig =
     RelationConfig(
       auth,
       Some("SparkDatasourceTestTag"),

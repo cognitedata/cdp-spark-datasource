@@ -14,7 +14,7 @@ val circeVersion: Option[(Long, Long)] => String = {
 val sttpVersion = "1.7.2"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.4.3"
+val cogniteSdkVersion = "1.4.4"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
@@ -26,7 +26,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.19",
+  version := "1.4.20",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -158,7 +158,7 @@ lazy val performancebench = (project in file("performancebench"))
       "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
-        exclude("org.glassfish.hk2.external", "javax.inject")
+        exclude("org.glassfish.hk2.external", "javax.inject"),
     ),
     dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",
     dockerCommands ++= Seq(
@@ -166,5 +166,7 @@ lazy val performancebench = (project in file("performancebench"))
       Cmd("ENV", "JAVA_APP_DIR=/opt/docker/lib")
     ),
   )
+
+addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")

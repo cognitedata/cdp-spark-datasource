@@ -38,7 +38,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     def uniqueId(s: String): String = "1"
 
     val sdkRdd =
-      SdkV1Rdd(spark.sparkContext, getDefaultConfig(readApiKeyAuth), toRow, uniqueId, getStreams)
+      SdkV1Rdd(spark.sparkContext, getDefaultConfig(CdfSparkAuth.Static(readApiKeyAuth)), toRow, uniqueId, getStreams)
 
     val e = intercept[CdpApiException] {
       sdkRdd.compute(CdfPartition(0), TaskContext.get())
