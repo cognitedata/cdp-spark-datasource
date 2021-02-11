@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import java.util.concurrent.Executors
-
 import cats.Parallel
 import cats.effect.{ContextShift, IO, Timer}
 import com.cognite.sdk.scala.common.{GzipSttpBackend, RetryingBackend}
@@ -10,7 +9,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder
 import com.softwaremill.sttp._
 import com.softwaremill.sttp.asynchttpclient.SttpClientBackendFactory
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import org.log4s._
 
+import java.lang.Thread.UncaughtExceptionHandler
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -21,6 +22,7 @@ final case class Error[A](error: A)
 final case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
 
 object CdpConnector {
+  @transient private val logger = getLogger
   // It's important that the threads made here are daemon threads
   // so that we don't hang applications using our library during exit.
   // See for more info https://github.com/cognitedata/cdp-spark-datasource/pull/415/files#r396774391
@@ -28,7 +30,15 @@ object CdpConnector {
     ExecutionContext.fromExecutor(
       Executors.newFixedThreadPool(
         Math.max(Runtime.getRuntime.availableProcessors(), 4) * 2,
-        new ThreadFactoryBuilder().setDaemon(true).setNameFormat("CDF-Spark-Datasource-%d").build()
+        new ThreadFactoryBuilder()
+          .setDaemon(true)
+          .setUncaughtExceptionHandler(new UncaughtExceptionHandler {
+            override def uncaughtException(t: Thread, e: Throwable): Unit =
+              // Log the exception, and move on.
+              logger.warn(e)("Ignoring uncaught exception")
+          })
+          .setNameFormat("CDF-Spark-Datasource-%d")
+          .build()
       )
     )
   @transient implicit lazy val cdpConnectorTimer: Timer[IO] = IO.timer(cdpConnectorExecutionContext)
