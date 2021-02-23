@@ -21,3 +21,5 @@ class CdfSparkIllegalArgumentException(message: String) extends CdfSparkExceptio
     this(Option(cause).map(_.toString).orNull, cause)
   }
 }
+
+class CdfInternalSparkException(message: String) extends CdfSparkException(message)

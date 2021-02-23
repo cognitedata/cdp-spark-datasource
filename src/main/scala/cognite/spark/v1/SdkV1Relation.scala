@@ -13,15 +13,12 @@ import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import CdpConnector._
 import io.circe.JsonObject
-import org.log4s._
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends CdfRelation(config, shortName)
     with Serializable
     with TableScan
     with PrunedFilteredScan {
-
-  val logger = getLogger
   def schema: StructType
 
   def toRow(a: A): Row
@@ -134,12 +131,9 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resourceCreates: Seq[C],
       resource: T,
       doUpsert: Boolean)(implicit transform: Transformer[C, U]): IO[Unit] = {
-    logger.info("I'm in createOrUpdateByExternalId now")
     val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
       p => p.externalId.exists(id => existingExternalIds.contains(id))
     )
-    logger.info(
-      s"resourceToCreate: ${resourcesToCreate.length}, resourcesToUpdate: ${resourcesToUpdate.length}")
     val create = if (resourcesToCreate.isEmpty) {
       IO.unit
     } else {
@@ -158,7 +152,6 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
                 assertNoLegacyNameConflicts(duplicated, requestId)
                 duplicated.flatMap(j => j("externalId")).map(_.asString.get)
             }
-            logger.info(s"Duplicates found: ${moreExistingExternalIds.length}")
             createOrUpdateByExternalId[R, U, C, T](
               existingExternalIds ++ moreExistingExternalIds.toSet,
               resourcesToCreate,
@@ -219,8 +212,6 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         case (Some(_), items) => items.take(1)
       }
       .toSeq
-    logger.info(
-      s"itemsToCreateWithoutDuplicatesByExternalId: ${itemsToCreateWithoutDuplicatesByExternalId.length}")
     val update = updateByIdOrExternalId[U, Up, Re, R](
       itemsToUpdate,
       resource,

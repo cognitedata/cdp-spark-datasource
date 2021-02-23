@@ -1,20 +1,19 @@
 package cognite.spark.v1
 
-import java.time.{Duration, Instant}
-import java.time.temporal.ChronoUnit
-
 import cats.effect.IO
+import cats.implicits._
+import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
 import com.cognite.sdk.scala.v1._
-import org.apache.spark.{Partition, SparkContext, TaskContext}
+import fs2.concurrent.SignallingRef
+import fs2.{Chunk, Stream}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import com.cognite.sdk.scala.common.{Auth, DataPoint => SdkDataPoint}
-import com.softwaremill.sttp.SttpBackend
-import cats.implicits._
-import fs2.{Chunk, Stream}
 import org.apache.spark.sql.catalyst.expressions.GenericRow
+import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 
-import Ordering.Implicits._
+import java.time.temporal.ChronoUnit
+import java.time.{Duration, Instant}
+import scala.Ordering.Implicits._
 import scala.annotation.tailrec
 
 sealed trait Range {
@@ -70,7 +69,7 @@ final case class NumericDataPointsRdd(
     counts match {
       case count +: moreCounts =>
         if (count.value > maxPointsPerPartition) {
-          throw new CdfSparkException(
+          throw new CdfInternalSparkException(
             s"More than ${maxPointsPerPartition} for id $id in interval starting at ${count.timestamp.toString}" +
               " with granularity ${granularity.toString}. Please report this to Cognite.")
         }
@@ -507,6 +506,15 @@ final case class NumericDataPointsRdd(
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val bucket = _split.asInstanceOf[Bucket]
+    val maxParallelism = scala.math.max(bucket.ranges.size, 500)
+
+    // See comments in SdkV1Rdd.compute for an explanation.
+    val shouldStop = SignallingRef[IO, Boolean](false).unsafeRunSync()
+    Option(context).foreach { ctx =>
+      ctx.addTaskCompletionListener[Unit] { _ =>
+        shouldStop.set(true).unsafeRunSync()
+      }
+    }
 
     val stream: Stream[IO, Stream[IO, Row]] = Stream
       .emits(bucket.ranges.toVector)
@@ -535,7 +543,15 @@ final case class NumericDataPointsRdd(
             }
         case _ => IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
       }
-    val maxParallelism = scala.math.max(bucket.ranges.size, 500)
-    StreamIterator(stream.parJoin(maxParallelism), maxParallelism, None)
+
+    val it = StreamIterator(
+      stream.parJoin(maxParallelism).interruptWhen(shouldStop),
+      maxParallelism,
+      None
+    )
+    Option(context) match {
+      case Some(ctx) => new InterruptibleIterator(ctx, it)
+      case None => it
+    }
   }
 }
