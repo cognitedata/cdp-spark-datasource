@@ -20,6 +20,7 @@ final case class RelationConfig(
     maxRetries: Int,
     maxRetryDelaySeconds: Int,
     collectMetrics: Boolean,
+    collectTestMetrics: Boolean,
     metricsPrefix: String,
     baseUrl: String,
     onConflict: OnConflict.Value,
@@ -312,6 +313,8 @@ object DefaultSource {
       case None => ""
     }
     val collectMetrics = toBoolean(parameters, "collectMetrics")
+    val collectTestMetrics = toBoolean(parameters, "collectTestMetrics")
+
     val saveMode = parseSaveMode(parameters)
     val parallelismPerPartition = {
       toPositiveInt(parameters, "parallelismPerPartition").getOrElse(
@@ -350,6 +353,7 @@ object DefaultSource {
       maxRetries,
       maxRetryDelaySeconds,
       collectMetrics,
+      collectTestMetrics,
       metricsPrefix,
       baseUrl,
       saveMode,

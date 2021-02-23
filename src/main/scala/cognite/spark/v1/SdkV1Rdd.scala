@@ -14,7 +14,7 @@ final case class CdfPartition(index: Int) extends Partition
 final case class SdkV1Rdd[A, I](
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
-    toRow: A => Row,
+    toRow: (A, Option[Int]) => Row,
     uniqueId: A => I,
     getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
@@ -61,11 +61,10 @@ final case class SdkV1Rdd[A, I](
         Option(processedIds.putIfAbsent(uniqueId(i), ())).isEmpty
       }
     }
-
     val it = StreamIterator(
       currentStreamsAsSingleStream,
       config.parallelismPerPartition * 2,
-      Some(processChunk)).map(toRow)
+      Some(processChunk)).map(toRow(_, Some(split.index)))
     Option(context) match {
       case Some(ctx) => new InterruptibleIterator(ctx, it)
       case None => it

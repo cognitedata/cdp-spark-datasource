@@ -22,6 +22,10 @@ class RawTableRelationTest
   private def collectToSet[A](df: DataFrame): Set[A] =
     df.collect().map(_.getAs[A](0)).toSet
 
+  private def checkRange(leftLimit: Double, rightLimit: Double, number: Long): Boolean = {
+    (number >= leftLimit) && (number <= rightLimit)
+  }
+
   private val dfWithoutKeySchema = StructType(
     Seq(StructField("notKey", StringType, false), StructField("value", IntegerType, false)))
   private val dfWithoutKeyData = Seq(
@@ -87,7 +91,6 @@ class RawTableRelationTest
       .option("inferSchema", "true")
       .option("inferSchemaLimit", "100")
       .load()
-
     df.createTempView("raw")
     val res = spark.sqlContext
       .sql("select * from raw")
@@ -280,6 +283,33 @@ class RawTableRelationTest
       .load()
       .where(s"lastUpdatedTime >= timestamp('2019-06-21 11:48:00.000Z') and lastUpdatedTime <= timestamp('2019-06-21 11:50:00.000Z')")
     assert(df.count() == 10)
+  }
+
+  it should "check partition sizes for partitions=10" taggedAs (ReadTest) in {
+    val shortRand = shortRandomString()
+    val metricsPrefix = s"partitionSizeTest$shortRand"
+    val tablename = "bigTable"
+    val resourceType = s"raw.testdb.$tablename"
+    val partitions = 10
+
+    val df = spark.read.format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("metricsPrefix",  metricsPrefix)
+      .option("partitions", partitions)
+      .option("database", "testdb")
+      .option("table", tablename)
+      .option("inferSchema", "true")
+      .option("collectTestMetrics", true)
+      .option("parallelismPerPartition", 1)
+      .load()
+    df.createTempView(s"futureEvents$shortRand")
+    val totalRows = spark.sqlContext
+      .sql(s"select * from futureEvents$shortRand").count()
+    val partitionSizes = for (partitionIndex <- 0 until partitions) yield getPartitionSize( metricsPrefix, resourceType, partitionIndex)
+    assert(partitionSizes.sum == totalRows)
+    val expectedSize = totalRows/partitions
+    assert(partitionSizes.forall(checkRange(expectedSize - expectedSize*0.20, expectedSize + expectedSize*0.20, _)))
   }
 
   it should "handle various numbers of partitions" taggedAs (ReadTest) in {

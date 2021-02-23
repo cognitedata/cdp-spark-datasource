@@ -34,7 +34,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
             None,
             None)))
 
-    def toRow(s: String): Row = Row.empty
+    def toRow(s: String, partitionIndex: Option[Int]): Row = Row.empty
     def uniqueId(s: String): String = "1"
 
     val sdkRdd =
@@ -57,7 +57,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       DefaultSource
         .parseRelationConfig(Map("apiKey" -> writeApiKey), spark.sqlContext)
         .copy(parallelismPerPartition = nStreams),
-      (e: Event) => asRow(e),
+      (e: Event, partitionIndex: Option[Int]) => asRow(e),
       (e: Event) => e.id,
       (_: GenericClient[IO], _: Option[Int], _: Int) => {
         val allStreams = 0.until(nStreams).map { i =>

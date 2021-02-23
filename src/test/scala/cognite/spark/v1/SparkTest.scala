@@ -95,6 +95,7 @@ trait SparkTest {
       Constants.DefaultMaxRetries,
       Constants.DefaultMaxRetryDelaySeconds,
       collectMetrics = false,
+      collectTestMetrics = false,
       "",
       Constants.DefaultBaseUrl,
       OnConflict.Abort,
@@ -124,4 +125,13 @@ trait SparkTest {
 
   def getNumberOfRowsUpdated(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.updated")
+
+  def getPartitionSize(metricsPrefix: String, resourceType: String, partitionIndex: Int): Long = {
+    val metricName = s"$metricsPrefix.$resourceType.$partitionIndex.partitionSize"
+    if (MetricsSource.metricsMap.contains(metricName)) {
+      getCounter(metricName)
+    } else {
+      0
+    }
+  }
 }

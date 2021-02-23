@@ -204,7 +204,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     SdkV1Rdd[ProjectedSequenceRow, Long](
       sqlContext.sparkContext,
       configWithLimit,
-      (item: ProjectedSequenceRow) => {
+      (item: ProjectedSequenceRow, None) => {
         if (config.collectMetrics) {
           itemsRead.inc()
         }

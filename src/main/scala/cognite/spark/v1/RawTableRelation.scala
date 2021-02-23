@@ -66,7 +66,8 @@ class RawTableRelation(
           inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
           Some(1),
           RawRowFilter(),
-          collectSchemaInferenceMetrics)
+          collectSchemaInferenceMetrics,
+          false)
 
       import sqlContext.sparkSession.implicits._
       val df = sqlContext.createDataFrame(rdd, defaultSchema)
@@ -91,16 +92,25 @@ class RawTableRelation(
       limit: Option[Int],
       numPartitions: Option[Int],
       filter: RawRowFilter,
-      collectMetrics: Boolean = config.collectMetrics): RDD[Row] = {
+      collectMetrics: Boolean = config.collectMetrics,
+      collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
     val configWithLimit =
       config.copy(limitPerPartition = limit, partitions = numPartitions.getOrElse(config.partitions))
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
       configWithLimit,
-      (item: RawRow) => {
+      (item: RawRow, partitionIndex: Option[Int]) => {
         if (collectMetrics) {
           rowsRead.inc()
+        }
+        if (collectTestMetrics) {
+          @transient lazy val partitionSize =
+            MetricsSource.getOrCreateCounter(
+              config.metricsPrefix,
+              s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
+          partitionSize.inc()
+
         }
         Row(
           item.key,
@@ -115,7 +125,6 @@ class RawTableRelation(
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
 
     val rdd =

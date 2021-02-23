@@ -39,7 +39,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     SdkV1Rdd[A, I](
       sqlContext.sparkContext,
       config,
-      (a: A) => {
+      (a: A, None) => {
         if (config.collectMetrics) {
           itemsRead.inc()
         }
