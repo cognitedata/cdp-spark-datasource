@@ -1,6 +1,11 @@
+# 1.4.20
+
+## Enhancements
+* Native tokens can now be used for authentication.
+
 # 1.4.19
 
-## Fixes
+## Enhancements
 * New exception type `CdfInternalSparkException` has been introduced. 
 
 # 1.4.18

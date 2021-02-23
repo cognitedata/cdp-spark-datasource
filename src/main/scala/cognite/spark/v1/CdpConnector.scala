@@ -57,14 +57,14 @@ object CdpConnector {
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
   def clientFromConfig(config: RelationConfig): GenericClient[IO] =
-    new GenericClient[IO](
-      config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
-      config.projectName,
-      config.baseUrl,
-      config.auth,
-      clientTag = config.clientTag)(
-      implicitly,
-      retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds))
+    new GenericClient(
+      applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
+      projectName = config.projectName,
+      authProvider = config.auth.provider.unsafeRunSync(),
+      baseUrl = config.baseUrl,
+      apiVersion = None,
+      clientTag = config.clientTag
+    )(implicitly, retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds))
 
   type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]

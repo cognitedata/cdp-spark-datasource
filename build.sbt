@@ -158,7 +158,7 @@ lazy val performancebench = (project in file("performancebench"))
       "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
-        exclude("org.glassfish.hk2.external", "javax.inject")
+        exclude("org.glassfish.hk2.external", "javax.inject"),
     ),
     dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",
     dockerCommands ++= Seq(
@@ -166,5 +166,7 @@ lazy val performancebench = (project in file("performancebench"))
       Cmd("ENV", "JAVA_APP_DIR=/opt/docker/lib")
     ),
   )
+
+addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
