@@ -1,3 +1,8 @@
+# 1.4.21
+
+## Enhancements
+* Now uses the 1.4.5 version of the Scala SDK.
+
 # 1.4.20
 
 ## Enhancements
