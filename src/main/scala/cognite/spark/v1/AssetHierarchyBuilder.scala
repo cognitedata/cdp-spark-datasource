@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.effect.syntax._
+import cats.effect.syntax.all._
 import cats.implicits._
 import cats.syntax._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
@@ -148,7 +148,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
     for {
       _ <- validateSubtreeRoots(subtrees2.map(_.root))
-      _ <- subtrees2.map(t => buildSubtree(t.root, t.nodes)).sequence_ // TODO: parallel?
+      _ <- subtrees2.map(t => buildSubtree(t.root, t.nodes)).parSequence_
     } yield ()
   }
 
@@ -159,23 +159,24 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       IO.unit
     } else {
       // The API calls throw exception when any of the ids do not exist
-      ids
+      ids.distinct
         .grouped(batchSize)
         .toVector
-        .parTraverse(
-          id =>
-            client.assets
-              .retrieveByExternalIds(id.distinct)
-              .adaptError({
-                case e: CdpApiException if e.code == 400 && e.missing.nonEmpty =>
-                  val missingNodes = e.missing.get.map(j => j("externalId").get.asString.get).take(10)
-                  val referencingNodes =
-                    missingNodes
-                    // always take the one with "lowest" externalId, so the errors are deterministic
-                      .map(missing => roots.filter(_.parentExternalId == missing).minBy(_.externalId))
-                      .map(_.externalId)
-                  InvalidNodeReferenceException(missingNodes, referencingNodes)
-              })) *> IO.unit
+        .parTraverse { idsInGroup =>
+          client.assets
+            .retrieveByExternalIds(idsInGroup)
+            .adaptError({
+              case e: CdpApiException if e.code == 400 && e.missing.nonEmpty =>
+                val missingNodes = e.missing.get.map(j => j("externalId").get.asString.get).take(10)
+                val referencingNodes =
+                  missingNodes
+                  // always take the one with "lowest" externalId, so the errors are deterministic
+                    .map(missing => roots.filter(_.parentExternalId == missing).minBy(_.externalId))
+                    .map(_.externalId)
+                InvalidNodeReferenceException(missingNodes, referencingNodes)
+            })
+        }
+        .void
     }
   }
 
