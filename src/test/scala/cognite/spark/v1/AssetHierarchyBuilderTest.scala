@@ -27,7 +27,7 @@ class AssetHierarchyBuilderTest
       key: String,
       tree: Seq[AssetCreate],
       metricsPrefix: Option[String] = None,
-      batchSize: Int = 2,
+      batchSize: Int = 100,
       subtrees: String = "ingest",
       deleteMissingAssets: Boolean = false): Unit = {
     def addKey(id: String) =
@@ -1061,10 +1061,10 @@ class AssetHierarchyBuilderTest
     )
 
     // Ingest the first two levels of the tree
-    ingest(key, kids :+ dad)
+    ingest(key, kids :+ dad, batchSize = 1000)
 
     // Ingest the third level, 1100 subtrees
-    ingest(key, grandkids)
+    ingest(key, grandkids, batchSize = 1000)
 
     cleanDB(key)
   }
