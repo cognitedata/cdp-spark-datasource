@@ -27,7 +27,7 @@ class AssetHierarchyBuilderTest
       key: String,
       tree: Seq[AssetCreate],
       metricsPrefix: Option[String] = None,
-      batchSize: Int = 2,
+      batchSize: Int = 100,
       subtrees: String = "ingest",
       deleteMissingAssets: Boolean = false): Unit = {
     def addKey(id: String) =
@@ -210,6 +210,7 @@ class AssetHierarchyBuilderTest
     )
 
     ingest(key, assetTree)
+
 
     val ex = intercept[Exception] {
       ingest(
@@ -1044,6 +1045,26 @@ class AssetHierarchyBuilderTest
         "If this is intended, the assets must be manually deleted and re-created under the new root asset. " +
         s"The following assets were attempted to be moved: (externalId=child$key)."
     )
+
+    cleanDB(key)
+  }
+
+  it should "successfully do batching of subtree roots" in {
+    val key = shortRandomString()
+
+    val dad = AssetCreate("dad", None, None, None, Some("dad"), None, Some(""))
+
+    val kids = (1 to 1100).flatMap(k => Seq(
+      AssetCreate(s"kid$k", None, None, None, Some(s"kid$k"), None, Some("dad"))))
+    val grandkids = (1 to 1100).map(k =>
+      AssetCreate(s"grandkid$k", None, None, None, Some(s"grandkid$k"), None, Some(s"kid$k"))
+    )
+
+    // Ingest the first two levels of the tree
+    ingest(key, kids :+ dad, batchSize = 1000)
+
+    // Ingest the third level, 1100 subtrees
+    ingest(key, grandkids, batchSize = 1000)
 
     cleanDB(key)
   }
