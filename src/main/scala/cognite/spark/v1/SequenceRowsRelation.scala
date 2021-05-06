@@ -11,6 +11,8 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+case class SequenceRowWithExternalId(externalId: CogniteExternalId, sequenceRow: SequenceRow)
+
 class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)
     extends CdfRelation(config, "sequencerows")
     with WritableRelation
@@ -132,10 +134,14 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       }
     }
 
-  def fromRow(schema: StructType): (Array[String], Row => SequenceRow) = {
+  def fromRow(schema: StructType): (Array[String], Row => SequenceRowWithExternalId) = {
     val rowNumberIndex = schema.fieldNames.indexOf("rowNumber")
     if (rowNumberIndex < 0) {
       throw new CdfSparkException("Can't upsert sequence rows, column `rowNumber` is missing.")
+    }
+    val externalIdIndex = schema.fieldNames.indexOf("externalId")
+    if (externalIdIndex < 0) {
+      throw new CdfSparkException("Can't upsert sequence rows, column `externalId` is missing.")
     }
 
     val columns = schema.fields.zipWithIndex.filter(_._1.name != "rowNumber").map {
@@ -148,12 +154,18 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         (index, field.name, columnType)
     }
 
-    def parseRow(row: Row): SequenceRow = {
+    def parseRow(row: Row): SequenceRowWithExternalId = {
       val rowNumber = row.get(rowNumberIndex) match {
         case x: Long => x
         case x: Int => x: Long
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "rowNumber", "Long", "")
       }
+
+      val externalId = row.get(externalIdIndex) match {
+        case x: String => x
+        case _ => throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
+      }
+
       val columnValues = columns.map {
         case (index, name, columnType) =>
           tryGetValue(columnType).applyOrElse(
@@ -163,7 +175,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
                 .badRowError(row, name, columnType, "")
           )
       }
-      SequenceRow(rowNumber, columnValues)
+      SequenceRowWithExternalId(CogniteExternalId(externalId), SequenceRow(rowNumber, columnValues))
     }
 
     (columns.map(_._2), parseRow)
@@ -187,10 +199,15 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     } else {
       val (columns, fromRowFn) = fromRow(rows.head.schema)
       val projectedRows = rows.map(fromRowFn)
-
-      client.sequenceRows
-        .insertById(sequenceInfo.id, columns, projectedRows)
-        .flatTap(_ => incMetrics(itemsCreated, rows.length))
+      import cats.instances.list._
+      projectedRows
+        .groupBy(_.externalId)
+        .toList
+        .traverse(
+          pair =>
+            client.sequenceRows
+              .insertByExternalId(pair._1.toString, columns, pair._2)
+              .flatTap(_ => incMetrics(itemsCreated, rows.length))) *> IO.unit
     }
 
   private def readRows(
