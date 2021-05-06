@@ -203,11 +203,12 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       projectedRows
         .groupBy(_.externalId)
         .toList
-        .traverse(
-          pair =>
+        .traverse {
+          case (externalId, rows) =>
             client.sequenceRows
-              .insertByExternalId(pair._1.toString, columns, pair._2)
-              .flatTap(_ => incMetrics(itemsCreated, rows.length))) *> IO.unit
+              .insertByExternalId(externalId.toString, columns, rows.map(_.sequenceRow))
+              .flatTap(_ => incMetrics(itemsCreated, rows.length))
+        } *> IO.unit
     }
 
   private def readRows(
