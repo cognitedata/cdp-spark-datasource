@@ -144,15 +144,17 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       throw new CdfSparkException("Can't upsert sequence rows, column `externalId` is missing.")
     }
 
-    val columns = schema.fields.zipWithIndex.filter(cols => !Seq("rowNumber", "externalId").contains(cols._1.name) ).map {
-      case (field, index) =>
-        val columnType = columnTypes.getOrElse(
-          field.name,
-          throw new CdfSparkException(
-            s"Can't insert column `${field.name}` into sequence $sequenceId, the column does not exist in the sequence definition")
-        )
-        (index, field.name, columnType)
-    }
+    val columns = schema.fields.zipWithIndex
+      .filter(cols => !Seq("rowNumber", "externalId").contains(cols._1.name))
+      .map {
+        case (field, index) =>
+          val columnType = columnTypes.getOrElse(
+            field.name,
+            throw new CdfSparkException(
+              s"Can't insert column `${field.name}` into sequence $sequenceId, the column does not exist in the sequence definition")
+          )
+          (index, field.name, columnType)
+      }
 
     def parseRow(row: Row): SequenceRowWithExternalId = {
       val rowNumber = row.get(rowNumberIndex) match {
@@ -200,14 +202,13 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       val (columns, fromRowFn) = fromRow(rows.head.schema)
       val projectedRows = rows.map(fromRowFn)
       import cats.instances.list._
-      val pr = projectedRows
+      projectedRows
         .groupBy(_.externalId)
         .toList
-
-      pr.traverse {
-          case (externalId, rows) =>
+        .traverse {
+          case (cogniteExternalId, rows) =>
             client.sequenceRows
-              .insertByExternalId(externalId.toString, columns, rows.map(_.sequenceRow))
+              .insertByExternalId(cogniteExternalId.externalId, columns, rows.map(_.sequenceRow))
               .flatTap(_ => incMetrics(itemsCreated, rows.length))
         } *> IO.unit
     }

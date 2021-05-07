@@ -63,11 +63,11 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       _.length < 100
     )
     allColumns should have length 100
-    allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "externalId", "num1", "str1", "num2")
-    allColumns(0).get(1) shouldBe 1L
-    allColumns(0).get(2) shouldBe 6L
-    allColumns(0).get(3) shouldBe "abc"
-    allColumns(0).get(4) shouldBe 1.1
+    allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
+    allColumns(0).get(0) shouldBe 1L
+    allColumns(0).get(1) shouldBe 6L
+    allColumns(0).get(2) shouldBe "abc"
+    allColumns(0).get(3) shouldBe 1.1
 
     val sparkReadResult = spark.read
       .format("cognite.spark.v1")
@@ -109,17 +109,17 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     insertRows(
       sequenceId,
       spark
-        .sql("select 1 as rowNumber, 1 as num1"))
+        .sql(s"select 1 as rowNumber, '$sequenceId' as externalId, 1 as num1"))
 
     insertRows(
       sequenceId,
       spark
-        .sql("select 2 as rowNumber, NULL as num1, 'abc' as str1, 1 as num2"))
+        .sql(s"select 2 as rowNumber, '$sequenceId' as externalId, NULL as num1, 'abc' as str1, 1 as num2"))
 
     insertRows(
       sequenceId,
       spark
-        .sql("select 3 as rowNumber, 2 as num1, NULL as str1, NULL as num2"))
+        .sql(s"select 3 as rowNumber, '$sequenceId' as externalId, 2 as num1, NULL as str1, NULL as num2"))
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 3
 
     val rows = retryWhile[Array[Row]](
@@ -137,7 +137,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     insertRows(
       sequenceId,
       spark
-        .sql("select 1 as rowNumber, 1 as num1, 1.0 as num2, 'a' as str1"))
+        .sql(s"select 1 as rowNumber, '$sequenceId' as externalId, 1 as num1, 1.0 as num2, 'a' as str1"))
 
     retryWhile[Array[Row]](
       spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
@@ -147,7 +147,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     insertRows(
       sequenceId,
       spark
-        .sql("select 1 as rowNumber, 2 as num1"))
+        .sql(s"select 1 as rowNumber, '$sequenceId' as externalId, 2 as num1"))
 
     val rows = retryWhile[Array[Row]](
       spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
@@ -168,7 +168,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     insertRows(
       sequenceId,
       spark
-        .sql("select value as rowNumber, value * 6 as num1 from numbers_many"))
+        .sql(s"select value as rowNumber, '$sequenceId' as externalId, value * 6 as num1 from numbers_many"))
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe testSize
 
     val allColumns = retryWhile[Array[Row]](
@@ -187,7 +187,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     insertRows(
       sequenceId,
       spark
-        .sql("select value as rowNumber, value * 6 as num1 from numbers_delete"))
+        .sql(s"select value as rowNumber, '$sequenceId' as externalId, value * 6 as num1 from numbers_delete"))
 
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
@@ -238,7 +238,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     insertRows(
       sequenceId,
       spark
-        .sql("select value as rowNumber, value * 6 as num1 from numbers_pushdown"))
+        .sql(s"select value as rowNumber, '$sequenceId' as externalId, value * 6 as num1 from numbers_pushdown"))
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
     retryWhile[Array[Row]](
@@ -282,7 +282,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     }
   }
 
-  def createRowsRelation(externalId: String) =
+  def createRowsRelation(externalId: String): DataFrame =
     spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -290,7 +290,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       .option("externalId", externalId)
       .load()
 
-  def insertRows(seqId: String, df: DataFrame, onconflict: String = "upsert") =
+  def insertRows(seqId: String, df: DataFrame, onconflict: String = "upsert"): Unit =
     df.write
       .format("cognite.spark.v1")
       .option("type", "sequencerows")
@@ -330,7 +330,6 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
     // check that the sequences are inserted correctly, before failing on long retries
     for ((inserted, stored) <- checkedAssets.zip(storedCheckedAssets)) {
-      println(s"Inserted ${inserted.externalId}")
       assert(inserted.externalId == stored.externalId)
       assert(inserted.name == stored.name)
       assert(inserted.metadata.getOrElse(Map()) == stored.metadata.getOrElse(Map()))
