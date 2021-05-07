@@ -55,7 +55,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     insertRows(
       sequenceId,
       spark
-        .sql("select value as rowNumber, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create"))
+        .sql(s"select value as rowNumber, '$sequenceId' as externalId, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create"))
     getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
     val allColumns = retryWhile[Array[Row]](
@@ -63,11 +63,11 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       _.length < 100
     )
     allColumns should have length 100
-    allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
-    allColumns(0).get(0) shouldBe 1L
-    allColumns(0).get(1) shouldBe 6L
-    allColumns(0).get(2) shouldBe "abc"
-    allColumns(0).get(3) shouldBe 1.1
+    allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "externalId", "num1", "str1", "num2")
+    allColumns(0).get(1) shouldBe 1L
+    allColumns(0).get(2) shouldBe 6L
+    allColumns(0).get(3) shouldBe "abc"
+    allColumns(0).get(4) shouldBe 1.1
 
     val sparkReadResult = spark.read
       .format("cognite.spark.v1")
@@ -330,6 +330,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
     // check that the sequences are inserted correctly, before failing on long retries
     for ((inserted, stored) <- checkedAssets.zip(storedCheckedAssets)) {
+      println(s"Inserted ${inserted.externalId}")
       assert(inserted.externalId == stored.externalId)
       assert(inserted.name == stored.name)
       assert(inserted.metadata.getOrElse(Map()) == stored.metadata.getOrElse(Map()))

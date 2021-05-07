@@ -144,7 +144,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       throw new CdfSparkException("Can't upsert sequence rows, column `externalId` is missing.")
     }
 
-    val columns = schema.fields.zipWithIndex.filter(_._1.name != "rowNumber").map {
+    val columns = schema.fields.zipWithIndex.filter(cols => !Seq("rowNumber", "externalId").contains(cols._1.name) ).map {
       case (field, index) =>
         val columnType = columnTypes.getOrElse(
           field.name,
@@ -200,10 +200,11 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       val (columns, fromRowFn) = fromRow(rows.head.schema)
       val projectedRows = rows.map(fromRowFn)
       import cats.instances.list._
-      projectedRows
+      val pr = projectedRows
         .groupBy(_.externalId)
         .toList
-        .traverse {
+
+      pr.traverse {
           case (externalId, rows) =>
             client.sequenceRows
               .insertByExternalId(externalId.toString, columns, rows.map(_.sequenceRow))
