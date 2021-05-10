@@ -1007,7 +1007,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.functions.lit
 
 df
-  .withColun("externalId", lit("my-sequence")) // Required when writing to support writing to multiple sequences
+  .withColumn("externalId", lit("my-sequence")) // Required when writing to support writing to multiple sequences
   .write.format("cognite.spark.v1")
   .option("apiKey", myApiKey)
   .option("type", "sequencerows")
