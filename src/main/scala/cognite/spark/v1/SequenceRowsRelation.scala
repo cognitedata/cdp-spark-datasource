@@ -18,6 +18,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     with WritableRelation
     with PrunedFilteredScan {
   import SequenceRowsRelation._
+  import CdpConnector._
 
   val sequenceInfo: Sequence = (sequenceId match {
     case CogniteExternalId(externalId) => client.sequences.retrieveByExternalId(externalId)
@@ -205,7 +206,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       projectedRows
         .groupBy(_.externalId)
         .toList
-        .traverse {
+        .parTraverse {
           case (cogniteExternalId, rows) =>
             client.sequenceRows
               .insertByExternalId(cogniteExternalId.externalId, columns, rows.map(_.sequenceRow))

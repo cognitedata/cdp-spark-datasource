@@ -34,6 +34,24 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       )
     ))
   )
+  val sequenceATwo = SequenceUpdateSchema(
+    externalId = Some("atwo"),
+    name = Some("Rows test sequence duplicate"),
+    columns = Some(Seq(
+      SequenceColumnCreate(
+        externalId = "num1",
+        valueType = "LONG"
+      ),
+      SequenceColumnCreate(
+        externalId = "str1",
+        valueType = "STRING"
+      ),
+      SequenceColumnCreate(
+        externalId = "num2",
+        valueType = "DOUBLE"
+      )
+    ))
+  )
   val sequenceB = SequenceUpdateSchema(
     externalId = Some("b"),
     name = Some("Rows test many sequence"),
@@ -178,6 +196,36 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1")
     allColumns.map(_.getAs[Long]("num1")) shouldBe (1 to testSize).map(_ * 6)
   }
+
+it should "create rows for multiple sequences" in withSequences(Seq(sequenceA, sequenceATwo)) { case Seq(sequenceAId, sequenceATwoId) =>
+
+  val testSize = 100
+  spark.sparkContext
+    .parallelize(1 to testSize)
+    .toDF()
+    .createOrReplaceTempView("numbers_create")
+
+  val dfA = spark.sql(s"select value as rowNumber, '$sequenceAId' as externalId, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create")
+  val dfATwo = spark.sql(s"select value as rowNumber, '$sequenceATwoId' as externalId, 'abc' as str1, 1.1 as num2, value * 4 as num1 from numbers_create")
+
+  insertRows(sequenceAId, dfA.union(dfATwo))
+  getNumberOfRowsCreated(sequenceAId, "sequencerows") shouldBe testSize * 2
+
+  val AColumns = retryWhile[Array[Row]](
+    spark.sql(s"select * from sequencerows_${sequenceAId} order by rowNumber").collect,
+    rows => rows.length < 100
+  )
+  val ATwoColumns = retryWhile[Array[Row]](
+    spark.sql(s"select * from sequencerows_${sequenceATwoId} order by rowNumber").collect,
+    rows => rows.length < 100
+  )
+
+  AColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
+  ATwoColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
+
+  AColumns.map(_.getAs[Long]("num1")) shouldBe (1 to testSize).map(_ * 6)
+  ATwoColumns.map(_.getAs[Long]("num1")) shouldBe (1 to testSize).map(_ * 4)
+}
 
   it should "create and delete rows" in withSequences(Seq(sequenceB)) { case Seq(sequenceId) =>
     spark.sparkContext
