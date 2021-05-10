@@ -1,3 +1,13 @@
+# 1.4.23
+
+## Enhancements
+* SequenceRows are now written to one or multiple sequences by refering each rows `externalId`.
+
+# 1.4.22
+
+## Enhancements
+* Now uses the 1.4.6 version of the Scala SDK.
+
 # 1.4.21
 
 ## Enhancements

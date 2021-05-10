@@ -479,7 +479,7 @@ The `columns` field should be an array of `SequenceColumn`s, which are rows with
 
 ### Sequence rows schema
 
-The schema of `sequencerows` relation matches the sequence that is specified in `id` or `externalId` option.
+The schema of the `sequencerows` relation matches the sequence that is specified in the `id` or `externalId` option.
 Apart from the sequence columns, you need a non-nullable `rowNumber` column of type `long`.
 You also need the `externalId` column, which allows you to write to multiple sequences as long as they have the same
 schema as the `externalId` or `id` passed with the `.option()`.
@@ -999,12 +999,15 @@ One of two additional options must be specified:
 val df = spark.read.format("cognite.spark.v1")
   .option("apiKey", myApiKey)
   .option("type", "sequencerows")
-  .option("id", sequenceId) // or you can use "externalId" option
+  .option("id", sequenceId) // or you can use the "externalId" option
   .load()
 
 // Insert the rows into another sequence using .save()
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.functions.lit
+
 df
+  .withColun("externalId", lit("my-sequence")) // Required when writing to support writing to multiple sequences
   .write.format("cognite.spark.v1")
   .option("apiKey", myApiKey)
   .option("type", "sequencerows")
@@ -1026,6 +1029,7 @@ df = spark.read.format("cognite.spark.v1") \
 # Insert the rows into another sequence using .save()
 from pyspark.sql.functions import lit
 df \
+    .withColumn("externalId", "my-sequence") \ // Required when writing to support writing to multiple sequences
     .write.format("cognite.spark.v1") \
     .option("apiKey", myApiKey) \
     .option("type", "sequencerows") \
