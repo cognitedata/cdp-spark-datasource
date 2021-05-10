@@ -1029,7 +1029,7 @@ df = spark.read.format("cognite.spark.v1") \
 # Insert the rows into another sequence using .save()
 from pyspark.sql.functions import lit
 df \
-    .withColumn("externalId", "my-sequence") \ // Required when writing to support writing to multiple sequences
+    .withColumn("externalId", "my-sequence") \  # Required when writing to support writing to multiple sequences
     .write.format("cognite.spark.v1") \
     .option("apiKey", myApiKey) \
     .option("type", "sequencerows") \
