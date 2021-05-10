@@ -11,11 +11,14 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+case class SequenceRowWithExternalId(externalId: CogniteExternalId, sequenceRow: SequenceRow)
+
 class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)
     extends CdfRelation(config, "sequencerows")
     with WritableRelation
     with PrunedFilteredScan {
   import SequenceRowsRelation._
+  import CdpConnector._
 
   val sequenceInfo: Sequence = (sequenceId match {
     case CogniteExternalId(externalId) => client.sequences.retrieveByExternalId(externalId)
@@ -132,28 +135,40 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       }
     }
 
-  def fromRow(schema: StructType): (Array[String], Row => SequenceRow) = {
+  def fromRow(schema: StructType): (Array[String], Row => SequenceRowWithExternalId) = {
     val rowNumberIndex = schema.fieldNames.indexOf("rowNumber")
     if (rowNumberIndex < 0) {
       throw new CdfSparkException("Can't upsert sequence rows, column `rowNumber` is missing.")
     }
-
-    val columns = schema.fields.zipWithIndex.filter(_._1.name != "rowNumber").map {
-      case (field, index) =>
-        val columnType = columnTypes.getOrElse(
-          field.name,
-          throw new CdfSparkException(
-            s"Can't insert column `${field.name}` into sequence $sequenceId, the column does not exist in the sequence definition")
-        )
-        (index, field.name, columnType)
+    val externalIdIndex = schema.fieldNames.indexOf("externalId")
+    if (externalIdIndex < 0) {
+      throw new CdfSparkException("Can't upsert sequence rows, column `externalId` is missing.")
     }
 
-    def parseRow(row: Row): SequenceRow = {
+    val columns = schema.fields.zipWithIndex
+      .filter(cols => !Seq("rowNumber", "externalId").contains(cols._1.name))
+      .map {
+        case (field, index) =>
+          val columnType = columnTypes.getOrElse(
+            field.name,
+            throw new CdfSparkException(
+              s"Can't insert column `${field.name}` into sequence $sequenceId, the column does not exist in the sequence definition")
+          )
+          (index, field.name, columnType)
+      }
+
+    def parseRow(row: Row): SequenceRowWithExternalId = {
       val rowNumber = row.get(rowNumberIndex) match {
         case x: Long => x
         case x: Int => x: Long
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "rowNumber", "Long", "")
       }
+
+      val externalId = row.get(externalIdIndex) match {
+        case x: String => x
+        case _ => throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
+      }
+
       val columnValues = columns.map {
         case (index, name, columnType) =>
           tryGetValue(columnType).applyOrElse(
@@ -163,7 +178,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
                 .badRowError(row, name, columnType, "")
           )
       }
-      SequenceRow(rowNumber, columnValues)
+      SequenceRowWithExternalId(CogniteExternalId(externalId), SequenceRow(rowNumber, columnValues))
     }
 
     (columns.map(_._2), parseRow)
@@ -187,10 +202,16 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     } else {
       val (columns, fromRowFn) = fromRow(rows.head.schema)
       val projectedRows = rows.map(fromRowFn)
-
-      client.sequenceRows
-        .insertById(sequenceInfo.id, columns, projectedRows)
-        .flatTap(_ => incMetrics(itemsCreated, rows.length))
+      import cats.instances.list._
+      projectedRows
+        .groupBy(_.externalId)
+        .toList
+        .parTraverse {
+          case (cogniteExternalId, rows) =>
+            client.sequenceRows
+              .insertByExternalId(cogniteExternalId.externalId, columns, rows.map(_.sequenceRow))
+              .flatTap(_ => incMetrics(itemsCreated, rows.length))
+        } *> IO.unit
     }
 
   private def readRows(

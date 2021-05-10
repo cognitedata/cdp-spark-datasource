@@ -479,7 +479,10 @@ The `columns` field should be an array of `SequenceColumn`s, which are rows with
 
 ### Sequence rows schema
 
-The schema of `sequencerows` relation matches the sequence that is specified in `id` or `externalId` option. Apart from the sequence columns, there is a non-nullable `rowNumber` column of type `long`
+The schema of `sequencerows` relation matches the sequence that is specified in `id` or `externalId` option.
+Apart from the sequence columns, you need a non-nullable `rowNumber` column of type `long`.
+You also need the `externalId` column, which allows you to write to multiple sequences as long as they have the same
+schema as the `externalId` or `id` passed with the `.option()`.
 
 ### Labels schema
 | Column name   | Type     |  Nullable |
