@@ -1,6 +1,12 @@
 # 1.4.22
 
 ## Enhancements
+
+Added `authTicket` option for ticket auth.
+
+# 1.4.22
+
+## Enhancements
 * SequenceRows are now written to one or multiple sequences by refering each rows `externalId`.
   
 * Now uses the 1.4.6 version of the Scala SDK.
