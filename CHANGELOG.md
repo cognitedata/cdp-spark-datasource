@@ -1,3 +1,9 @@
+# 1.4.23
+
+## Enhancements
+
+Added `authTicket` option for ticket auth.
+
 # 1.4.22
 
 ## Enhancements
