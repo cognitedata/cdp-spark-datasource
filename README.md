@@ -102,7 +102,7 @@ The common options are:
 | `applicationName` | Identifies the application making requests by including a `X-CDP-App` header. Defaults to `com.cognite.spark.datasource-(version)` | |
 | `clientTag` | If set, will be included as a `X-CDP-ClientTag` header in requests. This is typically used to group sets of requests as belonging to some definition of a job or workload for debugging. | |
 
-The options to use native tokens for authentication are:
+To autenticate using OIDC tokens set all of these options:
 |    Option      |                                                                   Description                                                                            |   Required     |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------  |
 | `tokenUri`     | Token uri to request a token from. (Example: `https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token`)                              | Yes            |
