@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.{Clock, ContextShift, IO}
 import cats.implicits._
-import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2}
+import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
 import com.softwaremill.sttp.{SttpBackend, Uri}
 import org.apache.spark.sql.sources._
@@ -250,6 +250,7 @@ object DefaultSource {
   }
 
   def parseAuth(parameters: Map[String, String]): Option[CdfSparkAuth] = {
+    val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
     val apiKey = parameters.get("apiKey").map(apiKey => ApiKeyAuth(apiKey))
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
@@ -265,7 +266,8 @@ object DefaultSource {
       clientCredentials = OAuth2.ClientCredentials(tokenUri, clientId, clientSecret, scopes)
     } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 
-    apiKey
+    authTicket
+      .orElse(apiKey)
       .orElse(bearerToken)
       .map(CdfSparkAuth.Static)
       .orElse(clientCredentials)
