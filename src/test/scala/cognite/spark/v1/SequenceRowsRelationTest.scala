@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.sequenceColumnToCreateTransformer
+import cognite.spark.v1.ChimneyConverters._
 import com.cognite.sdk.scala.v1.SequenceColumnCreate
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}

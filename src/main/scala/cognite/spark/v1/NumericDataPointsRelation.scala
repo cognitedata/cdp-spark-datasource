@@ -104,9 +104,8 @@ object Granularity {
 class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)
     extends DataPointsRelationV1[DataPointsItem](config, "datapoints")(sqlContext)
     with WritableRelation {
-  import CdpConnector._
-
   import PushdownUtilities.filtersToTimestampLimits
+
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Insert not supported for datapoints. Use upsert instead.")
 

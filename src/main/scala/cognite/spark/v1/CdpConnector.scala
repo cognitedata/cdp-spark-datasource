@@ -2,18 +2,21 @@ package cognite.spark.v1
 
 import java.util.concurrent.Executors
 import cats.Parallel
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.unsafe.{IORuntime, IORuntimeConfig, Scheduler}
+import cats.effect.{IO, Temporal}
 import com.cognite.sdk.scala.common.{GzipSttpBackend, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
-import com.softwaremill.sttp._
-import com.softwaremill.sttp.asynchttpclient.SttpClientBackendFactory
-import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import sttp.client3._
+import sttp.client3.asynchttpclient.SttpClientBackendFactory
+import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import org.log4s._
 
 import java.lang.Thread.UncaughtExceptionHandler
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+
+import cats.effect.unsafe.implicits.global
 
 final case class Data[A](data: A)
 final case class Items[A](items: Seq[A])
@@ -41,17 +44,12 @@ object CdpConnector {
           .build()
       )
     )
-  @transient implicit lazy val cdpConnectorTimer: Timer[IO] = IO.timer(cdpConnectorExecutionContext)
-  @transient implicit val cdpConnectorContextShift: ContextShift[IO] =
-    IO.contextShift(cdpConnectorExecutionContext)
-  @transient implicit lazy val cdpConnectorParallel: Parallel[IO] =
-    IO.ioParallel(cdpConnectorContextShift)
-  private val sttpBackend: SttpBackend[IO, Nothing] =
-    new GzipSttpBackend[IO, Nothing](
+  private val sttpBackend: SttpBackend[IO, Any] =
+    new GzipSttpBackend[IO, Any](
       AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
-  def retryingSttpBackend(maxRetries: Int, maxRetryDelaySeconds: Int): SttpBackend[IO, Nothing] =
-    new RetryingBackend[IO, Nothing](
+  def retryingSttpBackend(maxRetries: Int, maxRetryDelaySeconds: Int): SttpBackend[IO, Any] =
+    new RetryingBackend[IO, Any](
       sttpBackend,
       maxRetries = Some(maxRetries),
       maxRetryDelay = maxRetryDelaySeconds.seconds)

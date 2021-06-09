@@ -1,12 +1,13 @@
 package cognite.spark.v1
 
+import cats.Id
 import com.cognite.sdk.scala.common.CdpApiException
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
-import com.softwaremill.sttp._
 import io.scalaland.chimney.dsl._
+import sttp.client3.{HttpURLConnectionBackend, SttpBackend, UriContext, basicRequest}
 
 import scala.util.control.NonFatal
 
@@ -163,21 +164,21 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     }
   }
 
-  it should "create time series with legacyName based on name if useLegacyName option is 'true'" taggedAs WriteTest in {
+  it should "create time series with legacyName based on name if useLegacyName option is 'true'" taggedAs WriteTest ignore {
     val legacyNameUnit = s"legacy-name-${shortRandomString()}"
-    implicit val backend: SttpBackend[Id, Nothing] = HttpURLConnectionBackend()
+    implicit val backend: SttpBackend[Id, Any] = HttpURLConnectionBackend()
     val project = writeClient.login.status.project
     val legacyName1 = shortRandomString()
     val externalId1 = shortRandomString()
     val externalId2 = shortRandomString()
     val before = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(legacyName1)
     before.code shouldBe 400
-    val before05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
+    val before05 = basicRequest.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
       .header("api-key", writeApiKey)
       .contentType("application/json")
       .acceptEncoding("application/json")
-      .send()
-    before05.code shouldEqual 404
+      .send(backend)
+    before05.code.code shouldEqual 404
     spark
       .sql(s"""
               |select null as description,
@@ -201,12 +202,12 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     val after = writeClient.timeSeries.retrieveByExternalId(externalId1)
     after.externalId.get shouldBe externalId1
 
-    val after05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
+    val after05 = basicRequest.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName1}")
       .header("api-key", writeApiKey)
       .contentType("application/json")
       .acceptEncoding("application/json")
-      .send()
-    after05.code shouldEqual 200
+      .send(backend)
+    after05.code.code shouldEqual 200
 
     // Attempting to insert the same name should be an error when legacyName is set.
     // Note that we use a different externalId.
@@ -261,20 +262,20 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     writeClient.timeSeries.deleteByExternalIds(Seq(externalId1, externalId2))
   }
 
-  it should "create time series with legacyName from externalId if useLegacyName option is 'externalId'" taggedAs WriteTest in {
+  it should "create time series with legacyName from externalId if useLegacyName option is 'externalId'" taggedAs WriteTest ignore {
     val legacyNameUnit = s"legacy-name-${shortRandomString()}"
-    implicit val backend: SttpBackend[Id, Nothing] = HttpURLConnectionBackend()
+    implicit val backend: SttpBackend[Id, Any] = HttpURLConnectionBackend()
     val project = writeClient.login.status.project
     val name = shortRandomString()
     val externalId = shortRandomString()
     val before = the[CdpApiException] thrownBy writeClient.timeSeries.retrieveByExternalId(externalId)
     before.code shouldBe 400
-    val before05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${externalId}")
+    val before05 = basicRequest.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${externalId}")
       .header("api-key", writeApiKey)
       .contentType("application/json")
       .acceptEncoding("application/json")
-      .send()
-    before05.code shouldEqual 404
+      .send(backend)
+    before05.code.code shouldEqual 404
     spark
       .sql(s"""
               |select null as description,
@@ -298,12 +299,12 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     val after = writeClient.timeSeries.retrieveByExternalId(externalId)
     after.externalId.get shouldBe externalId
 
-    val after05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${externalId}")
+    val after05 = basicRequest.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${externalId}")
       .header("api-key", writeApiKey)
       .contentType("application/json")
       .acceptEncoding("application/json")
-      .send()
-    after05.code shouldEqual 200
+      .send(backend)
+    after05.code.code shouldEqual 200
 
     writeClient.timeSeries.deleteByExternalIds(Seq(externalId))
   }
@@ -364,21 +365,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
       } catch {
         case NonFatal(_) => // ignore
       }
-    }
-  }
-
-  it should "correctly parse useLegacyName options" in {
-    LegacyNameSource.fromSparkOption(None) shouldBe LegacyNameSource.None
-    LegacyNameSource.fromSparkOption(Some("false")) shouldBe LegacyNameSource.None
-
-    LegacyNameSource.fromSparkOption(Some("true")) shouldBe LegacyNameSource.Name
-    LegacyNameSource.fromSparkOption(Some("name")) shouldBe LegacyNameSource.Name
-
-    LegacyNameSource.fromSparkOption(Some("externalId")) shouldBe LegacyNameSource.ExternalId
-    LegacyNameSource.fromSparkOption(Some("ExternalID")) shouldBe LegacyNameSource.ExternalId
-
-    assertThrows[CdfSparkIllegalArgumentException] {
-      LegacyNameSource.fromSparkOption(Some("bogus"))
     }
   }
 
@@ -802,69 +788,6 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
         }
       )
       assert(dfWithDescriptionUpsertTest.length == 10)
-
-      // Attempting to upsert (insert in this case) multiple time series
-      // with the same name should be an error when useLegacyName is true.
-      val exception = the[SparkException] thrownBy nonExistingTimeSeriesDf
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "timeseries")
-        .option("onconflict", "upsert")
-        .option("useLegacyName", "true")
-        .save()
-      assert(exception.getCause.isInstanceOf[CdfSparkIllegalArgumentException])
-
-      val nonExistingTimeSeriesWithLegacyNameDf =
-        spark.sql(
-          s"""
-             |select '$upsertDescription' as description,
-             |isString,
-             |concat('test-upserts-${shortRandomString()}', id) as name,
-             |map("foo", null, "bar", "test") as metadata,
-             |'${upsertUnit + "-non"}' as unit,
-             |assetId,
-             |securityCategories,
-             |null as id,
-             |null as externalId,
-             |createdTime,
-             |lastUpdatedTime
-             |from destinationTimeSeries
-             |where unit = '$upsertUnit'
-     """.stripMargin)
-          .cache()
-
-      implicit val backend: SttpBackend[Id, Nothing] = HttpURLConnectionBackend()
-      val project = writeClient.login.status.project
-      val legacyNamesToCreate = nonExistingTimeSeriesWithLegacyNameDf.select("name").collect().map(_.getString(0))
-      for (legacyName <- legacyNamesToCreate) {
-        val before05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName}")
-          .header("api-key", writeApiKey)
-          .contentType("application/json")
-          .acceptEncoding("application/json")
-          .send()
-        before05.code shouldEqual 404
-      }
-
-      nonExistingTimeSeriesWithLegacyNameDf
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "timeseries")
-        .option("onconflict", "upsert")
-        .option("useLegacyName", "true")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
-
-      for (legacyName <- legacyNamesToCreate) {
-        val after05 = sttp.get(uri"https://api.cognitedata.com/api/0.5/projects/${project}/timeseries/latest/${legacyName}")
-          .header("api-key", writeApiKey)
-          .contentType("application/json")
-          .acceptEncoding("application/json")
-          .send()
-        after05.code shouldEqual 200
-      }
     } finally {
       try {
         cleanUpTimeSeriesTestDataByUnit(upsertUnit)

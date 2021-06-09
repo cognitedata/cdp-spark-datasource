@@ -47,7 +47,9 @@ class OAuth2Test
     }
     catch {
       case e: InvalidAuthentication => assert(true)
-      case _ => assert(false)
+      case e =>
+        e.printStackTrace()
+        assert(false)
     }
   }
 

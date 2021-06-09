@@ -8,7 +8,7 @@ import fs2.{Chunk, Stream}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import com.softwaremill.sttp._
+import sttp.client3._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 
@@ -48,8 +48,6 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
   }
 
   it should "convert multiple streams to one Iterator" in {
-    import CdpConnector._
-
     val nStreams = 50
     val nItemsPerStream = 1000
     val rdd = new SdkV1Rdd[Event, Long](
@@ -62,7 +60,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       (_: GenericClient[IO], _: Option[Int], _: Int) => {
         val allStreams = 0.until(nStreams).map { i =>
           Stream.evalUnChunk {
-            IO.sleep((scala.math.random * 300).millis)(cdpConnectorTimer) *> IO(
+            IO.sleep((scala.math.random * 300).millis) *> IO(
               Chunk.seq(1.to(nItemsPerStream).map(j => Event(id = i * nItemsPerStream + j))))
           }
         }

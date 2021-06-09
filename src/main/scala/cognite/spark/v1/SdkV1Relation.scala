@@ -11,8 +11,9 @@ import org.apache.spark.sql.types.StructType
 import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
-import CdpConnector._
 import io.circe.JsonObject
+
+import cats.effect.unsafe.implicits.global
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends CdfRelation(config, shortName)
@@ -51,7 +52,6 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
-      import CdpConnector._
       val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
       batches
         .parTraverse_(getFromRowsAndCreate(_))
@@ -73,7 +73,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       P <: WithExternalId with WithId[Option[Long]],
       U <: WithSetExternalId,
       T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO],
-      R <: WithId[Long]](
+      R <: ToUpdate[U] with WithId[Long]](
       updates: Seq[P],
       resource: T,
       isUpdateEmpty: U => Boolean
@@ -123,7 +123,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   // scalastyle:off no.whitespace.after.left.bracket method.length
   def createOrUpdateByExternalId[
-      R <: WithExternalId,
+      R <: WithExternalId with ToCreate[C],
       U <: WithSetExternalId,
       C <: WithExternalId,
       T <: UpdateByExternalId[R, U, IO] with Create[R, C, IO]](
@@ -142,16 +142,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .flatMap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
         .recoverWith {
           case CdpApiException(_, 409, _, _, Some(duplicated), _, requestId) if doUpsert =>
-            val moreExistingExternalIds = config.legacyNameSource match {
-              case LegacyNameSource.ExternalId =>
-                // If we attempt to insert a time series that conflicts on both legacyName and externalId,
-                // the API will only return legacyName conflicts. Therefore, we also need to include the
-                // conflicting legacyNames (which we know to be externalIds) in the next round of updates.
-                duplicated.flatMap(j => j("externalId") ++ j("legacyName")).map(_.asString.get)
-              case _ =>
-                assertNoLegacyNameConflicts(duplicated, requestId)
-                duplicated.flatMap(j => j("externalId")).map(_.asString.get)
-            }
+            val moreExistingExternalIds = duplicated.flatMap(j => j("externalId")).map(_.asString.get)
             createOrUpdateByExternalId[R, U, C, T](
               existingExternalIds ++ moreExistingExternalIds.toSet,
               resourcesToCreate,
@@ -185,9 +176,9 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   def genericUpsert[
       // The Item (read) type
-      R <: WithExternalId with WithId[Long],
+      R <: WithId[Long] with WithExternalId with ToCreate[C] with ToUpdate[Up],
       // The UpsertSchema type
-      U <: WithExternalId with WithId[Option[Long]],
+      U <: WithId[Option[Long]] with WithExternalId,
       // The ItemCreate type
       C <: WithExternalId,
       // The ItemUpdate type

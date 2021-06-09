@@ -4,6 +4,7 @@ import java.time.Instant
 
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.ChimneyConverters._
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common._
@@ -19,8 +20,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
     with InsertableRelation
     with WritableRelation {
-  import CdpConnector._
-
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],

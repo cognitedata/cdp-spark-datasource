@@ -1,13 +1,16 @@
 package cognite.spark.v1
 
-import cats.effect.{Clock, ContextShift, IO}
+import cats.effect.{Clock, IO}
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
-import com.softwaremill.sttp.{SttpBackend, Uri}
+import sttp.client3.SttpBackend
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
+import sttp.model.Uri
+
+import cats.effect.unsafe.implicits.global
 
 final case class RelationConfig(
     auth: CdfSparkAuth,
@@ -29,7 +32,6 @@ final case class RelationConfig(
     ignoreUnknownIds: Boolean,
     deleteMissingAssets: Boolean,
     subtrees: AssetSubtreeOption.AssetSubtreeOption,
-    legacyNameSource: LegacyNameSource.Value
 )
 
 object OnConflict extends Enumeration {
@@ -37,20 +39,6 @@ object OnConflict extends Enumeration {
   val Abort, Update, Upsert, Delete = Value
 
   def withNameOpt(s: String): Option[Value] = values.find(_.toString.toLowerCase == s.toLowerCase())
-}
-
-object LegacyNameSource extends Enumeration {
-  type LegacyNameSource = Value
-  val None, Name, ExternalId = Value
-
-  def fromSparkOption(configValue: Option[String]): LegacyNameSource =
-    configValue.map(_.toLowerCase).getOrElse("false") match {
-      case "false" => LegacyNameSource.None
-      case "true" | "name" => LegacyNameSource.Name
-      case "externalid" => LegacyNameSource.ExternalId
-      case invalid =>
-        throw new CdfSparkIllegalArgumentException(s"Invalid value for useLegacyName: $invalid")
-    }
 }
 
 object AssetSubtreeOption extends Enumeration {
@@ -207,8 +195,6 @@ class DefaultSource
       }
       val batchSize = config.batchSize.getOrElse(batchSizeDefault)
       data.foreachPartition((rows: Iterator[Row]) => {
-        import CdpConnector._
-
         val batches = rows.grouped(batchSize).toVector
         config.onConflict match {
           case OnConflict.Abort =>
@@ -229,7 +215,6 @@ class DefaultSource
 }
 
 object DefaultSource {
-
   private def toBoolean(
       parameters: Map[String, String],
       parameterName: String,
@@ -299,7 +284,6 @@ object DefaultSource {
       case Some(x) => x
       case None => sys.error("Either apiKey or bearerToken is required.")
     }
-    import CdpConnector._
     val projectName = parameters
       .getOrElse(
         "project",
@@ -361,8 +345,7 @@ object DefaultSource {
       parallelismPerPartition,
       ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", defaultValue = true),
       deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
-      subtrees = subtreesOption,
-      legacyNameSource = LegacyNameSource.fromSparkOption(parameters.get("useLegacyName"))
+      subtrees = subtreesOption
     )
   }
 
@@ -371,11 +354,8 @@ object DefaultSource {
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
       baseUrl: String
-  )(
-      implicit
-      cs: ContextShift[IO] = CdpConnector.cdpConnectorContextShift,
-      clock: Clock[IO]): String = {
-    implicit val backend: SttpBackend[IO, Nothing] =
+  )(implicit clock: Clock[IO]): String = {
+    implicit val backend: SttpBackend[IO, Any] =
       CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
 
     val getProject = for {

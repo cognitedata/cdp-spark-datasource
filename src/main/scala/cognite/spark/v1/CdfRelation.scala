@@ -4,7 +4,7 @@ import cats.effect.IO
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.Auth
 import com.cognite.sdk.scala.v1._
-import com.softwaremill.sttp.SttpBackend
+import sttp.client3.SttpBackend
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources.BaseRelation
 

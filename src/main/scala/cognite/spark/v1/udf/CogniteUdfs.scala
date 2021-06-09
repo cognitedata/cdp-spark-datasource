@@ -10,9 +10,11 @@ import cognite.spark.v1.udf.CogniteUdfs.{
 import cognite.spark.v1.{CdfSparkException, CdpConnector, Constants}
 import com.cognite.sdk.scala.common.ApiKeyAuth
 import com.cognite.sdk.scala.v1.{FunctionCall, GenericClient}
-import com.softwaremill.sttp.SttpBackend
+import sttp.client3.SttpBackend
 import io.circe.{Json, JsonObject, parser}
 import org.apache.spark.sql.SparkSession
+
+import cats.effect.unsafe.implicits.global
 
 class CogniteUdfs(sparkSession: SparkSession) {
   def initializeUdfs(apiKey: ApiKeyAuth, baseUrl: String = DefaultBaseUrl): Unit = {
@@ -50,7 +52,7 @@ class CogniteUdfs(sparkSession: SparkSession) {
 }
 
 object CogniteUdfs {
-  @transient implicit lazy val backend: SttpBackend[IO, Nothing] =
+  @transient implicit lazy val backend: SttpBackend[IO, Any] =
     CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)
 
   private def getFunctionResult(

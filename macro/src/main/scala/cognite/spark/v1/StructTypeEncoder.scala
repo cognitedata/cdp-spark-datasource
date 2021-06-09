@@ -1,8 +1,8 @@
 package cognite.spark.v1
 
-import scala.language.experimental.macros
 import org.apache.spark.sql.types.{StructField, StructType}
 
+import scala.language.experimental.macros
 import scala.reflect.macros.blackbox.Context
 
 trait StructTypeEncoder[T] {

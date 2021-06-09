@@ -26,8 +26,6 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[RelationshipsReadSchema, String](config, "relationships")
     with InsertableRelation
     with WritableRelation {
-  import CdpConnector._
-
   override def schema: StructType = structType[RelationshipsReadSchema]
 
   override def toRow(a: RelationshipsReadSchema): Row = asRow(a)

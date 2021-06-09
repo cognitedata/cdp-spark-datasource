@@ -108,9 +108,6 @@ final case class InvalidRootChangeException(cause: CdpApiException, newSubtreeRo
 
 class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdfRelation(config, "assethierarchy") {
-
-  import CdpConnector.cdpConnectorContextShift
-
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
 
   private val deleteMissingAssets = config.deleteMissingAssets

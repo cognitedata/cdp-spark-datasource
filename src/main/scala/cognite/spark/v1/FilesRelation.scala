@@ -5,6 +5,7 @@ import java.time.Instant
 import io.scalaland.chimney.dsl._
 import cats.effect.IO
 import com.cognite.sdk.scala.v1.{File, FileCreate, FileUpdate, GenericClient}
+import cognite.spark.v1.ChimneyConverters._
 import cognite.spark.v1.SparkSchemaHelper._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._

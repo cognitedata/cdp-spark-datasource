@@ -16,6 +16,8 @@ import java.time.{Duration, Instant}
 import scala.Ordering.Implicits._
 import scala.annotation.tailrec
 
+import cats.effect.unsafe.implicits.global
+
 sealed trait Range {
   val count: Option[Long]
   val id: Either[Long, String]
@@ -50,8 +52,6 @@ final case class NumericDataPointsRdd(
     increaseReadMetrics: Int => Unit,
     rowIndices: Array[Int]
 ) extends RDD[Row](sparkContext, Nil) {
-  import CdpConnector._
-
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 

@@ -1,12 +1,13 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import com.cognite.sdk.scala.common.{Auth, StringDataPoint}
+import com.cognite.sdk.scala.common.StringDataPoint
 import com.cognite.sdk.scala.v1._
-import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+
+import cats.effect.unsafe.implicits.global
 
 final case class StringDataPointsRdd(
     @transient override val sparkContext: SparkContext,
@@ -14,7 +15,6 @@ final case class StringDataPointsRdd(
     getIOs: GenericClient[IO] => Seq[(StringDataPointsFilter, IO[Seq[StringDataPoint]])],
     toRow: StringDataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
-
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 

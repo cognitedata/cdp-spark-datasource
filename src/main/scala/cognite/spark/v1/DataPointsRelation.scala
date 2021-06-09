@@ -6,8 +6,11 @@ import cats.effect.IO
 import cats.implicits._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import com.cognite.sdk.scala.v1._
+import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
+
+import cats.effect.unsafe.implicits.global
 
 abstract class Limit extends Ordered[Limit] with Serializable {
   def value: Instant
@@ -21,8 +24,6 @@ sealed case class Max(value: Instant) extends Limit
 
 final case class AggregationFilter(aggregation: String)
 
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-
 abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String)(
     override val sqlContext: SQLContext)
     extends CdfRelation(config, shortName)
@@ -30,7 +31,6 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
     with PrunedFilteredScan
     with Serializable
     with InsertableRelation {
-  import CdpConnector._
   import DataPointsRelationV1._
 
   def toRow(a: A): Row

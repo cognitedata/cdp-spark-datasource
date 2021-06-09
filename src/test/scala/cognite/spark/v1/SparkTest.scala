@@ -2,7 +2,6 @@ package cognite.spark.v1
 
 import java.io.IOException
 import java.util.UUID
-import java.util.concurrent.Executors
 
 import cats.Id
 import com.codahale.metrics.Counter
@@ -11,20 +10,21 @@ import org.apache.spark.sql.SparkSession
 import org.scalatest.Tag
 import org.apache.spark.datasource.MetricsSource
 
-import scala.concurrent.{ExecutionContext, TimeoutException}
+import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.util.Random
-import cats.effect.{IO, Timer}
+import cats.effect.IO
 import cats.implicits.catsSyntaxFlatMapOps
 import com.cognite.sdk.scala.v1._
 import org.scalactic.{Prettifier, source}
+
+import cats.effect.unsafe.implicits.global
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
 object GreenfieldTest extends Tag("GreenfieldTest")
 
 trait SparkTest {
-  implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1)))
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
   assert(writeApiKey != null && !writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
@@ -103,8 +103,7 @@ trait SparkTest {
       Constants.DefaultParallelismPerPartition,
       ignoreUnknownIds = true,
       deleteMissingAssets = false,
-      subtrees = AssetSubtreeOption.Ingest,
-      legacyNameSource = LegacyNameSource.None
+      subtrees = AssetSubtreeOption.Ingest
     )
 
   private def getCounter(metricName: String): Long =

@@ -15,12 +15,11 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.datasource.MetricsSource
-
-import com.cognite.sdk.scala.common.Auth
-import com.softwaremill.sttp.SttpBackend
 import fs2.Stream
 
 import scala.util.Try
+
+import cats.effect.unsafe.implicits.global
 
 class RawTableRelation(
     config: RelationConfig,
@@ -36,7 +35,6 @@ class RawTableRelation(
     with PrunedFilteredScan
     with Serializable {
   import RawTableRelation._
-  import CdpConnector._
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)

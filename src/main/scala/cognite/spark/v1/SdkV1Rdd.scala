@@ -9,6 +9,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 
+import cats.effect.unsafe.implicits.global
+
 final case class CdfPartition(index: Int) extends Partition
 
 final case class SdkV1Rdd[A, I](
@@ -18,8 +20,6 @@ final case class SdkV1Rdd[A, I](
     uniqueId: A => I,
     getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]])
     extends RDD[Row](sparkContext, Nil) {
-  import CdpConnector._
-
   type EitherQueue = ArrayBlockingQueue[Either[Throwable, Chunk[A]]]
 
   @transient lazy val client: GenericClient[IO] =
