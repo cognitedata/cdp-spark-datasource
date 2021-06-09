@@ -1,6 +1,7 @@
 package cognite.spark.v1.udf
 
 import cats.effect.IO
+import cats.effect.unsafe.IORuntime
 import cognite.spark.v1.Constants.{DefaultBaseUrl, DefaultMaxRetries, DefaultMaxRetryDelaySeconds}
 import cognite.spark.v1.udf.CogniteUdfs.{
   callFunctionAndGetResult,
@@ -15,7 +16,8 @@ import io.circe.{Json, JsonObject, parser}
 import org.apache.spark.sql.SparkSession
 
 class CogniteUdfs(sparkSession: SparkSession) {
-  def initializeUdfs(apiKey: ApiKeyAuth, baseUrl: String = DefaultBaseUrl): Unit = {
+  def initializeUdfs(apiKey: ApiKeyAuth, baseUrl: String = DefaultBaseUrl)(
+      implicit ioRuntime: IORuntime): Unit = {
     sparkSession.udf.register(
       "cdf_function",
       (functionId: Long, data: String) =>
@@ -53,10 +55,8 @@ object CogniteUdfs {
   @transient implicit lazy val backend: SttpBackend[IO, Any] =
     CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)
 
-  private def getFunctionResult(
-      client: GenericClient[IO],
-      functionId: Long,
-      result: FunctionCall): IO[Json] = {
+  private def getFunctionResult(client: GenericClient[IO], functionId: Long, result: FunctionCall)(
+      implicit ioRuntime: IORuntime): IO[Json] = {
     var res = result
     var i = 0
     while (res.status.isDefined && res.status.get == "Running" && i < 30) {
@@ -83,7 +83,7 @@ object CogniteUdfs {
       functionId: Long,
       data: String,
       apiKeyAuth: ApiKeyAuth,
-      baseUrl: String): IO[String] = {
+      baseUrl: String)(implicit ioRuntime: IORuntime): IO[String] = {
     val jsonData = parser.parse(data) match {
       case Right(value) => value
       case Left(_) => Json.fromJsonObject(JsonObject.empty)
@@ -106,7 +106,7 @@ object CogniteUdfs {
       externalId: String,
       data: String,
       apiKeyAuth: ApiKeyAuth,
-      baseUrl: String) = {
+      baseUrl: String)(implicit ioRuntime: IORuntime) = {
     val funcIO = for {
       client <- GenericClient.forAuth[IO](
         Constants.SparkDatasourceVersion,
@@ -120,7 +120,8 @@ object CogniteUdfs {
     callFunctionAndGetResult(func.id.get, data, apiKeyAuth, baseUrl)
   }
 
-  private def callFunctionByName(name: String, data: String, apiKeyAuth: ApiKeyAuth, baseUrl: String) = {
+  private def callFunctionByName(name: String, data: String, apiKeyAuth: ApiKeyAuth, baseUrl: String)(
+      implicit ioRuntime: IORuntime) = {
     val functionsIO = for {
       client <- GenericClient.forAuth[IO](
         Constants.SparkDatasourceVersion,

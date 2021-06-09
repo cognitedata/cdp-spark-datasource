@@ -2,7 +2,9 @@ package cognite.spark.v1
 
 import java.util.concurrent.Executors
 import cats.Parallel
-import cats.effect.{Concurrent, ContextShift, IO, Timer}
+import cats.effect.std.Queue
+import cats.effect.unsafe.{IORuntime, IORuntimeConfig}
+import cats.effect.IO
 import com.cognite.sdk.scala.common.{GzipSttpBackend, Items, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
@@ -38,17 +40,20 @@ object CdpConnector {
               // Log the exception, and move on.
               logger.warn(e)("Ignoring uncaught exception")
           })
-          .setNameFormat("CDF-Spark-Datasource-%d")
+          .setNameFormat("CDF-Spark-compute-%d")
           .build()
       )
     )
-  @transient implicit lazy val cdpConnectorTimer: Timer[IO] = IO.timer(cdpConnectorExecutionContext)
-  @transient implicit val cdpConnectorContextShift: ContextShift[IO] =
-    IO.contextShift(cdpConnectorExecutionContext)
-  @transient implicit lazy val cdpConnectorParallel: Parallel[IO] =
-    IO.ioParallel(cdpConnectorContextShift)
-  @transient implicit lazy val cdpConnectorConcurrent: Concurrent[IO] =
-    IO.ioConcurrentEffect(cdpConnectorContextShift)
+  @transient private val (blocking, _) =
+    IORuntime.createDefaultBlockingExecutionContext("CDF-Spark-blocking")
+  @transient private val (scheduler, _) = IORuntime.createDefaultScheduler("CDF-Spark-scheduler")
+  @transient lazy implicit val ioRuntime: IORuntime = IORuntime(
+    cdpConnectorExecutionContext,
+    blocking,
+    scheduler,
+    () => (),
+    IORuntimeConfig()
+  )
   private val sttpBackend: SttpBackend[IO, Any] =
     new GzipSttpBackend[IO, Any](
       AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
@@ -75,7 +80,15 @@ object CdpConnector {
             Some(MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.response.failure"))
         ))
     // this backend throttles when rate limiting from the serivce is encountered
-    val throttledBackend = new BackpressureThrottleBackend[IO, Any](metricsBackend, 800.milliseconds)
+    val makeQueueOf1 = for {
+      queue <- Queue.bounded[IO, Unit](1)
+      _ <- queue.offer(())
+    } yield queue
+    val throttledBackend =
+      new BackpressureThrottleBackend[IO, Any](
+        metricsBackend,
+        makeQueueOf1.unsafeRunSync(),
+        800.milliseconds)
     val retryingBackend = new RetryingBackend[IO, Any](
       throttledBackend,
       maxRetries = maxRetries,

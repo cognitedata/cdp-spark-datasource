@@ -69,7 +69,7 @@ final case class InvalidRootChangeException(assetIds: Seq[String], subtreeId: St
 class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdfRelation(config, "assethierarchy") {
 
-  import CdpConnector.cdpConnectorContextShift
+  import CdpConnector.ioRuntime
 
   def delete(data: DataFrame): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {

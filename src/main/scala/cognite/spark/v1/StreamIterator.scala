@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import cats.effect.unsafe.IORuntime
+
 import java.util.concurrent.{ArrayBlockingQueue, Executors}
 import cats.effect.{Concurrent, IO}
 import com.google.common.util.concurrent.ThreadFactoryBuilder
@@ -19,7 +21,7 @@ object StreamIterator {
     .build()
 
   def apply[A](stream: Stream[IO, A], queueBufferSize: Int, processChunk: Option[Chunk[A] => Chunk[A]])(
-      implicit concurrent: Concurrent[IO]): Iterator[A] = {
+      implicit IORuntime: IORuntime): Iterator[A] = {
     // This pool will be used for draining the queue
     // Draining needs to have a separate pool to continuously drain the queue
     // while another thread pool fills the queue with data from CDF
@@ -67,8 +69,7 @@ object StreamIterator {
       stream: Stream[IO, A],
       queue: EitherQueue[A],
       queueBufferSize: Int,
-      processChunk: Option[Chunk[A] => Chunk[A]])(
-      implicit concurrent: Concurrent[IO]): Stream[IO, Unit] =
+      processChunk: Option[Chunk[A] => Chunk[A]]): Stream[IO, Unit] =
     stream.chunks.parEvalMapUnordered(queueBufferSize) { chunk =>
       IO {
         val processedChunk = processChunk.map(f => f(chunk)).getOrElse(chunk)

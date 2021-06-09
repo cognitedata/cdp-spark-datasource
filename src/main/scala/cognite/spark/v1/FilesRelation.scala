@@ -15,7 +15,6 @@ import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import cats.implicits._
-import cognite.spark.v1.CdpConnector.cdpConnectorConcurrent
 import cognite.spark.v1.PushdownUtilities.{
   cogniteExternalIdSeqToStringSeq,
   executeFilter,

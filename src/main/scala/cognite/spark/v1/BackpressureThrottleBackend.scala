@@ -1,8 +1,9 @@
 package cognite.spark.v1
 
 import cats.Applicative
-import cats.effect.{Concurrent, IO, Timer}
-import cats.effect.concurrent.{MVar, MVar2}
+import cats.effect.kernel.Async
+import cats.effect.std.Queue
+import cats.effect.{Concurrent, Temporal}
 import cats.syntax.all._
 import com.cognite.sdk.scala.common.{CdpApiException, SdkException}
 import sttp.capabilities.Effect
@@ -12,13 +13,17 @@ import sttp.monad.MonadError
 import scala.concurrent.duration.FiniteDuration
 import scala.language.higherKinds
 
-/** When 429 Too many requests or 503 Service Unavailable error is encountered, new requests are blocked for the specified duration */
-class BackpressureThrottleBackend[F[_]: Concurrent: Timer, +S](
+/** When 429 Too many requests or 503 Service Unavailable error is encountered, new requests are blocked for the specified duration
+  *
+  * @param queueOf1 must be a queue with one element already placed in the queue
+  */
+class BackpressureThrottleBackend[F[_]: Temporal, +S](
     delegate: SttpBackend[F, S],
+    queueOf1: Queue[F, Unit],
     delay: FiniteDuration
 ) extends SttpBackend[F, S] {
 
-  private val permit: MVar2[F, Unit] = MVar.in[IO, F, Unit](()).unsafeRunSync()
+  private val permit = queueOf1
 
   private def processResponse(code: Int) =
     if (code == 429 || code == 503) {
@@ -26,8 +31,8 @@ class BackpressureThrottleBackend[F[_]: Concurrent: Timer, +S](
       permit.tryTake.flatMap {
         case None => Applicative[F].unit
         case Some(_) =>
-          Timer[F].sleep(delay) *>
-            permit.tryPut(()).void
+          Temporal[F].sleep(delay) *>
+            permit.tryOffer(()).void
       }
     } else {
       Applicative[F].unit
@@ -36,8 +41,10 @@ class BackpressureThrottleBackend[F[_]: Concurrent: Timer, +S](
   override def send[T, R >: S with Effect[F]](
       request: Request[T, R]
   ): F[Response[T]] =
-    permit.read *>
-      delegate
+    for {
+      _ <- permit.take // Take the permit, blocking until available.
+      _ <- permit.offer(()) // Put it back again so other requests may proceed.
+      response <- delegate
         .send(request)
         .onError {
           case cdpError: CdpApiException => processResponse(cdpError.code)
@@ -46,6 +53,7 @@ class BackpressureThrottleBackend[F[_]: Concurrent: Timer, +S](
         .flatTap { response =>
           processResponse(response.code.code)
         }
+    } yield response
 
   override def close(): F[Unit] = delegate.close()
   override def responseMonad: MonadError[F] = delegate.responseMonad

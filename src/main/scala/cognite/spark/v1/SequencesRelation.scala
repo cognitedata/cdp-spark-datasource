@@ -19,8 +19,6 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[SequenceReadSchema, Long](config, "sequences")
     with InsertableRelation
     with WritableRelation {
-  import CdpConnector._
-
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],

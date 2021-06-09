@@ -18,8 +18,6 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
     with WritableRelation
     with InsertableRelation {
-  import CdpConnector._
-
   override def insert(rows: Seq[Row]): IO[Unit] =
     getFromRowsAndCreate(rows, doUpsert = false)
 
