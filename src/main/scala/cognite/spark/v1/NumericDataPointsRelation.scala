@@ -151,7 +151,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 
   def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
     // we basically use Stream.fromIterator instead of Seq.grouped, because it's significantly more efficient
-    val dataPoints = Stream.fromIterator(
+    val dataPoints = Stream.fromIterator[IO](
       rows.map(r => fromRow[InsertDataPointsItem](r)),
       chunkSize = Constants.CreateDataPointsLimit
     )

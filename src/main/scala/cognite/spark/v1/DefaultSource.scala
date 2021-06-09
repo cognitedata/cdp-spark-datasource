@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
-import cats.effect.{Clock, ContextShift, IO}
+import cats.effect.unsafe.IORuntime
+import cats.effect.{Clock, IO}
 import cats.implicits._
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
@@ -187,7 +188,7 @@ class DefaultSource
         // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
         val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
         data.foreachPartition((rows: Iterator[Row]) => {
-          import CdpConnector.cdpConnectorParallel
+          import CdpConnector.ioRuntime
           val batches = rows.grouped(batchSize).toVector
           batches.parTraverse_(relation.delete).unsafeRunSync()
         })
@@ -237,10 +238,10 @@ class DefaultSource
           (data, originalNumberOfPartitions)
         }
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
-        import CdpConnector.{cdpConnectorConcurrent, cdpConnectorParallel}
+        import CdpConnector.ioRuntime
 
         val maxParallelism = Math.max(1, config.partitions / numberOfPartitions)
-        val batches = Stream.fromIterator(rows, chunkSize = batchSize).chunks
+        val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
         val operation = config.onConflict match {
           case OnConflict.Abort =>
@@ -366,7 +367,7 @@ object DefaultSource {
           s"Either apiKey, authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
             .mkString(", ")}")
     }
-    import CdpConnector._
+    import CdpConnector.ioRuntime
     val projectName = parameters
       .getOrElse(
         "project",
@@ -439,10 +440,7 @@ object DefaultSource {
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
       baseUrl: String
-  )(
-      implicit
-      cs: ContextShift[IO] = CdpConnector.cdpConnectorContextShift,
-      clock: Clock[IO]): String = {
+  )(implicit ioRuntime: IORuntime): String = {
     implicit val backend: SttpBackend[IO, Any] =
       CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
 

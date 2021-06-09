@@ -45,7 +45,7 @@ final case class NoPushdown() extends PushdownExpression
 
 object PushdownUtilities {
   def pushdownToUri(parameters: Seq[Map[String, String]], uri: Uri): Seq[Uri] =
-    parameters.map(params => uri.params(params))
+    parameters.map(params => uri.addParams(params))
 
   def pushdownToFilters[F](
       sparkFilters: Array[Filter],

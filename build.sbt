@@ -6,11 +6,11 @@ val scala212 = "2.12.15"
 val scala213 = "2.13.8"
 val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.2.0"
-val circeVersion = "0.13.0"
-val sttpVersion = "3.3.15"
+val circeVersion = "0.14.1"
+val sttpVersion = "3.4.1"
 val Specs2Version = "4.6.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.5.22"
+val cogniteSdkVersion = "2.0.0-RC1"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
@@ -22,7 +22,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.67",
+  version := "2.0.0-SNAPSHOT",
   crossScalaVersions := supportedScalaVersions,
   scalaVersion := scala212, // default to Scala 2.12
   description := "Spark data source for the Cognite Data Platform.",
@@ -68,7 +68,10 @@ lazy val commonSettings = Seq(
     else None
   },
   Test / fork := true,
-  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD")
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
+  // Yell at tests that take longer than 120 seconds to finish.
+  // Yell at them once every 60 seconds.
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60")
 )
 
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
@@ -96,14 +99,14 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
+      "io.scalaland" %% "chimney" % "0.6.1"
         // scala-collection-compat is used in TransformerF, but we don't use that,
         // and this dependency causes issues with Livy.
         exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
         exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
-      "com.softwaremill.sttp.client3" %% "async-http-client-backend" % sttpVersion,
-      "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats-ce2" % sttpVersion
+      "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion
         // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
         exclude("io.netty", "netty-buffer")
         exclude("io.netty", "netty-codec-http")
@@ -156,7 +159,7 @@ lazy val library = (project in file("."))
     Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
     coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
-    buildInfoPackage := "BuildInfo"
+    buildInfoPackage := "cognite.spark"
   )
 
 lazy val performancebench = (project in file("performancebench"))
