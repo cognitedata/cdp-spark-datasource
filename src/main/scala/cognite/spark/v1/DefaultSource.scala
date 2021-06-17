@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.{Clock, ContextShift, IO}
 import cats.implicits._
-import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
+import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, Setter, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
 import com.softwaremill.sttp.{SttpBackend, Uri}
 import org.apache.spark.sql.sources._
@@ -28,7 +28,8 @@ final case class RelationConfig(
     parallelismPerPartition: Int,
     ignoreUnknownIds: Boolean,
     deleteMissingAssets: Boolean,
-    subtrees: AssetSubtreeOption.AssetSubtreeOption
+    subtrees: AssetSubtreeOption.AssetSubtreeOption,
+    ignoreNullFields: Boolean
 )
 
 object OnConflict extends Enumeration {
@@ -348,7 +349,8 @@ object DefaultSource {
       parallelismPerPartition,
       ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", defaultValue = true),
       deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
-      subtrees = subtreesOption
+      subtrees = subtreesOption,
+      ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true)
     )
   }
 

@@ -11,6 +11,7 @@ final case class TestTypeBasic(a: Int, b: Double, c: Byte, d: Float, x: Map[Stri
 final case class TestTypeOption(a: Option[Int], b: Option[Double], c: Option[Byte],
                           d: Option[Float], x: Option[Map[String, String]],
                           g: Option[Long], f: Option[Seq[Option[Long]]], s: Option[String])
+final case class TestTypeOptionalField(a: OptionalField[Int], b: OptionalField[Double], c: OptionalField[Byte])
 
 class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Matchers {
   "SparkSchemaHelper structType" should "generate StructType from basic case class" in {
@@ -97,6 +98,28 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
     val x = new GenericRowWithSchema(Array(null, null, null, null, Map("foo" -> "row", "bar" -> null), null, null, null), structType[TestTypeOption])
     val row = fromRow[TestTypeOption](x)
     row.x.get shouldBe Map("foo" -> "row")
+  }
+
+  it should "ignore missing fields" in {
+    val x = new GenericRowWithSchema(Array(1, 2, null), structType[TestTypeOptionalField])
+    val row = fromRow[TestTypeOption](x)
+    row.a shouldBe Some(1)
+    row.b shouldBe Some(2)
+    row.c shouldBe None
+    row.d shouldBe None
+  }
+
+  it should "correctly return OptionalField" in {
+    val x = new GenericRowWithSchema(
+      Array(1, null),
+      StructType(Seq(
+        StructField("a", DataTypes.IntegerType),
+        StructField("b", DataTypes.IntegerType, nullable = true),
+      )))
+    val row = fromRow[TestTypeOptionalField](x)
+    row.a shouldBe FieldSpecified(1)
+    row.b shouldBe FieldNull
+    row.c shouldBe FieldNotSpecified
   }
 
   it should "fail nicely on different type in map" in {

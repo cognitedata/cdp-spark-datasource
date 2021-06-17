@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
@@ -133,16 +132,16 @@ object EventsRelation extends UpsertSchema {
 
 final case class EventsUpsertSchema(
     id: Option[Long] = None,
-    startTime: Option[Instant] = None,
-    endTime: Option[Instant] = None,
-    description: Option[String] = None,
-    `type`: Option[String] = None,
-    subtype: Option[String] = None,
+    startTime: OptionalField[Instant] = FieldNotSpecified,
+    endTime: OptionalField[Instant] = FieldNotSpecified,
+    description: OptionalField[String] = FieldNotSpecified,
+    `type`: OptionalField[String] = FieldNotSpecified,
+    subtype: OptionalField[String] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
     assetIds: Option[Seq[Long]] = None,
-    source: Option[String] = None,
-    externalId: Option[String] = None,
-    dataSetId: Option[Long] = None
+    source: OptionalField[String] = FieldNotSpecified,
+    externalId: Option[String] = None, // TODO: nullable externalId
+    dataSetId: OptionalField[Long] = FieldNotSpecified
 ) extends WithExternalId
     with WithId[Option[Long]]
 
