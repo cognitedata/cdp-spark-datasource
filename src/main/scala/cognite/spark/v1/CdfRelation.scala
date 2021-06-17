@@ -2,9 +2,10 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common.Auth
+import com.cognite.sdk.scala.common.{Auth, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1._
 import com.softwaremill.sttp.SttpBackend
+import io.scalaland.chimney.Transformer
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources.BaseRelation
 
@@ -29,4 +30,13 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
         counter.inc(count)
       }
     )
+
+  implicit def fieldToSetter[T: Manifest]: Transformer[OptionalField[T], Option[Setter[T]]] = {
+    case FieldSpecified(null) => // scalastyle:ignore null
+      throw new Exception("FieldSpecified(null) observed, that's bad.")
+    case FieldSpecified(x) => Some(SetValue(x))
+    case FieldNotSpecified => None
+    case FieldNull if config.ignoreNullFields => None
+    case FieldNull => Some(SetNull())
+  }
 }

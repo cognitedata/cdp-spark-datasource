@@ -103,7 +103,8 @@ trait SparkTest {
       Constants.DefaultParallelismPerPartition,
       ignoreUnknownIds = true,
       deleteMissingAssets = false,
-      subtrees = AssetSubtreeOption.Ingest
+      subtrees = AssetSubtreeOption.Ingest,
+      ignoreNullFields = true
     )
 
   private def getCounter(metricName: String): Long =

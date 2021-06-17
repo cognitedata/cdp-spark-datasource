@@ -411,8 +411,6 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         case NonFatal(_) => // ignore
       }
     }
-
-
   }
 
   it should "allow inserts in savemode" taggedAs WriteTest in {
@@ -477,6 +475,81 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       }
     }
   }
+
+  it should "allow udpates NULL in savemode" taggedAs WriteTest in {
+    val source = s"spark-events-update-null-${shortRandomString()}"
+    val metricsPrefix = s"updatenull.event.${shortRandomString()}"
+
+    try {
+      // Insert test event
+      val df = spark
+        .sql(s"""
+                |select "foo" as description,
+                |cast(from_unixtime(10) as timestamp) as startTime,
+                |cast(from_unixtime(20) as timestamp) as endTime,
+                |"test-type" as type,
+                |"test-type" as subtype,
+                |array(8031965690878131) as assetIds,
+                |"$source" as source,
+                |"$source-id" as externalId
+     """.stripMargin)
+
+      df.write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "events")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .option("onconflict", "abort")
+        .save()
+
+      val insertTest = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationEvent where source = '$source'").collect,
+        df => df.length == 0
+      )
+
+      spark
+        .sql(s"""
+                |select "foo-$source" as description,
+                |NULL as endTime,
+                |NULL as subtype,
+                |"$source" as source,
+                |"$source-id" as externalId
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "events")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .option("ignoreNullFields", "false")
+        .option("onconflict", "update")
+        .save()
+
+      val updateTest = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationEvent where source = '$source' and description = 'foo-$source'").collect,
+        df => df.length == 0
+      )
+      updateTest.length shouldBe 1
+      val Array(updatedRow) = updateTest
+      val updatedEvent = SparkSchemaHelper.fromRow[EventsReadSchema](updatedRow)
+      updatedEvent.endTime shouldBe None
+      updatedEvent.startTime shouldBe defined
+      updatedEvent.source shouldBe Some(source)
+      updatedEvent.externalId shouldBe Some(source + "-id")
+      updatedEvent.assetIds shouldBe Some(Seq(8031965690878131L))
+      updatedEvent.`type` shouldBe Some("test-type")
+      updatedEvent.subtype shouldBe None
+
+    } finally {
+      try {
+        cleanupEvents(source)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
+  }
+
 
   it should "allow duplicated ids and external ids when using upsert in savemode" in {
     val source = s"spark-events-test-${shortRandomString()}"

@@ -78,7 +78,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resource: T,
       isUpdateEmpty: U => Boolean
   )(implicit transform: Transformer[P, U]): IO[Unit] = {
-    if (!updates.forall(u => u.id.isDefined || u.externalId.isDefined)) {
+    if (!updates.forall(u => u.id.isDefined || u.getExternalId.isDefined)) {
       throw new CdfSparkException("Update requires an id or externalId to be set for each row.")
     }
 
@@ -97,7 +97,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     }
     val updateExternalIds = if (updatesByExternalId.isEmpty) { IO.unit } else {
       val updatesByExternalIdMap = updatesByExternalId
-        .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+        .map(u => u.getExternalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
         .toMap
       resource
         .updateByExternalId(updatesByExternalIdMap)
