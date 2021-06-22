@@ -5,7 +5,7 @@ import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.cognite.sdk.scala.common.{WithExternalId, WithId}
+import com.cognite.sdk.scala.common.{WithExternalId, WithExternalIdGeneric, WithId}
 import com.cognite.sdk.scala.v1.resources.Events
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
@@ -130,6 +130,11 @@ object EventsRelation extends UpsertSchema {
   val readSchema: StructType = structType[EventsReadSchema]
 }
 
+trait WithNullableExtenalId extends WithExternalIdGeneric[OptionalField] {
+  val externalId: OptionalField[String]
+  override def getExternalId(): Option[String] = externalId.toOption
+}
+
 final case class EventsUpsertSchema(
     id: Option[Long] = None,
     startTime: OptionalField[Instant] = FieldNotSpecified,
@@ -140,9 +145,9 @@ final case class EventsUpsertSchema(
     metadata: Option[Map[String, String]] = None,
     assetIds: Option[Seq[Long]] = None,
     source: OptionalField[String] = FieldNotSpecified,
-    externalId: Option[String] = None, // TODO: nullable externalId
+    externalId: OptionalField[String] = FieldNotSpecified,
     dataSetId: OptionalField[Long] = FieldNotSpecified
-) extends WithExternalId
+) extends WithNullableExtenalId
     with WithId[Option[Long]]
 
 final case class EventsInsertSchema(

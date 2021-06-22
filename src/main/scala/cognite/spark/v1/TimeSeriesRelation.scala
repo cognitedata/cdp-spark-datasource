@@ -125,7 +125,7 @@ object TimeSeriesRelation extends UpsertSchema {
 final case class TimeSeriesUpsertSchema(
     id: Option[Long] = None,
     name: OptionalField[String] = FieldNotSpecified,
-    externalId: Option[String] = None, // TODO: nullable externalId
+    externalId: OptionalField[String] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
     unit: OptionalField[String] = FieldNotSpecified,
     assetId: OptionalField[Long] = FieldNotSpecified,
@@ -134,7 +134,7 @@ final case class TimeSeriesUpsertSchema(
     isStep: Option[Boolean] = None,
     isString: Option[Boolean] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified
-) extends WithExternalId
+) extends WithNullableExtenalId
     with WithId[Option[Long]]
 
 final case class TimeSeriesInsertSchema(
