@@ -16,10 +16,10 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     .load()
   sequencesSourceDf.createOrReplaceTempView("sequences")
 
-  val sequenceA = SequenceUpdateSchema(
+  val sequenceA = SequenceInsertSchema(
     externalId = Some("a"),
     name = Some("Rows test sequence"),
-    columns = Some(Seq(
+    columns = Seq(
       SequenceColumnCreate(
         externalId = "num1",
         valueType = "LONG"
@@ -32,12 +32,12 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         externalId = "num2",
         valueType = "DOUBLE"
       )
-    ))
+    )
   )
-  val sequenceATwo = SequenceUpdateSchema(
+  val sequenceATwo = SequenceInsertSchema(
     externalId = Some("atwo"),
     name = Some("Rows test sequence duplicate"),
-    columns = Some(Seq(
+    columns = Seq(
       SequenceColumnCreate(
         externalId = "num1",
         valueType = "LONG"
@@ -50,18 +50,17 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         externalId = "num2",
         valueType = "DOUBLE"
       )
-    ))
+    )
   )
-  val sequenceB = SequenceUpdateSchema(
+  val sequenceB = SequenceInsertSchema(
     externalId = Some("b"),
     name = Some("Rows test many sequence"),
-    columns = Some(
-      Seq(
-        SequenceColumnCreate(
-          externalId = "num1",
-          valueType = "LONG"
-        )
-      ))
+    columns = Seq(
+      SequenceColumnCreate(
+        externalId = "num1",
+        valueType = "LONG"
+      )
+    )
   )
 
   it should "create and read rows" in withSequences(Seq(sequenceA)) { case Seq(sequenceId) =>
@@ -317,7 +316,7 @@ it should "create rows for multiple sequences" in withSequences(Seq(sequenceA, s
 
   // ----------
 
-  def withSequences(sequences: Seq[SequenceUpdateSchema])(testCode: Seq[String] => Unit): Unit = {
+  def withSequences(sequences: Seq[SequenceInsertSchema])(testCode: Seq[String] => Unit): Unit = {
     val key = shortRandomString()
     createSequences(key, sequences)
     for (s <- sequences) {
@@ -351,7 +350,7 @@ it should "create rows for multiple sequences" in withSequences(Seq(sequenceA, s
 
   def createSequences(
       key: String,
-      tree: Seq[SequenceUpdateSchema],
+      tree: Seq[SequenceInsertSchema],
       metricsPrefix: Option[String] = None,
       conflictMode: String = "abort"
   ): Unit = {
@@ -382,10 +381,8 @@ it should "create rows for multiple sequences" in withSequences(Seq(sequenceA, s
       assert(inserted.name == stored.name)
       assert(inserted.metadata.getOrElse(Map()) == stored.metadata.getOrElse(Map()))
       val columns = stored.columns.map(_.transformInto[SequenceColumnCreate]).toList
-      inserted.columns.map(_.toList).foreach { c =>
-        val col = c.map(c => c.copy(metadata = c.metadata.orElse(Some(Map()))))
-        assert(col == columns)
-      }
+      val col = inserted.columns.toList.map(c => c.copy(metadata = c.metadata.orElse(Some(Map()))))
+      assert(col == columns)
       assert(inserted.description == stored.description)
       assert(inserted.assetId == stored.assetId)
       assert(inserted.dataSetId == stored.dataSetId)

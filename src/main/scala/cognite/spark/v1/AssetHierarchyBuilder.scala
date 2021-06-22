@@ -6,7 +6,7 @@ import cats.implicits._
 import cats.syntax._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
-import com.cognite.sdk.scala.common.{CdpApiException, SetNull, SetValue}
+import com.cognite.sdk.scala.common.{CdpApiException, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1.{
   Asset,
   AssetCreate,
@@ -15,6 +15,7 @@ import com.cognite.sdk.scala.v1.{
   CogniteExternalId,
   LabelsOnUpdate
 }
+import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
@@ -23,43 +24,12 @@ import scala.collection.mutable
 final case class AssetsIngestSchema(
     externalId: String,
     parentExternalId: String,
-    source: Option[String],
+    source: OptionalField[String],
     name: String,
-    description: Option[String],
+    description: OptionalField[String],
     metadata: Option[Map[String, String]],
-    dataSetId: Option[Long],
+    dataSetId: OptionalField[Long],
     labels: Option[Seq[String]])
-
-object AssetsIngestSchema {
-  def toAssetCreate(a: AssetsIngestSchema): AssetCreate =
-    AssetCreate(
-      name = a.name,
-      description = a.description,
-      externalId = Some(a.externalId),
-      metadata = a.metadata,
-      source = a.source,
-      parentExternalId = Some(a.parentExternalId),
-      dataSetId = a.dataSetId,
-      labels = stringSeqToCogniteExternalIdSeq(a.labels)
-    )
-
-  def toAssetUpdate(a: AssetsIngestSchema): AssetUpdate =
-    AssetUpdate(
-      name = Some(SetValue(a.name)),
-      description = a.description.map(SetValue(_)),
-      externalId = Some(SetValue(a.externalId)),
-      metadata = a.metadata.map(SetValue(_)),
-      source = a.source.map(SetValue(_)),
-      parentExternalId = Some(SetValue(a.parentExternalId)),
-      dataSetId = a.dataSetId.map(SetValue(_)),
-      labels = a.labels match {
-        case labelList: Some[Seq[String]] =>
-          Some(LabelsOnUpdate(add = stringSeqToCogniteExternalIdSeq(labelList)))
-        case _ => None
-      }
-    )
-
-}
 
 final case class AssetSubtree(
     // node that contains all the `nodes`
@@ -192,7 +162,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     } yield ()
 
   def insert(toInsert: Seq[AssetsIngestSchema], newSubtreeRoot: Asset, batchSize: Int): IO[Unit] = {
-    val assetCreatesToInsert = toInsert.map(AssetsIngestSchema.toAssetCreate)
+    val assetCreatesToInsert = toInsert.map(toAssetCreate)
     // Traverse batches in order to ensure writing parents first
     assetCreatesToInsert
       .grouped(batchSize)
@@ -226,7 +196,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   def update(toUpdate: Seq[AssetsIngestSchema], batchSize: Int): IO[Unit] =
     if (toUpdate.nonEmpty) {
       toUpdate
-        .map(a => a.externalId -> AssetsIngestSchema.toAssetUpdate(a))
+        .map(a => a.externalId -> toAssetUpdate(a))
         .grouped(batchSize)
         .toVector
         .parTraverse(a => client.assets.updateByExternalId(a.toMap))
@@ -273,7 +243,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     sourceRoot match {
       case None =>
         client.assets
-          .create(Seq(AssetsIngestSchema.toAssetCreate(newRoot).copy(parentExternalId = parentId)))
+          .create(Seq(toAssetCreate(newRoot).copy(parentExternalId = parentId)))
           .flatTap(x => incMetrics(itemsCreated, x.size))
           .map(_.head)
       case Some(asset) if isMostlyEqual(newRoot, asset) =>
@@ -290,11 +260,8 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           case (Some(newParent), _) => Some(SetValue(newParent))
         }
         client.assets
-          .updateByExternalId(
-            Seq(
-              newRoot.externalId -> AssetsIngestSchema
-                .toAssetUpdate(newRoot)
-                .copy(parentExternalId = parentIdUpdate)).toMap)
+          .updateByExternalId(Seq(newRoot.externalId -> toAssetUpdate(newRoot)
+            .copy(parentExternalId = parentIdUpdate)).toMap)
           .flatTap(x => incMetrics(itemsUpdated, x.size))
           .map(_.head)
     }
@@ -340,11 +307,11 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   def isMostlyEqual(updatedAsset: AssetsIngestSchema, asset: Asset): Boolean =
-    updatedAsset.description == asset.description &&
+    updatedAsset.description.toOption == asset.description &&
       updatedAsset.metadata.getOrElse(Map()) == asset.metadata.getOrElse(Map()) &&
       updatedAsset.name == asset.name &&
-      updatedAsset.source == asset.source &&
-      updatedAsset.dataSetId == asset.dataSetId &&
+      updatedAsset.source.toOption == asset.source &&
+      updatedAsset.dataSetId.toOption == asset.dataSetId &&
       updatedAsset.labels.getOrElse(Seq()).map(CogniteExternalId) == asset.labels.getOrElse(Seq()) &&
       (updatedAsset.parentExternalId == "" && asset.parentId.isEmpty || asset.parentExternalId.contains(
         updatedAsset.parentExternalId))
@@ -399,6 +366,20 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     iterateChildren(nodes, Array(rootId), Seq()).toArray
 
   override def schema: StructType = structType[AssetsIngestSchema]
+
+  def toAssetCreate(a: AssetsIngestSchema): AssetCreate =
+    a.into[AssetCreate]
+      .withFieldComputed(_.labels, a => stringSeqToCogniteExternalIdSeq(a.labels))
+      .transform
+
+  def toAssetUpdate(a: AssetsIngestSchema): AssetUpdate =
+    a.into[AssetUpdate]
+      .withFieldComputed(_.labels, _.labels match {
+        case labelList: Some[Seq[String]] =>
+          Some(LabelsOnUpdate(add = stringSeqToCogniteExternalIdSeq(labelList)))
+        case _ => None
+      })
+      .transform
 }
 
 object AssetHierarchyBuilder {

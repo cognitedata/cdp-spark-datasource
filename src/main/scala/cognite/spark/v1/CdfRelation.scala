@@ -31,12 +31,16 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
       }
     )
 
-  implicit def fieldToSetter[T: Manifest]: Transformer[OptionalField[T], Option[Setter[T]]] = {
-    case FieldSpecified(null) => // scalastyle:ignore null
-      throw new Exception("FieldSpecified(null) observed, that's bad.")
-    case FieldSpecified(x) => Some(SetValue(x))
-    case FieldNotSpecified => None
-    case FieldNull if config.ignoreNullFields => None
-    case FieldNull => Some(SetNull())
-  }
+  implicit def fieldToSetter[T: Manifest]: Transformer[OptionalField[T], Option[Setter[T]]] =
+    new Transformer[OptionalField[T], Option[Setter[T]]] {
+      override def transform(src: OptionalField[T]): Option[Setter[T]] = src match {
+        case FieldSpecified(null) => // scalastyle:ignore null
+          throw new Exception(
+            "FieldSpecified(null) observed, that's bad. Please reach out to Cognite support.")
+        case FieldSpecified(x) => Some(SetValue(x))
+        case FieldNotSpecified => None
+        case FieldNull if config.ignoreNullFields => None
+        case FieldNull => Some(SetNull())
+      }
+    }
 }

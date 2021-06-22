@@ -124,16 +124,16 @@ object TimeSeriesRelation extends UpsertSchema {
 
 final case class TimeSeriesUpsertSchema(
     id: Option[Long] = None,
-    name: Option[String] = None,
-    externalId: Option[String] = None,
+    name: OptionalField[String] = FieldNotSpecified,
+    externalId: Option[String] = None, // TODO: nullable externalId
     metadata: Option[Map[String, String]] = None,
-    unit: Option[String] = None,
-    assetId: Option[Long] = None,
-    description: Option[String] = None,
+    unit: OptionalField[String] = FieldNotSpecified,
+    assetId: OptionalField[Long] = FieldNotSpecified,
+    description: OptionalField[String] = FieldNotSpecified,
     securityCategories: Option[Seq[Long]] = None,
     isStep: Option[Boolean] = None,
     isString: Option[Boolean] = None,
-    dataSetId: Option[Long] = None
+    dataSetId: OptionalField[Long] = FieldNotSpecified
 ) extends WithExternalId
     with WithId[Option[Long]]
 

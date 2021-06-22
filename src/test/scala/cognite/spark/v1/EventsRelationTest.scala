@@ -476,7 +476,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     }
   }
 
-  it should "allow udpates NULL in savemode" taggedAs WriteTest in {
+  it should "allow NULL updates in savemode" taggedAs WriteTest in {
     val source = s"spark-events-update-null-${shortRandomString()}"
     val metricsPrefix = s"updatenull.event.${shortRandomString()}"
 

@@ -22,10 +22,10 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
 
   it should "create and read sequence" in {
     val key = shortRandomString()
-    val sequence = SequenceUpdateSchema(
+    val sequence = SequenceInsertSchema(
       externalId = Some("a"),
       name = Some("a"),
-      columns = Some(Seq(
+      columns = Seq(
         SequenceColumnCreate(
           name = Some("col1"),
           externalId = "col1",
@@ -33,7 +33,7 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
           valueType = "STRING",
           metadata = Some(Map("foo" -> "bar"))
         )
-      ))
+      )
     )
 
     ingest(key, Seq(sequence))
@@ -94,10 +94,10 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
 
   it should "create and update sequence" in {
     val key = shortRandomString()
-    val sequence = SequenceUpdateSchema(
+    val sequence = SequenceInsertSchema(
       externalId = Some("a"),
       name = Some("a"),
-      columns = Some(Seq(
+      columns = Seq(
         SequenceColumnCreate(
           name = Some("col1"),
           externalId = "col1",
@@ -105,7 +105,7 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
           valueType = "STRING",
           metadata = Some(Map("foo" -> "bar"))
         )
-      ))
+      )
     )
 
     ingest(key, Seq(sequence))
@@ -114,11 +114,11 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
       spark.sql(s"select * from sequences where externalId = 'a|$key'").collect,
       rows => rows.length != 1)
 
-    val sequenceUpdate = SequenceUpdateSchema(
+    val sequenceUpdate = SequenceInsertSchema(
       externalId = Some("a"),
       name = Some("a"),
       description = Some("description abc"),
-      columns = None
+      columns = Seq()
     )
 
     ingest(key, Seq(sequenceUpdate), conflictMode = "update")
@@ -132,7 +132,7 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
 
   def ingest(
     key: String,
-    tree: Seq[SequenceUpdateSchema],
+    tree: Seq[SequenceInsertSchema],
     metricsPrefix: Option[String] = None,
     conflictMode: String = "abort"
   ): Unit = {
@@ -159,7 +159,9 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
       assert(inserted.externalId == stored.externalId)
       assert(inserted.name == stored.name)
       assert(inserted.metadata.getOrElse(Map()) == stored.metadata.getOrElse(Map()))
-      assert(inserted.columns.map(_.toList).forall(_ == stored.columns.map(_.transformInto[SequenceColumnCreate]).toList))
+      if (conflictMode != "update") {
+        assert(inserted.columns.toList == stored.columns.toList.map(_.transformInto[SequenceColumnCreate]))
+      }
       assert(inserted.description == stored.description)
       assert(inserted.assetId == stored.assetId)
       assert(inserted.dataSetId == stored.dataSetId)

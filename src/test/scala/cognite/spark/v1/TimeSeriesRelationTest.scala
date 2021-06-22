@@ -475,21 +475,20 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
     try {
       // Insert new time series test data
       val randomSuffix = shortRandomString()
-      val defaultInsertTs = TimeSeriesUpsertSchema(
+      val defaultInsertTs = TimeSeriesInsertSchema(
         None,
         None,
-        None,
+        isString = false,
         Some(Map("foo" -> null, "bar" -> "test")), // scalastyle:off null
         Some(upsertUnit),
         None,
+        isStep = false,
         Some(insertDescription),
-        Some(Seq()),
-        isStep = Some(false),
-        isString = Some(false))
+        Some(Seq()))
       val insertData = Seq(
         defaultInsertTs.copy(name = Some("TEST_A")),
-        defaultInsertTs.copy(name = Some("TEST_B"), isStep = Some(true)),
-        defaultInsertTs.copy(name = Some("TEST_C"), isString = Some(true)),
+        defaultInsertTs.copy(name = Some("TEST_B"), isStep = true),
+        defaultInsertTs.copy(name = Some("TEST_C"), isString = true),
         defaultInsertTs.copy(name = Some("TEST_D"), metadata = None),
         defaultInsertTs.copy(name = Some("TEST_E"))
       ).map(x => x.copy(externalId = Some(x.name.get + "_upsert_savemode_" + randomSuffix)))
@@ -529,8 +528,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
               description = Some(upsertDescription),
               name = Some(s"test-upserts-${randomSuffix}"),
               unit = Some(upsertUnit),
-              externalId = None,
-              id = None
+              externalId = None
             )
           )
         ).toDF()
@@ -635,6 +633,74 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
       }
     }
 
+  }
+
+  it should "allow NULL updates in savemode" taggedAs WriteTest in {
+    val testUnit = s"spark-setnull-${shortRandomString()}"
+    val metricsPrefix = s"updatenull.timeseries.${shortRandomString()}"
+
+    try {
+      // Insert test event
+      val df = spark
+        .sql(s"""
+                |select 'foo' as description,
+                |false as isString,
+                |'name-$testUnit' name,
+                |'$testUnit' as unit,
+                |false as isStep,
+                |"id_$testUnit" as externalId
+                """.stripMargin)
+      df.write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "timeseries")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .option("onconflict", "abort")
+        .save()
+
+      val insertTest = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationTimeSeries where unit = '$testUnit'").collect,
+        df => df.length != 1
+      )
+      val id = insertTest(0).getAs[Long]("id")
+
+      spark
+        .sql(s"""
+                |select NULL as description,
+                |$id as id,
+                |"$testUnit" as unit
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "timeseries")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .option("ignoreNullFields", "false")
+        .option("onconflict", "update")
+        .save()
+
+      val updateTest = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationTimeSeries where unit = '$testUnit' and description is null").collect,
+        df => df.length != 1
+      )
+      updateTest.length shouldBe 1
+      val Array(updatedRow) = updateTest
+      val updatedTs = SparkSchemaHelper.fromRow[TimeSeriesReadSchema](updatedRow)
+      updatedTs.assetId shouldBe None
+      updatedTs.unit shouldBe Some(testUnit)
+      updatedTs.isStep shouldBe false
+      updatedTs.externalId shouldBe Some("id_" + testUnit)
+      updatedTs.description shouldBe None
+      updatedTs.name shouldBe Some("name-" + testUnit)
+    } finally {
+      try {
+        cleanUpTimeSeriesTestDataByUnit(testUnit)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
   it should "support ignoring unknown ids in deletes" in {

@@ -92,14 +92,14 @@ object FilesRelation extends UpsertSchema {
 final case class FilesUpsertSchema(
     id: Option[Long] = None,
     name: Option[String] = None,
-    externalId: Option[String] = None,
-    source: Option[String] = None,
+    externalId: Option[String] = None, // TODO: nullable externalID
+    source: OptionalField[String] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
     assetIds: Option[Seq[Long]] = None,
-    dataSetId: Option[Long] = None,
-    mimeType: Option[String] = None,
-    sourceCreatedTime: Option[Instant] = None,
-    sourceModifiedTime: Option[Instant] = None,
+    dataSetId: OptionalField[Long] = FieldNotSpecified,
+    mimeType: OptionalField[String] = FieldNotSpecified,
+    sourceCreatedTime: OptionalField[Instant] = FieldNotSpecified,
+    sourceModifiedTime: OptionalField[Instant] = FieldNotSpecified,
     securityCategories: Option[Seq[Long]] = None
 ) extends WithExternalId
     with WithId[Option[Long]]
