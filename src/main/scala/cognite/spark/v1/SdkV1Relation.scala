@@ -70,7 +70,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   // scalastyle:off no.whitespace.after.left.bracket
   def updateByIdOrExternalId[
-      P <: WithExternalId with WithId[Option[Long]],
+      P <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       U <: WithSetExternalId,
       T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO],
       R <: WithId[Long]](
@@ -164,7 +164,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       // The Item (read) type
       R <: WithExternalId with WithId[Long],
       // The UpsertSchema type
-      U <: WithExternalId with WithId[Option[Long]],
+      U <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       // The ItemCreate type
       C <: WithExternalId,
       // The ItemUpdate type

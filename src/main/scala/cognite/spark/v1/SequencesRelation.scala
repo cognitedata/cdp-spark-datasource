@@ -104,14 +104,14 @@ object SequenceRelation extends UpsertSchema {
 
 final case class SequenceUpdateSchema(
     id: Option[Long] = None,
-    externalId: Option[String] = None, // TODO: nullable externalId
+    externalId: OptionalField[String] = FieldNotSpecified,
     name: OptionalField[String] = FieldNotSpecified,
     description: OptionalField[String] = FieldNotSpecified,
     assetId: OptionalField[Long] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
     columns: Option[Seq[SequenceColumnCreate]] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified
-) extends WithExternalId
+) extends WithNullableExtenalId
     with WithId[Option[Long]]
 
 final case class SequenceInsertSchema(

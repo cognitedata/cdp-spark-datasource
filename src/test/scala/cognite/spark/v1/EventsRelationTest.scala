@@ -514,7 +514,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |NULL as endTime,
                 |NULL as subtype,
                 |"$source" as source,
-                |"$source-id" as externalId
+                |${insertTest.head.getAs[Long]("id")} as id,
+                |NULL as externalId
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
@@ -536,7 +537,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       updatedEvent.endTime shouldBe None
       updatedEvent.startTime shouldBe defined
       updatedEvent.source shouldBe Some(source)
-      updatedEvent.externalId shouldBe Some(source + "-id")
+      updatedEvent.externalId shouldBe None
       updatedEvent.assetIds shouldBe Some(Seq(8031965690878131L))
       updatedEvent.`type` shouldBe Some("test-type")
       updatedEvent.subtype shouldBe None

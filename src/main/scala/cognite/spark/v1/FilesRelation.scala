@@ -64,7 +64,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val files = rows.map(fromRow[FilesUpsertSchema](_))
 
     val (itemsToUpdate, itemsToUpdateOrCreate) =
-      files.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.externalId.nonEmpty))
+      files.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.getExternalId().nonEmpty))
 
     if (itemsToUpdateOrCreate.exists(_.name.isEmpty)) {
       throw new CdfSparkIllegalArgumentException("The name field must be set when creating files.")
@@ -92,7 +92,7 @@ object FilesRelation extends UpsertSchema {
 final case class FilesUpsertSchema(
     id: Option[Long] = None,
     name: Option[String] = None,
-    externalId: Option[String] = None, // TODO: nullable externalID
+    externalId: OptionalField[String] = FieldNotSpecified,
     source: OptionalField[String] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
     assetIds: Option[Seq[Long]] = None,
@@ -101,7 +101,7 @@ final case class FilesUpsertSchema(
     sourceCreatedTime: OptionalField[Instant] = FieldNotSpecified,
     sourceModifiedTime: OptionalField[Instant] = FieldNotSpecified,
     securityCategories: Option[Seq[Long]] = None
-) extends WithExternalId
+) extends WithNullableExtenalId
     with WithId[Option[Long]]
 
 final case class FilesInsertSchema(

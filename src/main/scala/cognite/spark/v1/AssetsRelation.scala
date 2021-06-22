@@ -91,7 +91,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val assets = rows.map(fromRow[AssetsUpsertSchema](_))
     val (itemsToUpdate, itemsToUpdateOrCreate) =
-      assets.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.externalId.nonEmpty))
+      assets.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.getExternalId().nonEmpty))
 
     if (itemsToUpdateOrCreate.exists(_.name.isEmpty)) {
       throw new CdfSparkIllegalArgumentException("The name field must be set when creating assets.")
@@ -142,7 +142,7 @@ final case class AssetsUpsertSchema(
     name: Option[String] = None,
     description: OptionalField[String] = FieldNotSpecified,
     source: OptionalField[String] = FieldNotSpecified,
-    externalId: Option[String] = None,
+    externalId: OptionalField[String] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
     // parentId and parentExternalId are not nullable (for now)
     // since only one of them may be non-null, we'd have to combine the information from both fields in a non-trivial way
@@ -150,7 +150,7 @@ final case class AssetsUpsertSchema(
     parentExternalId: Option[String] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified,
     labels: Option[Seq[String]] = None
-) extends WithExternalId
+) extends WithNullableExtenalId
     with WithId[Option[Long]]
 
 final case class AssetsInsertSchema(
