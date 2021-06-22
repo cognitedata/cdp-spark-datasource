@@ -140,13 +140,15 @@ object AssetsRelation extends UpsertSchema {
 final case class AssetsUpsertSchema(
     id: Option[Long] = None,
     name: Option[String] = None,
-    description: Option[String] = None,
-    source: Option[String] = None,
+    description: OptionalField[String] = FieldNotSpecified,
+    source: OptionalField[String] = FieldNotSpecified,
     externalId: Option[String] = None,
     metadata: Option[Map[String, String]] = None,
+    // parentId and parentExternalId are not nullable (for now)
+    // since only one of them may be non-null, we'd have to combine the information from both fields in a non-trivial way
     parentId: Option[Long] = None,
     parentExternalId: Option[String] = None,
-    dataSetId: Option[Long] = None,
+    dataSetId: OptionalField[Long] = FieldNotSpecified,
     labels: Option[Seq[String]] = None
 ) extends WithExternalId
     with WithId[Option[Long]]

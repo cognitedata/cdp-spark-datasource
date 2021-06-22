@@ -7,6 +7,7 @@ import scala.language.experimental.macros
 import org.apache.spark.sql.types.{StructField, StructType}
 
 import scala.annotation.tailrec
+import scala.reflect.ClassTag
 import scala.reflect.macros.blackbox.Context
 
 trait StructTypeEncoder[T] {
@@ -22,7 +23,7 @@ sealed trait OptionalField[+T] {
 }
 final case class FieldSpecified[+T](value: T) extends OptionalField[T] {
   override def toOption: Option[T] =
-    if (value == null) { throw new Exception("FieldSpecified(null) observed, that's bad.") } else { Some(value) }
+    if (value == null) { throw new Exception("FieldSpecified(null) observed, that's bad. Please reach out to Cognite support.") } else { Some(value) }
   override def flatMap[B](f: T => OptionalField[B]): OptionalField[B] = f(value)
   override def map[B](f: T => B): OptionalField[B] = FieldSpecified(f(value))
 }
@@ -38,7 +39,10 @@ case object FieldNull extends OptionalField[Nothing] {
 }
 
 object OptionalField {
-  implicit def fieldToOption[T: Manifest]: Transformer[OptionalField[T], Option[T]] = _.toOption
+  implicit def fieldToOption[T: Manifest]: Transformer[OptionalField[T], Option[T]] =
+    new Transformer[OptionalField[T], Option[T]] {
+      override def transform(src: OptionalField[T]): Option[T] = src.toOption
+    }
 
   implicit val monad: Monad[OptionalField] = new Monad[OptionalField] {
     override def flatMap[A, B](fa: OptionalField[A])(f: A => OptionalField[B]): OptionalField[B] = fa.flatMap(f)

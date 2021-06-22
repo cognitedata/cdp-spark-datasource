@@ -114,7 +114,7 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
       Array(1, null),
       StructType(Seq(
         StructField("a", DataTypes.IntegerType),
-        StructField("b", DataTypes.IntegerType, nullable = true),
+        StructField("b", DataTypes.IntegerType, nullable = true)
       )))
     val row = fromRow[TestTypeOptionalField](x)
     row.a shouldBe FieldSpecified(1)

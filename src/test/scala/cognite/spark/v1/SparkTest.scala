@@ -3,11 +3,10 @@ package cognite.spark.v1
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.Executors
-
 import cats.Id
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.ApiKeyAuth
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Encoder, Encoders, SparkSession}
 import org.scalatest.Tag
 import org.apache.spark.datasource.MetricsSource
 
@@ -17,7 +16,10 @@ import scala.util.Random
 import cats.effect.{IO, Timer}
 import cats.implicits.catsSyntaxFlatMapOps
 import com.cognite.sdk.scala.v1._
+import org.apache.spark.sql.types.StructType
 import org.scalactic.{Prettifier, source}
+
+import scala.reflect.ClassTag
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
@@ -25,6 +27,13 @@ object GreenfieldTest extends Tag("GreenfieldTest")
 
 trait SparkTest {
   implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1)))
+
+  implicit def single[A](implicit c: ClassTag[OptionalField[A]], inner: Encoder[Option[A]]): Encoder[OptionalField[A]] =
+    new Encoder[OptionalField[A]] {
+      override def schema: StructType = inner.schema
+
+      override def clsTag: ClassTag[OptionalField[A]] = c
+    }
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
   assert(writeApiKey != null && !writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
