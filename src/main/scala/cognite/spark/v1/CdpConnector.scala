@@ -56,7 +56,9 @@ object CdpConnector {
       maxRetries = Some(maxRetries),
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
-  def clientFromConfig(config: RelationConfig): GenericClient[IO] =
+  def clientFromConfig(config: RelationConfig): GenericClient[IO] = {
+    implicit val sttpBackend: SttpBackend[IO, Nothing] =
+      retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,
@@ -64,7 +66,8 @@ object CdpConnector {
       baseUrl = config.baseUrl,
       apiVersion = None,
       clientTag = config.clientTag
-    )(implicitly, retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds))
+    )
+  }
 
   type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]
