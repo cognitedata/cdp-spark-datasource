@@ -1,3 +1,9 @@
+# 1.4.24
+
+## Fixes
+
+Fix leaking threads when using OIDC credentials
+
 # 1.4.23
 
 ## Enhancements
