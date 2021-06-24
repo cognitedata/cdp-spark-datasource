@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.data.NonEmptyList
 import org.apache.spark.sql.Row
 
 import scala.util.{Failure, Success, Try}
@@ -74,6 +75,48 @@ private[spark] object SparkSchemaHelperRuntime {
         new CdfSparkIllegalArgumentException(s"Column '$name' was expected to have type ${simplifyTypeName(
           typeName)}, but $valueString was found (on row ${rowIdentifier(row)}).$hint")
     }
+
+  /** Represents a step on the traversal path when converting from a Spark Row into a SDK object.
+    * This is effectively a frame of a stack trace, used to communicate where the value of incorrect type was found.
+    * For example, when traversing into a Map entry, we construct a PathSegment("value at key", "the_key", "String") */
+  case class PathSegment(description: String, key: String, expectedType: String)
+
+  def fromRowError(
+      row: Row,
+      path: NonEmptyList[PathSegment],
+      value: Any
+  ): Throwable = {
+    val traceback =
+      path.zipWithIndex.reverse
+        .map {
+          case (PathSegment(description, key, expectedType), index) =>
+            val str = s"in $description $key"
+            if (index == 0) { str } else { s"$str ($expectedType)" }
+        }
+        .toList
+        .mkString(", ")
+
+    val actualValueDescription = {
+      if (value == null) { "NULL" } else {
+        val actualType = value.getClass
+        val actualTypeDisplayName = actualType.getPackage.getName match {
+          case "java.lang" => actualType.getSimpleName
+          case _ =>
+            actualType.getName match {
+              case "java.time.Instant" => "Timestamp"
+              case name => name
+            }
+        }
+        s"$actualTypeDisplayName: $value"
+      }
+    }
+
+    val message = (
+      s"Type mismatch $traceback: expected ${path.head.expectedType}, found $actualValueDescription (on row ${rowIdentifier(row)})."
+    )
+
+    new CdfSparkIllegalArgumentException(message)
+  }
 
   // null values aren't allowed according to our schema, and also not allowed by CDP, but they can
   // still end up here. Filter them out to avoid null pointer exceptions from Circe encoding.
