@@ -1,3 +1,9 @@
+# 1.4.25
+
+## Enhancements
+
+Added `ignoreNullFields` option. Useful for nulling fields in CDF.
+
 # 1.4.24
 
 ## Fixes
