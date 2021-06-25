@@ -177,13 +177,11 @@ This is based on the assumption that upserts for the same `id` or `externalId`
 will have the same values. If you have a use case where this is not the case,
 please let us know.
 
-Another option available for `.save()` writes is `.option("ignoreNullFields", "false")`. By default,
-the Data Source ignores NULLs when updating -- nothing is written to CDF when there is NULL
-in the field. This is usually useful for ignoring the columns which are irrelevant for a task,
-however it makes it impossible to null a field in the CDF. When the `ignoreNullFields` option is set
-to `false`, NULLs are written to CDF (when possible). Fields which are not even specified in the rows
-are still ignored.
-
+#### Handling NULLs and empty fields
+By default, the Spark Datasource ignores `NULL`s when updating: nothing is written to CDF when there is a `NULL`
+in the field. This can be controlled by setting the `ignoreNullFields` option which defaults to `"true"` when using `.save()` writes. This is usually useful for ignoring the columns which are irrelevant for a task,
+however it makes it impossible to null a field in CDF. When the `ignoreNullFields` option is set
+to `false`, NULLs are written to CDF (when possible). Fields which are not specified are still ignored.
 See an example of using `.save()` under [Events below](#events).
 
 ### Delete data
