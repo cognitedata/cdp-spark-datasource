@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
@@ -10,6 +9,7 @@ import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1.resources.Assets
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
+import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
@@ -90,38 +90,23 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val assets = rows.map(fromRow[AssetsUpsertSchema](_))
-    val (itemsToUpdate, itemsToUpdateOrCreate) =
-      assets.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.getExternalId().nonEmpty))
-
-    if (itemsToUpdateOrCreate.exists(_.name.isEmpty)) {
-      throw new CdfSparkIllegalArgumentException("The name field must be set when creating assets.")
-    }
 
     genericUpsert[Asset, AssetsUpsertSchema, AssetCreate, AssetUpdate, Assets[IO]](
-      itemsToUpdate,
-      itemsToUpdateOrCreate.map(
-        _.into[AssetCreate]
-          .withFieldComputed(_.name, _.name.get)
-          .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
-          .transform),
+      assets,
       isUpdateEmpty,
-      client.assets
+      client.assets,
+      mustBeUpdate = r => r.name.isEmpty && r.getExternalId().nonEmpty
     )
   }
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val assetsUpserts = rows.map(fromRow[AssetsUpsertSchema](_))
-    val assets = assetsUpserts.map(
-      _.into[AssetCreate]
-        .withFieldComputed(_.name, u => u.name.get)
-        .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
-        .transform)
-    createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, Assets[IO]](
+    val assets = assetsUpserts.map(_.transformInto[AssetCreate])
+    createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, AssetCreate, Option, Assets[IO]](
       Set.empty,
       assets,
       client.assets,
       doUpsert = true)
-
   }
 
   override def schema: StructType = structType[AssetsReadSchema]
@@ -152,6 +137,18 @@ final case class AssetsUpsertSchema(
     labels: Option[Seq[String]] = None
 ) extends WithNullableExtenalId
     with WithId[Option[Long]]
+
+object AssetsUpsertSchema {
+  implicit val toCreate: Transformer[AssetsUpsertSchema, AssetCreate] =
+    Transformer
+      .define[AssetsUpsertSchema, AssetCreate]
+      .withFieldComputed(
+        _.name,
+        _.name.getOrElse(throw new CdfSparkIllegalArgumentException(
+          "The name field must be set when creating assets.")))
+      .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
+      .buildTransformer
+}
 
 final case class AssetsInsertSchema(
     name: String,

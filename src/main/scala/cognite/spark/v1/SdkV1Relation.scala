@@ -112,24 +112,29 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       R <: WithExternalId,
       U <: WithSetExternalId,
       C <: WithExternalId,
+      S <: WithExternalIdGeneric[ExternalIdF],
+      ExternalIdF[_],
       T <: UpdateByExternalId[R, U, IO] with Create[R, C, IO]](
       existingExternalIds: Set[String],
-      resourceCreates: Seq[C],
+      resourceCreates: Seq[S],
       resource: T,
-      doUpsert: Boolean)(implicit transform: Transformer[C, U]): IO[Unit] = {
+      doUpsert: Boolean)(
+      implicit transformToUpdate: Transformer[S, U],
+      transformToCreate: Transformer[S, C]
+  ): IO[Unit] = {
     val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
-      p => p.externalId.exists(id => existingExternalIds.contains(id))
+      p => p.getExternalId().exists(id => existingExternalIds.contains(id))
     )
     val create = if (resourcesToCreate.isEmpty) {
       IO.unit
     } else {
       resource
-        .create(resourcesToCreate)
+        .create(resourcesToCreate.map(_.transformInto[C]))
         .flatMap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
         .recoverWith {
           case CdpApiException(_, 409, _, _, Some(duplicated), _, requestId) if doUpsert =>
             val moreExistingExternalIds = duplicated.flatMap(j => j("externalId")).map(_.asString.get)
-            createOrUpdateByExternalId[R, U, C, T](
+            createOrUpdateByExternalId[R, U, C, S, ExternalIdF, T](
               existingExternalIds ++ moreExistingExternalIds.toSet,
               resourcesToCreate,
               resource,
@@ -142,7 +147,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resource
         .updateByExternalId(
           resourcesToUpdate
-            .map(u => u.externalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+            .map(u =>
+              u.getExternalId().get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
             .toMap)
         .flatTap(_ => incMetrics(itemsUpdated, resourcesToUpdate.size))
         .map(_ => ())
@@ -171,30 +177,32 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       Up <: WithSetExternalId,
       // The resource type (client.<resource>)
       Re <: UpdateById[R, Up, IO] with UpdateByExternalId[R, Up, IO] with Create[R, C, IO]](
-      itemsToUpdate: Seq[U],
-      itemsToCreate: Seq[C],
+      items: Seq[U],
       isUpdateEmpty: Up => Boolean,
-      resource: Re)(
-      implicit transformUpsertToUpdate: Transformer[U, Up],
-      transformCreateToUpdate: Transformer[C, Up]): IO[Unit] = {
+      resource: Re,
+      mustBeUpdate: U => Boolean = (_: U) => false)(
+      implicit transformToUpdate: Transformer[U, Up],
+      transformToCreate: Transformer[U, C]): IO[Unit] = {
+
+    val (itemsWithId, itemsWithoutId) = items.partition(r => r.id.exists(_ > 0) || mustBeUpdate(r))
 
     // In each create batch we must not have duplicated external IDs.
     // Duplicated ids (not external) in eventsToUpdate are ok, however, because
     // we create a map from id -> update, and that map will contain only one
     // update per id.
-    val itemsToCreateWithoutDuplicatesByExternalId = itemsToCreate
-      .groupBy(_.externalId)
+    val itemsToCreateWithoutDuplicatesByExternalId = itemsWithoutId
+      .groupBy(_.getExternalId())
       .flatMap {
         case (None, items) => items
         case (Some(_), items) => items.take(1)
       }
       .toSeq
     val update = updateByIdOrExternalId[U, Up, Re, R](
-      itemsToUpdate,
+      itemsWithId,
       resource,
       isUpdateEmpty
     )
-    val createOrUpdate = createOrUpdateByExternalId[R, Up, C, Re](
+    val createOrUpdate = createOrUpdateByExternalId[R, Up, C, U, OptionalField, Re](
       Set.empty,
       itemsToCreateWithoutDuplicatesByExternalId,
       resource,

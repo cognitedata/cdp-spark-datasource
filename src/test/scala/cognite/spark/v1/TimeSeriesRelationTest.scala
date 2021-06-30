@@ -7,6 +7,7 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
 import com.softwaremill.sttp._
 import io.scalaland.chimney.dsl._
+import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 
 import scala.util.control.NonFatal
 
@@ -635,7 +636,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
 
   }
 
-  it should "allow NULL updates in savemode" taggedAs WriteTest in {
+  it should "allow NULL updates in savemode" taggedAs WriteTest in forAll(updateAndUpsert) { updateMode =>
     val testUnit = s"spark-setnull-${shortRandomString()}"
     val metricsPrefix = s"updatenull.timeseries.${shortRandomString()}"
 
@@ -668,7 +669,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
       spark
         .sql(s"""
                 |select NULL as description,
-                |$id as id,
+                |"id_$testUnit" as externalId,
                 |"$testUnit" as unit
      """.stripMargin)
         .write
@@ -678,7 +679,7 @@ class TimeSeriesRelationTest extends FlatSpec with Matchers with ParallelTestExe
         .option("collectMetrics", "true")
         .option("metricsPrefix", metricsPrefix)
         .option("ignoreNullFields", "false")
-        .option("onconflict", "update")
+        .option("onconflict", updateMode)
         .save()
 
       val updateTest = retryWhile[Array[Row]](

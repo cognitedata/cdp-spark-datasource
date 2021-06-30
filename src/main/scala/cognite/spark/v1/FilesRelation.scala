@@ -1,18 +1,19 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import io.scalaland.chimney.dsl._
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.{File, FileCreate, FileUpdate, GenericClient}
+import com.cognite.sdk.scala.v1.{AssetCreate, File, FileCreate, FileUpdate, GenericClient}
 import cognite.spark.v1.SparkSchemaHelper._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import cats.implicits._
+import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1.resources.Files
 import fs2.Stream
+import io.scalaland.chimney.Transformer
 
 class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[File, Long](config, "files")
@@ -21,7 +22,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val files = rows.map(fromRow[FileCreate](_))
-    createOrUpdateByExternalId[File, FileUpdate, FileCreate, Files[IO]](
+    createOrUpdateByExternalId[File, FileUpdate, FileCreate, FileCreate, Option, Files[IO]](
       Set.empty,
       files,
       client.files,
@@ -63,18 +64,11 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val files = rows.map(fromRow[FilesUpsertSchema](_))
 
-    val (itemsToUpdate, itemsToUpdateOrCreate) =
-      files.partition(r => r.id.exists(_ > 0) || (r.name.isEmpty && r.getExternalId().nonEmpty))
-
-    if (itemsToUpdateOrCreate.exists(_.name.isEmpty)) {
-      throw new CdfSparkIllegalArgumentException("The name field must be set when creating files.")
-    }
-
     genericUpsert[File, FilesUpsertSchema, FileCreate, FileUpdate, Files[IO]](
-      itemsToUpdate,
-      itemsToUpdateOrCreate.map(_.into[FileCreate].withFieldComputed(_.name, _.name.get).transform),
+      files,
       isUpdateEmpty,
-      client.files)
+      client.files,
+      mustBeUpdate = r => r.name.isEmpty && r.getExternalId().nonEmpty)
   }
 
   override def schema: StructType = structType[File]
@@ -103,6 +97,18 @@ final case class FilesUpsertSchema(
     securityCategories: Option[Seq[Long]] = None
 ) extends WithNullableExtenalId
     with WithId[Option[Long]]
+
+object FilesUpsertSchema {
+  implicit val toCreate: Transformer[FilesUpsertSchema, FileCreate] =
+    Transformer
+      .define[FilesUpsertSchema, FileCreate]
+      .withFieldComputed(
+        _.name,
+        _.name.getOrElse(
+          throw new CdfSparkIllegalArgumentException("The name field must be set when creating files.")))
+      .buildTransformer
+
+}
 
 final case class FilesInsertSchema(
     name: String,
