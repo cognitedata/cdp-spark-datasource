@@ -6,6 +6,7 @@ import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 
 import scala.util.control.NonFatal
 
@@ -476,7 +477,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     }
   }
 
-  it should "allow NULL updates in savemode" taggedAs WriteTest in {
+  it should "allow NULL updates in savemode" taggedAs WriteTest in forAll(updateAndUpsert) { updateMode =>
     val source = s"spark-events-update-null-${shortRandomString()}"
     val metricsPrefix = s"updatenull.event.${shortRandomString()}"
 
@@ -524,7 +525,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .option("collectMetrics", "true")
         .option("metricsPrefix", metricsPrefix)
         .option("ignoreNullFields", "false")
-        .option("onconflict", "update")
+        .option("onconflict", updateMode)
         .save()
 
       val updateTest = retryWhile[Array[Row]](

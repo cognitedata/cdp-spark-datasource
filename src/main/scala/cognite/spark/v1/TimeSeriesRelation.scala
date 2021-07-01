@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.{WithExternalId, WithId}
@@ -14,6 +13,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
+import io.scalaland.chimney.Transformer
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
@@ -42,15 +42,6 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val timeSeries = rows.map(fromRow[TimeSeriesUpsertSchema](_))
-    val (itemsToUpdate, itemsToCreate) = timeSeries.partition(r => r.id.exists(_ > 0))
-
-    val uniqueItemsToCreate = itemsToCreate.map { it =>
-      it.into[TimeSeriesCreate]
-        .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
-        .withFieldComputed(_.isString, _.isString.getOrElse(false))
-        .transform
-    }
-
     // scalastyle:off no.whitespace.after.left.bracket
     genericUpsert[
       TimeSeries,
@@ -58,8 +49,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       TimeSeriesCreate,
       TimeSeriesUpdate,
       TimeSeriesResource[IO]](
-      itemsToUpdate,
-      uniqueItemsToCreate,
+      timeSeries,
       isUpdateEmpty,
       client.timeSeries
     )
@@ -68,11 +58,13 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val timeSeriesSeq = rows.map(fromRow[TimeSeriesCreate](_))
 
-    createOrUpdateByExternalId[TimeSeries, TimeSeriesUpdate, TimeSeriesCreate, TimeSeriesResource[IO]](
-      Set.empty,
-      timeSeriesSeq,
-      client.timeSeries,
-      doUpsert = doUpsert)
+    createOrUpdateByExternalId[
+      TimeSeries,
+      TimeSeriesUpdate,
+      TimeSeriesCreate,
+      TimeSeriesCreate,
+      Option,
+      TimeSeriesResource[IO]](Set.empty, timeSeriesSeq, client.timeSeries, doUpsert = doUpsert)
   }
 
   override def schema: StructType = structType[TimeSeries]
@@ -136,6 +128,16 @@ final case class TimeSeriesUpsertSchema(
     dataSetId: OptionalField[Long] = FieldNotSpecified
 ) extends WithNullableExtenalId
     with WithId[Option[Long]]
+
+object TimeSeriesUpsertSchema {
+  implicit val toCreate: Transformer[TimeSeriesUpsertSchema, TimeSeriesCreate] =
+    Transformer
+      .define[TimeSeriesUpsertSchema, TimeSeriesCreate]
+      .withFieldComputed(_.isStep, _.isStep.getOrElse(false))
+      .withFieldComputed(_.isString, _.isString.getOrElse(false))
+      .buildTransformer
+
+}
 
 final case class TimeSeriesInsertSchema(
     externalId: Option[String] = None,

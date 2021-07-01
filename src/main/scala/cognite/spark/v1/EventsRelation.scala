@@ -99,11 +99,9 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val events = rows.map(fromRow[EventsUpsertSchema](_))
-    val (itemsToUpdate, itemsToCreate) = events.partition(r => r.id.exists(_ > 0))
 
     genericUpsert[Event, EventsUpsertSchema, EventCreate, EventUpdate, Events[IO]](
-      itemsToUpdate,
-      itemsToCreate.map(_.transformInto[EventCreate]),
+      events,
       isUpdateEmpty,
       client.events)
   }
@@ -111,7 +109,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val events = rows.map(fromRow[EventCreate](_))
 
-    createOrUpdateByExternalId[Event, EventUpdate, EventCreate, Events[IO]](
+    createOrUpdateByExternalId[Event, EventUpdate, EventCreate, EventCreate, Option, Events[IO]](
       Set.empty,
       events,
       client.events,

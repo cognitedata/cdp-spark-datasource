@@ -7,6 +7,7 @@ import cats.Id
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.ApiKeyAuth
 import org.apache.spark.sql.{Encoder, Encoders, SparkSession}
+import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.Tag
 import org.apache.spark.datasource.MetricsSource
 
@@ -18,6 +19,7 @@ import cats.implicits.catsSyntaxFlatMapOps
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.sql.types.StructType
 import org.scalactic.{Prettifier, source}
+import org.scalatest.prop.TableFor1
 
 import scala.reflect.ClassTag
 
@@ -91,6 +93,9 @@ trait SparkTest {
       1.second,
       20
     ).unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
+
+
+  val updateAndUpsert: TableFor1[String] = Table("mode", "upsert", "update")
 
   def getDefaultConfig(auth: CdfSparkAuth): RelationConfig =
     RelationConfig(

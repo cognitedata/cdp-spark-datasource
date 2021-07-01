@@ -82,11 +82,14 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val sequences = rows.map(fromRow[SequenceCreate](_))
 
-    createOrUpdateByExternalId[Sequence, SequenceUpdate, SequenceCreate, SequencesResource[IO]](
-      Set.empty,
-      sequences,
-      client.sequences,
-      doUpsert = true)
+    // scalastyle:off no.whitespace.after.left.bracket
+    createOrUpdateByExternalId[
+      Sequence,
+      SequenceUpdate,
+      SequenceCreate,
+      SequenceCreate,
+      Option,
+      SequencesResource[IO]](Set.empty, sequences, client.sequences, doUpsert = true)
   }
 
   override def schema: StructType = structType[SequenceReadSchema]

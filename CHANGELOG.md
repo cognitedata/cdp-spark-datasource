@@ -1,3 +1,9 @@
+# 1.4.26
+
+## Fixes
+
+Made the `ignoreNullFields` option also work in upsert mode.
+
 # 1.4.25
 
 ## Enhancements
