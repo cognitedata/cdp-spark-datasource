@@ -19,6 +19,7 @@ final case class RelationConfig(
     partitions: Int,
     maxRetries: Int,
     maxRetryDelaySeconds: Int,
+    maxParallelRequests: Int,
     collectMetrics: Boolean,
     collectTestMetrics: Boolean,
     metricsPrefix: String,
@@ -296,6 +297,8 @@ object DefaultSource {
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
       .getOrElse(Constants.DefaultPartitions)
+    val maxParallelRequests = toPositiveInt(parameters, "maxParallelRequests")
+      .getOrElse(partitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
       case Some(prefix) => s"$prefix"
       case None => ""
@@ -340,6 +343,7 @@ object DefaultSource {
       partitions,
       maxRetries,
       maxRetryDelaySeconds,
+      maxParallelRequests,
       collectMetrics,
       collectTestMetrics,
       metricsPrefix,

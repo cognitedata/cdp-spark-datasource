@@ -50,15 +50,23 @@ object CdpConnector {
     new GzipSttpBackend[IO, Nothing](
       AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
-  def retryingSttpBackend(maxRetries: Int, maxRetryDelaySeconds: Int): SttpBackend[IO, Nothing] =
-    new RetryingBackend[IO, Nothing](
+  def retryingSttpBackend(
+      maxRetries: Int,
+      maxRetryDelaySeconds: Int,
+      maxParallelRequests: Int = Constants.DefaultMaxParallelRequests
+  ): SttpBackend[IO, Nothing] = {
+    val retryingBackend = new RetryingBackend[IO, Nothing](
       sttpBackend,
       maxRetries = Some(maxRetries),
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
+    val limitedBackend = RateLimitingBackend[Nothing](retryingBackend, maxParallelRequests)
+    limitedBackend
+  }
+
   def clientFromConfig(config: RelationConfig): GenericClient[IO] = {
     implicit val sttpBackend: SttpBackend[IO, Nothing] =
-      retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds)
+      retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds, config.maxParallelRequests)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,

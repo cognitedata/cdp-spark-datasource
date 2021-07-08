@@ -108,6 +108,7 @@ trait SparkTest {
       Constants.DefaultPartitions,
       Constants.DefaultMaxRetries,
       Constants.DefaultMaxRetryDelaySeconds,
+      Constants.DefaultMaxParallelRequests,
       collectMetrics = false,
       collectTestMetrics = false,
       "",
