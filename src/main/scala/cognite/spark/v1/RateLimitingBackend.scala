@@ -7,7 +7,7 @@ import com.softwaremill.sttp.{MonadError, Request, Response, SttpBackend}
 
 import scala.language.higherKinds
 
-class RateLimitingBackend[F[_], S](
+class RateLimitingBackend[F[_], S] private (
     delegate: SttpBackend[F, S],
     semaphore: Semaphore[F]
 ) extends SttpBackend[F, S] {

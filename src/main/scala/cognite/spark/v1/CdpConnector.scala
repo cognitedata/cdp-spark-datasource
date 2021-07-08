@@ -9,6 +9,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder
 import com.softwaremill.sttp._
 import com.softwaremill.sttp.asynchttpclient.SttpClientBackendFactory
 import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import org.apache.spark.datasource.MetricsSource
 import org.log4s._
 
 import java.lang.Thread.UncaughtExceptionHandler
@@ -53,20 +54,41 @@ object CdpConnector {
   def retryingSttpBackend(
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
-      maxParallelRequests: Int = Constants.DefaultMaxParallelRequests
+      maxParallelRequests: Int = Constants.DefaultMaxParallelRequests,
+      metricsPrefix: Option[String] = None
   ): SttpBackend[IO, Nothing] = {
+    val metricsBackend =
+      metricsPrefix.fold(sttpBackend)(
+        metricsPrefix =>
+          new MetricsBackend[IO, Nothing](
+            sttpBackend,
+            MetricsSource.getOrCreateCounter(metricsPrefix, "requests")))
     val retryingBackend = new RetryingBackend[IO, Nothing](
-      sttpBackend,
+      metricsBackend,
       maxRetries = Some(maxRetries),
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
-    val limitedBackend = RateLimitingBackend[Nothing](retryingBackend, maxParallelRequests)
-    limitedBackend
+    val limitedBackend: SttpBackend[IO, Nothing] =
+      RateLimitingBackend[Nothing](retryingBackend, maxParallelRequests)
+    metricsPrefix.fold(limitedBackend)(
+      metricsPrefix =>
+        new MetricsBackend[IO, Nothing](
+          limitedBackend,
+          MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries")))
   }
 
   def clientFromConfig(config: RelationConfig): GenericClient[IO] = {
+    val metricsPrefix = if (config.collectMetrics) {
+      Some(config.metricsPrefix)
+    } else {
+      None
+    }
     implicit val sttpBackend: SttpBackend[IO, Nothing] =
-      retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds, config.maxParallelRequests)
+      retryingSttpBackend(
+        config.maxRetries,
+        config.maxRetryDelaySeconds,
+        config.maxParallelRequests,
+        metricsPrefix)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,
