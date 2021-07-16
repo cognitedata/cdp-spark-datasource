@@ -8,7 +8,7 @@ import fs2.{Chunk, Stream}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import com.softwaremill.sttp._
+import sttp.model.Uri._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 

@@ -1,14 +1,8 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.sequenceColumnToCreateTransformer
 import com.cognite.sdk.scala.v1.SequenceColumnCreate
-import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.sql.functions.col
-import org.apache.spark.SparkException
+import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
-
-import scala.util.control.NonFatal
 
 class SequencesRelationTest extends FlatSpec with Matchers with OptionValues with ParallelTestExecution with SparkTest {
   import spark.implicits._
@@ -160,7 +154,7 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
       assert(inserted.name == stored.name)
       assert(inserted.metadata.getOrElse(Map()) == stored.metadata.getOrElse(Map()))
       if (conflictMode != "update") {
-        assert(inserted.columns.toList == stored.columns.toList.map(_.transformInto[SequenceColumnCreate]))
+        assert(inserted.columns.toList == stored.columns.toList.map(_.toCreate))
       }
       assert(inserted.description == stored.description)
       assert(inserted.assetId == stored.assetId)

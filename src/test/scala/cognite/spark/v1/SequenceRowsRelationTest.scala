@@ -1,6 +1,5 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.sequenceColumnToCreateTransformer
 import com.cognite.sdk.scala.v1.SequenceColumnCreate
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
@@ -380,7 +379,7 @@ it should "create rows for multiple sequences" in withSequences(Seq(sequenceA, s
       assert(inserted.externalId == stored.externalId)
       assert(inserted.name == stored.name)
       assert(inserted.metadata.getOrElse(Map()) == stored.metadata.getOrElse(Map()))
-      val columns = stored.columns.map(_.transformInto[SequenceColumnCreate]).toList
+      val columns = stored.columns.map(_.toCreate).toList
       val col = inserted.columns.toList.map(c => c.copy(metadata = c.metadata.orElse(Some(Map()))))
       assert(col == columns)
       assert(inserted.description == stored.description)

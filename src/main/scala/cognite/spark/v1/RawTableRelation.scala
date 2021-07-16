@@ -17,7 +17,6 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.datasource.MetricsSource
 
 import com.cognite.sdk.scala.common.Auth
-import com.softwaremill.sttp.SttpBackend
 import fs2.Stream
 
 import scala.util.Try
