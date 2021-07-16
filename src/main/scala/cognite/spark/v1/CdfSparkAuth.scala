@@ -25,6 +25,6 @@ object CdfSparkAuth {
         implicit cs: ContextShift[IO],
         clock: Clock[IO],
         sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
-    OAuth2.ClientCredentialsProvider[IO](credentials)
+      OAuth2.ClientCredentialsProvider[IO](credentials)
   }
 }

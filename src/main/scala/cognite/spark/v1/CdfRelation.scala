@@ -32,23 +32,23 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
 
   // Until Scala SDK adds back support for Chimney
   implicit def fieldToSetter[T: Manifest]: Transformer[OptionalField[T], Option[Setter[T]]] = {
-      case FieldSpecified(null) => // scalastyle:ignore null
-        throw new Exception(
-          "FieldSpecified(null) observed, that's bad. Please reach out to Cognite support.")
-      case FieldSpecified(x) => Some(SetValue(x))
-      case FieldNotSpecified => None
-      case FieldNull if config.ignoreNullFields => None
-      case FieldNull => Some(SetNull())
-    }
+    case FieldSpecified(null) => // scalastyle:ignore null
+      throw new Exception(
+        "FieldSpecified(null) observed, that's bad. Please reach out to Cognite support.")
+    case FieldSpecified(x) => Some(SetValue(x))
+    case FieldNotSpecified => None
+    case FieldNull if config.ignoreNullFields => None
+    case FieldNull => Some(SetNull())
+  }
 
   implicit def optionToSetter[T: Manifest]: Transformer[Option[T], Option[Setter[T]]] = {
-      case Some(value: T) => Some(SetValue(value))
-      case Some(badValue) =>
-        throw new SdkException(
-          s"Expected value of type ${manifest[T].toString} but got `${badValue.toString}` of type ${badValue.getClass.toString}"
-        )
-      case src => Setter.fromOption(src)
-    }
+    case Some(value: T) => Some(SetValue(value))
+    case Some(badValue) =>
+      throw new SdkException(
+        s"Expected value of type ${manifest[T].toString} but got `${badValue.toString}` of type ${badValue.getClass.toString}"
+      )
+    case src => Setter.fromOption(src)
+  }
   implicit def optionToNonNullableSetter[T]: Transformer[Option[T], Option[NonNullableSetter[T]]] =
     NonNullableSetter.fromOption
   implicit def anyToSetter[T]: Transformer[T, Option[Setter[T]]] =
