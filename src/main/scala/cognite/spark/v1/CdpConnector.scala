@@ -70,7 +70,8 @@ object CdpConnector {
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
     val limitedBackend: SttpBackend[IO, Any] =
-      RateLimitingBackend[Any](retryingBackend, maxParallelRequests)
+      //RateLimitingBackend[Any](retryingBackend, maxParallelRequests)
+      retryingBackend
     metricsPrefix.fold(limitedBackend)(
       metricsPrefix =>
         new MetricsBackend[IO, Any](
@@ -89,7 +90,7 @@ object CdpConnector {
         config.maxRetries,
         config.maxRetryDelaySeconds,
         config.maxParallelRequests,
-        metricsPrefix)
+        None)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,
