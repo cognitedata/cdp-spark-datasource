@@ -4,10 +4,11 @@ import cats.effect.{Clock, ContextShift, IO}
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, Setter, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
-import com.softwaremill.sttp.{SttpBackend, Uri}
+import sttp.client3.SttpBackend
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
+import sttp.model.Uri
 
 final case class RelationConfig(
     auth: CdfSparkAuth,
@@ -19,6 +20,7 @@ final case class RelationConfig(
     partitions: Int,
     maxRetries: Int,
     maxRetryDelaySeconds: Int,
+    maxParallelRequests: Int,
     collectMetrics: Boolean,
     collectTestMetrics: Boolean,
     metricsPrefix: String,
@@ -263,8 +265,9 @@ object DefaultSource {
       }
       clientId <- parameters.get("clientId")
       clientSecret <- parameters.get("clientSecret")
-      scopes <- Some(parameters.getOrElse("scopes", s"$baseUrl/.default").split(" ").toList)
-      clientCredentials = OAuth2.ClientCredentials(tokenUri, clientId, clientSecret, scopes)
+      project <- parameters.get("project")
+      scopes = parameters.getOrElse("scopes", s"$baseUrl/.default").split(" ").toList
+      clientCredentials = OAuth2.ClientCredentials(tokenUri, clientId, clientSecret, scopes, project)
     } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 
     authTicket
@@ -296,6 +299,8 @@ object DefaultSource {
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
       .getOrElse(Constants.DefaultPartitions)
+    val maxParallelRequests = toPositiveInt(parameters, "maxParallelRequests")
+      .getOrElse(partitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
       case Some(prefix) => s"$prefix"
       case None => ""
@@ -340,6 +345,7 @@ object DefaultSource {
       partitions,
       maxRetries,
       maxRetryDelaySeconds,
+      maxParallelRequests,
       collectMetrics,
       collectTestMetrics,
       metricsPrefix,
@@ -363,7 +369,7 @@ object DefaultSource {
       implicit
       cs: ContextShift[IO] = CdpConnector.cdpConnectorContextShift,
       clock: Clock[IO]): String = {
-    implicit val backend: SttpBackend[IO, Nothing] =
+    implicit val backend: SttpBackend[IO, Any] =
       CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
 
     val getProject = for {

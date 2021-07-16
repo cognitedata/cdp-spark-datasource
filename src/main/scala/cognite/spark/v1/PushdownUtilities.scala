@@ -1,14 +1,12 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import com.cognite.sdk.scala.v1.{CogniteExternalId, ConfidenceRange, ContainsAny, TimeRange}
-import com.softwaremill.sttp._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+import sttp.model.Uri
 
 import scala.util.Try
-import scala.util.matching.Regex
 
 final case class DeleteItem(id: Long)
 
@@ -21,7 +19,7 @@ final case class NoPushdown() extends PushdownExpression
 
 object PushdownUtilities {
   def pushdownToUri(parameters: Seq[Map[String, String]], uri: Uri): Seq[Uri] =
-    parameters.map(params => uri.params(params))
+    parameters.map(params => uri.addParams(params))
 
   def pushdownToParameters(p: PushdownExpression): Seq[Map[String, String]] =
     p match {

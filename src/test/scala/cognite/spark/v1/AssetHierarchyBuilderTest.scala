@@ -1054,9 +1054,10 @@ class AssetHierarchyBuilderTest
 
     val dad = AssetCreate("dad", None, None, None, Some("dad"), None, Some(""))
 
-    val kids = (1 to 1100).flatMap(k => Seq(
+    val count = 1100
+    val kids = (1 to count).flatMap(k => Seq(
       AssetCreate(s"kid$k", None, None, None, Some(s"kid$k"), None, Some("dad"))))
-    val grandkids = (1 to 1100).map(k =>
+    val grandkids = (1 to count).map(k =>
       AssetCreate(s"grandkid$k", None, None, None, Some(s"grandkid$k"), None, Some(s"kid$k"))
     )
 
@@ -1064,7 +1065,10 @@ class AssetHierarchyBuilderTest
     ingest(key, kids :+ dad, batchSize = 1000)
 
     // Ingest the third level, 1100 subtrees
-    ingest(key, grandkids, batchSize = 1000)
+    ingest(key, grandkids, batchSize = 1000, metricsPrefix = Some(s"ingest.tree.grandkids.$key"))
+
+    // heh, this is not exactly the desired state. Just testing if the metric works
+    getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 3302
 
     cleanDB(key)
   }

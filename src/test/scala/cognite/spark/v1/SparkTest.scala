@@ -108,6 +108,7 @@ trait SparkTest {
       Constants.DefaultPartitions,
       Constants.DefaultMaxRetries,
       Constants.DefaultMaxRetryDelaySeconds,
+      Constants.DefaultMaxParallelRequests,
       collectMetrics = false,
       collectTestMetrics = false,
       "",
@@ -133,6 +134,9 @@ trait SparkTest {
 
   def getNumberOfRowsCreated(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.created")
+
+  def getNumberOfRequests(metricsPrefix: String): Long =
+    getCounter(s"$metricsPrefix.requestsWithoutRetries")
 
   def getNumberOfRowsDeleted(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.deleted")

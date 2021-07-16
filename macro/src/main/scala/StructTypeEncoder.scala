@@ -39,10 +39,7 @@ case object FieldNull extends OptionalField[Nothing] {
 }
 
 object OptionalField {
-  implicit def fieldToOption[T: Manifest]: Transformer[OptionalField[T], Option[T]] =
-    new Transformer[OptionalField[T], Option[T]] {
-      override def transform(src: OptionalField[T]): Option[T] = src.toOption
-    }
+  implicit def fieldToOption[T: Manifest]: Transformer[OptionalField[T], Option[T]] = _.toOption
 
   implicit val monad: Monad[OptionalField] = new Monad[OptionalField] {
     override def flatMap[A, B](fa: OptionalField[A])(f: A => OptionalField[B]): OptionalField[B] = fa.flatMap(f)

@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import com.softwaremill.sttp._
+import sttp.model.Uri._
 import PushdownUtilities._
 class PushdownUtilitiesTest extends FlatSpec with ParallelTestExecution with Matchers with SparkTest {
 

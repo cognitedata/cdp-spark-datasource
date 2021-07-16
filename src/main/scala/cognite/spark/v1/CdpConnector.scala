@@ -6,9 +6,10 @@ import cats.effect.{ContextShift, IO, Timer}
 import com.cognite.sdk.scala.common.{GzipSttpBackend, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
-import com.softwaremill.sttp._
-import com.softwaremill.sttp.asynchttpclient.SttpClientBackendFactory
-import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import sttp.client3._
+import sttp.client3.asynchttpclient.SttpClientBackendFactory
+import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import org.apache.spark.datasource.MetricsSource
 import org.log4s._
 
 import java.lang.Thread.UncaughtExceptionHandler
@@ -46,19 +47,50 @@ object CdpConnector {
     IO.contextShift(cdpConnectorExecutionContext)
   @transient implicit lazy val cdpConnectorParallel: Parallel[IO] =
     IO.ioParallel(cdpConnectorContextShift)
-  private val sttpBackend: SttpBackend[IO, Nothing] =
-    new GzipSttpBackend[IO, Nothing](
-      AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
-  def retryingSttpBackend(maxRetries: Int, maxRetryDelaySeconds: Int): SttpBackend[IO, Nothing] =
-    new RetryingBackend[IO, Nothing](
-      sttpBackend,
+  private val sttpBackend: SttpBackend[IO, Any] =
+    new GzipSttpBackend[IO, Any](
+      AsyncHttpClientCatsBackend.usingClient[IO](SttpClientBackendFactory.create()))
+
+  def retryingSttpBackend(
+      maxRetries: Int,
+      maxRetryDelaySeconds: Int,
+      maxParallelRequests: Int = Constants.DefaultMaxParallelRequests,
+      metricsPrefix: Option[String] = None
+  ): SttpBackend[IO, Any] = {
+    val metricsBackend =
+      metricsPrefix.fold(sttpBackend)(
+        metricsPrefix =>
+          new MetricsBackend[IO, Any](
+            sttpBackend,
+            MetricsSource.getOrCreateCounter(metricsPrefix, "requests")))
+    val retryingBackend = new RetryingBackend[IO, Any](
+      metricsBackend,
       maxRetries = Some(maxRetries),
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
+    val limitedBackend: SttpBackend[IO, Any] =
+      //RateLimitingBackend[Any](retryingBackend, maxParallelRequests)
+      retryingBackend
+    metricsPrefix.fold(limitedBackend)(
+      metricsPrefix =>
+        new MetricsBackend[IO, Any](
+          limitedBackend,
+          MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries")))
+  }
+
   def clientFromConfig(config: RelationConfig): GenericClient[IO] = {
-    implicit val sttpBackend: SttpBackend[IO, Nothing] =
-      retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds)
+    val metricsPrefix = if (config.collectMetrics) {
+      Some(config.metricsPrefix)
+    } else {
+      None
+    }
+    implicit val sttpBackend: SttpBackend[IO, Any] =
+      retryingSttpBackend(
+        config.maxRetries,
+        config.maxRetryDelaySeconds,
+        config.maxParallelRequests,
+        None)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,
