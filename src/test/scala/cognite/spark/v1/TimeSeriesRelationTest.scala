@@ -5,7 +5,6 @@ import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
-import com.softwaremill.sttp._
 import io.scalaland.chimney.dsl._
 import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 

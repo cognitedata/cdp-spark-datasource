@@ -1,7 +1,7 @@
-package com.softwaremill.sttp.asynchttpclient
+package sttp.client3.asynchttpclient
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder
-import com.softwaremill.sttp.SttpBackendOptions
+import sttp.client3.SttpBackendOptions
 import io.netty.util.HashedWheelTimer
 import org.asynchttpclient.AsyncHttpClient
 

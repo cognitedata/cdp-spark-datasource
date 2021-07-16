@@ -50,7 +50,7 @@ class OAuth2Test
     }
     catch {
       case e: InvalidAuthentication => assert(true)
-      case _ => assert(false)
+      case _: Throwable => assert(false)
     }
   }
 
@@ -72,7 +72,7 @@ class OAuth2Test
     }
     catch {
       case e: SparkException => assert(true)
-      case _ => assert(false)
+      case _: Throwable => assert(false)
     }
   }
 

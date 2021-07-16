@@ -1,9 +1,8 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import com.cognite.sdk.scala.common.{Auth, StringDataPoint}
+import com.cognite.sdk.scala.common.StringDataPoint
 import com.cognite.sdk.scala.v1._
-import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row

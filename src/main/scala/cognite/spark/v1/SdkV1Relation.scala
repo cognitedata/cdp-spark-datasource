@@ -73,7 +73,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       P <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       U <: WithSetExternalId,
       T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO],
-      R <: WithId[Long]](
+      R <: WithId[Long] with ToUpdate[U]](
       updates: Seq[P],
       resource: T,
       isUpdateEmpty: U => Boolean
@@ -109,7 +109,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   // scalastyle:off no.whitespace.after.left.bracket method.length
   def createOrUpdateByExternalId[
-      R <: WithExternalId,
+      R <: WithExternalId with ToCreate[C],
       U <: WithSetExternalId,
       C <: WithExternalId,
       S <: WithExternalIdGeneric[ExternalIdF],
@@ -168,7 +168,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   def genericUpsert[
       // The Item (read) type
-      R <: WithExternalId with WithId[Long],
+      R <: WithExternalId with WithId[Long] with ToUpdate[Up] with ToCreate[C],
       // The UpsertSchema type
       U <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       // The ItemCreate type
