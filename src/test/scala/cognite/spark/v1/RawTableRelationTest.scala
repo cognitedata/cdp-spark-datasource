@@ -359,7 +359,7 @@ class RawTableRelationTest
       .option("database", database)
       .option("table", table)
       .load()
-    destination.createTempView(tempView)
+    destination.createOrReplaceTempView(tempView)
     source
       .select(destination.columns.map(c => col(c)): _*)
       .write

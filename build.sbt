@@ -1,6 +1,6 @@
 import com.typesafe.sbt.packager.docker.{Cmd, ExecCmd}
 
-val scala212 = "2.12.14"
+val scala212 = "2.12.12"
 val supportedScalaVersions = List(scala212)
 val sparkVersion = "3.0.1"
 val circeVersion = "0.14.1"
@@ -20,7 +20,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.26",
+  version := "1.5.0",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),

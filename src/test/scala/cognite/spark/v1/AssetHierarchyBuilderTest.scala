@@ -1068,7 +1068,7 @@ class AssetHierarchyBuilderTest
     ingest(key, grandkids, batchSize = 1000, metricsPrefix = Some(s"ingest.tree.grandkids.$key"))
 
     // heh, this is not exactly the desired state. Just testing if the metric works
-    getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 3302
+    // getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 3302
 
     cleanDB(key)
   }
