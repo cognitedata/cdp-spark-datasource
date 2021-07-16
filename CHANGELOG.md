@@ -1,3 +1,7 @@
+# 1.5.0
+
+Update to Scala SDK 1.5, update to Sttp 3
+
 # 1.4.26
 
 ## Fixes
