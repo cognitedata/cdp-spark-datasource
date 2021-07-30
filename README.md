@@ -49,6 +49,7 @@ The instructions below explain how to read from, and write to, the different res
     - [RAW tables](#raw-tables)
     - [Labels](#labels)
     - [Relationships](#relationships)
+  - [Comprehensive example](#compehensive-examples)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
     - [Run the tests](#run-the-tests)
@@ -1207,6 +1208,16 @@ df.createTempView("tablename")
 spark.sql("insert into tablename values ('key', 'values')")
 ```
 
+For more details on how to insert a dataframe into a RAW table, see the [example, where we
+show how to backup assets to a RAW table](docs/assets-raw-backup.py)
+
+## Comprehensive examples
+
+- [GTFS public transportation dataset](docs/public_transport_example.ipynb)
+  - Shows how to create assets, asset hierarchies, events and RAW from CSV files.
+  - Shows how to query events and assets using Spark SQL.
+- [Asset backup to RAW](docs/assets-raw-backup.py)
+  - Shows how to create RAW rows from existing CDF resources.
 
 ## Build the project with sbt
 
