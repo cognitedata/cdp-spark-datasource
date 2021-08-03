@@ -33,7 +33,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
       )))
   }
 
-  it should "throw an error when no id/externalId filter is provided" taggedAs ReadTest in {
+  ignore should "throw an error when no id/externalId filter is provided" taggedAs ReadTest in {
     val thrown = the[CdfSparkIllegalArgumentException] thrownBy {
       spark.read
         .format("cognite.spark.v1")
@@ -45,7 +45,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(thrown.getMessage.contains("Please filter by one or more ids or externalIds when reading data points."))
   }
 
-  it should "test that start/stop time are handled correctly for data points" taggedAs (ReadTest) in {
+  ignore should "test that start/stop time are handled correctly for data points" taggedAs (ReadTest) in {
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -56,7 +56,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(df.count() == 9)
   }
 
-  it should "support aggregations" taggedAs (ReadTest) in {
+  ignore should "support aggregations" taggedAs (ReadTest) in {
     val df1 = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -95,7 +95,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(result(0).getTimestamp(2).getTime == 1518912000000L)
   }
 
-  it should "shift non-aligned aggregates to correct timestamps" taggedAs ReadTest in {
+  ignore should "shift non-aligned aggregates to correct timestamps" taggedAs ReadTest in {
     val df1 = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -120,7 +120,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(results2(0).getTimestamp(2).getTime == 1509494400000L)
   }
 
-  it should "be possible to specify multiple aggregation types in one query" taggedAs (ReadTest) in {
+  ignore should "be possible to specify multiple aggregation types in one query" taggedAs (ReadTest) in {
     val metricsPrefix = s"multi.aggregation.${shortRandomString()}"
     val results = spark.read
       .format("cognite.spark.v1")
@@ -147,7 +147,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(avg.getDouble(3) < max.getDouble(3))
   }
 
-  it should "be an error to specify an aggregation without specifying a granularity" taggedAs (ReadTest) in {
+  ignore should "be an error to specify an aggregation without specifying a granularity" taggedAs (ReadTest) in {
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -160,7 +160,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     e shouldBe an[CdfSparkIllegalArgumentException]
   }
 
-  it should "be an error to specify a granularity without specifying an aggregation" taggedAs (ReadTest) in {
+  ignore should "be an error to specify a granularity without specifying an aggregation" taggedAs (ReadTest) in {
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -173,7 +173,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     e shouldBe an[CdfSparkIllegalArgumentException]
   }
 
-  it should "be an error to specify an invalid granularity" taggedAs (ReadTest) in {
+  ignore should "be an error to specify an invalid granularity" taggedAs (ReadTest) in {
     for (granularity <- Seq("30", "dd", "d30", "1", "0", "1.2d", "1.4y", "1.4seconds")) {
       val df = spark.read
         .format("cognite.spark.v1")
@@ -189,7 +189,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     }
   }
 
-  it should "accept valid granularity specifications" taggedAs (ReadTest) in {
+  ignore should "accept valid granularity specifications" taggedAs (ReadTest) in {
     for (granularity <- Seq(
         "1d",
         "day",
@@ -214,7 +214,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     }
   }
 
-  it should "accept all aggregation options" in {
+  ignore should "accept all aggregation options" in {
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -227,7 +227,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(df.select("aggregation").distinct.count == 10)
   }
 
-  it should "read data points without duplicates" taggedAs ReadTest in {
+  ignore should "read data points without duplicates" taggedAs ReadTest in {
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -240,7 +240,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(df.count() == df.distinct().count())
   }
 
-  it should "read data points while respecting limitPerPartition" taggedAs ReadTest in {
+  ignore should "read data points while respecting limitPerPartition" taggedAs ReadTest in {
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -253,7 +253,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(df.count() < 10000)
   }
 
-  it should "read very many aggregates correctly and without duplicates" taggedAs ReadTest in {
+  ignore should "read very many aggregates correctly and without duplicates" taggedAs ReadTest in {
     val emptyDf = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
@@ -282,7 +282,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(df.distinct().count() == df.count())
   }
 
-  it should "handle missing aggregates" taggedAs ReadTest in {
+  ignore should "handle missing aggregates" taggedAs ReadTest in {
     val metricsPrefix = s"missing.aggregates.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
@@ -299,7 +299,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(pointsRead == 723074)
   }
 
-  it should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest in {
+  ignore should "be possible to write datapoints to CDF using the Spark Data Source " taggedAs WriteTest in {
     val metricsPrefix = s"datapoints.insert.${shortRandomString()}"
     val testUnit = s"test ${shortRandomString()}"
     val tsName = s"datapoints-insert-${shortRandomString()}"
@@ -408,7 +408,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(dataPointsAfterPostByExternalId.length == 2)
   }
 
-  it should "read all the datapoints in a time series with infrequent datapoints" taggedAs WriteTest in {
+  ignore should "read all the datapoints in a time series with infrequent datapoints" taggedAs WriteTest in {
 
     val testUnit = s"last testing ${shortRandomString()}"
     val tsName = s"lastpoint${shortRandomString()}"
@@ -492,7 +492,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(dataPointsAfterPostByExternalId.length == timestamps.length)
   }
 
-  it should "fail reasonably when datapoint values are invalid" taggedAs WriteTest in {
+  ignore should "fail reasonably when datapoint values are invalid" taggedAs WriteTest in {
     val tsName = s"dps-insert1-${shortRandomString()}"
 
     val destinationTimeSeriesDf = spark.read
@@ -548,7 +548,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     exception.getMessage should include ("Column 'value' was expected to have type Double")
   }
 
-  it should "fail reasonably when datapoint externalId has invalid type (save)" taggedAs WriteTest in {
+  ignore should "fail reasonably when datapoint externalId has invalid type (save)" taggedAs WriteTest in {
     val exception = intercept[SparkException] {
       spark
         .sql(
@@ -570,7 +570,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     exception.getMessage should include ("Column 'externalId' was expected to have type String, but '1' of type Int was found (on row with externalId='1')")
   }
 
-  it should "fail reasonably when datapoint value has invalid type (save)" taggedAs WriteTest in {
+  ignore should "fail reasonably when datapoint value has invalid type (save)" taggedAs WriteTest in {
     val exception = intercept[SparkException] {
       spark
         .sql(
@@ -591,7 +591,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     exception.getMessage should include ("Column 'value' was expected to have type Double, but 'non-numeric value' of type String was found (on row with id='1')")
   }
 
-  it should "fail reasonably when datapoint timestamp has invalid type (save)" taggedAs WriteTest in {
+  ignore should "fail reasonably when datapoint timestamp has invalid type (save)" taggedAs WriteTest in {
     val exception = intercept[SparkException] {
       spark
         .sql(
@@ -612,7 +612,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     exception.getMessage should include ("Column 'timestamp' was expected to have type Timestamp, but '1509500001' of type Int was found (on row with id='1')")
   }
 
-  it should "be possible to create data points for several time series at the same time" taggedAs WriteTest in {
+  ignore should "be possible to create data points for several time series at the same time" taggedAs WriteTest in {
     val tsName1 = s"dps-insert1-${shortRandomString()}"
     val tsName2 = s"dps-insert2-${shortRandomString()}"
 
@@ -713,7 +713,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(dataPointsAfterPost.length == 4)
   }
 
-  it should "be an error to specify an invalid (time series) id" taggedAs (WriteTest) in {
+  ignore should "be an error to specify an invalid (time series) id" taggedAs (WriteTest) in {
     val destinationDf = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -740,7 +740,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(cdpApiException.code == 400)
   }
 
-  it should "fail reasonably on invalid delete (empty range)" in {
+  ignore should "fail reasonably on invalid delete (empty range)" in {
     val e = intercept[SparkException] {
       spark
         .sql(s"""select
@@ -759,7 +759,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     e.getCause.getMessage should startWith("Delete range [1509900000000, 1509900000000) is invalid")
   }
 
-  it should "fail reasonably on invalid delete (inclusiveEnd and exclusiveEnd)" in {
+  ignore should "fail reasonably on invalid delete (inclusiveEnd and exclusiveEnd)" in {
     val e = intercept[SparkException] {
       spark
         .sql(s"""select
@@ -779,7 +779,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     e.getCause.getMessage should startWith("Delete row for data points can not contain both inclusiveEnd and exclusiveEnd ")
   }
 
-  it should "fail reasonably on invalid delete (no Begin)" in {
+  ignore should "fail reasonably on invalid delete (no Begin)" in {
     val e = intercept[SparkException] {
       spark
         .sql(s"""select
@@ -797,7 +797,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     e.getCause.getMessage should startWith("Delete row for data points must contain inclusiveBegin or exclusiveBegin ")
   }
 
-  it should "fail reasonably on invalid delete (no id)" in {
+  ignore should "fail reasonably on invalid delete (no id)" in {
     val e = intercept[SparkException] {
       spark
         .sql(s"""select
@@ -816,7 +816,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   }
 
 
-  it should "be possible to delete data points" taggedAs WriteTest in {
+  ignore should "be possible to delete data points" taggedAs WriteTest in {
     val destinationDataPointsDf = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -923,7 +923,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     dataPointsAfterDelete.head.getAs[Double]("value") shouldBe 2.0
   }
 
-  it should "be empty set when id does not exist" in {
+  ignore should "be empty set when id does not exist" in {
     val destinationDf = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
