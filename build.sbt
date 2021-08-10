@@ -31,6 +31,7 @@ lazy val commonSettings = Seq(
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
+  libraryDependencies := Seq("io.scalaland" %% "chimney" % "0.5.3"),
   developers := List(
     Developer(
       id = "wjoel",
@@ -80,7 +81,6 @@ lazy val macroSub = (project in file("macro"))
     publish := {},
     publishLocal := {},
     libraryDependencies ++= Seq(
-      "io.scalaland" %% "chimney" % "0.5.3",
       "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
@@ -96,7 +96,6 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     scalaVersion := scala212,
     libraryDependencies ++= Seq(
-      "io.scalaland" %% "chimney" % "0.5.3",
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
         // scala-collection-compat is used in TransformerF, but we don't use that,
         // and this dependency causes issues with Livy.
