@@ -95,7 +95,7 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     scalaVersion := scala212,
     libraryDependencies ++= Seq(
-      "io.scalaland" %% "chimney" % "0.6.1",
+      "io.scalaland" %% "chimney" % "0.5.3",
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
         // scala-collection-compat is used in TransformerF, but we don't use that,
         // and this dependency causes issues with Livy.
