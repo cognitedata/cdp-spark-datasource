@@ -7,7 +7,14 @@ import cats.syntax._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
 import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
-import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, CogniteExternalId, LabelsOnUpdate}
+import com.cognite.sdk.scala.v1.{
+  Asset,
+  AssetCreate,
+  AssetUpdate,
+  AssetsFilter,
+  CogniteExternalId,
+  LabelsOnUpdate
+}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, SQLContext}

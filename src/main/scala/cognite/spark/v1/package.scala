@@ -74,8 +74,8 @@ package object v1 {
     }
 
   implicit def encodeNonNullableSetter[T](
-                                           implicit encodeT: Encoder[T]
-                                         ): Encoder[NonNullableSetter[T]] = new Encoder[NonNullableSetter[T]] {
+      implicit encodeT: Encoder[T]
+  ): Encoder[NonNullableSetter[T]] = new Encoder[NonNullableSetter[T]] {
     final def apply(a: NonNullableSetter[T]): Json = a match {
       case SetValue(value) => Json.obj(("set", encodeT.apply(value)))
     }
