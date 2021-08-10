@@ -49,7 +49,7 @@ The instructions below explain how to read from, and write to, the different res
     - [RAW tables](#raw-tables)
     - [Labels](#labels)
     - [Relationships](#relationships)
-  - [Comprehensive example](#compehensive-examples)
+  - [Comprehensive example](#comprehensive-examples)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
     - [Run the tests](#run-the-tests)
