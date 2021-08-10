@@ -31,7 +31,7 @@ lazy val commonSettings = Seq(
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
-  libraryDependencies := Seq("io.scalaland" %% "chimney" % "0.5.3"),
+  libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
   developers := List(
     Developer(
       id = "wjoel",
