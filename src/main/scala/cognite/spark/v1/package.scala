@@ -3,7 +3,7 @@ package cognite.spark
 import com.cognite.sdk.scala.common.{NonNullableSetter, SdkException, SetNull, SetValue, Setter}
 import io.circe.{Encoder, Json}
 import io.scalaland.chimney.Transformer
-
+// scalastyle:off
 package object v1 {
   @SuppressWarnings(
     Array(
