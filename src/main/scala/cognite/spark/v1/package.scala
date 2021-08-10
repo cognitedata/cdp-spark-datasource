@@ -1,6 +1,7 @@
 package cognite.spark
 
 import com.cognite.sdk.scala.common.{NonNullableSetter, SdkException, SetNull, SetValue, Setter}
+import com.cognite.sdk.scala.v1.{SequenceColumn, SequenceColumnCreate}
 import io.circe.{Encoder, Json}
 import io.scalaland.chimney.Transformer
 // scalastyle:off
@@ -71,6 +72,17 @@ package object v1 {
   implicit def toOptionNonNullableSetter[T]: Transformer[T, Option[NonNullableSetter[T]]] =
     new Transformer[T, Option[NonNullableSetter[T]]] {
       override def transform(value: T): Option[NonNullableSetter[T]] = Some(SetValue(value))
+    }
+
+  implicit def sequenceToSequenceColumnCreate: Transformer[SequenceColumn, SequenceColumnCreate] =
+    new Transformer[SequenceColumn, SequenceColumnCreate] {
+      override def transform(seq: SequenceColumn): SequenceColumnCreate =
+        SequenceColumnCreate(
+          name = seq.name,
+          externalId = seq.externalId.get,
+          description = seq.description,
+          metadata = seq.metadata,
+          valueType = seq.valueType)
     }
 
   implicit def encodeNonNullableSetter[T](
