@@ -11,7 +11,7 @@ val circeVersion: Option[(Long, Long)] => String = {
   case Some((2, 11)) => "0.12.0-M3"
   case _ => "0.13.0"
 }
-val sttpVersion = "1.7.2"
+val sttpVersion = "3.3.13"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 val cogniteSdkVersion = "1.5.4"
@@ -80,6 +80,7 @@ lazy val macroSub = (project in file("macro"))
     publish := {},
     publishLocal := {},
     libraryDependencies ++= Seq(
+      "io.scalaland" %% "chimney" % "0.5.3",
       "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
@@ -102,7 +103,8 @@ lazy val library = (project in file("."))
         exclude("org.scala-lang.modules", "scala-collection-compat_2.11")
         exclude("org.scala-lang.modules", "scala-collection-compat_2.12"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
-      "com.softwaremill.sttp" %% "async-http-client-backend-cats" % sttpVersion
+      "com.softwaremill.sttp.client3" %% "async-http-client-backend" % sttpVersion,
+      "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats-ce2" % sttpVersion
         // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
         exclude("io.netty", "netty-buffer")
         exclude("io.netty", "netty-codec-http")

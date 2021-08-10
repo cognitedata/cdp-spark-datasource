@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.v1._
-import com.cognite.sdk.scala.common._
+import com.cognite.sdk.scala.common.{ToUpdate, WithId, _}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan, TableScan}
@@ -73,7 +73,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       P <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       U <: WithSetExternalId,
       T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO],
-      R <: WithId[Long]](
+      R <: ToUpdate[U] with WithId[Long]](
       updates: Seq[P],
       resource: T,
       isUpdateEmpty: U => Boolean
@@ -109,7 +109,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   // scalastyle:off no.whitespace.after.left.bracket method.length
   def createOrUpdateByExternalId[
-      R <: WithExternalId,
+      R <: ToCreate[C],
       U <: WithSetExternalId,
       C <: WithExternalId,
       S <: WithExternalIdGeneric[ExternalIdF],
@@ -168,7 +168,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   def genericUpsert[
       // The Item (read) type
-      R <: WithExternalId with WithId[Long],
+      R <: ToUpdate[Up] with ToCreate[C] with WithId[Long],
       // The UpsertSchema type
       U <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       // The ItemCreate type

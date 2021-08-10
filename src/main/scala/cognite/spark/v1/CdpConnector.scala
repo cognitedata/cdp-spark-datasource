@@ -2,14 +2,14 @@ package cognite.spark.v1
 
 import java.util.concurrent.Executors
 import cats.Parallel
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{Concurrent, ContextShift, IO, Timer}
 import com.cognite.sdk.scala.common.{GzipSttpBackend, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
-import com.softwaremill.sttp._
-import com.softwaremill.sttp.asynchttpclient.SttpClientBackendFactory
-import com.softwaremill.sttp.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import org.log4s._
+import sttp.client3.SttpBackend
+import sttp.client3.asynchttpclient.SttpClientBackendFactory
+import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import java.lang.Thread.UncaughtExceptionHandler
 import scala.concurrent.ExecutionContext
@@ -46,18 +46,20 @@ object CdpConnector {
     IO.contextShift(cdpConnectorExecutionContext)
   @transient implicit lazy val cdpConnectorParallel: Parallel[IO] =
     IO.ioParallel(cdpConnectorContextShift)
-  private val sttpBackend: SttpBackend[IO, Nothing] =
-    new GzipSttpBackend[IO, Nothing](
+  @transient implicit lazy val cdpConnectorConcurrent: Concurrent[IO] =
+    IO.ioConcurrentEffect(cdpConnectorContextShift)
+  private val sttpBackend: SttpBackend[IO, Any] =
+    new GzipSttpBackend[IO, Any](
       AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
-  def retryingSttpBackend(maxRetries: Int, maxRetryDelaySeconds: Int): SttpBackend[IO, Nothing] =
-    new RetryingBackend[IO, Nothing](
+  def retryingSttpBackend(maxRetries: Int, maxRetryDelaySeconds: Int): SttpBackend[IO, Any] =
+    new RetryingBackend[IO, Any](
       sttpBackend,
       maxRetries = Some(maxRetries),
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
   def clientFromConfig(config: RelationConfig): GenericClient[IO] = {
-    implicit val sttpBackend: SttpBackend[IO, Nothing] =
+    implicit val sttpBackend: SttpBackend[IO, Any] =
       retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
