@@ -1,13 +1,12 @@
 package cognite.spark.v1
 
-import cats.{Functor, Monad}
+import cats.Monad
 import io.scalaland.chimney.Transformer
 
 import scala.language.experimental.macros
 import org.apache.spark.sql.types.{StructField, StructType}
 
 import scala.annotation.tailrec
-import scala.reflect.ClassTag
 import scala.reflect.macros.blackbox.Context
 
 trait StructTypeEncoder[T] {
