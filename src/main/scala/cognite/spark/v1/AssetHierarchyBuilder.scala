@@ -6,7 +6,7 @@ import cats.implicits._
 import cats.syntax._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
-import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
+import com.cognite.sdk.scala.common.{CdpApiException, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1.{
   Asset,
   AssetCreate,
@@ -16,8 +16,9 @@ import com.cognite.sdk.scala.v1.{
   LabelsOnUpdate
 }
 import io.scalaland.chimney.dsl._
+import org.apache.spark.sql.sources.InsertableRelation
 import org.apache.spark.sql.types.{DataTypes, StructType}
-import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 import scala.collection.mutable
 
@@ -81,13 +82,20 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   import CdpConnector.cdpConnectorContextShift
 
+  def buildFromDf(data: DataFrame): Unit =
+    data
+      .repartition(numPartitions = 1)
+      .foreachPartition((rows: Iterator[Row]) => {
+        build(rows).unsafeRunSync()
+      })
+
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
 
   private val deleteMissingAssets = config.deleteMissingAssets
   private val subtreeMode = config.subtrees
 
-  def build(df: DataFrame): IO[Unit] = {
-    val sourceTree = df.collect.map(r => fromRow[AssetsIngestSchema](r))
+  def build(data: Iterator[Row]): IO[Unit] = {
+    val sourceTree = data.map(r => fromRow[AssetsIngestSchema](r)).toArray
 
     val subtrees =
       validateAndOrderInput(sourceTree)
