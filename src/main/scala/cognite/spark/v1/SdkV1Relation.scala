@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.v1._
-import com.cognite.sdk.scala.common.{ToUpdate, WithId, _}
+import com.cognite.sdk.scala.common._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan, TableScan}
@@ -12,7 +12,6 @@ import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import CdpConnector._
-import io.circe.JsonObject
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends CdfRelation(config, shortName)
