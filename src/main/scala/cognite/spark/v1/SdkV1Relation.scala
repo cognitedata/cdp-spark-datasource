@@ -12,7 +12,6 @@ import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import CdpConnector._
-import io.circe.JsonObject
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends CdfRelation(config, shortName)
@@ -73,7 +72,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       P <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       U <: WithSetExternalId,
       T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO],
-      R <: WithId[Long]](
+      R <: ToUpdate[U] with WithId[Long]](
       updates: Seq[P],
       resource: T,
       isUpdateEmpty: U => Boolean
@@ -109,7 +108,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   // scalastyle:off no.whitespace.after.left.bracket method.length
   def createOrUpdateByExternalId[
-      R <: WithExternalId,
+      R <: ToCreate[C],
       U <: WithSetExternalId,
       C <: WithExternalId,
       S <: WithExternalIdGeneric[ExternalIdF],
@@ -168,7 +167,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   def genericUpsert[
       // The Item (read) type
-      R <: WithExternalId with WithId[Long],
+      R <: ToUpdate[Up] with ToCreate[C] with WithId[Long],
       // The UpsertSchema type
       U <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       // The ItemCreate type

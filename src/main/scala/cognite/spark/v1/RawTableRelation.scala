@@ -16,8 +16,7 @@ import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.datasource.MetricsSource
 
-import com.cognite.sdk.scala.common.Auth
-import com.softwaremill.sttp.SttpBackend
+import sttp.client3.SttpBackend
 import fs2.Stream
 
 import scala.util.Try

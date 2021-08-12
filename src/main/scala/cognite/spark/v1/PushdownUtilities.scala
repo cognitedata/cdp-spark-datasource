@@ -1,14 +1,12 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
-import com.cognite.sdk.scala.v1.{CogniteExternalId, ConfidenceRange, ContainsAny, TimeRange}
-import com.softwaremill.sttp._
+import com.cognite.sdk.scala.v1.{CogniteExternalId, ContainsAny, TimeRange}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+import sttp.model.Uri
 
 import scala.util.Try
-import scala.util.matching.Regex
 
 final case class DeleteItem(id: Long)
 

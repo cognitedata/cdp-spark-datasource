@@ -1,14 +1,10 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.sequenceColumnToCreateTransformer
 import com.cognite.sdk.scala.v1.SequenceColumnCreate
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.sql.functions.col
-import org.apache.spark.SparkException
+import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
-import scala.util.control.NonFatal
 
 class SequencesRelationTest extends FlatSpec with Matchers with OptionValues with ParallelTestExecution with SparkTest {
   import spark.implicits._

@@ -8,9 +8,8 @@ import fs2.{Chunk, Stream}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import com.softwaremill.sttp._
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-import org.apache.spark.sql.types.{DataTypes, StructType}
+import cognite.spark.v1.SparkSchemaHelper.asRow
+import sttp.client3._
 
 import scala.concurrent.duration._
 

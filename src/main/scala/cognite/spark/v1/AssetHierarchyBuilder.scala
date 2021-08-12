@@ -6,7 +6,7 @@ import cats.implicits._
 import cats.syntax._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
-import com.cognite.sdk.scala.common.{CdpApiException, SetNull, SetValue, Setter}
+import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
 import com.cognite.sdk.scala.v1.{
   Asset,
   AssetCreate,

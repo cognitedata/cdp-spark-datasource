@@ -4,15 +4,15 @@ import cognite.spark.v1.udf.CogniteUdfs
 import cats.effect.IO
 import cognite.spark.v1.Constants.{DefaultBaseUrl, DefaultMaxRetries, DefaultMaxRetryDelaySeconds}
 import com.cognite.sdk.scala.v1.GenericClient
-import com.softwaremill.sttp.SttpBackend
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}
+import sttp.client3.SttpBackend
 
 
 class FunctionsUDFTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest with Inspectors {
 
   ignore should "read assets with functionUDF" taggedAs ReadTest in {
-    implicit val backend: SttpBackend[IO, Nothing] = CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)
+    implicit val backend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", readApiKey)
