@@ -69,7 +69,7 @@ class AssetHierarchyBuilderTest
     val tree = Seq(
       AssetCreate("dad", None, None, None, Some("dad"), None, Some("someNode"))
     )
-    val e = intercept[Exception] {
+    val e = sparkIntercept {
       ingest(key, tree, subtrees = "ignore")
     }
     e shouldBe an[NoRootException]
@@ -84,7 +84,7 @@ class AssetHierarchyBuilderTest
       AssetCreate("daughterSon", externalId = Some("daughterSon"), parentExternalId = Some("daughter")),
       AssetCreate("othertree", None, None, None, Some("other"), None, Some("otherDad"))
     )
-    val e = intercept[Exception] {
+    val e = sparkIntercept {
       ingest(key, brokenTree, subtrees = "error")
     }
     e shouldBe an[InvalidTreeException]
@@ -99,7 +99,7 @@ class AssetHierarchyBuilderTest
       AssetCreate("daughterSon", None, None, None, Some("daughterSon"), None, Some("other")),
       AssetCreate("othertree", None, None, None, Some("other"), None, Some("son"))
     )
-    val e = intercept[Exception] {
+    val e = sparkIntercept {
       ingest(key, cyclicHierarchy)
     }
     e shouldBe an[InvalidTreeException]
@@ -112,7 +112,7 @@ class AssetHierarchyBuilderTest
 
   it should "throw an error if one more externalIds are empty Strings" in {
     val key = shortRandomString()
-    val e = intercept[Exception] {
+    val e = sparkIntercept {
       ingest(
         key,
         Seq(
@@ -144,7 +144,7 @@ class AssetHierarchyBuilderTest
       AssetCreate("testNode2", None, None, None, Some("testNode2"), None, Some(""))
     )
 
-    val ex = intercept[Exception] { ingest(key, tree) }
+    val ex = sparkIntercept { ingest(key, tree) }
     ex shouldBe an[InvalidNodeReferenceException]
     ex.getMessage shouldBe s"Parent 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds$key' referenced from 'testNode1$key' does not exist."
   }
@@ -194,7 +194,7 @@ class AssetHierarchyBuilderTest
         parentExternalId = Some("nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds2"))
     )
 
-    val ex = intercept[Exception] { ingest(key, tree) }
+    val ex = sparkIntercept { ingest(key, tree) }
     ex shouldBe an[InvalidNodeReferenceException]
     ex.getMessage shouldBe s"Parents 'nonExistentNode-aakdhdslfskgslfuwfvbnvwbqrvotfeds$key', 'nonExistentNode-jakdhdslfskgslfuwfvbnvwbqrvotfeds2$key' referenced from 'testNode2$key', 'testNode7$key' do not exist."
   }
@@ -212,7 +212,7 @@ class AssetHierarchyBuilderTest
     ingest(key, assetTree)
 
 
-    val ex = intercept[Exception] {
+    val ex = sparkIntercept {
       ingest(
         key,
         Seq(
@@ -242,13 +242,14 @@ class AssetHierarchyBuilderTest
       )
     )
 
-    val ex = intercept[CdpApiException] {
+    val ex = sparkIntercept {
       ingest(
         key,
         Seq(
           AssetCreate("dad2-updated", None, None, None, Some("dad2"), None, Some("son"))
         ))
     }
+    ex shouldBe an[CdpApiException]
     ex.getMessage should include("Changing from/to being root isn't allowed")
     cleanDB(key)
   }
@@ -265,13 +266,14 @@ class AssetHierarchyBuilderTest
       )
     )
 
-    val ex = intercept[CdpApiException] {
+    val ex = sparkIntercept {
       ingest(
         key,
         Seq(
           AssetCreate("son", None, None, None, Some("son"), None, Some("dad2"))
         ))
     }
+    ex shouldBe an[CdpApiException]
     ex.getMessage should include("Asset must stay within same asset hierarchy")
     cleanDB(key)
   }
@@ -279,7 +281,7 @@ class AssetHierarchyBuilderTest
   it should "fail on duplicate externalId" in {
     val key = shortRandomString()
 
-    val ex = intercept[NonUniqueAssetId] {
+    val ex = sparkIntercept {
       ingest(
         key,
         Seq(
@@ -288,12 +290,12 @@ class AssetHierarchyBuilderTest
         )
       )
     }
-    ex.id shouldBe s"dad$key"
+    ex shouldBe NonUniqueAssetId(s"dad$key")
     cleanDB(key)
   }
 
   it should "fail reasonably on invalid source type" in {
-    val exception = intercept[CdfSparkIllegalArgumentException] {
+    val exception = sparkIntercept {
       spark.sql(
         """
           |select "test-asset-rV2yGok98VNzWMb9yWGk" as externalId,
@@ -313,7 +315,7 @@ class AssetHierarchyBuilderTest
   }
 
   it should "fail reasonably on NULLs" in {
-    val exception = intercept[CdfSparkIllegalArgumentException] {
+    val exception = sparkIntercept {
       spark.sql(
         """
           |select "test-asset-rV2yGok98VNzWMb9yWGk" as externalId,
@@ -333,7 +335,7 @@ class AssetHierarchyBuilderTest
   }
 
   it should "fail reasonably on invalid dataSetId type" in {
-    val exception = intercept[CdfSparkIllegalArgumentException] {
+    val exception = sparkIntercept {
       spark.sql(
         """
           |select "test-asset-MNwWje501UZ83dFA3S" as externalId,
@@ -348,11 +350,12 @@ class AssetHierarchyBuilderTest
         .save
     }
 
+    exception shouldBe an[CdfSparkIllegalArgumentException]
     exception.getMessage shouldBe "Column 'dataSetId' was expected to have type Long, but '' of type String was found (on row with externalId='test-asset-MNwWje501UZ83dFA3S')."
   }
 
   it should "fail with hint on parentExternalId=NULL" in {
-    val exception = intercept[CdfSparkIllegalArgumentException] {
+    val exception = sparkIntercept {
       spark.sql(
         """
           |select "test-asset-55UbfFlTh2I95usWl7gnok" as externalId,
@@ -366,6 +369,7 @@ class AssetHierarchyBuilderTest
         .save
     }
 
+    exception shouldBe an[CdfSparkIllegalArgumentException]
     exception.getMessage shouldBe "Column 'parentExternalId' was expected to have type String, but NULL was found (on row with externalId='test-asset-55UbfFlTh2I95usWl7gnok'). To mark the node as root, please use an empty string ('')."
   }
 
@@ -1018,17 +1022,18 @@ class AssetHierarchyBuilderTest
       rows => rows.count != sourceTree.length
     )
 
-    val apiException = the[CdpApiException] thrownBy {
+    val apiException = sparkIntercept {
       // Attempting to move the subtree root to a different root asset will result in a proper error from CDF.
       // The "child" asset is the subtree root in this case.
       ingest(key, Seq(
         AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree2"))
       ))
     }
+    apiException shouldBe an[CdpApiException]
 
-    apiException.message should startWith("Asset must stay within same asset hierarchy root")
+    apiException.asInstanceOf[CdpApiException].message should startWith("Asset must stay within same asset hierarchy root")
 
-    val rootChangeException = the[InvalidRootChangeException] thrownBy {
+    val rootChangeException = sparkIntercept {
       // However, when attempting to move any of the subtree's children to a different root, we fail to find the asset,
       // and assume it doesn't exist. So we attempt to create it, which results in a duplicated error, which we catch
       // and convert to a more helpful error message.
@@ -1040,6 +1045,7 @@ class AssetHierarchyBuilderTest
 
     val newRootAssetId = assetRows.where(s"externalId = 'root2$key'").head.getAs[Long]("id")
 
+    rootChangeException shouldBe an[InvalidRootChangeException]
     rootChangeException.getMessage shouldBe (
       s"Attempted to move some assets to a different root asset with id $newRootAssetId. " +
         "If this is intended, the assets must be manually deleted and re-created under the new root asset. " +

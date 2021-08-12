@@ -6,9 +6,9 @@ import java.util.concurrent.Executors
 import cats.Id
 import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.ApiKeyAuth
-import org.apache.spark.sql.{Encoder, Encoders, SparkSession}
+import org.apache.spark.sql.{Encoder, SparkSession}
 import org.scalatest.prop.TableDrivenPropertyChecks.Table
-import org.scalatest.Tag
+import org.scalatest.{Matchers, Tag}
 import org.apache.spark.datasource.MetricsSource
 
 import scala.concurrent.{ExecutionContext, TimeoutException}
@@ -17,11 +17,12 @@ import scala.util.Random
 import cats.effect.{IO, Timer}
 import cats.implicits.catsSyntaxFlatMapOps
 import com.cognite.sdk.scala.v1._
+import org.apache.spark.SparkException
 import org.apache.spark.sql.types.StructType
 import org.scalactic.{Prettifier, source}
 import org.scalatest.prop.TableFor1
 
-import scala.reflect.ClassTag
+import scala.reflect.{ClassTag, classTag}
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
@@ -146,6 +147,14 @@ trait SparkTest {
       getCounter(metricName)
     } else {
       0
+    }
+  }
+
+  def sparkIntercept(f: => Any)(implicit pos: source.Position): Throwable = {
+    Matchers.intercept[Exception](f)(classTag[Exception], pos) match {
+      case ex : SparkException if ex.getCause != null =>
+        ex.getCause
+      case ex => ex
     }
   }
 }

@@ -160,7 +160,7 @@ class DefaultSource
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
     if (resourceType == "assethierarchy") {
       val relation = new AssetHierarchyBuilder(config)(sqlContext)
-      relation.build(data).unsafeRunSync()
+      relation.buildFromDf(data)
       relation
     } else {
       val relation = resourceType match {
