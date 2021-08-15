@@ -6,17 +6,20 @@ import cats.implicits._
 import cats.syntax._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
-import com.cognite.sdk.scala.common.{CdpApiException, SetNull, SetValue, Setter}
+import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
 import com.cognite.sdk.scala.v1.{
   Asset,
   AssetCreate,
   AssetUpdate,
   AssetsFilter,
   CogniteExternalId,
+  CogniteId,
+  CogniteInternalId,
   LabelsOnUpdate
 }
+import io.circe.generic.semiauto.deriveDecoder
+import io.circe.{Decoder, Json, JsonObject}
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.sources.InsertableRelation
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
@@ -30,14 +33,20 @@ final case class AssetsIngestSchema(
     description: OptionalField[String],
     metadata: Option[Map[String, String]],
     dataSetId: OptionalField[Long],
-    labels: Option[Seq[String]])
+    labels: Option[Seq[String]]) {
+  def optionalParentId: Option[String] = Some(parentExternalId).filter(_.nonEmpty)
+}
 
 final case class AssetSubtree(
     // node that contains all the `nodes`
     // might be just a pseudo-root
     root: AssetsIngestSchema,
-    nodes: Array[AssetsIngestSchema]
-)
+    nodes: Vector[AssetsIngestSchema]
+) {
+
+  /** Nodes including the root node */
+  def allNodes: Vector[AssetsIngestSchema] = root +: nodes
+}
 
 final case class NoRootException(
     message: String = """Tree has no root. Set parentExternalId to "" for the root Asset.""")
@@ -56,26 +65,61 @@ final case class InvalidNodeReferenceException(nodeIds: Seq[String], referencedF
       val refNodes = referencedFrom.map(x => s"'$x'").sorted.mkString(", ")
       s"${plural("Parent", "Parents")} $nodes referenced from $refNodes ${plural("does", "do")} not exist."
     })
-final case class InvalidRootChangeException(cause: CdpApiException, newSubtreeRoot: Asset)
+final case class InvalidRootChangeException(
+    cause: CdpApiException,
+    assetIds: Seq[CogniteId],
+    rootId: String)
     extends CdfSparkException(
       {
         val commaSeparatedAssets =
-          cause.duplicated.get
+          assetIds
             .map {
-              _.toIterable
-                .map { case (key, value) => s"$key=${value.asString.getOrElse(value.toString)}" }
-                .mkString("(", ", ", ")")
+              case CogniteExternalId(externalId) => s"(externalId=$externalId)"
+              case CogniteInternalId(id) => s"(id=$id)"
             }
             .mkString(", ")
 
-        val withRootAssetId = newSubtreeRoot.rootId.map(id => s" with id $id").getOrElse("")
-
-        s"Attempted to move some assets to a different root asset$withRootAssetId. " +
+        s"Attempted to move some assets to a different root asset in $rootId. " +
           "If this is intended, the assets must be manually deleted and re-created under the new root asset. " +
           s"The following assets were attempted to be moved: $commaSeparatedAssets."
       },
       cause
     )
+
+object InvalidRootChangeException {
+  def createFromTreeList(
+      cause: CdpApiException,
+      ids: Seq[String],
+      trees: Seq[AssetSubtree],
+      createdRoots: Seq[Asset]): InvalidRootChangeException = {
+    // get the first problematic subtree
+    val firstProblematicSubtree = ids.flatMap { id =>
+      trees.find(t => t.allNodes.exists(_.externalId == id))
+    }.headOption
+    val rootId = firstProblematicSubtree
+      .map { t =>
+        val subtreeId = t.root.externalId
+        val rootId = createdRoots
+          .find(_.externalId.contains(subtreeId))
+          .flatMap(_.rootId)
+          .map(_.toString)
+          .getOrElse("unknown rootId")
+        s"subtree $subtreeId under the rootId=$rootId"
+      }
+      .getOrElse("unknown subtree, API referenced node which we did not create")
+
+    // filter out only the assets from the first subtree so we don't spam users with irrelevant ids
+    val assetsMoved =
+      firstProblematicSubtree.toVector
+        .flatMap(_.allNodes)
+        .map(_.externalId)
+        .intersect(ids)
+        .map(CogniteExternalId)
+
+    InvalidRootChangeException(cause, assetsMoved, rootId)
+
+  }
+}
 
 class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdfRelation(config, "assethierarchy") {
@@ -101,7 +145,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       validateAndOrderInput(sourceTree)
         .sortBy(_.root.externalId) // make potential errors deterministic
 
-    val subtrees2 = subtreeMode match {
+    val filteredSubtrees = subtreeMode match {
       case AssetSubtreeOption.Ingest =>
         subtrees
       case AssetSubtreeOption.Ignore =>
@@ -118,15 +162,15 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         subtrees
     }
 
-    if (subtrees.nonEmpty && subtrees2.isEmpty) {
+    if (subtrees.nonEmpty && filteredSubtrees.isEmpty) {
       // in case all nodes are dropped due to ignoreDisconnectedAssets
       throw NoRootException()
       // we can allow empty source data set, that won't really happen by accident
     }
 
     for {
-      _ <- validateSubtreeRoots(subtrees2.map(_.root))
-      _ <- subtrees2.map(t => buildSubtree(t.root, t.nodes)).parSequence_
+      _ <- validateSubtreeRoots(filteredSubtrees.map(_.root))
+      _ <- buildSubtrees(filteredSubtrees)
     } yield ()
   }
 
@@ -158,77 +202,113 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     }
   }
 
-  def buildSubtree(root: AssetsIngestSchema, children: Array[AssetsIngestSchema]): IO[Unit] =
+  def buildSubtrees(trees: Vector[AssetSubtree]): IO[Unit] =
     for {
-      cdfRoot <- fetchCdfRoot(root.externalId)
-      upsertedCdfRoot <- upsertRoot(root, cdfRoot)
-      cdfSubtree <- fetchCdfSubtree(root)
-      (toDelete, toInsert, toUpdate) = nodesToDeleteInsertUpdate(root, children, cdfSubtree)
-      _ <- insert(toInsert, upsertedCdfRoot, batchSize)
-      _ <- update(toUpdate, batchSize)
-      _ <- delete(toDelete, deleteMissingAssets, batchSize)
+      // fetch existing roots and update or insert them first
+      cdfRoots <- fetchCdfRoots(trees.map(_.root.externalId))
+      upsertedRoots <- upsertRoots(trees.map(_.root), cdfRoots)
+
+      // then fetch all the subtrees to know if we should insert, update or delete them
+      // TODO: merge the subtree requests
+      cdfTrees <- trees.parTraverse(t => fetchCdfSubtree(t.root))
+      (toDelete, toInsert, toUpdate) = trees
+        .zip(cdfTrees)
+        .map((nodesToDeleteInsertUpdate _).tupled)
+        .unzip3
+
+      _ <- (
+        delete(toDelete.flatten, deleteMissingAssets),
+        insert(toInsert.flatten, trees, upsertedRoots),
+        update(toUpdate.flatten)
+      ).parMapN((_, _, _) => ())
     } yield ()
 
-  def insert(toInsert: Seq[AssetsIngestSchema], newSubtreeRoot: Asset, batchSize: Int): IO[Unit] = {
+  def insert(
+      toInsert: Seq[AssetsIngestSchema],
+      trees: Vector[AssetSubtree],
+      createdRoots: Vector[Asset]): IO[Unit] = {
     val assetCreatesToInsert = toInsert.map(toAssetCreate)
     // Traverse batches in order to ensure writing parents first
     assetCreatesToInsert
       .grouped(batchSize)
       .toList
-      .traverse(client.assets.create)
-      .flatTap(x => incMetrics(itemsCreated, x.map(_.size).sum))
-      .as(())
-      .recoverWith {
+      .traverse(
+        client.assets
+          .create(_)
+          .flatMap(x => incMetrics(itemsCreated, x.size))
+      )
+      .void
+      .adaptErr {
         case ex: CdpApiException if ex.duplicated.isDefined =>
+          val ids =
+            ex.duplicated.get
+              .flatMap(decodeCogniteId)
+              .collect { case CogniteExternalId(id) => id }
           // If we've hit this case, the assets already exist in CDF, but under a different root asset.
           // Since we didn't find them under the subtree, we assumed they did not exist, and attempted to to insert them,
           // resulting in this error.
-          IO.raiseError(InvalidRootChangeException(ex, newSubtreeRoot))
+          if (ids.nonEmpty) {
+            InvalidRootChangeException.createFromTreeList(ex, ids, trees, createdRoots)
+          } else {
+            // ids not found, propagate the original error
+            ex
+          }
       }
   }
 
-  def delete(toDelete: Seq[Asset], deleteMissingAssets: Boolean, batchSize: Int): IO[Unit] =
+  private def decodeCogniteId(jsonObject: JsonObject): Option[CogniteId] = {
+    val externalIdDecoder: Decoder[CogniteExternalId] = deriveDecoder
+    val internalIdDecoder: Decoder[CogniteInternalId] = deriveDecoder
+    val json = Json.fromJsonObject(jsonObject)
+    internalIdDecoder.decodeJson(json) match {
+      case Right(id: CogniteId) => Some(id)
+      case _ =>
+        externalIdDecoder.decodeJson(json) match {
+          case Right(id) => Some(id)
+          case _ => None
+        }
+    }
+  }
+
+  def delete(toDelete: Vector[Asset], deleteMissingAssets: Boolean): IO[Unit] =
     if (deleteMissingAssets) {
-      val externalIds = toDelete.flatMap(_.externalId)
-      externalIds
-        .grouped(batchSize)
-        .toVector
-        .parTraverse(id => client.assets.deleteByExternalIds(id, true, true))
-        // We report the total number of IDs that should not exist from this point, not the number of really deleted rows.
-        // The API does not give us this information :/
-        .flatTap(_ => incMetrics(itemsDeleted, externalIds.length)) *> IO.unit
+      batchedOperation[Long, Nothing](
+        toDelete.map(_.id),
+        idBatch =>
+          client.assets
+            .deleteByIds(idBatch, recursive = true, ignoreUnknownIds = true)
+            .flatTap(_ => incMetrics(itemsDeleted, idBatch.length))
+            .as(Vector())
+      ).void
     } else {
       IO.unit
     }
 
-  def update(toUpdate: Seq[AssetsIngestSchema], batchSize: Int): IO[Unit] =
-    if (toUpdate.nonEmpty) {
-      toUpdate
-        .map(a => a.externalId -> toAssetUpdate(a))
-        .grouped(batchSize)
-        .toVector
-        .parTraverse(a => client.assets.updateByExternalId(a.toMap))
-        .flatTap(x => incMetrics(itemsUpdated, x.map(_.size).sum)) *> IO.unit
-    } else {
-      IO.unit
-    }
-
-  def fetchCdfRoot(sourceRootExternalId: String): IO[Option[Asset]] =
-    client.assets
-      .retrieveByExternalId(sourceRootExternalId)
-      .map(Some(_): Option[Asset])
-      .recover {
-        case e: CdpApiException if e.code == 400 && e.missing.isDefined =>
-          None: Option[Asset]
+  def update(toUpdate: Vector[AssetsIngestSchema]): IO[Unit] =
+    batchedOperation[AssetsIngestSchema, Asset](
+      toUpdate,
+      updateBatch => {
+        client.assets
+          .updateByExternalId(updateBatch.map(a => a.externalId -> toAssetUpdate(a)).toMap)
+          .flatTap(u => incMetrics(itemsUpdated, u.size))
       }
+    ).void
 
-  def fetchCdfSubtree(root: AssetsIngestSchema): IO[List[Asset]] =
+  def fetchCdfRoots(sourceRootExternalIds: Vector[String]): IO[Map[String, Asset]] =
+    batchedOperation[String, Asset](
+      sourceRootExternalIds,
+      batch =>
+        client.assets
+          .retrieveByExternalIds(batch, ignoreUnknownIds = true)
+    ).map(_.map(a => a.externalId.get -> a).toMap)
+
+  def fetchCdfSubtree(root: AssetsIngestSchema): IO[Vector[Asset]] =
     if (root.parentExternalId.isEmpty) {
       // proper root
       client.assets
         .filter(AssetsFilter(rootIds = Some(Seq(CogniteExternalId(root.externalId)))))
         .compile
-        .toList
+        .toVector
     } else {
       // The API will error out if the subtree contains more than 100,000 items
       // If that's a problem, we'll have to do a workaround by downloading its entire hierarchy
@@ -236,60 +316,70 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       client.assets
         .filter(AssetsFilter(assetSubtreeIds = Some(Seq(CogniteExternalId(root.externalId)))))
         .compile
-        .toList
+        .toVector
     }
 
-  def upsertRoot( // scalastyle:off
-      newRoot: AssetsIngestSchema,
-      sourceRoot: Option[Asset]): IO[Asset] = {
-    val parentId = if (newRoot.parentExternalId.isEmpty) {
-      None
-    } else {
-      Some(newRoot.parentExternalId)
-    }
+  def upsertRoots( // scalastyle:off
+      newRoots: Vector[AssetsIngestSchema],
+      sourceRoots: Map[String, Asset]): IO[Vector[Asset]] = {
 
-    sourceRoot match {
-      case None =>
-        client.assets
-          .create(Seq(toAssetCreate(newRoot).copy(parentExternalId = parentId)))
-          .flatTap(x => incMetrics(itemsCreated, x.size))
-          .map(_.head)
-      case Some(asset) if isMostlyEqual(newRoot, asset) =>
-        IO(asset)
-      case Some(asset) =>
-        val parentIdUpdate = (parentId, asset.parentId) match {
-          case (None, Some(oldParent)) =>
-            throw CdfDoesNotSupportException(
-              s"Can not make root from asset '${asset.externalId.get}' which is already inside asset ${oldParent}"
-                + s" (${asset.parentExternalId.getOrElse("without externalId")})."
-                + " You might need to remove the asset and insert it again.")
-          case (None, None) => None
-          case (Some(newParent), _) if asset.parentExternalId.contains(newParent) => None
-          case (Some(newParent), _) => Some(SetValue(newParent))
-        }
-        client.assets
-          .updateByExternalId(Seq(newRoot.externalId -> toAssetUpdate(newRoot)
-            .copy(parentExternalId = parentIdUpdate)).toMap)
-          .flatTap(x => incMetrics(itemsUpdated, x.size))
-          .map(_.head)
+    // Assets without corresponding source root will be created
+    val (toUpdateOrIgnore, toCreate) = newRoots.partition(sourceRoots contains _.externalId)
+    val createdIO =
+      batchedOperation(
+        toCreate.map(toAssetCreate),
+        (batch: Vector[AssetCreate]) =>
+          client.assets
+            .create(batch)
+            .flatTap(x => incMetrics(itemsCreated, x.size))
+      )
+
+    // Ignore assets which have a corresponding sourceRoot, but it has the same data
+    val (toIgnore, toUpdate) =
+      toUpdateOrIgnore.partition(a => isMostlyEqual(a, sourceRoots(a.externalId)))
+    // Update the rest...
+    val updatedIO =
+      batchedOperation[(String, AssetUpdate), Asset](
+        toUpdate.map { newRoot =>
+          val oldRoot = sourceRoots(newRoot.externalId)
+          val parentIdUpdate = (newRoot.optionalParentId, oldRoot.parentId) match {
+            case (None, Some(oldParent)) =>
+              throw CdfDoesNotSupportException(
+                s"Can not make root from asset '${newRoot.externalId}' which is already inside asset ${oldParent}"
+                  + s" (${oldRoot.parentExternalId.getOrElse("without externalId")})."
+                  + " You might need to remove the asset and insert it again.")
+            case (None, None) => None
+            case (Some(newParent), _) if oldRoot.parentExternalId.contains(newParent) => None
+            case (Some(newParent), _) => Some(SetValue(newParent))
+          }
+          newRoot.externalId -> toAssetUpdate(newRoot).copy(parentExternalId = parentIdUpdate)
+        },
+        batch =>
+          client.assets
+            .updateByExternalId(batch.toMap)
+            .flatTap(x => incMetrics(itemsUpdated, x.size))
+      )
+
+    val ignored = toIgnore.map(a => sourceRoots(a.externalId))
+
+    (createdIO, updatedIO).parMapN { (created, updated) =>
+      created ++ updated ++ ignored
     }
   }
 
-  def nodesToDeleteInsertUpdate(
-      root: AssetsIngestSchema,
-      children: Seq[AssetsIngestSchema],
-      cdfTree: Seq[Asset]): (Seq[Asset], Seq[AssetsIngestSchema], Seq[AssetsIngestSchema]) = {
-    val newIds = (Seq(root) ++ children).map(_.externalId).toSet
+  def nodesToDeleteInsertUpdate(subtree: AssetSubtree, cdfTree: Vector[Asset])
+    : (Vector[Asset], Vector[AssetsIngestSchema], Vector[AssetsIngestSchema]) = {
+    val newIds = subtree.allNodes.map(_.externalId).toSet
     // Keep assets that are in both source and CDF, delete those only in CDF
     val toDelete =
       cdfTree.filter(a => !a.externalId.exists(newIds.contains))
 
     val cdfTreeMap = cdfTree.flatMap(a => a.externalId.map((_, a))).toMap
     // Insert assets that are not present in CDF
-    val toInsert = children.filter(a => !cdfTreeMap.contains(a.externalId))
+    val toInsert = subtree.nodes.filter(a => !cdfTreeMap.contains(a.externalId))
 
     // Filter out assets that would not be changed in an update
-    val toUpdate = children.filter(a => needsUpdate(a, cdfTreeMap))
+    val toUpdate = subtree.nodes.filter(a => needsUpdate(a, cdfTreeMap))
 
     (toDelete, toInsert, toUpdate)
   }
@@ -370,13 +460,14 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     }
   }
 
-  def orderChildren(rootId: String, nodes: Array[AssetsIngestSchema]): Array[AssetsIngestSchema] =
-    iterateChildren(nodes, Array(rootId), Seq()).toArray
+  def orderChildren(rootId: String, nodes: Array[AssetsIngestSchema]): Vector[AssetsIngestSchema] =
+    iterateChildren(nodes, Array(rootId), Seq()).toVector
 
   override def schema: StructType = structType[AssetsIngestSchema]
 
   def toAssetCreate(a: AssetsIngestSchema): AssetCreate =
     a.into[AssetCreate]
+      .withFieldComputed(_.parentExternalId, _.optionalParentId)
       .withFieldComputed(_.labels, a => stringSeqToCogniteExternalIdSeq(a.labels))
       .transform
 
@@ -388,6 +479,16 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         case _ => None
       })
       .transform
+
+  private def batchedOperation[I, R](list: Vector[I], op: Vector[I] => IO[Seq[R]]): IO[Vector[R]] =
+    if (list.nonEmpty) {
+      list
+        .grouped(batchSize)
+        .toVector
+        .parFlatTraverse(op(_).map(_.toVector))
+    } else {
+      IO.pure(Vector.empty)
+    }
 }
 
 object AssetHierarchyBuilder {
