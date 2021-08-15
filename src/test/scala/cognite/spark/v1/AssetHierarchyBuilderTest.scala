@@ -936,7 +936,7 @@ class AssetHierarchyBuilderTest
     row.getAs[String]("parentExternalId") shouldBe s"grandma$key"
 
     getNumberOfRowsUpdated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 1
-    getNumberOfRowsCreated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 0
+    intercept[Exception](getNumberOfRowsCreated(afterMoveMetricsPrefix, "assethierarchy"))
 
     cleanDB(key)
   }
@@ -988,7 +988,7 @@ class AssetHierarchyBuilderTest
     row.getAs[String]("parentExternalId") shouldBe s"child1$key"
 
     getNumberOfRowsUpdated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 1
-    getNumberOfRowsCreated(afterMoveMetricsPrefix, "assethierarchy") shouldBe 0
+    intercept[Exception](getNumberOfRowsCreated(afterMoveMetricsPrefix, "assethierarchy"))
 
     cleanDB(key)
   }
@@ -1047,7 +1047,7 @@ class AssetHierarchyBuilderTest
 
     rootChangeException shouldBe an[InvalidRootChangeException]
     rootChangeException.getMessage shouldBe (
-      s"Attempted to move some assets to a different root asset with id $newRootAssetId. " +
+      s"Attempted to move some assets to a different root asset in subtree subtree2$key under the rootId=$newRootAssetId. " +
         "If this is intended, the assets must be manually deleted and re-created under the new root asset. " +
         s"The following assets were attempted to be moved: (externalId=child$key)."
     )
