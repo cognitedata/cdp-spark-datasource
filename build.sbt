@@ -1,6 +1,6 @@
 import com.typesafe.sbt.packager.docker.Cmd
 
-val scala212 = "2.12.14"
+val scala212 = "2.12.12" // Cannot be bumped because of kind projector
 val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
 val sparkVersion: Option[(Long, Long)] => String = {
