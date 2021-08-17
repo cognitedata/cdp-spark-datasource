@@ -381,6 +381,8 @@ final case class NumericDataPointsRdd(
   }
 
   override def getPartitions: Array[Partition] = {
+    println("Getting partitions")
+    println("Finding first/latest")
     val firstLatest = Stream
       .emits(ids.map(Left(_)) ++ externalIds.map(Right(_)))
       .covary[IO]
@@ -389,16 +391,19 @@ final case class NumericDataPointsRdd(
         getFirstAndLastConcurrentlyById(chunk.toVector, lowerTimeLimit, upperTimeLimit)
       }
       .flatMap(Stream.emits)
-    val partitions = if (granularities.isEmpty) {
+    println("Done")
+    val partitions: IO[Seq[Bucket]] = if (granularities.isEmpty) {
       buckets(ids, externalIds, firstLatest)
     } else {
       granularities.toVector
         .map(g => aggregationBuckets(aggregations, g, firstLatest))
         .parFlatSequence
     }
-    partitions
+    val res = partitions
       .map(_.toArray[Partition])
       .unsafeRunSync()
+    println(s"Got partitions of length ${res.length}")
+    res
   }
 
   private def queryDoubles(

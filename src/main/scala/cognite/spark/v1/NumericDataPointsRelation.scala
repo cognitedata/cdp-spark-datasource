@@ -175,11 +175,13 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
   )
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
+    println("BuildScan")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val timestampLimits = filtersToTimestampLimits(filters, "timestamp")
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
     val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
     val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
+    println("Setup finished")
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
     if (ids.isEmpty && externalIds.isEmpty) {
@@ -189,6 +191,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       )
     }
     val (aggregations, stringGranularities) = getAggregationSettings(filters)
+    println("getAggregationSettings finished")
 
     val granularitiesOrErrors = stringGranularities
       .map(Granularity.parse)
@@ -200,6 +203,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
         val errorMessages = errors.map(_.getMessage).mkString_("\n")
         throw new CdfSparkIllegalArgumentException(errorMessages)
     }
+    println("Setting up RDD")
     NumericDataPointsRdd(
       sqlContext.sparkContext,
       config,
