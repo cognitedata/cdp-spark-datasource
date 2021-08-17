@@ -39,7 +39,7 @@ jobs:
           TEST_CLIENT_SECRET_BLUEFIELD: ${{ secrets.BLUEFIELD_CLIENT_SECRET }}
           TEST_AAD_TENANT_BLUEFIELD: "b86328db-09aa-4f0e-9a03-0136f604d20a"
         run: |
-          sbt testOnly cognite.spark.v1.DataPointsRelationTest -- -z support
+          "sbt testOnly cognite.spark.v1.DataPointsRelationTest -- -z support"
       - name: Upload report to codecov.io
         uses: codecov/codecov-action@v1
         with:
