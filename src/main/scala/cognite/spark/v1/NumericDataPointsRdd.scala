@@ -249,7 +249,7 @@ final case class NumericDataPointsRdd(
     val ids = idOrExternalIds.flatMap(_.left.toOption)
     val externalIds = idOrExternalIds.flatMap(_.right.toOption)
     val latestByInternalIds = if (ids.nonEmpty) {
-      client.dataPoints.getLatestDataPointsByIds(ids, ignoreUnknownIds = true)
+      IO.pure(println("latestByInternalIds")) *> client.dataPoints.getLatestDataPointsByIds(ids, ignoreUnknownIds = true) <* IO.pure(println("latestByInternalIds completed successfully"))
     } else {
       IO.pure(Map.empty)
     }
@@ -320,10 +320,7 @@ final case class NumericDataPointsRdd(
     buckets.zipWithIndex.map { case (bucket, index) => bucket.copy(index = index) }.toVector
   }
 
-  private def buckets(
-      ids: Seq[Long],
-      externalIds: Seq[String],
-      firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])])
+  private def buckets(firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])])
     : IO[Seq[Bucket]] = {
 
     val ranges = firstLatest
@@ -393,7 +390,7 @@ final case class NumericDataPointsRdd(
       .flatMap(Stream.emits)
     println("Done")
     val partitions: IO[Seq[Bucket]] = if (granularities.isEmpty) {
-      buckets(ids, externalIds, firstLatest)
+      buckets(firstLatest)
     } else {
       granularities.toVector
         .map(g => aggregationBuckets(aggregations, g, firstLatest))
