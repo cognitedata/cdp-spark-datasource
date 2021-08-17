@@ -217,6 +217,7 @@ final case class NumericDataPointsRdd(
       limit: Int) =
     idOrExternalId match {
       case Left(id) =>
+        IO.pure(println("querying datapoints by id")) *>
         client.dataPoints
           .queryByIds(
             Seq(id),
@@ -225,7 +226,7 @@ final case class NumericDataPointsRdd(
             limit = Some(limit),
             ignoreUnknownIds = true
           )
-          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
+          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty)) <* IO.pure(println("queryByIds completed successfully"))
       case Right(externalId) =>
         client.dataPoints
           .queryByExternalIds(
