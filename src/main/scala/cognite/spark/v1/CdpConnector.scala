@@ -7,17 +7,14 @@ import com.cognite.sdk.scala.common.{GzipSttpBackend, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.log4s._
-import sttp.capabilities.Effect
-import sttp.client3.{Request, Response, SttpBackend}
+import sttp.client3.SttpBackend
 import sttp.client3.asynchttpclient.SttpClientBackendFactory
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
-import sttp.monad.MonadError
 
 import java.lang.Thread.UncaughtExceptionHandler
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.language.higherKinds
-import scala.util.control.NonFatal
 
 final case class Data[A](data: A)
 final case class Items[A](items: Seq[A])
