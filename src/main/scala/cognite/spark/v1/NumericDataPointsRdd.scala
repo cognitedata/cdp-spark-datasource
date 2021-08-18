@@ -217,7 +217,6 @@ final case class NumericDataPointsRdd(
       limit: Int) =
     idOrExternalId match {
       case Left(id) =>
-        IO.pure(println("querying datapoints by id")) *>
         client.dataPoints
           .queryByIds(
             Seq(id),
@@ -226,7 +225,7 @@ final case class NumericDataPointsRdd(
             limit = Some(limit),
             ignoreUnknownIds = true
           )
-          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty)) <* IO.pure(println("queryByIds completed successfully"))
+          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
       case Right(externalId) =>
         client.dataPoints
           .queryByExternalIds(
@@ -250,7 +249,7 @@ final case class NumericDataPointsRdd(
     val ids = idOrExternalIds.flatMap(_.left.toOption)
     val externalIds = idOrExternalIds.flatMap(_.right.toOption)
     val latestByInternalIds = if (ids.nonEmpty) {
-      IO.pure(println("latestByInternalIds")) *> client.dataPoints.getLatestDataPointsByIds(ids, ignoreUnknownIds = true) <* IO.pure(println("latestByInternalIds completed successfully"))
+      client.dataPoints.getLatestDataPointsByIds(ids, ignoreUnknownIds = true)
     } else {
       IO.pure(Map.empty)
     }
@@ -379,8 +378,6 @@ final case class NumericDataPointsRdd(
   }
 
   override def getPartitions: Array[Partition] = {
-    println("Getting partitions")
-    println("Finding first/latest")
     val firstLatest = Stream
       .emits(ids.map(Left(_)) ++ externalIds.map(Right(_)))
       .covary[IO]
@@ -389,19 +386,16 @@ final case class NumericDataPointsRdd(
         getFirstAndLastConcurrentlyById(chunk.toVector, lowerTimeLimit, upperTimeLimit)
       }
       .flatMap(Stream.emits)
-    println("Done")
-    val partitions: IO[Seq[Bucket]] = if (granularities.isEmpty) {
+    val partitions = if (granularities.isEmpty) {
       buckets(firstLatest)
     } else {
       granularities.toVector
         .map(g => aggregationBuckets(aggregations, g, firstLatest))
         .parFlatSequence
     }
-    val res = partitions
+    partitions
       .map(_.toArray[Partition])
       .unsafeRunSync()
-    println(s"Got partitions of length ${res.length}")
-    res
   }
 
   private def queryDoubles(

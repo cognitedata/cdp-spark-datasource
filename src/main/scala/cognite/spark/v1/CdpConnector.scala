@@ -63,8 +63,8 @@ object CdpConnector {
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
   def clientFromConfig(config: RelationConfig): GenericClient[IO] = {
-    implicit val sttpBackend: SttpBackend[IO, Any] = new LoggingSttpBackend(
-      retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds))
+    implicit val sttpBackend: SttpBackend[IO, Any] =
+      retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,
@@ -77,30 +77,4 @@ object CdpConnector {
 
   type DataItems[A] = Data[Items[A]]
   type CdpApiError = Error[CdpApiErrorPayload]
-
-  class LoggingSttpBackend[F[_], +P](delegate: SttpBackend[F, P]) extends SttpBackend[F, P] {
-    override def send[T, R >: P with Effect[F]](request: Request[T, R]): F[Response[T]] =
-      responseMonad.map(try {
-        responseMonad.handleError(delegate.send(request)) {
-          case e: Exception =>
-            println(s"Exception when sending request: ${request.toString}, ${e.toString}") // scalastyle:ignore
-            responseMonad.error(e)
-        }
-      } catch {
-        case NonFatal(e) =>
-          println(s"Exception when sending request: ${request.toString}, ${e.toString}") // scalastyle:ignore
-          throw e
-      }) { response =>
-        println(s"request ${request.body.toString}") // scalastyle:ignore
-        println(s"response ${response.toString}") // scalastyle:ignore
-        if (response.isSuccess) {
-          println(s"For request: ${request.toString} got response: ${response.toString}") // scalastyle:ignore
-        } else {
-          println(s"For request: ${request.toString} got response: ${response.toString}") // scalastyle:ignore
-        }
-        response
-      }
-    override def close(): F[Unit] = delegate.close()
-    override def responseMonad: MonadError[F] = delegate.responseMonad
-  }
 }

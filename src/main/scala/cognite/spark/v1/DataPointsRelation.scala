@@ -58,7 +58,6 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
   def getAggregationSettings(filters: Array[Filter]): (Array[AggregationFilter], Seq[String]) = {
-    println("getAggregationSettings")
     val aggregations = filters.flatMap(getAggregation).distinct
     val granularities = filters.flatMap(getGranularity).distinct
 
