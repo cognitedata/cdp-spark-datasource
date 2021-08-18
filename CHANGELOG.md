@@ -1,26 +1,44 @@
+# 1.4.28
+
+## Enhancements
+
+* Improves the performance and stability of the asset hierarchy builder.
+
+## Fixes
+
+* Corrected some mistakes from 1.4.27 that were causing data points read to hang indefinitely.
+
+# 1.4.27
+
+*NOTE*: This update has some problems related to JDK-version, do not use.
+
+## Enhancements
+
+* Security update of various internal libraries and the Scala SDK.
+
 # 1.4.26
 
 ## Fixes
 
-Made the `ignoreNullFields` option also work in upsert mode.
+* Made the `ignoreNullFields` option also work in upsert mode.
 
 # 1.4.25
 
 ## Enhancements
 
-Added `ignoreNullFields` option. Useful for nulling fields in CDF.
+* Added `ignoreNullFields` option. Useful for nulling fields in CDF.
 
 # 1.4.24
 
 ## Fixes
 
-Fix leaking threads when using OIDC credentials
+* Fix leaking threads when using OIDC credentials.
 
 # 1.4.23
 
 ## Enhancements
 
-Added `authTicket` option for ticket auth.
+* Added `authTicket` option for ticket auth.
 
 # 1.4.22
 

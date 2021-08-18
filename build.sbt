@@ -9,12 +9,12 @@ val sparkVersion: Option[(Long, Long)] => String = {
 }
 val circeVersion: Option[(Long, Long)] => String = {
   case Some((2, 11)) => "0.12.0-M3"
-  case _ => "0.13.0"
+  case _ => "0.14.0"
 }
 val sttpVersion = "3.3.13"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.5.4"
+val cogniteSdkVersion = "1.5.6"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
@@ -26,7 +26,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.27",
+  version := "1.4.28",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -70,7 +70,7 @@ lazy val commonSettings = Seq(
     if (gpgPass.isDefined) gpgPass.map(_.toCharArray)
     else None
   },
-  fork in Test := true
+  Test / fork := true
 )
 
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
@@ -134,8 +134,8 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.log4s" %% "log4s" % log4sVersion
     ),
-    mappings in (Compile, packageBin) ++= mappings.in(macroSub, Compile, packageBin).value,
-    mappings in (Compile, packageSrc) ++= mappings.in(macroSub, Compile, packageSrc).value,
+    Compile / packageBin / mappings ++= (macroSub / Compile / packageBin / mappings).value,
+    Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc/ mappings).value,
     coverageExcludedPackages := "com.cognite.data.*"
   )
   .enablePlugins(BuildInfoPlugin)
@@ -164,7 +164,7 @@ lazy val performancebench = (project in file("performancebench"))
     ),
     dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",
     dockerCommands ++= Seq(
-      Cmd("ENV", s"JAVA_MAIN_CLASS=${mainClass.in(Compile).value.get}"),
+      Cmd("ENV", s"JAVA_MAIN_CLASS=${(Compile / mainClass).value.get}"),
       Cmd("ENV", "JAVA_APP_DIR=/opt/docker/lib")
     ),
   )

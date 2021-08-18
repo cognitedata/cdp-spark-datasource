@@ -14,6 +14,7 @@ import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import java.lang.Thread.UncaughtExceptionHandler
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.language.higherKinds
 
 final case class Data[A](data: A)
 final case class Items[A](items: Seq[A])
