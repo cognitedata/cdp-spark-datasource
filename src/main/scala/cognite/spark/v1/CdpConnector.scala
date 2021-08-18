@@ -6,6 +6,7 @@ import cats.effect.{Concurrent, ContextShift, IO, Timer}
 import com.cognite.sdk.scala.common.{GzipSttpBackend, Items, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
+import org.apache.spark.datasource.MetricsSource
 import org.log4s._
 import sttp.client3.SttpBackend
 import sttp.client3.asynchttpclient.SttpClientBackendFactory
@@ -52,15 +53,44 @@ object CdpConnector {
     new GzipSttpBackend[IO, Any](
       AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
-  def retryingSttpBackend(maxRetries: Int, maxRetryDelaySeconds: Int): SttpBackend[IO, Any] =
-    new RetryingBackend[IO, Any](
-      sttpBackend,
+  def retryingSttpBackend(
+      maxRetries: Int,
+      maxRetryDelaySeconds: Int,
+      maxParallelRequests: Int = Constants.DefaultParallelismPerPartition,
+      metricsPrefix: Option[String] = None
+  ): SttpBackend[IO, Any] = {
+    val metricsBackend =
+      metricsPrefix.fold(sttpBackend)(
+        metricsPrefix =>
+          new MetricsBackend[IO, Any](
+            sttpBackend,
+            MetricsSource.getOrCreateCounter(metricsPrefix, "requests")))
+    val retryingBackend = new RetryingBackend[IO, Any](
+      metricsBackend,
       maxRetries = Some(maxRetries),
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
+    val limitedBackend: SttpBackend[IO, Any] =
+      RateLimitingBackend[Any](retryingBackend, maxParallelRequests)
+    metricsPrefix.fold(limitedBackend)(
+      metricsPrefix =>
+        new MetricsBackend[IO, Any](
+          limitedBackend,
+          MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries")))
+  }
+
   def clientFromConfig(config: RelationConfig): GenericClient[IO] = {
+    val metricsPrefix = if (config.collectMetrics) {
+      Some(config.metricsPrefix)
+    } else {
+      None
+    }
     implicit val sttpBackend: SttpBackend[IO, Any] =
-      retryingSttpBackend(config.maxRetries, config.maxRetryDelaySeconds)
+      retryingSttpBackend(
+        config.maxRetries,
+        config.maxRetryDelaySeconds,
+        config.partitions,
+        metricsPrefix)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,
