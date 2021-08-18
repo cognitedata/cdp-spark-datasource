@@ -14,7 +14,7 @@ val circeVersion: Option[(Long, Long)] => String = {
 val sttpVersion = "3.3.13"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.5.5"
+val cogniteSdkVersion = "1.5.6"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
