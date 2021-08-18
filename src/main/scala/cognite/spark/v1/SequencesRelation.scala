@@ -33,7 +33,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
-    val sequences = rows.map { row: Row =>
+    val sequences = rows.map { row =>
       val s = fromRow[SequenceInsertSchema](row)
       SequenceCreate(
         s.name,
