@@ -1,10 +1,10 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
+import com.cognite.sdk.scala.common.Items
 import com.cognite.sdk.scala.v1._
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
@@ -15,8 +15,6 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.datasource.MetricsSource
-
-import sttp.client3.SttpBackend
 import fs2.Stream
 
 import scala.util.Try
@@ -178,13 +176,16 @@ class RawTableRelation(
   private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]): IO[Unit] = {
     val items = rowsToRawItems(nonKeyColumnNames, rows, mapper)
 
-    client.rawRows(database, table).createFromRead(items).flatTap { _ =>
-      IO {
-        if (config.collectMetrics) {
-          rowsCreated.inc(rows.length)
+    client
+      .rawRows(database, table)
+      .createItems(Items(items.map(_.toCreate).toVector), ensureParent = config.rawEnsureParent)
+      .flatTap { _ =>
+        IO {
+          if (config.collectMetrics) {
+            rowsCreated.inc(rows.length)
+          }
         }
       }
-    } *> IO.unit
   }
 }
 

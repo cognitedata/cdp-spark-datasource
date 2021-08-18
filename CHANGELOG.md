@@ -1,3 +1,9 @@
+# 1.4.29
+
+## Enhancements
+
+* Added `rawEnsureParent` option that allows creating the raw table when writing RAW rows.
+
 # 1.4.28
 
 ## Enhancements

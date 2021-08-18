@@ -5,7 +5,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.dataframe import DataFrame
 
 # initialize Spark and a few helper functions
-spark = SparkSession.builder.config("spark.jars.packages","com.cognite.spark.datasource:cdf-spark-datasource_2.12:1.4.26").getOrCreate()
+spark = SparkSession.builder.config("spark.jars.packages","com.cognite.spark.datasource:cdf-spark-datasource_2.12:1.4.29").getOrCreate()
 
 apikey = os.environ['COGNITE_API_KEY']
 baseUrl = "https://greenfield.cognitedata.com"
@@ -20,18 +20,19 @@ def cdfData(**options):
 	return reader
 
 
-def cdfRaw(database, table, inferSchema=False):
+def cdfRaw(database, table, inferSchema=False, ensureParent=False):
     # For writing and reading we have to specify the table and database
 
     # For reading, you can set the inferSchema option, that will give you the column
     # names from the table, instead of one JSON object per row. Obviously, this will
     # only work if the table is not empty
-	return cdfData(type="raw", database=database, table=table, inferSchema=inferSchema)
+	return cdfData(type="raw", database=database, table=table, inferSchema=inferSchema, rawEnsureParent=ensureParent)
 
 def loadIntoRaw(database, table, source: DataFrame):
     # RAW is a bit special since it does not have a fixed schema
     # When writing, we order it to use the same schema as the source dataset
-	destination = cdfRaw(database, table).schema(source.schema).load()
+    # ensureParent parameter instructs the data source to create the RAW table if it does not exist already
+	destination = cdfRaw(database, table, ensureParent=True).schema(source.schema).load()
 	destination.createOrReplaceTempView("destinationRawTable")
 	source.select(*destination.columns).write.insertInto("destinationRawTable")
 
