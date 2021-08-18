@@ -3,7 +3,7 @@ package cognite.spark.v1
 import java.util.concurrent.Executors
 import cats.Parallel
 import cats.effect.{Concurrent, ContextShift, IO, Timer}
-import com.cognite.sdk.scala.common.{GzipSttpBackend, RetryingBackend}
+import com.cognite.sdk.scala.common.{GzipSttpBackend, Items, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.log4s._
@@ -17,7 +17,6 @@ import scala.concurrent.duration._
 import scala.language.higherKinds
 
 final case class Data[A](data: A)
-final case class Items[A](items: Seq[A])
 final case class CdpApiErrorPayload(code: Int, message: String)
 final case class Error[A](error: A)
 final case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)

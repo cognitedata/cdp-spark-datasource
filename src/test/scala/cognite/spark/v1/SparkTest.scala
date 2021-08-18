@@ -119,7 +119,8 @@ trait SparkTest {
       ignoreUnknownIds = true,
       deleteMissingAssets = false,
       subtrees = AssetSubtreeOption.Ingest,
-      ignoreNullFields = true
+      ignoreNullFields = true,
+      rawEnsureParent = false
     )
 
   private def getCounter(metricName: String): Long =

@@ -1177,6 +1177,9 @@ Optionally, you can have Spark infer the DataFrame schema with the following opt
 
 - `collectSchemaInferenceMetrics`: Whether metrics should be collected about the read operations for schema inference.
 
+
+- `rawEnsureParent`: When set to true, the parent database and table will be creates if it does not exists already.
+
 ```scala
 val df = spark.read.format("cognite.spark.v1")
   .option("apiKey", "myApiKey")
