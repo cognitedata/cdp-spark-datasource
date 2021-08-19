@@ -1072,8 +1072,11 @@ class AssetHierarchyBuilderTest
     // Ingest the third level, 1100 subtrees
     ingest(key, grandkids, batchSize = 1000, metricsPrefix = Some(s"ingest.tree.grandkids.$key"))
 
-    // heh, this is not exactly the desired state. Just testing if the metric works
-    getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 1106
+    // 2 for fetching roots
+    // 2 for inserting the roots
+    // 11 for fetching subtrees
+    // 2 for inserting the subtrees
+    getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 17
 
     cleanDB(key)
   }

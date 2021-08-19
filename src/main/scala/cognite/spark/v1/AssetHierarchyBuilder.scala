@@ -7,22 +7,14 @@ import cats.syntax._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
 import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
-import com.cognite.sdk.scala.v1.{
-  Asset,
-  AssetCreate,
-  AssetUpdate,
-  AssetsFilter,
-  CogniteExternalId,
-  CogniteId,
-  CogniteInternalId,
-  LabelsOnUpdate
-}
+import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, CogniteExternalId, CogniteId, CogniteInternalId, LabelsOnUpdate}
 import io.circe.generic.semiauto.deriveDecoder
 import io.circe.{Decoder, Json, JsonObject}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 
 final case class AssetsIngestSchema(
@@ -209,11 +201,10 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       upsertedRoots <- upsertRoots(trees.map(_.root), cdfRoots)
 
       // then fetch all the subtrees to know if we should insert, update or delete them
-      // TODO: merge the subtree requests
-      cdfTrees <- trees.parTraverse(t => fetchCdfSubtree(t.root))
+      cdfTrees <- fetchCdfSubtrees(upsertedRoots)
+
       (toDelete, toInsert, toUpdate) = trees
-        .zip(cdfTrees)
-        .map((nodesToDeleteInsertUpdate _).tupled)
+        .map(t => nodesToDeleteInsertUpdate(t, cdfTrees(t.root.externalId)))
         .unzip3
 
       _ <- (
@@ -302,22 +293,41 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           .retrieveByExternalIds(batch, ignoreUnknownIds = true)
     ).map(_.map(a => a.externalId.get -> a).toMap)
 
-  def fetchCdfSubtree(root: AssetsIngestSchema): IO[Vector[Asset]] =
-    if (root.parentExternalId.isEmpty) {
-      // proper root
-      client.assets
-        .filter(AssetsFilter(rootIds = Some(Seq(CogniteExternalId(root.externalId)))))
-        .compile
-        .toVector
-    } else {
-      // The API will error out if the subtree contains more than 100,000 items
-      // If that's a problem, we'll have to do a workaround by downloading its entire hierarchy
-      // (or convince the API team to lift that limitation)
-      client.assets
-        .filter(AssetsFilter(assetSubtreeIds = Some(Seq(CogniteExternalId(root.externalId)))))
-        .compile
-        .toVector
+  def fetchCdfSubtrees(roots: Vector[Asset]): IO[Map[String, Vector[Asset]]] = {
+
+    def collectIntoTrees(roots: Vector[Asset], assets: Vector[Asset]): Vector[(String, Vector[Asset])] = {
+      // note that we have to work with internalIds here since we might need to delete some assets which don't have externalId
+      val lookupChildren = assets.groupBy(_.parentId)
+
+      // generation by "generation" get all descendants of the specified group of assets
+      // buf is the tail recursive result value. List of Vectors because appending to list is cheap
+      @tailrec
+      def getAllDescendants(roots: Vector[Long], buf: List[Vector[Asset]] = List.empty): Vector[Asset] = {
+        val children = roots.flatMap(r => lookupChildren.getOrElse(Some(r), Vector.empty))
+        if (children.isEmpty) {
+          buf.toVector.flatten
+        } else {
+          getAllDescendants(children.map(_.id), children :: buf)
+        }
+      }
+
+      roots.map(a => a.externalId.get -> getAllDescendants(Vector(a.id)))
     }
+
+    batchedOperation[Asset, (String, Vector[Asset])](
+      roots,
+      roots =>
+        // The API will error out if the subtree contains more than 100,000 items
+        // If that's a problem, we'll have to do a workaround by downloading its entire hierarchy,
+        // but the rootIds filter is deprecated, so we'll have to convince the API team to lift that limitation :/
+        client.assets
+          .filter(AssetsFilter(assetSubtreeIds = Some(roots.map(r => CogniteInternalId(r.id)))))
+          .compile
+          .toVector
+          .map(collectIntoTrees(roots, _)),
+      batchSize = 100 // this is the API limit for filter
+    ).map(_.toMap)
+  }
 
   def upsertRoots( // scalastyle:off
       newRoots: Vector[AssetsIngestSchema],
@@ -369,7 +379,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def nodesToDeleteInsertUpdate(subtree: AssetSubtree, cdfTree: Vector[Asset])
     : (Vector[Asset], Vector[AssetsIngestSchema], Vector[AssetsIngestSchema]) = {
-    val newIds = subtree.allNodes.map(_.externalId).toSet
+    val newIds = subtree.nodes.map(_.externalId).toSet
     // Keep assets that are in both source and CDF, delete those only in CDF
     val toDelete =
       cdfTree.filter(a => !a.externalId.exists(newIds.contains))
@@ -480,7 +490,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       })
       .transform
 
-  private def batchedOperation[I, R](list: Vector[I], op: Vector[I] => IO[Seq[R]]): IO[Vector[R]] =
+  private def batchedOperation[I, R](list: Vector[I], op: Vector[I] => IO[Seq[R]], batchSize: Int = this.batchSize): IO[Vector[R]] =
     if (list.nonEmpty) {
       list
         .grouped(batchSize)
