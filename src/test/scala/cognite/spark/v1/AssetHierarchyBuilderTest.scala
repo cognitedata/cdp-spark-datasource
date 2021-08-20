@@ -1049,7 +1049,7 @@ class AssetHierarchyBuilderTest
     rootChangeException.getMessage shouldBe (
       s"Attempted to move some assets to a different root asset in subtree subtree2$key under the rootId=$newRootAssetId. " +
         "If this is intended, the assets must be manually deleted and re-created under the new root asset. " +
-        s"The following assets were attempted to be moved: (externalId=child$key)."
+        s"Assets with the following externalIds were attempted to be moved: child$key."
     )
 
     cleanDB(key)
@@ -1072,11 +1072,23 @@ class AssetHierarchyBuilderTest
     // Ingest the third level, 1100 subtrees
     ingest(key, grandkids, batchSize = 1000, metricsPrefix = Some(s"ingest.tree.grandkids.$key"))
 
-    // 2 for fetching roots
-    // 2 for inserting the roots
-    // 11 for fetching subtrees
-    // 2 for inserting the subtrees
-    getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 17
+    getNumberOfRowsCreated(s"ingest.tree.grandkids.$key", "assethierarchy") shouldBe 1100
+    // 2 for fetching root parents (for validation)
+    // 2 for fetching the roots
+    // 2 for creating the roots
+    getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 6
+
+    val grandkidsUpdate = (1 to 1100).map(k =>
+      AssetCreate(s"grandkid$k", None, Some("some description"), None, Some(s"grandkid$k"), None, Some(s"kid$k"))
+    )
+    // Update the third level, 1100 subtrees
+    ingest(key, grandkidsUpdate, batchSize = 1000, metricsPrefix = Some(s"ingest.tree.grandkidsU.$key"))
+
+    getNumberOfRowsUpdated(s"ingest.tree.grandkidsU.$key", "assethierarchy") shouldBe 1100
+    // 2 for fetching root parents (for validation)
+    // 2 for fetching the roots
+    // 2 for updating the roots
+    getNumberOfRequests(s"ingest.tree.grandkidsU.$key") shouldBe 6
 
     cleanDB(key)
   }
