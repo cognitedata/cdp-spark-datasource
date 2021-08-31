@@ -10,6 +10,7 @@ import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val valhallTimeSeries = "'pi:160671'"
   val valhallTimeSeriesId = 1470524308850282L
+  val valhallNumericTimeSeriesId = 3278479880462408L
 
   val sourceTimeSeriesDf = spark.read
     .format("cognite.spark.v1")
@@ -382,7 +383,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
       spark
         .sql(s"""select * from destinationDatapoints where id = $tsId""")
         .collect,
-      df => df.length < 3)
+      df => { println(df.mkString(",")); df.length < 3 })
 
     spark
       .sql(
@@ -415,7 +416,24 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
       spark
         .sql(s"""select value from destinationDatapoints where id = $tsId""")
         .collect,
-      df => df.length != 1)
+      df => { println(df.mkString(",")); df.length != 1 })
     dataPointsAfterDelete.head.getAs[String]("value") shouldBe "b"
+  }
+
+  it should "fail reasonably when TS is numeric" in {
+    val destinationDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "stringdatapoints")
+      .load()
+    destinationDf.createOrReplaceTempView("destinationNumericDatapoints")
+    val error = sparkIntercept {
+      spark
+        .sql(s"select * from destinationNumericDatapoints where id = $valhallNumericTimeSeriesId")
+        .collect()
+    }
+
+    assert(error.getMessage.contains(s"Cannot read numeric data points as string datapoints"))
+    assert(error.getMessage.contains(s"The timeseries id=$valhallNumericTimeSeriesId"))
   }
 }

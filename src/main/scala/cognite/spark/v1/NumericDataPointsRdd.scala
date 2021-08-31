@@ -39,6 +39,24 @@ final case class AggregationRange(
 
 final case class Bucket(index: Int, ranges: Seq[Range]) extends Partition
 
+final case class WrongDatapointTypeException(
+    id: Long,
+    externalId: Option[String],
+    shouldBeString: Boolean)
+    extends CdfSparkException((shouldBeString match {
+      case false =>
+        s"""Cannot read string data points as numeric datapoints. Use .option("type", "stringdatapoints") or _cdf.stringdatapoints. """
+      case true =>
+        s"""Cannot read numeric data points as string datapoints. Use .option("type", "datapoints") or _cdf.datapoints. """
+    }) + s"The timeseries id=$id, externalId=${externalId.getOrElse("NULL")}")
+
+object WrongDatapointTypeException {
+  def check(isString: Boolean, id: Long, externalId: Option[String], shouldBeString: Boolean): Unit =
+    if (isString != shouldBeString) {
+      throw WrongDatapointTypeException(id, externalId, shouldBeString)
+    }
+}
+
 final case class NumericDataPointsRdd(
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
@@ -225,7 +243,13 @@ final case class NumericDataPointsRdd(
             limit = Some(limit),
             ignoreUnknownIds = true
           )
-          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
+          .map(_.headOption
+            .map { ts =>
+              WrongDatapointTypeException
+                .check(ts.isString, ts.id, ts.externalId, shouldBeString = false)
+              ts.datapoints
+            }
+            .getOrElse(Seq.empty))
       case Right(externalId) =>
         client.dataPoints
           .queryByExternalIds(
@@ -235,7 +259,13 @@ final case class NumericDataPointsRdd(
             limit = Some(limit),
             ignoreUnknownIds = true
           )
-          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
+          .map(_.headOption
+            .map { ts =>
+              WrongDatapointTypeException
+                .check(ts.isString, ts.id, Some(ts.externalId), shouldBeString = false)
+              ts.datapoints
+            }
+            .getOrElse(Seq.empty))
     }
 
   private def getFirstAndLastConcurrentlyById(
@@ -270,18 +300,18 @@ final case class NumericDataPointsRdd(
       for {
         (id, maybeLatest) <- latestByIds
       } yield (Right[Long, String](id), maybeLatest.map(latest => latest.timestamp.min(end)))
-    val lasts = for {
+    for {
+      // fetch firsts before lasts since that can correctly handle when accidentally reading
+      // stringdatapoints with a reasonable error message
+      f <- firsts
       byInternalId <- lastsByInternalId
       byExternalId <- lastsByExternalId
-    } yield byExternalId ++ byInternalId
-
-    (firsts, lasts).parMapN {
-      case (f, l) =>
-        f.map {
-          case (id, first) =>
-            (id, first.map(_.timestamp), l.getOrElse(id, None))
-        }
-    }
+      lasts = byExternalId ++ byInternalId
+    } yield
+      f.map {
+        case (id, first) =>
+          (id, first.map(_.timestamp), lasts.getOrElse(id, None))
+      }
   }
 
   private def rangesToBuckets(ranges: Seq[Range]): Vector[Bucket] = {
@@ -407,7 +437,13 @@ final case class NumericDataPointsRdd(
       case CogniteInternalId(internalId) =>
         client.dataPoints
           .queryByIds(Seq(internalId), lowerLimit, upperLimit, nPointsRemaining, ignoreUnknownIds = true)
-          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
+          .map(_.headOption
+            .map { ts =>
+              WrongDatapointTypeException
+                .check(ts.isString, ts.id, ts.externalId, shouldBeString = false)
+              ts.datapoints
+            }
+            .getOrElse(Seq.empty))
       case CogniteExternalId(externalId) =>
         client.dataPoints
           .queryByExternalIds(
@@ -416,7 +452,13 @@ final case class NumericDataPointsRdd(
             upperLimit,
             nPointsRemaining,
             ignoreUnknownIds = true)
-          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
+          .map(_.headOption
+            .map { ts =>
+              WrongDatapointTypeException
+                .check(ts.isString, ts.id, Some(ts.externalId), shouldBeString = false)
+              ts.datapoints
+            }
+            .getOrElse(Seq.empty))
     }
     responses.map { dataPoints =>
       val lastTimestamp = dataPoints.lastOption.map(_.timestamp)

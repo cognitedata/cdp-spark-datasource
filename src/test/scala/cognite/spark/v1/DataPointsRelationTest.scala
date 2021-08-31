@@ -11,6 +11,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   val valhallTimeSeries = "'pi:195975'"
 
   val valhallTimeSeriesId = 3278479880462408L
+  val valhallStringTimeSeriesId = 1470524308850282L
   // VAL_23-TT-92533:X.Value has some null aggregate values
   val withMissingAggregatesId = 5662453767080168L
 
@@ -934,5 +935,22 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
       .sql(s"select * from destinationDatapoints where externalId = '2QEuQHKxStrhMG83wFgg9Rxd3NjZe8Y9ubyRXWciP'")
 
     idDoesNotExist shouldBe empty
+  }
+
+  it should "fail reasonably when TS is string" in {
+    val destinationDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "datapoints")
+      .load()
+    destinationDf.createOrReplaceTempView("destinationStringDatapoints")
+    val error = sparkIntercept {
+      spark
+        .sql(s"select * from destinationStringDatapoints where id = $valhallStringTimeSeriesId")
+        .collect()
+    }
+
+    assert(error.getMessage.contains(s"Cannot read string data points as numeric datapoints"))
+    assert(error.getMessage.contains(s"The timeseries id=$valhallStringTimeSeriesId"))
   }
 }
