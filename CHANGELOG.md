@@ -1,3 +1,9 @@
+# 1.4.30
+
+## Enhancements
+
+* Added `audience` option for Aize and AKSO OAuth2 flow.
+
 # 1.4.29
 
 ## Enhancements

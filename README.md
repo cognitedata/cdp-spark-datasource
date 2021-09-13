@@ -110,7 +110,9 @@ To autenticate using OIDC tokens set all of these options:
 | `clientId`     | Application (client) ID associated with the target CDF project.                                                                                          | Yes            |
 | `clientSecret` | Client secret for the application.                                                                                                                       | Yes            |
 | `project`      | The CDF project.                                                                                                                                         | Yes            |
-| `scopes`       | The scopes needed for the user, set to `<baseUrl>/.default` by default.                                                                                      | No             |
+| `scopes`       | The scopes needed for the user. Required for AAD setup.                                                                                                  | No             |
+| `audience`     | The audience needed for token retrieval, supported for the custom Aize and AKSO OAuth2 setup.                                                            | No             |
+
 
 ### Read data
 

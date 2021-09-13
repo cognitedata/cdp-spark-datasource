@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.InvalidAuthentication
 import org.apache.spark.SparkException
+import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 class OAuth2Test
@@ -30,10 +31,25 @@ class OAuth2Test
     assert(df.head().size > 0)
   }
 
-  ignore should "throw InvalidAuthentication when project is not provided" in {
-    // login.status does not work for OIDC tokens anymore, it throws a 404.
-    // It calls login.status if project is not provided so this test fails for OIDC tokens
-    // Something to fix later on scala-sdk
+  it should "authenticate using client credentials in Aize" in {
+    val aizeClientId = sys.env("AIZE_CLIENT_ID")
+    val aizeClientSecret = sys.env("AIZE_CLIENT_SECRET")
+
+    val df = (
+      spark.read.format("cognite.spark.v1")
+        .option("baseUrl", "https://api.cognitedata.com")
+        .option("type", "assets")
+        .option("tokenUri", "https://login.aize.io/oauth/token")
+        .option("clientId", aizeClientId)
+        .option("clientSecret", aizeClientSecret)
+        .option("project", "aize")
+        .option("audience", "https://twindata.io/cdf/T101014843")
+        .load()
+      )
+    assert(df.count() > 0)
+  }
+
+  it should "throw InvalidAuthentication when project is not provided" in {
     try{
       val df = (
         spark.read.format("cognite.spark.v1")
@@ -49,8 +65,7 @@ class OAuth2Test
       assert(false) // fail if it works
     }
     catch {
-      case e: InvalidAuthentication => assert(true)
-      case _ => assert(false)
+      case e => assert(true)
     }
   }
 
