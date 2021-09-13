@@ -1,3 +1,9 @@
+# 1.4.30
+
+## Fixes
+
+* Fixed default batchSize for deleting datapoints
+
 # 1.4.29
 
 ## Enhancements
