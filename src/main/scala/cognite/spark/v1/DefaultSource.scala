@@ -188,8 +188,13 @@ class DefaultSource
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {
-        case _: NumericDataPointsRelationV1 => Constants.CreateDataPointsLimit
-        case _: StringDataPointsRelationV1 => Constants.CreateDataPointsLimit
+        case _: NumericDataPointsRelationV1 | _: StringDataPointsRelationV1 =>
+          // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
+          if (config.onConflict == OnConflict.Delete) {
+            Constants.DefaultDataPointsLimit
+          } else {
+            Constants.CreateDataPointsLimit
+          }
         case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
         case _ => Constants.DefaultBatchSize
       }

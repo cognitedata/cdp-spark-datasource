@@ -159,7 +159,12 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
             upperLimit,
             DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize),
             ignoreUnknownIds = true)
-          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
+          .map(_.headOption
+            .map { ts =>
+              WrongDatapointTypeException.check(ts.isString, ts.id, ts.externalId, shouldBeString = true)
+              ts.datapoints
+            }
+            .getOrElse(Seq.empty))
       case CogniteExternalId(externalId) =>
         client.dataPoints
           .queryStringsByExternalIds(
@@ -168,7 +173,13 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
             upperLimit,
             DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize),
             ignoreUnknownIds = true)
-          .map(_.headOption.map(_.datapoints).getOrElse(Seq.empty))
+          .map(_.headOption
+            .map { ts =>
+              WrongDatapointTypeException
+                .check(ts.isString, ts.id, Some(ts.externalId), shouldBeString = true)
+              ts.datapoints
+            }
+            .getOrElse(Seq.empty))
     }
     responses.map { dataPoints =>
       val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
