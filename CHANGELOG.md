@@ -6,6 +6,11 @@
 
 # 1.4.30
 
+## Enhancements
+
+* Limit the number to parallel request to CDF. Should avoid getting rate limiting errors.
+* Add metrics for number of request going to CDF
+
 ## Fixes
 
 * Fixed default batchSize for deleting datapoints
