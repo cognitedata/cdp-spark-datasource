@@ -50,7 +50,7 @@ class OAuth2Test
   }
 
   it should "throw InvalidAuthentication when project is not provided" in {
-    try{
+    intercept[Exception]{
       val df = (
         spark.read.format("cognite.spark.v1")
           .option("baseUrl", "https://bluefield.cognitedata.com")
@@ -62,10 +62,6 @@ class OAuth2Test
           .load()
         )
       df.count()
-      assert(false) // fail if it works
-    }
-    catch {
-      case e => assert(true)
     }
   }
 
@@ -81,13 +77,8 @@ class OAuth2Test
         .option("scopes", "https://bluefield.cognitedata.com/.default")
         .load()
       )
-    try{
+    sparkIntercept{
       df.count()
-      assert(false) // fail if it works
-    }
-    catch {
-      case e: SparkException => assert(true)
-      case _ => assert(false)
     }
   }
 
