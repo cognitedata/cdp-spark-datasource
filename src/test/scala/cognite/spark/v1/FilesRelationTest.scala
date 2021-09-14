@@ -62,6 +62,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .sql(s"""
                 |select "name-$source" as name,
                 |null as id,
+                |null as directory,
                 |'$source' as source,
                 |'externalId-$source' as externalId,
                 |null as mimeType,

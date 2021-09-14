@@ -261,7 +261,11 @@ object DefaultSource {
     val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
     val apiKey = parameters.get("apiKey").map(apiKey => ApiKeyAuth(apiKey))
-    val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
+    val scopes: List[String] = parameters.get("scopes") match {
+      case None => List.empty
+      case Some(scopesStr) => scopesStr.split(" ").toList
+    }
+    val audience = parameters.get("audience")
     val clientCredentials = for {
       tokenUri <- parameters.get("tokenUri").map { tokenUriString =>
         Uri
@@ -270,9 +274,14 @@ object DefaultSource {
       }
       clientId <- parameters.get("clientId")
       clientSecret <- parameters.get("clientSecret")
-      scopes <- Some(parameters.getOrElse("scopes", s"$baseUrl/.default").split(" ").toList)
       project <- parameters.get("project")
-      clientCredentials = OAuth2.ClientCredentials(tokenUri, clientId, clientSecret, scopes, project)
+      clientCredentials = OAuth2.ClientCredentials(
+        tokenUri,
+        clientId,
+        clientSecret,
+        scopes,
+        project,
+        audience)
     } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 
     authTicket
@@ -293,7 +302,7 @@ object DefaultSource {
 
     val auth = parseAuth(parameters) match {
       case Some(x) => x
-      case None => sys.error("Either apiKey or bearerToken is required.")
+      case None => sys.error("Either apiKey, authTicket, clientCredentials or bearerToken is required.")
     }
     import CdpConnector._
     val projectName = parameters
