@@ -86,6 +86,7 @@ object FilesRelation extends UpsertSchema {
 final case class FilesUpsertSchema(
     id: Option[Long] = None,
     name: Option[String] = None,
+    directory: Option[String] = None,
     externalId: OptionalField[String] = FieldNotSpecified,
     source: OptionalField[String] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
@@ -112,6 +113,7 @@ object FilesUpsertSchema {
 
 final case class FilesInsertSchema(
     name: String,
+    directory: Option[String] = None,
     source: Option[String] = None,
     externalId: Option[String] = None,
     mimeType: Option[String] = None,
@@ -127,6 +129,7 @@ final case class FilesReadSchema(
     id: Long = 0,
     name: String,
     source: Option[String] = None,
+    directory: Option[String] = None,
     externalId: Option[String] = None,
     mimeType: Option[String] = None,
     metadata: Option[Map[String, String]] = None,
