@@ -4,6 +4,10 @@
 
 * Added `audience` option for Aize and AKSO OAuth2 flow. Removed default value for `scope` to support audience.
 
+## Fixes
+
+* Fixed performance problem with very large asset hierarchies
+
 # 1.4.30
 
 ## Enhancements
