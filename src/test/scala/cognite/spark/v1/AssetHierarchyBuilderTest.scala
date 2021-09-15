@@ -1093,6 +1093,32 @@ class AssetHierarchyBuilderTest
     cleanDB(key)
   }
 
+  // this runs for a long time, so we don't want to run it every time
+  ignore should "successfully ingest million items" in {
+    val key = shortRandomString()
+
+    try {
+      val dad = AssetCreate("dad", None, None, None, Some("dad"), None, Some(""))
+
+      val kids = (0 to 200 * 1000).flatMap(k => Seq(
+        AssetCreate(s"kid${k}_", None, None, None, Some(s"kid${k}_"), None, Some("dad"))))
+      val grandkids = (0 to 1000 * 1000).map(k =>
+        AssetCreate(s"grandkid${k}_", None, None, None, Some(s"grandkid${k}_"), None, Some(s"kid${k / 5}_"))
+      )
+
+      // Ingest the first two levels of the tree
+      ingest(key, kids ++ grandkids :+ dad, batchSize = 1000)
+
+      // Ingest the third level, 1100 subtrees
+      ingest(key, grandkids, batchSize = 1000, metricsPrefix = Some(s"ingest.bigtree.$key"))
+
+      getNumberOfRowsCreated(s"ingest.bigtree.$key", "assethierarchy") shouldBe 1 + 200 * 1000 + 1000 * 1000
+    }
+    finally {
+      cleanDB(key)
+    }
+  }
+
   def getAssetsMap(assets: Seq[Row]): Map[Option[String], AssetsReadSchema] =
     assets
       .map(r => fromRow[AssetsReadSchema](r))

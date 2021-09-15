@@ -350,18 +350,18 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def iterateChildren(
       currentChildren: Array[AssetsIngestSchema],
-      parents: Array[String],
+      parents: Set[String],
       visited: Seq[AssetsIngestSchema]): Seq[AssetsIngestSchema] = {
     val nextChildren = currentChildren.filter(a => parents.contains(a.parentExternalId))
     if (nextChildren.isEmpty) {
       visited
     } else {
-      iterateChildren(currentChildren, nextChildren.map(_.externalId), visited ++ nextChildren)
+      iterateChildren(currentChildren, nextChildren.map(_.externalId).toSet, visited ++ nextChildren)
     }
   }
 
   def orderChildren(rootId: String, nodes: Array[AssetsIngestSchema]): Vector[AssetsIngestSchema] =
-    iterateChildren(nodes, Array(rootId), Seq()).toVector
+    iterateChildren(nodes, Set(rootId), Seq()).toVector
 
   override def schema: StructType = structType[AssetsIngestSchema]
 
