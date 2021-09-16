@@ -12,3 +12,4 @@ src/main/scripts/Pip*
 .env
 project/metals.sbt
 .vscode/
+.bsp/
