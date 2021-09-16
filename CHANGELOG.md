@@ -1,8 +1,10 @@
-# 1.4.31
+# 1.4.32
 
 ## Enhancements
 
-* Added `audience` option for Aize and AKSO OAuth2 flow. Removed default value for `scope` to support audience.
+* `Files` relation now supports `directory` property.
+
+# 1.4.31
 
 ## Fixes
 
@@ -14,6 +16,7 @@
 
 * Limit the number to parallel request to CDF. Should avoid getting rate limiting errors.
 * Add metrics for number of request going to CDF
+* Added `audience` option for Aize and AKSO OAuth2 flow. Removed default value for `scope` to support audience.
 
 ## Fixes
 
