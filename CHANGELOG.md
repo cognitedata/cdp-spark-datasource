@@ -1,3 +1,9 @@
+# 1.4.33
+
+## Enhancements
+
+* `Sequences` are now read in parallel.
+
 # 1.4.32
 
 ## Enhancements
