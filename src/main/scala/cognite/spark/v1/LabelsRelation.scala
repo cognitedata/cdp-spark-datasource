@@ -42,10 +42,10 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Upsert is not supported for labels")
+    throw new CdfSparkException("Upsert is not supported for labels.")
 
   override def update(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Update is not supported for labels")
+    throw new CdfSparkException("Update is not supported for labels.")
 }
 
 object LabelsRelation {

@@ -75,7 +75,7 @@ object CogniteUdfs {
           .retrieveResponse(res.id.getOrElse(0L))
       } yield functionCallResponse.response.getOrElse(Json.fromJsonObject(JsonObject.empty))
     } else {
-      throw new CdfSparkException("CDF function call failed. Call = " + res.toString)
+      throw new CdfSparkException("CDF function call failed. Call = " + res.toString + ".")
     }
   }
 
