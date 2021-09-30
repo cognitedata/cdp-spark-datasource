@@ -79,7 +79,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       sourceTypes = getExternalIdSeqFromExternalId(m.get("sourceType")),
       targetExternalIds = getExternalIdSeqFromExternalId(m.get("targetExternalId")),
       targetTypes = getExternalIdSeqFromExternalId(m.get("targetType")),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId)),
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
       startTime =
         timeRangeFromMinAndMax(minTime = m.get("minStartTime"), maxTime = m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(minTime = m.get("minEndTime"), maxTime = m.get("maxEndTime")),

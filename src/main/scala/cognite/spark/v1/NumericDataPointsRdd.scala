@@ -18,18 +18,14 @@ import scala.annotation.tailrec
 
 sealed trait Range {
   val count: Option[Long]
-  val id: Either[Long, String]
+  val id: CogniteId
 }
 
-final case class DataPointsRange(
-    id: Either[Long, String],
-    start: Instant,
-    end: Instant,
-    count: Option[Long])
+final case class DataPointsRange(id: CogniteId, start: Instant, end: Instant, count: Option[Long])
     extends Range
 
 final case class AggregationRange(
-    id: Either[Long, String],
+    id: CogniteId,
     start: Instant,
     end: Instant,
     count: Option[Long],
@@ -60,8 +56,7 @@ object WrongDatapointTypeException {
 final case class NumericDataPointsRdd(
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
-    ids: Seq[Long],
-    externalIds: Seq[String],
+    ids: Seq[CogniteId],
     timestampLimits: (Instant, Instant),
     aggregations: Array[AggregationFilter],
     granularities: Seq[Granularity],
@@ -77,7 +72,7 @@ final case class NumericDataPointsRdd(
 
   @tailrec
   private def countsToRanges(
-      id: Either[Long, String],
+      id: CogniteId,
       counts: Seq[SdkDataPoint],
       granularity: Granularity,
       ranges: Seq[Range] = Seq.empty,
@@ -158,35 +153,22 @@ final case class NumericDataPointsRdd(
   )
 
   private def queryAggregates(
-      idOrExternalId: Either[Long, String],
+      id: CogniteId,
       start: Instant,
       end: Instant,
       granularity: String,
       aggregates: Seq[String],
-      limit: Int) = idOrExternalId match {
-    case Left(id) =>
-      client.dataPoints
-        .queryAggregatesByIds(
-          Seq(id),
-          start,
-          end,
-          granularity.toString,
-          aggregates,
-          limit = Some(limit),
-          ignoreUnknownIds = true
-        )
-    case Right(externalId) =>
-      client.dataPoints
-        .queryAggregatesByExternalIds(
-          Seq(externalId),
-          start,
-          end,
-          granularity.toString,
-          aggregates,
-          limit = Some(limit),
-          ignoreUnknownIds = true
-        )
-  }
+      limit: Int) =
+    client.dataPoints
+      .queryAggregates(
+        Seq(id),
+        start,
+        end,
+        granularity.toString,
+        aggregates,
+        limit = Some(limit),
+        ignoreUnknownIds = true
+      )
 
   private def floorToNearest(x: Long, base: Double) =
     (base * math.floor(x.toDouble / base)).toLong
@@ -195,7 +177,7 @@ final case class NumericDataPointsRdd(
     (base * math.ceil(x.toDouble / base)).toLong
 
   private def smallEnoughRanges(
-      id: Either[Long, String],
+      id: CogniteId,
       start: Instant,
       end: Instant,
       granularities: Seq[Granularity] = granularitiesToTry): IO[Seq[Range]] =
@@ -228,91 +210,40 @@ final case class NumericDataPointsRdd(
         }
     }
 
-  private def queryDatapointsById(
-      idOrExternalId: Either[Long, String],
-      start: Instant,
-      end: Instant,
-      limit: Int) =
-    idOrExternalId match {
-      case Left(id) =>
-        client.dataPoints
-          .queryByIds(
-            Seq(id),
-            start,
-            end,
-            limit = Some(limit),
-            ignoreUnknownIds = true
-          )
-          .map(_.headOption
-            .map { ts =>
-              WrongDatapointTypeException
-                .check(ts.isString, ts.id, ts.externalId, shouldBeString = false)
-              ts.datapoints
-            }
-            .getOrElse(Seq.empty))
-      case Right(externalId) =>
-        client.dataPoints
-          .queryByExternalIds(
-            Seq(externalId),
-            start,
-            end,
-            limit = Some(limit),
-            ignoreUnknownIds = true
-          )
-          .map(_.headOption
-            .map { ts =>
-              WrongDatapointTypeException
-                .check(ts.isString, ts.id, Some(ts.externalId), shouldBeString = false)
-              ts.datapoints
-            }
-            .getOrElse(Seq.empty))
-    }
+  private def queryDatapointsById(id: CogniteId, start: Instant, end: Instant, limit: Int) =
+    client.dataPoints
+      .query(
+        Seq(id),
+        start,
+        end,
+        limit = Some(limit),
+        ignoreUnknownIds = true
+      )
+      .map(_.headOption
+        .map { ts =>
+          WrongDatapointTypeException
+            .check(ts.isString, ts.id, ts.externalId, shouldBeString = false)
+          ts.datapoints
+        }
+        .getOrElse(Seq.empty))
 
   private def getFirstAndLastConcurrentlyById(
-      idOrExternalIds: Vector[Either[Long, String]],
+      ids: Vector[CogniteId],
       start: Instant,
-      end: Instant): IO[Vector[(Either[Long, String], Option[Instant], Option[Instant])]] = {
-    val firsts = idOrExternalIds.map { id =>
-      queryDatapointsById(id, start, end.max(start.plusMillis(1)), 1)
-        .map(datapoints => id -> datapoints.headOption)
-    }.parSequence
-    val ids = idOrExternalIds.flatMap(_.left.toOption)
-    val externalIds = idOrExternalIds.flatMap(_.right.toOption)
-    val latestByInternalIds = if (ids.nonEmpty) {
-      client.dataPoints.getLatestDataPointsByIds(ids, ignoreUnknownIds = true)
-    } else {
-      IO.pure(Map.empty)
-    }
-    val latestByExternalIds = if (externalIds.nonEmpty) {
-      client.dataPoints.getLatestDataPointsByExternalIds(externalIds, ignoreUnknownIds = true)
-    } else {
-      IO.pure(Map.empty)
-    }
-    val lastsByInternalId: IO[Map[Either[Long, String], Option[Instant]]] = for {
-      latestByIds <- latestByInternalIds
-    } yield
-      for {
-        (id, maybeLatest) <- latestByIds
-      } yield (Left[Long, String](id), maybeLatest.map(latest => latest.timestamp.min(end)))
-    val lastsByExternalId: IO[Map[Either[Long, String], Option[Instant]]] = for {
-      latestByIds <- latestByExternalIds
-    } yield
-      for {
-        (id, maybeLatest) <- latestByIds
-      } yield (Right[Long, String](id), maybeLatest.map(latest => latest.timestamp.min(end)))
+      end: Instant): IO[Vector[(CogniteId, Option[Instant], Option[Instant])]] =
     for {
       // fetch firsts before lasts since that can correctly handle when accidentally reading
       // stringdatapoints with a reasonable error message
-      f <- firsts
-      byInternalId <- lastsByInternalId
-      byExternalId <- lastsByExternalId
-      lasts = byExternalId ++ byInternalId
+      firsts <- ids.map { id =>
+        queryDatapointsById(id, start, end.max(start.plusMillis(1)), 1)
+          .map(datapoints => id -> datapoints.headOption)
+      }.parSequence
+      latest <- client.dataPoints.getLatestDataPoints(ids, ignoreUnknownIds = true)
     } yield
-      f.map {
+      firsts.map {
         case (id, first) =>
-          (id, first.map(_.timestamp), lasts.getOrElse(id, None))
+          (id, first.map(_.timestamp), latest.getOrElse(id, None).map(_.timestamp.min(end)))
       }
-  }
 
   private def rangesToBuckets(ranges: Seq[Range]): Vector[Bucket] = {
     // Fold into a sequence of buckets, where each bucket has some ranges with a
@@ -350,8 +281,8 @@ final case class NumericDataPointsRdd(
     buckets.zipWithIndex.map { case (bucket, index) => bucket.copy(index = index) }.toVector
   }
 
-  private def buckets(firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])])
-    : IO[Seq[Bucket]] = {
+  private def buckets(
+      firstLatest: Stream[IO, (CogniteId, Option[Instant], Option[Instant])]): IO[Seq[Bucket]] = {
 
     val ranges = firstLatest
       .parEvalMapUnordered(50) {
@@ -372,7 +303,7 @@ final case class NumericDataPointsRdd(
   private def aggregationBuckets(
       aggregations: Seq[AggregationFilter],
       granularity: Granularity,
-      firstLatest: Stream[IO, (Either[Long, String], Option[Instant], Option[Instant])]
+      firstLatest: Stream[IO, (CogniteId, Option[Instant], Option[Instant])]
   ): IO[Vector[Bucket]] = {
     val granularityMillis = granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis
     // TODO: make sure we have a test that covers more than 10000 units
@@ -409,7 +340,7 @@ final case class NumericDataPointsRdd(
 
   override def getPartitions: Array[Partition] = {
     val firstLatest = Stream
-      .emits(ids.map(Left(_)) ++ externalIds.map(Right(_)))
+      .emits(ids)
       .covary[IO]
       .chunkLimit(100)
       .parEvalMapUnordered(50) { chunk =>
@@ -480,13 +411,11 @@ final case class NumericDataPointsRdd(
           }
       case None =>
         // Page through this range since we don't know how many points it contains.
-        val id: CogniteId = dataPointsRange.id
-          .fold(internalId => CogniteInternalId(internalId), externalId => CogniteExternalId(externalId))
         DataPointsRelationV1
           .getAllDataPoints[SdkDataPoint](
             queryDoubles,
             config.batchSize,
-            id,
+            dataPointsRange.id,
             dataPointsRange.start,
             dataPointsRange.end)
           .map { allDataPoints =>
@@ -503,13 +432,22 @@ final case class NumericDataPointsRdd(
   // Called for every data point received. Make sure to run benchmarks checking
   // total time taken, garbage collection time, and memory usage after changes.
   @inline
-  private def dataPointToRow(id: Either[Long, String], dataPoint: SdkDataPoint): Row = {
+  // scalastyle:off cyclomatic.complexity
+  private def dataPointToRow(id: CogniteId, dataPoint: SdkDataPoint): Row = {
     val array = new Array[Any](rowIndicesLength)
     var i = 0
     while (i < rowIndicesLength) {
       rowIndices(i) match {
-        case 0 => array(i) = id.left.getOrElse(null) // scalastyle:off null
-        case 1 => array(i) = id.right.getOrElse(null) // scalastyle:off null
+        case 0 =>
+          array(i) = id match {
+            case CogniteInternalId(id) => id
+            case _ => null // scalastyle:off null
+          }
+        case 1 =>
+          array(i) = id match {
+            case CogniteExternalId(externalId) => externalId
+            case _ => null // scalastyle:off null
+          }
         case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
         case 3 => array(i) = dataPoint.value
         case 4 | 5 => array(i) = null // scalastyle:off null
@@ -525,8 +463,16 @@ final case class NumericDataPointsRdd(
     var i = 0
     while (i < rowIndicesLength) {
       rowIndices(i) match {
-        case 0 => array(i) = r.id.left.getOrElse(null) // scalastyle:off null
-        case 1 => array(i) = r.id.right.getOrElse(null) // scalastyle:off null
+        case 0 =>
+          array(i) = r.id match {
+            case CogniteInternalId(id) => id
+            case _ => null // scalastyle:off null
+          }
+        case 1 =>
+          array(i) = r.id match {
+            case CogniteExternalId(externalId) => externalId
+            case _ => null // scalastyle:off null
+          }
         case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
         case 3 => array(i) = dataPoint.value
         case 4 => array(i) = r.aggregation

@@ -1,3 +1,12 @@
+# 1.4.33
+
+## Enhancements
+
+* `datasets` have been added as a new resource type. See [Data sets](README.md#data-sets)
+  for more information.
+
+* `Sequences` are now read in parallel.
+
 # 1.4.32
 
 ## Enhancements

@@ -221,12 +221,7 @@ object DataPointsRelationV1 {
       throw new CdfSparkIllegalArgumentException(
         s"Delete range [$inclusiveBegin, $exclusiveEnd) is invalid (on row $x)")
     }
-    id match {
-      case CogniteInternalId(id) =>
-        DeleteRangeById(id, inclusiveBegin, exclusiveEnd)
-      case CogniteExternalId(externalId) =>
-        DeleteRangeByExternalId(externalId, inclusiveBegin, exclusiveEnd)
-    }
+    DeleteDataPointsRange(id, inclusiveBegin, exclusiveEnd)
   }
 }
 

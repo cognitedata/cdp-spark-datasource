@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import java.time.Instant
-import com.cognite.sdk.scala.v1.{CogniteExternalId, ContainsAny, TimeRange}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, ContainsAny, TimeRange}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import sttp.model.Uri
@@ -185,17 +185,21 @@ object PushdownUtilities {
     strExternalIds match {
       case None => None
       case Some(Seq()) => None
-      case _ => Some(strExternalIds.get.map(CogniteExternalId))
+      case _ => Some(strExternalIds.get.map(CogniteExternalId(_)))
     }
 
   def externalIdsToContainsAny(externalIds: String): Option[ContainsAny] = {
     val externalIdSeq = externalIdsSeqFromWrappedArray(externalIds)
     externalIdSeq.isEmpty match {
       case true => None
-      case _ => Some(ContainsAny(containsAny = externalIdSeq.map(CogniteExternalId)))
+      case _ => Some(ContainsAny(containsAny = externalIdSeq.map(CogniteExternalId(_))))
     }
   }
 
+  def getIdFromMap(m: Map[String, String]): Option[CogniteId] =
+    m.get("id")
+      .map(id => CogniteInternalId(id.toLong))
+      .orElse(m.get("externalId").map(CogniteExternalId(_)))
 }
 
 trait InsertSchema {

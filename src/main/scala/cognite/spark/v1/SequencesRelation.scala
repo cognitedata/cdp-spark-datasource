@@ -26,11 +26,9 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, SequenceReadSchema]] =
     // TODO: filters
-    Seq(
-      client.sequences
-        .list()
-        .map(_.into[SequenceReadSchema].withFieldComputed(_.columns, _.columns.toList).transform)
-    )
+    client.sequences
+      .listPartitions(numPartitions)
+      .map(_.map(_.into[SequenceReadSchema].withFieldComputed(_.columns, _.columns.toList).transform))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val sequences = rows.map { row =>

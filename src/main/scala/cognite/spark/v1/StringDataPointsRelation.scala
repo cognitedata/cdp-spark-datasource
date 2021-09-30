@@ -1,18 +1,21 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.StringDataPoint
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
-import PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
+import PushdownUtilities.{
+  filtersToTimestampLimits,
+  getIdFromMap,
+  pushdownToParameters,
+  toPushdownFilterExpression
+}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
-import PushdownUtilities.filtersToTimestampLimits
 import cognite.spark.v1.SparkSchemaHelper.structType
 
 final case class StringDataPointsItem(
@@ -27,12 +30,7 @@ final case class StringDataPointsInsertItem(
     externalId: Option[String],
     timestamp: Instant,
     value: String
-)
-
-final case class StringDataPointsFilter(
-    id: Option[Long],
-    externalId: Option[String]
-)
+) extends RowWithCogniteId("inserting string data points")
 
 class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext: SQLContext)
     extends DataPointsRelationV1[StringDataPointsItem](config, "stringdatapoints")(sqlContext)
@@ -58,34 +56,17 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
       ))
 
   override def insertSeqOfRows(rows: Seq[Row]): IO[Unit] = {
-    val (dataPointsWithId, dataPointsWithExternalId) =
-      rows.map(r => fromRow[StringDataPointsInsertItem](r)).partition(p => p.id.exists(_ > 0))
+    val dataPoints =
+      rows.map(r => fromRow[StringDataPointsInsertItem](r))
 
-    if (dataPointsWithExternalId.exists(_.externalId.isEmpty)) {
-      throw new CdfSparkIllegalArgumentException(
-        "The id or externalId fields must be set when inserting data points.")
-    }
-
-    val updatesById = dataPointsWithId.groupBy(_.id).map {
+    val updatesById = dataPoints.groupBy(_.getCogniteId).map {
       case (id, dataPoints) =>
         client.dataPoints
-          .insertStringsById(id.get, dataPoints.map(dp => StringDataPoint(dp.timestamp, dp.value)))
+          .insertStrings(id, dataPoints.map(dp => StringDataPoint(dp.timestamp, dp.value)))
           .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
-    }
-    val updatesByExternalId = dataPointsWithExternalId.groupBy(_.externalId).map {
-      case (Some(externalId), dataPoints) =>
-        client.dataPoints
-          .insertStringsByExternalId(
-            externalId,
-            dataPoints.map(dp => StringDataPoint(dp.timestamp, dp.value)))
-          .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
-      case (None, _) =>
-        throw new CdfSparkIllegalArgumentException(
-          "The id or externalId fields must be set when inserting data points.")
     }
 
-    (updatesById.toVector.parSequence_, updatesByExternalId.toVector.parSequence_)
-      .parMapN((_, _) => ())
+    updatesById.toVector.parSequence_
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
@@ -101,91 +82,53 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
       })
 
   def getIOs(filters: Array[Filter])(
-      client: GenericClient[IO]): Seq[(StringDataPointsFilter, IO[Seq[StringDataPoint]])] = {
+      client: GenericClient[IO]): Seq[(CogniteId, IO[Seq[StringDataPoint]])] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
 
-    val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
-    val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
+    val ids = filtersAsMaps.flatMap(getIdFromMap).distinct
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
-    if (ids.isEmpty && externalIds.isEmpty) {
+    if (ids.isEmpty) {
       throw new CdfSparkIllegalArgumentException(
         "Please filter by one or more ids or externalIds when reading string data points.")
     }
 
     val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters, "timestamp")
 
-    val itemsIOFromId = ids.map { id =>
-      (
-        StringDataPointsFilter(Some(id), None),
-        DataPointsRelationV1.getAllDataPoints[StringDataPoint](
-          queryStrings,
-          config.batchSize,
-          CogniteInternalId(id),
-          lowerTimeLimit,
-          upperTimeLimit.plusMillis(1),
-          config.limitPerPartition)
-      )
-    }
-
-    val itemsIOFromExternalId = externalIds.map { extId =>
-      (
-        StringDataPointsFilter(None, Some(extId)),
-        DataPointsRelationV1.getAllDataPoints[StringDataPoint](
-          queryStrings,
-          config.batchSize,
-          CogniteExternalId(extId),
-          lowerTimeLimit,
-          upperTimeLimit.plusMillis(1),
-          config.limitPerPartition)
-      )
-    }
-
-    itemsIOFromId ++ itemsIOFromExternalId
+    ids.zip(ids.map { id =>
+      DataPointsRelationV1.getAllDataPoints[StringDataPoint](
+        queryStrings,
+        config.batchSize,
+        id,
+        lowerTimeLimit,
+        upperTimeLimit.plusMillis(1),
+        config.limitPerPartition)
+    })
   }
 
   private def queryStrings(
       id: CogniteId,
       lowerLimit: Instant,
       upperLimit: Instant,
-      nPointsRemaining: Option[Int]) = {
-    val responses = id match {
-      case CogniteInternalId(internalId) =>
-        client.dataPoints
-          .queryStringsByIds(
-            Seq(internalId),
-            lowerLimit,
-            upperLimit,
-            DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize),
-            ignoreUnknownIds = true)
-          .map(_.headOption
-            .map { ts =>
-              WrongDatapointTypeException.check(ts.isString, ts.id, ts.externalId, shouldBeString = true)
-              ts.datapoints
-            }
-            .getOrElse(Seq.empty))
-      case CogniteExternalId(externalId) =>
-        client.dataPoints
-          .queryStringsByExternalIds(
-            Seq(externalId),
-            lowerLimit,
-            upperLimit,
-            DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize),
-            ignoreUnknownIds = true)
-          .map(_.headOption
-            .map { ts =>
-              WrongDatapointTypeException
-                .check(ts.isString, ts.id, Some(ts.externalId), shouldBeString = true)
-              ts.datapoints
-            }
-            .getOrElse(Seq.empty))
-    }
-    responses.map { dataPoints =>
-      val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
-      (lastTimestamp, dataPoints)
-    }
-  }
+      nPointsRemaining: Option[Int]) =
+    client.dataPoints
+      .queryStrings(
+        Seq(id),
+        lowerLimit,
+        upperLimit,
+        DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize),
+        ignoreUnknownIds = true)
+      .map { response =>
+        val dataPoints = response.headOption
+          .map { ts =>
+            WrongDatapointTypeException.check(ts.isString, ts.id, ts.externalId, shouldBeString = true)
+            ts.datapoints
+          }
+          .getOrElse(Seq.empty)
+        val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
+        (lastTimestamp, dataPoints)
+      }
 
   override def toRow(requiredColumns: Array[String])(item: StringDataPointsItem): Row = {
     val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)

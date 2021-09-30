@@ -105,7 +105,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       isStep = m.get("isStep").map(_.toBoolean),
       isString = m.get("isString").map(_.toBoolean),
       assetIds = m.get("assetId").map(idsFromWrappedArray),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId))
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_)))
     )
 }
 object TimeSeriesRelation extends UpsertSchema {
