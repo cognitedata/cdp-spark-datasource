@@ -441,7 +441,7 @@ final case class NumericDataPointsRdd(
         case 0 =>
           array(i) = id match {
             case CogniteInternalId(id) => id
-            case _ => null  // scalastyle:off null
+            case _ => null // scalastyle:off null
           }
         case 1 =>
           array(i) = id match {
