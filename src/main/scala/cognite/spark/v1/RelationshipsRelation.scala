@@ -83,7 +83,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       startTime =
         timeRangeFromMinAndMax(minTime = m.get("minStartTime"), maxTime = m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(minTime = m.get("minEndTime"), maxTime = m.get("maxEndTime")),
-      labels = m.get("labels").map(externalIdsToContainsAny).getOrElse(None),
+      labels = m.get("labels").flatMap(externalIdsToContainsAny),
       confidence = confidenceRangeFromLimitStrings(
         minConfidence = m.get("minConfidence"),
         maxConfidence = m.get("maxConfidence")),
@@ -110,10 +110,10 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Upsert is not supported for relationships")
+    throw new CdfSparkException("Upsert is not supported for relationships.")
 
   override def update(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Update is not supported for relationships")
+    throw new CdfSparkException("Update is not supported for relationships.")
 
   def relationshipToRelationshipReadSchema(relationship: Relationship): RelationshipsReadSchema =
     RelationshipsReadSchema(

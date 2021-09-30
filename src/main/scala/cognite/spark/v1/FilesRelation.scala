@@ -1,16 +1,14 @@
 package cognite.spark.v1
 
 import java.time.Instant
-import io.scalaland.chimney.dsl._
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.{AssetCreate, File, FileCreate, FileUpdate, GenericClient}
+import com.cognite.sdk.scala.v1.{File, FileCreate, FileUpdate, GenericClient}
 import cognite.spark.v1.SparkSchemaHelper._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import cats.implicits._
-import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
-import com.cognite.sdk.scala.common.{WithExternalId, WithId}
+import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.Files
 import fs2.Stream
 import io.scalaland.chimney.Transformer
@@ -68,7 +66,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       files,
       isUpdateEmpty,
       client.files,
-      mustBeUpdate = r => r.name.isEmpty && r.getExternalId().nonEmpty)
+      mustBeUpdate = f => f.name.isEmpty && f.getExternalId().nonEmpty)
   }
 
   override def schema: StructType = structType[File]

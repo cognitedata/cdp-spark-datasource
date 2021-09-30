@@ -35,6 +35,7 @@ The instructions below explain how to read from, and write to, the different res
     - [Sequence rows schema](#sequence-rows-schema)
     - [Labels schema](#labels-schema)
     - [Relationships schema](#relationships-schema)
+    - [Data sets schema](#data-sets-schema)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -49,6 +50,7 @@ The instructions below explain how to read from, and write to, the different res
     - [RAW tables](#raw-tables)
     - [Labels](#labels)
     - [Relationships](#relationships)
+    - [Data sets](#data-sets)
   - [Comprehensive example](#comprehensive-examples)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
@@ -463,27 +465,27 @@ The schemas mirror the CDF API as closely as possible.
 | `dataSetId`          | `long`                | Yes       |
 
 ### Sequences schema
-| Column name          | Type                  |  Nullable |
-| ---------------------| ----------------------| --------- |
-| `externalId`         | `string`              | Yes        |
-| `name`   | `string`              | Yes        |
-| `description`             | `string`              | Yes       |
-| `assetId`               | `long`              | Yes        |
-| `metadata`           | `map(string, string)` | Yes       |
-| `dataSetId`          | `long`                | Yes       |
-| `columns`        | `array(SequenceColumn)`              | No       |
+| Column name          | Type                    |  Nullable |
+| ---------------------| ------------------------| --------- |
+| `externalId`         | `string`                | Yes       |
+| `name`               | `string`                | Yes       |
+| `description`        | `string`                | Yes       |
+| `assetId`            | `long`                  | Yes       |
+| `metadata`           | `map(string, string)`   | Yes       |
+| `dataSetId`          | `long`                  | Yes       |
+| `columns`            | `array(SequenceColumn)` | No        |
 
 The `columns` field should be an array of `SequenceColumn`s, which are rows with the following fields:
 
-| Column name          | Type                  |  Nullable |
-| ---------------------| ----------------------| --------- |
-| `externalId`         | `string`              | No        |
-| `name`   | `string`              | Yes        |
-| `description`             | `string`              | Yes       |
-| `valueType`               | `string`              | No        |
-| `metadata`           | `map(string, string)` | Yes       |
-| `dataSetId`          | `long`                | Yes       |
-| `columns`        | `array(SequenceColumn)`              | No       |
+| Column name          | Type                    |  Nullable |
+| ---------------------| ------------------------| --------- |
+| `externalId`         | `string`                | No        |
+| `name`               | `string`                | Yes       |
+| `description`        | `string`                | Yes       |
+| `valueType`          | `string`                | No        |
+| `metadata`           | `map(string, string)`   | Yes       |
+| `dataSetId`          | `long`                  | Yes       |
+| `columns`            | `array(SequenceColumn)` | No        |
 
 ### Sequence rows schema
 
@@ -512,6 +514,15 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `confidence`       | `double`        | Yes      |
 | `labels`           | `array(string)` | Yes      |
 | `dataSetId`        | `long`          | Yes      |
+
+### Data sets schema
+| Column name        | Type                  | Nullable |
+|--------------------|-----------------------|----------|
+| `externalId`       | `string`              | Yes      |
+| `name`             | `string`              | Yes      |
+| `description`      | `string`              | Yes      |
+| `metadata`         | `map(string, string)` | Yes      |
+| `writeProtected`   | `string`              | No       |
 
 ## Examples by resource types
 
@@ -1156,6 +1167,37 @@ spark.sql(
   .option("onconflict", "abort") \
   .save()
 
+```
+
+### Data sets
+
+Learn more about labels [here](https://docs.cognite.com/api/v1/#tag/Data-sets)
+
+Note that data sets can be read, created and updated, but not deleted.
+
+```python
+# Python Example
+
+# Read data sets
+df = spark.read.format("cognite.spark.v1") \
+    .option("apiKey", myApiKey) \
+    .option("type", "datasets") \
+    .load()
+
+df.show()
+
+
+# Write labels
+spark.sql(
+    "select 'new-datasets' as externalId," \
+    " 'New Dataset' as name," \
+    " 'text' as description") \
+    " null as metadata") \
+    " true as writeProtected") \
+  .write.format("cognite.spark.v1") \
+  .option("apiKey", "myApiKey") \
+  .option("type", "datasets") \
+  .save()
 ```
 
 

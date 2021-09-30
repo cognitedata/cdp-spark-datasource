@@ -148,6 +148,8 @@ class DefaultSource
         new LabelsRelation(config)(sqlContext)
       case "relationships" =>
         new RelationshipsRelation(config)(sqlContext)
+      case "datasets" =>
+        new DataSetsRelation(config)(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -185,6 +187,8 @@ class DefaultSource
           createSequenceRows(parameters, config, sqlContext)
         case "relationships" =>
           new RelationshipsRelation(config)(sqlContext)
+        case "datasets" =>
+          new DataSetsRelation(config)(sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {
