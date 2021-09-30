@@ -6,9 +6,12 @@ import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.DataSets
 import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, DataSetUpdate, GenericClient}
+import io.scalaland.chimney.Transformer
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
+
+import java.time.Instant
 
 class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[DataSet, String](config, "datasets")
@@ -59,8 +62,8 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 object DataSetsRelation extends UpsertSchema {
   val upsertSchema: StructType = structType[DataSetsUpsertSchema]
-  val insertSchema: StructType = structType[DataSetCreate]
-  val readSchema: StructType = structType[DataSet]
+  val insertSchema: StructType = structType[DataSetsInsertSchema]
+  val readSchema: StructType = structType[DataSetsReadSchema]
 }
 
 case class DataSetsUpsertSchema(
@@ -69,6 +72,37 @@ case class DataSetsUpsertSchema(
     name: OptionalField[String] = FieldNotSpecified,
     description: OptionalField[String] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
-    writeProtected: Boolean = false)
+    writeProtected: Option[Boolean] = None)
     extends WithNullableExtenalId
     with WithId[Option[Long]]
+object DataSetsUpsertSchema {
+  implicit val toCreate: Transformer[DataSetsUpsertSchema, DataSetCreate] =
+    Transformer
+      .define[DataSetsUpsertSchema, DataSetCreate]
+      .withFieldComputed(
+        _.writeProtected,
+        _.writeProtected.getOrElse(
+          throw new CdfSparkIllegalArgumentException(
+            "The writeProtected field must be set when creating data sets.")
+        )
+      )
+      .buildTransformer
+}
+
+case class DataSetsInsertSchema(
+    externalId: Option[String] = None,
+    name: Option[String] = None,
+    description: Option[String] = None,
+    metadata: Option[Map[String, String]] = None,
+    writeProtected: Boolean = false)
+
+case class DataSetsReadSchema(
+    id: Long = 0,
+    name: Option[String] = None,
+    writeProtected: Boolean = false,
+    externalId: Option[String] = None,
+    description: Option[String] = None,
+    metadata: Option[Map[String, String]] = None,
+    createdTime: Instant = Instant.ofEpochMilli(0),
+    lastUpdatedTime: Instant = Instant.ofEpochMilli(0)
+)

@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.DataSet
+import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}
 
 class DataSetsRelationTest extends FlatSpec
@@ -18,15 +19,17 @@ class DataSetsRelationTest extends FlatSpec
   val isWriteProtected = false
   val id = 86163806167772L
 
+  val dataSetDf = spark.read
+    .format("cognite.spark.v1")
+    .option("apiKey", writeApiKey)
+    .option("type", "datasets")
+    .load()
+    .where(s"name = '$name'")
+  dataSetDf.createOrReplaceTempView("datasets")
+
   it should "be able to read a data set" taggedAs (ReadTest) in {
 
-    val rows = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "dataset")
-      .load()
-      .where(s"name = '$name''")
-      .collect()
+    val rows = dataSetDf.collect()
 
     assert(rows.length == 1)
     val dataset = fromRow[DataSet](rows.head)
@@ -42,7 +45,7 @@ class DataSetsRelationTest extends FlatSpec
     spark.sql(
       s"""
          |select '$externalId' as externalId,
-         |'$id' as id
+         |$id as id
          |""".stripMargin)
       .write
       .format("cognite.spark.v1")
@@ -52,13 +55,10 @@ class DataSetsRelationTest extends FlatSpec
       .option("collectMetrics", "true")
       .save()
 
-    val rows = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "dataset")
-      .load()
-      .where(s"name = '$name''")
-      .collect()
+    val rows = retryWhile[Array[Row]](
+      spark.sql(s"select * from datasets where id = $id and externalId = '$externalId'").collect,
+      rows => rows.length < 1
+    )
 
     assert(rows.length == 1)
     val dataset = fromRow[DataSet](rows.head)
