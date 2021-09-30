@@ -50,7 +50,7 @@ final case class Granularity(
     case ChronoUnit.HOURS => if (isLongFormat) "hour" else "h"
     case ChronoUnit.MINUTES => if (isLongFormat) "minute" else "m"
     case ChronoUnit.SECONDS => if (isLongFormat) "second" else "s"
-    case _ => throw new CdfSparkException("Invalid granularity unit")
+    case _ => throw new CdfSparkException("Invalid granularity unit.")
   }
 
   val amount: Long = amountOption.getOrElse(1)

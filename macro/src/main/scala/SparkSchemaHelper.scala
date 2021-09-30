@@ -6,7 +6,6 @@ import org.apache.spark.sql.types.StructType
 import com.cognite.sdk.scala.common.{NonNullableSetter, Setter}
 
 import scala.reflect.macros.blackbox.Context
-import scala.util.{Failure, Success, Try}
 
 class SparkSchemaHelperImpl(val c: Context) {
   def asRow[T: c.WeakTypeTag](x: c.Expr[T]): c.Expr[Row] = {
