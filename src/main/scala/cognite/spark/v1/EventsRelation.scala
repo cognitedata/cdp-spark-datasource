@@ -71,7 +71,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       assetIds = m.get("assetIds").map(idsFromWrappedArray),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
       lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId))
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_)))
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

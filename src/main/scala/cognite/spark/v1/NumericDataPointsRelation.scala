@@ -2,11 +2,10 @@ package cognite.spark.v1
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-
 import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
 import cats.effect.IO
 import cats.implicits._
-import PushdownUtilities.{pushdownToParameters, toPushdownFilterExpression}
+import PushdownUtilities.{getIdFromMap, pushdownToParameters, toPushdownFilterExpression}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow}
 import cats.data.Validated.{Invalid, Valid}
 import org.apache.spark.rdd.RDD
@@ -14,6 +13,7 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
 import cognite.spark.v1.SparkSchemaHelper.structType
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
 
 import scala.util.matching.Regex
 
@@ -34,11 +34,23 @@ final case class DataPointsItem(
     granularity: Option[String]
 )
 
+abstract class RowWithCogniteId(contextMsg: String) {
+  val id: Option[Long]
+  val externalId: Option[String]
+  def getCogniteId: CogniteId =
+    id.filter(_ > 0)
+      .map(CogniteInternalId(_))
+      .orElse[CogniteId](externalId.map(CogniteExternalId(_)))
+      .getOrElse(throw new CdfSparkIllegalArgumentException(
+        s"The id or externalId fields must be set when $contextMsg."))
+}
+
 final case class InsertDataPointsItem(
     id: Option[Long],
     externalId: Option[String],
     timestamp: Instant,
     value: Double)
+    extends RowWithCogniteId("inserting data points")
 
 final case class Granularity(
     amountOption: Option[Long],
@@ -136,33 +148,17 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
   }
 
   def insertSeqOfRows(rows: Seq[Row]): IO[Unit] = {
-    val (dataPointsWithId, dataPointsWithExternalId) =
-      rows.map(r => fromRow[InsertDataPointsItem](r)).partition(p => p.id.exists(_ > 0))
+    val dataPoints =
+      rows.map(r => fromRow[InsertDataPointsItem](r))
 
-    if (dataPointsWithExternalId.exists(_.externalId.isEmpty)) {
-      throw new CdfSparkIllegalArgumentException(
-        "The id or externalId fields must be set when inserting data points.")
-    }
-
-    val updatesById = dataPointsWithId.groupBy(_.id).map {
+    val updates = dataPoints.groupBy(_.getCogniteId).map {
       case (id, dataPoints) =>
         client.dataPoints
-          .insertById(id.get, dataPoints.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
+          .insert(id, dataPoints.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
           .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
     }
 
-    val updatesByExternalId = dataPointsWithExternalId.groupBy(_.externalId).map {
-      case (Some(externalId), dataPoints) =>
-        client.dataPoints
-          .insertByExternalId(externalId, dataPoints.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
-          .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
-      case (None, _) =>
-        throw new CdfSparkIllegalArgumentException(
-          "The id or externalId fields must be set when inserting data points.")
-    }
-
-    (updatesById.toVector.parSequence_, updatesByExternalId.toVector.parSequence_)
-      .parMapN((_, _) => ())
+    updates.toVector.parSequence_
   }
 
   private val namesToFields: Map[String, Int] = Map(
@@ -178,11 +174,10 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val timestampLimits = filtersToTimestampLimits(filters, "timestamp")
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-    val ids = filtersAsMaps.flatMap(m => m.get("id")).map(_.toLong).distinct
-    val externalIds = filtersAsMaps.flatMap(m => m.get("externalId")).distinct
+    val ids = filtersAsMaps.flatMap(getIdFromMap).distinct
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
-    if (ids.isEmpty && externalIds.isEmpty) {
+    if (ids.isEmpty) {
       throw new CdfSparkIllegalArgumentException(
         "Please filter by one or more ids or externalIds when reading data points." +
           " Note that specifying id or externalId through joins is not possible at the moment."
@@ -204,7 +199,6 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       sqlContext.sparkContext,
       config,
       ids,
-      externalIds,
       timestampLimits,
       aggregations,
       granularities,

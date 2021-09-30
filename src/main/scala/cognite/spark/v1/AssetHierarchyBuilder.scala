@@ -187,7 +187,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           trees.map(_.root.externalId),
           ids =>
             client.assets
-              .filter(AssetsFilter(assetSubtreeIds = Some(ids.map(CogniteExternalId))))
+              .filter(AssetsFilter(assetSubtreeIds = Some(ids.map(CogniteExternalId(_)))))
               .compile
               .toVector
               .map(_.filter(a => !a.externalId.exists(ingestedNodeSet.contains))
@@ -310,7 +310,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       updatedAsset.name == asset.name &&
       updatedAsset.source.toOption == asset.source &&
       updatedAsset.dataSetId.toOption == asset.dataSetId &&
-      updatedAsset.labels.getOrElse(Seq()).map(CogniteExternalId) == asset.labels.getOrElse(Seq()) &&
+      updatedAsset.labels.getOrElse(Seq()).map(CogniteExternalId(_)) == asset.labels.getOrElse(Seq()) &&
       (updatedAsset.parentExternalId == "" && asset.parentId.isEmpty || asset.parentExternalId.contains(
         updatedAsset.parentExternalId))
 

@@ -11,7 +11,7 @@ import org.apache.spark.sql.Row
 final case class StringDataPointsRdd(
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
-    getIOs: GenericClient[IO] => Seq[(StringDataPointsFilter, IO[Seq[StringDataPoint]])],
+    getIOs: GenericClient[IO] => Seq[(CogniteId, IO[Seq[StringDataPoint]])],
     toRow: StringDataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
 
@@ -25,7 +25,7 @@ final case class StringDataPointsRdd(
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdfPartition]
-    val (filter, io) = getIOs(client)(split.index)
+    val (id, io) = getIOs(client)(split.index)
 
     new InterruptibleIterator(
       context,
@@ -33,8 +33,14 @@ final case class StringDataPointsRdd(
         .map { sdp =>
           toRow(
             StringDataPointsItem(
-              filter.id,
-              filter.externalId,
+              id match {
+                case CogniteInternalId(id) => Some(id)
+                case _ => None
+              },
+              id match {
+                case CogniteExternalId(externalId) => Some(externalId)
+                case _ => None
+              },
               sdp.timestamp,
               sdp.value
             ))

@@ -70,7 +70,7 @@ class DefaultSource
         .get("id")
         .map(id => CogniteInternalId(id.toInt))
         .orElse(
-          parameters.get("externalId").map(CogniteExternalId)
+          parameters.get("externalId").map(CogniteExternalId(_))
         )
         .getOrElse(
           sys.error("id or externalId option must be specified.")
