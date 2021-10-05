@@ -146,7 +146,7 @@ class RawTableRelation(
     val timestampLimits = filters.flatMap(getTimestampLimit(_, colName))
 
     if (timestampLimits.exists(_.value.isBefore(Instant.ofEpochMilli(0)))) {
-      sys.error("timestamp limits must exceed 1970-01-01T00:00:00Z")
+      throw new CdfSparkIllegalArgumentException("timestamp limits must exceed 1970-01-01T00:00:00Z")
     }
 
     Tuple2(
