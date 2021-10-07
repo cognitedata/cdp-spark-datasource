@@ -81,11 +81,6 @@ final case class NumericDataPointsRdd(
       countEnd: Option[Instant] = None): Seq[Range] =
     counts match {
       case count +: moreCounts =>
-        if (count.value > maxPointsPerPartition) {
-          throw new CdfInternalSparkException(
-            s"More than ${maxPointsPerPartition} for id $id in interval starting at ${count.timestamp.toString}" +
-              " with granularity ${granularity.toString}. Please report this to Cognite.")
-        }
         val accumulatedCount = count.value.toLong + countSum
         if (accumulatedCount > partitionSize) {
           val newRange = DataPointsRange(
@@ -121,11 +116,16 @@ final case class NumericDataPointsRdd(
         }
     }
 
-  // We must not exceed this. We're assuming there are less than this many
-  // points for the smallest interval (1s) which seems reasonable, but we
-  // could choose to do paging when that is not the case.
-  private val maxPointsPerPartition = Constants.DefaultDataPointsLimit
-  private val partitionSize = 100000
+  // Max number of datapoints we *want* to have per Range
+  // In case the range is bigger than 100k - the CDF limit, we'll
+  // use paging to download all datapoints.
+  // 10 * Constants.DefaultDataPointsLimit will give us at most 10 pages per range,
+  // which should not slow us down significantly
+  // We can also have at most 10k separate ranges, because the API does not give use more than
+  // 10k aggregates. These cases should be quite rare, but in such case,
+  // we'll likely have larger Range than this partitionSize and have to page
+  // through more than 10 pages.
+  private val partitionSize = 10 * Constants.DefaultDataPointsLimit
   // This bucketSize results in a partition size of around 100-150 MiB,
   // which is a reasonable number. We could increase this, at the cost
   // of reducing the parallelism of smaller time series.
@@ -147,6 +147,7 @@ final case class NumericDataPointsRdd(
     Granularity(Some(3), ChronoUnit.HOURS),
     Granularity(Some(1), ChronoUnit.HOURS),
     Granularity(Some(30), ChronoUnit.MINUTES),
+    Granularity(Some(15), ChronoUnit.MINUTES),
     Granularity(Some(1), ChronoUnit.MINUTES),
     Granularity(Some(30), ChronoUnit.SECONDS),
     Granularity(Some(1), ChronoUnit.SECONDS)
@@ -180,7 +181,7 @@ final case class NumericDataPointsRdd(
       id: CogniteId,
       start: Instant,
       end: Instant,
-      granularities: Seq[Granularity] = granularitiesToTry): IO[Seq[Range]] =
+      granularities: Seq[Granularity] = granularitiesToTry): IO[Option[Seq[Range]]] =
     granularities match {
       case granularity +: moreGranular =>
         // convert start to closest previous granularity unit
@@ -193,19 +194,25 @@ final case class NumericDataPointsRdd(
           Instant.ofEpochMilli(ceilToNearest(end.toEpochMilli, granularityUnitMillis)),
           granularity.toString,
           Seq("count"),
-          10000
+          maxPointsPerAggregationRange
         ).flatMap { aggregates =>
           aggregates.get("count") match {
             case Some(countsResponses) =>
               val counts = countsResponses.flatMap(_.datapoints)
-              if (counts.map(_.value).max > partitionSize && moreGranular.nonEmpty) {
+              lazy val rangesFromCounts = Some(countsToRanges(id, counts, granularity))
+              if (counts.length == maxPointsPerAggregationRange) {
+                // we have probably ran out of the limit of 10k partitions,
+                // so we'll refuse this granularity
+                IO.pure(None)
+              } else if (counts.map(_.value).max > partitionSize && moreGranular.nonEmpty) {
                 smallEnoughRanges(id, start, end, moreGranular)
+                  .map(_.orElse(rangesFromCounts))
               } else {
-                IO.pure(countsToRanges(id, counts, granularity))
+                IO.pure(rangesFromCounts)
               }
             case None =>
               // can't rely on aggregates for this range so page through it
-              IO.pure(Seq(DataPointsRange(id, start, end, None)))
+              IO.pure(Some(Seq(DataPointsRange(id, start, end, None))))
           }
         }
     }
@@ -288,11 +295,12 @@ final case class NumericDataPointsRdd(
       .parEvalMapUnordered(50) {
         case (id, Some(first), Some(latest)) =>
           if (latest >= first) {
-            smallEnoughRanges(id, first, latest)
+            smallEnoughRanges(id, first, latest).map(
+              _.getOrElse(sys.error(s"Too many datapoints even for the highest granularity.")))
           } else {
-            IO(Seq(DataPointsRange(id, first, latest.plusMillis(1), Some(1))))
+            IO.pure(Seq(DataPointsRange(id, first, latest.plusMillis(1), Some(1))))
           }
-        case _ => IO(Seq.empty)
+        case _ => IO.pure(Seq.empty)
       }
       .map(Stream.emits)
       .flatten
@@ -359,70 +367,24 @@ final case class NumericDataPointsRdd(
       .unsafeRunSync()
   }
 
-  private def queryDoubles(
-      id: CogniteId,
-      lowerLimit: Instant,
-      upperLimit: Instant,
-      nPointsRemaining: Option[Int]) = {
-    val responses = id match {
-      case CogniteInternalId(internalId) =>
-        client.dataPoints
-          .queryByIds(Seq(internalId), lowerLimit, upperLimit, nPointsRemaining, ignoreUnknownIds = true)
-          .map(_.headOption
-            .map { ts =>
-              WrongDatapointTypeException
-                .check(ts.isString, ts.id, ts.externalId, shouldBeString = false)
-              ts.datapoints
-            }
-            .getOrElse(Seq.empty))
-      case CogniteExternalId(externalId) =>
-        client.dataPoints
-          .queryByExternalIds(
-            Seq(externalId),
-            lowerLimit,
-            upperLimit,
-            nPointsRemaining,
-            ignoreUnknownIds = true)
-          .map(_.headOption
-            .map { ts =>
-              WrongDatapointTypeException
-                .check(ts.isString, ts.id, Some(ts.externalId), shouldBeString = false)
-              ts.datapoints
-            }
-            .getOrElse(Seq.empty))
-    }
-    responses.map { dataPoints =>
+  private def queryDoubles(id: CogniteId, lowerLimit: Instant, upperLimit: Instant, limit: Int) =
+    queryDatapointsById(id, lowerLimit, upperLimit, limit).map { dataPoints =>
       val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
       (lastTimestamp, dataPoints)
     }
-  }
 
-  private def queryDataPointsRange(dataPointsRange: DataPointsRange, limit: Option[Int] = None) = {
-    val points = dataPointsRange.count match {
-      case Some(_) =>
-        queryDatapointsById(
-          dataPointsRange.id,
-          dataPointsRange.start,
-          dataPointsRange.end,
-          limit.getOrElse(100000))
-          .map { datapoints =>
-            increaseReadMetrics(datapoints.length)
-            datapoints.map(p => dataPointToRow(dataPointsRange.id, p))
-          }
-      case None =>
-        // Page through this range since we don't know how many points it contains.
-        DataPointsRelationV1
-          .getAllDataPoints[SdkDataPoint](
-            queryDoubles,
-            config.batchSize,
-            dataPointsRange.id,
-            dataPointsRange.start,
-            dataPointsRange.end)
-          .map { allDataPoints =>
-            increaseReadMetrics(allDataPoints.length)
-            allDataPoints.map(p => dataPointToRow(dataPointsRange.id, p))
-          }
-    }
+  private def queryDataPointsRange(dataPointsRange: DataPointsRange) = {
+    val points = DataPointsRelationV1
+      .getAllDataPoints[SdkDataPoint](
+        queryDoubles,
+        config.batchSize.getOrElse(Constants.DefaultDataPointsLimit),
+        dataPointsRange.id,
+        dataPointsRange.start,
+        dataPointsRange.end)
+      .map { allDataPoints =>
+        increaseReadMetrics(allDataPoints.length)
+        allDataPoints.map(p => dataPointToRow(dataPointsRange.id, p))
+      }
     Stream.evalUnChunk(points.map(Chunk.seq))
   }
 
