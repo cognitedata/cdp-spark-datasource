@@ -47,6 +47,9 @@ trait SparkTest {
   implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
   val readClient = GenericClient.forAuth[Id]("cdp-spark-datasource-test", readApiKeyAuth)
 
+  // not needed to run tests, only for replicating some problems specific to this tenant
+  lazy val jetfiretest2ApiKey = System.getenv("TEST_APU_KEY_JETFIRETEST2")
+
   val testDataSetId = 86163806167772L
 
   val spark: SparkSession = SparkSession

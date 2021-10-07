@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
-import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.functions.{col, expr}
 import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField, TimestampType}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import org.apache.spark.SparkException
@@ -964,5 +964,31 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
 
     assert(error.getMessage.contains(s"Cannot read string data points as numeric datapoints"))
     assert(error.getMessage.contains(s"The timeseries id=$valhallStringTimeSeriesId"))
+  }
+
+  // Ignored because it runs for an hour (on not so good computer and not so good internet)
+  ignore should "just read all ~1B datapoints and not give up on 61mil ¯\\_(ツ)_/¯" in {
+    import spark.implicits._
+    val metricsPrefix = "datapoints.bigtable.dont.give.up.please"
+
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", jetfiretest2ApiKey)
+      .option("type", "datapoints")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where(col("id").equalTo(6518187534741535L))
+
+    val realCount =
+      df.where(expr("aggregation = 'count' and granularity = '1000d'"))
+        .select("value")
+        .as[Double]
+        .collect()
+        .sum
+    assert(realCount > 1000 * 1000 * 800)
+    val loadedCount = df.count() // this should actually load the datapoints from CDF
+    assert(loadedCount == realCount)
+    assert(loadedCount == getNumberOfRowsRead(metricsPrefix, "datapoints") - 1)
   }
 }
