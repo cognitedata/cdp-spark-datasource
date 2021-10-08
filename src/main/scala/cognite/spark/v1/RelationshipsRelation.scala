@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
@@ -15,7 +14,9 @@ import cognite.spark.v1.PushdownUtilities.{
   toPushdownFilterExpression
 }
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1._
+import com.cognite.sdk.scala.v1.resources.Relationships
 import fs2.Stream
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
@@ -111,8 +112,22 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def upsert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Upsert is not supported for relationships.")
 
-  override def update(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Update is not supported for relationships.")
+  override def update(rows: Seq[Row]): IO[Unit] = {
+    val relationshipsUpdates = rows.map(fromRow[RelationshipsUpsertSchema](_))
+    createOrUpdateByExternalId[
+      Relationship,
+      RelationshipUpdate,
+      RelationshipCreate,
+      Option,
+      Relationships[IO]](
+      Set.empty,
+      relationshipsUpdates,
+      client.relationships,
+      doUpsert = true
+    )
+  }
+
+  private def isUpdateEmpty(u: RelationshipUpdate): Boolean = u == RelationshipUpdate()
 
   def relationshipToRelationshipReadSchema(relationship: Relationship): RelationshipsReadSchema =
     RelationshipsReadSchema(
@@ -160,6 +175,7 @@ object RelationshipsRelation {
   var insertSchema: StructType = structType[RelationshipsInsertSchema]
   var readSchema: StructType = structType[RelationshipsReadSchema]
   var deleteSchema: StructType = structType[RelationshipsDeleteSchema]
+  var upsertSchema: StructType = structType[RelationshipsUpsertSchema]
 }
 
 final case class RelationshipsDeleteSchema(
@@ -193,3 +209,16 @@ final case class RelationshipsReadSchema(
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
     dataSetId: Option[Long] = None
 )
+
+final case class RelationshipsUpsertSchema(
+    externalId: OptionalField[String] = FieldNotSpecified,
+    sourceExternalId: OptionalField[String] = FieldNotSpecified,
+    sourceType: OptionalField[String] = FieldNotSpecified,
+    targetExternalId: OptionalField[String] = FieldNotSpecified,
+    targetType: OptionalField[String] = FieldNotSpecified,
+    startTime: OptionalField[Instant] = FieldNotSpecified,
+    endTime: OptionalField[Instant] = FieldNotSpecified,
+    confidence: OptionalField[Double] = FieldNotSpecified,
+    labels: OptionalField[Seq[String]] = FieldNotSpecified,
+    dataSetId: OptionalField[Long] = FieldNotSpecified
+) extends WithNullableExtenalId
