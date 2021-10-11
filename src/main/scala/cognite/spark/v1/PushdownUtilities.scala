@@ -166,26 +166,18 @@ object PushdownUtilities {
   def timeStampStringToMax(value: Any, adjustment: Long): Max =
     Max(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
 
-  def getExternalIdSeqFromExternalId(externalId: Option[String]): Option[Seq[String]] =
-    externalId match {
-      case None => None
-      case _ => Some(Seq(externalId.get))
-    }
-
   def cogniteExternalIdSeqToStringSeq(
       cogniteExternalIds: Option[Seq[CogniteExternalId]]): Option[Seq[String]] =
     cogniteExternalIds match {
-      case None => None
       case Some(Seq()) => None
-      case _ => Some(cogniteExternalIds.get.map(_.externalId))
+      case _ => cogniteExternalIds.map(l => l.map(_.externalId))
     }
 
   def stringSeqToCogniteExternalIdSeq(
       strExternalIds: Option[Seq[String]]): Option[Seq[CogniteExternalId]] =
     strExternalIds match {
-      case None => None
       case Some(Seq()) => None
-      case _ => Some(strExternalIds.get.map(CogniteExternalId(_)))
+      case _ => strExternalIds.map(l => l.map(CogniteExternalId(_)))
     }
 
   def externalIdsToContainsAny(externalIds: String): Option[ContainsAny] = {

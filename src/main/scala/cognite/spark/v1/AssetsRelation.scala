@@ -20,7 +20,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with InsertableRelation
     with WritableRelation {
   import CdpConnector._
-
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -147,6 +146,15 @@ object AssetsUpsertSchema {
         _.name.getOrElse(throw new CdfSparkIllegalArgumentException(
           "The name field must be set when creating assets.")))
       .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
+      .buildTransformer
+
+  implicit val toUpdate: Transformer[AssetsUpsertSchema, AssetUpdate] =
+    Transformer
+      .define[AssetsUpsertSchema, AssetUpdate]
+      .withFieldComputed(
+        _.labels,
+        assetHierarchy =>
+          NonNullableSetter.fromOption(assetHierarchy.labels.map(_.map(l => CogniteExternalId(l)))))
       .buildTransformer
 }
 

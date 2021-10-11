@@ -6,15 +6,8 @@ import cats.implicits._
 import cats.syntax._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
-import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
-import com.cognite.sdk.scala.v1.{
-  Asset,
-  AssetCreate,
-  AssetUpdate,
-  AssetsFilter,
-  CogniteExternalId,
-  LabelsOnUpdate
-}
+import com.cognite.sdk.scala.common.{CdpApiException, NonNullableSetter, SetValue}
+import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, CogniteExternalId}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -373,10 +366,9 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def toAssetUpdate(a: AssetsIngestSchema): AssetUpdate =
     a.into[AssetUpdate]
-      .withFieldComputed(_.labels, _.labels match {
-        case labelList: Some[Seq[String]] =>
-          Some(LabelsOnUpdate(add = stringSeqToCogniteExternalIdSeq(labelList)))
-        case _ => None
+      .withFieldComputed(_.labels, assetHierarchy => {
+        val labels = assetHierarchy.labels.map(_.map(l => CogniteExternalId(l)))
+        NonNullableSetter.fromOption(labels)
       })
       .transform
 
