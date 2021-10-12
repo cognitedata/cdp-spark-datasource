@@ -11,7 +11,7 @@ val circeVersion: Option[(Long, Long)] => String = {
   case Some((2, 11)) => "0.12.0-M3"
   case _ => "0.14.0"
 }
-val sttpVersion = "3.3.13"
+val sttpVersion = "3.3.15"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 val cogniteSdkVersion = "1.5.11"
@@ -127,7 +127,7 @@ lazy val library = (project in file("."))
         exclude("org.typelevel", "cats-core_2.11")
         exclude("org.typelevel", "cats-core_2.12"),
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
-      "org.eclipse.jetty" % "jetty-servlet" % "9.3.24.v20180605" % Provided,
+      "org.eclipse.jetty" % "jetty-servlet" % "9.4.44.v20210927" % Provided,
       "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
