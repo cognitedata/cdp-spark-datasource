@@ -7,7 +7,6 @@ import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
   cogniteExternalIdSeqToStringSeq,
   externalIdsToContainsAny,
-  getExternalIdSeqFromExternalId,
   idsFromWrappedArray,
   pushdownToParameters,
   shouldGetAll,
@@ -75,10 +74,10 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter =
     RelationshipsFilter(
-      sourceExternalIds = getExternalIdSeqFromExternalId(m.get("sourceExternalId")),
-      sourceTypes = getExternalIdSeqFromExternalId(m.get("sourceType")),
-      targetExternalIds = getExternalIdSeqFromExternalId(m.get("targetExternalId")),
-      targetTypes = getExternalIdSeqFromExternalId(m.get("targetType")),
+      sourceExternalIds = m.get("sourceExternalId").map(Seq(_)),
+      sourceTypes = m.get("sourceType").map(Seq(_)),
+      targetExternalIds = m.get("targetExternalId").map(Seq(_)),
+      targetTypes = m.get("targetType").map(Seq(_)),
       dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
       startTime =
         timeRangeFromMinAndMax(minTime = m.get("minStartTime"), maxTime = m.get("maxStartTime")),
