@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common.{Auth, SetNull, SetValue, Setter}
+import com.cognite.sdk.scala.common.{Auth, NonNullableSetter, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1._
 import io.scalaland.chimney.Transformer
 import org.apache.spark.datasource.MetricsSource
@@ -29,6 +29,17 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
         counter.inc(count)
       }
     )
+
+  // Needed for labels property when transforming from UpsertSchema to Update
+  implicit def seqStrToCogIdSetter
+    : Transformer[Option[Seq[String]], Option[NonNullableSetter[Seq[CogniteExternalId]]]] =
+    new Transformer[Option[Seq[String]], Option[NonNullableSetter[Seq[CogniteExternalId]]]] {
+      override def transform(
+          src: Option[Seq[String]]): Option[NonNullableSetter[Seq[CogniteExternalId]]] = {
+        val labels = src.map(l => l.map(CogniteExternalId(_)))
+        NonNullableSetter.fromOption(labels)
+      }
+    }
 
   implicit def fieldToSetter[T: Manifest]: Transformer[OptionalField[T], Option[Setter[T]]] =
     new Transformer[OptionalField[T], Option[Setter[T]]] {

@@ -1,3 +1,9 @@
+# 1.4.34
+
+## Fixes
+
+* `set` method is now used for `labels` updates. 
+
 # 1.4.33
 
 ## Enhancements

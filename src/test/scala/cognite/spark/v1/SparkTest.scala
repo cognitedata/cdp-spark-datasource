@@ -26,7 +26,6 @@ import scala.reflect.{ClassTag, classTag}
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
-object GreenfieldTest extends Tag("GreenfieldTest")
 
 trait SparkTest {
   implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1)))
