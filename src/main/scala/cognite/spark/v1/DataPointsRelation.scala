@@ -88,7 +88,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
       "discreteVariance")
     aggregation match {
       case agg: String if allowedAggregations.contains(agg) => AggregationFilter(agg)
-      case _ => sys.error(s"Invalid aggregation $aggregation")
+      case _ => throw new CdfSparkIllegalArgumentException(s"Invalid aggregation $aggregation")
     }
   }
 
@@ -99,16 +99,16 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
       case EqualNullSafe("aggregation", value) => Seq(toAggregationFilter(value.toString))
       case In("aggregation", values) =>
         values.map(v => toAggregationFilter(v.toString))
-      case And(_, _) => sys.error("AND is not allowed for aggregations")
+      case And(_, _) => throw new CdfSparkIllegalArgumentException("AND is not allowed for aggregations")
       case Or(f1, f2) => getAggregation(f1) ++ getAggregation(f2)
       case StringStartsWith("aggregation", value) =>
-        sys.error(
+        throw new CdfSparkIllegalArgumentException(
           s"Choosing aggregation using 'string starts with' not allowed for data points, attempted for ${value.toString}")
       case StringEndsWith("aggregation", value) =>
-        sys.error(
+        throw new CdfSparkIllegalArgumentException(
           s"Choosing aggregation using 'string starts with' not allowed for data points, attempted for ${value.toString}")
       case StringContains("aggregation", value) =>
-        sys.error(
+        throw new CdfSparkIllegalArgumentException(
           s"Choosing aggregation using 'string starts with' not allowed for data points, attempted for ${value.toString}")
       case _ => Seq()
     }
@@ -123,17 +123,17 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
       case EqualNullSafe("granularity", value) => toGranularityFilter(value.toString)
       case In("granularity", values) =>
         values.flatMap(v => toGranularityFilter(v.toString))
-      case And(_, _) => sys.error("AND is not allowed for granularity")
+      case And(_, _) => throw new CdfSparkIllegalArgumentException("AND is not allowed for granularity")
       case Or(f1, f2) => getGranularity(f1) ++ getGranularity(f2)
       case StringStartsWith("granularity", value) =>
-        sys.error(
-          s"Choosing granularity using 'string starts with' not allowed for data points, attempted for ${value.toString}")
+        throw new CdfSparkIllegalArgumentException(
+          s"Choosing granularity using 'string starts with' not allowed for data points, attempted for $value")
       case StringEndsWith("granularity", value) =>
-        sys.error(
-          s"Choosing granularity using 'string starts with' not allowed for data points, attempted for ${value.toString}")
+        throw new CdfSparkIllegalArgumentException(
+          s"Choosing granularity using 'string starts with' not allowed for data points, attempted for $value")
       case StringContains("granularity", value) =>
-        sys.error(
-          s"Choosing granularity using 'string starts with' not allowed for data points, attempted for ${value.toString}")
+        throw new CdfSparkIllegalArgumentException(
+          s"Choosing granularity using 'string starts with' not allowed for data points, attempted for $value")
       case _ => Seq()
     }
 }

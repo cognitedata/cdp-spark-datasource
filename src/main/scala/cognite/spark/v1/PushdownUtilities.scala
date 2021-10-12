@@ -118,7 +118,7 @@ object PushdownUtilities {
     val timestampLimits = filters.flatMap(getTimestampLimit(_, colName))
 
     if (timestampLimits.exists(_.value.isBefore(Instant.ofEpochMilli(0)))) {
-      sys.error("timestamp limits must exceed 1970-01-01T00:00:00Z")
+      throw new CdfSparkIllegalArgumentException("timestamp limits must exceed 1970-01-01T00:00:00Z")
     }
 
     Tuple2(
@@ -149,10 +149,10 @@ object PushdownUtilities {
 
   def getTimestampLimit(filter: Filter, colName: String): Seq[Limit] =
     filter match {
-      case LessThan(colName, value) => Seq(timeStampStringToMax(value, -1))
-      case LessThanOrEqual(colName, value) => Seq(timeStampStringToMax(value, 0))
-      case GreaterThan(colName, value) => Seq(timeStampStringToMin(value, 1))
-      case GreaterThanOrEqual(colName, value) => Seq(timeStampStringToMin(value, 0))
+      case LessThan(`colName`, value) => Seq(timeStampStringToMax(value, -1))
+      case LessThanOrEqual(`colName`, value) => Seq(timeStampStringToMax(value, 0))
+      case GreaterThan(`colName`, value) => Seq(timeStampStringToMin(value, 1))
+      case GreaterThanOrEqual(`colName`, value) => Seq(timeStampStringToMin(value, 0))
       case And(f1, f2) => getTimestampLimit(f1, colName) ++ getTimestampLimit(f2, colName)
       // case Or(f1, f2) => we might possibly want to do something clever with joining an "or" clause
       //                    with timestamp limits on each side (including replacing "max of Min's" with the less strict

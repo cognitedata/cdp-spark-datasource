@@ -73,7 +73,7 @@ class DefaultSource
           parameters.get("externalId").map(CogniteExternalId(_))
         )
         .getOrElse(
-          sys.error("id or externalId option must be specified.")
+          throw new CdfSparkIllegalArgumentException("id or externalId option must be specified.")
         )
 
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
