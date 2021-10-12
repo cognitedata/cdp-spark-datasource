@@ -365,12 +365,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       .transform
 
   def toAssetUpdate(a: AssetsIngestSchema): AssetUpdate =
-    a.into[AssetUpdate]
-      .withFieldComputed(_.labels, assetHierarchy => {
-        val labels = assetHierarchy.labels.map(_.map(l => CogniteExternalId(l)))
-        NonNullableSetter.fromOption(labels)
-      })
-      .transform
+    a.into[AssetUpdate].transform
 
   private def batchedOperation[I, R](
       list: Vector[I],
