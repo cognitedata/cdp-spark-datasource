@@ -148,14 +148,6 @@ object AssetsUpsertSchema {
       .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
       .buildTransformer
 
-  implicit val toUpdate: Transformer[AssetsUpsertSchema, AssetUpdate] =
-    Transformer
-      .define[AssetsUpsertSchema, AssetUpdate]
-      .withFieldComputed(
-        _.labels,
-        assetHierarchy =>
-          NonNullableSetter.fromOption(assetHierarchy.labels.map(_.map(l => CogniteExternalId(l)))))
-      .buildTransformer
 }
 
 final case class AssetsInsertSchema(
