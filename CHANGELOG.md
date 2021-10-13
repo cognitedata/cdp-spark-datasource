@@ -1,3 +1,9 @@
+# 1.4.36
+
+## Enhancements
+
+* Support updating & upserting a `Relationship` by it's `externalId`
+
 # 1.4.35
 
 ## Fixes
