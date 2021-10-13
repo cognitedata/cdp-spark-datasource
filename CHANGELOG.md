@@ -1,3 +1,9 @@
+# 1.4.35
+
+## Fixes
+
+* Fixed reading of datapoints with many partitions (see #523 for more details)
+
 # 1.4.34
 
 ## Fixes
