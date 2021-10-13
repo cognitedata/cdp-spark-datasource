@@ -1,8 +1,8 @@
 package cognite.spark.v1
 
 import cats.Id
-
 import java.time.Instant
+
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
@@ -16,7 +16,7 @@ import cognite.spark.v1.PushdownUtilities.{
   toPushdownFilterExpression
 }
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.cognite.sdk.scala.common.WithId
+import com.cognite.sdk.scala.common.{WithId, WithRequiredExternalId}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Relationships
 import fs2.Stream
@@ -205,7 +205,7 @@ final case class RelationshipsReadSchema(
 )
 
 final case class RelationshipsUpsertSchema(
-    externalId: OptionalField[String] = FieldNotSpecified,
+    externalId: String,
     sourceExternalId: OptionalField[String] = FieldNotSpecified,
     sourceType: OptionalField[String] = FieldNotSpecified,
     targetExternalId: OptionalField[String] = FieldNotSpecified,
@@ -213,20 +213,14 @@ final case class RelationshipsUpsertSchema(
     startTime: OptionalField[Instant] = FieldNotSpecified,
     endTime: OptionalField[Instant] = FieldNotSpecified,
     confidence: OptionalField[Double] = FieldNotSpecified,
-    labels: OptionalField[Seq[String]] = FieldNotSpecified,
+    labels: Option[Seq[String]] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified
-) extends WithNullableExtenalId
+) extends WithRequiredExternalId
 
 object RelationshipsUpsertSchema {
   implicit val toCreate: Transformer[RelationshipsUpsertSchema, RelationshipCreate] =
     Transformer
       .define[RelationshipsUpsertSchema, RelationshipCreate]
-      .withFieldComputed(
-        _.externalId,
-        _.externalId.getOrElse(
-          throw new CdfSparkIllegalArgumentException(
-            "The externalId field must be set when creating relationships.")
-        )
-      )
+      .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
       .buildTransformer
 }
