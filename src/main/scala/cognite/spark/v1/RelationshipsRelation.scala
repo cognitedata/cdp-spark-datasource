@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import cats.Id
+
 import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
@@ -18,6 +20,7 @@ import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Relationships
 import fs2.Stream
+import io.scalaland.chimney.Transformer
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -114,20 +117,11 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val relationshipsUpdates = rows.map(fromRow[RelationshipsUpsertSchema](_))
-    createOrUpdateByExternalId[
-      Relationship,
-      RelationshipUpdate,
-      RelationshipCreate,
-      Option,
-      Relationships[IO]](
-      Set.empty,
+    updateByExternalId[RelationshipsUpsertSchema, RelationshipUpdate, Relationships[IO], Relationship](
       relationshipsUpdates,
-      client.relationships,
-      doUpsert = true
+      client.relationships
     )
   }
-
-  private def isUpdateEmpty(u: RelationshipUpdate): Boolean = u == RelationshipUpdate()
 
   def relationshipToRelationshipReadSchema(relationship: Relationship): RelationshipsReadSchema =
     RelationshipsReadSchema(
@@ -222,3 +216,17 @@ final case class RelationshipsUpsertSchema(
     labels: OptionalField[Seq[String]] = FieldNotSpecified,
     dataSetId: OptionalField[Long] = FieldNotSpecified
 ) extends WithNullableExtenalId
+
+object RelationshipsUpsertSchema {
+  implicit val toCreate: Transformer[RelationshipsUpsertSchema, RelationshipCreate] =
+    Transformer
+      .define[RelationshipsUpsertSchema, RelationshipCreate]
+      .withFieldComputed(
+        _.externalId,
+        _.externalId.getOrElse(
+          throw new CdfSparkIllegalArgumentException(
+            "The externalId field must be set when creating relationships.")
+        )
+      )
+      .buildTransformer
+}

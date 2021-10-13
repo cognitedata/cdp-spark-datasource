@@ -106,6 +106,32 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     (updateIds, updateExternalIds).parMapN((_, _) => ())
   }
 
+  // scalastyle:off no.whitespace.after.left.bracket
+  def updateByExternalId[
+      P <: WithNullableExtenalId,
+      U <: WithSetExternalId,
+      T <: UpdateByExternalId[R, U, IO],
+      R <: ToUpdate[U] with WithRequiredExternalId](
+      updates: Seq[P],
+      resource: T
+  )(implicit transform: Transformer[P, U]): IO[Unit] = {
+    if (!updates.forall(u => u.getExternalId().isDefined)) {
+      IO.raiseError[Unit](new CdfSparkException("Update requires externalId to be set for each row."))
+    }
+    val updatesByExternalId = updates
+    val updateExternalIds = if (updatesByExternalId.isEmpty) { IO.unit } else {
+      val updatesByExternalIdMap = updatesByExternalId
+        .map(u =>
+          u.getExternalId().get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+        .toMap
+      resource
+        .updateByExternalId(updatesByExternalIdMap)
+        .flatMap(_ => incMetrics(itemsUpdated, updatesByExternalIdMap.size))
+    }
+
+    updateExternalIds.map(_ => ())
+  }
+
   // scalastyle:off no.whitespace.after.left.bracket method.length
   def createOrUpdateByExternalId[
       R <: ToCreate[C],
