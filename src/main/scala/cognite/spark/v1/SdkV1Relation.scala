@@ -108,7 +108,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   // scalastyle:off no.whitespace.after.left.bracket
   def updateByExternalId[
-      P <: WithNullableExtenalId,
+      P <: WithRequiredExternalId,
       U <: WithSetExternalId,
       T <: UpdateByExternalId[R, U, IO],
       R <: ToUpdate[U] with WithRequiredExternalId](

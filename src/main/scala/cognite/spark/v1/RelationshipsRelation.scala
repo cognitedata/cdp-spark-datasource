@@ -206,21 +206,39 @@ final case class RelationshipsReadSchema(
 
 final case class RelationshipsUpsertSchema(
     externalId: String,
-    sourceExternalId: OptionalField[String] = FieldNotSpecified,
-    sourceType: OptionalField[String] = FieldNotSpecified,
-    targetExternalId: OptionalField[String] = FieldNotSpecified,
-    targetType: OptionalField[String] = FieldNotSpecified,
-    startTime: OptionalField[Instant] = FieldNotSpecified,
-    endTime: OptionalField[Instant] = FieldNotSpecified,
-    confidence: OptionalField[Double] = FieldNotSpecified,
-    labels: Option[Seq[String]] = None,
-    dataSetId: OptionalField[Long] = FieldNotSpecified
+    sourceExternalId: Option[String] = None,
+    sourceType: Option[String] = None,
+    targetExternalId: Option[String] = None,
+    targetType: Option[String] = None,
+    startTime: Option[Instant] = None, // Nullable, use OptionalField after fixing in scala-sdk
+    endTime: Option[Instant] = None, // Nullable, use OptionalField after fixing in scala-sdk
+    confidence: Option[Double] = None, // Nullable, use OptionalField after fixing in scala-sdk
+    labels: Option[Seq[String]] = None, // Nullable, use OptionalField after fixing in scala-sdk
+    dataSetId: Option[Long] = None // Nullable, use OptionalField after fixing in scala-sdk
 ) extends WithRequiredExternalId
 
 object RelationshipsUpsertSchema {
   implicit val toCreate: Transformer[RelationshipsUpsertSchema, RelationshipCreate] =
     Transformer
       .define[RelationshipsUpsertSchema, RelationshipCreate]
+      .withFieldComputed(
+        _.sourceExternalId,
+        _.sourceExternalId.getOrElse(throw new CdfSparkIllegalArgumentException(
+          "The sourceExternalId field must be set when creating relationships."))
+      )
+      .withFieldComputed(
+        _.sourceType,
+        _.sourceType.getOrElse(throw new CdfSparkIllegalArgumentException(
+          "The sourceType field must be set when creating relationships.")))
+      .withFieldComputed(
+        _.targetExternalId,
+        _.targetExternalId.getOrElse(throw new CdfSparkIllegalArgumentException(
+          "The targetExternalId field must be set when creating relationships."))
+      )
+      .withFieldComputed(
+        _.targetType,
+        _.targetType.getOrElse(throw new CdfSparkIllegalArgumentException(
+          "The targetType field must be set when creating relationships.")))
       .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
       .buildTransformer
 }
