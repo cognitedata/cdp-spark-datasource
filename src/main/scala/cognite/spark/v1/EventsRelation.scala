@@ -20,6 +20,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with WritableRelation {
   import CdpConnector._
 
+  // scalastyle:off
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -47,18 +48,43 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val eventsFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
       Seq(EventsFilter())
     } else {
-      filtersAsMaps.distinct.map(eventsFilterFromMap)
+      filtersAsMaps.distinct
+        .filter(x => !x.keySet.contains("id") && !x.keySet.contains("externalId"))
+        .map(eventsFilterFromMap)
     }
 
-    val streamsPerFilter = eventsFilterSeq
-      .map { f =>
+    val eventFilteredById: Seq[Stream[IO, Event]] =
+      filtersAsMaps.distinct.flatten.toMap
+        .get("id")
+        .map { id =>
+          client.events.retrieveById(id.toLong)
+        }
+        .map(fs2.Stream.eval) match {
+        case None => Seq[Stream[IO, Event]]()
+        case Some(event) => Seq[Stream[IO, Event]](event)
+      }
+
+    val eventFilteredByExternalId: Seq[Stream[IO, Event]] =
+      filtersAsMaps.distinct.flatten.toMap
+        .get("externalId")
+        .map { id =>
+          client.events.retrieveByExternalId(id)
+        }
+        .map(fs2.Stream.eval) match {
+        case None => Seq[Stream[IO, Event]]()
+        case Some(event) => Seq[Stream[IO, Event]](event)
+      }
+
+    val streamsPerFilter: Seq[Seq[Stream[IO, Event]]] = eventsFilterSeq
+      .map { f: EventsFilter =>
         client.events.filterPartitions(f, numPartitions, limit)
       }
 
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
     streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_)))
+      .map(s => s.reduce(_.merge(_))) ++ eventFilteredById ++ eventFilteredByExternalId
+
   }
 
   def eventsFilterFromMap(m: Map[String, String]): EventsFilter =
