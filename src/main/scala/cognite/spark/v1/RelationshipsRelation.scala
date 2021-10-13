@@ -112,8 +112,18 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .flatTap(_ => incMetrics(itemsDeleted, relationshipIds.length))
   }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Upsert is not supported for relationships.")
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
+    val relationships = rows.map(fromRow[RelationshipsUpsertSchema](_))
+    genericUpsertByExternalId[
+      Relationship,
+      RelationshipsUpsertSchema,
+      RelationshipCreate,
+      RelationshipUpdate,
+      Relationships[IO]](
+      relationships,
+      client.relationships
+    )
+  }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val relationshipsUpdates = rows.map(fromRow[RelationshipsUpsertSchema](_))

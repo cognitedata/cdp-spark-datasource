@@ -181,6 +181,54 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     (create, update).parMapN((_, _) => ())
   }
 
+  // scalastyle:off no.whitespace.after.left.bracket method.length
+  def createOrUpdateByRequiredExternalId[
+      R <: ToCreate[C],
+      U <: WithSetExternalId,
+      C <: WithRequiredExternalId,
+      S <: WithRequiredExternalId,
+      T <: UpdateByExternalId[R, U, IO] with Create[R, C, IO]](
+      existingExternalIds: Set[String],
+      resourceCreates: Seq[S],
+      resource: T,
+      doUpsert: Boolean)(
+      implicit transformToUpdate: Transformer[S, U],
+      transformToCreate: Transformer[S, C]
+  ): IO[Unit] = {
+    val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
+      p => p.getExternalId().exists(id => existingExternalIds.contains(id))
+    )
+    val create = if (resourcesToCreate.isEmpty) {
+      IO.unit
+    } else {
+      resource
+        .create(resourcesToCreate.map(_.transformInto[C]))
+        .flatMap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
+        .recoverWith {
+          case CdpApiException(_, 409, _, _, Some(duplicated), _, requestId) if doUpsert =>
+            val moreExistingExternalIds = duplicated.flatMap(j => j("externalId")).map(_.asString.get)
+            createOrUpdateByRequiredExternalId[R, U, C, S, T](
+              existingExternalIds ++ moreExistingExternalIds.toSet,
+              resourcesToCreate,
+              resource,
+              doUpsert = doUpsert)
+        }
+    }
+    val update = if (resourcesToUpdate.isEmpty) {
+      IO.unit
+    } else {
+      resource
+        .updateByExternalId(
+          resourcesToUpdate
+            .map(u =>
+              u.getExternalId().get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+            .toMap)
+        .flatTap(_ => incMetrics(itemsUpdated, resourcesToUpdate.size))
+        .map(_ => ())
+    }
+    (create, update).parMapN((_, _) => ())
+  }
+
   def deleteWithIgnoreUnknownIds(
       resource: DeleteByIdsWithIgnoreUnknownIds[IO, Long],
       deletes: Seq[DeleteItem],
@@ -233,6 +281,31 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resource,
       doUpsert = true)
     (update, createOrUpdate).parMapN((_, _) => ())
+  }
+
+  def genericUpsertByExternalId[
+      R <: ToUpdate[Up] with ToCreate[C] with WithRequiredExternalId,
+      U <: WithRequiredExternalId,
+      C <: WithRequiredExternalId,
+      Up <: WithSetExternalId,
+      Re <: UpdateByExternalId[R, Up, IO] with Create[R, C, IO]](items: Seq[U], resource: Re)(
+      implicit transformToUpdate: Transformer[U, Up],
+      transformToCreate: Transformer[U, C]): IO[Unit] = {
+
+    val itemsToCreateWithoutDuplicatesByExternalId = items
+      .groupBy(_.getExternalId())
+      .flatMap {
+        case (None, items) => items
+        case (Some(_), items) => items.take(1)
+      }
+      .toSeq
+    val createOrUpdate = createOrUpdateByRequiredExternalId[R, Up, C, U, Re](
+      Set.empty,
+      itemsToCreateWithoutDuplicatesByExternalId,
+      resource,
+      doUpsert = true)
+
+    createOrUpdate.map(_ => ())
   }
 }
 
