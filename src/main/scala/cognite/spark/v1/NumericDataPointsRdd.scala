@@ -121,7 +121,7 @@ final case class NumericDataPointsRdd(
   // use paging to download all datapoints.
   // 10 * Constants.DefaultDataPointsLimit will give us at most 10 pages per range,
   // which should not slow us down significantly
-  // We can also have at most 10k separate ranges, because the API does not give use more than
+  // We can also have at most 10k separate ranges, because the API does not give us more than
   // 10k aggregates. These cases should be quite rare, but in such case,
   // we'll likely have larger Range than this partitionSize and have to page
   // through more than 10 pages.
@@ -177,6 +177,10 @@ final case class NumericDataPointsRdd(
   private def ceilToNearest(x: Long, base: Double) =
     (base * math.ceil(x.toDouble / base)).toLong
 
+  /** Splits the range into ranges small enough to fit into $partitionSize. Returns:
+    * None = that means that we could not split it into ranges, and the higher granularity must be used
+    * Some(list of ranges) ->
+    *   - Some(Seq.empty) would be treated as "there are no ranges" */
   private def smallEnoughRanges(
       id: CogniteId,
       start: Instant,
