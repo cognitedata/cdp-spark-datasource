@@ -148,13 +148,26 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
   }
 
   it should "be able to update a relationship" taggedAs ReadTest in {
-    val externalId = s"$externalIdPrefix-1"
+    val externalId = s"relationship-update-${shortRandomString()}"
+    writeClient.relationships.create(
+      Seq(
+        RelationshipCreate(
+          externalId = externalId,
+          sourceExternalId = assetExtId1,
+          sourceType = "asset",
+          targetExternalId = assetExtId2,
+          targetType = "asset",
+          labels = Some(labelList),
+          dataSetId = Some(dataSetId)
+        ))
+    )
+
     spark
       .sql(s"""select '$externalId' as externalId,
-           |'$assetExtId1-1' as sourceExternalId,
+           |'$assetExtId1' as sourceExternalId,
            |'asset' as sourceType,
-           |'$assetExtId2-2' as targetExternalId,
-           |'asset' as targetType,
+           |'$eventExtId1' as targetExternalId,
+           |'event' as targetType,
            | array('scala-sdk-relationships-test-label1') as labels,
            | 0.35 as confidence,
            | cast(from_unixtime(0) as timestamp) as startTime,
@@ -174,10 +187,13 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
 
     assert(rows.length == 1)
     val relationship = fromRow[RelationshipsReadSchema](rows.head)
-    assert(relationship.sourceExternalId == s"$assetExtId1-1")
-    assert(relationship.targetExternalId == s"$assetExtId2-2")
+    assert(relationship.sourceExternalId == s"$assetExtId1")
+    assert(relationship.targetExternalId == s"$eventExtId1")
     assert(relationship.confidence.get == 0.35)
-    assert(relationship.targetType == "asset")
+    assert(relationship.sourceType == "asset")
+    assert(relationship.targetType == "event")
+
+    writeClient.relationships.deleteByExternalId(externalId)
   }
 
   it should "be able to upsert a relationship" taggedAs ReadTest in {
@@ -212,6 +228,8 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     assert(relationship.targetExternalId == s"$assetExtId2-123")
     assert(relationship.confidence.get == 0.6)
     assert(relationship.targetType == "asset")
+
+    writeClient.relationships.deleteByExternalId(externalId)
   }
 
   it should "support pushdown filters with nulls" taggedAs (ReadTest) in {

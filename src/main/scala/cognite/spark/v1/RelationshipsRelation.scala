@@ -115,23 +115,28 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   // scalastyle:off no.whitespace.after.left.bracket method.length
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val relationships = rows.map(fromRow[RelationshipsUpsertSchema](_))
-    genericUpsertByExternalId[
+    createOrUpdateByExternalId[
       Relationship,
-      RelationshipsUpsertSchema,
-      RelationshipCreate,
       RelationshipUpdate,
-      Relationships[IO]](
-      relationships,
-      client.relationships
-    )
+      RelationshipCreate,
+      RelationshipsUpsertSchema,
+      Id,
+      Relationships[IO]](Set.empty, relationships, client.relationships, doUpsert = true)
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val relationshipsUpdates = rows.map(fromRow[RelationshipsUpsertSchema](_))
-    updateByExternalId[RelationshipsUpsertSchema, RelationshipUpdate, Relationships[IO], Relationship](
+    createOrUpdateByExternalId[
+      Relationship,
+      RelationshipUpdate,
+      RelationshipCreate,
+      RelationshipsUpsertSchema,
+      Id,
+      Relationships[IO]](
+      relationshipsUpdates.map(_.externalId).toSet,
       relationshipsUpdates,
-      client.relationships
-    )
+      client.relationships,
+      doUpsert = false)
   }
 
   def relationshipToRelationshipReadSchema(relationship: Relationship): RelationshipsReadSchema =
