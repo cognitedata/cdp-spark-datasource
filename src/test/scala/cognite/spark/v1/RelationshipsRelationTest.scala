@@ -156,7 +156,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
            |'$assetExtId2-2' as targetExternalId,
            |'asset' as targetType,
            | array('scala-sdk-relationships-test-label1') as labels,
-           | 0.7 as confidence,
+           | 0.35 as confidence,
            | cast(from_unixtime(0) as timestamp) as startTime,
            | cast(from_unixtime(1) as timestamp) as endTime""".stripMargin)
       .write
@@ -176,7 +176,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     val relationship = fromRow[RelationshipsReadSchema](rows.head)
     assert(relationship.sourceExternalId == s"$assetExtId1-1")
     assert(relationship.targetExternalId == s"$assetExtId2-2")
-    assert(relationship.confidence.get == 0.7)
+    assert(relationship.confidence.get == 0.35)
     assert(relationship.targetType == "asset")
   }
 
@@ -189,7 +189,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
            |'$assetExtId2-123' as targetExternalId,
            |'asset' as targetType,
            | array('scala-sdk-relationships-test-label1') as labels,
-           | 0.4 as confidence,
+           | 0.6 as confidence,
            | cast(from_unixtime(0) as timestamp) as startTime,
            | cast(from_unixtime(1) as timestamp) as endTime""".stripMargin)
       .write
@@ -207,9 +207,10 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
 
     assert(rows.length == 1)
     val relationship = fromRow[RelationshipsReadSchema](rows.head)
+    assert(relationship.externalId == externalId)
     assert(relationship.sourceExternalId == s"$assetExtId1-123")
     assert(relationship.targetExternalId == s"$assetExtId2-123")
-    assert(relationship.confidence.get == 0.4)
+    assert(relationship.confidence.get == 0.6)
     assert(relationship.targetType == "asset")
   }
 
