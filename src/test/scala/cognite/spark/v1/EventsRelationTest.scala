@@ -85,7 +85,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(eventsRead == 232)
   }
 
-  it should "do not fetch all items if filter on id" taggedAs WriteTest in {
+  it should "not fetch all items if filter on id" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filter.id"
     val df = getBaseReader(true, metricsPrefix)
       .where("id = 1394439528453086")
@@ -95,7 +95,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(eventsRead == 1)
   }
 
-  it should "do not fetch all items if filter on externalId" taggedAs WriteTest in {
+  it should "not fetch all items if filter on externalId" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filter.externalId"
     val df = getBaseReader(true, metricsPrefix)
       .where("dataSetId = 86163806167772 or externalId = 'null-id-events65847147385304'")

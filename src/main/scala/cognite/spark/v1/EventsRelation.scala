@@ -39,7 +39,9 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         "maxCreatedTime",
         "minLastUpdatedTime",
         "maxLastUpdatedTime",
-        "dataSetId"
+        "dataSetId",
+        "id",
+        "externalId"
       )
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)

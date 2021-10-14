@@ -95,7 +95,6 @@ object PushdownUtilities {
     pushdownExpression match {
       case PushdownAnd(left, right) =>
         shouldGetAll(left, fieldsWithPushdownFilter) && shouldGetAll(right, fieldsWithPushdownFilter)
-      case PushdownFilter("id", _) | PushdownFilter("externalId", _) => false
       case PushdownFilter(field, _) => !fieldsWithPushdownFilter.contains(field)
       case PushdownFilters(filters) =>
         filters
