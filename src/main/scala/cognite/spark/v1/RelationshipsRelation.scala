@@ -226,11 +226,11 @@ final case class RelationshipsUpsertSchema(
     sourceType: Option[String] = None,
     targetExternalId: Option[String] = None,
     targetType: Option[String] = None,
-    startTime: Option[Instant] = None, // Nullable, use OptionalField after fixing in scala-sdk
-    endTime: Option[Instant] = None, // Nullable, use OptionalField after fixing in scala-sdk
-    confidence: Option[Double] = None, // Nullable, use OptionalField after fixing in scala-sdk
-    labels: Option[Seq[String]] = None, // Nullable, use OptionalField after fixing in scala-sdk
-    dataSetId: Option[Long] = None // Nullable, use OptionalField after fixing in scala-sdk
+    startTime: OptionalField[Instant] = FieldNotSpecified,
+    endTime: OptionalField[Instant] = FieldNotSpecified,
+    confidence: OptionalField[Double] = FieldNotSpecified,
+    labels: Option[Seq[String]] = None,
+    dataSetId: OptionalField[Long] = FieldNotSpecified
 ) extends WithRequiredExternalId
 
 object RelationshipsUpsertSchema {
