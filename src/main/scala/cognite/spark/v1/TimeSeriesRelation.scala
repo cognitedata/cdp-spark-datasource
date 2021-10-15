@@ -107,8 +107,10 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
-    streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))) ++ timeSeriesFilteredById ++ timeSeriesFilteredByExternalId
+    streamsPerFilter.transpose.map(s =>
+      s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))) ++
+      timeSeriesFilteredById ++
+      timeSeriesFilteredByExternalId
   }
 
   private def checkDuplicateOnIdsOrExternalIds(
