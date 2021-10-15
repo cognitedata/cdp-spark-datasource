@@ -4,7 +4,7 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
-import cognite.spark.v1.RelationHelper.getFromIdOrExternalId
+import cognite.spark.v1.RelationHelper.getFromIdsOrExternalIds
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{WithExternalId, WithExternalIdGeneric, WithId}
 import com.cognite.sdk.scala.v1.resources.Events
@@ -53,13 +53,14 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         .map(eventsFilterFromMap)
     }
     val ids = filtersAsMaps.flatMap(_.get("id")).distinct
-    val eventFilteredById: Seq[Stream[IO, Event]] =
-      getFromIdOrExternalId(ids, (id: String) => client.events.retrieveById(id.toLong))
+    val eventFilteredById: Stream[IO, Event] = getFromIdsOrExternalIds(
+      ids,
+      (ids: Seq[String]) => client.events.retrieveByIds(ids.map(_.toLong), true))
 
     val externalIds = filtersAsMaps.flatMap(_.get("externalId")).distinct
-    val eventFilteredByExternalId: Seq[Stream[IO, Event]] =
-      getFromIdOrExternalId(externalIds, (id: String) => client.events.retrieveByExternalId(id))
-
+    val eventFilteredByExternalId = getFromIdsOrExternalIds(
+      externalIds,
+      (ids: Seq[String]) => client.events.retrieveByExternalIds(ids, true))
     val streamsPerFilter: Seq[Seq[Stream[IO, Event]]] = eventsFilterSeq
       .map { f: EventsFilter =>
         client.events.filterPartitions(f, numPartitions, limit)
@@ -69,8 +70,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // the same RDD partition
     streamsPerFilter.transpose
       .map(s => s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))) ++
-      eventFilteredById ++
-      eventFilteredByExternalId
+      Seq(eventFilteredById, eventFilteredByExternalId).distinct
   }
 
   private def checkDuplicateOnIdsOrExternalIds(e: Event, ids: Seq[String], externalIds: Seq[String]) =

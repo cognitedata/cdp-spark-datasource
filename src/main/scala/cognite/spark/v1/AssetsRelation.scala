@@ -4,7 +4,7 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
-import cognite.spark.v1.RelationHelper.getFromIdOrExternalId
+import cognite.spark.v1.RelationHelper.getFromIdsOrExternalIds
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1.resources.Assets
@@ -39,12 +39,14 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
 
     val ids = params.flatMap(_.get("id")).distinct
-    val assetFilteredById: Seq[Stream[IO, Asset]] =
-      getFromIdOrExternalId(ids, (id: String) => client.assets.retrieveById(id.toLong))
+    val assetFilteredById: Stream[IO, Asset] = getFromIdsOrExternalIds(
+      ids,
+      (ids: Seq[String]) => client.assets.retrieveByIds(ids.map(_.toLong), true))
 
     val externalIds = params.flatMap(_.get("externalId")).distinct
-    val assetFilteredByExternalId: Seq[Stream[IO, Asset]] =
-      getFromIdOrExternalId(externalIds, (id: String) => client.assets.retrieveByExternalId(id))
+    val assetFilteredByExternalId: Stream[IO, Asset] = getFromIdsOrExternalIds(
+      externalIds,
+      (ids: Seq[String]) => client.assets.retrieveByExternalIds(ids, true))
 
     val streamsPerFilter = pushdownFilters
       .map { f =>
@@ -56,7 +58,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     (streamsPerFilter.transpose
       .map(
         s => s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))
-      ) ++ assetFilteredById ++ assetFilteredByExternalId)
+      ) ++ Seq(assetFilteredById, assetFilteredByExternalId).distinct)
       .map(
         _.map(
           _.into[AssetsReadSchema]

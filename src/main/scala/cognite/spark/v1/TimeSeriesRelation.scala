@@ -11,7 +11,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
-import cognite.spark.v1.RelationHelper.getFromIdOrExternalId
+import cognite.spark.v1.RelationHelper.getFromIdsOrExternalIds
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
 import io.scalaland.chimney.Transformer
@@ -93,12 +93,14 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
 
     val ids = filtersAsMaps.flatMap(_.get("id")).distinct
-    val timeSeriesFilteredById: Seq[Stream[IO, TimeSeries]] =
-      getFromIdOrExternalId(ids, (id: String) => client.timeSeries.retrieveById(id.toLong))
+    val timeSeriesFilteredById: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
+      ids,
+      (ids: Seq[String]) => client.timeSeries.retrieveByIds(ids.map(_.toLong), true))
 
     val externalIds = filtersAsMaps.flatMap(_.get("externalId")).distinct
-    val timeSeriesFilteredByExternalId: Seq[Stream[IO, TimeSeries]] =
-      getFromIdOrExternalId(externalIds, (id: String) => client.timeSeries.retrieveByExternalId(id))
+    val timeSeriesFilteredByExternalId: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
+      externalIds,
+      (ids: Seq[String]) => client.timeSeries.retrieveByExternalIds(ids, true))
 
     val streamsPerFilter = timeSeriesFilterSeq
       .map { f =>
@@ -109,8 +111,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // the same RDD partition
     streamsPerFilter.transpose.map(s =>
       s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))) ++
-      timeSeriesFilteredById ++
-      timeSeriesFilteredByExternalId
+      Seq(timeSeriesFilteredById, timeSeriesFilteredByExternalId).distinct
   }
 
   private def checkDuplicateOnIdsOrExternalIds(

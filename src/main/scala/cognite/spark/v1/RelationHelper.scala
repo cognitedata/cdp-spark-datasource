@@ -4,8 +4,13 @@ import cats.effect.IO
 import fs2.Stream
 
 object RelationHelper {
-  def getFromIdOrExternalId[T](
+  def getFromIdsOrExternalIds[T](
       ids: Seq[String],
-      clientToGetByIdOrByExternalId: String => IO[T]): Seq[Stream[IO, T]] =
-    ids.map(clientToGetByIdOrByExternalId).map(fs2.Stream.eval)
+      clientToGetByIdsOrByExternalIds: Seq[String] => IO[Seq[T]]): Stream[IO, T] =
+    if (ids.isEmpty) {
+      fs2.Stream.emits(Seq[T]())
+    } else {
+      fs2.Stream.evalSeq(clientToGetByIdsOrByExternalIds(ids))
+    }
+
 }
