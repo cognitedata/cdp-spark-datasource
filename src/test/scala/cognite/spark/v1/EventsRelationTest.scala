@@ -93,6 +93,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(df.count == 1)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 1)
+
   }
 
   it should "not fetch all items if filter on externalId" taggedAs WriteTest in {
@@ -103,6 +104,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(df.count == 18)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 18)
+    df.show(false)
   }
 
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {

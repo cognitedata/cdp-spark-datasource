@@ -11,6 +11,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
+import cognite.spark.v1.RelationHelper.getFromIdOrExternalId
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
 import io.scalaland.chimney.Transformer
@@ -78,15 +79,30 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, TimeSeries]] = {
 
-    val fieldNames = Array("name", "unit", "isStep", "isString", "assetId", "dataSetId")
+    val fieldNames =
+      Array("name", "unit", "isStep", "isString", "assetId", "dataSetId", "id", "externalId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
     val timeSeriesFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
       Seq(TimeSeriesFilter())
     } else {
-      filtersAsMaps.distinct.map(timeSeriesFilterFromMap)
+      filtersAsMaps.distinct
+        .filter(x => !x.keySet.contains("id") && !x.keySet.contains("externalId"))
+        .map(timeSeriesFilterFromMap)
     }
+
+    val timeSeriesFilteredById: Seq[Stream[IO, TimeSeries]] =
+      getFromIdOrExternalId(
+        "id",
+        filtersAsMaps,
+        (id: String) => client.timeSeries.retrieveById(id.toLong))
+
+    val timeSeriesFilteredByExternalId: Seq[Stream[IO, TimeSeries]] =
+      getFromIdOrExternalId(
+        "externalId",
+        filtersAsMaps,
+        (id: String) => client.timeSeries.retrieveByExternalId(id))
 
     val streamsPerFilter = timeSeriesFilterSeq
       .map { f =>
@@ -96,7 +112,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
     streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_)))
+      .map(s => s.reduce(_.merge(_))) ++ timeSeriesFilteredById ++ timeSeriesFilteredByExternalId
   }
   def timeSeriesFilterFromMap(m: Map[String, String]): TimeSeriesFilter =
     TimeSeriesFilter(

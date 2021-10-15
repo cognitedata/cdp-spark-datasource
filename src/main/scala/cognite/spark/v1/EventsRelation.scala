@@ -4,6 +4,7 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
+import cognite.spark.v1.RelationHelper.getFromIdOrExternalId
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{WithExternalId, WithExternalIdGeneric, WithId}
 import com.cognite.sdk.scala.v1.resources.Events
@@ -20,7 +21,6 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with WritableRelation {
   import CdpConnector._
 
-  // scalastyle:off
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -46,7 +46,6 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-
     val eventsFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
       Seq(EventsFilter())
     } else {
@@ -54,29 +53,13 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         .filter(x => !x.keySet.contains("id") && !x.keySet.contains("externalId"))
         .map(eventsFilterFromMap)
     }
-
     val eventFilteredById: Seq[Stream[IO, Event]] =
-      filtersAsMaps.distinct.flatten.toMap
-        .get("id")
-        .map { id =>
-          client.events.retrieveById(id.toLong)
-        }
-        .map(fs2.Stream.eval) match {
-        case None => Seq[Stream[IO, Event]]()
-        case Some(event) => Seq[Stream[IO, Event]](event)
-      }
-
+      getFromIdOrExternalId("id", filtersAsMaps, (id: String) => client.events.retrieveById(id.toLong))
     val eventFilteredByExternalId: Seq[Stream[IO, Event]] =
-      filtersAsMaps.distinct.flatten.toMap
-        .get("externalId")
-        .map { id =>
-          client.events.retrieveByExternalId(id)
-        }
-        .map(fs2.Stream.eval) match {
-        case None => Seq[Stream[IO, Event]]()
-        case Some(event) => Seq[Stream[IO, Event]](event)
-      }
-
+      getFromIdOrExternalId(
+        "externalId",
+        filtersAsMaps,
+        (id: String) => client.events.retrieveByExternalId(id))
     val streamsPerFilter: Seq[Seq[Stream[IO, Event]]] = eventsFilterSeq
       .map { f: EventsFilter =>
         client.events.filterPartitions(f, numPartitions, limit)
@@ -86,7 +69,6 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // the same RDD partition
     streamsPerFilter.transpose
       .map(s => s.reduce(_.merge(_))) ++ eventFilteredById ++ eventFilteredByExternalId
-
   }
 
   def eventsFilterFromMap(m: Map[String, String]): EventsFilter =

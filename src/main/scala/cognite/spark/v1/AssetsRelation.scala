@@ -4,6 +4,7 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
+import cognite.spark.v1.RelationHelper.getFromIdOrExternalId
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1.resources.Assets
@@ -24,7 +25,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, AssetsReadSchema]] = {
-    val fieldNames = Array("name", "source", "dataSetId", "labels")
+    val fieldNames = Array("name", "source", "dataSetId", "labels", "id", "externalId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val getAll = shouldGetAll(pushdownFilterExpression, fieldNames)
     val params = pushdownToParameters(pushdownFilterExpression)
@@ -32,8 +33,16 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val pushdownFilters = if (params.isEmpty || getAll) {
       Seq(AssetsFilter())
     } else {
-      params.map(assetsFilterFromMap)
+      params.distinct
+        .filter(x => !x.keySet.contains("id") && !x.keySet.contains("externalId"))
+        .map(assetsFilterFromMap)
     }
+
+    val assetFilteredById: Seq[Stream[IO, Asset]] =
+      getFromIdOrExternalId("id", params, (id: String) => client.assets.retrieveById(id.toLong))
+
+    val assetFilteredByExternalId: Seq[Stream[IO, Asset]] =
+      getFromIdOrExternalId("externalId", params, (id: String) => client.assets.retrieveByExternalId(id))
 
     val streamsPerFilter = pushdownFilters
       .map { f =>
@@ -42,14 +51,15 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
-    streamsPerFilter.transpose
+    (streamsPerFilter.transpose
       .map(
-        s =>
-          s.reduce(_.merge(_))
-            .map(
-              _.into[AssetsReadSchema]
-                .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
-                .transform))
+        s => s.reduce(_.merge(_))
+      ) ++ assetFilteredById ++ assetFilteredByExternalId)
+      .map(
+        _.map(
+          _.into[AssetsReadSchema]
+            .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
+            .transform))
   }
 
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
