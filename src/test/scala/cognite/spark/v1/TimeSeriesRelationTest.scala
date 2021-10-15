@@ -78,7 +78,6 @@ class TimeSeriesRelationTest
     assert(df.count == 89)
     val timeSeriesRead = getNumberOfRowsRead(metricsPrefix, "timeseries")
     assert(timeSeriesRead == 89)
-    df.show(false)
   }
 
   it should "handle pushdown filters on assetId on nonexisting assetId" taggedAs ReadTest in {

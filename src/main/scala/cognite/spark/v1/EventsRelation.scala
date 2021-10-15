@@ -25,24 +25,23 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, Event]] = {
-    val fieldNames =
-      Array(
-        "source",
-        "type",
-        "subtype",
-        "assetIds",
-        "minStartTime",
-        "maxStartTime",
-        "minEndTime",
-        "maxEndTime",
-        "minCreatedTime",
-        "maxCreatedTime",
-        "minLastUpdatedTime",
-        "maxLastUpdatedTime",
-        "dataSetId",
-        "id",
-        "externalId"
-      )
+    val fieldNames = Array(
+      "source",
+      "type",
+      "subtype",
+      "assetIds",
+      "minStartTime",
+      "maxStartTime",
+      "minEndTime",
+      "maxEndTime",
+      "minCreatedTime",
+      "maxCreatedTime",
+      "minLastUpdatedTime",
+      "maxLastUpdatedTime",
+      "dataSetId",
+      "id",
+      "externalId"
+    )
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
@@ -53,13 +52,14 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         .filter(x => !x.keySet.contains("id") && !x.keySet.contains("externalId"))
         .map(eventsFilterFromMap)
     }
+    val ids = filtersAsMaps.flatMap(_.get("id")).distinct
     val eventFilteredById: Seq[Stream[IO, Event]] =
-      getFromIdOrExternalId("id", filtersAsMaps, (id: String) => client.events.retrieveById(id.toLong))
+      getFromIdOrExternalId(ids, (id: String) => client.events.retrieveById(id.toLong))
+
+    val externalIds = filtersAsMaps.flatMap(_.get("externalId")).distinct
     val eventFilteredByExternalId: Seq[Stream[IO, Event]] =
-      getFromIdOrExternalId(
-        "externalId",
-        filtersAsMaps,
-        (id: String) => client.events.retrieveByExternalId(id))
+      getFromIdOrExternalId(externalIds, (id: String) => client.events.retrieveByExternalId(id))
+
     val streamsPerFilter: Seq[Seq[Stream[IO, Event]]] = eventsFilterSeq
       .map { f: EventsFilter =>
         client.events.filterPartitions(f, numPartitions, limit)
@@ -68,8 +68,12 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
     streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_))) ++ eventFilteredById ++ eventFilteredByExternalId
+      .map(s => s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))) ++ eventFilteredById ++ eventFilteredByExternalId
   }
+
+  private def checkDuplicateOnIdsOrExternalIds(e: Event, ids: Seq[String], externalIds: Seq[String]) =
+    !ids.contains(e.id.toString) && (e.externalId.isEmpty || !externalIds.contains(
+      e.externalId.getOrElse("")))
 
   def eventsFilterFromMap(m: Map[String, String]): EventsFilter =
     EventsFilter(

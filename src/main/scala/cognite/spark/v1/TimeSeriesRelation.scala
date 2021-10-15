@@ -92,17 +92,13 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         .map(timeSeriesFilterFromMap)
     }
 
+    val ids = filtersAsMaps.flatMap(_.get("id")).distinct
     val timeSeriesFilteredById: Seq[Stream[IO, TimeSeries]] =
-      getFromIdOrExternalId(
-        "id",
-        filtersAsMaps,
-        (id: String) => client.timeSeries.retrieveById(id.toLong))
+      getFromIdOrExternalId(ids, (id: String) => client.timeSeries.retrieveById(id.toLong))
 
+    val externalIds = filtersAsMaps.flatMap(_.get("externalId")).distinct
     val timeSeriesFilteredByExternalId: Seq[Stream[IO, TimeSeries]] =
-      getFromIdOrExternalId(
-        "externalId",
-        filtersAsMaps,
-        (id: String) => client.timeSeries.retrieveByExternalId(id))
+      getFromIdOrExternalId(externalIds, (id: String) => client.timeSeries.retrieveByExternalId(id))
 
     val streamsPerFilter = timeSeriesFilterSeq
       .map { f =>
@@ -112,8 +108,16 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
     streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_))) ++ timeSeriesFilteredById ++ timeSeriesFilteredByExternalId
+      .map(s => s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))) ++ timeSeriesFilteredById ++ timeSeriesFilteredByExternalId
   }
+
+  private def checkDuplicateOnIdsOrExternalIds(
+      e: TimeSeries,
+      ids: Seq[String],
+      externalIds: Seq[String]) =
+    !ids.contains(e.id.toString) && (e.externalId.isEmpty || !externalIds.contains(
+      e.externalId.getOrElse("")))
+
   def timeSeriesFilterFromMap(m: Map[String, String]): TimeSeriesFilter =
     TimeSeriesFilter(
       name = m.get("name"),

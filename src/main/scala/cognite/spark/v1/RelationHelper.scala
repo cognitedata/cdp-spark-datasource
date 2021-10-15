@@ -5,15 +5,7 @@ import fs2.Stream
 
 object RelationHelper {
   def getFromIdOrExternalId[T](
-      idOrExternalId: String,
-      filtersAsMaps: Seq[Map[String, String]],
+      ids: Seq[String],
       clientToGetByIdOrByExternalId: String => IO[T]): Seq[Stream[IO, T]] =
-    filtersAsMaps
-      .flatMap(_.get(idOrExternalId))
-      .distinct
-      .map { id =>
-        clientToGetByIdOrByExternalId(id)
-      }
-      .map(fs2.Stream.eval)
-
+    ids.map(clientToGetByIdOrByExternalId).map(fs2.Stream.eval)
 }

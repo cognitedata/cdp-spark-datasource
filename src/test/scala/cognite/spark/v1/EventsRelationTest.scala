@@ -101,10 +101,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(true, metricsPrefix)
       .where("dataSetId = 86163806167772 or externalId = 'null-id-events65847147385304'")
 
-    assert(df.count == 18)
+    assert(df.count == 17)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 18)
-    df.show(false)
+    assert(eventsRead == 17)
   }
 
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {

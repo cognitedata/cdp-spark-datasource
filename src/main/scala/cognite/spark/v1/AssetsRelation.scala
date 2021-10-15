@@ -38,11 +38,13 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         .map(assetsFilterFromMap)
     }
 
+    val ids = params.flatMap(_.get("id")).distinct
     val assetFilteredById: Seq[Stream[IO, Asset]] =
-      getFromIdOrExternalId("id", params, (id: String) => client.assets.retrieveById(id.toLong))
+      getFromIdOrExternalId(ids, (id: String) => client.assets.retrieveById(id.toLong))
 
+    val externalIds = params.flatMap(_.get("externalId")).distinct
     val assetFilteredByExternalId: Seq[Stream[IO, Asset]] =
-      getFromIdOrExternalId("externalId", params, (id: String) => client.assets.retrieveByExternalId(id))
+      getFromIdOrExternalId(externalIds, (id: String) => client.assets.retrieveByExternalId(id))
 
     val streamsPerFilter = pushdownFilters
       .map { f =>
@@ -53,7 +55,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // the same RDD partition
     (streamsPerFilter.transpose
       .map(
-        s => s.reduce(_.merge(_))
+        s => s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))
       ) ++ assetFilteredById ++ assetFilteredByExternalId)
       .map(
         _.map(
@@ -61,6 +63,10 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
             .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
             .transform))
   }
+
+  private def checkDuplicateOnIdsOrExternalIds(e: Asset, ids: Seq[String], externalIds: Seq[String]) =
+    !ids.contains(e.id.toString) && (e.externalId.isEmpty || !externalIds.contains(
+      e.externalId.getOrElse("")))
 
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
     AssetsFilter(
