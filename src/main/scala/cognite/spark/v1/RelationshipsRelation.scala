@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.Id
 import java.time.Instant
 
 import cats.effect.IO
@@ -15,8 +16,11 @@ import cognite.spark.v1.PushdownUtilities.{
   toPushdownFilterExpression
 }
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import com.cognite.sdk.scala.common.{WithId, WithRequiredExternalId}
 import com.cognite.sdk.scala.v1._
+import com.cognite.sdk.scala.v1.resources.Relationships
 import fs2.Stream
+import io.scalaland.chimney.Transformer
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -108,11 +112,32 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .flatTap(_ => incMetrics(itemsDeleted, relationshipIds.length))
   }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Upsert is not supported for relationships.")
+  // scalastyle:off no.whitespace.after.left.bracket method.length
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
+    val relationships = rows.map(fromRow[RelationshipsUpsertSchema](_))
+    createOrUpdateByExternalId[
+      Relationship,
+      RelationshipUpdate,
+      RelationshipCreate,
+      RelationshipsUpsertSchema,
+      Id,
+      Relationships[IO]](Set.empty, relationships, client.relationships, doUpsert = true)
+  }
 
-  override def update(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Update is not supported for relationships.")
+  override def update(rows: Seq[Row]): IO[Unit] = {
+    val relationshipsUpdates = rows.map(fromRow[RelationshipsUpsertSchema](_))
+    createOrUpdateByExternalId[
+      Relationship,
+      RelationshipUpdate,
+      RelationshipCreate,
+      RelationshipsUpsertSchema,
+      Id,
+      Relationships[IO]](
+      relationshipsUpdates.map(_.externalId).toSet,
+      relationshipsUpdates,
+      client.relationships,
+      doUpsert = false)
+  }
 
   def relationshipToRelationshipReadSchema(relationship: Relationship): RelationshipsReadSchema =
     RelationshipsReadSchema(
@@ -160,6 +185,7 @@ object RelationshipsRelation {
   var insertSchema: StructType = structType[RelationshipsInsertSchema]
   var readSchema: StructType = structType[RelationshipsReadSchema]
   var deleteSchema: StructType = structType[RelationshipsDeleteSchema]
+  var upsertSchema: StructType = structType[RelationshipsUpsertSchema]
 }
 
 final case class RelationshipsDeleteSchema(
@@ -193,3 +219,42 @@ final case class RelationshipsReadSchema(
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
     dataSetId: Option[Long] = None
 )
+
+final case class RelationshipsUpsertSchema(
+    externalId: String,
+    sourceExternalId: Option[String] = None,
+    sourceType: Option[String] = None,
+    targetExternalId: Option[String] = None,
+    targetType: Option[String] = None,
+    startTime: OptionalField[Instant] = FieldNotSpecified,
+    endTime: OptionalField[Instant] = FieldNotSpecified,
+    confidence: OptionalField[Double] = FieldNotSpecified,
+    labels: Option[Seq[String]] = None,
+    dataSetId: OptionalField[Long] = FieldNotSpecified
+) extends WithRequiredExternalId
+
+object RelationshipsUpsertSchema {
+  implicit val toCreate: Transformer[RelationshipsUpsertSchema, RelationshipCreate] =
+    Transformer
+      .define[RelationshipsUpsertSchema, RelationshipCreate]
+      .withFieldComputed(
+        _.sourceExternalId,
+        _.sourceExternalId.getOrElse(throw new CdfSparkIllegalArgumentException(
+          "The sourceExternalId field must be set when creating relationships."))
+      )
+      .withFieldComputed(
+        _.sourceType,
+        _.sourceType.getOrElse(throw new CdfSparkIllegalArgumentException(
+          "The sourceType field must be set when creating relationships.")))
+      .withFieldComputed(
+        _.targetExternalId,
+        _.targetExternalId.getOrElse(throw new CdfSparkIllegalArgumentException(
+          "The targetExternalId field must be set when creating relationships."))
+      )
+      .withFieldComputed(
+        _.targetType,
+        _.targetType.getOrElse(throw new CdfSparkIllegalArgumentException(
+          "The targetType field must be set when creating relationships.")))
+      .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
+      .buildTransformer
+}

@@ -110,7 +110,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   def createOrUpdateByExternalId[
       R <: ToCreate[C],
       U <: WithSetExternalId,
-      C <: WithExternalId,
+      C <: WithGetExternalId,
       S <: WithExternalIdGeneric[ExternalIdF],
       ExternalIdF[_],
       T <: UpdateByExternalId[R, U, IO] with Create[R, C, IO]](
