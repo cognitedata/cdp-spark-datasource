@@ -67,7 +67,7 @@ object CdpConnector {
             MetricsSource.getOrCreateCounter(metricsPrefix, "requests")))
     val retryingBackend = new RetryingBackend[IO, Any](
       metricsBackend,
-      maxRetries = Some(maxRetries),
+      maxRetries = maxRetries,
       maxRetryDelay = maxRetryDelaySeconds.seconds)
 
     val limitedBackend: SttpBackend[IO, Any] =
