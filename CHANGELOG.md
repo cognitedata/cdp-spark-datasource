@@ -14,7 +14,7 @@
 
 ## Fixes
 
-* `set` method is now used for `labels` updates. 
+* `set` method is now used for `labels` updates.
 
 # 1.4.33
 
@@ -101,7 +101,7 @@
 
 ## Enhancements
 * SequenceRows are now written to one or multiple sequences by refering each rows `externalId`.
-  
+
 * Now uses the 1.4.6 version of the Scala SDK.
 
 # 1.4.21
@@ -117,7 +117,7 @@
 # 1.4.19
 
 ## Enhancements
-* New exception type `CdfInternalSparkException` has been introduced. 
+* New exception type `CdfInternalSparkException` has been introduced.
 
 # 1.4.18
 
