@@ -1,3 +1,9 @@
+# 1.4.37
+
+## Enhancements
+
+* Retry requests on connection and read errors.
+
 # 1.4.36
 
 ## Enhancements
