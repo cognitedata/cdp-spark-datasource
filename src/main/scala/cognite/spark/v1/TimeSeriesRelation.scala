@@ -3,15 +3,13 @@ package cognite.spark.v1
 import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
-import com.cognite.sdk.scala.common.{WithExternalId, WithId}
+import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1._
 import cognite.spark.v1.SparkSchemaHelper._
-import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import PushdownUtilities._
-import cognite.spark.v1.RelationHelper.getFromIdsOrExternalIds
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
 import io.scalaland.chimney.Transformer
@@ -87,8 +85,11 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val timeSeriesFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
       Seq(TimeSeriesFilter())
     } else {
-      filtersAsMaps.distinct
-        .filter(x => !x.keySet.contains("id") && !x.keySet.contains("externalId"))
+      filtersAsMaps
+        .filter { mapFieldNameToValue =>
+          val fieldNames = mapFieldNameToValue.keySet
+          !fieldNames.contains("id") && !fieldNames.contains("externalId")
+        }
         .map(timeSeriesFilterFromMap)
     }
 
@@ -113,13 +114,6 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))) ++
       Seq(timeSeriesFilteredById, timeSeriesFilteredByExternalId).distinct
   }
-
-  private def checkDuplicateOnIdsOrExternalIds(
-      e: TimeSeries,
-      ids: Seq[String],
-      externalIds: Seq[String]) =
-    !ids.contains(e.id.toString) && (e.externalId.isEmpty || !externalIds.contains(
-      e.externalId.getOrElse("")))
 
   def timeSeriesFilterFromMap(m: Map[String, String]): TimeSeriesFilter =
     TimeSeriesFilter(

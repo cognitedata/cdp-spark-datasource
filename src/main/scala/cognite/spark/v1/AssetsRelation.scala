@@ -4,7 +4,6 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
-import cognite.spark.v1.RelationHelper.getFromIdsOrExternalIds
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1.resources.Assets
@@ -33,8 +32,11 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val pushdownFilters = if (params.isEmpty || getAll) {
       Seq(AssetsFilter())
     } else {
-      params.distinct
-        .filter(x => !x.keySet.contains("id") && !x.keySet.contains("externalId"))
+      params
+        .filter { mapFieldNameToValue =>
+          val fieldNames = mapFieldNameToValue.keySet
+          !fieldNames.contains("id") && !fieldNames.contains("externalId")
+        }
         .map(assetsFilterFromMap)
     }
 
@@ -57,7 +59,9 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     // the same RDD partition
     (streamsPerFilter.transpose
       .map(
-        s => s.reduce(_.merge(_)).filter(e => checkDuplicateOnIdsOrExternalIds(e, ids, externalIds))
+        s =>
+          s.reduce(_.merge(_))
+            .filter(a => checkDuplicateOnIdsOrExternalIds(a.id.toString, a.externalId, ids, externalIds))
       ) ++ Seq(assetFilteredById, assetFilteredByExternalId).distinct)
       .map(
         _.map(
@@ -65,10 +69,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
             .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
             .transform))
   }
-
-  private def checkDuplicateOnIdsOrExternalIds(e: Asset, ids: Seq[String], externalIds: Seq[String]) =
-    !ids.contains(e.id.toString) && (e.externalId.isEmpty || !externalIds.contains(
-      e.externalId.getOrElse("")))
 
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
     AssetsFilter(
