@@ -139,49 +139,50 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
 }
 
 object DataPointsRelationV1 {
-  def limitForCall(nPointsRemaining: Option[Int], batchSize: Option[Int]): Option[Int] =
-    (nPointsRemaining, batchSize) match {
-      case (remaining @ Some(_), None) => remaining
-      case (Some(remaining), Some(batchSize)) => Some(remaining.min(batchSize))
-      case (None, batchSize @ Some(_)) => batchSize
-      case (None, None) => None
+  def limitForCall(nPointsRemaining: Option[Int], batchSize: Int): Int =
+    nPointsRemaining match {
+      case Some(remaining) => remaining.min(batchSize)
+      case None => batchSize
     }
 
   def getAllDataPoints[R](
-      queryMethod: (CogniteId, Instant, Instant, Option[Int]) => IO[(Option[Instant], Seq[R])],
-      batchSize: Option[Int],
+      queryMethod: (CogniteId, Instant, Instant, Int) => IO[(Option[Instant], Seq[R])],
+      batchSize: Int,
       id: CogniteId,
       lowerLimit: Instant,
       upperLimit: Instant,
       nPointsRemaining: Option[Int] = None,
-      allPoints: IO[Seq[R]] = IO.pure(Seq.empty)): IO[Seq[R]] =
+      allPoints: Seq[R] = Seq.empty): IO[Seq[R]] =
     if (lowerLimit.toEpochMilli >= upperLimit.toEpochMilli || nPointsRemaining.exists(_ <= 0)) {
-      allPoints
+      IO.pure(allPoints)
     } else {
       val queryPoints =
         queryMethod(id, lowerLimit, upperLimit, limitForCall(nPointsRemaining, batchSize))
 
       queryPoints
         .flatMap {
-          case (_, Nil) => allPoints
-          case (None, points) => allPoints.map(_ ++ points)
+          case (_, Nil) => IO.pure(allPoints)
+          case (None, points) => IO.pure(allPoints ++ points)
           case (Some(lastTimestamp), points) =>
             val newLowerLimit = lastTimestamp.plusMillis(1)
-            val newAllPoints = allPoints.map { all =>
-              val pointsFromResponse = nPointsRemaining match {
-                case None => points
-                case Some(maxNumPointsToInclude) => points.take(maxNumPointsToInclude)
-              }
-              all ++ pointsFromResponse
+            val pointsFromResponse = nPointsRemaining match {
+              case None => points
+              case Some(maxNumPointsToInclude) => points.take(maxNumPointsToInclude)
             }
-            getAllDataPoints(
-              queryMethod,
-              batchSize,
-              id,
-              newLowerLimit,
-              upperLimit,
-              nPointsRemaining.map(_ - points.size),
-              newAllPoints)
+            val newAllPoints = allPoints ++ pointsFromResponse
+            if (points.size == batchSize) {
+              // we hit the batch size, let's load the next page
+              getAllDataPoints(
+                queryMethod,
+                batchSize,
+                id,
+                newLowerLimit,
+                upperLimit,
+                nPointsRemaining.map(_ - points.size),
+                newAllPoints)
+            } else {
+              IO.pure(newAllPoints)
+            }
         }
     }
 

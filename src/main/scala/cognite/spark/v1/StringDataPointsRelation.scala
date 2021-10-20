@@ -99,7 +99,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     ids.zip(ids.map { id =>
       DataPointsRelationV1.getAllDataPoints[StringDataPoint](
         queryStrings,
-        config.batchSize,
+        config.batchSize.getOrElse(Constants.DefaultDataPointsLimit),
         id,
         lowerTimeLimit,
         upperTimeLimit.plusMillis(1),
@@ -107,18 +107,9 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     })
   }
 
-  private def queryStrings(
-      id: CogniteId,
-      lowerLimit: Instant,
-      upperLimit: Instant,
-      nPointsRemaining: Option[Int]) =
+  private def queryStrings(id: CogniteId, lowerLimit: Instant, upperLimit: Instant, limit: Int) =
     client.dataPoints
-      .queryStrings(
-        Seq(id),
-        lowerLimit,
-        upperLimit,
-        DataPointsRelationV1.limitForCall(nPointsRemaining, config.batchSize),
-        ignoreUnknownIds = true)
+      .queryStrings(Seq(id), lowerLimit, upperLimit, Some(limit), ignoreUnknownIds = true)
       .map { response =>
         val dataPoints = response.headOption
           .map { ts =>
