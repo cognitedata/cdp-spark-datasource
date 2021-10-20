@@ -41,15 +41,18 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
 
     val ids = params.flatMap(_.get("id")).distinct
-    val assetFilteredById: Stream[IO, Asset] = getFromIdsOrExternalIds(
-      ids,
-      (ids: Seq[String]) => client.assets.retrieveByIds(ids.map(_.toLong), true))
-
     val externalIds = params.flatMap(_.get("externalId")).distinct
-    val assetFilteredByExternalId: Stream[IO, Asset] = getFromIdsOrExternalIds(
-      externalIds,
-      (ids: Seq[String]) => client.assets.retrieveByExternalIds(ids, true))
-
+    val streamsOfIdsAndExternalIds = if ((ids ++ externalIds).isEmpty) {
+      Seq.empty
+    } else {
+      val assetFilteredById: Stream[IO, Asset] = getFromIdsOrExternalIds(
+        ids,
+        (ids: Seq[String]) => client.assets.retrieveByIds(ids.map(_.toLong), true))
+      val assetFilteredByExternalId: Stream[IO, Asset] = getFromIdsOrExternalIds(
+        externalIds,
+        (ids: Seq[String]) => client.assets.retrieveByExternalIds(ids, true))
+      Seq(assetFilteredById, assetFilteredByExternalId).distinct
+    }
     val streamsPerFilter = pushdownFilters
       .map { f =>
         client.assets.filterPartitions(f, numPartitions, limit)
@@ -62,7 +65,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         s =>
           s.reduce(_.merge(_))
             .filter(a => checkDuplicateOnIdsOrExternalIds(a.id.toString, a.externalId, ids, externalIds))
-      ) ++ Seq(assetFilteredById, assetFilteredByExternalId).distinct)
+      ) ++ streamsOfIdsAndExternalIds)
       .map(
         _.map(
           _.into[AssetsReadSchema]

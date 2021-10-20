@@ -56,13 +56,21 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
         .map(eventsFilterFromMap)
     }
     val ids = filtersAsMaps.flatMap(_.get("id")).distinct
-    val eventFilteredById: Stream[IO, Event] = getFromIdsOrExternalIds(
-      ids,
-      (ids: Seq[String]) => client.events.retrieveByIds(ids.map(_.toLong), true))
     val externalIds = filtersAsMaps.flatMap(_.get("externalId")).distinct
-    val eventFilteredByExternalId = getFromIdsOrExternalIds(
-      externalIds,
-      (ids: Seq[String]) => client.events.retrieveByExternalIds(ids, true))
+
+    val streamsOfIdsAndExternalIds = if ((ids ++ externalIds).isEmpty) {
+      Seq.empty
+    } else {
+      val eventFilteredById: Stream[IO, Event] = getFromIdsOrExternalIds(
+        ids,
+        (ids: Seq[String]) => client.events.retrieveByIds(ids.map(_.toLong), true))
+      val eventFilteredByExternalId = getFromIdsOrExternalIds(
+        externalIds,
+        (ids: Seq[String]) => client.events.retrieveByExternalIds(ids, true))
+
+      Seq(eventFilteredById, eventFilteredByExternalId).distinct
+    }
+
     val streamsPerFilter: Seq[Seq[Stream[IO, Event]]] = eventsFilterSeq
       .map { f: EventsFilter =>
         client.events.filterPartitions(f, numPartitions, limit)
@@ -76,7 +84,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
           s.reduce(_.merge(_))
             .filter(t =>
               checkDuplicateOnIdsOrExternalIds(t.id.toString, t.externalId, ids, externalIds))) ++
-      Seq(eventFilteredById, eventFilteredByExternalId).distinct
+      streamsOfIdsAndExternalIds
   }
 
   def eventsFilterFromMap(m: Map[String, String]): EventsFilter =

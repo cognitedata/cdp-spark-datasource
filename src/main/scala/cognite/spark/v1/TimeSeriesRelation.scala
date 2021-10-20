@@ -94,14 +94,20 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
 
     val ids = filtersAsMaps.flatMap(_.get("id")).distinct
-    val timeSeriesFilteredById: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
-      ids,
-      (ids: Seq[String]) => client.timeSeries.retrieveByIds(ids.map(_.toLong), true))
-
     val externalIds = filtersAsMaps.flatMap(_.get("externalId")).distinct
-    val timeSeriesFilteredByExternalId: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
-      externalIds,
-      (ids: Seq[String]) => client.timeSeries.retrieveByExternalIds(ids, true))
+
+    val streamsOfIdsAndExternalIds = if ((ids ++ externalIds).isEmpty) {
+      Seq.empty
+    } else {
+      val timeSeriesFilteredById: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
+        ids,
+        (ids: Seq[String]) => client.timeSeries.retrieveByIds(ids.map(_.toLong), true))
+      val timeSeriesFilteredByExternalId: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
+        externalIds,
+        (ids: Seq[String]) => client.timeSeries.retrieveByExternalIds(ids, true))
+
+      Seq(timeSeriesFilteredById, timeSeriesFilteredByExternalId).distinct
+    }
 
     val streamsPerFilter = timeSeriesFilterSeq
       .map { f =>
@@ -115,7 +121,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         s.reduce(_.merge(_))
           .filter(ts =>
             checkDuplicateOnIdsOrExternalIds(ts.id.toString, ts.externalId, ids, externalIds))) ++
-      Seq(timeSeriesFilteredById, timeSeriesFilteredByExternalId).distinct
+      streamsOfIdsAndExternalIds
   }
 
   def timeSeriesFilterFromMap(m: Map[String, String]): TimeSeriesFilter =
