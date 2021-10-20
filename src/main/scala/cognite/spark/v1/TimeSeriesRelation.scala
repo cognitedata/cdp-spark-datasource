@@ -3,10 +3,9 @@ package cognite.spark.v1
 import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
-import com.cognite.sdk.scala.common.{WithExternalId, WithId}
+import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1._
 import cognite.spark.v1.SparkSchemaHelper._
-import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -78,14 +77,36 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, TimeSeries]] = {
 
-    val fieldNames = Array("name", "unit", "isStep", "isString", "assetId", "dataSetId")
+    val fieldNames =
+      Array("name", "unit", "isStep", "isString", "assetId", "dataSetId", "id", "externalId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
     val timeSeriesFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
       Seq(TimeSeriesFilter())
     } else {
-      filtersAsMaps.distinct.map(timeSeriesFilterFromMap)
+      filtersAsMaps
+        .filter { mapFieldNameToValue =>
+          val fieldNames = mapFieldNameToValue.keySet
+          !fieldNames.contains("id") && !fieldNames.contains("externalId")
+        }
+        .map(timeSeriesFilterFromMap)
+    }
+
+    val ids = filtersAsMaps.flatMap(_.get("id")).distinct
+    val externalIds = filtersAsMaps.flatMap(_.get("externalId")).distinct
+
+    val streamsOfIdsAndExternalIds = if ((ids ++ externalIds).isEmpty) {
+      Seq.empty
+    } else {
+      val timeSeriesFilteredById: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
+        ids,
+        (ids: Seq[String]) => client.timeSeries.retrieveByIds(ids.map(_.toLong), true))
+      val timeSeriesFilteredByExternalId: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
+        externalIds,
+        (ids: Seq[String]) => client.timeSeries.retrieveByExternalIds(ids, true))
+
+      Seq(timeSeriesFilteredById, timeSeriesFilteredByExternalId).distinct
     }
 
     val streamsPerFilter = timeSeriesFilterSeq
@@ -95,9 +116,14 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
-    streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_)))
+    streamsPerFilter.transpose.map(
+      s =>
+        s.reduce(_.merge(_))
+          .filter(ts =>
+            checkDuplicateOnIdsOrExternalIds(ts.id.toString, ts.externalId, ids, externalIds))) ++
+      streamsOfIdsAndExternalIds
   }
+
   def timeSeriesFilterFromMap(m: Map[String, String]): TimeSeriesFilter =
     TimeSeriesFilter(
       name = m.get("name"),

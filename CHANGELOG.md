@@ -4,6 +4,10 @@
 
 * Use scala-sdk 1.5.14, with stable token/inspect support.
 
+## Enhancements
+
+* Avoid fetching all items when filtering by Id or ExternalId.
+
 # 1.4.37
 
 ## Enhancements
@@ -14,7 +18,7 @@
 
 ## Enhancements
 
-* Support updating & upserting a `Relationship` by it's `externalId`
+* Support updating & upserting a `Relationship` by its `externalId`
 
 # 1.4.35
 

@@ -24,17 +24,34 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, AssetsReadSchema]] = {
-    val fieldNames = Array("name", "source", "dataSetId", "labels")
+    val fieldNames = Array("name", "source", "dataSetId", "labels", "id", "externalId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val getAll = shouldGetAll(pushdownFilterExpression, fieldNames)
     val params = pushdownToParameters(pushdownFilterExpression)
-
     val pushdownFilters = if (params.isEmpty || getAll) {
       Seq(AssetsFilter())
     } else {
-      params.map(assetsFilterFromMap)
+      params
+        .filter { mapFieldNameToValue =>
+          val fieldNames = mapFieldNameToValue.keySet
+          !fieldNames.contains("id") && !fieldNames.contains("externalId")
+        }
+        .map(assetsFilterFromMap)
     }
 
+    val ids = params.flatMap(_.get("id")).distinct
+    val externalIds = params.flatMap(_.get("externalId")).distinct
+    val streamsOfIdsAndExternalIds = if ((ids ++ externalIds).isEmpty) {
+      Seq.empty
+    } else {
+      val assetFilteredById: Stream[IO, Asset] = getFromIdsOrExternalIds(
+        ids,
+        (ids: Seq[String]) => client.assets.retrieveByIds(ids.map(_.toLong), true))
+      val assetFilteredByExternalId: Stream[IO, Asset] = getFromIdsOrExternalIds(
+        externalIds,
+        (ids: Seq[String]) => client.assets.retrieveByExternalIds(ids, true))
+      Seq(assetFilteredById, assetFilteredByExternalId).distinct
+    }
     val streamsPerFilter = pushdownFilters
       .map { f =>
         client.assets.filterPartitions(f, numPartitions, limit)
@@ -42,14 +59,17 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
-    streamsPerFilter.transpose
+    (streamsPerFilter.transpose
       .map(
         s =>
           s.reduce(_.merge(_))
-            .map(
-              _.into[AssetsReadSchema]
-                .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
-                .transform))
+            .filter(a => checkDuplicateOnIdsOrExternalIds(a.id.toString, a.externalId, ids, externalIds))
+      ) ++ streamsOfIdsAndExternalIds)
+      .map(
+        _.map(
+          _.into[AssetsReadSchema]
+            .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
+            .transform))
   }
 
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
