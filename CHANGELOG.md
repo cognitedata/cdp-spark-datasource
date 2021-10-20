@@ -1,3 +1,9 @@
+# 1.4.38
+
+## Fixes
+
+* Use scala-sdk 1.5.14, which uses stable token/inspect.
+
 # 1.4.37
 
 ## Enhancements
