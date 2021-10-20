@@ -5,11 +5,10 @@ import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.cognite.sdk.scala.common.{WithExternalId, WithExternalIdGeneric, WithId}
+import com.cognite.sdk.scala.common.{WithExternalIdGeneric, WithId}
 import com.cognite.sdk.scala.v1.resources.Events
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
-import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -20,45 +19,72 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with WritableRelation {
   import CdpConnector._
 
+  private val fieldNames = Array(
+    "source",
+    "type",
+    "subtype",
+    "assetIds",
+    "minStartTime",
+    "maxStartTime",
+    "minEndTime",
+    "maxEndTime",
+    "minCreatedTime",
+    "maxCreatedTime",
+    "minLastUpdatedTime",
+    "maxLastUpdatedTime",
+    "dataSetId",
+    "id",
+    "externalId"
+  )
+
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, Event]] = {
-    val fieldNames =
-      Array(
-        "source",
-        "type",
-        "subtype",
-        "assetIds",
-        "minStartTime",
-        "maxStartTime",
-        "minEndTime",
-        "maxEndTime",
-        "minCreatedTime",
-        "maxCreatedTime",
-        "minLastUpdatedTime",
-        "maxLastUpdatedTime",
-        "dataSetId"
-      )
+
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-
     val eventsFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
       Seq(EventsFilter())
     } else {
-      filtersAsMaps.distinct.map(eventsFilterFromMap)
+      filtersAsMaps
+        .filter { mapFieldNameToValue =>
+          val fieldNames = mapFieldNameToValue.keySet
+          !fieldNames.contains("id") && !fieldNames.contains("externalId")
+        }
+        .map(eventsFilterFromMap)
+    }
+    val ids = filtersAsMaps.flatMap(_.get("id")).distinct
+    val externalIds = filtersAsMaps.flatMap(_.get("externalId")).distinct
+
+    val streamsOfIdsAndExternalIds = if ((ids ++ externalIds).isEmpty) {
+      Seq.empty
+    } else {
+      val eventFilteredById: Stream[IO, Event] = getFromIdsOrExternalIds(
+        ids,
+        (ids: Seq[String]) => client.events.retrieveByIds(ids.map(_.toLong), true))
+      val eventFilteredByExternalId = getFromIdsOrExternalIds(
+        externalIds,
+        (ids: Seq[String]) => client.events.retrieveByExternalIds(ids, true))
+
+      Seq(eventFilteredById, eventFilteredByExternalId).distinct
     }
 
-    val streamsPerFilter = eventsFilterSeq
-      .map { f =>
+    val streamsPerFilter: Seq[Seq[Stream[IO, Event]]] = eventsFilterSeq
+      .map { f: EventsFilter =>
         client.events.filterPartitions(f, numPartitions, limit)
       }
 
     // Merge streams related to each partition to make sure duplicate values are read into
     // the same RDD partition
     streamsPerFilter.transpose
-      .map(s => s.reduce(_.merge(_)))
+      .map(
+        s =>
+          s.reduce(_.merge(_))
+            .filter(t =>
+              checkDuplicateOnIdsOrExternalIds(t.id.toString, t.externalId, ids, externalIds))) ++
+      streamsOfIdsAndExternalIds
   }
 
   def eventsFilterFromMap(m: Map[String, String]): EventsFilter =

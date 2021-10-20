@@ -1,7 +1,10 @@
 package cognite.spark.v1
 
+import cats.effect.IO
+
 import java.time.Instant
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, ContainsAny, TimeRange}
+import fs2.Stream
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import sttp.model.Uri
@@ -192,6 +195,22 @@ object PushdownUtilities {
     m.get("id")
       .map(id => CogniteInternalId(id.toLong))
       .orElse(m.get("externalId").map(CogniteExternalId(_)))
+
+  def getFromIdsOrExternalIds[T](
+      ids: Seq[String],
+      clientToGetByIdsOrByExternalIds: Seq[String] => IO[Seq[T]]): Stream[IO, T] =
+    if (ids.isEmpty) {
+      fs2.Stream.emits(Seq[T]())
+    } else {
+      fs2.Stream.evalSeq(clientToGetByIdsOrByExternalIds(ids))
+    }
+
+  def checkDuplicateOnIdsOrExternalIds(
+      id: String,
+      externalId: Option[String],
+      ids: Seq[String],
+      externalIds: Seq[String]): Boolean =
+    !ids.contains(id) && (externalId.isEmpty || !externalIds.contains(externalId.getOrElse("")))
 }
 
 trait InsertSchema {

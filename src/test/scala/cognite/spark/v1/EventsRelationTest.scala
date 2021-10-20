@@ -29,10 +29,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   sourceDf.cache()
 
   private def getBaseReader(
-    collectMetrics: Boolean = false,
-    metricsPrefix: String = "",
-    upperTimeBound: String = "1580000000"): DataFrame = {
-
+      collectMetrics: Boolean = false,
+      metricsPrefix: String = "",
+      upperTimeBound: String = "1580000000"): DataFrame =
     spark.read
       .format("cognite.spark.v1")
       .option("type", "events")
@@ -40,7 +39,6 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("collectMetrics", collectMetrics)
       .option("metricsPrefix", metricsPrefix)
       .load()
-  }
 
   "EventsRelation" should "allow simple reads" taggedAs WriteTest in {
     val df = spark.read
@@ -73,7 +71,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .where("dataSetId = 0")
 
     val thrown = the[SparkException] thrownBy df.count()
-    thrown.getMessage should include ("id must be greater than or equal to 1")
+    thrown.getMessage should include("id must be greater than or equal to 1")
   }
 
   it should "apply a dataSetId pushdown filter" taggedAs WriteTest in {
@@ -85,6 +83,27 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(df.count == 232)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 232)
+  }
+
+  it should "not fetch all items if filter on id" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filter.id"
+    val df = getBaseReader(true, metricsPrefix)
+      .where("id = 1394439528453086")
+
+    assert(df.count == 1)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 1)
+
+  }
+
+  it should "not fetch all items if filter on externalId" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.filter.externalId"
+    val df = getBaseReader(true, metricsPrefix)
+      .where("dataSetId = 86163806167772 or externalId = 'null-id-events65847147385304'")
+
+    assert(df.count == 17)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+    assert(eventsRead == 17)
   }
 
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {
@@ -115,7 +134,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     val fetchedItems = df.collect()
     // check that there are actually some items that satisfy both filters
-    assert(fetchedItems.exists(r => r.getAs[String]("type") == "NEWS" && r.getAs[String]("subtype") == "HACK"))
+    assert(fetchedItems.exists(r =>
+      r.getAs[String]("type") == "NEWS" && r.getAs[String]("subtype") == "HACK"))
     assert(fetchedItems.map(_.getAs[Long]("id")).distinct.length == fetchedItems.length)
 
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -125,7 +145,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "apply multiple pushdown filters" taggedAs WriteTest in {
     val metricsPrefix = "multiple.pushdown.filters"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"type = '***' and assetIds = Array(2091657868296883) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
+      .where(
+        s"type = '***' and assetIds = Array(2091657868296883) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
 
     assert(df.count == 83)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -135,7 +156,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "handle or conditions" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.or"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"(type = 'Workitem' or type = 'Worktask') and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
+      .where(
+        s"(type = 'Workitem' or type = 'Worktask') and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
 
     assert(df.count == 1483)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -154,7 +176,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "handle and, or and in() in one query" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.and.or.in"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"(type = 'Workitem' or type = '***') and assetIds in(array(2091657868296883), array(8031965690878131)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
+      .where(
+        s"(type = 'Workitem' or type = '***') and assetIds in(array(2091657868296883), array(8031965690878131)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
 
     assert(df.count == 172)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
@@ -164,7 +187,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "handle pushdown filters on minimum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.minStartTime"
     val df = getBaseReader(true, metricsPrefix)
-      .where("startTime > to_timestamp(1568105460) and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
+      .where(
+        "startTime > to_timestamp(1568105460) and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
     assert(df.count >= 179)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead >= 179)
@@ -182,7 +206,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.maxStartTime"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"startTime < timestamp('1970-01-19 00:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
+      .where(
+        s"startTime < timestamp('1970-01-19 00:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
     assert(df.count > 10)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == df.count)
@@ -191,7 +216,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.minMaxStartTime"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"startTime < timestamp('1970-01-19 00:00:00.000Z') and startTime > timestamp('1970-01-18 23:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
+      .where(
+        s"startTime < timestamp('1970-01-19 00:00:00.000Z') and startTime > timestamp('1970-01-18 23:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
     assert(df.count == 9)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 9)
@@ -200,13 +226,14 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "handle pushdown filters on assetIds" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.assetIds"
     val df = getBaseReader(true, metricsPrefix)
-      .where(s"assetIds In(Array(2091657868296883)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
+      .where(
+        s"assetIds In(Array(2091657868296883)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
     assert(df.count == 89)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 89)
   }
 
-  it should "handle pusdown filters on eventIds" taggedAs WriteTest ignore {
+  (it should "handle pusdown filters on eventIds" taggedAs WriteTest).ignore {
     val metricsPrefix = "pushdown.filters.id"
     val df = getBaseReader(true, metricsPrefix)
       .where("id = 370545839260513")
@@ -215,16 +242,17 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(eventsRead == 1)
   }
 
-  it should "handle pusdown filters on many eventIds" taggedAs WriteTest ignore {
+  (it should "handle pusdown filters on many eventIds" taggedAs WriteTest).ignore {
     val metricsPrefix = "pushdown.filters.ids"
     val df = getBaseReader(true, metricsPrefix)
-      .where("id In(607444033860, 3965637099169, 10477877031034, 17515837146970, 19928788984614, 21850891340773)")
+      .where(
+        "id In(607444033860, 3965637099169, 10477877031034, 17515837146970, 19928788984614, 21850891340773)")
     assert(df.count == 6)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 6)
   }
 
-  it should "handle pusdown filters on many eventIds with or" taggedAs WriteTest ignore {
+  (it should "handle pusdown filters on many eventIds with or" taggedAs WriteTest).ignore {
     val metricsPrefix = "pushdown.filters.orids"
     val df = getBaseReader(true, metricsPrefix)
       .where("""
@@ -235,7 +263,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(eventsRead == 6)
   }
 
-  it should "handle pusdown filters on many eventIds with other filters" taggedAs WriteTest ignore {
+  (it should "handle pusdown filters on many eventIds with other filters" taggedAs WriteTest).ignore {
     val metricsPrefix = "pushdown.filters.idsAndDescription"
     val df = getBaseReader(true, metricsPrefix)
       .where("""id In(
@@ -247,7 +275,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(eventsRead == 6)
   }
 
-  it should "handle a really advanced query" taggedAs WriteTest ignore {
+  (it should "handle a really advanced query" taggedAs WriteTest).ignore {
     val metricsPrefix = "pushdown.filters.advanced"
 
     val df = spark.read
@@ -267,7 +295,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(eventsRead == 4)
   }
 
-  it should "handle pushdown on eventId or something else" taggedAs WriteTest ignore {
+  (it should "handle pushdown on eventId or something else" taggedAs WriteTest).ignore {
     val metricsPrefix = "pushdown.filters.idortype"
     val df = getBaseReader(true, metricsPrefix)
       .where(s"type = 'maintenance' or id = 17515837146970")
@@ -306,7 +334,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val storedMetadata = rows.head.getAs[Map[String, String]](6)
       assert(storedMetadata.size == 1)
       assert(storedMetadata.get("foo").contains("bar"))
-    }  finally {
+    } finally {
       try {
         cleanupEvents(source)
       } catch {
@@ -392,7 +420,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       // Check if upsert worked
       val descriptionsAfterUpdate = retryWhile[Array[Row]](
         spark
-          .sql(s"select description from destinationEventUpsert where source = '$source' and description = 'foo'").collect,
+          .sql(
+            s"select description from destinationEventUpsert where source = '$source' and description = 'foo'")
+          .collect,
         df => df.length < 500
       )
       assert(descriptionsAfterUpdate.length == 500)
@@ -402,7 +432,10 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(eventsCreatedAfterUpsert == 500)
 
       val dfWithCorrectAssetIds = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'").collect,
+        spark
+          .sql(
+            s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'")
+          .collect,
         rows => rows.length < 500)
       assert(dfWithCorrectAssetIds.length == 500)
     } finally {
@@ -477,14 +510,15 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     }
   }
 
-  it should "allow NULL updates in savemode" taggedAs WriteTest in forAll(updateAndUpsert) { updateMode =>
-    val source = s"spark-events-update-null-${shortRandomString()}"
-    val metricsPrefix = s"updatenull.event.${shortRandomString()}"
+  it should "allow NULL updates in savemode" taggedAs WriteTest in forAll(updateAndUpsert) {
+    updateMode =>
+      val source = s"spark-events-update-null-${shortRandomString()}"
+      val metricsPrefix = s"updatenull.event.${shortRandomString()}"
 
-    try {
-      // Insert test event
-      val df = spark
-        .sql(s"""
+      try {
+        // Insert test event
+        val df = spark
+          .sql(s"""
                 |select "foo" as description,
                 |cast(from_unixtime(10) as timestamp) as startTime,
                 |cast(from_unixtime(20) as timestamp) as endTime,
@@ -495,22 +529,22 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |"$source-id" as externalId
      """.stripMargin)
 
-      df.write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "events")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .option("onconflict", "abort")
-        .save()
+        df.write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "events")
+          .option("collectMetrics", "true")
+          .option("metricsPrefix", metricsPrefix)
+          .option("onconflict", "abort")
+          .save()
 
-      val insertTest = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationEvent where source = '$source'").collect,
-        df => df.length == 0
-      )
+        val insertTest = retryWhile[Array[Row]](
+          spark.sql(s"select * from destinationEvent where source = '$source'").collect,
+          df => df.length == 0
+        )
 
-      spark
-        .sql(s"""
+        spark
+          .sql(s"""
                 |select "foo-$source" as description,
                 |NULL as endTime,
                 |NULL as subtype,
@@ -518,40 +552,42 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |${insertTest.head.getAs[Long]("id")} as id,
                 |NULL as externalId
      """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "events")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .option("ignoreNullFields", "false")
-        .option("onconflict", updateMode)
-        .save()
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "events")
+          .option("collectMetrics", "true")
+          .option("metricsPrefix", metricsPrefix)
+          .option("ignoreNullFields", "false")
+          .option("onconflict", updateMode)
+          .save()
 
-      val updateTest = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationEvent where source = '$source' and description = 'foo-$source'").collect,
-        df => df.length == 0
-      )
-      updateTest.length shouldBe 1
-      val Array(updatedRow) = updateTest
-      val updatedEvent = SparkSchemaHelper.fromRow[EventsReadSchema](updatedRow)
-      updatedEvent.endTime shouldBe None
-      updatedEvent.startTime shouldBe defined
-      updatedEvent.source shouldBe Some(source)
-      updatedEvent.externalId shouldBe None
-      updatedEvent.assetIds shouldBe Some(Seq(8031965690878131L))
-      updatedEvent.`type` shouldBe Some("test-type")
-      updatedEvent.subtype shouldBe None
+        val updateTest = retryWhile[Array[Row]](
+          spark
+            .sql(
+              s"select * from destinationEvent where source = '$source' and description = 'foo-$source'")
+            .collect,
+          df => df.length == 0
+        )
+        updateTest.length shouldBe 1
+        val Array(updatedRow) = updateTest
+        val updatedEvent = SparkSchemaHelper.fromRow[EventsReadSchema](updatedRow)
+        updatedEvent.endTime shouldBe None
+        updatedEvent.startTime shouldBe defined
+        updatedEvent.source shouldBe Some(source)
+        updatedEvent.externalId shouldBe None
+        updatedEvent.assetIds shouldBe Some(Seq(8031965690878131L))
+        updatedEvent.`type` shouldBe Some("test-type")
+        updatedEvent.subtype shouldBe None
 
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
+      } finally {
+        try {
+          cleanupEvents(source)
+        } catch {
+          case NonFatal(_) => // ignore
+        }
       }
-    }
   }
-
 
   it should "allow duplicated ids and external ids when using upsert in savemode" in {
     val source = s"spark-events-test-${shortRandomString()}"
@@ -586,7 +622,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
       assert(eventsCreated == 1)
 
-      a [NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "events")
+      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "events")
 
       // We need to add endTime as well, otherwise Spark is clever enough to remove duplicates
       // on its own, it seems.
@@ -623,7 +659,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val descriptionsAfterUpdate =
         retryWhile[Array[Row]](
           spark
-            .sql(s"select description from destinationEvent where source = '$source' and description = 'bar'")
+            .sql(
+              s"select description from destinationEvent where source = '$source' and description = 'bar'")
             .collect(),
           rows => rows.length < 1)
       assert(descriptionsAfterUpdate.length == 1)
@@ -666,7 +703,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val descriptionsAfterUpdateById =
         retryWhile[Array[Row]](
           spark
-            .sql(s"select description from destinationEvent where source = '$source' and description = 'bar2'")
+            .sql(
+              s"select description from destinationEvent where source = '$source' and description = 'bar2'")
             .collect(),
           rows => rows.length < 1)
       assert(descriptionsAfterUpdateById.length == 1)
@@ -742,8 +780,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |order by id
                 |limit 50
         """.stripMargin)
-      updateEventsByIdDf
-        .write
+      updateEventsByIdDf.write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("onconflict", "upsert")
@@ -776,8 +813,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |order by id
                 |limit 50
         """.stripMargin)
-      updateEventsByExternalIdDf
-        .write
+      updateEventsByExternalIdDf.write
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("onconflict", "upsert")
@@ -792,9 +828,10 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val descriptionsAfterUpdate =
         retryWhile[Array[Row]](
           spark
-            .sql(s"select description from destinationEvent where source = '$source' and description = 'bar'")
-            .collect()
-          , rows => rows.length < 100)
+            .sql(
+              s"select description from destinationEvent where source = '$source' and description = 'bar'")
+            .collect(),
+          rows => rows.length < 100)
       assert(descriptionsAfterUpdate.length == 100)
       assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
 
@@ -802,7 +839,10 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(eventsCreatedAfterUpsert == 100)
 
       val dfWithCorrectAssetIds = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'").collect,
+        spark
+          .sql(
+            s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'")
+          .collect,
         rows => rows.length != 100)
       assert(dfWithCorrectAssetIds.length == 100)
     } finally {
@@ -820,8 +860,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     try {
       // Cleanup old events
-      val dfWithUpdatesAsSource = retryWhile[Array[Row]](
-        cleanupEvents(source), df => df.length > 0)
+      val dfWithUpdatesAsSource = retryWhile[Array[Row]](cleanupEvents(source), df => df.length > 0)
       assert(dfWithUpdatesAsSource.length == 0)
 
       val destinationDf: DataFrame = spark.read
@@ -873,29 +912,31 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
       // Update the data
       val descriptionsAfterUpdate =
-        retryWhile[Array[Row]]({
-          spark
-            .sql(
-              s"""
+        retryWhile[Array[Row]](
+          {
+            spark
+              .sql(s"""
                  |select "bar" as description,
                  |id
                  |from destinationEventsUpsertPartial
                  |where source = '$source'
       """.stripMargin)
-            .write
-            .format("cognite.spark.v1")
-            .option("apiKey", writeApiKey)
-            .option("type", "events")
-            .option("onconflict", "update")
-            .option("collectMetrics", "true")
-            .option("metricsPrefix", metricsPrefix)
-            .save()
-          spark
-            .sql(
-              s"select description from destinationEventsUpsertPartial " +
-                s"where source = '$source' and description = 'bar'")
-            .collect
-        }, df => df.length < 100)
+              .write
+              .format("cognite.spark.v1")
+              .option("apiKey", writeApiKey)
+              .option("type", "events")
+              .option("onconflict", "update")
+              .option("collectMetrics", "true")
+              .option("metricsPrefix", metricsPrefix)
+              .save()
+            spark
+              .sql(
+                s"select description from destinationEventsUpsertPartial " +
+                  s"where source = '$source' and description = 'bar'")
+              .collect
+          },
+          df => df.length < 100
+        )
       assert(descriptionsAfterUpdate.length == 100)
       assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
 
@@ -954,8 +995,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     try {
       // Post new events
       spark
-        .sql(
-          s"""
+        .sql(s"""
              |select concat("$source", string(id)) as externalId,
              |null as id,
              |'$source' as source,
@@ -978,29 +1018,36 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
       // Check if post worked
       val eventsFromTestDf = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationEvent where source = '$source' and description = 'foo' and dataSetId = $testDataSetId").collect,
+        spark
+          .sql(
+            s"select * from destinationEvent where source = '$source' and description = 'foo' and dataSetId = $testDataSetId")
+          .collect,
         df => df.length < 5)
       assert(eventsFromTestDf.length == 5)
 
       // Upsert events
-      val descriptionsAfterUpdate = retryWhile[Array[Row]]({
-        spark
-          .sql(
-            s"""
+      val descriptionsAfterUpdate = retryWhile[Array[Row]](
+        {
+          spark
+            .sql(s"""
                |select externalId,
                |'bar' as description
                |from destinationEvent
                |where source = '$source'
        """.stripMargin)
-          .write
-          .format("cognite.spark.v1")
-          .option("apiKey", writeApiKey)
-          .option("type", "events")
-          .option("onconflict", "update")
-          .save()
-        spark
-          .sql(s"select description from destinationEvent where source = '$source' and description = 'bar'").collect
-      }, df => df.length < 5)
+            .write
+            .format("cognite.spark.v1")
+            .option("apiKey", writeApiKey)
+            .option("type", "events")
+            .option("onconflict", "update")
+            .save()
+          spark
+            .sql(
+              s"select description from destinationEvent where source = '$source' and description = 'bar'")
+            .collect
+        },
+        df => df.length < 5
+      )
       assert(descriptionsAfterUpdate.length == 5)
     } finally {
       try {
@@ -1049,19 +1096,22 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
       // Delete the data
       val idsAfterDelete =
-        retryWhile[Array[Row]]({
-          spark
-            .sql(s"select id from destinationEvent where source = '$source'")
-            .write
-            .format("cognite.spark.v1")
-            .option("apiKey", writeApiKey)
-            .option("type", "events")
-            .option("onconflict", "delete")
-            .save()
-          spark
-            .sql(s"select id from destinationEvent where source = '$source'")
-            .collect
-        }, df => df.length > 0)
+        retryWhile[Array[Row]](
+          {
+            spark
+              .sql(s"select id from destinationEvent where source = '$source'")
+              .write
+              .format("cognite.spark.v1")
+              .option("apiKey", writeApiKey)
+              .option("type", "events")
+              .option("onconflict", "delete")
+              .save()
+            spark
+              .sql(s"select id from destinationEvent where source = '$source'")
+              .collect
+          },
+          df => df.length > 0
+        )
       assert(idsAfterDelete.length == 0)
     } finally {
       try {
@@ -1156,7 +1206,8 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .collect()
 
   def cleanupEvents(source: String): Array[Row] = {
-    spark.sql(s"""select * from destinationEvent where source = '$source'""")
+    spark
+      .sql(s"""select * from destinationEvent where source = '$source'""")
       .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
