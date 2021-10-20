@@ -1,5 +1,9 @@
 # 1.4.38
 
+## Fixes
+
+* Use scala-sdk 1.5.14, with stable token/inspect support.
+
 ## Enhancements
 
 * Avoid fetching all items when filtering by Id or ExternalId.
