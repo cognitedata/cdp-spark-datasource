@@ -28,7 +28,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val getAll = shouldGetAll(pushdownFilterExpression, fieldNames)
     val params = pushdownToParameters(pushdownFilterExpression)
-
     val pushdownFilters = if (params.isEmpty || getAll) {
       Seq(AssetsFilter())
     } else {
