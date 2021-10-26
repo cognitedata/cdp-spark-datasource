@@ -5,7 +5,7 @@ val scala211 = "2.11.12"
 val supportedScalaVersions = List(scala212, scala211)
 val sparkVersion: Option[(Long, Long)] => String = {
   case Some((2, 11)) => "2.4.7"
-  case _ => "3.0.1"
+  case _ => "3.1.2"
 }
 val circeVersion: Option[(Long, Long)] => String = {
   case Some((2, 11)) => "0.12.0-M3"
