@@ -1,3 +1,9 @@
+# 1.4.39
+
+## Enhancements
+
+* Update to Spark version 3.1.2.
+
 # 1.4.38
 
 ## Fixes
