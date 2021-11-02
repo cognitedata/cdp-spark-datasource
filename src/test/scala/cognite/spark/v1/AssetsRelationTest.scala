@@ -246,6 +246,24 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(eventsRead == 2)
   }
 
+  it should "not fetch all items if filter on externalIdPrefix" taggedAs WriteTest in {
+    val metricsPrefix = "pushdown.assets.externalIdPrefix"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .load()
+      .where("externalId LIKE 'houston.Pass%'")
+
+    assert(df.count == 3)
+    val eventsRead = getNumberOfRowsRead(metricsPrefix, "assets")
+    assert(eventsRead == 3)
+  }
+
   it should "support filtering on null" taggedAs ReadTest in {
     val df = spark.read
       .format("cognite.spark.v1")

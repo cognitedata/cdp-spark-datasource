@@ -77,6 +77,8 @@ object PushdownUtilities {
         PushdownFilter("max" + colName.capitalize, value.toString)
       case LessThanOrEqual(colName, value) =>
         PushdownFilter("max" + colName.capitalize, value.toString)
+      case StringStartsWith(colName, value) =>
+        PushdownFilter(colName + "Prefix", value)
       case In(colName, values) =>
         PushdownFilters(
           values
