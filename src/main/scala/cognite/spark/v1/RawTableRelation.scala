@@ -125,7 +125,10 @@ class RawTableRelation(
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
 
     val rdd =
-      readRows(config.limitPerPartition, None, RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime))
+      readRows(
+        config.limitPerPartition,
+        None,
+        RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime, Some(requiredColumns)))
     val newRdd = if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
       rdd
     } else {
