@@ -1,3 +1,9 @@
+# 1.4.40
+
+## Enhancements
+
+* Support filter pushdown on externalIdPrefix (for example using SQL `externalId LIKE 'Something%'`). Assets, Time Series and Events support it.
+
 # 1.4.39
 
 ## Enhancements
