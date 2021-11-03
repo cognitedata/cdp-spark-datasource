@@ -72,13 +72,23 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: TimeSeries): Long = a.id
 
+  private val fieldNames =
+    Array(
+      "name",
+      "unit",
+      "isStep",
+      "isString",
+      "assetId",
+      "dataSetId",
+      "id",
+      "externalId",
+      "externalIdPrefix")
+
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, TimeSeries]] = {
 
-    val fieldNames =
-      Array("name", "unit", "isStep", "isString", "assetId", "dataSetId", "id", "externalId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
@@ -131,7 +141,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       isStep = m.get("isStep").map(_.toBoolean),
       isString = m.get("isString").map(_.toBoolean),
       assetIds = m.get("assetId").map(idsFromWrappedArray),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_)))
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
+      externalIdPrefix = m.get("externalIdPrefix")
     )
 }
 object TimeSeriesRelation extends UpsertSchema {

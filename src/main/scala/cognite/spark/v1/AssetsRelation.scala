@@ -20,11 +20,12 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with InsertableRelation
     with WritableRelation {
   import CdpConnector._
+  private val fieldNames =
+    Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, AssetsReadSchema]] = {
-    val fieldNames = Array("name", "source", "dataSetId", "labels", "id", "externalId")
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val getAll = shouldGetAll(pushdownFilterExpression, fieldNames)
     val params = pushdownToParameters(pushdownFilterExpression)
@@ -77,7 +78,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       name = m.get("name"),
       source = m.get("source"),
       dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
-      labels = m.get("labels").map(externalIdsToContainsAny).getOrElse(None)
+      labels = m.get("labels").flatMap(externalIdsToContainsAny),
+      externalIdPrefix = m.get("externalIdPrefix")
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

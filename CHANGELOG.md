@@ -1,8 +1,14 @@
+# 1.4.41
+
+## Enhancements
+
+* RAW tables will now be filtered in the API when selecting individual columns by name.
+
 # 1.4.40
 
 ## Enhancements
 
-* RAW tables will now be filtered in the API when selecting individual columns by name. 
+* Support filter pushdown on externalIdPrefix (for example using SQL `externalId LIKE 'Something%'`). Assets, Time Series and Events support it.
 
 # 1.4.39
 
