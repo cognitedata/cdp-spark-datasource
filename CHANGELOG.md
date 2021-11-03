@@ -1,3 +1,9 @@
+# 1.4.41
+
+## Enhancements
+
+* RAW tables will now be filtered in the API when selecting individual columns by name.
+
 # 1.4.40
 
 ## Enhancements

@@ -328,6 +328,25 @@ class RawTableRelationTest
     }
   }
 
+  it should "read individual columns successfully" taggedAs (ReadTest) in {
+    val dfArray = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", "testdb")
+      .option("table", "future-event")
+      .option("inferSchema", true)
+      .load()
+      .limit(10)
+      .select("key", "source", "subtype")
+      .collect()
+
+
+    assert(dfArray.map(_.getAs[String]("key")).forall(k => k.toInt > 0))
+    assert(dfArray.map(_.getAs[String]("source")).forall(_ == "generator"))
+    assert(dfArray.map(_.getAs[String]("subtype")).forall(_ == "past"))
+  }
+
   it should "write nested struct values" in {
     val database = "testdb"
     val table = "struct-test"
