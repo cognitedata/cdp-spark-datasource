@@ -7,6 +7,9 @@ import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
 class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val valhallTimeSeries = "'pi:195975'"
 
@@ -14,6 +17,14 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   val valhallStringTimeSeriesId = 1470524308850282L
   // VAL_23-TT-92533:X.Value has some null aggregate values
   val withMissingAggregatesId = 5662453767080168L
+
+  val destinationDf = spark.read
+    .format("cognite.spark.v1")
+    .option("apiKey", writeApiKey)
+    .option("type", "datapoints")
+    .load()
+  destinationDf.createOrReplaceTempView("destinationDatapoints")
+
 
   "DataPointsRelation" should "use our own schema for data points" taggedAs (ReadTest) in {
     val df = spark.read
@@ -440,14 +451,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
 
-    val destinationDataPointsDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "datapoints")
-      .option("collectMetrics", "true")
-      .load()
-    destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
-
     // Insert new time series test data
     spark
       .sql(s"""
@@ -636,13 +639,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
 
-    val destinationDataPointsDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "datapoints")
-      .load()
-    destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
-
     spark
       .sql(
         s"""
@@ -727,12 +723,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   }
 
   it should "be an error to specify an invalid (time series) id" taggedAs (WriteTest) in {
-    val destinationDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "datapoints")
-      .load()
-    destinationDf.createOrReplaceTempView("destinationDatapoints")
 
     val e = intercept[SparkException] {
       spark
@@ -830,12 +820,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
 
 
   it should "be possible to delete data points" taggedAs WriteTest in {
-    val destinationDataPointsDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "datapoints")
-      .load()
-    destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
 
     val tsName = s"dps-delete1-${shortRandomString()}"
 
@@ -937,12 +921,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   }
 
   it should "be empty set when id does not exist" in {
-    val destinationDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "datapoints")
-      .load()
-    destinationDf.createOrReplaceTempView("destinationDatapoints")
     val idDoesNotExist = spark
       .sql(s"select * from destinationDatapoints where externalId = '2QEuQHKxStrhMG83wFgg9Rxd3NjZe8Y9ubyRXWciP'")
 
@@ -964,6 +942,79 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
 
     assert(error.getMessage.contains(s"Cannot read string data points as numeric datapoints"))
     assert(error.getMessage.contains(s"The timeseries id=$valhallStringTimeSeriesId"))
+  }
+
+
+  it should "read and write datapoints in the future" taggedAs WriteTest in {
+    val testUnit = s"future ${shortRandomString()}"
+    val tsName = s"future${shortRandomString()}"
+
+    val destinationTimeSeriesDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .load()
+    destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
+
+
+    // Insert new time series test data
+    spark
+      .sql(s"""
+              |select 'test serie with points in future' as description,
+              |'$tsName' as name,
+              |false as isString,
+              |false as isStep,
+              |'$testUnit' as unit,
+              |'$tsName' as externalId,
+              |$testDataSetId as dataSetId
+     """.stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .save()
+
+    // Check if post worked
+    val initialDescriptionsAfterPost = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select id from destinationTimeSeries where name = '$tsName' and dataSetId = $testDataSetId""")
+        .collect,
+      df => df.length < 1)
+    assert(initialDescriptionsAfterPost.length == 1)
+
+    import spark.implicits._
+
+    val points = Seq(
+      (tsName, Instant.now().minus(3, ChronoUnit.DAYS), -2),
+      (tsName, Instant.now().minus(10, ChronoUnit.MINUTES), -1),
+      (tsName, Instant.now().plus(10, ChronoUnit.MINUTES), 1),
+      (tsName, Instant.now().plus(3, ChronoUnit.DAYS), 2),
+      (tsName, Instant.now().plus(30, ChronoUnit.DAYS), 3),
+      (tsName, Instant.now().plus(300, ChronoUnit.DAYS), 4)
+    )
+
+    points
+      .toDF("externalId", "timestamp", "value")
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "datapoints")
+      .option("onconflict", "upsert")
+      .save()
+
+    // Check if post worked and we can read all of them
+    val dataPointsAfterPostByExternalId = retryWhile[Array[Row]](
+      spark
+        .sql(s"""select value from destinationDatapoints where externalId = '$tsName'""")
+        .collect,
+      df => df.length < points.length)
+    assert(dataPointsAfterPostByExternalId.length == points.length)
+    val pointsInFuture =
+      spark
+        .sql(s"""select value from destinationDatapoints where externalId = '$tsName' and timestamp > now()""")
+        .as[Double]
+        .collect
+    assert(pointsInFuture.toList.sorted == List(1, 2, 3, 4.0).sorted)
   }
 
   // Ignored because it runs for an hour (on not so good computer and not so good internet)
