@@ -1,3 +1,9 @@
+# 1.4.42
+
+## Enhancements
+
+* No column filter will be pushed to RAW tables when selecting all columns.
+
 # 1.4.41
 
 ## Enhancements
