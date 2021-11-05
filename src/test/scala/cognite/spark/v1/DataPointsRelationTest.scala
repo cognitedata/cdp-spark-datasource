@@ -1010,6 +1010,24 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
         .as[Double]
         .collect
     assert(pointsInFuture.toList.sorted == points.filter(_._2.isAfter(now)).map(_._3).sorted)
+
+    //Delete the timeSeries to avoid random timeSeries
+    spark
+      .sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""")
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "timeseries")
+      .option("onconflict", "delete")
+      .save()
+
+    val emptyPointInFuture =
+      spark
+        .sql(
+          s"""select value from destinationDatapoints where externalId = '$tsName' and timestamp > now()""")
+        .as[Double]
+        .collect
+    assert(emptyPointInFuture.length == 0)
   }
 
   // Ignored because it runs for an hour (on not so good computer and not so good internet)
