@@ -1,16 +1,10 @@
 import com.typesafe.sbt.packager.docker.Cmd
 
-val scala212 = "2.12.12"
-val scala211 = "2.11.12"
-val supportedScalaVersions = List(scala212, scala211)
-val sparkVersion: Option[(Long, Long)] => String = {
-  case Some((2, 11)) => "2.4.7"
-  case _ => "3.1.2"
-}
-val circeVersion: Option[(Long, Long)] => String = {
-  case Some((2, 11)) => "0.12.0-M3"
-  case _ => "0.14.0"
-}
+val scala212 = "2.12.15"
+val scala213 = "2.13.7"
+val supportedScalaVersions = List(scala212, scala213)
+val sparkVersion = "3.1.2"
+val circeVersion = "0.13.0"
 val sttpVersion = "3.3.15"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
