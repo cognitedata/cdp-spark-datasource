@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
-import org.apache.spark.sql.functions.{col, expr, to_timestamp}
+import org.apache.spark.sql.functions.{col, expr}
 import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField, TimestampType}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import org.apache.spark.SparkException
@@ -985,11 +985,10 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
       (tsName, now.plus(30, ChronoUnit.DAYS), 3),
       (tsName, now.plus(3, ChronoUnit.DAYS), 2),
       (tsName, now.plus(300, ChronoUnit.DAYS), 4)
-    )
+    ).map { case (tsName, instant, value) => (tsName, java.sql.Timestamp.from(instant), value) }
 
     points
       .toDF("externalId", "timestamp", "value")
-      .withColumn("timestamp", to_timestamp(col("timestamp")))
       .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -1010,7 +1009,11 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
           s"""select value from destinationDatapoints where externalId = '$tsName' and timestamp > now()""")
         .as[Double]
         .collect
-    assert(pointsInFuture.toList.sorted == points.filter(_._2.isAfter(now)).map(_._3).sorted)
+    assert(
+      pointsInFuture.toList.sorted == points
+        .filter(_._2.after(java.sql.Timestamp.from(now)))
+        .map(_._3)
+        .sorted)
 
     //Delete the timeSeries to avoid random timeSeries
     spark
