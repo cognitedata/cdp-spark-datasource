@@ -43,7 +43,7 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       dataSets,
       isUpdateEmpty,
       client.dataSets,
-      mustBeUpdate = d => d.name.toOption.isEmpty && d.getExternalId().nonEmpty
+      mustBeUpdate = d => d.name.toOption.isEmpty && d.getExternalId.nonEmpty
     )
   }
 

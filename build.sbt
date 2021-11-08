@@ -8,7 +8,7 @@ val circeVersion = "0.13.0"
 val sttpVersion = "3.3.15"
 val Specs2Version = "4.2.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.5.14"
+val cogniteSdkVersion = "1.5.17"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
@@ -75,8 +75,8 @@ lazy val macroSub = (project in file("macro"))
     publish := {},
     publishLocal := {},
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
-      "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided,
+      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
     )
   )
@@ -114,17 +114,17 @@ lazy val library = (project in file("."))
         exclude("org.typelevel", "cats-core_2.11")
         exclude("org.typelevel", "cats-core_2.12"),
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
-      "io.circe" %% "circe-generic" % circeVersion(CrossVersion.partialVersion(scalaVersion.value))
+      "io.circe" %% "circe-generic" % circeVersion
         exclude("org.typelevel", "cats-core_2.11")
         exclude("org.typelevel", "cats-core_2.12"),
-      "io.circe" %% "circe-generic-extras" % circeVersion(CrossVersion.partialVersion(scalaVersion.value))
+      "io.circe" %% "circe-generic-extras" % circeVersion
         exclude("org.typelevel", "cats-core_2.11")
         exclude("org.typelevel", "cats-core_2.12"),
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.4.44.v20210927" % Provided,
-      "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
+      "org.apache.spark" %% "spark-core" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value)) % Provided
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.log4s" %% "log4s" % log4sVersion
     ),
@@ -151,9 +151,9 @@ lazy val performancebench = (project in file("performancebench"))
       "io.prometheus" % "simpleclient_httpserver" % prometheusVersion,
       "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
       "org.log4s" %% "log4s" % log4sVersion,
-      "org.apache.spark" %% "spark-core" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
+      "org.apache.spark" %% "spark-core" % sparkVersion
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion(CrossVersion.partialVersion(scalaVersion.value))
+      "org.apache.spark" %% "spark-sql" % sparkVersion
         exclude("org.glassfish.hk2.external", "javax.inject"),
     ),
     dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",

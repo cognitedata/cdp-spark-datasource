@@ -122,7 +122,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       transformToCreate: Transformer[S, C]
   ): IO[Unit] = {
     val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
-      p => p.getExternalId().exists(id => existingExternalIds.contains(id))
+      p => p.getExternalId.exists(id => existingExternalIds.contains(id))
     )
     val create = if (resourcesToCreate.isEmpty) {
       IO.unit
@@ -147,7 +147,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .updateByExternalId(
           resourcesToUpdate
             .map(u =>
-              u.getExternalId().get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+              u.getExternalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
             .toMap)
         .flatTap(_ => incMetrics(itemsUpdated, resourcesToUpdate.size))
         .map(_ => ())
@@ -190,7 +190,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     // we create a map from id -> update, and that map will contain only one
     // update per id.
     val itemsToCreateWithoutDuplicatesByExternalId = itemsWithoutId
-      .groupBy(_.getExternalId())
+      .groupBy(_.getExternalId)
       .flatMap {
         case (None, items) => items
         case (Some(_), items) => items.take(1)

@@ -66,7 +66,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       files,
       isUpdateEmpty,
       client.files,
-      mustBeUpdate = f => f.name.isEmpty && f.getExternalId().nonEmpty)
+      mustBeUpdate = f => f.name.isEmpty && f.getExternalId.nonEmpty)
   }
 
   override def schema: StructType = structType[File]
