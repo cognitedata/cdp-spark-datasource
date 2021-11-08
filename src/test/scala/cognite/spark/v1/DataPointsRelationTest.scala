@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
-import org.apache.spark.sql.functions.{col, expr}
+import org.apache.spark.sql.functions.{col, expr, to_timestamp}
 import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField, TimestampType}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import org.apache.spark.SparkException
@@ -989,6 +989,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
 
     points
       .toDF("externalId", "timestamp", "value")
+      .withColumn("timestamp", to_timestamp(col("timestamp")))
       .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
