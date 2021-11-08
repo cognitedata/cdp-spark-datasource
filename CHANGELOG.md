@@ -1,3 +1,9 @@
+# 1.4.43
+
+## Fixes
+
+* Specify timeStamp for upper bound when retrieving dataPoints.
+
 # 1.4.42
 
 ## Enhancements
