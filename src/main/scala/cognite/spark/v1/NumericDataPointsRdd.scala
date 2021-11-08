@@ -252,7 +252,8 @@ final case class NumericDataPointsRdd(
       latest <- client.dataPoints.getLatestDataPoints(
         ids,
         ignoreUnknownIds = true,
-        end.toEpochMilli.toString)
+        end.toEpochMilli.toString // use end instant as upper bound so we can read dataPoints in the future
+      )
     } yield
       firsts.map {
         case (id, first) =>
