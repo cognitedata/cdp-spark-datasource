@@ -288,11 +288,19 @@ object DefaultSource {
         audience)
     } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 
+    val session = for {
+      sessionKey <- parameters.get("sessionKey")
+      cdfProjectName <- parameters.get("project")
+      tokenFromVault <- parameters.get("tokenFromVault")
+      session = OAuth2.Session(sessionKey, cdfProjectName, tokenFromVault)
+    } yield CdfSparkAuth.OAuth2Sessions(session)
+
     authTicket
       .orElse(apiKey)
       .orElse(bearerToken)
       .map(CdfSparkAuth.Static)
       .orElse(clientCredentials)
+      .orElse(session)
   }
 
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
@@ -306,7 +314,8 @@ object DefaultSource {
 
     val auth = parseAuth(parameters) match {
       case Some(x) => x
-      case None => sys.error("Either apiKey, authTicket, clientCredentials or bearerToken is required.")
+      case None =>
+        sys.error("Either apiKey, authTicket, clientCredentials, session or bearerToken is required.")
     }
     import CdpConnector._
     val projectName = parameters
