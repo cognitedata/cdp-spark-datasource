@@ -122,18 +122,17 @@ class RawTableRelation(
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    if (requiredColumns.mkString(",").length > 200) {
-      // Temp fix until this parameter is moved into the request body
-      throw new CdfSparkIllegalArgumentException("Fetching a large number of columns is not supported")
-    }
-
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
     val columnsToIgnore = Seq("key", "lastUpdatedTime")
     val filteredRequiredColumns = requiredColumns.filterNot(columnsToIgnore.contains(_))
     val filteredSchemaFields = schema.fieldNames.filterNot(columnsToIgnore.contains(_))
+    val lengthOfRequiredColumnsAsString = requiredColumns.mkString(",").length
 
     val rawRowFilter =
-      if (filteredRequiredColumns.isEmpty || requiredColumns.length == schema.length || filteredRequiredColumns.length == filteredSchemaFields.length) {
+      if (filteredRequiredColumns.isEmpty ||
+        lengthOfRequiredColumnsAsString > 200 ||
+        requiredColumns.length == schema.length ||
+        filteredRequiredColumns.length == filteredSchemaFields.length) {
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime)
       } else {
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime, Some(filteredRequiredColumns))

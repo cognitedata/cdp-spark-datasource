@@ -433,62 +433,10 @@ class RawTableRelationTest
       assert(nestedStruct.schema != null)
       nestedStruct.schema.fieldNames.toSeq.loneElement shouldBe "foo"
       nestedStruct.toSeq.loneElement shouldBe 123L
-
-      val arrayOfStruct = struct.getSeq[Row](struct.fieldIndex("array_of_struct"))
-      val structInArray = arrayOfStruct.loneElement
-
-      assert(structInArray.schema != null)
-      structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
-      structInArray.toSeq.loneElement shouldBe 123L
-    } finally {
-      writeClient.rawRows(database, table).deleteById(key)
     }
   }
 
-  it should "create the table with ensureParent option" in {
-    val database = "testdb"
-    val table = "ensureParent-test-" + shortRandomString()
-
-    // remove the DB to be sure
-    try {
-      writeClient.rawTables(database).deleteById(table)
-    } catch {
-      case _: CdpApiException => () // Ignore
-    }
-
-    val key = shortRandomString()
-
-    try {
-      val source = spark.sql(s"""select
-           |  '$key' as key,
-           |  123 as something
-           |""".stripMargin)
-      val destination = spark.read
-        .format("cognite.spark.v1")
-        .schema(source.schema)
-        .option("apiKey", writeApiKey)
-        .option("type", "raw")
-        .option("database", database)
-        .option("table", table)
-        .option("rawEnsureParent", "true")
-        .load()
-      destination.createTempView("ensureParent_test")
-      source
-        .select(destination.columns.map(c => col(c)): _*)
-        .write
-        .insertInto("ensureParent_test")
-
-    } finally {
-      try {
-        writeClient.rawTables(database).deleteById(table)
-      } catch {
-        case _: CdpApiException => () // Ignore
-      }
-    }
-  }
-
-  // This is a test for a Temp fix applied
-  it should "not allow to fetch a large number of columns which has 200 characters when combined with ','" taggedAs WriteTest in {
+  it should "be able to duplicate a table with a large number of columns(384)" taggedAs WriteTest in {
     val source = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -509,13 +457,47 @@ class RawTableRelationTest
       .option("inferSchema", "true")
       .option("inferSchemaLimit", "100")
       .load()
-    dest.createTempView("tempView")
+    dest.createTempView("megaColumnTableDuplicateTempView")
 
-    val error = the[CdfSparkIllegalArgumentException] thrownBy source
+    source
       .select("*")
       .write
-      .insertInto("tempView")
+      .insertInto("megaColumnTableDuplicateTempView")
 
-    error.getMessage should equal("Fetching a large number of columns is not supported")
+    assert(source.count() == dest.count())
+  }
+
+  it should "be treated as a 'select *' when the column names combined, exceeds the character limit of 200" taggedAs WriteTest in {
+    val source = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", "testdb")
+      .option("table", "MegaColumnTable")
+      .option("inferSchema", "true")
+      .option("inferSchemaLimit", "100")
+      .load()
+
+    val dest = spark.read
+      .format("cognite.spark.v1")
+      .schema(source.schema)
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", "testdb")
+      .option("table", "MegaColumnTableDuplicate2")
+      .option("inferSchema", "true")
+      .option("inferSchemaLimit", "100")
+      .load()
+    dest.createTempView("megaColumnTableDuplicate2TempView")
+
+    val allColumnNamesAsString = source.schema.fields.map(_.name).mkString(",")
+    assert(allColumnNamesAsString.length > 200)
+
+    source
+      .select(source.schema.fields.map(f => col(f.name)): _*)
+      .write
+      .insertInto("megaColumnTableDuplicate2TempView")
+
+    assert(source.count() == dest.count())
   }
 }
