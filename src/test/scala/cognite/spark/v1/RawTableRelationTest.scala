@@ -9,7 +9,6 @@ import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, LoneElement, Matchers, ParallelTestExecution}
-import scala.reflect.ClassTag
 
 class RawTableRelationTest
     extends FlatSpec
@@ -20,8 +19,10 @@ class RawTableRelationTest
   import RawTableRelation._
   import spark.implicits._
 
-  private def collectToSet[A: ClassTag](df: DataFrame): Set[A] =
-    df.collect().map(_.getAs[A](0)).toSet
+  import scala.collection.JavaConverters._
+
+  private def collectToSet[A](df: DataFrame): Set[A] =
+    df.collectAsList().asScala.map(_.getAs[A](0)).toSet
 
   private def checkRange(leftLimit: Double, rightLimit: Double, number: Long): Boolean =
     (number >= leftLimit) && (number <= rightLimit)
