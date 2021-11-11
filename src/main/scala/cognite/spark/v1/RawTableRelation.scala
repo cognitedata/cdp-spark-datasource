@@ -126,8 +126,10 @@ class RawTableRelation(
 
     val columnsToIgnore = Seq("key", "lastUpdatedTime")
     val filteredRequiredColumns = requiredColumns.filterNot(columnsToIgnore.contains(_))
+    val filteredSchemaFields = schema.fieldNames.filterNot(columnsToIgnore.contains(_))
+
     val rawRowFilter =
-      if (filteredRequiredColumns.isEmpty || requiredColumns.length == schema.length) {
+      if (filteredRequiredColumns.isEmpty || requiredColumns.length == schema.length || filteredRequiredColumns.length == filteredSchemaFields.length) {
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime)
       } else {
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime, Some(filteredRequiredColumns))
