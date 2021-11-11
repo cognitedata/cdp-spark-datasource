@@ -11,7 +11,7 @@ import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, LoneElement, Matchers, ParallelTestExecution}
 
 class RawTableRelationTest
-  extends FlatSpec
+    extends FlatSpec
     with Matchers
     with ParallelTestExecution
     with SparkTest
@@ -22,9 +22,8 @@ class RawTableRelationTest
   private def collectToSet[A](df: DataFrame): Set[A] =
     df.collect().map(_.getAs[A](0)).toSet
 
-  private def checkRange(leftLimit: Double, rightLimit: Double, number: Long): Boolean = {
+  private def checkRange(leftLimit: Double, rightLimit: Double, number: Long): Boolean =
     (number >= leftLimit) && (number <= rightLimit)
-  }
 
   private val dfWithoutKeySchema = StructType(
     Seq(StructField("notKey", StringType, false), StructField("value", IntegerType, false)))
@@ -75,13 +74,17 @@ class RawTableRelationTest
     ))
   private val dfWithManylastUpdatedTimeData = Seq(
     ("key5", 125, """{ "___lastUpdatedTime": 111, "__lastUpdatedTime": 11, "value": 1 }"""),
-    ("key6", 126, """{ "___lastUpdatedTime": 222, "value": 2, "__lastUpdatedTime": 22, "lastUpdatedTime": 2 }""")
+    (
+      "key6",
+      126,
+      """{ "___lastUpdatedTime": 222, "value": 2, "__lastUpdatedTime": 22, "lastUpdatedTime": 2 }""")
   )
 
   it should "smoke test raw" taggedAs WriteTest in {
     val limit = 100
     val partitions = 10
-    val df = spark.read.format("cognite.spark.v1")
+    val df = spark.read
+      .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "raw")
       .option("limitPerPartition", limit)
@@ -129,25 +132,40 @@ class RawTableRelationTest
       flattenAndRenameColumns(spark.sqlContext, dfWithoutlastUpdatedTime, dfWithoutlastUpdatedTimeSchema)
     processedWithoutlastUpdatedTime.schema.fieldNames.toSet should equal(
       Set("key", "lastUpdatedTime", "notlastUpdatedTime", "value"))
-    collectToSet[Long](processedWithoutlastUpdatedTime.select($"lastUpdatedTime")) should equal(Set(121, 122))
+    collectToSet[Long](processedWithoutlastUpdatedTime.select($"lastUpdatedTime")) should equal(
+      Set(121, 122))
 
     val dfWithlastUpdatedTime = dfWithlastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
     val processedWithlastUpdatedTime =
       flattenAndRenameColumns(spark.sqlContext, dfWithlastUpdatedTime, dfWithlastUpdatedTimeSchema)
     processedWithlastUpdatedTime.schema.fieldNames.toSet should equal(
       Set("key", "lastUpdatedTime", "_lastUpdatedTime", "value"))
-    collectToSet[Long](processedWithlastUpdatedTime.select($"lastUpdatedTime")) should equal(Set(123, 124))
+    collectToSet[Long](processedWithlastUpdatedTime.select($"lastUpdatedTime")) should equal(
+      Set(123, 124))
     collectToSet[Long](processedWithlastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(1, 2))
 
-    val dfWithManylastUpdatedTime = dfWithManylastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
+    val dfWithManylastUpdatedTime =
+      dfWithManylastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
     val processedWithManylastUpdatedTime =
-      flattenAndRenameColumns(spark.sqlContext, dfWithManylastUpdatedTime, dfWithManylastUpdatedTimeSchema)
+      flattenAndRenameColumns(
+        spark.sqlContext,
+        dfWithManylastUpdatedTime,
+        dfWithManylastUpdatedTimeSchema)
     processedWithManylastUpdatedTime.schema.fieldNames.toSet should equal(
-      Set("key", "lastUpdatedTime", "____lastUpdatedTime", "___lastUpdatedTime", "_lastUpdatedTime", "value"))
+      Set(
+        "key",
+        "lastUpdatedTime",
+        "____lastUpdatedTime",
+        "___lastUpdatedTime",
+        "_lastUpdatedTime",
+        "value"))
 
-    collectToSet[Long](processedWithManylastUpdatedTime.select($"lastUpdatedTime")) should equal(Set(125, 126))
-    collectToSet[Long](processedWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(null, 2))
-    collectToSet[Long](processedWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(Set(11, 22))
+    collectToSet[Long](processedWithManylastUpdatedTime.select($"lastUpdatedTime")) should equal(
+      Set(125, 126))
+    collectToSet[Long](processedWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(
+      Set(null, 2))
+    collectToSet[Long](processedWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(
+      Set(11, 22))
     collectToSet[Long](processedWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
       Set(111, 222))
   }
@@ -177,11 +195,16 @@ class RawTableRelationTest
     columnNames1.toSet should equal(Set("lastUpdatedTime", "value"))
     collectToSet[Long](unRenamed1.select("lastUpdatedTime")) should equal(Set(1, 2))
 
-    val dfWithManylastUpdatedTime = dfWithManylastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
+    val dfWithManylastUpdatedTime =
+      dfWithManylastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
     val processedWithManylastUpdatedTime =
-      flattenAndRenameColumns(spark.sqlContext, dfWithManylastUpdatedTime, dfWithManylastUpdatedTimeSchema)
+      flattenAndRenameColumns(
+        spark.sqlContext,
+        dfWithManylastUpdatedTime,
+        dfWithManylastUpdatedTimeSchema)
     val (columnNames2, unRenamed2) = prepareForInsert(processedWithManylastUpdatedTime)
-    columnNames2.toSet should equal(Set("lastUpdatedTime", "__lastUpdatedTime", "___lastUpdatedTime", "value"))
+    columnNames2.toSet should equal(
+      Set("lastUpdatedTime", "__lastUpdatedTime", "___lastUpdatedTime", "value"))
     collectToSet[Long](unRenamed2.select($"lastUpdatedTime")) should equal(Set(null, 2))
     collectToSet[Long](unRenamed2.select($"__lastUpdatedTime")) should equal(Set(11, 22))
     collectToSet[Long](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
@@ -292,10 +315,11 @@ class RawTableRelationTest
     val resourceType = s"raw.testdb.$tablename"
     val partitions = 10
 
-    val df = spark.read.format("cognite.spark.v1")
+    val df = spark.read
+      .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "raw")
-      .option("metricsPrefix",  metricsPrefix)
+      .option("metricsPrefix", metricsPrefix)
       .option("partitions", partitions)
       .option("database", "testdb")
       .option("table", tablename)
@@ -305,26 +329,30 @@ class RawTableRelationTest
       .load()
     df.createTempView(s"futureEvents$shortRand")
     val totalRows = spark.sqlContext
-      .sql(s"select * from futureEvents$shortRand").count()
-    val partitionSizes = for (partitionIndex <- 0 until partitions) yield getPartitionSize( metricsPrefix, resourceType, partitionIndex)
+      .sql(s"select * from futureEvents$shortRand")
+      .count()
+    val partitionSizes = for (partitionIndex <- 0 until partitions)
+      yield getPartitionSize(metricsPrefix, resourceType, partitionIndex)
     assert(partitionSizes.sum == totalRows)
-    val expectedSize = totalRows/partitions
-    assert(partitionSizes.forall(checkRange(expectedSize - expectedSize*0.20, expectedSize + expectedSize*0.20, _)))
+    val expectedSize = totalRows / partitions
+    assert(
+      partitionSizes.forall(
+        checkRange(expectedSize - expectedSize * 0.20, expectedSize + expectedSize * 0.20, _)))
   }
 
   it should "handle various numbers of partitions" taggedAs (ReadTest) in {
-    for(partitions <- Seq("1", "5", "10", "20")) {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "raw")
-      .option("database", "testdb")
-      .option("table", "future-event")
-      .option("inferSchema", true)
-      .option("partitions", partitions)
-      .load()
-      .where(s"lastUpdatedTime >= timestamp('2019-06-21 11:48:00.000Z') and lastUpdatedTime <= timestamp('2019-06-21 11:50:00.000Z')")
-    assert(df.count() == 10)
+    for (partitions <- Seq("1", "5", "10", "20")) {
+      val df = spark.read
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "raw")
+        .option("database", "testdb")
+        .option("table", "future-event")
+        .option("inferSchema", true)
+        .option("partitions", partitions)
+        .load()
+        .where(s"lastUpdatedTime >= timestamp('2019-06-21 11:48:00.000Z') and lastUpdatedTime <= timestamp('2019-06-21 11:50:00.000Z')")
+      assert(df.count() == 10)
     }
   }
 
@@ -340,7 +368,6 @@ class RawTableRelationTest
       .limit(10)
       .select("key", "source", "subtype")
       .collect()
-
 
     assert(dfArray.map(_.getAs[String]("key")).forall(k => k.toInt > 0))
     assert(dfArray.map(_.getAs[String]("source")).forall(_ == "generator"))
@@ -360,8 +387,7 @@ class RawTableRelationTest
     val key = shortRandomString()
     val tempView = "struct_test_" + shortRandomString()
 
-    val source = spark.sql(
-      s"""select
+    val source = spark.sql(s"""select
          |  '$key' as key,
          |  struct(
          |    123                        as long,
@@ -427,14 +453,13 @@ class RawTableRelationTest
     try {
       writeClient.rawTables(database).deleteById(table)
     } catch {
-      case _: CdpApiException => ()// Ignore
+      case _: CdpApiException => () // Ignore
     }
 
     val key = shortRandomString()
 
     try {
-      val source = spark.sql(
-        s"""select
+      val source = spark.sql(s"""select
            |  '$key' as key,
            |  123 as something
            |""".stripMargin)
@@ -457,8 +482,40 @@ class RawTableRelationTest
       try {
         writeClient.rawTables(database).deleteById(table)
       } catch {
-        case _: CdpApiException => ()// Ignore
+        case _: CdpApiException => () // Ignore
       }
     }
+  }
+
+  // This is a test for a Temp fix applied
+  it should "not allow to fetch a large number of columns which has 200 characters when combined with ','" taggedAs WriteTest in {
+    val source = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", "testdb")
+      .option("table", "MegaColumnTable")
+      .option("inferSchema", "true")
+      .option("inferSchemaLimit", "100")
+      .load()
+
+    val dest = spark.read
+      .format("cognite.spark.v1")
+      .schema(source.schema)
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", "testdb")
+      .option("table", "MegaColumnTableDuplicate")
+      .option("inferSchema", "true")
+      .option("inferSchemaLimit", "100")
+      .load()
+    dest.createTempView("tempView")
+
+    val error = the[CdfSparkIllegalArgumentException] thrownBy source
+      .select("*")
+      .write
+      .insertInto("tempView")
+
+    error.getMessage should equal("Fetching a large number of columns is not supported")
   }
 }
