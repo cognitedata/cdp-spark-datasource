@@ -1,6 +1,6 @@
 import com.typesafe.sbt.packager.docker.Cmd
 
-val scala212 = "2.12.15"
+val scala212 = "2.12.12"
 val supportedScalaVersions = List(scala212)
 val sparkVersion = "3.1.2"
 val circeVersion = "0.14.0"
