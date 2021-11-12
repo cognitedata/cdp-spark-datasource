@@ -1,3 +1,9 @@
+# 1.4.44
+
+## Fixes
+
+* Fixed a bug where filtering on many RAW columns would create too long URL requests.
+
 # 1.4.43
 
 ## Fixes
