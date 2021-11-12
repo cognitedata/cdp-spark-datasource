@@ -1,8 +1,10 @@
-# 1.4.44
+# 1.4.45
 
 ## Enhancements
 
 * Drop scala 2.11 and support scala 2.13
+
+# 1.4.44
 
 ## Fixes
 
