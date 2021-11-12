@@ -249,7 +249,11 @@ final case class NumericDataPointsRdd(
         queryDatapointsById(id, start, end.max(start.plusMillis(1)), 1)
           .map(datapoints => id -> datapoints.headOption)
       }.parSequence
-      latest <- client.dataPoints.getLatestDataPoints(ids, ignoreUnknownIds = true)
+      latest <- client.dataPoints.getLatestDataPoints(
+        ids,
+        ignoreUnknownIds = true,
+        end.toEpochMilli.toString // use end instant as upper bound so we can read dataPoints in the future
+      )
     } yield
       firsts.map {
         case (id, first) =>

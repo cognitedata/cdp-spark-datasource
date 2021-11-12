@@ -123,11 +123,16 @@ class RawTableRelation(
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
-
     val columnsToIgnore = Seq("key", "lastUpdatedTime")
     val filteredRequiredColumns = requiredColumns.filterNot(columnsToIgnore.contains(_))
+    val filteredSchemaFields = schema.fieldNames.filterNot(columnsToIgnore.contains(_))
+    val lengthOfRequiredColumnsAsString = requiredColumns.mkString(",").length
+
     val rawRowFilter =
-      if (filteredRequiredColumns.isEmpty || requiredColumns.length == schema.length) {
+      if (filteredRequiredColumns.isEmpty ||
+        lengthOfRequiredColumnsAsString > 200 ||
+        requiredColumns.length == schema.length ||
+        filteredRequiredColumns.length == filteredSchemaFields.length) {
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime)
       } else {
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime, Some(filteredRequiredColumns))

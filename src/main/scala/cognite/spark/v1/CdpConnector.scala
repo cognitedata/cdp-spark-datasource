@@ -64,7 +64,16 @@ object CdpConnector {
         metricsPrefix =>
           new MetricsBackend[IO, Any](
             sttpBackend,
-            MetricsSource.getOrCreateCounter(metricsPrefix, "requests")))
+            MetricsSource.getOrCreateCounter(metricsPrefix, "requests"),
+            status =>
+              if (status.code >= 400) {
+                Some(
+                  MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.${status.code}.response"))
+              } else {
+                None
+            },
+            Some(MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.response.failure"))
+        ))
     val retryingBackend = new RetryingBackend[IO, Any](
       metricsBackend,
       maxRetries = maxRetries,
