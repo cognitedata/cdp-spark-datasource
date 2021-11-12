@@ -1,5 +1,9 @@
 # 1.4.44
 
+## Enhancements
+
+* Drop scala 2.11 and support scala 2.13
+
 ## Fixes
 
 * Fixed a bug where filtering on many RAW columns would create too long URL requests.
