@@ -1,12 +1,12 @@
 import com.typesafe.sbt.packager.docker.Cmd
 
-val scala212 = "2.12.15"
-val scala213 = "2.13.7"
+val scala212 = "2.12.14"
+val scala213 = "2.13.6"
 val supportedScalaVersions = List(scala212, scala213)
-val sparkVersion = "3.1.2"
+val sparkVersion = "3.2.0"
 val circeVersion = "0.13.0"
 val sttpVersion = "3.3.15"
-val Specs2Version = "4.2.0"
+val Specs2Version = "4.6.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 val cogniteSdkVersion = "1.5.17"
 val prometheusVersion = "0.8.1"
@@ -71,7 +71,7 @@ lazy val commonSettings = Seq(
 lazy val macroSub = (project in file("macro"))
   .settings(
     commonSettings,
-    scalaVersion := scala212,
+    crossScalaVersions := supportedScalaVersions,
     publish := {},
     publishLocal := {},
     libraryDependencies ++= Seq(
@@ -88,7 +88,7 @@ lazy val library = (project in file("."))
     name := "cdf-spark-datasource",
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
-    scalaVersion := scala212,
+    crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
         // scala-collection-compat is used in TransformerF, but we don't use that,
@@ -120,7 +120,7 @@ lazy val library = (project in file("."))
       "io.circe" %% "circe-generic-extras" % circeVersion
         exclude("org.typelevel", "cats-core_2.11")
         exclude("org.typelevel", "cats-core_2.12"),
-      "org.scalatest" %% "scalatest" % "3.0.5" % Test,
+      "org.scalatest" %% "scalatest" % "3.0.8" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.4.44.v20210927" % Provided,
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
