@@ -123,7 +123,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
 
   override def toRow(requiredColumns: Array[String])(item: StringDataPointsItem): Row = {
     val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
-    val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf[String](f))
+    val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf(f))
     val rowOfAllFields = toRow(item)
     Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
   }

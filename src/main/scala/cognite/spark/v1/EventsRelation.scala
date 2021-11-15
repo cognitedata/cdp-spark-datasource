@@ -158,7 +158,7 @@ object EventsRelation extends UpsertSchema {
 
 trait WithNullableExtenalId extends WithExternalIdGeneric[OptionalField] {
   val externalId: OptionalField[String]
-  override def getExternalId(): Option[String] = externalId.toOption
+  override def getExternalId: Option[String] = externalId.toOption
 }
 
 final case class EventsUpsertSchema(

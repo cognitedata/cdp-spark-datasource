@@ -19,8 +19,10 @@ class RawTableRelationTest
   import RawTableRelation._
   import spark.implicits._
 
+  import scala.collection.JavaConverters._
+
   private def collectToSet[A](df: DataFrame): Set[A] =
-    df.collect().map(_.getAs[A](0)).toSet
+    df.collectAsList().asScala.map(_.getAs[A](0)).toSet
 
   private def checkRange(leftLimit: Double, rightLimit: Double, number: Long): Boolean =
     (number >= leftLimit) && (number <= rightLimit)

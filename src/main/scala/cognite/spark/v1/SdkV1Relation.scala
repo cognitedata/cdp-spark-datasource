@@ -51,7 +51,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
       import CdpConnector._
-      val batches = rows.grouped(config.batchSize.getOrElse(Constants.DefaultBatchSize)).toVector
+      val batches =
+        rows.grouped(config.batchSize.getOrElse(cognite.spark.v1.Constants.DefaultBatchSize)).toVector
       batches
         .parTraverse_(getFromRowsAndCreate(_))
         .unsafeRunSync()
@@ -62,7 +63,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       toRow(item)
     } else {
       val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
-      val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf[String](f))
+      val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf(f))
       val rowOfAllFields = toRow(item)
       Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
     }
@@ -122,7 +123,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       transformToCreate: Transformer[S, C]
   ): IO[Unit] = {
     val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
-      p => p.getExternalId().exists(id => existingExternalIds.contains(id))
+      p => p.getExternalId.exists(id => existingExternalIds.contains(id))
     )
     val create = if (resourcesToCreate.isEmpty) {
       IO.unit
@@ -147,7 +148,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .updateByExternalId(
           resourcesToUpdate
             .map(u =>
-              u.getExternalId().get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+              u.getExternalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
             .toMap)
         .flatTap(_ => incMetrics(itemsUpdated, resourcesToUpdate.size))
         .map(_ => ())
@@ -190,7 +191,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     // we create a map from id -> update, and that map will contain only one
     // update per id.
     val itemsToCreateWithoutDuplicatesByExternalId = itemsWithoutId
-      .groupBy(_.getExternalId())
+      .groupBy(_.getExternalId)
       .flatMap {
         case (None, items) => items
         case (Some(_), items) => items.take(1)
