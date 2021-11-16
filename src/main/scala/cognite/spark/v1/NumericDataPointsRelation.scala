@@ -14,6 +14,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
 import cognite.spark.v1.SparkSchemaHelper.structType
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
+import fs2.{Chunk, Stream}
 
 import scala.util.matching.Regex
 
@@ -122,7 +123,8 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Insert not supported for datapoints. Use upsert instead.")
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = insertSeqOfRows(rows)
+  override def upsert(rows: Seq[Row]): IO[Unit] =
+    throw new CdfSparkException("Use insert(DataFrame) instead.")
 
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update not supported for datapoints. Use upsert instead.")
@@ -147,18 +149,23 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
   }
 
-  def insertSeqOfRows(rows: Seq[Row]): IO[Unit] = {
-    val dataPoints =
-      rows.map(r => fromRow[InsertDataPointsItem](r))
+  def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
+    // we basically use Stream.fromIterator instead of Seq.grouped, because it's significantly more efficient
+    val dataPoints = Stream.fromIterator(
+      rows.map(r => fromRow[InsertDataPointsItem](r)),
+      chunkSize = Constants.CreateDataPointsLimit
+    )
 
-    val updates = dataPoints.groupBy(_.getCogniteId).map {
-      case (id, dataPoints) =>
-        client.dataPoints
-          .insert(id, dataPoints.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
-          .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
-    }
-
-    updates.toVector.parSequence_
+    dataPoints.chunks
+      .flatMap(c => Stream.emits(c.toVector.groupBy(_.getCogniteId).toVector))
+      .parEvalMapUnordered(config.parallelismPerPartition) {
+        case (id, dataPoints) =>
+          client.dataPoints
+            .insert(id, dataPoints.map(dp => SdkDataPoint(dp.timestamp, dp.value)))
+            .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
+      }
+      .compile
+      .drain
   }
 
   private val namesToFields: Map[String, Int] = Map(

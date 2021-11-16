@@ -45,15 +45,19 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
     client.dataPoints.deleteRanges(deleteRanges)
   }
 
-  override def insert(data: DataFrame, overwrite: Boolean): Unit =
-    data.foreachPartition((rows: Iterator[Row]) => {
-      val batches = rows.grouped(Constants.CreateDataPointsLimit).toVector
-      batches
-        .parTraverse_(insertSeqOfRows)
-        .unsafeRunSync()
-    })
+  override def insert(data: DataFrame, overwrite: Boolean): Unit = {
+    val partitions = Math.max(1, config.partitions / config.parallelismPerPartition)
+    val partitionCols =
+      data.schema.fieldNames.filter(f => f.equalsIgnoreCase("id") || f.equalsIgnoreCase("externalId"))
+    import org.apache.spark.sql.functions.col
+    data
+      .repartition(partitions, partitionCols.map(col): _*)
+      .foreachPartition((rows: Iterator[Row]) => {
+        insertRowIterator(rows).unsafeRunSync()
+      })
+  }
 
-  def insertSeqOfRows(rows: Seq[Row]): IO[Unit]
+  def insertRowIterator(rows: Iterator[Row]): IO[Unit]
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 

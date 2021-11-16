@@ -165,6 +165,26 @@ class DefaultSource
       val relation = new AssetHierarchyBuilder(config)(sqlContext)
       relation.buildFromDf(data)
       relation
+    } else if (resourceType == "datapoints" || resourceType == "stringdatapoints") {
+      val relation = resourceType match {
+        case "datapoints" =>
+          new NumericDataPointsRelationV1(config)(sqlContext)
+        case "stringdatapoints" =>
+          new StringDataPointsRelationV1(config)(sqlContext)
+      }
+      if (config.onConflict == OnConflict.Delete) {
+        // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
+        val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
+        data.foreachPartition((rows: Iterator[Row]) => {
+          import CdpConnector.cdpConnectorParallel
+          val batches = rows.grouped(batchSize).toVector
+          batches.parTraverse_(relation.delete).unsafeRunSync()
+        })
+      } else {
+        // datapoints need special handling of dataframes and batches
+        relation.insert(data, overwrite = true)
+      }
+      relation
     } else {
       val relation = resourceType match {
         case "events" =>
@@ -173,10 +193,6 @@ class DefaultSource
           new TimeSeriesRelation(config)(sqlContext)
         case "assets" =>
           new AssetsRelation(config)(sqlContext)
-        case "datapoints" =>
-          new NumericDataPointsRelationV1(config)(sqlContext)
-        case "stringdatapoints" =>
-          new StringDataPointsRelationV1(config)(sqlContext)
         case "files" =>
           new FilesRelation(config)(sqlContext)
         case "sequences" =>
@@ -192,32 +208,24 @@ class DefaultSource
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {
-        case _: NumericDataPointsRelationV1 | _: StringDataPointsRelationV1 =>
-          // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
-          if (config.onConflict == OnConflict.Delete) {
-            Constants.DefaultDataPointsLimit
-          } else {
-            Constants.CreateDataPointsLimit
-          }
         case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
         case _ => Constants.DefaultBatchSize
       }
       val batchSize = config.batchSize.getOrElse(batchSizeDefault)
       data.foreachPartition((rows: Iterator[Row]) => {
-        import CdpConnector._
+        import CdpConnector.cdpConnectorParallel
 
         val batches = rows.grouped(batchSize).toVector
         config.onConflict match {
           case OnConflict.Abort =>
-            batches.parTraverse(relation.insert).unsafeRunSync()
+            batches.parTraverse_(relation.insert).unsafeRunSync()
           case OnConflict.Upsert =>
-            batches.parTraverse(relation.upsert).unsafeRunSync()
+            batches.parTraverse_(relation.upsert).unsafeRunSync()
           case OnConflict.Update =>
-            batches.parTraverse(relation.update).unsafeRunSync()
+            batches.parTraverse_(relation.update).unsafeRunSync()
           case OnConflict.Delete =>
-            batches.parTraverse(relation.delete).unsafeRunSync()
+            batches.parTraverse_(relation.delete).unsafeRunSync()
         }
-
         ()
       })
       relation
