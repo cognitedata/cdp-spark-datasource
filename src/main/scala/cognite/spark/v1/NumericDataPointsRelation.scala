@@ -142,7 +142,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 
   override def toRow(requiredColumns: Array[String])(item: DataPointsItem): Row = {
     val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
-    val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf[String](f))
+    val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf(f))
     val rowOfAllFields = toRow(item)
     Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
   }

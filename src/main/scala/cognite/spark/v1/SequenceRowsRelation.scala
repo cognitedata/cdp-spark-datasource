@@ -300,7 +300,7 @@ object SequenceRowsRelation {
   private def toSegments(f: Vector[SequenceRowFilter]) = {
     val (minusInfCount, plusInfCount, borders) = toBorders(f.toVector)
     // count number of overlapping intervals in each segment
-    val segmentCounts = borders.scanLeft[Int, Vector[Int]](minusInfCount)((count, border) => {
+    val segmentCounts = borders.toIterator.scanLeft[Int](minusInfCount)((count, border) => {
       if (border.start) {
         // entering new interval -> increment the count of overlaps
         count + 1
@@ -316,7 +316,7 @@ object SequenceRowsRelation {
         .zip(borderLabels.drop(1))
         .map { case (low, high) => SequenceRowFilter(low, high) }
     segmentLabels
-      .zip(segmentCounts)
+      .zip(segmentCounts.toSeq)
       // filter out empty segments
       .filter {
         case (filter, _) => filter.exclusiveEnd.forall(end => filter.inclusiveStart.forall(_ < end))

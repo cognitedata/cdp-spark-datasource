@@ -116,7 +116,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       assets,
       isUpdateEmpty,
       client.assets,
-      mustBeUpdate = r => r.name.isEmpty && r.getExternalId().nonEmpty
+      mustBeUpdate = r => r.name.isEmpty && r.getExternalId.nonEmpty
     )
   }
 
