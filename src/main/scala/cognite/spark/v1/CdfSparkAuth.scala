@@ -27,4 +27,12 @@ object CdfSparkAuth {
         sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
       OAuth2.ClientCredentialsProvider[IO](credentials)
   }
+
+  final case class OAuth2Sessions(session: OAuth2.Session) extends CdfSparkAuth {
+    override def provider(
+        implicit cs: ContextShift[IO],
+        clock: Clock[IO],
+        sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
+      OAuth2.SessionProvider[IO](session)
+  }
 }
