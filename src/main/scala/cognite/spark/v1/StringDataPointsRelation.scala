@@ -17,6 +17,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import cognite.spark.v1.SparkSchemaHelper.structType
+import fs2.Stream
 
 final case class StringDataPointsItem(
     id: Option[Long],
@@ -39,7 +40,8 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Insert not supported for stringdatapoints. Please use upsert instead.")
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = insertSeqOfRows(rows)
+  override def upsert(rows: Seq[Row]): IO[Unit] =
+    throw new CdfSparkException("Use insert(DataFrame) instead")
 
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update not supported for stringdatapoints. Please use upsert instead.")
@@ -55,18 +57,23 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
         StructField("value", StringType, nullable = false)
       ))
 
-  override def insertSeqOfRows(rows: Seq[Row]): IO[Unit] = {
-    val dataPoints =
-      rows.map(r => fromRow[StringDataPointsInsertItem](r))
+  def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
+    // we basically use Stream.fromIterator instead of Seq.grouped, because it's significantly more efficient
+    val dataPoints = Stream.fromIterator(
+      rows.map(r => fromRow[StringDataPointsInsertItem](r)),
+      chunkSize = Constants.CreateDataPointsLimit
+    )
 
-    val updatesById = dataPoints.groupBy(_.getCogniteId).map {
-      case (id, dataPoints) =>
-        client.dataPoints
-          .insertStrings(id, dataPoints.map(dp => StringDataPoint(dp.timestamp, dp.value)))
-          .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
-    }
-
-    updatesById.toVector.parSequence_
+    dataPoints.chunks
+      .flatMap(c => Stream.emits(c.toVector.groupBy(_.getCogniteId).toVector))
+      .parEvalMapUnordered(config.parallelismPerPartition) {
+        case (id, dataPoints) =>
+          client.dataPoints
+            .insertStrings(id, dataPoints.map(dp => StringDataPoint(dp.timestamp, dp.value)))
+            .flatTap(_ => incMetrics(itemsCreated, dataPoints.size))
+      }
+      .compile
+      .drain
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
