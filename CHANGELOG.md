@@ -1,3 +1,9 @@
+# 1.4.44
+
+## Fixes
+
+* Fixed a bug where inserting into many timeseries created too many small requests
+
 # 1.4.45
 
 ## Enhancements
