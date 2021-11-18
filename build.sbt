@@ -20,7 +20,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.45",
+  version := "1.4.46",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -160,6 +160,24 @@ lazy val performancebench = (project in file("performancebench"))
     dockerCommands ++= Seq(
       Cmd("ENV", s"JAVA_MAIN_CLASS=${(Compile / mainClass).value.get}"),
       Cmd("ENV", "JAVA_APP_DIR=/opt/docker/lib")
+    ),
+  )
+
+lazy val cdfdump = (project in file("cdf_dump"))
+  .enablePlugins(JavaAppPackaging, UniversalPlugin)
+  .dependsOn(library)
+  .settings(
+    commonSettings,
+    publish / skip := true,
+    name := "cdf-dump",
+    fork := true,
+    libraryDependencies ++= Seq(
+      "org.rogach" %% "scallop" % "4.0.1",
+      "org.log4s" %% "log4s" % log4sVersion,
+      "org.apache.spark" %% "spark-core" % sparkVersion
+        exclude("org.glassfish.hk2.external", "javax.inject"),
+      "org.apache.spark" %% "spark-sql" % sparkVersion
+        exclude("org.glassfish.hk2.external", "javax.inject"),
     ),
   )
 
