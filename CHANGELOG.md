@@ -2,7 +2,7 @@
 
 ## Fixes
 
-* Add sessionId into Session as it is requires when refreshing the session
+* Add the new field `sessionId` to session as it is required when refreshing the session.
 
 # 1.4.46
 
