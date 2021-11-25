@@ -18,6 +18,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
         "clientId" -> "value-ClientId",
         "clientSecret" -> "value-ClientSecret",
         "project" -> "value-Project",
+        "sessionId" -> "123",
         "sessionKey" -> "value-SessionKey",
         "project" -> "value-Project",
         "tokenFromVault" -> "value-TokenFromVault"
@@ -60,7 +61,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
           fullParams.filterKeys(!Set("authTicket", "apiKey", "bearerToken", "clientSecret").contains(_))
         DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2Sessions(
-            OAuth2.Session("value-SessionKey", "value-Project", "value-TokenFromVault"))
+            OAuth2.Session(123, "value-SessionKey", "value-Project", "value-TokenFromVault"))
         )
       }
     }

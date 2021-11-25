@@ -297,10 +297,11 @@ object DefaultSource {
     } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 
     val session = for {
+      sessionId <- parameters.get("sessionId").map(_.toLong)
       sessionKey <- parameters.get("sessionKey")
       cdfProjectName <- parameters.get("project")
       tokenFromVault <- parameters.get("tokenFromVault")
-      session = OAuth2.Session(sessionKey, cdfProjectName, tokenFromVault)
+      session = OAuth2.Session(sessionId, sessionKey, cdfProjectName, tokenFromVault)
     } yield CdfSparkAuth.OAuth2Sessions(session)
 
     authTicket

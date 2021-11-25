@@ -1,3 +1,9 @@
+# 1.4.47
+
+## Fixes
+
+* Add sessionId into Session as it is requires when refreshing the session
+
 # 1.4.46
 
 ## Fixes
