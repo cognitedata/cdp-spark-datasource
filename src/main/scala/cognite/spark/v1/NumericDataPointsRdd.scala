@@ -389,11 +389,12 @@ final case class NumericDataPointsRdd(
         dataPointsRange.id,
         dataPointsRange.start,
         dataPointsRange.end)
-      .map { allDataPoints =>
-        increaseReadMetrics(allDataPoints.length)
+      .stream
+      .mapChunks { allDataPoints =>
+        increaseReadMetrics(allDataPoints.size)
         allDataPoints.map(p => dataPointToRow(dataPointsRange.id, p))
       }
-    Stream.evalUnChunk(points.map(Chunk.seq))
+    points
   }
 
   private val rowIndicesLength = rowIndices.length

@@ -104,13 +104,17 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters, "timestamp")
 
     ids.zip(ids.map { id =>
-      DataPointsRelationV1.getAllDataPoints[StringDataPoint](
-        queryStrings,
-        config.batchSize.getOrElse(Constants.DefaultDataPointsLimit),
-        id,
-        lowerTimeLimit,
-        upperTimeLimit.plusMillis(1),
-        config.limitPerPartition)
+      DataPointsRelationV1
+        .getAllDataPoints[StringDataPoint](
+          queryStrings,
+          config.batchSize.getOrElse(Constants.DefaultDataPointsLimit),
+          id,
+          lowerTimeLimit,
+          upperTimeLimit.plusMillis(1),
+          config.limitPerPartition)
+        .stream
+        .compile
+        .to(Seq)
     })
   }
 
