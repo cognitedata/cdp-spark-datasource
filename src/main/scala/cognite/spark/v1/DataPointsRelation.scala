@@ -1,11 +1,11 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import cats.effect.IO
 import cats.implicits._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import com.cognite.sdk.scala.v1._
+import fs2.{Chunk, Pull}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 
@@ -155,37 +155,37 @@ object DataPointsRelationV1 {
       id: CogniteId,
       lowerLimit: Instant,
       upperLimit: Instant,
-      nPointsRemaining: Option[Int] = None,
-      allPoints: Seq[R] = Seq.empty): IO[Seq[R]] =
+      nPointsRemaining: Option[Int] = None): Pull[IO, R, Unit] =
     if (lowerLimit.toEpochMilli >= upperLimit.toEpochMilli || nPointsRemaining.exists(_ <= 0)) {
-      IO.pure(allPoints)
+      Pull.done
     } else {
       val queryPoints =
         queryMethod(id, lowerLimit, upperLimit, limitForCall(nPointsRemaining, batchSize))
 
-      queryPoints
+      Pull
+        .eval(queryPoints)
         .flatMap {
-          case (_, Nil) => IO.pure(allPoints)
-          case (None, points) => IO.pure(allPoints ++ points)
+          case (_, Nil) => Pull.done
+          case (None, points) => Pull.output(Chunk.seq(points))
           case (Some(lastTimestamp), points) =>
             val newLowerLimit = lastTimestamp.plusMillis(1)
             val pointsFromResponse = nPointsRemaining match {
               case None => points
               case Some(maxNumPointsToInclude) => points.take(maxNumPointsToInclude)
             }
-            val newAllPoints = allPoints ++ pointsFromResponse
+            val currentPull = Pull.output(Chunk.seq(pointsFromResponse))
             if (points.size == batchSize) {
               // we hit the batch size, let's load the next page
-              getAllDataPoints(
-                queryMethod,
-                batchSize,
-                id,
-                newLowerLimit,
-                upperLimit,
-                nPointsRemaining.map(_ - points.size),
-                newAllPoints)
+              currentPull >>
+                getAllDataPoints(
+                  queryMethod,
+                  batchSize,
+                  id,
+                  newLowerLimit,
+                  upperLimit,
+                  nPointsRemaining.map(_ - points.size))
             } else {
-              IO.pure(newAllPoints)
+              currentPull
             }
         }
     }
