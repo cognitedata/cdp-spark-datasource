@@ -308,8 +308,8 @@ object DefaultSource {
       .orElse(apiKey)
       .orElse(bearerToken)
       .map(CdfSparkAuth.Static)
-      .orElse(clientCredentials)
       .orElse(session)
+      .orElse(clientCredentials)
   }
 
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
