@@ -16,6 +16,7 @@ import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.datasource.MetricsSource
 import fs2.Stream
+import org.apache.spark.util.SizeEstimator
 
 import scala.util.Try
 
@@ -79,6 +80,13 @@ class RawTableRelation(
     }
   }
 
+  def calculateDynamicLimit(): Int = {
+    val rows = client.rawRows(database, table).list(Some(1000)).compile.toList.unsafeRunSync()
+    val sizeInBytes = SizeEstimator.estimate(rows)
+    val dynamicLimit = 1000000 / sizeInBytes // Avoid reading requests that are larger than 1MB
+    dynamicLimit.toInt
+  }
+
   def getStreams(filter: RawRowFilter)(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -91,8 +99,16 @@ class RawTableRelation(
       filter: RawRowFilter,
       collectMetrics: Boolean = config.collectMetrics,
       collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
+    val maybeDynamicLimit = if (config.dynamicRawLimit) {
+      Some(calculateDynamicLimit())
+    } else {
+      limit
+    }
+
     val configWithLimit =
-      config.copy(limitPerPartition = limit, partitions = numPartitions.getOrElse(config.partitions))
+      config.copy(
+        limitPerPartition = maybeDynamicLimit,
+        partitions = numPartitions.getOrElse(config.partitions))
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,

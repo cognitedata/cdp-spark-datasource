@@ -31,7 +31,8 @@ final case class RelationConfig(
     deleteMissingAssets: Boolean,
     subtrees: AssetSubtreeOption.AssetSubtreeOption,
     ignoreNullFields: Boolean,
-    rawEnsureParent: Boolean
+    rawEnsureParent: Boolean,
+    dynamicRawLimit: Boolean
 )
 
 object OnConflict extends Enumeration {
@@ -390,7 +391,8 @@ object DefaultSource {
       deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
       subtrees = subtreesOption,
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
-      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true)
+      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
+      dynamicRawLimit = toBoolean(parameters, "dynamicRawLimit", defaultValue = false)
     )
   }
 
