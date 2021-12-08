@@ -43,8 +43,18 @@ class DefaultSourceTest extends WordSpec with Matchers {
         )
       }
 
+      "work for session" in {
+        val params =
+          fullParams.filterKeys(!Set("authTicket", "apiKey", "bearerToken").contains(_))
+        DefaultSource.parseAuth(params) shouldBe Some(
+          CdfSparkAuth.OAuth2Sessions(
+            OAuth2.Session(123, "value-SessionKey", "value-Project", "value-TokenFromVault"))
+        )
+      }
+
       "work for clientCredential" in {
-        val params = fullParams.filterKeys(!Set("authTicket", "apiKey", "bearerToken").contains(_))
+        val params =
+          fullParams.filterKeys(!Set("authTicket", "apiKey", "bearerToken", "sessionKey").contains(_))
         DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2ClientCredentials(
             OAuth2.ClientCredentials(
@@ -54,14 +64,6 @@ class DefaultSourceTest extends WordSpec with Matchers {
               List("value-Scopes"),
               "value-Project",
               Some("value-Audience")))
-        )
-      }
-      "work for session" in {
-        val params =
-          fullParams.filterKeys(!Set("authTicket", "apiKey", "bearerToken", "clientSecret").contains(_))
-        DefaultSource.parseAuth(params) shouldBe Some(
-          CdfSparkAuth.OAuth2Sessions(
-            OAuth2.Session(123, "value-SessionKey", "value-Project", "value-TokenFromVault"))
         )
       }
     }

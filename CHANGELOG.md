@@ -1,3 +1,9 @@
+# 1.4.48
+
+## Fixes
+
+* Reverse order to give session more priority than client credential.
+
 # 1.4.47
 
 ## Fixes
