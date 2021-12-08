@@ -74,11 +74,13 @@ object CdpConnector {
             },
             Some(MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.response.failure"))
         ))
+    // this backend throttles when rate limiting from the serivce is encountered
+    val throttledBackend = new BackpressureThrottleBackend[IO, Any](metricsBackend, 800.milliseconds)
     val retryingBackend = new RetryingBackend[IO, Any](
-      metricsBackend,
+      throttledBackend,
       maxRetries = maxRetries,
       maxRetryDelay = maxRetryDelaySeconds.seconds)
-
+    // limit the number of concurrent requests
     val limitedBackend: SttpBackend[IO, Any] =
       RateLimitingBackend[Any](retryingBackend, maxParallelRequests)
     metricsPrefix.fold(limitedBackend)(
