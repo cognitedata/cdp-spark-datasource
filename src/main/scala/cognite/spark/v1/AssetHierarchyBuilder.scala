@@ -71,6 +71,20 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   import CdpConnector.cdpConnectorContextShift
 
+  def delete(data: DataFrame): Unit =
+    data.foreachPartition((rows: Iterator[Row]) => {
+      val deletes = rows.map(r => fromRow[DeleteItem](r))
+      Stream
+        .fromIterator[IO](deletes, chunkSize = batchSize)
+        .chunks
+        .parEvalMapUnordered(config.parallelismPerPartition) { chunk =>
+          client.assets.deleteByIds(chunk.map(_.id).toVector, recursive = true, ignoreUnknownIds = true)
+        }
+        .compile
+        .drain
+        .unsafeRunSync()
+    })
+
   def buildFromDf(data: DataFrame): Unit =
     // Do not use .collect to run the builder on one of the executors and not on the driver
     data

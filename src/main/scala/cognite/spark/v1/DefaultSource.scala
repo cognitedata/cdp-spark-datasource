@@ -163,7 +163,12 @@ class DefaultSource
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
     if (resourceType == "assethierarchy") {
       val relation = new AssetHierarchyBuilder(config)(sqlContext)
-      relation.buildFromDf(data)
+      config.onConflict match {
+        case OnConflict.Delete =>
+          relation.delete(data)
+        case _ =>
+          relation.buildFromDf(data)
+      }
       relation
     } else if (resourceType == "datapoints" || resourceType == "stringdatapoints") {
       val relation = resourceType match {

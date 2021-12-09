@@ -791,6 +791,36 @@ class AssetHierarchyBuilderTest
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe 5
   }
 
+  it should "delete including subtrees" in {
+    val key = shortRandomString()
+
+    ingest(
+      key,
+      Seq(
+        AssetCreate("dad", None, None, None, Some("dad"), None, Some("")),
+        AssetCreate("son", None, None, None, Some("son"), None, Some("dad"))
+      )
+    )
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select name from assets where source = '$testName$key'").collect,
+      rows => rows.map(r => r.getString(0)).toSet != Set("dad", "son")
+    )
+
+    spark.sql(s"select id from assets where externalId = 'dad$key'")
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assethierarchy")
+      .option("onconflict", "delete")
+      .save
+
+    retryWhile[Array[Row]](
+      spark.sql(s"select id from assets where source = '$testName$key'").collect,
+      rows => rows.length != 0
+    )
+  }
+
   it should "allow updating different subtrees" in {
     val key = shortRandomString()
 
