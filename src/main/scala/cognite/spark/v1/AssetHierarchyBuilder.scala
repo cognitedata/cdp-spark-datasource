@@ -11,6 +11,7 @@ import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, 
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import fs2.{Chunk, Stream}
 
 import scala.collection.mutable
 
@@ -181,10 +182,10 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           ids =>
             client.assets
               .filter(AssetsFilter(assetSubtreeIds = Some(ids.map(CogniteExternalId(_)))))
+              .filter(a => !a.externalId.exists(ingestedNodeSet.contains))
+              .map(_.id)
               .compile
               .toVector
-              .map(_.filter(a => !a.externalId.exists(ingestedNodeSet.contains))
-                .map(_.id))
         )
         _ <- batchedOperation[Long, Nothing](
           idsToDelete,
@@ -372,10 +373,13 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       op: Vector[I] => IO[Seq[R]],
       batchSize: Int = this.batchSize): IO[Vector[R]] =
     if (list.nonEmpty) {
-      list
-        .grouped(batchSize)
+      Stream
+        .fromIterator[IO](list.iterator, chunkSize = batchSize)
+        .chunks
+        .parEvalMapUnordered(config.parallelismPerPartition)(chunk => op(chunk.toVector).map(Chunk.seq))
+        .flatMap(Stream.chunk)
+        .compile
         .toVector
-        .parFlatTraverse(op(_).map(_.toVector))
     } else {
       IO.pure(Vector.empty)
     }
