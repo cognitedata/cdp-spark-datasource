@@ -462,7 +462,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |lastUpdatedTime,
                 |0 as rootId,
                 |null as aggregates,
-                |null as labels,
+                |array(cast(null as string)) as labels,
                 |dataSetId
                 |from sourceAssets
                 |limit 100
