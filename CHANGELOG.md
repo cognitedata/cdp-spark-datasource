@@ -1,3 +1,14 @@
+# 1.4.49
+
+## Enhancements
+
+* Better handling of rate limiting from CDF - Spark data source will now wait with all other requests when rate limiting response (429 or 503) is encountered.
+* Improve datapoints read performance.
+
+## Fixes
+
+* Fixed metrics for request status codes.
+
 # 1.4.48
 
 ## Fixes
