@@ -182,7 +182,7 @@ object PushdownUtilities {
       strExternalIds: Option[Seq[String]]): Option[Seq[CogniteExternalId]] =
     strExternalIds match {
       case Some(Seq()) => None
-      case _ => strExternalIds.map(l => l.map(CogniteExternalId(_)))
+      case _ => strExternalIds.map(l => l.filter(_ != null).map(CogniteExternalId(_)))
     }
 
   def externalIdsToContainsAny(externalIds: String): Option[ContainsAny] = {
