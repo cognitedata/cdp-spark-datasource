@@ -1,3 +1,9 @@
+# 1.4.50
+
+## Enhancements
+
+* Using onconflict=delete on assethierarchy will delete assets recursively 
+
 # 1.4.49
 
 ## Enhancements
