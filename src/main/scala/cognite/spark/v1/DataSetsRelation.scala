@@ -2,10 +2,12 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.CdpConnector.cdpConnectorConcurrent
+import cognite.spark.v1.PushdownUtilities.{executeFilterOnePartition, pushdownToFilters, timeRange}
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.DataSets
-import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, DataSetUpdate, GenericClient}
+import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, DataSetFilter, DataSetUpdate, GenericClient}
 import io.scalaland.chimney.Transformer
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
@@ -24,11 +26,22 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: DataSet): String = a.id.toString
 
-  override def getStreams(filters: Array[Filter])(
+  override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[fs2.Stream[IO, DataSet]] =
-    Seq(client.dataSets.list(limit))
+      numPartitions: Int): Seq[fs2.Stream[IO, DataSet]] = {
+    // not super necessary to do filter pushdown here, but it looks nicer when we don't fetch all datasets in Jetfire
+    val (ids, filters) = pushdownToFilters(sparkFilters, dataSetFilterFromMap, DataSetFilter())
+    Seq(executeFilterOnePartition(client.dataSets, filters, ids, limit))
+  }
+
+  private def dataSetFilterFromMap(m: Map[String, String]) =
+    DataSetFilter(
+      createdTime = timeRange(m, "createdTime"),
+      lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
+      externalIdPrefix = m.get("externalIdPrefix"),
+      writeProtected = m.get("writeProtected").map(_.toBoolean)
+    )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val dataSetCreates = rows.map(fromRow[DataSetCreate](_))

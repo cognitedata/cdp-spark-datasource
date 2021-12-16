@@ -1,6 +1,13 @@
 package cognite.spark.v1
 
-import cats.effect.IO
+import cats.effect.Concurrent
+import com.cognite.sdk.scala.common.{
+  PartitionedFilter,
+  RetrieveByExternalIdsWithIgnoreUnknownIds,
+  RetrieveByIdsWithIgnoreUnknownIds,
+  WithGetExternalId,
+  WithId
+}
 
 import java.time.Instant
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, ContainsAny, TimeRange}
@@ -23,6 +30,28 @@ final case class NoPushdown() extends PushdownExpression
 object PushdownUtilities {
   def pushdownToUri(parameters: Seq[Map[String, String]], uri: Uri): Seq[Uri] =
     parameters.map(params => uri.params(params))
+
+  def pushdownToFilters[F](
+      sparkFilters: Array[Filter],
+      mapping: Map[String, String] => F,
+      allFilter: F): (Vector[CogniteId], Vector[F]) = {
+    val pushdownFilterExpression = toPushdownFilterExpression(sparkFilters)
+    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression).toVector
+    val (idFilterMaps, filterMaps) =
+      filtersAsMaps.partition(m => m.contains("id") || m.contains("externalId"))
+    val ids = idFilterMaps.map(
+      m =>
+        m.get("id")
+          .map(id => CogniteInternalId(id.toLong))
+          .getOrElse(CogniteExternalId(m("externalId"))))
+    val filters = filterMaps.map(mapping)
+    val shouldGetAll = filters.contains(allFilter) || (filters.isEmpty && ids.isEmpty)
+    if (shouldGetAll) {
+      (Vector.empty, Vector(allFilter))
+    } else {
+      (ids.distinct, filters.distinct)
+    }
+  }
 
   def pushdownToParameters(p: PushdownExpression): Seq[Map[String, String]] =
     p match {
@@ -152,6 +181,9 @@ object PushdownUtilities {
         Some(TimeRange(Some(minimumTimeAsInstant), Some(maximumTimeAsInstant)))
     }
 
+  def timeRange(m: Map[String, String], fieldName: String) =
+    timeRangeFromMinAndMax(m.get("min" + fieldName.capitalize), m.get("max" + fieldName.capitalize))
+
   def getTimestampLimit(filter: Filter, colName: String): Seq[Limit] =
     filter match {
       case LessThan(`colName`, value) => Seq(timeStampStringToMax(value, -1))
@@ -198,14 +230,38 @@ object PushdownUtilities {
       .map(id => CogniteInternalId(id.toLong))
       .orElse(m.get("externalId").map(CogniteExternalId(_)))
 
-  def getFromIdsOrExternalIds[T](
-      ids: Seq[String],
-      clientToGetByIdsOrByExternalIds: Seq[String] => IO[Seq[T]]): Stream[IO, T] =
-    if (ids.isEmpty) {
-      fs2.Stream.emits(Seq[T]())
-    } else {
-      fs2.Stream.evalSeq(clientToGetByIdsOrByExternalIds(ids))
-    }
+  def mergeStreams[T, F[_]: Concurrent](streams: Seq[Stream[F, T]]): Stream[F, T] =
+    streams.reduceOption(_.merge(_)).getOrElse(Stream.empty)
+
+  def getFromIds[T, F[_]: Concurrent](
+      ids: Vector[CogniteId],
+      clientGetByIds: Vector[Long] => F[Seq[T]],
+      clientGetByExternalIds: Vector[String] => F[Seq[T]]): Stream[F, T] = {
+    val internalIds = ids.collect { case CogniteInternalId(id) => id }
+    val externalIds = ids.collect { case CogniteExternalId(externalId) => externalId }
+    // grouped does not produce a group with 0 elements
+    val requests =
+      internalIds
+        .grouped(Constants.DefaultBatchSize)
+        .map(clientGetByIds) ++
+        externalIds
+          .grouped(Constants.DefaultBatchSize)
+          .map(clientGetByExternalIds)
+
+    mergeStreams(requests.map(fs2.Stream.evalSeq).toVector)
+  }
+
+  def getFromIds[T, F[_]: Concurrent](
+      ids: Vector[CogniteId],
+      resource: RetrieveByIdsWithIgnoreUnknownIds[T, F] with RetrieveByExternalIdsWithIgnoreUnknownIds[
+        T,
+        F]
+  ): Stream[F, T] =
+    getFromIds(
+      ids,
+      resource.retrieveByIds(_, ignoreUnknownIds = true),
+      resource.retrieveByExternalIds(_, ignoreUnknownIds = true)
+    )
 
   def checkDuplicateOnIdsOrExternalIds(
       id: String,
@@ -213,6 +269,54 @@ object PushdownUtilities {
       ids: Seq[String],
       externalIds: Seq[String]): Boolean =
     !ids.contains(id) && (externalId.isEmpty || !externalIds.contains(externalId.getOrElse("")))
+
+  def checkDuplicateCogniteIds[R <: WithGetExternalId with WithId[Long]](
+      ids: Vector[CogniteId]): R => Boolean = {
+    val idSet = ids.collect { case CogniteInternalId(id) => id }.toSet
+    val externalIdSet = ids.collect { case CogniteExternalId(externalId) => externalId }.toSet
+    r =>
+      !idSet.contains(r.id) && !r.getExternalId.exists(externalIdSet.contains)
+  }
+
+  def executeFilterOnePartition[R, Fi, F[_]: Concurrent](
+      resource: com.cognite.sdk.scala.common.Filter[R, Fi, F] with RetrieveByIdsWithIgnoreUnknownIds[
+        R,
+        F] with RetrieveByExternalIdsWithIgnoreUnknownIds[R, F],
+      filters: Vector[Fi],
+      ids: Vector[CogniteId],
+      limit: Option[Int]
+  ): Stream[F, R] = {
+    val streamsPerFilter: Vector[Stream[F, R]] =
+      filters.map(f => resource.filter(f, limit))
+
+    mergeStreams(streamsPerFilter).merge(getFromIds(ids, resource))
+  }
+  def executeFilter[R <: WithGetExternalId with WithId[Long], Fi, F[_]: Concurrent](
+      resource: PartitionedFilter[R, Fi, F] with RetrieveByIdsWithIgnoreUnknownIds[R, F] with RetrieveByExternalIdsWithIgnoreUnknownIds[
+        R,
+        F],
+      filters: Vector[Fi],
+      ids: Vector[CogniteId],
+      numPartitions: Int,
+      limit: Option[Int]
+  ): Vector[Stream[F, R]] = {
+    if (numPartitions == 1) {
+      return Vector(executeFilterOnePartition(resource, filters, ids, limit))
+    }
+
+    val streamsPerFilter: Vector[Seq[Stream[F, R]]] =
+      filters.map(f => resource.filterPartitions(f, numPartitions, limit))
+    var partitionStreams =
+      streamsPerFilter.transpose
+        .map(mergeStreams(_))
+        .map(_.filter(checkDuplicateCogniteIds(ids)))
+    if (ids.nonEmpty) {
+      // only add the ids partition when it's not empty, Spark partitions are not super cheap
+      partitionStreams ++= Vector(getFromIds(ids, resource))
+    }
+
+    partitionStreams
+  }
 }
 
 trait InsertSchema {

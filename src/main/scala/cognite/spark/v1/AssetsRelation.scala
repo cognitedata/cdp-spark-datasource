@@ -22,50 +22,12 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   import CdpConnector._
   private val fieldNames =
     Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
-  override def getStreams(filters: Array[Filter])(
+  override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, AssetsReadSchema]] = {
-    val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val getAll = shouldGetAll(pushdownFilterExpression, fieldNames)
-    val params = pushdownToParameters(pushdownFilterExpression)
-    val pushdownFilters = if (params.isEmpty || getAll) {
-      Seq(AssetsFilter())
-    } else {
-      params
-        .filter { mapFieldNameToValue =>
-          val fieldNames = mapFieldNameToValue.keySet
-          !fieldNames.contains("id") && !fieldNames.contains("externalId")
-        }
-        .map(assetsFilterFromMap)
-    }
-
-    val ids = params.flatMap(_.get("id")).distinct
-    val externalIds = params.flatMap(_.get("externalId")).distinct
-    val streamsOfIdsAndExternalIds = if ((ids ++ externalIds).isEmpty) {
-      Seq.empty
-    } else {
-      val assetFilteredById: Stream[IO, Asset] = getFromIdsOrExternalIds(
-        ids,
-        (ids: Seq[String]) => client.assets.retrieveByIds(ids.map(_.toLong), true))
-      val assetFilteredByExternalId: Stream[IO, Asset] = getFromIdsOrExternalIds(
-        externalIds,
-        (ids: Seq[String]) => client.assets.retrieveByExternalIds(ids, true))
-      Seq(assetFilteredById, assetFilteredByExternalId).distinct
-    }
-    val streamsPerFilter = pushdownFilters
-      .map { f =>
-        client.assets.filterPartitions(f, numPartitions, limit)
-      }
-
-    // Merge streams related to each partition to make sure duplicate values are read into
-    // the same RDD partition
-    (streamsPerFilter.transpose
-      .map(
-        s =>
-          s.reduce(_.merge(_))
-            .filter(a => checkDuplicateOnIdsOrExternalIds(a.id.toString, a.externalId, ids, externalIds))
-      ) ++ streamsOfIdsAndExternalIds)
+    val (ids, filters) = pushdownToFilters(sparkFilters, assetsFilterFromMap, AssetsFilter())
+    executeFilter(client.assets, filters, ids, numPartitions, limit)
       .map(
         _.map(
           _.into[AssetsReadSchema]
@@ -79,6 +41,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       source = m.get("source"),
       dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
       labels = m.get("labels").flatMap(externalIdsToContainsAny),
+      lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
+      createdTime = timeRange(m, "createdTime"),
       externalIdPrefix = m.get("externalIdPrefix")
     )
 
