@@ -2,12 +2,31 @@ package cognite.spark.v1
 
 import java.time.Instant
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.{File, FileCreate, FileUpdate, GenericClient}
+import com.cognite.sdk.scala.v1.{
+  AssetsFilter,
+  CogniteInternalId,
+  File,
+  FileCreate,
+  FileUpdate,
+  FilesFilter,
+  GenericClient,
+  TimeRange,
+  TimeSeriesFilter
+}
 import cognite.spark.v1.SparkSchemaHelper._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import cats.implicits._
+import cognite.spark.v1.CdpConnector.cdpConnectorConcurrent
+import cognite.spark.v1.PushdownUtilities.{
+  executeFilter,
+  externalIdsToContainsAny,
+  idsFromWrappedArray,
+  pushdownToFilters,
+  timeRange,
+  timeRangeFromMinAndMax
+}
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.Files
 import fs2.Stream
@@ -27,11 +46,30 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       doUpsert)
   }
 
-  override def getStreams(filters: Array[Filter])(
+  private def filesFilterFromMap(m: Map[String, String]): FilesFilter =
+    FilesFilter(
+      name = m.get("name"),
+      mimeType = m.get("mimeType"),
+      assetIds = m.get("assetIds").map(idsFromWrappedArray),
+      createdTime = timeRange(m, "createdTime"),
+      lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
+      uploadedTime = timeRange(m, "uploadedTime"),
+      sourceCreatedTime = timeRange(m, "sourceCreatedTime"),
+      sourceModifiedTime = timeRange(m, "sourceModifiedTime"),
+      uploaded = m.get("uploaded").map(_.toBoolean),
+      source = m.get("source"),
+      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
+      //labels = m.get("labels").flatMap(externalIdsToContainsAny),
+      externalIdPrefix = m.get("externalIdPrefix")
+    )
+
+  override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, File]] =
-    Seq(client.files.list(limit))
+      numPartitions: Int): Seq[Stream[IO, File]] = {
+    val (ids, filters) = pushdownToFilters(sparkFilters, filesFilterFromMap, FilesFilter())
+    executeFilter(client.files, filters, ids, numPartitions, limit)
+  }
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val files = rows.map(fromRow[FileCreate](_))

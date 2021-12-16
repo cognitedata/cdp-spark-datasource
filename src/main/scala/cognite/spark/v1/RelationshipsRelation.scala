@@ -1,17 +1,23 @@
 package cognite.spark.v1
 
 import cats.Id
-import java.time.Instant
 
+import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
+  checkDuplicateCogniteIds,
   cogniteExternalIdSeqToStringSeq,
+  executeFilterOnePartition,
   externalIdsToContainsAny,
+  getFromIds,
   idsFromWrappedArray,
+  mergeStreams,
+  pushdownToFilters,
   pushdownToParameters,
   shouldGetAll,
   stringSeqToCogniteExternalIdSeq,
+  timeRange,
   timeRangeFromMinAndMax,
   toPushdownFilterExpression
 }
@@ -37,43 +43,17 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: RelationshipsReadSchema): String = a.externalId
 
-  override def getStreams(filters: Array[Filter])(
+  override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, RelationshipsReadSchema]] = {
-    val fieldNames =
-      Array(
-        "sourceExternalId",
-        "sourceType",
-        "targetExternalId",
-        "targetType",
-        "minStartTime",
-        "maxStartTime",
-        "minEndTime",
-        "maxEndTime",
-        "minConfidence",
-        "maxConfidence",
-        "dataSetId",
-        "labels",
-        "minCreatedTime",
-        "maxCreatedTime",
-        "minLastUpdatedTime",
-        "maxLastUpdatedTime"
-      )
-    val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
-    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
+    val (ids, filters) =
+      pushdownToFilters(sparkFilters, relationshipsFilterFromMap, RelationshipsFilter())
 
-    if (filtersAsMaps.isEmpty || shouldGetAllRows) {
-      Seq(client.relationships.filter(RelationshipsFilter()).map(relationshipToRelationshipReadSchema))
-    } else {
-      val relationshipsFilterSeq = filtersAsMaps.distinct.map(relationshipsFilterFromMap)
-      relationshipsFilterSeq
-        .map { f =>
-          client.relationships.filter(f, limit).map(relationshipToRelationshipReadSchema)
-        }
-    }
-
+    // TODO: support parallel retrival using partitions
+    Seq(
+      executeFilterOnePartition(client.relationships, filters, ids, limit)
+        .map(relationshipToRelationshipReadSchema))
   }
 
   def relationshipsFilterFromMap(m: Map[String, String]): RelationshipsFilter =
@@ -83,18 +63,14 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       targetExternalIds = m.get("targetExternalId").map(Seq(_)),
       targetTypes = m.get("targetType").map(Seq(_)),
       dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
-      startTime =
-        timeRangeFromMinAndMax(minTime = m.get("minStartTime"), maxTime = m.get("maxStartTime")),
-      endTime = timeRangeFromMinAndMax(minTime = m.get("minEndTime"), maxTime = m.get("maxEndTime")),
+      startTime = timeRange(m, "startTime"),
+      endTime = timeRange(m, "endTime"),
       labels = m.get("labels").flatMap(externalIdsToContainsAny),
       confidence = confidenceRangeFromLimitStrings(
         minConfidence = m.get("minConfidence"),
         maxConfidence = m.get("maxConfidence")),
-      lastUpdatedTime = timeRangeFromMinAndMax(
-        minTime = m.get("minLastUpdatedTime"),
-        maxTime = m.get("maxLastUpdatedTime")),
-      createdTime =
-        timeRangeFromMinAndMax(minTime = m.get("minCreatedTime"), maxTime = m.get("maxCreatedTime"))
+      lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
+      createdTime = timeRange(m, "createdTime")
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

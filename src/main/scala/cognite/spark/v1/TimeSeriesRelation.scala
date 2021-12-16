@@ -72,66 +72,12 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: TimeSeries): Long = a.id
 
-  private val fieldNames =
-    Array(
-      "name",
-      "unit",
-      "isStep",
-      "isString",
-      "assetId",
-      "dataSetId",
-      "id",
-      "externalId",
-      "externalIdPrefix")
-
-  override def getStreams(filters: Array[Filter])(
+  override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, TimeSeries]] = {
-
-    val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val shouldGetAllRows = shouldGetAll(pushdownFilterExpression, fieldNames)
-    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-    val timeSeriesFilterSeq = if (filtersAsMaps.isEmpty || shouldGetAllRows) {
-      Seq(TimeSeriesFilter())
-    } else {
-      filtersAsMaps
-        .filter { mapFieldNameToValue =>
-          val fieldNames = mapFieldNameToValue.keySet
-          !fieldNames.contains("id") && !fieldNames.contains("externalId")
-        }
-        .map(timeSeriesFilterFromMap)
-    }
-
-    val ids = filtersAsMaps.flatMap(_.get("id")).distinct
-    val externalIds = filtersAsMaps.flatMap(_.get("externalId")).distinct
-
-    val streamsOfIdsAndExternalIds = if ((ids ++ externalIds).isEmpty) {
-      Seq.empty
-    } else {
-      val timeSeriesFilteredById: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
-        ids,
-        (ids: Seq[String]) => client.timeSeries.retrieveByIds(ids.map(_.toLong), true))
-      val timeSeriesFilteredByExternalId: Stream[IO, TimeSeries] = getFromIdsOrExternalIds(
-        externalIds,
-        (ids: Seq[String]) => client.timeSeries.retrieveByExternalIds(ids, true))
-
-      Seq(timeSeriesFilteredById, timeSeriesFilteredByExternalId).distinct
-    }
-
-    val streamsPerFilter = timeSeriesFilterSeq
-      .map { f =>
-        client.timeSeries.filterPartitions(f, numPartitions, limit)
-      }
-
-    // Merge streams related to each partition to make sure duplicate values are read into
-    // the same RDD partition
-    streamsPerFilter.transpose.map(
-      s =>
-        s.reduce(_.merge(_))
-          .filter(ts =>
-            checkDuplicateOnIdsOrExternalIds(ts.id.toString, ts.externalId, ids, externalIds))) ++
-      streamsOfIdsAndExternalIds
+    val (ids, filters) = pushdownToFilters(sparkFilters, timeSeriesFilterFromMap, TimeSeriesFilter())
+    executeFilter(client.timeSeries, filters, ids, numPartitions, limit)
   }
 
   def timeSeriesFilterFromMap(m: Map[String, String]): TimeSeriesFilter =
@@ -142,7 +88,9 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       isString = m.get("isString").map(_.toBoolean),
       assetIds = m.get("assetId").map(idsFromWrappedArray),
       dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
-      externalIdPrefix = m.get("externalIdPrefix")
+      externalIdPrefix = m.get("externalIdPrefix"),
+      createdTime = timeRange(m, "createdTime"),
+      lastUpdatedTime = timeRange(m, "lastUpdatedTime")
     )
 }
 object TimeSeriesRelation extends UpsertSchema {
