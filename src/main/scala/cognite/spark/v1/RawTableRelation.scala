@@ -6,8 +6,6 @@ import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
 import com.cognite.sdk.scala.common.Items
 import com.cognite.sdk.scala.v1._
-import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.circe.{Json, JsonObject}
 import io.circe.syntax._
 import org.apache.spark.rdd.RDD
@@ -40,17 +38,7 @@ class RawTableRelation(
 
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
 
-  @transient lazy val mapper: ObjectMapper = {
-    val mapper = new ObjectMapper()
-    mapper.registerModule(DefaultScalaModule)
-    mapper.registerModule(cognite.spark.jackson.SparkModule)
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-    mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
-    mapper
-  }
-
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-
   @transient lazy private val rowsCreated =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.created")
   @transient lazy private val rowsRead =
@@ -188,7 +176,7 @@ class RawTableRelation(
   }
 
   private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]): IO[Unit] = {
-    val items = rowsToRawItems(nonKeyColumnNames, rows, mapper)
+    val items = rowsToRawItems(nonKeyColumnNames, rows)
 
     client
       .rawRows(database, table)
@@ -220,18 +208,64 @@ object RawTableRelation {
   private def lastUpdatedTimeColumns(schema: StructType): Array[String] =
     schema.fieldNames.filter(lastUpdatedTimeColumnPattern.findFirstIn(_).isDefined)
 
-  def rowsToRawItems(nonKeyColumnNames: Seq[String], rows: Seq[Row], mapper: ObjectMapper): Seq[RawRow] =
+  def rowsToRawItems(nonKeyColumnNames: Seq[String], rows: Seq[Row]): Seq[RawRow] =
     rows.map(
       row =>
         RawRow(
           Option(row.getString(row.fieldIndex(temporaryKeyName)))
             .getOrElse(throw new CdfSparkIllegalArgumentException("\"key\" can not be null.")),
-          io.circe.parser
-            .decode[Map[String, Json]](
-              mapper.writeValueAsString(row.getValuesMap[Any](nonKeyColumnNames)))
-            .right
-            .get
+          nonKeyColumnNames.map(f => f -> anyToRawJson(row.getAs[Any](f))).toMap
       ))
+
+  // scalastyle:off cyclomatic.complexity
+  /** Maps the object from Spark into circe Json object. This is the types we need to cover (according to Row.get javadoc):
+    * BooleanType -> java.lang.Boolean
+       ByteType -> java.lang.Byte
+       ShortType -> java.lang.Short
+       IntegerType -> java.lang.Integer
+       LongType -> java.lang.Long
+       FloatType -> java.lang.Float
+       DoubleType -> java.lang.Double
+       StringType -> String
+       DecimalType -> java.math.BigDecimal
+
+       DateType -> java.sql.Date if spark.sql.datetime.java8API.enabled is false
+       DateType -> java.time.LocalDate if spark.sql.datetime.java8API.enabled is true
+
+       TimestampType -> java.sql.Timestamp if spark.sql.datetime.java8API.enabled is false
+       TimestampType -> java.time.Instant if spark.sql.datetime.java8API.enabled is true
+
+       BinaryType -> byte array
+       ArrayType -> scala.collection.Seq (use getList for java.util.List)
+       MapType -> scala.collection.Map (use getJavaMap for java.util.Map)
+       StructType -> org.apache.spark.sql.Row */
+  private def anyToRawJson(v: Any): Json =
+    v match {
+      case v: java.lang.Boolean => Json.fromBoolean(v.booleanValue)
+      case v: java.lang.Float => Json.fromFloatOrString(v.floatValue)
+      case v: java.lang.Double => Json.fromDoubleOrString(v.doubleValue)
+      case v: java.math.BigDecimal => Json.fromBigDecimal(v)
+      case v: java.lang.Number => Json.fromLong(v.longValue())
+      case v: String => Json.fromString(v)
+      case v: java.sql.Date => Json.fromString(v.toString)
+      case v: java.time.LocalDate => Json.fromString(v.toString)
+      case v: java.sql.Timestamp => Json.fromString(v.toString)
+      case v: java.time.Instant => Json.fromString(v.toString)
+      case v: Array[Byte] =>
+        throw new CdfSparkIllegalArgumentException(
+          "BinaryType is not supported when writing raw, please convert it to base64 string or array of numbers")
+      case v: Seq[Any] => Json.arr(v.map(anyToRawJson): _*)
+      case v: Map[Any @unchecked, Any @unchecked] =>
+        Json.obj(v.toSeq.map(x => x._1.toString -> anyToRawJson(x._2)): _*)
+      case v: Row => rowToJson(v)
+    }
+
+  private def rowToJson(r: Row): Json =
+    if (r.schema != null) {
+      Json.obj(r.schema.fieldNames.map(f => f -> anyToRawJson(r.getAs[Any](f))): _*)
+    } else {
+      Json.arr(r.toSeq.map(anyToRawJson): _*)
+    }
 
   private def schemaWithoutRenamedColumns(schema: StructType) =
     StructType.apply(schema.fields.map(field => {
