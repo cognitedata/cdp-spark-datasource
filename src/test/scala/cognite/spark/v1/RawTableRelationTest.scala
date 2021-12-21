@@ -494,4 +494,41 @@ class RawTableRelationTest
 
     assert(source.count() == dest.count())
   }
+
+  it should "fail reasonably when table does not exist" in {
+    val source = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", "datybasy")
+      .option("table", "assets")
+      .option("inferSchema", "false")
+      .load()
+    source.createTempView("table_which_does_not_exist")
+
+    // This query causes Spark to crash in Jetfire, let's try how does it work in here
+
+    val query =
+      """
+        WITH
+          raw_table AS (
+            SELECT
+            from_json(columns,
+            '''
+            externalId string
+            ''') as json
+            FROM table_which_does_not_exist
+          )
+        select first(externalId)
+        from (select json.externalId as externalId from raw_table)
+        GROUP BY concat_ws(':', externalId, externalId)
+        """
+
+    val exception = sparkIntercept(spark.sql(query).collect())
+    assert(exception.getMessage.contains("Following databases not found: datybasy."))
+
+    // just test that Spark did not die in the process
+    val select1result = spark.sql("select 1 as col").collect()
+    assert(select1result.map(_.getInt(0)).toList == List(1))
+  }
 }
