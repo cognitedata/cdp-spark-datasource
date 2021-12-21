@@ -157,7 +157,7 @@ trait SparkTest {
   }
 
   def sparkIntercept(f: => Any)(implicit pos: source.Position): Throwable = {
-    Matchers.intercept[Exception](f)(classTag[Exception], pos) match {
+    Matchers.intercept[Throwable](f)(classTag[Throwable], pos) match {
       case ex : SparkException if ex.getCause != null =>
         ex.getCause
       case ex => ex
