@@ -2,6 +2,12 @@
 
 ## Enhancements
 
+* Removed usage of Jackson from Raw writes. This should reduce dependency conflicts and improve performance.
+
+# 1.4.50
+
+## Enhancements
+
 * Using onconflict=delete on assethierarchy will delete assets recursively 
 
 # 1.4.49

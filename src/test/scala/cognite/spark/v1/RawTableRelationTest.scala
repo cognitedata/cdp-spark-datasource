@@ -2,8 +2,6 @@ package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{RawRow, RawTable}
-import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.circe.Json
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
@@ -212,20 +210,11 @@ class RawTableRelationTest
     collectToSet[Long](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
   }
 
-  val mapper: ObjectMapper = {
-    val mapper = new ObjectMapper()
-    mapper.registerModule(DefaultScalaModule)
-    mapper.registerModule(cognite.spark.jackson.SparkModule)
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-    mapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
-    mapper
-  }
-
   "rowsToRawItems" should "return RawRows from Rows" in {
     val dfWithKey = dfWithKeyData.toDF("key", "lastUpdatedTime", "columns")
     val processedWithKey = flattenAndRenameColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
     val (columnNames, unRenamed) = prepareForInsert(processedWithKey)
-    val rawItems: Seq[RawRow] = rowsToRawItems(columnNames, unRenamed.collect.toSeq, mapper)
+    val rawItems: Seq[RawRow] = rowsToRawItems(columnNames, unRenamed.collect.toSeq)
     rawItems.map(_.key.toString).toSet should equal(Set("key3", "key4"))
 
     val expectedResult: Seq[Map[String, Json]] = Seq[Map[String, Json]](
@@ -242,8 +231,7 @@ class RawTableRelationTest
     val (columnNames, unRenamed) = prepareForInsert(processedWithKey)
     an[CdfSparkIllegalArgumentException] should be thrownBy rowsToRawItems(
       columnNames,
-      unRenamed.collect.toSeq,
-      mapper)
+      unRenamed.collect.toSeq)
   }
 
   "Infer Schema" should "use a different limit for infer schema" in {
