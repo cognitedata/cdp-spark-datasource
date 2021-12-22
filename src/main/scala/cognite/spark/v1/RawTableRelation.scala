@@ -241,6 +241,7 @@ object RawTableRelation {
        StructType -> org.apache.spark.sql.Row */
   private def anyToRawJson(v: Any): Json =
     v match {
+      case null => Json.Null // scalastyle:off null
       case v: java.lang.Boolean => Json.fromBoolean(v.booleanValue)
       case v: java.lang.Float => Json.fromFloatOrString(v.floatValue)
       case v: java.lang.Double => Json.fromDoubleOrString(v.doubleValue)
@@ -258,6 +259,9 @@ object RawTableRelation {
       case v: Map[Any @unchecked, Any @unchecked] =>
         Json.obj(v.toSeq.map(x => x._1.toString -> anyToRawJson(x._2)): _*)
       case v: Row => rowToJson(v)
+      case _ =>
+        throw new CdfSparkIllegalArgumentException(
+          s"Value $v of type ${v.getClass} can not be written to RAW")
     }
 
   private def rowToJson(r: Row): Json =

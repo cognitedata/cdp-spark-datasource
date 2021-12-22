@@ -382,6 +382,8 @@ class RawTableRelationTest
          |  struct(
          |    123                        as long,
          |    'foo'                      as string,
+         |    cast(null as string)       as `null`,
+         |    named_struct('message', 'asd') as namedstruct,
          |    struct(123 as foo)         as struct,
          |    array(struct(123 as foo))  as array_of_struct
          |  ) as value
@@ -418,6 +420,8 @@ class RawTableRelationTest
 
       assert(struct.getAs[Long]("long") == 123L)
       assert(struct.getAs[String]("string") == "foo")
+      assert(struct.getAs[String]("null") == null)
+      assert(struct.getAs[Row]("namedstruct").getAs[String]("message") == "asd")
 
       val nestedStruct = struct.getStruct(struct.fieldIndex("struct"))
       assert(nestedStruct.schema != null)
