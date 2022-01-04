@@ -120,18 +120,26 @@ To autenticate using OIDC tokens set all of these options:
 
 To read from CDF resource types, you need to specify: an **API-key** or a **bearertoken** and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
 
-**Filter pushdown**
+#### Filter pushdown
 
-For some fields, filters are pushed down to the API. For example, if you read events with a filter on IDs,  only the IDs that satisfy the filter are read from CDF, as opposed to reading all events and **then** applying  the filter. This happens automatically, but note that filters are only pushed down when Spark reads data from CDF, and not when working on a DataFrame that is already in memory.
+For some fields, filters are pushed down to the API. For example, if you read events with a filter on asset IDs,  only the IDs that satisfy the filter are read from CDF, as opposed to reading all events and **then** applying  the filter. This happens automatically, but note that filters are only pushed down when Spark reads data from CDF, and not when working on a DataFrame that is already in memory.
 
-The following fields have filter pushdown:
+`externalId` and `id` always support this filter, for most resources it's also possible to filter by `externalId` prefix.
+For example query `where externalId LIKE 'my-id-prefix-%'` will only fetch items with the matching id.
+Note that the filter only works on prefix, not any substring, so querying `where externalId LIKE '%-something-%'` will download all items from CDF.
 
+Generally, filtering works on anything that [CDF API can filter on](https://docs.cognite.com/api/v1/#operation/listAssets).
+If it does not work for something you'd expect to work, feel free to report it to Cognite.
+However, due to limitations in Spark we cannot filter on metadata field.
+See [Schema section](#schemas) for more details on which filters are supported.
 
-|Resource type  |Fields  |
-|---------|---------|
-|Assets     | - name</br>- source</br>        |
-|Events     | - source</br>- assetIds</br>- type</br>- subtype (You must supply a filter on type when filtering on subtype)</br>- minStartTime</br>- maxStartTime        |
-|Time Series     | - assetId</br>        |
+* **equality** means that `column = 'x'`, `column IN ('x', 'y')` and similar are supported
+* **comparison** means that `column <= 10`, `column > 10` and similar are supported
+
+> In practice, it's often useful to filter on `datasetId`.
+> Usually, one query only needs items from a single dataset, so it's an easy way to improve run-time.
+
+Note that filter pushdown works even with more complex predicates with AND and OR operators.
 
 ### Write data
 
@@ -365,92 +373,92 @@ the `insertInto`-pattern you have to match the schema exactly (see [.insertInto(
 The schemas mirror the CDF API as closely as possible.
 
 ### Assets schema
-| Column name       | Type                  |  Nullable |
-| ------------------| ----------------------| --------- |
-| `externalId`      | `string`              | Yes       |
-| `name`            | `string`              | No        |
-| `parentId`        | `long`                | Yes       |
-| `description`     | `string`              | Yes       |
-| `metadata`        | `map(string, string)` | Yes       |
-| `source`          | `long`                | Yes       |
-| `id`              | `long`                | No        |
-| `createdTime`     | `timestamp`           | No        |
-| `lastUpdatedTime` | `timestamp`           | No        |
-| `rootId`          | `long`                | Yes       |
-| `aggregates`      | `map(string, long)`   | Yes       |
-| `dataSetId`       | `long`                | Yes       |
+| Column name       | Type                  |  Nullable | Filter pushdown [?](#filter-pushdown) |
+| ------------------| ----------------------| --------- | ------------------------------------- |
+| `externalId`      | `string`              | Yes       | equality, prefix (`LIKE 'xyz%'`)      |
+| `name`            | `string`              | No        | equality                              |
+| `parentId`        | `long`                | Yes       | -                                     |
+| `description`     | `string`              | Yes       | -                                     |
+| `metadata`        | `map(string, string)` | Yes       | -                                     |
+| `source`          | `long`                | Yes       | equality                              |
+| `id`              | `long`                | No        | equality                              |
+| `createdTime`     | `timestamp`           | No        | comparison                            |
+| `lastUpdatedTime` | `timestamp`           | No        | comparison                            |
+| `rootId`          | `long`                | Yes       | -                                     |
+| `aggregates`      | `map(string, long)`   | Yes       | -                                     |
+| `dataSetId`       | `long`                | Yes       | equality                              |
 
 ### Events schema
-| Column name       | Type                  |  Nullable |
-| ------------------| ----------------------| --------- |
-| `id`              | `long`                | No        |
-| `startTime`       | `timestamp`           | Yes       |
-| `endTime`         | `timestamp`           | Yes       |
-| `description`     | `string`              | Yes       |
-| `type`            | `string`              | Yes       |
-| `subtype`         | `string`              | Yes       |
-| `metadata`        | `map(string, string)` | Yes       |
-| `assetIds`        | `array(long)`         | Yes       |
-| `source`          | `long`                | Yes       |
-| `externalId`      | `string`              | Yes       |
-| `createdTime`     | `timestamp`           | No        |
-| `lastUpdatedTime` | `timestamp`           | No        |
-| `dataSetId`       | `long`                | Yes       |
+| Column name       | Type                  |  Nullable | Filter pushdown [?](#filter-pushdown) |
+| ------------------| ----------------------| --------- | ------------------------------------- |
+| `id`              | `long`                | No        | equality                              |
+| `startTime`       | `timestamp`           | Yes       | comparison, equality                  |
+| `endTime`         | `timestamp`           | Yes       | comparison, equality                  |
+| `description`     | `string`              | Yes       | -                                     |
+| `type`            | `string`              | Yes       | equality                              |
+| `subtype`         | `string`              | Yes       | equality                              |
+| `metadata`        | `map(string, string)` | Yes       | -                                     |
+| `assetIds`        | `array(long)`         | Yes       | equality                              |
+| `source`          | `string`              | Yes       | equality                              |
+| `externalId`      | `string`              | Yes       | equality, prefix (`LIKE 'xyz%'`)      |
+| `createdTime`     | `timestamp`           | No        | comparison                            |
+| `lastUpdatedTime` | `timestamp`           | No        | comparison                            |
+| `dataSetId`       | `long`                | Yes       | equality                              |
 
 ### Files schema
-| Column name          | Type                  |  Nullable |
-| ---------------------| ----------------------| --------- |
-| `id`                 | `long`                | No        |
-| `name`               | `string`              | No        |
-| `source`             | `long`                | Yes       |
-| `externalId`         | `string`              | Yes       |
-| `mimeType`           | `string`              | Yes       |
-| `metadata`           | `map(string, string)` | Yes       |
-| `assetIds`           | `array(long)`         | Yes       |
-| `uploaded`           | `boolean`             | No        |
-| `uploadedTime`       | `timestamp`           | Yes       |
-| `createdTime`        | `timestamp`           | No        |
-| `lastUpdatedTime`    | `timestamp`           | No        |
-| `sourceCreatedTime`  | `timestamp`           | Yes       |
-| `sourceModifiedTime` | `timestamp`           | Yes       |
-| `securityCategories` | `array(long)`         | Yes       |
-| `uploadUrl`          | `string`              | Yes       |
-| `dataSetId`          | `long`                | Yes       |
+| Column name          | Type                  |  Nullable | Filter pushdown [?](#filter-pushdown) |
+| ---------------------| ----------------------| --------- | ------------------------------------- |
+| `id`                 | `long`                | No        | equality                              |
+| `name`               | `string`              | No        | equality                              |
+| `source`             | `long`                | Yes       | equality                              |
+| `externalId`         | `string`              | Yes       | equality, prefix (`LIKE 'xyz%'`)      |
+| `mimeType`           | `string`              | Yes       | equality                              |
+| `metadata`           | `map(string, string)` | Yes       | -                                     |
+| `assetIds`           | `array(long)`         | Yes       | equality                              |
+| `uploaded`           | `boolean`             | No        | equality                              |
+| `uploadedTime`       | `timestamp`           | Yes       | comparison                            |
+| `createdTime`        | `timestamp`           | No        | comparison                            |
+| `lastUpdatedTime`    | `timestamp`           | No        | comparison                            |
+| `sourceCreatedTime`  | `timestamp`           | Yes       | comparison                            |
+| `sourceModifiedTime` | `timestamp`           | Yes       | comparison                            |
+| `securityCategories` | `array(long)`         | Yes       | -                                     |
+| `uploadUrl`          | `string`              | Yes       | -                                     |
+| `dataSetId`          | `long`                | Yes       | equality                              |
 
 ### Data points schema
-| Column name   | Type        |  Nullable |
-| --------------| ------------| --------- |
-| `id`          | `long`      | Yes       |
-| `externalId`  | `string`    | Yes       |
-| `timestamp`   | `timestamp` | No        |
-| `value`       | `double`    | No        |
-| `aggregation` | `string`    | Yes       |
-| `granularity` | `string`    | Yes       |
+| Column name   | Type        |  Nullable | Filter pushdown [?](#filter-pushdown) |
+| --------------| ------------| --------- | ------------------------------------- |
+| `id`          | `long`      | Yes       | equality                              |
+| `externalId`  | `string`    | Yes       | equality                              |
+| `timestamp`   | `timestamp` | No        | comparison, equality                  |
+| `value`       | `double`    | No        | -                                     |
+| `aggregation` | `string`    | Yes       | equality                              |
+| `granularity` | `string`    | Yes       | equality                              |
 
 ### String data points schema
-| Column name   | Type        |  Nullable |
-| --------------| ------------| --------- |
-| `id`          | `long`      | Yes       |
-| `externalId`  | `string`    | Yes       |
-| `timestamp`   | `timestamp` | No        |
-| `value`       | `string`    | No        |
+| Column name   | Type        |  Nullable | Filter pushdown [?](#filter-pushdown) |
+| --------------| ------------| --------- | ------------------------------------- |
+| `id`          | `long`      | Yes       | equality                              |
+| `externalId`  | `string`    | Yes       | equality                              |
+| `timestamp`   | `timestamp` | No        | comparison, equality                  |
+| `value`       | `string`    | No        | -                                     |
 
 ### Time series schema
-| Column name          | Type                  |  Nullable |
-| ---------------------| ----------------------| --------- |
-| `name`               | `string`              | Yes       |
-| `isString`           | `boolean`             | No        |
-| `metadata`           | `map(string, string)` | Yes       |
-| `unit`               | `string`              | Yes       |
-| `assetId`            | `long`                | Yes       |
-| `isStep`             | `boolean`             | No        |
-| `description`        | `string`              | Yes       |
-| `securityCategories` | `array(long)`         | Yes       |
-| `id`                 | `long`                | No        |
-| `externalId`         | `string`              | Yes       |
-| `createdTime`        | `timestamp`           | No        |
-| `lastUpdatedTime`    | `timestamp`           | No        |
-| `dataSetId`          | `long`                | Yes       |
+| Column name          | Type                  |  Nullable | Filter pushdown [?](#filter-pushdown) |
+| ---------------------| ----------------------| --------- | ------------------------------------- |
+| `name`               | `string`              | Yes       | equality                              |
+| `isString`           | `boolean`             | No        | equality                              |
+| `metadata`           | `map(string, string)` | Yes       | -                                     |
+| `unit`               | `string`              | Yes       | equality                              |
+| `assetId`            | `long`                | Yes       | equality                              |
+| `isStep`             | `boolean`             | No        | equality                              |
+| `description`        | `string`              | Yes       | -                                     |
+| `securityCategories` | `array(long)`         | Yes       | -                                     |
+| `id`                 | `long`                | No        | equality                              |
+| `externalId`         | `string`              | Yes       | equality, prefix (`LIKE 'xyz%'`)      |
+| `createdTime`        | `timestamp`           | No        | comparison                            |
+| `lastUpdatedTime`    | `timestamp`           | No        | comparison                            |
+| `dataSetId`          | `long`                | Yes       | equality                              |
 
 
 ### Asset Hierarchy schema
@@ -475,17 +483,15 @@ The schemas mirror the CDF API as closely as possible.
 | `dataSetId`          | `long`                  | Yes       |
 | `columns`            | `array(SequenceColumn)` | No        |
 
-The `columns` field should be an array of `SequenceColumn`s, which are rows with the following fields:
+The `columns` field is an array of `SequenceColumn`s, which are rows with the following fields:
 
 | Column name          | Type                    |  Nullable |
 | ---------------------| ------------------------| --------- |
-| `externalId`         | `string`                | No        |
 | `name`               | `string`                | Yes       |
+| `externalId`         | `string`                | No        |
 | `description`        | `string`                | Yes       |
 | `valueType`          | `string`                | No        |
 | `metadata`           | `map(string, string)`   | Yes       |
-| `dataSetId`          | `long`                  | Yes       |
-| `columns`            | `array(SequenceColumn)` | No        |
 
 ### Sequence rows schema
 
@@ -502,27 +508,29 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `description` | `string` | Yes       |
 
 ### Relationships schema
-| Column name        | Type            | Nullable |
-|--------------------|-----------------|----------|
-| `externalId`       | `string`        | No       |
-| `sourceExternalId` | `string`        | No       |
-| `sourceType`       | `string`        | No       |
-| `targetExternalId` | `string`        | No       |
-| `targetType`       | `string`        | No       |
-| `startTime`        | `timestamp`     | Yes      |
-| `endTime`          | `timestamp`     | Yes      |
-| `confidence`       | `double`        | Yes      |
-| `labels`           | `array(string)` | Yes      |
-| `dataSetId`        | `long`          | Yes      |
+| Column name        | Type            | Nullable | Filter pushdown [?](#filter-pushdown) |
+|--------------------|-----------------|----------| ------------------------------------- |
+| `externalId`       | `string`        | No       | equality                              |
+| `sourceExternalId` | `string`        | No       | equality                              |
+| `sourceType`       | `string`        | No       | equality                              |
+| `targetExternalId` | `string`        | No       | equality                              |
+| `targetType`       | `string`        | No       | equality                              |
+| `startTime`        | `timestamp`     | Yes      | comparison, equality                  |
+| `endTime`          | `timestamp`     | Yes      | comparison, equality                  |
+| `confidence`       | `double`        | Yes      | comparison                            |
+| `labels`           | `array(string)` | Yes      | equality                              |
+| `dataSetId`        | `long`          | Yes      | equality                              |
+| `lastUpdatedTime`  | `timestamp`     | No       | comparison, equality                  |
 
 ### Data sets schema
-| Column name        | Type                  | Nullable |
-|--------------------|-----------------------|----------|
-| `externalId`       | `string`              | Yes      |
-| `name`             | `string`              | Yes      |
-| `description`      | `string`              | Yes      |
-| `metadata`         | `map(string, string)` | Yes      |
-| `writeProtected`   | `string`              | No       |
+| Column name        | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|--------------------|-----------------------|----------| ------------------------------------- |
+| `externalId`       | `string`              | Yes      | equality, prefix (`LIKE 'xyz%'`)      |
+| `name`             | `string`              | Yes      | equality                              |
+| `description`      | `string`              | Yes      | -                                     |
+| `metadata`         | `map(string, string)` | Yes      | -                                     |
+| `writeProtected`   | `string`              | No       | equality                              |
+| `lastUpdatedTime`  | `timestamp`           | No       | comparison, equality                  |
 
 ## Examples by resource types
 
