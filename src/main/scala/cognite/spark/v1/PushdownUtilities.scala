@@ -166,23 +166,30 @@ object PushdownUtilities {
     )
   }
 
+  private def parseTimestamp(v: String) =
+    java.sql.Timestamp.valueOf(v).toInstant
+
   def timeRangeFromMinAndMax(minTime: Option[String], maxTime: Option[String]): Option[TimeRange] =
     (minTime, maxTime) match {
       case (None, None) => None
       case _ =>
         val minimumTimeAsInstant =
           minTime
-            .map(java.sql.Timestamp.valueOf(_).toInstant)
+            .map(parseTimestamp)
             .getOrElse(java.time.Instant.ofEpochMilli(0)) // API does not accept values < 0
         val maximumTimeAsInstant =
           maxTime
-            .map(java.sql.Timestamp.valueOf(_).toInstant)
+            .map(parseTimestamp)
             .getOrElse(java.time.Instant.ofEpochMilli(32503680000000L)) // 01.01.3000 (hardcoded for relationships instead of Long.MaxValue)
         Some(TimeRange(Some(minimumTimeAsInstant), Some(maximumTimeAsInstant)))
     }
 
-  def timeRange(m: Map[String, String], fieldName: String) =
-    timeRangeFromMinAndMax(m.get("min" + fieldName.capitalize), m.get("max" + fieldName.capitalize))
+  def timeRange(m: Map[String, String], fieldName: String): Option[TimeRange] =
+    m.get(fieldName)
+      .map(parseTimestamp)
+      .map(exactValue => TimeRange(Some(exactValue), Some(exactValue)))
+      .orElse(
+        timeRangeFromMinAndMax(m.get("min" + fieldName.capitalize), m.get("max" + fieldName.capitalize)))
 
   def getTimestampLimit(filter: Filter, colName: String): Seq[Limit] =
     filter match {

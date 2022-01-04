@@ -30,7 +30,6 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[fs2.Stream[IO, DataSet]] = {
-    // not super necessary to do filter pushdown here, but it looks nicer when we don't fetch all datasets in Jetfire
     val (ids, filters) = pushdownToFilters(sparkFilters, dataSetFilterFromMap, DataSetFilter())
     Seq(executeFilterOnePartition(client.dataSets, filters, ids, limit))
   }
