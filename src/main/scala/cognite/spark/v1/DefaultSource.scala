@@ -306,7 +306,12 @@ object DefaultSource {
       sessionKey <- parameters.get("sessionKey")
       cdfProjectName <- parameters.get("project")
       tokenFromVault <- parameters.get("tokenFromVault")
-      session = OAuth2.Session(sessionId, sessionKey, cdfProjectName, tokenFromVault)
+      session = OAuth2.Session(
+        parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl),
+        sessionId,
+        sessionKey,
+        cdfProjectName,
+        tokenFromVault)
     } yield CdfSparkAuth.OAuth2Sessions(session)
 
     authTicket
