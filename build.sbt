@@ -1,4 +1,6 @@
 import com.typesafe.sbt.packager.docker.Cmd
+import sbtassembly.AssemblyPlugin.autoImport._
+import sbtassembly.MergeStrategy
 
 val scala212 = "2.12.15"
 //val scala213 = "2.13.6"
@@ -20,7 +22,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.53",
+  version := "1.4.54",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -64,7 +66,18 @@ lazy val commonSettings = Seq(
     if (gpgPass.isDefined) gpgPass.map(_.toCharArray)
     else None
   },
-  Test / fork := true
+  Test / fork := true,
+  ThisBuild / assemblyMergeStrategy := {
+    case PathList("META-INF", xs@_*) => MergeStrategy.discard
+    case _ => MergeStrategy.first
+  },
+  ThisBuild / assemblyShadeRules := {
+    val shadePackage = "cognite.spark.v1.shaded"
+    Seq(
+      ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
+      ShadeRule.rename("cats.kernel.**" -> s"$shadePackage.cats.kernel.@1").inAll
+    )
+  }
 )
 
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
@@ -129,7 +142,7 @@ lazy val library = (project in file("."))
       "org.log4s" %% "log4s" % log4sVersion
     ),
     Compile / packageBin / mappings ++= (macroSub / Compile / packageBin / mappings).value,
-    Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc/ mappings).value,
+    Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
     coverageExcludedPackages := "com.cognite.data.*"
   )
   .enablePlugins(BuildInfoPlugin)
