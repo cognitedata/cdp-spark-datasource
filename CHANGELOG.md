@@ -1,4 +1,16 @@
-# 1.4.50
+# 1.4.53
+
+## Enhancements
+
+* Add baseUrl into OAuth2.Session
+
+# 1.4.52
+
+## Fixes
+
+* Handling null in toRawJson function.
+
+# 1.4.51
 
 ## Enhancements
 

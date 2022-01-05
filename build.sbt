@@ -8,7 +8,7 @@ val circeVersion = "0.13.0"
 val sttpVersion = "3.3.15"
 val Specs2Version = "4.6.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.5.20-SNAPSHOT"
+val cogniteSdkVersion = "1.5.20"
 val prometheusVersion = "0.8.1"
 val log4sVersion = "1.8.2"
 
@@ -20,7 +20,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.52",
+  version := "1.4.53",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
