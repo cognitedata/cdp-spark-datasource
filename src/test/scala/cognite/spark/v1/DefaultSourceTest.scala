@@ -58,7 +58,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
         )
       }
 
-      "work for session and use default baseUrl if input params if it does not exist" in {
+      "work for session and use default baseUrl if it does not exist in input params" in {
         val params =
           fullParams.filterKeys(!Set("authTicket", "apiKey", "bearerToken", "baseUrl").contains(_))
         DefaultSource.parseAuth(params) shouldBe Some(
