@@ -1,3 +1,9 @@
+# 1.4.54
+
+## Fixes
+
+* Fix databricks issue caused by version conflict when spark upgrade
+
 # 1.4.53
 
 ## Enhancements
