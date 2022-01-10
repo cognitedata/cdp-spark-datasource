@@ -22,7 +22,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.55.SNAPSHOT.1",
+  version := "1.4.55-SNAPSHOT",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -132,15 +132,15 @@ lazy val library = (project in file("."))
       "org.log4s" %% "log4s" % log4sVersion
     ),
     assemblyMergeStrategy := {
-      case PathList("META-INF", xs@_*) => MergeStrategy.discard
+      case PathList("META-INF", _@_*) => MergeStrategy.discard
       case _ => MergeStrategy.first
     },
     assemblyShadeRules := {
       val shadePackage = "cognite.spark.v1.shaded"
       Seq(
+        ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
         ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
         ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
-        ShadeRule.rename("cats.kernel.**" -> s"$shadePackage.cats.kernel.@1").inAll,
         ShadeRule.rename("jawn.**" -> s"$shadePackage.jawn.@1").inAll,
         ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
       )
