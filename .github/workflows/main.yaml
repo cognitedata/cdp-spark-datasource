@@ -54,7 +54,7 @@ jobs:
         run: |
           LIB_PACKAGE="library/package"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
-            LIB_PACKAGE="+library/package"
+            LIB_PACKAGE="+assembly"
           fi
           sbt -Dsbt.log.noformat=true "set test in library := {}" $LIB_PACKAGE performancebench/docker:stage
       - name: Deploy JAR
@@ -64,4 +64,4 @@ jobs:
         run: |
           ./secrets/decrypt.sh secrets/gpg-key-password.gpg secrets/gpg-key-password
           export GPG_KEY_PASSWORD=$(cat secrets/gpg-key-password)
-          sbt -Dsbt.log.noformat=true +library/publishSigned
+          sbt -Dsbt.log.noformat=true +fatJar/publishSigned

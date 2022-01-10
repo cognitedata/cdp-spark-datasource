@@ -22,7 +22,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.54",
+  version := "1.4.55.SNAPSHOT.1",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -66,18 +66,7 @@ lazy val commonSettings = Seq(
     if (gpgPass.isDefined) gpgPass.map(_.toCharArray)
     else None
   },
-  Test / fork := true,
-  ThisBuild / assemblyMergeStrategy := {
-    case PathList("META-INF", xs@_*) => MergeStrategy.discard
-    case _ => MergeStrategy.first
-  },
-  ThisBuild / assemblyShadeRules := {
-    val shadePackage = "cognite.spark.v1.shaded"
-    Seq(
-      ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
-      ShadeRule.rename("cats.kernel.**" -> s"$shadePackage.cats.kernel.@1").inAll
-    )
-  }
+  Test / fork := true
 )
 
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
@@ -99,6 +88,7 @@ lazy val library = (project in file("."))
   .settings(
     commonSettings,
     name := "cdf-spark-datasource",
+    assembly / assemblyJarName := s"${normalizedName.value}-${version.value}-jar-with-dependencies.jar",
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
@@ -141,6 +131,21 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.log4s" %% "log4s" % log4sVersion
     ),
+    assemblyMergeStrategy := {
+      case PathList("META-INF", xs@_*) => MergeStrategy.discard
+      case _ => MergeStrategy.first
+    },
+    assemblyShadeRules := {
+      val shadePackage = "cognite.spark.v1.shaded"
+      Seq(
+        ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
+        ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
+        ShadeRule.rename("cats.kernel.**" -> s"$shadePackage.cats.kernel.@1").inAll,
+        ShadeRule.rename("jawn.**" -> s"$shadePackage.jawn.@1").inAll,
+        ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
+      )
+    },
+    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
     Compile / packageBin / mappings ++= (macroSub / Compile / packageBin / mappings).value,
     Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
     coverageExcludedPackages := "com.cognite.data.*"
@@ -193,6 +198,14 @@ lazy val cdfdump = (project in file("cdf_dump"))
         exclude("org.glassfish.hk2.external", "javax.inject"),
     ),
   )
+
+lazy val fatJar = project.settings(
+  commonSettings,
+  name := "cdp-spark-datasource-fat",
+  Compile / packageBin / mappings ++= (macroSub / Compile / packageBin / mappings).value,
+  Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
+  Compile / packageBin := (library / Compile / assembly).value
+)
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 
