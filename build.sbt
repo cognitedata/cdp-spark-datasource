@@ -198,6 +198,7 @@ lazy val cdfdump = (project in file("cdf_dump"))
   )
 
 lazy val fatJar = project.settings(
+  commonSettings,
   name := "cdp-spark-datasource-fat",
   Compile / packageBin := (library / assembly).value
 )
