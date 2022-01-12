@@ -84,7 +84,8 @@ lazy val macroSub = (project in file("macro"))
   )
 
 lazy val library = (project in file("."))
-  .dependsOn(macroSub % "compile-internal, test-internal")
+  .dependsOn(macroSub)
+  .enablePlugins(BuildInfoPlugin)
   .settings(
     commonSettings,
     name := "cdf-spark-datasource",
@@ -148,10 +149,7 @@ lazy val library = (project in file("."))
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
     Compile / packageBin / mappings ++= (macroSub / Compile / packageBin / mappings).value,
     Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
-    coverageExcludedPackages := "com.cognite.data.*"
-  )
-  .enablePlugins(BuildInfoPlugin)
-  .settings(
+    coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
     buildInfoPackage := "BuildInfo"
   )
@@ -202,9 +200,7 @@ lazy val cdfdump = (project in file("cdf_dump"))
 lazy val fatJar = project.settings(
   commonSettings,
   name := "cdp-spark-datasource-fat",
-  Compile / packageBin / mappings ++= (macroSub / Compile / packageBin / mappings).value,
-  Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
-  Compile / packageBin := (library / Compile / assembly).value
+  Compile / packageBin := (library / assembly).value
 )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
