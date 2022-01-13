@@ -22,7 +22,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.55-SNAPSHOT",
+  version := "1.4.56-SNAPSHOT",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -139,11 +139,11 @@ lazy val library = (project in file("."))
     assemblyShadeRules := {
       val shadePackage = "cognite.spark.v1.shaded"
       Seq(
-        ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
-        ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
-        ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
-        ShadeRule.rename("jawn.**" -> s"$shadePackage.jawn.@1").inAll,
-        ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
+//        ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
+//        ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
+        ShadeRule.rename("cats.kernel.**" -> s"$shadePackage.cats.kernel.@1").inAll,
+//        ShadeRule.rename("jawn.**" -> s"$shadePackage.jawn.@1").inAll,
+//        ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
       )
     },
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
@@ -199,7 +199,7 @@ lazy val cdfdump = (project in file("cdf_dump"))
 
 lazy val fatJar = project.settings(
   commonSettings,
-  name := "cdp-spark-datasource-fat",
+  name := "cdf-spark-datasource-fat",
   Compile / packageBin := (library / assembly).value
 )
 
