@@ -1260,10 +1260,10 @@ show how to backup assets to a RAW table](docs/assets-raw-backup.py)
 
 ## Comprehensive examples
 
-- [GTFS public transportation dataset](docs/public_transport_example.ipynb)
+- [GTFS public transportation dataset](https://github.com/cognitedata/cdp-spark-datasource/blob/master/docs/public_transport_example.ipynb)
   - Shows how to create assets, asset hierarchies, events and RAW from CSV files.
   - Shows how to query events and assets using Spark SQL.
-- [Asset backup to RAW](docs/assets-raw-backup.py)
+- [Asset backup to RAW](https://github.com/cognitedata/cdp-spark-datasource/blob/master/docs/assets-raw-backup.py)
   - Shows how to create RAW rows from existing CDF resources.
 
 ## Build the project with sbt
