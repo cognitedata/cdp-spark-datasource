@@ -139,11 +139,14 @@ lazy val library = (project in file("."))
     assemblyShadeRules := {
       val shadePackage = "cognite.spark.v1.shaded"
       Seq(
-        ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
-        ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
         ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
-        ShadeRule.rename("jawn.**" -> s"$shadePackage.jawn.@1").inAll,
+        ShadeRule.rename("com.cognite.sdk.scala.**" -> s"$shadePackage.sdk.scala.@1").inAll,
+        ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
+        ShadeRule.rename("fs2.**" -> s"$shadePackage.fs2.@1").inAll,
         ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
+        ShadeRule.rename("jawn.**" -> s"$shadePackage.jawn.@1").inAll,
+        ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
+        ShadeRule.rename("sttp.client3.**" -> s"$shadePackage.sttp.client3.@1").inAll,
       )
     },
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
