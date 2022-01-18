@@ -144,7 +144,7 @@ lazy val library = (project in file("."))
         ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
         ShadeRule.rename("fs2.**" -> s"$shadePackage.fs2.@1").inAll,
         ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
-        ShadeRule.rename("jawn.**" -> s"$shadePackage.jawn.@1").inAll,
+        ShadeRule.rename("org.typelevel.jawn.**" -> s"$shadePackage.org.typelevel.jawn.@1").inAll,
         ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
         ShadeRule.rename("sttp.client3.**" -> s"$shadePackage.sttp.client3.@1").inAll,
       )
