@@ -1,3 +1,10 @@
+# 1.4.56
+
+## Enhancements
+
+* Add support for parallel retrival of files, and filter pushdown on files
+* General improvements to the filter pushdown logic, added filter pushdown support for a few minor fields
+
 # 1.4.54
 
 ## Fixes
