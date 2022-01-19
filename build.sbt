@@ -22,7 +22,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.55-SNAPSHOT",
+  version := "1.4.55",
   crossScalaVersions := supportedScalaVersions,
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -137,7 +137,7 @@ lazy val library = (project in file("."))
       case _ => MergeStrategy.first
     },
     assemblyShadeRules := {
-      val shadePackage = "cognite.spark.v1.shaded"
+      val shadePackage = "cognite.shaded"
       Seq(
         ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
         ShadeRule.rename("com.cognite.sdk.scala.**" -> s"$shadePackage.sdk.scala.@1").inAll,
@@ -202,7 +202,7 @@ lazy val cdfdump = (project in file("cdf_dump"))
 
 lazy val fatJar = project.settings(
   commonSettings,
-  name := "cdp-spark-datasource-fat",
+  name := "cdf-spark-datasource-fat",
   Compile / packageBin := (library / assembly).value
 )
 
