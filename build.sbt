@@ -137,7 +137,7 @@ lazy val library = (project in file("."))
       case _ => MergeStrategy.first
     },
     assemblyShadeRules := {
-      val shadePackage = "cognite.spark.v1.shaded"
+      val shadePackage = "cognite.shaded"
       Seq(
         ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
         ShadeRule.rename("com.cognite.sdk.scala.**" -> s"$shadePackage.sdk.scala.@1").inAll,
