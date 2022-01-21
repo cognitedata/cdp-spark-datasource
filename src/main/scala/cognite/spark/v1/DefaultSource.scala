@@ -259,8 +259,8 @@ object DefaultSource {
   private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
     parameters.get(parameterName).map { intString =>
       val intValue = intString.toInt
-      if (intValue <= 0) {
-        sys.error(s"$parameterName must be greater than 0")
+      if (intValue < 0) {
+        sys.error(s"$parameterName must be greater than or equal to 0")
       }
       intValue
     }
@@ -334,7 +334,9 @@ object DefaultSource {
     val auth = parseAuth(parameters) match {
       case Some(x) => x
       case None =>
-        sys.error("Either apiKey, authTicket, clientCredentials, session or bearerToken is required.")
+        sys.error(
+          s"Either apiKey, authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
+            .mkString(", ")}")
     }
     import CdpConnector._
     val projectName = parameters
