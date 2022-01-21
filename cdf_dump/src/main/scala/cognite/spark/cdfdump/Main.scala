@@ -11,10 +11,14 @@ import java.nio.file.{Files, Path}
 import scala.concurrent.duration.Duration
 
 class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
+  noshort = true
+  appendDefaultToDescription = true
+  helpWidth(130)
   version(s"cdf_dump version ${BuildInfo.version}.\n" +
     s"Running on Apache Spark ${org.apache.spark.SPARK_VERSION}\n" +
     s"${util.Properties.versionMsg}\n" +
     s"Built with sbt ${BuildInfo.sbtVersion}\n")
+
   banner("""
            |cdf_dump is a CLI wrapper for Cognite Spark Data Source for dumping data from CDF.
            |Best suited for dumping largish amount of data, for smaller datasets you might be better off using the Python SDK.
@@ -40,7 +44,8 @@ class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
            |
            |Options:
            |""".stripMargin)
-  val raw = opt[List[String]]("raw", descr = "Download the selected raw tables.", default = Some(List.empty))
+
+  val raw = opt[List[String]]("raw", argName = "db.table", descr = "Download the selected raw tables.", default = Some(List.empty))
   val assets = opt[Boolean]("assets", descr = "Download all assets.")
   val events = opt[Boolean]("events", descr = "Download all events.")
   val timeseries = opt[Boolean]("timeseries", descr = "Download all timeseries metadata.")
@@ -51,21 +56,28 @@ class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
   val datasets = opt[Boolean]("datasets", descr = "Download all dataset metadata.")
 
   val allClean = opt[Boolean]("all-clean", descr = "Download assets, events, timeseries, relationships, files, sequences, labels and datasets.")
+  group("Which CDF data to load?").append(
+    raw, assets, events, timeseries, relationships, files, sequences, labels, datasets, allClean
+  )
+
 
   val filter = opt[String]("where", 'w', "Spark SQL where filter. Supports filter pushdown as described in https://github.com/cognitedata/cdp-spark-datasource/#filter-pushdown")
 
-  val outDir = opt[String]("out-dir", 'o', "Output directory. By default `out` in the current working directory.", Some("out"))
-  val format = opt[String]("format", 'f', "Output format supported by Spark. Use json [default], csv, parquet, orc", default = Some("json"))
-  val clearOutDir = opt[Boolean]("clear-out-dir", descr = "When set, all items will be removed from the output directory before the process starts.", default = Some(false))
+  val columns = opt[List[String]]("columns", argName = "expression AS columnName", descr = "Which columns to include. Support Spark SQL expression, so use `metadata.tag as tag` to extract metadata into flat table.")
+  val excludeColumn = opt[List[String]]("exclude-column", argName = "column", descr = "Which columns to exclude. Might be useful to exclude metadata and other columns which are not supported in CSV.")
+  group("Basic data processing").append(filter, columns, excludeColumn)
 
-  val columns = opt[List[String]]("columns", descr = "Which columns to include. Support Spark SQL expression, so use `metadata.tag as tag` to extract metadata into flat table.")
-  val excludeColumn = opt[List[String]]("exclude-column", descr = "Which columns to exclude. Might be useful to exclude metadata and other columns which are not supported in CSV.")
+  val outDir = opt[String]("out-dir", 'o', noshort = false, argName = "path", descr = "Output directory. By default `out` in the current working directory.", default = Some("out"))
+  val format = opt[String]("format", 'f', noshort = false, argName = "conditionExpression", descr =  "Output format supported by Spark. Use json [default], csv, parquet, orc", default = Some("json"))
+  val clearOutDir = opt[Boolean]("clear-out-dir", descr = "When set, all items will be removed from the output directory before the process starts.", default = Some(false))
+  group("Basic output options").append(outDir, format, clearOutDir)
 
   val readOptions = props[String]('R', "Spark read options. You can use any option supported by CDF Spark Data Source, see: https://github.com/cognitedata/cdp-spark-datasource/#common-options")
   val writeOptions = props[String]('W', "Spark write options. You can use any option supported in your selected output format. For example `-f csv -WincludeHeader=true` to write CSV with headers.")
 
-  val outputPartitions = opt[Int]("out-partitions", descr = "Number of output partitions for text formats. By default 1, increase for better performance, but fragmented output.", default = Some(1))
-  val maxRetries = opt[Int]("max-retries", descr = "Set to 0 for debugging, to improve responsibility")
+  val outputPartitions = opt[Int]("out-partitions", argName = "number", descr = "Number of output partitions for text formats. By default 1, increase for better performance, but fragmented output.", default = Some(1))
+  val maxRetries = opt[Int]("max-retries", argName = "number", descr = "Set to 0 for debugging, to improve responsibility")
+  group("Advanced Spark options").append(readOptions, writeOptions, outputPartitions, maxRetries)
 
   verify()
 }
