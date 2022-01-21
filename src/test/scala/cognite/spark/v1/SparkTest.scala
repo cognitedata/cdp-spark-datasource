@@ -40,12 +40,12 @@ trait SparkTest {
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
   assert(writeApiKey != null && !writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
   implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
-  val writeClient = GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
+  val writeClient: GenericClient[Id] = GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
 
   val readApiKey = System.getenv("TEST_API_KEY_READ")
   assert(readApiKey != null && !readApiKey.isEmpty, "Environment variable \"TEST_API_KEY_READ\" was not set")
   implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
-  val readClient = GenericClient.forAuth[Id]("cdp-spark-datasource-test", readApiKeyAuth)
+  val readClient: GenericClient[Id] = GenericClient.forAuth[Id]("cdp-spark-datasource-test", readApiKeyAuth)
 
   // not needed to run tests, only for replicating some problems specific to this tenant
   lazy val jetfiretest2ApiKey = System.getenv("TEST_APU_KEY_JETFIRETEST2")
