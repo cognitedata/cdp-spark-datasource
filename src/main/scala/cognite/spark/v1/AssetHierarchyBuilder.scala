@@ -73,12 +73,12 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def delete(data: DataFrame): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
-      val deletes = rows.map(r => fromRow[DeleteItem](r))
+      val deletes = rows.map(r => fromRow[DeleteItem](r)).flatMap(_.id)
       Stream
         .fromIterator[IO](deletes, chunkSize = batchSize)
         .chunks
         .parEvalMapUnordered(config.parallelismPerPartition) { chunk =>
-          client.assets.deleteByIds(chunk.map(_.id).toVector, recursive = true, ignoreUnknownIds = true)
+          client.assets.deleteByIds(chunk.toVector, recursive = true, ignoreUnknownIds = true)
         }
         .compile
         .drain

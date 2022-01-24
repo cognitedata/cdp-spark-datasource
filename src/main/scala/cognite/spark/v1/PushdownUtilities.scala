@@ -18,7 +18,10 @@ import sttp.model.Uri
 
 import scala.util.Try
 
-final case class DeleteItem(id: Long)
+final case class DeleteItem(
+    id: Option[Long],
+    externalId: Option[String]
+)
 
 sealed trait PushdownExpression
 final case class PushdownFilter(fieldName: String, value: String) extends PushdownExpression

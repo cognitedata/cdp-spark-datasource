@@ -806,6 +806,78 @@ class TimeSeriesRelationTest
     assert(cdpApiException.code == 400)
   }
 
+  it should "support deletes by externalIds" in {
+    val deleteUnit = s"unit-delete-externalIds-${shortRandomString()}"
+    val description = s"no name ${shortRandomString()}"
+
+    val randomSuffix = shortRandomString()
+    try {
+      // Insert some test data
+      spark
+        .sql(s"""
+                |select '$description' as description,
+                |null as name,
+                |isString,
+                |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
+                |'$deleteUnit' as unit,
+                |null as assetId,
+                |isStep,
+                |cast(array() as array<long>) as securityCategories,
+                |id,
+                |concat(string(id), '${randomSuffix}') as externalId,
+                |createdTime,
+                |lastUpdatedTime,
+                |$testDataSetId as dataSetId
+                |from sourceTimeSeries
+                |limit 10
+     """.stripMargin)
+        .select(sourceDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationTimeSeries")
+
+      // Check if insert worked
+      val idsAfterInsert =
+        retryWhile[Array[Row]](
+          spark
+            .sql(s"select externalId from destinationTimeSeries where unit = '$deleteUnit'")
+            .collect,
+          df => df.length < 10)
+      assert(idsAfterInsert.length == 10)
+
+      val metricsPrefix = s"timeseries.delete.${shortRandomString()}"
+      // Delete the data
+      val idsAfterDelete =
+        retryWhile[Array[Row]](
+          {
+            spark
+              .sql(s"select externalId from destinationTimeSeries where unit = '$deleteUnit'")
+              .write
+              .format("cognite.spark.v1")
+              .option("apiKey", writeApiKey)
+              .option("type", "timeseries")
+              .option("onconflict", "delete")
+              .option("collectMetrics", "true")
+              .option("metricsPrefix", metricsPrefix)
+              .save()
+            spark
+              .sql(s"select externalId from destinationTimeSeries where unit = '$deleteUnit'")
+              .collect
+          },
+          df => df.length > 0
+        )
+      assert(idsAfterDelete.isEmpty)
+      // Due to retries, rows deleted may exceed 100
+      val numberDeleteds = getNumberOfRowsDeleted(metricsPrefix, "timeseries")
+      numberDeleteds should be >= 10L
+    } finally {
+      try {
+        cleanUpTimeSeriesTestDataByUnit(deleteUnit)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
+  }
+
   def cleanUpTimeSeriesTestDataByUnit(unit: String): Unit =
     spark
       .sql(s"""select * from destinationTimeSeries where unit = '$unit'""")

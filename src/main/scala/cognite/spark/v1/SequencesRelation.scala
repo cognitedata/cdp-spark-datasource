@@ -66,7 +66,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(r => fromRow[DeleteItem](r))
-    val ids = deletes.map(_.id)
+    val ids = deletes.flatMap(_.id)
     client.sequences
       .deleteByIds(ids) // can't ignore unknown ids :(
       .flatTap(_ => incMetrics(itemsDeleted, ids.length))
