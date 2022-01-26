@@ -2,8 +2,10 @@ package cognite.spark.v1
 
 import cats.effect.{Clock, ContextShift, IO}
 import cats.implicits._
+import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
+import fs2.Stream
 import sttp.client3.SttpBackend
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
@@ -32,7 +34,11 @@ final case class RelationConfig(
     subtrees: AssetSubtreeOption.AssetSubtreeOption,
     ignoreNullFields: Boolean,
     rawEnsureParent: Boolean
-)
+) {
+
+  /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */
+  def sparkPartitions: Int = Math.max(1, partitions / parallelismPerPartition)
+}
 
 object OnConflict extends Enumeration {
   type Mode = Value
@@ -217,21 +223,43 @@ class DefaultSource
         case _ => Constants.DefaultBatchSize
       }
       val batchSize = config.batchSize.getOrElse(batchSizeDefault)
-      data.foreachPartition((rows: Iterator[Row]) => {
-        import CdpConnector.cdpConnectorParallel
+      val originalNumberOfPartitions = data.rdd.getNumPartitions
+      val idealNumberOfPartitions = config.sparkPartitions
 
-        val batches = rows.grouped(batchSize).toVector
-        config.onConflict match {
-          case OnConflict.Abort =>
-            batches.parTraverse_(relation.insert).unsafeRunSync()
-          case OnConflict.Upsert =>
-            batches.parTraverse_(relation.upsert).unsafeRunSync()
-          case OnConflict.Update =>
-            batches.parTraverse_(relation.update).unsafeRunSync()
-          case OnConflict.Delete =>
-            batches.parTraverse_(relation.delete).unsafeRunSync()
+      // If we have very many partitions, it's quite likely that they are significantly uneven.
+      // And we will have to limit parallelism on each partition to low number, so the operation could
+      // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
+      // If the number of partitions is reasonable, we avoid the data shuffling
+      val (dataRepartitioned, numberOfPartitions) =
+        if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
+          (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
+        } else {
+          (data, originalNumberOfPartitions)
         }
-        ()
+      dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
+        import CdpConnector.{cdpConnectorConcurrent, cdpConnectorParallel}
+
+        val maxParallelism = Math.max(1, config.partitions / numberOfPartitions)
+        val batches = Stream.fromIterator(rows, chunkSize = batchSize).chunks
+
+        val operation = config.onConflict match {
+          case OnConflict.Abort =>
+            relation.insert(_)
+          case OnConflict.Upsert =>
+            relation.upsert(_)
+          case OnConflict.Update =>
+            relation.update(_)
+          case OnConflict.Delete =>
+            relation.delete(_)
+        }
+
+        batches
+          .parEvalMapUnordered(maxParallelism) { chunk =>
+            operation(chunk.toVector)
+          }
+          .compile
+          .drain
+          .unsafeRunSync()
       })
       relation
     }

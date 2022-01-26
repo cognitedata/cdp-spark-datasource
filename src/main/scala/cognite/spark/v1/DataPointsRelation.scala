@@ -46,7 +46,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
-    val partitions = Math.max(1, config.partitions / config.parallelismPerPartition)
+    val partitions = config.sparkPartitions
     val partitionCols =
       data.schema.fieldNames.filter(f => f.equalsIgnoreCase("id") || f.equalsIgnoreCase("externalId"))
     import org.apache.spark.sql.functions.col
