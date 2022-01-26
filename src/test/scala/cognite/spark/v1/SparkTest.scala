@@ -98,7 +98,7 @@ trait SparkTest {
     ).unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
 
 
-  val updateAndUpsert: TableFor1[String] = Table("mode", "upsert", "update")
+  val updateAndUpsert: TableFor1[String] = Table(heading = "mode", "upsert", "update")
 
   def getDefaultConfig(auth: CdfSparkAuth): RelationConfig =
     RelationConfig(
