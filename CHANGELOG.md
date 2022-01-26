@@ -1,3 +1,9 @@
+# 1.4.57
+
+## Enhancements
+
+* Refactor JSON processing in RAW read to significantly improve read performance (especially large improvement are expected for wide tables)
+
 # 1.4.56
 
 ## Enhancements

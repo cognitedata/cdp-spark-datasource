@@ -87,6 +87,7 @@ class RawTableRelation(
     @transient lazy val rowConverter: RawRow => Row =
       schema match {
         case Some(schema) =>
+          // .tail.tail to skip the key and lastUpdatedTime columns, which are always the first two
           val jsonFieldsSchema = schemaWithoutRenamedColumns(StructType(schema.tail.tail))
           RawJsonConverter.makeRowConverter(
             schema,
