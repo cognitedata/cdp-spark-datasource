@@ -211,14 +211,20 @@ object RawJsonConverter {
       (j: Json) =>
         j.asNumber
           .map(n => java.lang.Float.valueOf(n.toFloat))
-          .orElse(j.asString.map(s => java.lang.Float.valueOf(java.lang.Float.parseFloat(s))))
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Float.valueOf(java.lang.Float.parseFloat(s))
+          })
           .getOrElse(mappingError(dataType, j))
 
     case DoubleType =>
       (j: Json) =>
         j.asNumber
           .map(n => java.lang.Double.valueOf(n.toDouble))
-          .orElse(j.asString.map(s => java.lang.Double.valueOf(java.lang.Double.parseDouble(s))))
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Double.valueOf(java.lang.Double.parseDouble(s))
+          })
           .getOrElse(mappingError(dataType, j))
 
     case StringType =>
