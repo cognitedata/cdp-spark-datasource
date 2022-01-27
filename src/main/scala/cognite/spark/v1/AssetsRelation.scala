@@ -69,14 +69,13 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val deletes = rows.map(fromRow[DeleteItem](_))
-
-    val ids = deletes.flatMap(_.id)
-    val externalIds = deletes.flatMap(_.externalId)
+    val deletes: Seq[DeleteItem] = rows.map(fromRow[DeleteItem](_))
+    val internalIds = deletes.flatMap(_.id).map(CogniteInternalId.apply)
+    val externalIds = deletes.flatMap(_.externalId).map(CogniteExternalId.apply)
 
     for {
-      _ <- deleteWithIgnoreUnknownIds(client.assets, ids, config.ignoreUnknownIds)
-      _ <- deleteByExternalIdsWithIgnoreUnknown(client.assets, externalIds, config.ignoreUnknownIds)
+      _ <- deleteWithIgnoreUnknownIds(client.assets, internalIds, config.ignoreUnknownIds)
+      _ <- deleteWithIgnoreUnknownIds(client.assets, externalIds, config.ignoreUnknownIds)
     } yield IO.pure(Unit)
 
   }

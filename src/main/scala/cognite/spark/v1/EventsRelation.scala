@@ -61,15 +61,15 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val deletes = rows.map(fromRow[DeleteItem](_))
-
-    val ids = deletes.flatMap(_.id)
-    val externalIds = deletes.flatMap(_.externalId)
+    val deletes: Seq[DeleteItem] = rows.map(fromRow[DeleteItem](_))
+    val internalIds = deletes.flatMap(_.id).map(CogniteInternalId.apply)
+    val externalIds = deletes.flatMap(_.externalId).map(CogniteExternalId.apply)
 
     for {
-      _ <- deleteWithIgnoreUnknownIds(client.events, ids, config.ignoreUnknownIds)
-      _ <- deleteByExternalIdsWithIgnoreUnknown(client.events, externalIds, config.ignoreUnknownIds)
+      _ <- deleteWithIgnoreUnknownIds(client.events, internalIds, config.ignoreUnknownIds)
+      _ <- deleteWithIgnoreUnknownIds(client.events, externalIds, config.ignoreUnknownIds)
     } yield IO.pure(Unit)
+
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {

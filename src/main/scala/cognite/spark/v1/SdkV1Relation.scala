@@ -157,25 +157,13 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   }
 
   def deleteWithIgnoreUnknownIds(
-      resource: DeleteByIdsWithIgnoreUnknownIds[IO, Long],
-      ids: Seq[Long],
+      resource: DeleteByCogniteIds[IO],
+      ids: Seq[CogniteId],
       ignoreUnknownIds: Boolean = true): IO[Unit] =
     if (ids.nonEmpty) {
       resource
-        .deleteByIds(ids, ignoreUnknownIds)
+        .deleteWithIgnoreUnknownIds(ids, ignoreUnknownIds)
         .flatTap(_ => incMetrics(itemsDeleted, ids.length))
-    } else {
-      IO.pure(Unit)
-    }
-
-  def deleteByExternalIdsWithIgnoreUnknown(
-      resource: DeleteByExternalIdsWithIgnoreUnknownIds[IO],
-      externalIds: Seq[String],
-      ignoreUnknownIds: Boolean = true): IO[Unit] =
-    if (externalIds.nonEmpty) {
-      resource
-        .deleteByExternalIds(externalIds, ignoreUnknownIds)
-        .flatTap(_ => incMetrics(itemsDeleted, externalIds.length))
     } else {
       IO.pure(Unit)
     }
