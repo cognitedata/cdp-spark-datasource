@@ -91,7 +91,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(r => fromRow[DeleteItem](r))
-    val ids = deletes.flatMap(_.id)
+    val ids = deletes.map(_.id)
     client.files
       .deleteByIds(ids)
       .flatTap(_ => incMetrics(itemsDeleted, ids.length))
