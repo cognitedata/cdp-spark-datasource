@@ -77,6 +77,10 @@ class RawTableRelationTest
   private val dataWithSimpleNestedStruct = Seq(
     RawRow("k", Map("nested" -> Json.obj("field" -> Json.fromString("Ř"), "field2" -> Json.fromInt(1))))
   )
+  private val dataWithEmptyStringInDoubleField = Seq(
+    RawRow("k1", Map("num" -> Json.fromString(""))),
+    RawRow("k2", Map("num" -> Json.fromDouble(12.3).get))
+  )
 
   override def beforeAll(): Unit = {
     val db = "spark-test-database"
@@ -87,7 +91,8 @@ class RawTableRelationTest
       ("without-lastUpdatedTime", dataWithoutlastUpdatedTime),
       ("with-lastUpdatedTime", dataWithlastUpdatedTime),
       ("with-many-lastUpdatedTime", dataWithManylastUpdatedTime),
-      ("with-nesting", dataWithSimpleNestedStruct)
+      ("with-nesting", dataWithSimpleNestedStruct),
+      ("with-number-empty-str", dataWithEmptyStringInDoubleField)
     )
     if (!writeClient.rawDatabases.list().compile.toVector.exists(_.name == db)) {
       writeClient.rawDatabases.createOne(RawDatabase(db))
@@ -111,6 +116,7 @@ class RawTableRelationTest
   lazy private val dfWithManylastUpdatedTime = rawRead("with-many-lastUpdatedTime")
 
   lazy private val dfWithSimpleNestedStruct = rawRead("with-nesting")
+  lazy private val dfWithEmptyStringInDoubleField = rawRead("with-number-empty-str")
 
   it should "smoke test raw" taggedAs WriteTest in {
     val limit = 100
@@ -229,6 +235,15 @@ class RawTableRelationTest
     collectToSet[String](dfWithSimpleNestedStruct.selectExpr("nested.field")) should equal(Set("Ř"))
     collectToSet[Int](dfWithSimpleNestedStruct.selectExpr("nested.field2")) should equal(Set(1))
 
+  }
+
+  it should "infer schema to be Double even though it contains empty string sometimes" in {
+    // It's a weird use case, but some customer complained when we broke this, so let's make sure we don't do that again :)
+
+    val schema = dfWithEmptyStringInDoubleField.schema
+    schema("num").dataType shouldBe DoubleType
+    dfWithEmptyStringInDoubleField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInDoubleField.collect().map(_.getAs[Any]("num")).toSet shouldBe Set(null, 12.3) // scalastyle:off null
   }
 
   "rowsToRawItems" should "return RawRows from Rows" in {
