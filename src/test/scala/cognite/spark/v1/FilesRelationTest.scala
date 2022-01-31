@@ -7,7 +7,7 @@ import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 import scala.util.control.NonFatal
 
-class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
   val sourceDf = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", readApiKey)
@@ -72,6 +72,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
                 |null as sourceCreatedTime,
                 |null as sourceModifiedTime,
                 |null as securityCategories,
+                |array('scala-sdk-relationships-test-label1', 'scala-sdk-relationships-test-label2') as labels,
                 |null as uploaded,
                 |null as createdTime,
                 |null as lastUpdatedTime,
@@ -290,7 +291,8 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .save()
 
       val idsAfterDelete =
-        retryWhile[Array[Row]](spark
+        retryWhile[Array[Row]](
+          spark
             .sql(s"select id from destinationFiles where source = '$source'")
             .collect,
           df => df.length > 0)
@@ -310,6 +312,54 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
 
     val filesUpsert = FilesUpsertSchema()
     filesUpsert.into[FilesReadSchema].withFieldComputed(_.id, eu => eu.id.getOrElse(0L))
+  }
+
+  it should "support pushdown filters on labels" taggedAs WriteTest in {
+    val filesTestSource = s"files-relation-test-filter-labels-${shortRandomString()}"
+    try {
+      val waitForCreate = spark
+        .sql(s"""select '${filesTestSource}-externalId' as externalId,
+              |null as id,
+              |null as directory,
+              |'name-$filesTestSource' as name,
+              |'${filesTestSource}' as source,
+              |array('scala-sdk-relationships-test-label2') as labels""".stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("type", "files")
+        .option("apiKey", writeApiKey)
+        .save()
+
+      val res1 = retryWhile[Array[Row]](
+        spark.sql(s"""select * from destinationFiles
+                   |where labels = array('scala-sdk-relationships-test-label2')
+                   |and source='${filesTestSource}'""".stripMargin).collect,
+        df => df.length != 1
+      )
+      res1.length shouldBe 1
+
+      val res2 = retryWhile[Array[Row]](
+        spark.sql(s"""select * from destinationFiles
+                   |where labels in(array('scala-sdk-relationships-test-label2'), NULL)
+                   |and source='${filesTestSource}'""".stripMargin).collect,
+        df => df.length != 1
+      )
+      res2.length shouldBe 1
+
+      val res3 = retryWhile[Array[Row]](
+        spark.sql(s"""select * from destinationFiles
+                   |where labels in(array('nonExistingLabel'), NULL)
+                   |and source='${filesTestSource}'""".stripMargin).collect,
+        df => df.length != 0
+      )
+      res3.length shouldBe 0
+    } finally {
+      try {
+        cleanupFiles(filesTestSource)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
   }
 
   def cleanupFiles(source: String): Unit =

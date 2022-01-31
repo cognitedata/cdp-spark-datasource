@@ -160,13 +160,9 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resource: DeleteByCogniteIds[IO],
       ids: Seq[CogniteId],
       ignoreUnknownIds: Boolean = config.ignoreUnknownIds): IO[Unit] =
-    if (ids.nonEmpty) {
-      resource
-        .delete(ids, ignoreUnknownIds)
-        .flatTap(_ => incMetrics(itemsDeleted, ids.length))
-    } else {
-      IO.pure(Unit)
-    }
+    resource
+      .delete(ids, ignoreUnknownIds)
+      .flatTap(_ => incMetrics(itemsDeleted, ids.length))
 
   def genericUpsert[
       // The Item (read) type
