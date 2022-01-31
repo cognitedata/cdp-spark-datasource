@@ -61,7 +61,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val deletes: Seq[DeleteItemByCogniteId] = rows.map(fromRow[DeleteItemByCogniteId](_))
+    val deletes = rows.map(fromRow[DeleteItemByCogniteId](_))
     deleteWithIgnoreUnknownIds(client.events, deletes.map(_.toCogniteId), config.ignoreUnknownIds)
   }
 
