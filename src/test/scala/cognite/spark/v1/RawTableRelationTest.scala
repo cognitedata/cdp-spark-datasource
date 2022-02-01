@@ -100,7 +100,7 @@ class RawTableRelationTest
 
   private val dataWithEmptyStringInBooleanField = Seq(
     RawRow("k1", Map("bool" -> Json.fromString(""))),
-    RawRow("k2", Map("bool" -> Json.fromBoolean(true))),
+    RawRow("k2", Map("bool" -> Json.fromBoolean(java.lang.Boolean.parseBoolean("true")))),
     RawRow("k3", Map("bool" -> Json.fromBoolean(false)))
   )
 
@@ -141,7 +141,6 @@ class RawTableRelationTest
   lazy private val dfWithSimpleNestedStruct = rawRead("with-nesting")
   lazy private val dfWithEmptyStringInDoubleField = rawRead("with-number-empty-str")
   lazy private val dfWithEmptyStringInBooleanField = rawRead("with-boolean-empty-str")
-  lazy private val dfWithEmptyStringInIntField = rawRead("with-int-empty-str")
 
   it should "smoke test raw" taggedAs WriteTest in {
     val limit = 100
