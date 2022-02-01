@@ -51,6 +51,7 @@ class RawTableRelation(
           inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
           Some(1),
           RawRowFilter(),
+          None,
           collectSchemaInferenceMetrics,
           false)
 
@@ -77,10 +78,25 @@ class RawTableRelation(
       limit: Option[Int],
       numPartitions: Option[Int],
       filter: RawRowFilter,
+      schema: Option[StructType],
       collectMetrics: Boolean = config.collectMetrics,
       collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
     val configWithLimit =
       config.copy(limitPerPartition = limit, partitions = numPartitions.getOrElse(config.partitions))
+
+    @transient lazy val rowConverter: RawRow => Row =
+      schema match {
+        case Some(schema) =>
+          // .tail.tail to skip the key and lastUpdatedTime columns, which are always the first two
+          val jsonFieldsSchema = schemaWithoutRenamedColumns(StructType(schema.tail.tail))
+          RawJsonConverter.makeRowConverter(
+            schema,
+            jsonFieldsSchema.fieldNames,
+            lastUpdatedTimeColName,
+            "key")
+        case None =>
+          RawJsonConverter.untypedRowConverter
+      }
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
@@ -97,28 +113,24 @@ class RawTableRelation(
           partitionSize.inc()
 
         }
-        Row(
-          item.key,
-          item.lastUpdatedTime.map(java.sql.Timestamp.from).orNull,
-          JsonObject(item.columns.toSeq: _*).asJson.noSpaces)
+        rowConverter(item)
       },
       (r: RawRow) => r.key,
       getStreams(filter)
     )
   }
 
-  override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
+  override def buildScan(): RDD[Row] = buildScan(schema.fieldNames, Array.empty)
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
-    val columnsToIgnore = Seq("key", "lastUpdatedTime")
-    val filteredRequiredColumns = requiredColumns.filterNot(columnsToIgnore.contains(_))
-    val filteredSchemaFields = schema.fieldNames.filterNot(columnsToIgnore.contains(_))
+    val filteredRequiredColumns = getJsonColumnNames(requiredColumns)
+    val filteredSchemaFields = getJsonColumnNames(schema.fieldNames)
     val lengthOfRequiredColumnsAsString = requiredColumns.mkString(",").length
 
     val rawRowFilter =
-      if (filteredRequiredColumns.isEmpty ||
-        lengthOfRequiredColumnsAsString > 200 ||
+      if (lengthOfRequiredColumnsAsString > 200 ||
+        requiredColumns.contains("columns") ||
         requiredColumns.length == schema.length ||
         filteredRequiredColumns.length == filteredSchemaFields.length) {
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime)
@@ -126,17 +138,16 @@ class RawTableRelation(
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime, Some(filteredRequiredColumns))
       }
 
-    val rdd =
-      readRows(config.limitPerPartition, None, rawRowFilter)
-    val newRdd = if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
-      rdd
+    val jsonSchema = if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
+      None
     } else {
-      val jsonFieldsSchema = schemaWithoutRenamedColumns(StructType.apply(schema.tail.tail))
-      val df = sqlContext.sparkSession.createDataFrame(rdd, defaultSchema)
-      flattenAndRenameColumns(sqlContext, df, jsonFieldsSchema).rdd
+      Some(schema)
     }
 
-    newRdd.map(row => {
+    val rdd =
+      readRows(config.limitPerPartition, None, rawRowFilter, jsonSchema)
+
+    rdd.map(row => {
       val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
       Row.fromSeq(filteredCols)
     })
@@ -176,7 +187,7 @@ class RawTableRelation(
   }
 
   private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]): IO[Unit] = {
-    val items = rowsToRawItems(nonKeyColumnNames, rows)
+    val items = RawJsonConverter.rowsToRawItems(nonKeyColumnNames, temporaryKeyName, rows)
 
     client
       .rawRows(database, table)
@@ -208,77 +219,20 @@ object RawTableRelation {
   private def lastUpdatedTimeColumns(schema: StructType): Array[String] =
     schema.fieldNames.filter(lastUpdatedTimeColumnPattern.findFirstIn(_).isDefined)
 
-  def rowsToRawItems(nonKeyColumnNames: Seq[String], rows: Seq[Row]): Seq[RawRow] =
-    rows.map(
-      row =>
-        RawRow(
-          Option(row.getString(row.fieldIndex(temporaryKeyName)))
-            .getOrElse(throw new CdfSparkIllegalArgumentException("\"key\" can not be null.")),
-          nonKeyColumnNames.map(f => f -> anyToRawJson(row.getAs[Any](f))).toMap
-      ))
-
-  // scalastyle:off cyclomatic.complexity
-  /** Maps the object from Spark into circe Json object. This is the types we need to cover (according to Row.get javadoc):
-    * BooleanType -> java.lang.Boolean
-       ByteType -> java.lang.Byte
-       ShortType -> java.lang.Short
-       IntegerType -> java.lang.Integer
-       LongType -> java.lang.Long
-       FloatType -> java.lang.Float
-       DoubleType -> java.lang.Double
-       StringType -> String
-       DecimalType -> java.math.BigDecimal
-
-       DateType -> java.sql.Date if spark.sql.datetime.java8API.enabled is false
-       DateType -> java.time.LocalDate if spark.sql.datetime.java8API.enabled is true
-
-       TimestampType -> java.sql.Timestamp if spark.sql.datetime.java8API.enabled is false
-       TimestampType -> java.time.Instant if spark.sql.datetime.java8API.enabled is true
-
-       BinaryType -> byte array
-       ArrayType -> scala.collection.Seq (use getList for java.util.List)
-       MapType -> scala.collection.Map (use getJavaMap for java.util.Map)
-       StructType -> org.apache.spark.sql.Row */
-  private def anyToRawJson(v: Any): Json =
-    v match {
-      case null => Json.Null // scalastyle:off null
-      case v: java.lang.Boolean => Json.fromBoolean(v.booleanValue)
-      case v: java.lang.Float => Json.fromFloatOrString(v.floatValue)
-      case v: java.lang.Double => Json.fromDoubleOrString(v.doubleValue)
-      case v: java.math.BigDecimal => Json.fromBigDecimal(v)
-      case v: java.lang.Number => Json.fromLong(v.longValue())
-      case v: String => Json.fromString(v)
-      case v: java.sql.Date => Json.fromString(v.toString)
-      case v: java.time.LocalDate => Json.fromString(v.toString)
-      case v: java.sql.Timestamp => Json.fromString(v.toString)
-      case v: java.time.Instant => Json.fromString(v.toString)
-      case v: Array[Byte] =>
-        throw new CdfSparkIllegalArgumentException(
-          "BinaryType is not supported when writing raw, please convert it to base64 string or array of numbers")
-      case v: Seq[Any] => Json.arr(v.map(anyToRawJson): _*)
-      case v: Map[Any @unchecked, Any @unchecked] =>
-        Json.obj(v.toSeq.map(x => x._1.toString -> anyToRawJson(x._2)): _*)
-      case v: Row => rowToJson(v)
-      case _ =>
-        throw new CdfSparkIllegalArgumentException(
-          s"Value $v of type ${v.getClass} can not be written to RAW")
-    }
-
-  private def rowToJson(r: Row): Json =
-    if (r.schema != null) {
-      Json.obj(r.schema.fieldNames.map(f => f -> anyToRawJson(r.getAs[Any](f))): _*)
+  private def unrenameColumn(col: String): Option[String] =
+    if (keyColumnPattern.findFirstIn(col).isDefined) {
+      Some(col.replaceFirst("_", ""))
+    } else if (lastUpdatedTimeColumnPattern.findFirstIn(col).isDefined) {
+      Some(col.replaceFirst("_", ""))
     } else {
-      Json.arr(r.toSeq.map(anyToRawJson): _*)
+      None
     }
 
   private def schemaWithoutRenamedColumns(schema: StructType) =
     StructType.apply(schema.fields.map(field => {
-      if (keyColumnPattern.findFirstIn(field.name).isDefined) {
-        field.copy(name = field.name.replaceFirst("_", ""))
-      } else if (lastUpdatedTimeColumnPattern.findFirstIn(field.name).isDefined) {
-        field.copy(name = field.name.replaceFirst("_", ""))
-      } else {
-        field
+      unrenameColumn(field.name) match {
+        case Some(newName) => field.copy(name = newName)
+        case None => field
       }
     }))
 
@@ -298,35 +252,14 @@ object RawTableRelation {
     }
   }
 
-  private val temporaryKeyName = s"TrE85tFQPCb2fEUZ"
-  private val temporarylastUpdatedTimeName = s"J2p972xzM9bf32oD"
-
-  def flattenAndRenameColumns(
-      sqlContext: SQLContext,
-      df: DataFrame,
-      jsonFieldsSchema: StructType): DataFrame = {
-    import org.apache.spark.sql.functions.from_json
-    import sqlContext.implicits.StringToColumn
-    import org.apache.spark.sql.functions.col
-    val dfWithSchema =
-      df.select(
-        $"key",
-        col(lastUpdatedTimeColName),
-        from_json($"columns", jsonFieldsSchema).alias("columns"))
-
-    if (keyColumns(jsonFieldsSchema).isEmpty && lastUpdatedTimeColumns(jsonFieldsSchema).isEmpty) {
-      dfWithSchema.select("key", lastUpdatedTimeColName, "columns.*")
-    } else {
-      val dfWithColumnsTmpRenamed = dfWithSchema
-        .withColumnRenamed("key", temporaryKeyName)
-        .withColumnRenamed(lastUpdatedTimeColName, temporarylastUpdatedTimeName)
-      val temporaryFlatDf = renameColumns(
-        dfWithColumnsTmpRenamed.select(temporaryKeyName, temporarylastUpdatedTimeName, "columns.*"))
-      temporaryFlatDf
-        .withColumnRenamed(temporaryKeyName, "key")
-        .withColumnRenamed(temporarylastUpdatedTimeName, lastUpdatedTimeColName)
+  // unRename columns in the schema back to the raw json columns
+  private def getJsonColumnNames(fieldNames: Array[String]): Array[String] =
+    fieldNames.diff(Seq("key", lastUpdatedTimeColName)).map { n =>
+      unrenameColumn(n).getOrElse(n)
     }
-  }
+
+  private[cognite] val temporaryKeyName = s"TrE85tFQPCb2fEUZ"
+  private[cognite] val temporarylastUpdatedTimeName = s"J2p972xzM9bf32oD"
 
   def prepareForInsert(df: DataFrame): (Seq[String], DataFrame) = {
     val dfWithKeyRenamed = df
@@ -334,8 +267,7 @@ object RawTableRelation {
       .withColumnRenamed(lastUpdatedTimeColName, temporarylastUpdatedTimeName)
     val dfWithUnRenamedColumns = unRenameColumns(dfWithKeyRenamed)
     val columnNames =
-      dfWithUnRenamedColumns.columns.filter(x =>
-        !x.equals(temporaryKeyName) && !x.equals(temporarylastUpdatedTimeName))
+      dfWithUnRenamedColumns.columns.diff(Array(temporaryKeyName, temporarylastUpdatedTimeName))
     (columnNames, dfWithUnRenamedColumns)
   }
 }

@@ -1,19 +1,20 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
-import com.cognite.sdk.scala.v1.{RawRow, RawTable}
+import com.cognite.sdk.scala.v1.{RawDatabase, RawRow, RawTable}
 import io.circe.Json
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
-import org.scalatest.{FlatSpec, LoneElement, Matchers, ParallelTestExecution}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, LoneElement, Matchers, ParallelTestExecution}
 
 class RawTableRelationTest
     extends FlatSpec
     with Matchers
     with ParallelTestExecution
     with SparkTest
-    with LoneElement {
+    with LoneElement
+    with BeforeAndAfterAll {
   import RawTableRelation._
   import spark.implicits._
 
@@ -27,19 +28,15 @@ class RawTableRelationTest
 
   private val dfWithoutKeySchema = StructType(
     Seq(StructField("notKey", StringType, false), StructField("value", IntegerType, false)))
-  private val dfWithoutKeyData = Seq(
-    ("key1", 123, """{ "notKey": "k1", "value": 1 }"""),
-    ("key2", 123, """{ "notKey": "k2", "value": 2 }""")
+  private val dataWithoutKey = Seq(
+    RawRow("key1", Map("notKey" -> Json.fromString("k1"), "value" -> Json.fromInt(1))),
+    RawRow("key2", Map("notKey" -> Json.fromString("k2"), "value" -> Json.fromInt(2)))
   )
   private val dfWithKeySchema = StructType(
     Seq(StructField("key", StringType, false), StructField("value", IntegerType, false)))
-  private val dfWithKeyData = Seq(
-    ("key3", 123, """{ "key": "k1", "value": 1 }"""),
-    ("key4", 123, """{ "key": "k2", "value": 2 }""")
-  )
-  private val dfWithNullKeyData = Seq(
-    (null, 123, """{ "key": "k1", "value": 1 }"""),
-    ("key4", 123, """{ "key": "k2", "value": 2 }""")
+  private val dataWithKey = Seq(
+    RawRow("key3", Map("key" -> Json.fromString("k1"), "value" -> Json.fromInt(1))),
+    RawRow("key4", Map("key" -> Json.fromString("k2"), "value" -> Json.fromInt(2)))
   )
   private val dfWithManyKeysSchema = StructType(
     Seq(
@@ -48,22 +45,33 @@ class RawTableRelationTest
       StructField("___key", StringType, false),
       StructField("value", IntegerType, false)
     ))
-  private val dfWithManyKeysData = Seq(
-    ("key5", 123, """{ "___key": "___k1", "__key": "__k1", "value": 1 }"""),
-    ("key6", 123, """{ "___key": "___k2", "value": 2, "__key": "__k2", "key": "k2" }""")
+  private val dataWithManyKeys = Seq(
+    RawRow(
+      "key5",
+      Map(
+        "___key" -> Json.fromString("___k1"),
+        "__key" -> Json.fromString("__k1"),
+        "value" -> Json.fromInt(1))),
+    RawRow(
+      "key6",
+      Map(
+        "___key" -> Json.fromString("___k2"),
+        "value" -> Json.fromInt(2),
+        "__key" -> Json.fromString("__k2"),
+        "key" -> Json.fromString("k2")))
   )
 
   private val dfWithoutlastUpdatedTimeSchema = StructType(
     Seq(StructField("notlastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
-  private val dfWithoutlastUpdatedTimeData = Seq(
-    ("key1", 121, """{ "notlastUpdatedTime": 1, "value": 1 }"""),
-    ("key2", 122, """{ "notlastUpdatedTime": 2, "value": 2 }""")
+  private val dataWithoutlastUpdatedTime = Seq(
+    RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt)),
+    RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt))
   )
   private val dfWithlastUpdatedTimeSchema = StructType(
     Seq(StructField("lastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
-  private val dfWithlastUpdatedTimeData = Seq(
-    ("key3", 123, """{ "lastUpdatedTime": 1, "value": 1 }"""),
-    ("key4", 124, """{ "lastUpdatedTime": 2, "value": 2 }""")
+  private val dataWithlastUpdatedTime = Seq(
+    RawRow("key3", Map("lastUpdatedTime" -> Json.fromInt(1), "value" -> Json.fromInt(1))),
+    RawRow("key4", Map("lastUpdatedTime" -> Json.fromInt(2), "value" -> Json.fromInt(2)))
   )
   private val dfWithManylastUpdatedTimeSchema = StructType(
     Seq(
@@ -72,13 +80,67 @@ class RawTableRelationTest
       StructField("___lastUpdatedTime", LongType, false),
       StructField("value", IntegerType, false)
     ))
-  private val dfWithManylastUpdatedTimeData = Seq(
-    ("key5", 125, """{ "___lastUpdatedTime": 111, "__lastUpdatedTime": 11, "value": 1 }"""),
-    (
+  private val dataWithManylastUpdatedTime = Seq(
+    RawRow(
+      "key5",
+      Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt)),
+    RawRow(
       "key6",
-      126,
-      """{ "___lastUpdatedTime": 222, "value": 2, "__lastUpdatedTime": 22, "lastUpdatedTime": 2 }""")
+      Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2)
+        .mapValues(Json.fromInt))
   )
+
+  private val dataWithSimpleNestedStruct = Seq(
+    RawRow("k", Map("nested" -> Json.obj("field" -> Json.fromString("Ř"), "field2" -> Json.fromInt(1))))
+  )
+  private val dataWithEmptyStringInDoubleField = Seq(
+    RawRow("k1", Map("num" -> Json.fromString(""))),
+    RawRow("k2", Map("num" -> Json.fromDouble(12.3).get))
+  )
+
+  private val dataWithEmptyStringInBooleanField = Seq(
+    RawRow("k1", Map("bool" -> Json.fromString(""))),
+    RawRow("k2", Map("bool" -> Json.fromBoolean(java.lang.Boolean.parseBoolean("true")))),
+    RawRow("k3", Map("bool" -> Json.fromBoolean(false)))
+  )
+
+  override def beforeAll(): Unit = {
+    val db = "spark-test-database"
+    val tables = Seq(
+      ("without-key", dataWithoutKey),
+      ("with-key", dataWithKey),
+      ("with-many-keys", dataWithManyKeys),
+      ("without-lastUpdatedTime", dataWithoutlastUpdatedTime),
+      ("with-lastUpdatedTime", dataWithlastUpdatedTime),
+      ("with-many-lastUpdatedTime", dataWithManylastUpdatedTime),
+      ("with-nesting", dataWithSimpleNestedStruct),
+      ("with-number-empty-str", dataWithEmptyStringInDoubleField),
+      ("with-boolean-empty-str", dataWithEmptyStringInBooleanField)
+    )
+    if (!writeClient.rawDatabases.list().compile.toVector.exists(_.name == db)) {
+      writeClient.rawDatabases.createOne(RawDatabase(db))
+    }
+    writeClient.rawTables(db).list().compile.toVector.map(_.name).foreach {
+      writeClient.rawTables(db).deleteById(_)
+    }
+    writeClient.rawTables(db).create(tables.map(t => RawTable(t._1)))
+
+    for ((n, data) <- tables) {
+      writeClient.rawRows(db, n).create(data)
+    }
+  }
+
+  lazy private val dfWithoutKey = rawRead("without-key")
+  lazy private val dfWithKey = rawRead("with-key")
+  lazy private val dfWithManyKeys = rawRead("with-many-keys")
+
+  lazy private val dfWithoutlastUpdatedTime = rawRead("without-lastUpdatedTime")
+  lazy private val dfWithlastUpdatedTime = rawRead("with-lastUpdatedTime")
+  lazy private val dfWithManylastUpdatedTime = rawRead("with-many-lastUpdatedTime")
+
+  lazy private val dfWithSimpleNestedStruct = rawRead("with-nesting")
+  lazy private val dfWithEmptyStringInDoubleField = rawRead("with-number-empty-str")
+  lazy private val dfWithEmptyStringInBooleanField = rawRead("with-boolean-empty-str")
 
   it should "smoke test raw" taggedAs WriteTest in {
     val limit = 100
@@ -100,58 +162,50 @@ class RawTableRelationTest
     assert(res.count == limit * partitions)
   }
 
+  def rawRead(
+      table: String,
+      database: String = "spark-test-database",
+      inferSchema: Boolean = true): DataFrame =
+    spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("partitions", 1)
+      .option("database", database)
+      .option("table", table)
+      .option("inferSchema", inferSchema)
+      .option("inferSchemaLimit", "100")
+      .load()
+  //.cache()
+
   "A RawTableRelation" should "allow data columns named key, _key etc. but rename them to _key, __key etc." in {
-    val dfWithoutKey = dfWithoutKeyData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithoutKey =
-      flattenAndRenameColumns(spark.sqlContext, dfWithoutKey, dfWithoutKeySchema)
-    processedWithoutKey.schema.fieldNames.toSet should equal(
-      Set("key", "lastUpdatedTime", "notKey", "value"))
-    collectToSet[String](processedWithoutKey.select($"key")) should equal(Set("key1", "key2"))
+    dfWithoutKey.schema.fieldNames.toSet should equal(Set("key", "lastUpdatedTime", "notKey", "value"))
+    collectToSet[String](dfWithoutKey.select($"key")) should equal(Set("key1", "key2"))
 
-    val dfWithKey = dfWithKeyData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithKey = flattenAndRenameColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
-    processedWithKey.schema.fieldNames.toSet should equal(Set("key", "lastUpdatedTime", "_key", "value"))
-    collectToSet[String](processedWithKey.select($"key")) should equal(Set("key3", "key4"))
-    collectToSet[String](processedWithKey.select($"_key")) should equal(Set("k1", "k2"))
+    dfWithKey.schema.fieldNames.toSet should equal(Set("key", "lastUpdatedTime", "_key", "value"))
+    collectToSet[String](dfWithKey.select($"key")) should equal(Set("key3", "key4"))
+    collectToSet[String](dfWithKey.select($"_key")) should equal(Set("k1", "k2"))
 
-    val dfWithManyKeys = dfWithManyKeysData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithManyKeys =
-      flattenAndRenameColumns(spark.sqlContext, dfWithManyKeys, dfWithManyKeysSchema)
-    processedWithManyKeys.schema.fieldNames.toSet should equal(
+    dfWithManyKeys.schema.fieldNames.toSet should equal(
       Set("key", "lastUpdatedTime", "____key", "___key", "_key", "value"))
 
-    collectToSet[String](processedWithManyKeys.select($"key")) should equal(Set("key5", "key6"))
-    collectToSet[String](processedWithManyKeys.select($"_key")) should equal(Set(null, "k2"))
-    collectToSet[String](processedWithManyKeys.select($"___key")) should equal(Set("__k1", "__k2"))
-    collectToSet[String](processedWithManyKeys.select($"____key")) should equal(Set("___k1", "___k2"))
+    collectToSet[String](dfWithManyKeys.select($"key")) should equal(Set("key5", "key6"))
+    collectToSet[String](dfWithManyKeys.select($"_key")) should equal(Set(null, "k2"))
+    collectToSet[String](dfWithManyKeys.select($"___key")) should equal(Set("__k1", "__k2"))
+    collectToSet[String](dfWithManyKeys.select($"____key")) should equal(Set("___k1", "___k2"))
   }
 
   it should "allow data columns named lastUpdatedTime, _lastUpdatedTime etc. but rename them to _lastUpdatedTime, __lastUpdatedTime etc." in {
-    val dfWithoutlastUpdatedTime = dfWithoutlastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithoutlastUpdatedTime =
-      flattenAndRenameColumns(spark.sqlContext, dfWithoutlastUpdatedTime, dfWithoutlastUpdatedTimeSchema)
-    processedWithoutlastUpdatedTime.schema.fieldNames.toSet should equal(
+    dfWithoutlastUpdatedTime.schema.fieldNames.toSet should equal(
       Set("key", "lastUpdatedTime", "notlastUpdatedTime", "value"))
-    collectToSet[Long](processedWithoutlastUpdatedTime.select($"lastUpdatedTime")) should equal(
-      Set(121, 122))
+    collectToSet[java.sql.Timestamp](dfWithoutlastUpdatedTime.select($"lastUpdatedTime"))
 
-    val dfWithlastUpdatedTime = dfWithlastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithlastUpdatedTime =
-      flattenAndRenameColumns(spark.sqlContext, dfWithlastUpdatedTime, dfWithlastUpdatedTimeSchema)
-    processedWithlastUpdatedTime.schema.fieldNames.toSet should equal(
+    dfWithlastUpdatedTime.schema.fieldNames.toSet should equal(
       Set("key", "lastUpdatedTime", "_lastUpdatedTime", "value"))
-    collectToSet[Long](processedWithlastUpdatedTime.select($"lastUpdatedTime")) should equal(
-      Set(123, 124))
-    collectToSet[Long](processedWithlastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(1, 2))
+    collectToSet[java.sql.Timestamp](dfWithlastUpdatedTime.select($"lastUpdatedTime"))
+    collectToSet[Long](dfWithlastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(1, 2))
 
-    val dfWithManylastUpdatedTime =
-      dfWithManylastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithManylastUpdatedTime =
-      flattenAndRenameColumns(
-        spark.sqlContext,
-        dfWithManylastUpdatedTime,
-        dfWithManylastUpdatedTimeSchema)
-    processedWithManylastUpdatedTime.schema.fieldNames.toSet should equal(
+    dfWithManylastUpdatedTime.schema.fieldNames.toSet should equal(
       Set(
         "key",
         "lastUpdatedTime",
@@ -160,27 +214,22 @@ class RawTableRelationTest
         "_lastUpdatedTime",
         "value"))
 
-    collectToSet[Long](processedWithManylastUpdatedTime.select($"lastUpdatedTime")) should equal(
-      Set(125, 126))
-    collectToSet[Long](processedWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(
-      Set(null, 2))
-    collectToSet[Long](processedWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(
-      Set(11, 22))
-    collectToSet[Long](processedWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
+    collectToSet[java.sql.Timestamp](dfWithManylastUpdatedTime.select($"lastUpdatedTime"))
+    collectToSet[Long](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(null, 2))
+    collectToSet[Long](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(Set(11, 22))
+    collectToSet[Long](dfWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
       Set(111, 222))
   }
 
   it should "insert data with columns named _key, __key etc. as data columns key, _key, etc." in {
-    val dfWithKey = dfWithKeyData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithKey = flattenAndRenameColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
-    val (columnNames1, unRenamed1) = prepareForInsert(processedWithKey)
+    val (columnNames1, unRenamed1) = prepareForInsert(dfWithKey)
     columnNames1.toSet should equal(Set("key", "value"))
+    unRenamed1.schema.fieldNames should contain("key")
+    unRenamed1.schema.fieldNames should contain(temporaryKeyName)
+    collectToSet[String](unRenamed1.select(temporaryKeyName)) should equal(Set("key3", "key4"))
     collectToSet[String](unRenamed1.select("key")) should equal(Set("k1", "k2"))
 
-    val dfWithManyKeys = dfWithManyKeysData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithManyKeys =
-      flattenAndRenameColumns(spark.sqlContext, dfWithManyKeys, dfWithManyKeysSchema)
-    val (columnNames2, unRenamed2) = prepareForInsert(processedWithManyKeys)
+    val (columnNames2, unRenamed2) = prepareForInsert(dfWithManyKeys)
     columnNames2.toSet should equal(Set("key", "__key", "___key", "value"))
     collectToSet[String](unRenamed2.select("key")) should equal(Set(null, "k2"))
     collectToSet[String](unRenamed2.select("__key")) should equal(Set("__k1", "__k2"))
@@ -188,21 +237,11 @@ class RawTableRelationTest
   }
 
   it should "insert data with columns named _lastUpdatedTime, __lastUpdatedTime etc. as data columns lastUpdatedTime, _lastUpdatedTime, etc." in {
-    val dfWithlastUpdatedTime = dfWithlastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithlastUpdatedTime =
-      flattenAndRenameColumns(spark.sqlContext, dfWithlastUpdatedTime, dfWithlastUpdatedTimeSchema)
-    val (columnNames1, unRenamed1) = prepareForInsert(processedWithlastUpdatedTime)
+    val (columnNames1, unRenamed1) = prepareForInsert(dfWithlastUpdatedTime)
     columnNames1.toSet should equal(Set("lastUpdatedTime", "value"))
     collectToSet[Long](unRenamed1.select("lastUpdatedTime")) should equal(Set(1, 2))
 
-    val dfWithManylastUpdatedTime =
-      dfWithManylastUpdatedTimeData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithManylastUpdatedTime =
-      flattenAndRenameColumns(
-        spark.sqlContext,
-        dfWithManylastUpdatedTime,
-        dfWithManylastUpdatedTimeSchema)
-    val (columnNames2, unRenamed2) = prepareForInsert(processedWithManylastUpdatedTime)
+    val (columnNames2, unRenamed2) = prepareForInsert(dfWithManylastUpdatedTime)
     columnNames2.toSet should equal(
       Set("lastUpdatedTime", "__lastUpdatedTime", "___lastUpdatedTime", "value"))
     collectToSet[Long](unRenamed2.select($"lastUpdatedTime")) should equal(Set(null, 2))
@@ -210,11 +249,46 @@ class RawTableRelationTest
     collectToSet[Long](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
   }
 
+  it should "read nested StructType" in {
+    val schema = dfWithSimpleNestedStruct.schema
+    schema.fieldNames should contain("nested")
+    val nestedSchema = schema.fields(schema.fieldIndex("nested")).dataType.asInstanceOf[StructType]
+    nestedSchema.fieldNames should (contain("field").and(contain("field2")))
+
+    collectToSet[String](dfWithSimpleNestedStruct.selectExpr("nested.field")) should equal(Set("Ř"))
+    collectToSet[Int](dfWithSimpleNestedStruct.selectExpr("nested.field2")) should equal(Set(1))
+
+  }
+
+  it should "infer schema to be Double even though it contains empty string sometimes" in {
+    // It's a weird use case, but some customer complained when we broke this, so let's make sure we don't do that again :)
+
+    val schema = dfWithEmptyStringInDoubleField.schema
+    schema("num").dataType shouldBe DoubleType
+    dfWithEmptyStringInDoubleField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInDoubleField
+      .collect()
+      .map(_.getAs[Any]("num"))
+      .toSet shouldBe Set(null, 12.3) // scalastyle:off null
+  }
+
+  it should "infer schema to be Boolean even though it contains empty string sometimes" in {
+    val schema = dfWithEmptyStringInBooleanField.schema
+    schema("bool").dataType shouldBe BooleanType
+    dfWithEmptyStringInBooleanField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set(
+      "k1",
+      "k2",
+      "k3")
+    dfWithEmptyStringInBooleanField
+      .collect()
+      .map(_.getAs[Any]("bool"))
+      .toSet shouldBe Set(null, true, false) // scalastyle:off null
+  }
+
   "rowsToRawItems" should "return RawRows from Rows" in {
-    val dfWithKey = dfWithKeyData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithKey = flattenAndRenameColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
-    val (columnNames, unRenamed) = prepareForInsert(processedWithKey)
-    val rawItems: Seq[RawRow] = rowsToRawItems(columnNames, unRenamed.collect.toSeq)
+    val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
+    val rawItems: Seq[RawRow] =
+      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq)
     rawItems.map(_.key.toString).toSet should equal(Set("key3", "key4"))
 
     val expectedResult: Seq[Map[String, Json]] = Seq[Map[String, Json]](
@@ -225,13 +299,34 @@ class RawTableRelationTest
     rawItems.map(_.columns) should equal(expectedResult)
   }
 
+  it should "unrename _key" in {
+    val data = Seq(
+      ("notkey1", "key1", 1),
+      ("notkey2", "key2", 2)
+    )
+
+    val dfWithKey = data.toDF("_key", "key", "value2")
+    val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
+    val toInsert =
+      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq).toVector
+
+    toInsert.map(_.key) shouldBe Vector("key1", "key2")
+    toInsert.map(_.columns.get("key")) shouldBe Vector(
+      Some(Json.fromString("notkey1")),
+      Some(Json.fromString("notkey2")))
+  }
+
   it should "throw an CDFSparkIllegalArgumentException when DataFrame has null key" in {
-    val dfWithKey = dfWithNullKeyData.toDF("key", "lastUpdatedTime", "columns")
-    val processedWithKey = flattenAndRenameColumns(spark.sqlContext, dfWithKey, dfWithKeySchema)
-    val (columnNames, unRenamed) = prepareForInsert(processedWithKey)
-    an[CdfSparkIllegalArgumentException] should be thrownBy rowsToRawItems(
-      columnNames,
-      unRenamed.collect.toSeq)
+    val dataWithNullKey = Seq(
+      ("k3", null, 1),
+      ("k4", "key4", 2)
+    )
+
+    val dfWithKey = dataWithNullKey.toDF("_key", "key", "value2")
+    val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
+    an[CdfSparkIllegalArgumentException] should be thrownBy RawJsonConverter
+      .rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq)
+      .toArray
   }
 
   "Infer Schema" should "use a different limit for infer schema" in {

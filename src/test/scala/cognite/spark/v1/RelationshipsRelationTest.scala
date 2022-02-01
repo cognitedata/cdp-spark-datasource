@@ -5,6 +5,7 @@ import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.{CogniteExternalId, RelationshipCreate}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.{DataFrame, Row}
+import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 import org.scalatest.{FlatSpec, Inspectors, Matchers}
 
 class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest with Inspectors {
@@ -147,7 +148,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     createResources(externalIdPrefix)
   }
 
-  it should "be able to update a relationship" taggedAs ReadTest in {
+  it should "be able to update a relationship" taggedAs ReadTest in forAll(updateAndUpsert) { updateMode =>
     val externalId = s"relationship-update-${shortRandomString()}"
     writeClient.relationships.create(
       Seq(
@@ -176,7 +177,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .format("cognite.spark.v1")
       .option("type", "relationships")
       .option("apiKey", writeApiKey)
-      .option("onconflict", "update")
+      .option("onconflict", updateMode)
       .option("collectMetrics", "true")
       .save()
 

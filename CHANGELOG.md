@@ -1,3 +1,21 @@
+# 1.4.59
+
+## Fixes
+
+* Handle empty string for Boolean type in RawJsonConverter
+
+# 1.4.58
+
+## Fixes
+
+* Handle empty string for Double and Float type in RawJsonConverter
+
+# 1.4.57
+
+## Enhancements
+
+* Refactor JSON processing in RAW read to significantly improve read performance (especially large improvement are expected for wide tables)
+
 # 1.4.56
 
 ## Enhancements
