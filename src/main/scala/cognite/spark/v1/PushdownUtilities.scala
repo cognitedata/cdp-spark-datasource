@@ -20,6 +20,22 @@ import scala.util.Try
 
 final case class DeleteItem(id: Long)
 
+final case class DeleteItemByCogniteId(
+    id: Option[Long],
+    externalId: Option[String]
+) {
+  def toCogniteId: CogniteId = (id, externalId) match {
+    case (Some(id), _) =>
+      // internalId takes place prior to externalId because delete return conflict error
+      // if input contains id and externalId that represent the same item
+      CogniteInternalId(id)
+    case (None, Some(externalId)) => CogniteExternalId(externalId)
+    case (None, None) =>
+      throw new CdfSparkIllegalArgumentException(
+        "Unexpected error, at least id or externalId must be provided")
+  }
+}
+
 sealed trait PushdownExpression
 final case class PushdownFilter(fieldName: String, value: String) extends PushdownExpression
 final case class PushdownAnd(left: PushdownExpression, right: PushdownExpression)

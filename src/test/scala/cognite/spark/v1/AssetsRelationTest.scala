@@ -1037,6 +1037,76 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(cdpApiException.code == 400)
   }
 
+  it should "support deletes by externalIds" in {
+    val source = s"spark-externalIds-asset-delete-${shortRandomString()}"
+    val randomSuffix = shortRandomString()
+    try {
+      // Insert some test data
+      spark
+        .sql(s"""
+                |select concat(string(id), '${randomSuffix}') as externalId,
+                |name,
+                |null as parentId,
+                |null as parentExternalId,
+                |'foo' as description,
+                |map("bar", "test") as metadata,
+                |'$source' as source,
+                |id,
+                |createdTime,
+                |lastUpdatedTime,
+                |0 as rootId,
+                |null as aggregates,
+                |array('scala-sdk-relationships-test-label1') as labels,
+                |dataSetId
+                |from sourceAssets
+                |limit 100
+     """.stripMargin)
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationAssets")
+
+      // Check if insert worked
+      val idsAfterInsert =
+        retryWhile[Array[Row]](
+          spark
+            .sql(s"select externalId from destinationAssets where source = '$source'")
+            .collect,
+          df => df.length < 100)
+      assert(idsAfterInsert.length == 100)
+
+      val metricsPrefix = s"assets.delete.${shortRandomString()}"
+      // Delete the data
+      val idsAfterDelete =
+        retryWhile[Array[Row]](
+          {
+            spark
+              .sql(s"select externalId from destinationAssets where source = '$source'")
+              .write
+              .format("cognite.spark.v1")
+              .option("apiKey", writeApiKey)
+              .option("type", "assets")
+              .option("onconflict", "delete")
+              .option("collectMetrics", "true")
+              .option("metricsPrefix", metricsPrefix)
+              .save()
+            spark
+              .sql(s"select externalId from destinationAssets where source = '$source'")
+              .collect
+          },
+          df => df.length > 0
+        )
+      assert(idsAfterDelete.isEmpty)
+      // Due to retries, rows deleted may exceed 100
+      getNumberOfRowsDeleted(metricsPrefix, "assets") should be >= 100L
+    } finally {
+      try {
+        cleanupAssets(source)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
+  }
+
   def cleanupAssets(source: String): Unit =
     spark
       .sql(s"""select id from destinationAssets where source = '$source'""")
