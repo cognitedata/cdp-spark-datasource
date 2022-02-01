@@ -7,7 +7,7 @@ import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 import scala.util.control.NonFatal
 
-class FilesRelationTest extends FlatSpec with Matchers with SparkTest {
+class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val sourceDf = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", readApiKey)

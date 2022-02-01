@@ -1,3 +1,9 @@
+# 1.4.60
+
+## Enhancements
+
+* Add support delete by externalIds for Assets, Events and TimeSeries
+
 # 1.4.59
 
 ## Fixes
