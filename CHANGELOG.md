@@ -1,3 +1,15 @@
+# 1.4.59
+
+## Fixes
+
+* Handle empty string for Boolean type in RawJsonConverter
+
+# 1.4.58
+
+## Fixes
+
+* Handle empty string for Double and Float type in RawJsonConverter
+
 # 1.4.57
 
 ## Enhancements

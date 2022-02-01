@@ -188,7 +188,13 @@ object RawJsonConverter {
     case BooleanType => {
       case Json.True => java.lang.Boolean.TRUE
       case Json.False => java.lang.Boolean.FALSE
-      case j => mappingError(dataType, j)
+      case j: Json =>
+        j.asString
+          .map {
+            case "" => null
+            case s => java.lang.Boolean.valueOf(java.lang.Boolean.parseBoolean(s))
+          }
+          .getOrElse(mappingError(dataType, j))
     }
 
     case ByteType =>
