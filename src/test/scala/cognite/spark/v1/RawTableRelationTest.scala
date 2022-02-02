@@ -93,11 +93,27 @@ class RawTableRelationTest
   private val dataWithSimpleNestedStruct = Seq(
     RawRow("k", Map("nested" -> Json.obj("field" -> Json.fromString("Ř"), "field2" -> Json.fromInt(1))))
   )
+
+  private val dataWithEmptyStringInByteField = Seq(
+    RawRow("k1", Map("byte" -> Json.fromString(""))),
+    RawRow("k2", Map("byte" -> Json.fromInt(1.toByte)))
+  )
+  private val dataWithEmptyStringInShortField = Seq(
+    RawRow("k1", Map("short" -> Json.fromString(""))),
+    RawRow("k2", Map("short" -> Json.fromInt(12.toShort)))
+  )
+  private val dataWithEmptyStringInIntegerField = Seq(
+    RawRow("k1", Map("integer" -> Json.fromString(""))),
+    RawRow("k2", Map("integer" -> Json.fromInt(123)))
+  )
+  private val dataWithEmptyStringInLongField = Seq(
+    RawRow("k1", Map("long" -> Json.fromString(""))),
+    RawRow("k2", Map("long" -> Json.fromLong(12345L)))
+  )
   private val dataWithEmptyStringInDoubleField = Seq(
     RawRow("k1", Map("num" -> Json.fromString(""))),
     RawRow("k2", Map("num" -> Json.fromDouble(12.3).get))
   )
-
   private val dataWithEmptyStringInBooleanField = Seq(
     RawRow("k1", Map("bool" -> Json.fromString(""))),
     RawRow("k2", Map("bool" -> Json.fromBoolean(java.lang.Boolean.parseBoolean("true")))),
@@ -114,6 +130,10 @@ class RawTableRelationTest
       ("with-lastUpdatedTime", dataWithlastUpdatedTime),
       ("with-many-lastUpdatedTime", dataWithManylastUpdatedTime),
       ("with-nesting", dataWithSimpleNestedStruct),
+      ("with-byte-empty-str", dataWithEmptyStringInByteField),
+      ("with-short-empty-str", dataWithEmptyStringInShortField),
+      ("with-integer-empty-str", dataWithEmptyStringInIntegerField),
+      ("with-long-empty-str", dataWithEmptyStringInLongField),
       ("with-number-empty-str", dataWithEmptyStringInDoubleField),
       ("with-boolean-empty-str", dataWithEmptyStringInBooleanField)
     )
@@ -139,6 +159,11 @@ class RawTableRelationTest
   lazy private val dfWithManylastUpdatedTime = rawRead("with-many-lastUpdatedTime")
 
   lazy private val dfWithSimpleNestedStruct = rawRead("with-nesting")
+
+  lazy private val dfWithEmptyStringInByteField = rawRead("with-byte-empty-str")
+  lazy private val dfWithEmptyStringInShortField = rawRead("with-short-empty-str")
+  lazy private val dfWithEmptyStringInIntegerField = rawRead("with-integer-empty-str")
+  lazy private val dfWithEmptyStringInLongField = rawRead("with-long-empty-str")
   lazy private val dfWithEmptyStringInDoubleField = rawRead("with-number-empty-str")
   lazy private val dfWithEmptyStringInBooleanField = rawRead("with-boolean-empty-str")
 
@@ -258,31 +283,6 @@ class RawTableRelationTest
     collectToSet[String](dfWithSimpleNestedStruct.selectExpr("nested.field")) should equal(Set("Ř"))
     collectToSet[Int](dfWithSimpleNestedStruct.selectExpr("nested.field2")) should equal(Set(1))
 
-  }
-
-  it should "infer schema to be Double even though it contains empty string sometimes" in {
-    // It's a weird use case, but some customer complained when we broke this, so let's make sure we don't do that again :)
-
-    val schema = dfWithEmptyStringInDoubleField.schema
-    schema("num").dataType shouldBe DoubleType
-    dfWithEmptyStringInDoubleField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
-    dfWithEmptyStringInDoubleField
-      .collect()
-      .map(_.getAs[Any]("num"))
-      .toSet shouldBe Set(null, 12.3) // scalastyle:off null
-  }
-
-  it should "infer schema to be Boolean even though it contains empty string sometimes" in {
-    val schema = dfWithEmptyStringInBooleanField.schema
-    schema("bool").dataType shouldBe BooleanType
-    dfWithEmptyStringInBooleanField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set(
-      "k1",
-      "k2",
-      "k3")
-    dfWithEmptyStringInBooleanField
-      .collect()
-      .map(_.getAs[Any]("bool"))
-      .toSet shouldBe Set(null, true, false) // scalastyle:off null
   }
 
   "rowsToRawItems" should "return RawRows from Rows" in {
@@ -625,5 +625,69 @@ class RawTableRelationTest
     // just test that Spark did not die in the process
     val select1result = spark.sql("select 1 as col").collect()
     assert(select1result.map(_.getInt(0)).toList == List(1))
+  }
+
+  // It's a weird use case, but some customer complained when we broke this, so let's make sure we don't do that again :)
+  "RawJsonConverter" should "handle empty string as null for Byte type" in {
+    val schema = dfWithEmptyStringInByteField.schema
+    schema("byte").dataType shouldBe LongType
+    dfWithEmptyStringInByteField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInByteField
+      .collect()
+      .map(_.getAs[Any]("byte"))
+      .toSet shouldBe Set(null, 1.toByte) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Short type" in {
+    val schema = dfWithEmptyStringInShortField.schema
+    schema("short").dataType shouldBe LongType
+    dfWithEmptyStringInShortField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInShortField
+      .collect()
+      .map(_.getAs[Any]("short"))
+      .toSet shouldBe Set(null, 12.toShort) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Integer type" in {
+    val schema = dfWithEmptyStringInIntegerField.schema
+    schema("integer").dataType shouldBe LongType
+    dfWithEmptyStringInIntegerField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInIntegerField
+      .collect()
+      .map(_.getAs[Any]("integer"))
+      .toSet shouldBe Set(null, 123) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Long type" in {
+    val schema = dfWithEmptyStringInLongField.schema
+    schema("long").dataType shouldBe LongType
+    dfWithEmptyStringInLongField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInLongField
+      .collect()
+      .map(_.getAs[Any]("long"))
+      .toSet shouldBe Set(null, 12345L) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Double type" in {
+    val schema = dfWithEmptyStringInDoubleField.schema
+    schema("num").dataType shouldBe DoubleType
+    dfWithEmptyStringInDoubleField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInDoubleField
+      .collect()
+      .map(_.getAs[Any]("num"))
+      .toSet shouldBe Set(null, 12.3) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Boolean type" in {
+    val schema = dfWithEmptyStringInBooleanField.schema
+    schema("bool").dataType shouldBe BooleanType
+    dfWithEmptyStringInBooleanField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set(
+      "k1",
+      "k2",
+      "k3")
+    dfWithEmptyStringInBooleanField
+      .collect()
+      .map(_.getAs[Any]("bool"))
+      .toSet shouldBe Set(null, true, false) // scalastyle:off null
   }
 }

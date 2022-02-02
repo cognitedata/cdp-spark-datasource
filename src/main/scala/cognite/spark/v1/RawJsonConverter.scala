@@ -199,19 +199,47 @@ object RawJsonConverter {
 
     case ByteType =>
       (j: Json) =>
-        j.asNumber.flatMap(_.toByte).map(java.lang.Byte.valueOf).getOrElse(mappingError(dataType, j))
+        j.asNumber
+          .flatMap(_.toByte)
+          .map(java.lang.Byte.valueOf)
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Byte.valueOf(java.lang.Byte.parseByte(s))
+          })
+          .getOrElse(mappingError(dataType, j))
 
     case ShortType =>
       (j: Json) =>
-        j.asNumber.flatMap(_.toShort).map(java.lang.Short.valueOf).getOrElse(mappingError(dataType, j))
+        j.asNumber
+          .flatMap(_.toShort)
+          .map(java.lang.Short.valueOf)
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Short.valueOf(java.lang.Short.parseShort(s))
+          })
+          .getOrElse(mappingError(dataType, j))
 
     case IntegerType =>
       (j: Json) =>
-        j.asNumber.flatMap(_.toInt).map(java.lang.Integer.valueOf).getOrElse(mappingError(dataType, j))
+        j.asNumber
+          .flatMap(_.toInt)
+          .map(java.lang.Integer.valueOf)
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Integer.valueOf(java.lang.Integer.parseInt(s))
+          })
+          .getOrElse(mappingError(dataType, j))
 
     case LongType =>
       (j: Json) =>
-        j.asNumber.flatMap(_.toLong).map(java.lang.Long.valueOf).getOrElse(mappingError(dataType, j))
+        j.asNumber
+          .flatMap(_.toLong)
+          .map(java.lang.Long.valueOf)
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Long.valueOf(java.lang.Long.parseLong(s))
+          })
+          .getOrElse(mappingError(dataType, j))
 
     case FloatType =>
       (j: Json) =>
