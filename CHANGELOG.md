@@ -1,3 +1,9 @@
+# 1.4.61
+
+## Fixes
+
+* Handle empty string for Byte, Short, Integer and Long type in RawJsonConverter
+
 # 1.4.60
 
 ## Enhancements
