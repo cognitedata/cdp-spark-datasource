@@ -10,6 +10,7 @@ import org.apache.spark.sql.types._
 
 import java.util
 import java.util.{Base64, Locale}
+import scala.collection.mutable.ArrayBuffer
 
 object RawJsonConverter {
   // scalastyle:off cyclomatic.complexity
@@ -95,29 +96,36 @@ object RawJsonConverter {
 
   def makeRowConverter(
       sparkSchema: StructType,
-      jsonFieldNames: Array[String],
+      jsonFieldNames: Array[Option[String]],
       lastUpdatedTimeColumn: String,
       keyColumn: String): RawRow => Row = {
-    assert(sparkSchema.fieldNames(0) == keyColumn, "Key must be the first column")
-    assert(
-      sparkSchema.fieldNames(1) == lastUpdatedTimeColumn,
-      "LastUpdatedTime must be the second column")
-
-    val fieldConverters = sparkSchema.fields.drop(2).map(f => makeConverter(f.dataType))
+    val fieldConverters =
+      sparkSchema.fields.map(f =>
+        if (f.name == keyColumn || f.name == lastUpdatedTimeColumn) {
+          ((_: Json) => throw new AssertionError()): ValueConverter
+        } else {
+          makeConverter(f.dataType)
+      })
+    val keyIndex = sparkSchema.fields.indexWhere(_.name == keyColumn)
+    val lastUpdatedTimeIndex = sparkSchema.fields.indexWhere(_.name == lastUpdatedTimeColumn)
     val nameMap = new java.util.HashMap[String, Int]()
-    for ((field, i) <- jsonFieldNames.zipWithIndex) {
-      nameMap.put(field, i)
+    for ((fieldOpt, i) <- jsonFieldNames.zipWithIndex) {
+      // key and lastUpdatedTime are set to None, we ignore them in this code path
+      fieldOpt.foreach(field => nameMap.put(field, i))
     }
-
     row =>
       {
         val rowArray = new Array[Any](sparkSchema.fields.length)
-        rowArray(0) = row.key
-        rowArray(1) = row.lastUpdatedTime.map(java.sql.Timestamp.from).orNull
+        if (keyIndex >= 0) {
+          rowArray(keyIndex) = row.key
+        }
+        if (lastUpdatedTimeIndex >= 0) {
+          rowArray(lastUpdatedTimeIndex) = row.lastUpdatedTime.map(java.sql.Timestamp.from).orNull
+        }
         for ((key, value) <- row.columns) {
           val fieldIndex = nameMap.getOrDefault(key, -1)
           if (fieldIndex >= 0) {
-            rowArray(fieldIndex + 2) = fieldConverters(fieldIndex).convertNullSafe(value)
+            rowArray(fieldIndex) = fieldConverters(fieldIndex).convertNullSafe(value)
           }
         }
         new GenericRowWithSchema(rowArray, sparkSchema)

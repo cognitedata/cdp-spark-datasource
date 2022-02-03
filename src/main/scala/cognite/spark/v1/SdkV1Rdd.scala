@@ -16,7 +16,8 @@ final case class SdkV1Rdd[A, I](
     config: RelationConfig,
     toRow: (A, Option[Int]) => Row,
     uniqueId: A => I,
-    getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]])
+    getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]],
+    deduplicateRows: Boolean = true)
     extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
 
@@ -53,18 +54,21 @@ final case class SdkV1Rdd[A, I](
     val groupedStreams = streams.grouped(config.parallelismPerPartition).toSeq
     val currentStreamsAsSingleStream = groupedStreams(split.index).reduce(_.merge(_))
 
-    val processedIds = new ConcurrentHashMap[I, Unit]
-    val processChunk = (chunk: Chunk[A]) => {
-      chunk.filter { i =>
-        // putIfAbsent returns null if the key did not exist, in which ase we
-        // should keep (and process) the item.
-        Option(processedIds.putIfAbsent(uniqueId(i), ())).isEmpty
-      }
+    val processChunk = if (deduplicateRows) {
+      val processedIds = new ConcurrentHashMap[I, Unit]
+      Some((chunk: Chunk[A]) => {
+        chunk.filter { i =>
+          // putIfAbsent returns null if the key did not exist, in which ase we
+          // should keep (and process) the item.
+          Option(processedIds.putIfAbsent(uniqueId(i), ())).isEmpty
+        }
+      })
+    } else {
+      None
     }
-    val it = StreamIterator(
-      currentStreamsAsSingleStream,
-      config.parallelismPerPartition * 2,
-      Some(processChunk)).map(toRow(_, Some(split.index)))
+    val it =
+      StreamIterator(currentStreamsAsSingleStream, config.parallelismPerPartition * 2, processChunk)
+        .map(toRow(_, Some(split.index)))
     Option(context) match {
       case Some(ctx) => new InterruptibleIterator(ctx, it)
       case None => it

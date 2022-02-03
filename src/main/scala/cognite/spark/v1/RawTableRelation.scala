@@ -14,6 +14,7 @@ import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.datasource.MetricsSource
 import fs2.Stream
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import scala.util.Try
 
@@ -88,10 +89,10 @@ class RawTableRelation(
       schema match {
         case Some(schema) =>
           // .tail.tail to skip the key and lastUpdatedTime columns, which are always the first two
-          val jsonFieldsSchema = schemaWithoutRenamedColumns(StructType(schema.tail.tail))
+          val jsonFieldsSchema = schemaWithoutRenamedColumns(StructType(schema))
           RawJsonConverter.makeRowConverter(
             schema,
-            jsonFieldsSchema.fieldNames,
+            jsonFieldsSchema.map(_.map(_.name)),
             lastUpdatedTimeColName,
             "key")
         case None =>
@@ -116,7 +117,8 @@ class RawTableRelation(
         rowConverter(item)
       },
       (r: RawRow) => r.key,
-      getStreams(filter)
+      getStreams(filter),
+      deduplicateRows = false // RAW never returns duplicates since we can't have overlapping filters
     )
   }
 
@@ -138,19 +140,27 @@ class RawTableRelation(
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime, Some(filteredRequiredColumns))
       }
 
-    val jsonSchema = if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
+    val jsonSchema = if (schema == defaultSchema || schema == null) {
       None
     } else {
-      Some(schema)
+      if (schema.fieldNames.sameElements(requiredColumns)) {
+        Some(schema)
+      } else {
+        Some(StructType(requiredColumns.map(col => schema.apply(col))))
+      }
     }
 
     val rdd =
       readRows(config.limitPerPartition, None, rawRowFilter, jsonSchema)
 
-    rdd.map(row => {
-      val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
-      Row.fromSeq(filteredCols)
-    })
+    if (jsonSchema.isDefined) {
+      rdd
+    } else {
+      rdd.map(row => {
+        val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
+        new GenericRow(filteredCols)
+      })
+    }
   }
 
   def filtersToTimestampLimits(
@@ -228,13 +238,16 @@ object RawTableRelation {
       None
     }
 
-  private def schemaWithoutRenamedColumns(schema: StructType) =
-    StructType.apply(schema.fields.map(field => {
-      unrenameColumn(field.name) match {
-        case Some(newName) => field.copy(name = newName)
-        case None => field
-      }
-    }))
+  private def schemaWithoutRenamedColumns(schema: StructType): Array[Option[StructField]] =
+    schema.fields.map(field =>
+      if (field.name == "key" || field.name == "lastUpdatedTime") {
+        None
+      } else {
+        unrenameColumn(field.name) match {
+          case Some(newName) => Some(field.copy(name = newName))
+          case None => Some(field)
+        }
+    })
 
   private def renameColumns(df: DataFrame): DataFrame = {
     val columnsToRename = keyColumns(df.schema) ++ lastUpdatedTimeColumns(df.schema)
