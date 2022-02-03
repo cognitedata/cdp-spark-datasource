@@ -6,6 +6,7 @@ import cats.syntax.all._
 import org.apache.spark.sql.functions.col
 
 class SparkHelper(
+  sparkConfig: Map[String, String],
   writeOptions: Map[String, String],
   readOptions: Map[String, String],
   outDir: String,
@@ -31,10 +32,11 @@ class SparkHelper(
           "clientSecret" -> secret,
           "scopes" -> sys.env.getOrElse("COGNITE_SCOPES",
             if (baseUrl.contains("localhost")) {
-              throw new Exception(s"Must specify COGNITE_SCOPES variable when using a localhost baseUrl: $baseUrl. Use you real baseUrl/.default")
+              throw new Exception(s"Must specify COGNITE_SCOPES variable when using a localhost baseUrl: $baseUrl. Use your real baseUrl/.default")
             } else {
               s"$baseUrl/.default"
             }),
+          "audience" -> sys.env.getOrElse("COGNITE_AUDIENCE", ""), // scalastyle:off null
           "project" -> project.getOrElse(throw new Exception("OIDC auth requires COGNITE_PROJECT variable."))
         ))
       ).orElse(
@@ -45,7 +47,18 @@ class SparkHelper(
           s"Use COGNITE_TOKEN_URL, COGNITE_CLIENT_ID, COGNITE_CLIENT_SECRET, COGNITE_PROJECT or COGNITE_API_KEY env variables.")
     )
 
-  val spark = SparkHelper.spark
+  lazy val spark = {
+    val builder = SparkSession.builder
+    builder.appName("CDF Dump")
+    builder.master("local[*]")
+    builder.config("spark.sql.caseSensitive", "true")
+    builder.config("spark.sql.storeAssignmentPolicy", "legacy")
+    for ((c, opt) <- sparkConfig) {
+      builder.config(c, opt)
+    }
+    builder.getOrCreate()
+  }
+
   spark.sparkContext.setLogLevel("WARN")
 
   // some magic spell from https://stackoverflow.com/questions/17265002/hadoop-no-filesystem-for-scheme-file/27532248#27532248
@@ -110,11 +123,4 @@ class SparkHelper(
       .load()
     save(d, t)
   }
-}
-
-object SparkHelper {
-  lazy val spark = SparkSession.builder
-    .appName("CDF Dump")
-    .master("local[*]")
-    .getOrCreate()
 }
