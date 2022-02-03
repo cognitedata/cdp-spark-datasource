@@ -8,7 +8,7 @@ Reads and writes are done in parallel using asynchronous calls.
 
 The instructions below explain how to read from, and write to, the different resource types in CDF.
 
-This repository also contains [cdf_dump](./cdf_dump/) command line tool for reading data from CDF locally. Click on the link to learn more about it.
+This repository also contains `cdf_dump` command line tool for reading data from CDF locally. There is a [separate documentation page for it](./cdf_dump/).
 
 **In this article**
 

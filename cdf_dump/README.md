@@ -5,7 +5,8 @@ to simplify copying of large amounts data from CDF.
 
 ## Installation
 
-Download the cdf_dump.jar from https://github.com/cognitedata/cdp-spark-datasource/releases and run it from command line: `java -jar cdf_dump.jar`. The cdf_dump.jar file contains all dependencies, including Apache Spark, so it's bit large, but should not require anything except the JVM on your OS.
+Download the cdf_dump.jar from (Github Releases)[https://github.com/cognitedata/cdp-spark-datasource/releases] and run it from command line: `java -jar cdf_dump.jar`.
+The cdf_dump.jar file contains all dependencies, including Apache Spark, so it's bit large, but should not require anything except the JVM on your OS.
 Spark currently only supports Java 11 and Java 8, so cdf_dump also won't work on other JVM versions.
 If you have the choice, we recommend Java 11. You may use GraalVM, but it doesn't seem to improve performance much.
 
@@ -16,13 +17,15 @@ If you have the choice, we recommend Java 11. You may use GraalVM, but it doesn'
 cdf_dump --raw my-db.table -o out_directory
 ```
 
-Copies my-db.table into `out_directory/raw/my-db/table` directory in JSON format. You can use [`jq`](https://stedolan.github.io/jq/) to process the data further.
+Copies `my-db.table` into `out_directory/raw/my-db/table` directory in JSON format. You can use [`jq`](https://stedolan.github.io/jq/) to process the data further.
 
 ```shell
 cdf_dump --assets --events
 ```
 
-Copies all assets and events from the project (all visible to the logged in user) into `out/assets` and `out/events` directories.
+Copies all assets and events from the project (all visible to the logged in user) into `./out/assets` and `./out/events` directories.
+`./out` is the default output (`-o`) and all directories are created automatically.
+However, it will not overwrite data in the directory unless you specifically use the `--clear-out-dir` option.
 
 ```shell
 cdf_dump --all-clean
@@ -74,12 +77,13 @@ The `-S` option may be used for any set of [Spark configuration properties](http
 Authentication is done using environment variables, there are these options:
 
 * api key: set `COGNITE_API_KEY`
-* Open ID Connect: set `COGNITE_TOKEN_URL`, `COGNITE_CLIENT_ID`, `COGNITE_CLIENT_SECRET`, and `COGNITE_PROJECT`. Optionally also `COGNITE_SCOPES` if it's not equal to `$baseUrl/.default`
+* Open ID Connect: set `COGNITE_TOKEN_URL`, `COGNITE_CLIENT_ID`, `COGNITE_CLIENT_SECRET`, and `COGNITE_PROJECT`.
+  Optionally also `COGNITE_SCOPES` if it's not equal to `$baseUrl/.default` and `COGNITE_AUDIENCE` when needed.
 * Bearer token: set `COGNITE_BEARER_TOKEN`, and `COGNITE_PROJECT`. Note that bearer tokens have limited validity, so the dump process might not finish before the token times out.
 
-COGNITE_BASE_URL may be used for accessing different clusters than api.cognitedata.com.
+`COGNITE_BASE_URL` may be used for accessing different clusters than `https://api.cognitedata.com`.
 
-For debugging: to intercept traffic with [mitmproxy](https://docs.mitmproxy.org/stable/), run `mitmproxy --mode reverse:https://api.cognitedata.com -p 4001` and set COGNITE_BASE_URL = http://localhost:4001
+For debugging: to intercept traffic with [mitmproxy](https://docs.mitmproxy.org/stable/), run `mitmproxy --mode reverse:https://api.cognitedata.com -p 4001` and set `COGNITE_BASE_URL = http://localhost:4001`
 
 ## Help message
 
@@ -93,7 +97,7 @@ Usage:
   * Raw table
       cdf_dump --raw my-db.table -o path/to/dumped/data
 
-  * Assets and events into the default directory
+  * Assets and events into the default directory (./out)
       cdf_dump --assets --events
   * Assets, but only with a specific external id prefix
       cdf_dump --assets --where 'externalId LIKE "my-prefix-%"'
