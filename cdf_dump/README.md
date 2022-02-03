@@ -5,7 +5,7 @@ to simplify copying of large amounts data from CDF.
 
 ## Installation
 
-Download the cdf_dump.jar from (Github Releases)[https://github.com/cognitedata/cdp-spark-datasource/releases] and run it from command line: `java -jar cdf_dump.jar`.
+Download the cdf_dump.jar from [Github Releases](https://github.com/cognitedata/cdp-spark-datasource/releases) and run it from command line: `java -jar cdf_dump.jar`.
 The cdf_dump.jar file contains all dependencies, including Apache Spark, so it's bit large, but should not require anything except the JVM on your OS.
 Spark currently only supports Java 11 and Java 8, so cdf_dump also won't work on other JVM versions.
 If you have the choice, we recommend Java 11. You may use GraalVM, but it doesn't seem to improve performance much.
