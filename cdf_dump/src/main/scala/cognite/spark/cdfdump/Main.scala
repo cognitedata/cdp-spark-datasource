@@ -24,7 +24,7 @@ class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
            |  * Raw table
            |      cdf_dump --raw my-db.table -o path/to/dumped/data
            |
-           |  * Assets and events into the default directory
+           |  * Assets and events into the default directory (./out)
            |      cdf_dump --assets --events
            |  * Assets, but only with a specific external id prefix
            |      cdf_dump --assets --where 'externalId LIKE "my-prefix-%"'
