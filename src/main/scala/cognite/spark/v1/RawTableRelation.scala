@@ -116,7 +116,8 @@ class RawTableRelation(
         rowConverter(item)
       },
       (r: RawRow) => r.key,
-      getStreams(filter)
+      getStreams(filter),
+      deduplicateRows = false // RAW never returns duplicates since we can't have overlapping filters
     )
   }
 
