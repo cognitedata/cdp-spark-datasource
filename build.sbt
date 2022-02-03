@@ -66,7 +66,8 @@ lazy val commonSettings = Seq(
     if (gpgPass.isDefined) gpgPass.map(_.toCharArray)
     else None
   },
-  Test / fork := true
+  Test / fork := true,
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD")
 )
 
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
