@@ -81,7 +81,7 @@ class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
 }
 
 object Main extends App {
-  val logger = getLogger
+  val logger = getLogger("Main")
   val a = new Conf(args)
 
   val outDir = a.outDir()
@@ -149,13 +149,13 @@ object Main extends App {
   }
 
   def log(c: String, action: => Unit): Unit = {
-    println(s"Downloading $c")
+    logger.info(s"Downloading $c")
     val t0 = System.nanoTime()
     action
     val t1 = System.nanoTime()
     val time = (t1 - t0) / 1000 / 1000
     //val time = java.time.Duration.ofNanos(t1 - t0)
     // println(s"Loaded $c in ${DurationFormatUtils.formatDurationWords(time, true, true)}")
-    println(s"Loaded $c in ${DurationFormatUtils.formatDurationHMS(time)}")
+    logger.info(s"Loaded $c in ${DurationFormatUtils.formatDurationHMS(time)}")
   }
 }

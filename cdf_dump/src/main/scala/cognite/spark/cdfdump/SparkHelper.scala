@@ -59,8 +59,6 @@ class SparkHelper(
     builder.getOrCreate()
   }
 
-  spark.sparkContext.setLogLevel("WARN")
-
   // some magic spell from https://stackoverflow.com/questions/17265002/hadoop-no-filesystem-for-scheme-file/27532248#27532248
   private val hadoopConfig = spark.sparkContext.hadoopConfiguration
   hadoopConfig.set("fs.hdfs.impl", classOf[org.apache.hadoop.hdfs.DistributedFileSystem].getName)
