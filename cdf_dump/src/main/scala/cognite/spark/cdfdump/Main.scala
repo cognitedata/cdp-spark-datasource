@@ -1,14 +1,11 @@
 package cognite.spark.cdfdump
 
-import cognite.spark.cdfdump.SparkHelper
 import org.apache.commons.io.FileUtils
 import org.apache.commons.lang.time.DurationFormatUtils
-import org.apache.spark.SparkContext
 import org.log4s._
 import org.rogach.scallop._
 
-import java.nio.file.{Files, Path}
-import scala.concurrent.duration.Duration
+import java.nio.file.{Files, Paths}
 
 class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
   noshort = true
@@ -74,9 +71,10 @@ class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
 
   val readOptions = props[String]('R', "Spark read options. You can use any option supported by CDF Spark Data Source, see: https://github.com/cognitedata/cdp-spark-datasource/#common-options")
   val writeOptions = props[String]('W', "Spark write options. You can use any option supported in your selected output format. For example `-f csv -WincludeHeader=true` to write CSV with headers.")
+  val sparkConfig = props[String]('S', "Spark config option. You can use any property listed in the Spark Docs: https://spark.apache.org/docs/latest/configuration.html#available-properties")
 
   val outputPartitions = opt[Int]("out-partitions", argName = "number", descr = "Number of output partitions for text formats. By default 1, increase for better performance, but fragmented output.", default = Some(1))
-  val maxRetries = opt[Int]("max-retries", argName = "number", descr = "Set to 0 for debugging, to improve responsibility")
+  val maxRetries = opt[Int]("max-retries", argName = "number", descr = "Number of retries to do when CDF request fails. By default it's quite high (about 10) and we use exponential backoff. Set to 0 for debugging, to improve responsibility.")
   group("Advanced Spark options").append(readOptions, writeOptions, outputPartitions, maxRetries)
 
   verify()
@@ -89,18 +87,19 @@ object Main extends App {
   val outDir = a.outDir()
 
   if (a.clearOutDir()) {
-    if (Files.exists(Path.of(outDir))) {
-      if (Files.isDirectory(Path.of(outDir))) {
+    if (Files.exists(Paths.get(outDir))) {
+      if (Files.isDirectory(Paths.get(outDir))) {
         logger.info(s"Removing all items in $outDir")
-        Files.list(Path.of(outDir)).forEach(f => FileUtils.deleteQuietly(f.toFile))
+        Files.list(Paths.get(outDir)).forEach(f => FileUtils.deleteQuietly(f.toFile))
       } else {
         logger.info(s"Removing file $outDir")
-        Files.delete(Path.of(outDir))
+        Files.delete(Paths.get(outDir))
       }
     }
   }
 
   lazy val helper = new SparkHelper(
+    a.sparkConfig,
     a.writeOptions,
     a.readOptions,
     outDir,
