@@ -5,8 +5,15 @@ import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
+import java.util.UUID
+import scala.util.control.NonFatal
 
-class SequencesRelationTest extends FlatSpec with Matchers with OptionValues with ParallelTestExecution with SparkTest {
+class SequencesRelationTest
+    extends FlatSpec
+    with Matchers
+    with OptionValues
+    with ParallelTestExecution
+    with SparkTest {
   import spark.implicits._
 
   private val sequencesSourceDf = spark.read
@@ -18,8 +25,9 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
 
   it should "create and read sequence" in {
     val key = shortRandomString()
+    val id = UUID.randomUUID().toString
     val sequence = SequenceInsertSchema(
-      externalId = Some("a"),
+      externalId = Some(id),
       name = Some("a"),
       columns = Seq(
         SequenceColumnCreate(
@@ -32,27 +40,29 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
       )
     )
 
-    ingest(key, Seq(sequence))
+    ingests(Seq(sequence))
 
     val sequences = retryWhile[Array[Row]](
-      spark.sql(s"select * from sequences where externalId = 'a|$key'").collect,
+      spark.sql(s"select * from sequences where externalId = '$id'").collect,
       _.length != 1)
     sequences.length shouldBe 1
     sequences.head.getAs[String]("name") shouldBe "a"
 
     val columns = retryWhile[Array[Row]](
-      spark.sql(s"select c.* from (select explode(columns) as c from sequences where externalId = 'a|$key')").collect,
+      spark
+        .sql(s"select c.* from (select explode(columns) as c from sequences where externalId = '$id')")
+        .collect,
       _.length != 1)
     columns.length shouldBe 1
     columns.head.getAs[String]("name") shouldBe "col1"
 
-    cleanupSequence(key, "a")
+    cleanupSequences(Seq(id))
   }
 
   it should "create using SQL" in {
-    val key = shortRandomString()
-    spark.sql(
-      s"""select 'c|$key' as externalId,
+    val id = UUID.randomUUID().toString
+    spark
+      .sql(s"""select '$id' as externalId,
          |       'c seq' as name,
          |       'Sequence C detailed description' as description,
          |       array(
@@ -71,12 +81,12 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
       .option("onconflict", "abort")
       .save
 
-    val sequence = writeClient.sequences.retrieveByExternalId(s"c|$key")
+    val sequence = writeClient.sequences.retrieveByExternalId(s"$id")
     sequence.name shouldBe Some("c seq")
     sequence.description shouldBe Some("Sequence C detailed description")
     sequence.assetId shouldBe None
     sequence.dataSetId shouldBe None
-    sequence.columns should have size 1
+    (sequence.columns should have).size(1)
     val col = sequence.columns.head
     col.externalId.value shouldBe "c_col1"
     col.name shouldBe Some("column 1")
@@ -84,14 +94,14 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
     col.metadata shouldBe Some(Map("foo" -> "bar"))
     col.description shouldBe None
 
-
-    cleanupSequence(key, "c")
+    cleanupSequences(Seq(id))
   }
 
   it should "create and update sequence" in {
     val key = shortRandomString()
+    val id = UUID.randomUUID().toString
     val sequence = SequenceInsertSchema(
-      externalId = Some("a"),
+      externalId = Some(id),
       name = Some("a"),
       columns = Seq(
         SequenceColumnCreate(
@@ -104,37 +114,75 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
       )
     )
 
-    ingest(key, Seq(sequence))
+    ingests(Seq(sequence))
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from sequences where externalId = 'a|$key'").collect,
+      spark.sql(s"select * from sequences where externalId = '$id'").collect,
       rows => rows.length != 1)
 
     val sequenceUpdate = SequenceInsertSchema(
-      externalId = Some("a"),
+      externalId = Some(id),
       name = Some("a"),
       description = Some("description abc"),
       columns = Seq()
     )
 
-    ingest(key, Seq(sequenceUpdate), conflictMode = "update")
+    ingests(Seq(sequenceUpdate), conflictMode = "update")
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from sequences where description = 'description abc' and externalId = 'a|$key'").collect,
+      spark
+        .sql(s"select * from sequences where description = 'description abc' and externalId = '$id'")
+        .collect,
       _.length != 1)
 
-    cleanupSequence(key, "a")
+    cleanupSequences(Seq(id))
   }
 
-  def ingest(
-    key: String,
-    tree: Seq[SequenceInsertSchema],
-    metricsPrefix: Option[String] = None,
-    conflictMode: String = "abort"
+  it should "chunk sequence if more than 10000 columns in the request" in {
+    val key = shortRandomString()
+
+    //650 * 200 give us 130000 columns in total
+    val ids = (1 to 650).map(_ => UUID.randomUUID().toString)
+    try {
+      val sequencesToInsert = ids.map(
+        id =>
+          SequenceInsertSchema(
+            externalId = Some(id),
+            name = Some(s"a|${key}"),
+            columns = (1 to 200).map(
+              i =>
+                SequenceColumnCreate(
+                  name = Some("col" + i),
+                  externalId = "col" + i,
+                  description = Some("col1 description"),
+                  valueType = "STRING",
+                  metadata = Some(Map("foo" -> "bar"))
+              ))
+        ))
+
+      ingests(sequencesToInsert)
+
+      val sequences = retryWhile[Array[Row]](
+        spark.sql(s"select * from sequences where name = 'a|$key'").collect,
+        _.length != 650)
+      sequences.length shouldBe 650
+      sequences.head.getAs[String]("name").startsWith("a|") shouldBe true
+
+    } finally {
+      try {
+        cleanupSequences(ids)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
+  }
+
+  def ingests(
+      tree: Seq[SequenceInsertSchema],
+      metricsPrefix: Option[String] = None,
+      conflictMode: String = "abort"
   ): Unit = {
-    val processedTree = tree.map(s => s.copy(
-      externalId = s.externalId.map(id => s"$id|$key")
-    ))
+    val processedTree = tree
     spark.sparkContext
       .parallelize(processedTree)
       .toDF()
@@ -148,7 +196,8 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
       .save
 
     val checkedAssets = processedTree.filter(_.externalId.isDefined)
-    val storedCheckedAssets = writeClient.sequences.retrieveByExternalIds(checkedAssets.map(_.externalId.get))
+    val storedCheckedAssets =
+      writeClient.sequences.retrieveByExternalIds(checkedAssets.map(_.externalId.get))
 
     // check that the sequences are inserted correctly, before failing on long retries
     for ((inserted, stored) <- checkedAssets.zip(storedCheckedAssets)) {
@@ -156,7 +205,8 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
       assert(inserted.name == stored.name)
       assert(inserted.metadata.getOrElse(Map()) == stored.metadata.getOrElse(Map()))
       if (conflictMode != "update") {
-        assert(inserted.columns.toList == stored.columns.toList.map(_.transformInto[SequenceColumnCreate]))
+        assert(
+          inserted.columns.toList == stored.columns.toList.map(_.transformInto[SequenceColumnCreate]))
       }
       assert(inserted.description == stored.description)
       assert(inserted.assetId == stored.assetId)
@@ -164,7 +214,7 @@ class SequencesRelationTest extends FlatSpec with Matchers with OptionValues wit
     }
   }
 
-  def cleanupSequence(key: String, ids: String*): Unit =
-    writeClient.sequences.deleteByExternalIds(ids.map(id => s"$id|$key"))
+  def cleanupSequences(ids: Seq[String]): Unit =
+    writeClient.sequences.deleteByExternalIds(ids)
 
 }

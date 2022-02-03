@@ -48,9 +48,29 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         s.dataSetId
       )
     }
-    client.sequences
-      .create(sequences)
-      .flatTap(_ => incMetrics(itemsCreated, sequences.size)) *> IO.unit
+
+    // Sequence API does not support more than 200 columns per sequence,
+    // and the maximum total columns per request is 10000
+    // so grouped by 50 ensure that each chunk can not have more than 10000 columns in total,
+    // otherwise we already reject because of the first condition
+    val (_, groupedSequences) = sequences
+      .foldLeft((0, List(Vector.empty[SequenceCreate]))) {
+        case ((currentGroupColumnsCount, groups @ currentGroup :: otherGroups), sequence) =>
+          val columnsInSequence = sequence.columns.size
+          if (currentGroupColumnsCount + columnsInSequence > Constants.DefaultSequencesTotalColumnsLimit) {
+            // create a new group
+            (columnsInSequence, Vector(sequence) :: groups)
+          } else {
+            // add to current group
+            (currentGroupColumnsCount + columnsInSequence, (sequence +: currentGroup) :: otherGroups)
+          }
+      }
+    groupedSequences.map { sequencesToCreate =>
+      client.sequences
+        .create(sequencesToCreate)
+        .flatMap(_ => incMetrics(itemsCreated, sequencesToCreate.size))
+    }.sequence_
+
   }
 
   private def isUpdateEmpty(u: SequenceUpdate): Boolean = u == SequenceUpdate()
