@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.SparkSchemaHelper.structType
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
@@ -258,6 +259,8 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
 }
 
 object SequenceRowsRelation {
+  val upsertSchema: StructType = structType[SequenceRowWithExternalId]
+  val deleteSchema: StructType = structType[SequenceRowDeleteSchema]
 
   private def parseValue(value: Any, offset: Long = 0) = Some(value.asInstanceOf[Long] + offset)
   def getSeqFilter(filter: Filter): Seq[SequenceRowFilter] = // scalastyle:off
