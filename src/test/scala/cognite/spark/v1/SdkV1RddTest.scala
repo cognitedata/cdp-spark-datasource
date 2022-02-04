@@ -37,7 +37,12 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     def uniqueId(s: String): String = "1"
 
     val sdkRdd =
-      SdkV1Rdd(spark.sparkContext, getDefaultConfig(CdfSparkAuth.Static(readApiKeyAuth)), toRow, uniqueId, getStreams)
+      SdkV1Rdd(
+        spark.sparkContext,
+        getDefaultConfig(CdfSparkAuth.Static(readApiKeyAuth)),
+        toRow,
+        uniqueId,
+        getStreams)
 
     val e = intercept[CdpApiException] {
       sdkRdd.compute(CdfPartition(0), TaskContext.get())
@@ -71,5 +76,33 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     )
 
     assert(rdd.compute(CdfPartition(0), TaskContext.get()).size == nStreams * nItemsPerStream)
+  }
+
+  it should "convert multiple streams and keep duplicate" in {
+    import CdpConnector._
+
+    val nStreams = 50
+    val nItemsPerStream = 1000
+    val rdd = new SdkV1Rdd[Event, Long](
+      spark.sparkContext,
+      DefaultSource
+        .parseRelationConfig(Map("apiKey" -> writeApiKey), spark.sqlContext)
+        .copy(parallelismPerPartition = nStreams),
+      (e: Event, partitionIndex: Option[Int]) => asRow(e),
+      (e: Event) => e.id,
+      (_: GenericClient[IO], _: Option[Int], _: Int) => {
+        val allStreams = 0.until(nStreams).map { i =>
+          Stream.evalUnChunk {
+            IO.sleep((scala.math.random * 300).millis)(cdpConnectorTimer) *> IO(
+              Chunk.seq(1.to(nItemsPerStream).map(j => Event(id = i * nItemsPerStream + j))))
+          }
+        }
+        // Duplicates should be filtered out, so appending streams shouldn't make any difference.
+        allStreams ++ allStreams ++ allStreams
+      },
+      deduplicateRows = false
+    )
+
+    assert(rdd.compute(CdfPartition(0), TaskContext.get()).size == nStreams * nItemsPerStream * 3) // * 3 because we duplicate the allStreams 3 times
   }
 }
