@@ -60,7 +60,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       spark.sparkContext,
       DefaultSource
         .parseRelationConfig(Map("apiKey" -> writeApiKey), spark.sqlContext)
-        .copy(parallelismPerPartition = nStreams),
+        .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, partitionIndex: Option[Int]) => asRow(e),
       (e: Event) => e.id,
       (_: GenericClient[IO], _: Option[Int], _: Int) => {
@@ -75,6 +75,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       }
     )
 
+    assert(rdd.partitions.length == 1)
     assert(rdd.compute(CdfPartition(0), TaskContext.get()).size == nStreams * nItemsPerStream)
   }
 
@@ -87,7 +88,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       spark.sparkContext,
       DefaultSource
         .parseRelationConfig(Map("apiKey" -> writeApiKey), spark.sqlContext)
-        .copy(parallelismPerPartition = nStreams),
+        .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, partitionIndex: Option[Int]) => asRow(e),
       (e: Event) => e.id,
       (_: GenericClient[IO], _: Option[Int], _: Int) => {
@@ -97,12 +98,12 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
               Chunk.seq(1.to(nItemsPerStream).map(j => Event(id = i * nItemsPerStream + j))))
           }
         }
-        // Duplicates should be filtered out, so appending streams shouldn't make any difference.
         allStreams ++ allStreams ++ allStreams
       },
       deduplicateRows = false
     )
 
+    assert(rdd.partitions.length == 1)
     assert(rdd.compute(CdfPartition(0), TaskContext.get()).size == nStreams * nItemsPerStream * 3) // * 3 because we duplicate the allStreams 3 times
   }
 }
