@@ -66,7 +66,8 @@ lazy val commonSettings = Seq(
     if (gpgPass.isDefined) gpgPass.map(_.toCharArray)
     else None
   },
-  Test / fork := true
+  Test / fork := true,
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD")
 )
 
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
@@ -183,12 +184,20 @@ lazy val performancebench = (project in file("performancebench"))
   )
 
 lazy val cdfdump = (project in file("cdf_dump"))
-  .enablePlugins(JavaAppPackaging, UniversalPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, UniversalPlugin)
   .dependsOn(library)
   .settings(
     commonSettings,
     publish / skip := true,
-    name := "cdf-dump",
+    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
+    buildInfoPackage := "cognite.spark.cdfdump",
+    assembly / assemblyJarName := "cdf_dump.jar",
+    assembly / assemblyMergeStrategy := {
+      case n if n.contains("services") || n.startsWith("reference.conf") || n.endsWith(".conf") => MergeStrategy.concat
+      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+      case x => MergeStrategy.first
+    },
+    name := "cdf_dump",
     fork := true,
     libraryDependencies ++= Seq(
       "org.rogach" %% "scallop" % "4.0.1",

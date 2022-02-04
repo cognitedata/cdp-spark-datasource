@@ -1,3 +1,9 @@
+# 1.4.62
+
+## Fixes
+
+* Chunk sequences when creating to avoid limit 10000 columns
+
 # 1.4.61
 
 ## Fixes
