@@ -1,3 +1,13 @@
+# 1.4.63
+
+## Fixes
+
+* Reduce unnecessary memory consumption when reading RAW rows
+
+## Fixes
+
+* Chunk sequences when creating to avoid limit 10000 columns
+
 # 1.4.62
 
 ## Fixes
