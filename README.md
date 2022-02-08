@@ -1,4 +1,4 @@
-![Maven Central](https://img.shields.io/maven-central/v/com.cognite.spark.datasource/cdf-spark-datasource_2.12?label=version)
+![Maven Central](https://img.shields.io/maven-central/v/com.cognite.spark.datasource/cdf-spark-datasource_2.13?label=version)
 # Spark Data Source
 
 The [Cognite Spark Data Source](https://github.com/cognitedata/cdp-spark-datasource)

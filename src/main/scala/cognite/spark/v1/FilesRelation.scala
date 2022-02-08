@@ -20,7 +20,7 @@ import cognite.spark.v1.PushdownUtilities.{
   cogniteExternalIdSeqToStringSeq,
   executeFilter,
   externalIdsToContainsAny,
-  idsFromWrappedArray,
+  idsFromStringifiedArray,
   pushdownToFilters,
   stringSeqToCogniteExternalIdSeq,
   timeRange
@@ -50,7 +50,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     FilesFilter(
       name = m.get("name"),
       mimeType = m.get("mimeType"),
-      assetIds = m.get("assetIds").map(idsFromWrappedArray),
+      assetIds = m.get("assetIds").map(idsFromStringifiedArray),
       createdTime = timeRange(m, "createdTime"),
       lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
       uploadedTime = timeRange(m, "uploadedTime"),
@@ -58,7 +58,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       sourceModifiedTime = timeRange(m, "sourceModifiedTime"),
       uploaded = m.get("uploaded").map(_.toBoolean),
       source = m.get("source"),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
+      dataSetIds = m.get("dataSetId").map(idsFromStringifiedArray(_).map(CogniteInternalId(_))),
       labels = m.get("labels").flatMap(externalIdsToContainsAny),
       externalIdPrefix = m.get("externalIdPrefix")
     )

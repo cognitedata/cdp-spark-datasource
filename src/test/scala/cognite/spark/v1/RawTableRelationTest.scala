@@ -64,8 +64,8 @@ class RawTableRelationTest
   private val dfWithoutlastUpdatedTimeSchema = StructType(
     Seq(StructField("notlastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
   private val dataWithoutlastUpdatedTime = Seq(
-    RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt)),
-    RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt))
+    RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt).toMap),
+    RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt).toMap)
   )
   private val dfWithlastUpdatedTimeSchema = StructType(
     Seq(StructField("lastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
@@ -81,13 +81,8 @@ class RawTableRelationTest
       StructField("value", IntegerType, false)
     ))
   private val dataWithManylastUpdatedTime = Seq(
-    RawRow(
-      "key5",
-      Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt)),
-    RawRow(
-      "key6",
-      Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2)
-        .mapValues(Json.fromInt))
+    RawRow("key5", Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt).toMap),
+    RawRow("key6", Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2).mapValues(Json.fromInt).toMap)
   )
 
   private val dataWithSimpleNestedStruct = Seq(

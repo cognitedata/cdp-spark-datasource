@@ -50,7 +50,7 @@ object RawJsonConverter {
       case v: Array[Byte] =>
         throw new CdfSparkIllegalArgumentException(
           "BinaryType is not supported when writing raw, please convert it to base64 string or array of numbers")
-      case v: Seq[Any] => Json.arr(v.map(anyToRawJson): _*)
+      case v: Iterable[Any] => Json.arr(v.toSeq.map(anyToRawJson): _*)
       case v: Map[Any @unchecked, Any @unchecked] =>
         Json.obj(v.toSeq.map(x => x._1.toString -> anyToRawJson(x._2)): _*)
       case v: Row => rowToJson(v)

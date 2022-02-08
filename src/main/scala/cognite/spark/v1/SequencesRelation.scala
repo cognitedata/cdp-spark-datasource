@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
@@ -10,6 +9,7 @@ import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1.resources.SequencesResource
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
+import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
@@ -98,15 +98,35 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     throw new CdfSparkException("Upsert not supported for sequences.")
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
-    val sequences = rows.map(fromRow[SequenceCreate](_))
+    val sequences =
+      rows
+        .map(fromRow[SequenceUpdateSchema](_))
+
+    implicit val toCreate =
+      Transformer
+        .define[SequenceUpdateSchema, SequenceCreate]
+        .withFieldComputed(
+          _.columns,
+          x =>
+            cats.data.NonEmptyList
+              .fromFoldable(
+                x.columns
+                  .getOrElse(throw new CdfSparkIllegalArgumentException(
+                    s"columns is required when inserting sequences (on row $x)"))
+                  .toVector
+              )
+              .getOrElse(
+                throw new CdfSparkIllegalArgumentException(s"columns must not be empty (on row $x)"))
+        )
+        .buildTransformer
 
     // scalastyle:off no.whitespace.after.left.bracket
     createOrUpdateByExternalId[
       Sequence,
       SequenceUpdate,
       SequenceCreate,
-      SequenceCreate,
-      Option,
+      SequenceUpdateSchema,
+      OptionalField,
       SequencesResource[IO]](Set.empty, sequences, client.sequences, doUpsert = true)
   }
 
