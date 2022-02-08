@@ -101,27 +101,39 @@ object PushdownUtilities {
         .reduce(PushdownAnd)
     }
 
+  /** We use a null byte as separator */
+  private val stringifiedArraySeparator = '\u0000'
+
   // Spark will still filter the result after pushdown filters are applied, see source code for
   // PrunedFilteredScan, hence it's ok that our pushdown filter reads some data that should ideally
   // be filtered out
   // scalastyle:off
-  def getFilter(filter: Filter): PushdownExpression =
+  def getFilter(filter: Filter): PushdownExpression = {
+    def toStr(v: Any): String =
+      v match {
+        // we convert all filter value to a string which is a bit problematic for arrays:
+        // we choose to separate the values by a null-byte as it's very unlikely to be
+        // present as many platforms don't even allow null bytes in strings
+        case i: Iterable[Any] => i.mkString(stringifiedArraySeparator.toString)
+        case _ => v.toString
+      }
+
     filter match {
       case IsNotNull(_) | IsNull(_) | EqualNullSafe(_, null) => NoPushdown()
       case EqualTo(_, null) | GreaterThan(_, null) | GreaterThanOrEqual(_, null) | LessThan(_, null) |
           LessThanOrEqual(_, null) =>
         throw new CdfInternalSparkException(
           "Unexpected error, seems that Spark query optimizer is misbehaving. Please contact support@cognite.com and tell them.")
-      case EqualTo(colName, value) => PushdownFilter(colName, value.toString)
-      case EqualNullSafe(colName, value) => PushdownFilter(colName, value.toString)
+      case EqualTo(colName, value) => PushdownFilter(colName, toStr(value))
+      case EqualNullSafe(colName, value) => PushdownFilter(colName, toStr(value))
       case GreaterThan(colName, value) =>
-        PushdownFilter("min" + colName.capitalize, value.toString)
+        PushdownFilter("min" + colName.capitalize, toStr(value))
       case GreaterThanOrEqual(colName, value) =>
-        PushdownFilter("min" + colName.capitalize, value.toString)
+        PushdownFilter("min" + colName.capitalize, toStr(value))
       case LessThan(colName, value) =>
-        PushdownFilter("max" + colName.capitalize, value.toString)
+        PushdownFilter("max" + colName.capitalize, toStr(value))
       case LessThanOrEqual(colName, value) =>
-        PushdownFilter("max" + colName.capitalize, value.toString)
+        PushdownFilter("max" + colName.capitalize, toStr(value))
       case StringStartsWith(colName, value) =>
         PushdownFilter(colName + "Prefix", value)
       case In(colName, values) =>
@@ -133,11 +145,12 @@ object PushdownUtilities {
           // false OR NULL is NULL. Almost like with false, since null is like false
           // This is not true for negation, but we can't process negation in pushdown filters anyway
             .filter(_ != null)
-            .map(v => PushdownFilter(colName, v.toString)))
+            .map(v => PushdownFilter(colName, toStr(v))))
       case And(f1, f2) => PushdownAnd(getFilter(f1), getFilter(f2))
       case Or(f1, f2) => PushdownFilters(Seq(getFilter(f1), getFilter(f2)))
       case _ => NoPushdown()
     }
+  }
 
   def shouldGetAll(
       pushdownExpression: PushdownExpression,
@@ -153,16 +166,12 @@ object PushdownUtilities {
       case NoPushdown() => false
     }
 
-  def externalIdsSeqFromWrappedArray(wrappedArray: String): Seq[String] =
-    // We get "WrappedArray(ext1, ext2)" here, so we can remove irrelevant parts of the string
-    // and extract ext1 and ext2 from it -> return Seq('ext1', 'ext2')
-    wrappedArray.length match {
-      case 14 => Seq() // "WrappedArray()".length
-      case _ => wrappedArray.slice(13, wrappedArray.length - 1).split(',')
-    }
+  def externalIdsSeqFromStringifiedArray(wrappedArray: String): Array[String] =
+    // we get a string separated by \0
+    wrappedArray.split(stringifiedArraySeparator).filter(_.nonEmpty)
 
-  def idsFromWrappedArray(wrappedArray: String): Seq[Long] =
-    wrappedArray.split("\\D+").filter(_.nonEmpty).map(_.toLong)
+  def idsFromStringifiedArray(wrappedArray: String): Array[Long] =
+    wrappedArray.split(stringifiedArraySeparator).filter(_.nonEmpty).map(_.toLong)
 
   def filtersToTimestampLimits(filters: Array[Filter], colName: String): (Instant, Instant) = {
     val timestampLimits = filters.flatMap(getTimestampLimit(_, colName))
@@ -229,19 +238,19 @@ object PushdownUtilities {
   def cogniteExternalIdSeqToStringSeq(
       cogniteExternalIds: Option[Seq[CogniteExternalId]]): Option[Seq[String]] =
     cogniteExternalIds match {
-      case Some(Seq()) => None
+      case Some(x) if x.isEmpty => None
       case _ => cogniteExternalIds.map(l => l.map(_.externalId))
     }
 
   def stringSeqToCogniteExternalIdSeq(
       strExternalIds: Option[Seq[String]]): Option[Seq[CogniteExternalId]] =
     strExternalIds match {
-      case Some(Seq()) => None
+      case Some(x) if x.isEmpty => None
       case _ => strExternalIds.map(l => l.filter(_ != null).map(CogniteExternalId(_)))
     }
 
   def externalIdsToContainsAny(externalIds: String): Option[ContainsAny] = {
-    val externalIdSeq = externalIdsSeqFromWrappedArray(externalIds)
+    val externalIdSeq = externalIdsSeqFromStringifiedArray(externalIds)
     externalIdSeq.isEmpty match {
       case true => None
       case _ => Some(ContainsAny(containsAny = externalIdSeq.map(CogniteExternalId(_))))
