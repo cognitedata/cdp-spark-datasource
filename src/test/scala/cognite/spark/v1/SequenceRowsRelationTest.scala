@@ -64,8 +64,9 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
   it should "create and read rows by externalId" in withSequences(Seq(sequenceA)) {
     case Seq(sequenceId) =>
+      val nbOfRowsToTest = 50
       spark.sparkContext
-        .parallelize(1 to 50)
+        .parallelize(1 to nbOfRowsToTest)
         .toDF()
         .createOrReplaceTempView("numbers_create")
 
@@ -74,13 +75,13 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         spark
           .sql(
             s"select value as rowNumber, '$sequenceId' as externalId, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create"))
-      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 50
+      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
 
       val allColumns = retryWhile[Array[Row]](
         spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
-        _.length < 50
+        _.length < nbOfRowsToTest
       )
-      (allColumns should have).length(50)
+      (allColumns should have).length(nbOfRowsToTest)
       allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
       allColumns(0).get(0) shouldBe 1L
       allColumns(0).get(1) shouldBe 6L
@@ -96,13 +97,13 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         .option("collectMetrics", true)
         .load()
         .collect
-      getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe 50
+      getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
 
       (sparkReadResult should contain).theSameElementsAs(allColumns)
 
       val rowNumberOnly = retryWhile[Array[Row]](
         spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect,
-        _.length < 50
+        _.length < nbOfRowsToTest
       )
       rowNumberOnly(0).get(0) shouldBe 1L
 
@@ -110,7 +111,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         spark
           .sql(s"select num1, num2, rowNumber, str1 from sequencerows_${sequenceId} order by rowNumber")
           .collect,
-        _.length < 2
+        _.length < nbOfRowsToTest
       )
       differentOrderProjection(0).get(2) shouldBe 1L
       differentOrderProjection(0).get(3) shouldBe "abc"
@@ -119,15 +120,16 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
       val oneColumn = retryWhile[Array[Row]](
         spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect,
-        _.length < 50
+        _.length < nbOfRowsToTest
       )
-      oneColumn.map(_.get(0)) shouldBe Seq.fill(50)(1.1)
+      oneColumn.map(_.get(0)) shouldBe Seq.fill(nbOfRowsToTest)(1.1)
   }
 
   it should "create and read rows by id" in withSequencesById(Seq(sequenceA)) {
     case Seq((id, sequenceId)) =>
+      val nbOfRowsToTest = 50
       spark.sparkContext
-        .parallelize(1 to 50)
+        .parallelize(1 to nbOfRowsToTest)
         .toDF()
         .createOrReplaceTempView("numbers_create")
 
@@ -136,13 +138,13 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         spark
           .sql(
             s"select value as rowNumber, $id as id, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create"))
-      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 50
+      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
 
       val allColumns = retryWhile[Array[Row]](
         spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
-        _.length < 50
+        _.length < nbOfRowsToTest
       )
-      (allColumns should have).length(50)
+      (allColumns should have).length(nbOfRowsToTest)
       allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
       allColumns(0).get(0) shouldBe 1L
       allColumns(0).get(1) shouldBe 6L
@@ -158,13 +160,13 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         .option("collectMetrics", true)
         .load()
         .collect
-      getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe 50
+      getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
 
       (sparkReadResult should contain).theSameElementsAs(allColumns)
 
       val rowNumberOnly = retryWhile[Array[Row]](
         spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect,
-        _.length < 50
+        _.length < nbOfRowsToTest
       )
       rowNumberOnly(0).get(0) shouldBe 1L
 
@@ -172,7 +174,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         spark
           .sql(s"select num1, num2, rowNumber, str1 from sequencerows_${sequenceId} order by rowNumber")
           .collect,
-        _.length < 50
+        _.length < nbOfRowsToTest
       )
       differentOrderProjection(0).get(2) shouldBe 1L
       differentOrderProjection(0).get(3) shouldBe "abc"
@@ -181,9 +183,9 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
       val oneColumn = retryWhile[Array[Row]](
         spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect,
-        _.length < 50
+        _.length < nbOfRowsToTest
       )
-      oneColumn.map(_.get(0)) shouldBe Seq.fill(50)(1.1)
+      oneColumn.map(_.get(0)) shouldBe Seq.fill(nbOfRowsToTest)(1.1)
   }
 
   it should "insert NULL values" in withSequences(Seq(sequenceA)) {
@@ -282,16 +284,18 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       val dfATwo = spark.sql(
         s"select value as rowNumber, '$sequenceATwoId' as externalId, 'abc' as str1, 1.1 as num2, value * 4 as num1 from numbers_create")
 
-      insertRows(sequenceAId, dfA.union(dfATwo))
-      getNumberOfRowsCreated(sequenceAId, "sequencerows") shouldBe testSize * 2
+      insertRows(sequenceAId, dfA)
+      insertRows(sequenceATwoId, dfATwo)
+      getNumberOfRowsCreated(sequenceAId, "sequencerows") shouldBe testSize
+      getNumberOfRowsCreated(sequenceATwoId, "sequencerows") shouldBe testSize
 
       val AColumns = retryWhile[Array[Row]](
         spark.sql(s"select * from sequencerows_${sequenceAId} order by rowNumber").collect,
-        rows => rows.length < 100
+        rows => rows.length < testSize
       )
       val ATwoColumns = retryWhile[Array[Row]](
         spark.sql(s"select * from sequencerows_${sequenceATwoId} order by rowNumber").collect,
-        rows => rows.length < 100
+        rows => rows.length < testSize
       )
 
       AColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
