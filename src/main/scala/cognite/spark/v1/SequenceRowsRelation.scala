@@ -11,6 +11,8 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+import scala.util.Try
+
 case class SequenceRowWithExternalId(externalId: CogniteExternalId, sequenceRow: SequenceRow)
 
 class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)
@@ -166,20 +168,36 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "rowNumber", "Long", "")
       }
 
-      val externalId = sequenceInfo.externalId match {
-        case Some(id) => id
-        case _ =>
-          throw new CdfSparkException("Can't upsert sequence rows, column `externalId` is missing.")
+      val maybeExternalId = Try(row.get(externalIdIndex)).toOption match {
+        case Some(x: String) => Some(x)
+        case _ => None
+      }
+
+      val maybeId = Try(row.get(idIndex)).toOption match {
+        case Some(x: Long) => Some(x)
+        case Some(x: Int) => Some(x.toLong)
+        case _ => None
+      }
+
+      val externalId = (maybeExternalId, maybeId) match {
+        case (Some(externalId), _) => externalId
+        case (None, Some(id)) =>
+          client.sequences.retrieveById(id).unsafeRunSync().externalId match {
+            case Some(externalId) => externalId
+            case None =>
+              throw new CdfSparkException(
+                s"Can't upsert sequence rows, sequence ${id} has column `externalId` empty.")
+          }
+        case (None, None) =>
+          throw new CdfSparkException(
+            "Can't upsert sequence rows, at least `id` or `externalId` must be provided.")
       }
 
       val columnValues = columns.map {
         case (index, name, columnType) =>
           tryGetValue(columnType).applyOrElse(
             row.get(index),
-            (_: Any) =>
-              throw SparkSchemaHelperRuntime
-                .badRowError(row, name, columnType, "")
-          )
+            (_: Any) => throw SparkSchemaHelperRuntime.badRowError(row, name, columnType, ""))
       }
       SequenceRowWithExternalId(CogniteExternalId(externalId), SequenceRow(rowNumber, columnValues))
     }
