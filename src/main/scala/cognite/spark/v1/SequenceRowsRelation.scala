@@ -13,7 +13,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import scala.util.Try
 
-case class SequenceRowWithExternalId(externalId: CogniteExternalId, sequenceRow: SequenceRow)
+case class SequenceRowWithId(id: CogniteId, sequenceRow: SequenceRow)
 
 class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)
     extends CdfRelation(config, "sequencerows")
@@ -137,7 +137,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       }
     }
 
-  def fromRow(schema: StructType): (Array[String], Row => SequenceRowWithExternalId) = {
+  def fromRow(schema: StructType): (Array[String], Row => SequenceRowWithId) = {
     val rowNumberIndex = schema.fieldNames.indexOf("rowNumber")
     if (rowNumberIndex < 0) {
       throw new CdfSparkException("Can't upsert sequence rows, column `rowNumber` is missing.")
@@ -161,7 +161,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
           (index, field.name, columnType)
       }
 
-    def parseRow(row: Row): SequenceRowWithExternalId = {
+    def parseRow(row: Row): SequenceRowWithId = {
       val rowNumber = row.get(rowNumberIndex) match {
         case x: Long => x
         case x: Int => x: Long
@@ -173,21 +173,15 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         case _ => None
       }
 
-      val maybeId = Try(row.get(idIndex)).toOption match {
+      val maybeInternalId = Try(row.get(idIndex)).toOption match {
         case Some(x: Long) => Some(x)
         case Some(x: Int) => Some(x.toLong)
         case _ => None
       }
 
-      val externalId = (maybeExternalId, maybeId) match {
-        case (Some(externalId), _) => externalId
-        case (None, Some(id)) =>
-          client.sequences.retrieveById(id).unsafeRunSync().externalId match {
-            case Some(externalId) => externalId
-            case None =>
-              throw new CdfSparkException(
-                s"Can't upsert sequence rows, sequence ${id} has column `externalId` empty.")
-          }
+      val id = (maybeInternalId, maybeExternalId) match {
+        case (Some(internalId), _) => CogniteInternalId(internalId)
+        case (None, Some(externalId)) => CogniteExternalId(externalId)
         case (None, None) =>
           throw new CdfSparkException(
             "Can't upsert sequence rows, at least `id` or `externalId` must be provided.")
@@ -199,7 +193,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
             row.get(index),
             (_: Any) => throw SparkSchemaHelperRuntime.badRowError(row, name, columnType, ""))
       }
-      SequenceRowWithExternalId(CogniteExternalId(externalId), SequenceRow(rowNumber, columnValues))
+      SequenceRowWithId(id, SequenceRow(rowNumber, columnValues))
     }
 
     (columns.map(_._2), parseRow)
@@ -226,13 +220,21 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
 
       import cats.instances.list._
       projectedRows
-        .groupBy(_.externalId)
+        .groupBy(_.id)
         .toList
         .parTraverse {
           case (cogniteExternalId, rows) =>
-            client.sequenceRows
-              .insertByExternalId(cogniteExternalId.externalId, columns, rows.map(_.sequenceRow))
-              .flatTap(_ => incMetrics(itemsCreated, rows.length))
+            cogniteExternalId match {
+              case externalId: CogniteExternalId =>
+                client.sequenceRows
+                  .insertByExternalId(externalId.externalId, columns, rows.map(_.sequenceRow))
+                  .flatTap(_ => incMetrics(itemsCreated, rows.length))
+              case internalId: CogniteInternalId =>
+                client.sequenceRows
+                  .insertById(internalId.id, columns, rows.map(_.sequenceRow))
+                  .flatTap(_ => incMetrics(itemsCreated, rows.length))
+            }
+
         } *> IO.unit
     }
 
