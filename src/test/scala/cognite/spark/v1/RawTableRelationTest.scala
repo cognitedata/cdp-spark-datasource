@@ -522,6 +522,58 @@ class RawTableRelationTest
       assert(nestedStruct.schema != null)
       nestedStruct.schema.fieldNames.toSeq.loneElement shouldBe "foo"
       nestedStruct.toSeq.loneElement shouldBe 123L
+
+      val arrayOfStruct = struct.getSeq[Row](struct.fieldIndex("array_of_struct"))
+      val structInArray = arrayOfStruct.loneElement
+
+      assert(structInArray.schema != null)
+      structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
+      structInArray.toSeq.loneElement shouldBe 123L
+    } finally {
+      writeClient.rawRows(database, table).deleteById(key)
+    }
+  }
+
+  it should "create the table with ensureParent option" in {
+    val database = "testdb"
+    val table = "ensureParent-test-" + shortRandomString()
+
+    // remove the DB to be sure
+    try {
+      writeClient.rawTables(database).deleteById(table)
+    } catch {
+      case _: CdpApiException => ()// Ignore
+    }
+
+    val key = shortRandomString()
+
+    try {
+      val source = spark.sql(
+        s"""select
+           |  '$key' as key,
+           |  123 as something
+           |""".stripMargin)
+      val destination = spark.read
+        .format("cognite.spark.v1")
+        .schema(source.schema)
+        .option("apiKey", writeApiKey)
+        .option("type", "raw")
+        .option("database", database)
+        .option("table", table)
+        .option("rawEnsureParent", "true")
+        .load()
+      destination.createTempView("ensureParent_test")
+      source
+        .select(destination.columns.map(c => col(c)): _*)
+        .write
+        .insertInto("ensureParent_test")
+
+    } finally {
+      try {
+        writeClient.rawTables(database).deleteById(table)
+      } catch {
+        case _: CdpApiException => ()// Ignore
+      }
     }
   }
 
