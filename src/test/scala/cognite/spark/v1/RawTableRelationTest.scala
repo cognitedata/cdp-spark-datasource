@@ -737,4 +737,22 @@ class RawTableRelationTest
       .map(_.getAs[Any]("bool"))
       .toSet shouldBe Set(null, true, false) // scalastyle:off null
   }
+
+  it should "fail reasonably on invalid types" in {
+    val schema: StructType = StructType(
+      Seq(
+        StructField("key", DataTypes.StringType),
+        StructField("lastUpdatedTime", DataTypes.TimestampType),
+        StructField("value", DataTypes.FloatType)
+      ))
+    val converter =
+      RawJsonConverter.makeRowConverter(schema, Array("value"), "lastUpdatedTime", "key")
+
+    val testRow = RawRow("k", Map("value" -> Json.fromString("test")))
+
+    val err = intercept[SparkRawRowMappingException](converter.apply(testRow))
+
+    err.getMessage shouldBe "Error while loading RAW row [key='k'] in column 'value': java.lang.NumberFormatException: For input string: \"test\""
+
+  }
 }

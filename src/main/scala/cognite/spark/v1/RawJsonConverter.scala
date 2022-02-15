@@ -117,7 +117,12 @@ object RawJsonConverter {
         for ((key, value) <- row.columns) {
           val fieldIndex = nameMap.getOrDefault(key, -1)
           if (fieldIndex >= 0) {
-            rowArray(fieldIndex + 2) = fieldConverters(fieldIndex).convertNullSafe(value)
+            try {
+              rowArray(fieldIndex + 2) = fieldConverters(fieldIndex).convertNullSafe(value)
+            } catch {
+              case e: Exception =>
+                throw new SparkRawRowMappingException(key, row, e)
+            }
           }
         }
         new GenericRowWithSchema(rowArray, sparkSchema)
@@ -392,3 +397,8 @@ object RawJsonConverter {
   }
 
 }
+
+class SparkRawRowMappingException(val column: String, val row: RawRow, cause: Throwable)
+    extends CdfSparkException(
+      s"Error while loading RAW row [key='${row.key}'] in column '$column': $cause",
+      cause)
