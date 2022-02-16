@@ -31,7 +31,18 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .map(
         _.map(
           _.into[AssetsReadSchema]
-            .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
+            .withFieldComputed(_.labels, asset => cogniteExternalIdSeqToStringSeq(asset.labels))
+            .withFieldComputed(
+              _.aggregates,
+              asset =>
+                asset.aggregates.map { aggregates =>
+                  AssetsAggregatesSchema(
+                    aggregates.get("childCount"),
+                    None, // No support for path yet.
+                    aggregates.get("depth")
+                  )
+              }
+            )
             .transform))
   }
 
@@ -167,7 +178,7 @@ final case class AssetsReadSchema(
 
 final case class AssetsAggregatesSchema(
     // TODO: add actual support for these aggregated properties
-    childCount: Option[Int] = None,
+    childCount: Option[Long] = None,
     path: Option[Array[String]] = None,
-    depth: Option[Int] = None
+    depth: Option[Long] = None
 )
