@@ -1,12 +1,16 @@
+# 1.4.64
+
+## Enhancements
+
+* Add support Scala 2.13
+* Improve error reporting of invalid types in nested structures
+* Improve error reporting of invalid types in RAW json. The error will now include row key and column name
+
 # 1.4.63
 
 ## Fixes
 
 * Reduce unnecessary memory consumption when reading RAW rows
-
-## Fixes
-
-* Chunk sequences when creating to avoid limit 10000 columns
 
 # 1.4.62
 
