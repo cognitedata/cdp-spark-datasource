@@ -9,9 +9,8 @@ class PushdownUtilitiesTest extends FlatSpec with ParallelTestExecution with Mat
     val baseUri = uri"https://api.com"
     val pushdownExpression = PushdownAnd(PushdownFilter("id", "123"), PushdownFilter("type", "abc"))
     val params = pushdownToParameters(pushdownExpression)
-    val uris = pushdownToUri(params, baseUri)
 
-    assert(uris.length == 1)
+    assert(params.length == 1)
   }
 
   it should "create two requests for 1+1 or expression" in {
@@ -19,9 +18,8 @@ class PushdownUtilitiesTest extends FlatSpec with ParallelTestExecution with Mat
     val pushdownExpression =
       PushdownFilters(Seq(PushdownFilter("id", "123"), PushdownFilter("type", "abc")))
     val params = pushdownToParameters(pushdownExpression)
-    val uris = pushdownToUri(params, baseUri)
 
-    assert(uris.length == 2)
+    assert(params.length == 2)
   }
 
   it should "create 9 requests for 3x3 and or expression" in {
@@ -38,8 +36,7 @@ class PushdownUtilitiesTest extends FlatSpec with ParallelTestExecution with Mat
         PushdownFilter("description", "test2")))
     val pushdownExpression = PushdownAnd(left, right)
     val params = pushdownToParameters(pushdownExpression)
-    val uris = pushdownToUri(params, baseUri)
 
-    assert(uris.length == 9)
+    assert(params.length == 9)
   }
 }
