@@ -168,16 +168,20 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "rowNumber", "Long", "")
       }
 
-      val maybeExternalId = Try(row.get(externalIdIndex)).toOption match {
-        case Some(x: String) => Some(x)
-        case _ => None
-      }
+      val maybeExternalId = if (externalIdIndex >= 0) {
+        row.get(externalIdIndex) match {
+          case x: String => Some(x)
+          case _ => None
+        }
+      } else None
 
-      val maybeInternalId = Try(row.get(idIndex)).toOption match {
-        case Some(x: Long) => Some(x)
-        case Some(x: Int) => Some(x.toLong)
-        case _ => None
-      }
+      val maybeInternalId = if (idIndex >= 0) {
+        row.get(idIndex) match {
+          case x: Long => Some(x)
+          case x: Int => Some(x.toLong)
+          case _ => None
+        }
+      } else None
 
       val id = (maybeInternalId, maybeExternalId) match {
         case (Some(internalId), _) => CogniteInternalId(internalId)
