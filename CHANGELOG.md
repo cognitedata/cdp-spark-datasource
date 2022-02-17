@@ -1,3 +1,9 @@
+# 1.4.65
+
+## Enhancements
+
+* Support both Id and ExternalId for Sequence Rows inserting
+
 # 1.4.64
 
 ## Enhancements
