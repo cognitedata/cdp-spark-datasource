@@ -50,7 +50,7 @@ object RawJsonConverter {
       case v: Array[Byte] =>
         throw new CdfSparkIllegalArgumentException(
           "BinaryType is not supported when writing raw, please convert it to base64 string or array of numbers")
-      case v: Seq[Any] => Json.arr(v.map(anyToRawJson): _*)
+      case v: Iterable[Any] => Json.arr(v.toSeq.map(anyToRawJson): _*)
       case v: Map[Any @unchecked, Any @unchecked] =>
         Json.obj(v.toSeq.map(x => x._1.toString -> anyToRawJson(x._2)): _*)
       case v: Row => rowToJson(v)
@@ -117,7 +117,12 @@ object RawJsonConverter {
         for ((key, value) <- row.columns) {
           val fieldIndex = nameMap.getOrDefault(key, -1)
           if (fieldIndex >= 0) {
-            rowArray(fieldIndex + 2) = fieldConverters(fieldIndex).convertNullSafe(value)
+            try {
+              rowArray(fieldIndex + 2) = fieldConverters(fieldIndex).convertNullSafe(value)
+            } catch {
+              case e: Exception =>
+                throw new SparkRawRowMappingException(key, row, e)
+            }
           }
         }
         new GenericRowWithSchema(rowArray, sparkSchema)
@@ -392,3 +397,8 @@ object RawJsonConverter {
   }
 
 }
+
+class SparkRawRowMappingException(val column: String, val row: RawRow, cause: Throwable)
+    extends CdfSparkException(
+      s"Error while loading RAW row [key='${row.key}'] in column '$column': $cause",
+      cause)

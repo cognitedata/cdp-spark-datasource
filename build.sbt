@@ -3,8 +3,8 @@ import sbtassembly.AssemblyPlugin.autoImport._
 import sbtassembly.MergeStrategy
 
 val scala212 = "2.12.15"
-//val scala213 = "2.13.6"
-val supportedScalaVersions = List(scala212)
+val scala213 = "2.13.8"
+val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.2.0"
 val circeVersion = "0.13.0"
 val sttpVersion = "3.3.15"
@@ -22,8 +22,9 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.63",
+  version := "1.4.64",
   crossScalaVersions := supportedScalaVersions,
+  scalaVersion := scala212, // default to Scala 2.12
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
@@ -98,8 +99,8 @@ lazy val library = (project in file("."))
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
         // scala-collection-compat is used in TransformerF, but we don't use that,
         // and this dependency causes issues with Livy.
-        exclude("org.scala-lang.modules", "scala-collection-compat_2.11")
-        exclude("org.scala-lang.modules", "scala-collection-compat_2.12"),
+        exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
+        exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
       "com.softwaremill.sttp.client3" %% "async-http-client-backend" % sttpVersion,
       "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats-ce2" % sttpVersion
@@ -112,19 +113,19 @@ lazy val library = (project in file("."))
         exclude("io.netty", "netty-handler-proxy")
         exclude("io.netty", "netty-resolver-dns")
         exclude("io.netty", "netty-transport-native-epoll")
-        exclude("com.softwaremill.sttp", "circe_2.11")
         exclude("com.softwaremill.sttp", "circe_2.12")
-        exclude("org.typelevel", "cats-effect_2.11")
+        exclude("com.softwaremill.sttp", "circe_2.13")
         exclude("org.typelevel", "cats-effect_2.12")
-        exclude("org.typelevel", "cats-core_2.11")
-        exclude("org.typelevel", "cats-core_2.12"),
+        exclude("org.typelevel", "cats-effect_2.13")
+        exclude("org.typelevel", "cats-core_2.12")
+        exclude("org.typelevel", "cats-core_2.13"),
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
       "io.circe" %% "circe-generic" % circeVersion
-        exclude("org.typelevel", "cats-core_2.11")
-        exclude("org.typelevel", "cats-core_2.12"),
+        exclude("org.typelevel", "cats-core_2.12")
+        exclude("org.typelevel", "cats-core_2.13"),
       "io.circe" %% "circe-generic-extras" % circeVersion
-        exclude("org.typelevel", "cats-core_2.11")
-        exclude("org.typelevel", "cats-core_2.12"),
+        exclude("org.typelevel", "cats-core_2.12")
+        exclude("org.typelevel", "cats-core_2.13"),
       "org.scalatest" %% "scalatest" % "3.0.8" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.4.44.v20210927" % Provided,
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided

@@ -39,7 +39,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     AssetsFilter(
       name = m.get("name"),
       source = m.get("source"),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
+      dataSetIds = m.get("dataSetId").map(idsFromStringifiedArray(_).map(CogniteInternalId(_))),
       labels = m.get("labels").flatMap(externalIdsToContainsAny),
       lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
       createdTime = timeRange(m, "createdTime"),
@@ -160,7 +160,14 @@ final case class AssetsReadSchema(
     createdTime: Instant = Instant.ofEpochMilli(0),
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
     rootId: Option[Long] = Some(0),
-    aggregates: Option[Map[String, Long]] = None,
+    aggregates: Option[AssetsAggregatesSchema] = None,
     dataSetId: Option[Long] = None,
     labels: Option[Seq[String]] = None
+)
+
+final case class AssetsAggregatesSchema(
+    // TODO: add actual support for these aggregated properties
+    childCount: Option[Int] = None,
+    path: Option[Array[String]] = None,
+    depth: Option[Int] = None
 )

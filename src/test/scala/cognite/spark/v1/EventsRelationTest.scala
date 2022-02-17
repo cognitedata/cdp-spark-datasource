@@ -1057,6 +1057,30 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       }
     }
   }
+  it should "fail reasonably when assetIds is a string" taggedAs WriteTest in {
+    val error = sparkIntercept {
+      // Post new events
+      spark
+        .sql(s"""
+                |select "foo" as description,
+                |least(startTime, endTime) as startTime,
+                |greatest(startTime, endTime) as endTime,
+                |array('test-what-happens-with-a-string') as assetIds,
+                |map("foo", null, "bar", "test") as metadata,
+                |$testDataSetId as datasetId
+                |from sourceEvent
+                |limit 1
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "events")
+        .save()
+
+    }
+    assert(error.getMessage.contains("Column 'assetIds' was expected to have type Seq[Long], but"))
+  }
+
 
   it should "allow deletes in savemode" taggedAs WriteTest in {
     val source = s"spark-events-delete-save-${shortRandomString()}"

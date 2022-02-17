@@ -64,8 +64,8 @@ class RawTableRelationTest
   private val dfWithoutlastUpdatedTimeSchema = StructType(
     Seq(StructField("notlastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
   private val dataWithoutlastUpdatedTime = Seq(
-    RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt)),
-    RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt))
+    RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt).toMap),
+    RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt).toMap)
   )
   private val dfWithlastUpdatedTimeSchema = StructType(
     Seq(StructField("lastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
@@ -81,13 +81,8 @@ class RawTableRelationTest
       StructField("value", IntegerType, false)
     ))
   private val dataWithManylastUpdatedTime = Seq(
-    RawRow(
-      "key5",
-      Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt)),
-    RawRow(
-      "key6",
-      Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2)
-        .mapValues(Json.fromInt))
+    RawRow("key5", Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt).toMap),
+    RawRow("key6", Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2).mapValues(Json.fromInt).toMap)
   )
 
   private val dataWithSimpleNestedStruct = Seq(
@@ -522,6 +517,58 @@ class RawTableRelationTest
       assert(nestedStruct.schema != null)
       nestedStruct.schema.fieldNames.toSeq.loneElement shouldBe "foo"
       nestedStruct.toSeq.loneElement shouldBe 123L
+
+      val arrayOfStruct = struct.getSeq[Row](struct.fieldIndex("array_of_struct"))
+      val structInArray = arrayOfStruct.loneElement
+
+      assert(structInArray.schema != null)
+      structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
+      structInArray.toSeq.loneElement shouldBe 123L
+    } finally {
+      writeClient.rawRows(database, table).deleteById(key)
+    }
+  }
+
+  it should "create the table with ensureParent option" in {
+    val database = "testdb"
+    val table = "ensureParent-test-" + shortRandomString()
+
+    // remove the DB to be sure
+    try {
+      writeClient.rawTables(database).deleteById(table)
+    } catch {
+      case _: CdpApiException => ()// Ignore
+    }
+
+    val key = shortRandomString()
+
+    try {
+      val source = spark.sql(
+        s"""select
+           |  '$key' as key,
+           |  123 as something
+           |""".stripMargin)
+      val destination = spark.read
+        .format("cognite.spark.v1")
+        .schema(source.schema)
+        .option("apiKey", writeApiKey)
+        .option("type", "raw")
+        .option("database", database)
+        .option("table", table)
+        .option("rawEnsureParent", "true")
+        .load()
+      destination.createTempView("ensureParent_test")
+      source
+        .select(destination.columns.map(c => col(c)): _*)
+        .write
+        .insertInto("ensureParent_test")
+
+    } finally {
+      try {
+        writeClient.rawTables(database).deleteById(table)
+      } catch {
+        case _: CdpApiException => ()// Ignore
+      }
     }
   }
 
@@ -689,5 +736,23 @@ class RawTableRelationTest
       .collect()
       .map(_.getAs[Any]("bool"))
       .toSet shouldBe Set(null, true, false) // scalastyle:off null
+  }
+
+  it should "fail reasonably on invalid types" in {
+    val schema: StructType = StructType(
+      Seq(
+        StructField("key", DataTypes.StringType),
+        StructField("lastUpdatedTime", DataTypes.TimestampType),
+        StructField("value", DataTypes.FloatType)
+      ))
+    val converter =
+      RawJsonConverter.makeRowConverter(schema, Array("value"), "lastUpdatedTime", "key")
+
+    val testRow = RawRow("k", Map("value" -> Json.fromString("test")))
+
+    val err = intercept[SparkRawRowMappingException](converter.apply(testRow))
+
+    err.getMessage shouldBe "Error while loading RAW row [key='k'] in column 'value': java.lang.NumberFormatException: For input string: \"test\""
+
   }
 }
