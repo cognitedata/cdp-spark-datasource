@@ -68,11 +68,28 @@ class RawTableRelation(
     }
   }
 
-  def getStreams(filter: RawRowFilter)(
+  def getStreams(filter: RawRowFilter, cursors: Vector[String])(
       client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, RawRow]] =
-    client.rawRows(database, table).filterPartitionsF(filter, numPartitions, limit).unsafeRunSync()
+      numPartitions: Int): Seq[Stream[IO, RawRow]] = {
+    assert(numPartitions == cursors.length)
+    val rawClient = client.rawRows(database, table)
+    cursors.map(rawClient.filterOnePartition(filter, _, limit))
+  }
+
+  private def getRowConverter(schema: Option[StructType]): RawRow => Row =
+    schema match {
+      case Some(schema) =>
+        // .tail.tail to skip the key and lastUpdatedTime columns, which are always the first two
+        val jsonFieldsSchema = schemaWithoutRenamedColumns(StructType(schema.tail.tail))
+        RawJsonConverter.makeRowConverter(
+          schema,
+          jsonFieldsSchema.fieldNames,
+          lastUpdatedTimeColName,
+          "key")
+      case None =>
+        RawJsonConverter.untypedRowConverter
+    }
 
   private def readRows(
       limit: Option[Int],
@@ -84,19 +101,15 @@ class RawTableRelation(
     val configWithLimit =
       config.copy(limitPerPartition = limit, partitions = numPartitions.getOrElse(config.partitions))
 
-    @transient lazy val rowConverter: RawRow => Row =
-      schema match {
-        case Some(schema) =>
-          // .tail.tail to skip the key and lastUpdatedTime columns, which are always the first two
-          val jsonFieldsSchema = schemaWithoutRenamedColumns(StructType(schema.tail.tail))
-          RawJsonConverter.makeRowConverter(
-            schema,
-            jsonFieldsSchema.fieldNames,
-            lastUpdatedTimeColName,
-            "key")
-        case None =>
-          RawJsonConverter.untypedRowConverter
-      }
+    @transient lazy val rowConverter = getRowConverter(schema)
+
+    val partitionCursors =
+      CdpConnector
+        .clientFromConfig(config)
+        .rawRows(database, table)
+        .getPartitionCursors(filter, configWithLimit.partitions)
+        .unsafeRunSync()
+        .toVector
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
@@ -117,7 +130,8 @@ class RawTableRelation(
       },
       (r: RawRow) => r.key,
       getStreams(filter),
-      deduplicateRows = false // RAW never returns duplicates since we can't have overlapping filters
+      getStreams(filter, partitionCursors),
+      deduplicateRows = true // if false we might end up with 429 when trying to update assets with multiple same request
     )
   }
 
