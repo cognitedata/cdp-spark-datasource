@@ -1,3 +1,9 @@
+# 1.4.66
+
+## Fixes
+
+* Put back deduplicate when reading from RAW to avoid sending multiple same update request
+
 # 1.4.65
 
 ## Enhancements
