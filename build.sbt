@@ -11,7 +11,7 @@ val sttpVersion = "3.4.1"
 val Specs2Version = "4.6.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
 val cogniteSdkVersion = "2.0.0"
-val prometheusVersion = "0.8.1"
+val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
 
 resolvers += "libs-release" at artifactory + "libs-release/"
