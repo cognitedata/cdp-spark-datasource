@@ -1,3 +1,16 @@
+# 2.0.0
+
+## Enhancements
+
+* Upgrades cats-effect to 3.x, a core library we use for concurrent programming,
+as well as many other dependencies. No functional changes are included in this release.
+
+# 1.4.67
+
+## Fixes
+
+* Fixes writing of `Map[String, String]` to RAW.
+
 # 1.4.66
 
 ## Fixes
@@ -95,7 +108,7 @@
 
 ## Enhancements
 
-* Using onconflict=delete on assethierarchy will delete assets recursively 
+* Using onconflict=delete on assethierarchy will delete assets recursively
 
 # 1.4.49
 
