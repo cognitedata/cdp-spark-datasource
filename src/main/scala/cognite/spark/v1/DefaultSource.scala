@@ -157,7 +157,7 @@ class DefaultSource
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
       case "mappings" =>
-        val modelName = parameters.getOrElse("database", sys.error("Database must be specified"))
+        val modelName = parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
         new DataModelInstanceRelation(
           config,
           modelName
