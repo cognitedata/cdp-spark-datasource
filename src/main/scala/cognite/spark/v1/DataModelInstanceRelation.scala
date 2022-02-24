@@ -28,7 +28,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     }
     .unsafeRunSync()
 
-  val mappingTypes: Seq[StructField] = mappingInfo.properties
+  val mappingPropertyStructFields: Seq[StructField] = mappingInfo.properties
     .map { props =>
       props.map {
         case (name, prop) =>
@@ -41,27 +41,26 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .toList
     .flatten
 
-  val columnTypes: Map[String, String] = mappingInfo.properties
+  val propertyTypes: Map[String, (String, Boolean)] = mappingInfo.properties
     .map { props =>
       props.map {
         case (name, prop) =>
-          (name, prop.`type`)
+          (name, (prop.`type`, prop.nullable.getOrElse(true)))
       }
     }
     .getOrElse(Map())
 
   override def schema: StructType = new StructType(
-    Array(StructField("externalId", DataTypes.StringType, nullable = false)) ++ mappingTypes
+    Array(StructField("externalId", DataTypes.StringType, nullable = false)) ++ mappingPropertyStructFields
   )
 
   override def upsert(rows: Seq[Row]): IO[Unit] =
     if (rows.isEmpty) {
       IO.unit
     } else {
-      val (columns, fromRowFn) = fromRow(rows.head.schema)
-      val projectedRows: Seq[DataModelInstance] = rows.map(fromRowFn)
-      import cats.instances.list._
-      client.dataModelInstances.createItems(Items(projectedRows)) *> IO.unit
+      val fromRowFn = fromRow(rows.head.schema)
+      val dataModelInstances: Seq[DataModelInstance] = rows.map(fromRowFn)
+      client.dataModelInstances.createItems(Items(dataModelInstances)) *> IO.unit
     }
 
   def toRow(a: ProjectedDataModelInstance): Row = ???
@@ -82,50 +81,50 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   override def delete(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Delete not supported for data model instances. Use upsert instead.")
 
-  def fromRow(schema: StructType): (Array[String], Row => DataModelInstance) = {
+  def fromRow(schema: StructType): Row => DataModelInstance = {
     val externalIdIndex = schema.fieldNames.indexOf("externalId")
     if (externalIdIndex < 0) {
-      throw new CdfSparkException("Can't upsert data model instances, column `externalId` is missing.")
+      throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
     }
 
-    val columns: Array[(Int, String, String)] = schema.fields.zipWithIndex
-      .filter(cols => !Seq("externalId").contains(cols._1.name))
+    val properties: Array[(Int, String, (String, Boolean))] = schema.fields.zipWithIndex
+      .filter(props => !Seq("externalId").contains(props._1.name))
       .map {
         case (field: StructField, index: Int) =>
-          val columnType = columnTypes.getOrElse(
+          val propertyType = propertyTypes.getOrElse(
             field.name,
-            throw new CdfSparkException(s"Can't insert column `${field.name}` " +
+            throw new CdfSparkException(s"Can't insert property `${field.name}` " +
               s"into data model mapping $modelExternalId, the property does not exist in the definition")
           )
-          (index, field.name, columnType)
+          (index, field.name, propertyType)
       }
+
     def parseRow(row: Row): DataModelInstance = {
       val externalId = row.get(externalIdIndex) match {
         case x: String => x
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
       }
 
-      val columnValues: Map[String, Json] = columns.map {
-        case (index, name, columnType) =>
-          name -> tryGetValue(columnType).applyOrElse(
+      val propertyValues: Map[String, Json] = properties.map {
+        case (index, name, propType) =>
+          val (propT, nullable) = propType
+          name -> tryGetValue(propT, nullable).applyOrElse(
             row.get(index),
             (_: Any) =>
               throw SparkSchemaHelperRuntime
-                .badRowError(row, name, columnType, "")
+                .badRowError(row, name, propT, "")
           )
       }.toMap
-      DataModelInstance(Some(modelExternalId), Some(externalId), properties = Some(columnValues))
+      DataModelInstance(Some(modelExternalId), Some(externalId), properties = Some(propertyValues))
     }
-    (columns.map(_._2), parseRow)
+    parseRow
   }
 }
 
 object DataModelInstanceRelation {
   val stringTypes = Seq(
     "text",
-    "string",
     "json",
-    "string",
     "geometry",
     "geography",
     "direct_relation",
@@ -141,9 +140,10 @@ object DataModelInstanceRelation {
     "int64[]",
     "bigint[]"
   )
+
   // scalastyle:off cyclomatic.complexity
-  def propertyTypeToSparkType(columnType: String): DataType =
-    columnType.toLowerCase match {
+  def propertyTypeToSparkType(propertyType: String): DataType =
+    propertyType.toLowerCase match {
       case complex if stringTypes contains complex =>
         DataTypes.StringType
       case "boolean" => DataTypes.BooleanType
@@ -152,15 +152,17 @@ object DataModelInstanceRelation {
       case "float64" => DataTypes.DoubleType
       case "int32" | "int" => DataTypes.IntegerType
       case "int64" | "bigint" => DataTypes.LongType
-      case a => throw new CdfSparkException(s"Unknown column type $a")
+      case a => throw new CdfSparkException(s"Unknown property type $a")
     }
   // scalastyle:on cyclomatic.complexity
 
   private def jsonFromDouble(num: Double): Json =
     Json.fromDouble(num).getOrElse(throw new CdfSparkException(s"Numeric value $num"))
-  private def tryGetValue(columnType: String): PartialFunction[Any, Json] = // scalastyle:off
-    columnType.toLowerCase match {
-      case "double" | "numeric" | "float32" | "float64" => {
+  private def tryGetValue(propertyType: String, nullable: Boolean): PartialFunction[Any, Json] = // scalastyle:off
+    propertyType.toLowerCase match {
+      case _ if !nullable =>
+        throw new CdfSparkException(s"Property is not nullable: $propertyType")
+      case "float32" | "float64" | "numeric" => {
         case null => Json.Null // scalastyle:off null
         case x: Double => jsonFromDouble(x)
         case x: Int => jsonFromDouble(x.toDouble)
@@ -177,13 +179,14 @@ object DataModelInstanceRelation {
         case null => Json.Null // scalastyle:off null
         case x: Int => Json.fromInt(x)
         case x: Long => Json.fromLong(x)
+        case x: java.math.BigInteger => Json.fromBigInt(x)
       }
       case complex if stringTypes contains complex => {
         case null => Json.Null // scalastyle:off null
         case x: String => Json.fromString(x)
       }
       case a =>
-        throw new CdfSparkException(s"Unknown column type $a")
+        throw new CdfSparkException(s"Unknown property type $a")
     }
 }
 
