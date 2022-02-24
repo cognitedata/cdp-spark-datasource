@@ -2,11 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.DataModelInstanceRelation.{
-  DEFAULT_NULLABLE,
-  propertyTypeToSparkType,
-  tryGetValue
-}
+import cognite.spark.v1.DataModelInstanceRelation._
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
@@ -14,7 +10,7 @@ import fs2.Stream
 import io.circe.Json
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.sources.Filter
+import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -71,10 +67,64 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 
+  // scalastyle:off cyclomatic.complexity
+  def getInstanceFilter(sparkFilter: Filter): DataModelInstanceFilter =
+    sparkFilter match {
+      case EqualTo(left, right) =>
+        DMIEqualsFilter(Seq(left), parseValue(right))
+      case In(attribute, values) =>
+        if (multiValuedTypes contains propertyTypes(attribute)._1) {
+          DMIContainsAnyFilter(Seq(attribute), values.map(parseValue)) // Not sure
+        } else {
+          DMIInFilter(Seq(attribute), values.map(parseValue))
+        }
+      case GreaterThanOrEqual(attribute, value) =>
+        DMIRangeFilter(Seq(attribute), gte = Some(parseValue(value)))
+      case GreaterThan(attribute, value) =>
+        DMIRangeFilter(Seq(attribute), gt = Some(parseValue(value)))
+      case LessThanOrEqual(attribute, value) =>
+        DMIRangeFilter(Seq(attribute), lte = Some(parseValue(value)))
+      case LessThan(attribute, value) =>
+        DMIRangeFilter(Seq(attribute), lt = Some(parseValue(value)))
+      case StringStartsWith(attribute, value) =>
+        DMIPrefixFilter(Seq(attribute), parseValue(value))
+      case And(f1, f2) =>
+        val instancef1 = getInstanceFilter(f1)
+        val instancef2 = getInstanceFilter(f2)
+        DMIAndFilter(Seq(instancef1, instancef2))
+      case Or(f1, f2) =>
+        val instancef1 = getInstanceFilter(f1)
+        val instancef2 = getInstanceFilter(f2)
+        DMIOrFilter(Seq(instancef1, instancef2))
+      case IsNotNull(attribute) =>
+        DMIExistsFilter(Seq(attribute))
+      case Not(f) =>
+        DMINotFilter(getInstanceFilter(f))
+      case _ => ???
+    }
+  // scalastyle:on cyclomatic.complexity
+
   def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = ???
+      numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
+    val dmiFilter = if (filters.isEmpty) {
+      None
+    } else {
+      val andFilters = filters.toVector.map { filter =>
+        getInstanceFilter(filter)
+      }
+      Some(DMIAndFilter(andFilters))
+    }
+
+    val dmiQuery = DataModelInstanceQuery(
+      modelExternalId = modelExternalId,
+      filter = dmiFilter,
+      sort = None,
+      limit = limit,
+      cursor = None)
+    client.dataModelInstances.query(dmiQuery)
+  }
 
   def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
 
@@ -143,6 +193,30 @@ object DataModelInstanceRelation {
     "int64[]",
     "bigint[]"
   )
+  val multiValuedTypes = Seq(
+    "json",
+    "text[]",
+    "boolean[]",
+    "numeric[]",
+    "float32[]",
+    "float64[]",
+    "int32[]",
+    "int[]",
+    "int64[]",
+    "bigint[]"
+  )
+
+  private def parseValue(value: Any): Json = value match {
+    case x: Double => jsonFromDouble(x)
+    case x: Int => jsonFromDouble(x.toDouble)
+    case x: Float => jsonFromDouble(x.toDouble)
+    case x: Long => jsonFromDouble(x.toDouble)
+    case x: java.math.BigDecimal => jsonFromDouble(x.doubleValue)
+    case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
+    case x: String => Json.fromString(x)
+    case x: Boolean => Json.fromBoolean(x)
+    case null => Json.Null // scalastyle:off null
+  }
 
   // scalastyle:off cyclomatic.complexity
   def propertyTypeToSparkType(propertyType: String): DataType =
