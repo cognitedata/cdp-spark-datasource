@@ -160,7 +160,7 @@ object DataModelInstanceRelation {
     Json.fromDouble(num).getOrElse(throw new CdfSparkException(s"Numeric value $num"))
   private def tryGetValue(columnType: String): PartialFunction[Any, Json] = // scalastyle:off
     columnType.toLowerCase match {
-      case "double" | "numeric" | "float64" => {
+      case "double" | "numeric" | "float32" | "float64" => {
         case null => Json.Null // scalastyle:off null
         case x: Double => jsonFromDouble(x)
         case x: Int => jsonFromDouble(x.toDouble)
