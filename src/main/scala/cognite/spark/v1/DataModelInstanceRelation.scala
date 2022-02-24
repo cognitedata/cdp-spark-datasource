@@ -4,7 +4,7 @@ import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.DataModelInstanceRelation.{propertyTypeToSparkType, tryGetValue}
 import cognite.spark.v1.SparkSchemaHelper._
-import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import io.circe.Json
@@ -54,7 +54,15 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     Array(StructField("externalId", DataTypes.StringType, nullable = false)) ++ mappingTypes
   )
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = ???
+  override def upsert(rows: Seq[Row]): IO[Unit] =
+    if (rows.isEmpty) {
+      IO.unit
+    } else {
+      val (columns, fromRowFn) = fromRow(rows.head.schema)
+      val projectedRows: Seq[DataModelInstance] = rows.map(fromRowFn)
+      import cats.instances.list._
+      client.dataModelInstances.createItems(Items(projectedRows)) *> IO.unit
+    }
 
   def toRow(a: ProjectedDataModelInstance): Row = ???
 
