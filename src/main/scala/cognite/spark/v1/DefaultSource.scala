@@ -156,6 +156,12 @@ class DefaultSource
         new RelationshipsRelation(config)(sqlContext)
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
+      case "mappings" =>
+        val modelName = parameters.getOrElse("database", sys.error("Database must be specified"))
+        new DataModelInstanceRelation(
+          config,
+          modelName
+        )(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
