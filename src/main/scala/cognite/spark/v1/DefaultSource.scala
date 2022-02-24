@@ -156,12 +156,16 @@ class DefaultSource
         new RelationshipsRelation(config)(sqlContext)
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
-      case "mappings" =>
+      case "mappinginstances" =>
         val modelName =
           parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
         new DataModelInstanceRelation(
           config,
           modelName
+        )(sqlContext)
+      case "mappings" =>
+        new DataModelMappingsRelation(
+          config
         )(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }

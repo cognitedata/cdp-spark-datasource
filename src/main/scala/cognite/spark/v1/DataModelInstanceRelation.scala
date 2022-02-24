@@ -2,7 +2,11 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.DataModelInstanceRelation.{propertyTypeToSparkType, tryGetValue}
+import cognite.spark.v1.DataModelInstanceRelation.{
+  DEFAULT_NULLABLE,
+  propertyTypeToSparkType,
+  tryGetValue
+}
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
@@ -16,7 +20,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)(
     val sqlContext: SQLContext)
-    extends CdfRelation(config, "mapping")
+    extends CdfRelation(config, "mappinginstances")
     with WritableRelation {
   import CdpConnector._
 
@@ -35,7 +39,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
           StructField(
             name,
             propertyTypeToSparkType(prop.`type`),
-            nullable = prop.nullable.getOrElse(true))
+            nullable = prop.nullable.getOrElse(DEFAULT_NULLABLE))
       }
     }
     .toList
@@ -45,7 +49,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .map { props =>
       props.map {
         case (name, prop) =>
-          (name, (prop.`type`, prop.nullable.getOrElse(true)))
+          (name, (prop.`type`, prop.nullable.getOrElse(DEFAULT_NULLABLE)))
       }
     }
     .getOrElse(Map())
@@ -72,11 +76,9 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = ???
 
-  def insert(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Insert not supported for data model instances. Use upsert instead.")
+  def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
 
-  def update(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Update not supported for data model instances. Use upsert instead.")
+  def update(rows: Seq[Row]): IO[Unit] = upsert(rows)
 
   override def delete(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Delete not supported for data model instances. Use upsert instead.")
@@ -122,6 +124,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 }
 
 object DataModelInstanceRelation {
+  val DEFAULT_NULLABLE = true
   val stringTypes = Seq(
     "text",
     "json",
