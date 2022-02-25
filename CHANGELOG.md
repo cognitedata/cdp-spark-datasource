@@ -1,3 +1,9 @@
+# 2.0.1
+
+## Fixes
+
+* Remove deduplication table for RAW (again, the revert didn't fix our problem).
+
 # 2.0.0
 
 ## Enhancements
