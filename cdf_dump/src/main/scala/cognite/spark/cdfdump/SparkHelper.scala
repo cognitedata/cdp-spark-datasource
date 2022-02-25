@@ -9,8 +9,9 @@ class SparkHelper(
   sparkConfig: Map[String, String],
   writeOptions: Map[String, String],
   readOptions: Map[String, String],
-  outDir: String,
+  outDir: Option[String],
   format: String,
+  show: Option[Int],
   columns: Option[List[String]],
   excludeColumns: List[String],
   filter: Option[String],
@@ -97,11 +98,17 @@ class SparkHelper(
     val df4 = outPartitions.filter(_ => format != "parquet" && format != "orc")
       .fold(df3)(p => df3.repartition(p))
 
-    df4
-      .write
-      .format(format)
-      .options(writeOptions)
-      .save(outDir + "/" + name)
+    show.foreach { limit =>
+      df4.show(limit)
+    }
+
+    outDir.foreach { outDir =>
+      df4
+        .write
+        .format(format)
+        .options(writeOptions)
+        .save(outDir + "/" + name)
+    }
   }
 
 
