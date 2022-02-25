@@ -193,24 +193,13 @@ object DataModelInstanceRelation {
   val DEFAULT_NULLABLE = true
   val stringTypes = Seq(
     "text",
-    "json",
     "geometry",
     "geography",
     "direct_relation",
-    "text[]",
-    "boolean[]",
-    "numeric[]",
-    "float32[]",
     "timestamp",
-    "date",
-    "float64[]",
-    "int32[]",
-    "int[]",
-    "int64[]",
-    "bigint[]"
+    "date"
   )
   val multiValuedTypes = Seq(
-    "json",
     "text[]",
     "boolean[]",
     "numeric[]",
@@ -222,6 +211,7 @@ object DataModelInstanceRelation {
     "bigint[]"
   )
 
+  // scalastyle:off cyclomatic.complexity
   private def parseValue(value: Any): Json = value match {
     case x: Double => jsonFromDouble(x)
     case x: Int => jsonFromDouble(x.toDouble)
@@ -231,6 +221,8 @@ object DataModelInstanceRelation {
     case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
     case x: String => Json.fromString(x)
     case x: Boolean => Json.fromBoolean(x)
+    case x: Array[Any] =>
+      Json.fromValues(x.map(parseValue))
     case null => Json.Null // scalastyle:off null
   }
 
@@ -239,28 +231,37 @@ object DataModelInstanceRelation {
       Some(null)
     } else {
       propType.toLowerCase match {
-        case complex if stringTypes contains complex =>
+        case prop if stringTypes contains prop =>
           value.asString
         case "numeric" | "float64" | "float32" => value.asNumber.map(_.toDouble)
         case "int" | "int32" | "int64" | "bigint" => value.asNumber.flatMap(_.toLong)
+        case "text[]" =>
+          value.asArray.getOrElse(Vector()).flatMap(_.asString)
+        case "boolean[]" =>
+          value.asArray.getOrElse(Vector()).flatMap(_.asBoolean)
+        case "numeric[]" | "float64[]" | "float32[]" =>
+          value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toDouble))
+        case "int[]" | "int32[]" | "int64[]" | "bigint[]" =>
+          value.asNumber.flatMap(_.toLong)
+          value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toLong))
         case a => throw new CdfSparkException(s"Unknown property type $a")
       }
     }
 
-  // scalastyle:off cyclomatic.complexity
   def propertyTypeToSparkType(propertyType: String): DataType =
     propertyType.toLowerCase match {
       case complex if stringTypes contains complex =>
         DataTypes.StringType
       case "boolean" => DataTypes.BooleanType
-      case "numeric" => DataTypes.DoubleType
+      case "numeric" | "float64" => DataTypes.DoubleType
       case "float32" => DataTypes.FloatType
       case "float64" => DataTypes.DoubleType
       case "int32" | "int" => DataTypes.IntegerType
       case "int64" | "bigint" => DataTypes.LongType
+      case propType if multiValuedTypes contains propType =>
+        DataTypes.createArrayType(propertyTypeToSparkType(propType))
       case a => throw new CdfSparkException(s"Unknown property type $a")
     }
-  // scalastyle:on cyclomatic.complexity
 
   private def jsonFromDouble(num: Double): Json =
     Json.fromDouble(num).getOrElse(throw new CdfSparkException(s"Numeric value $num"))
@@ -294,6 +295,8 @@ object DataModelInstanceRelation {
       case a =>
         throw new CdfSparkException(s"Unknown property type $a")
     }
+  // scalastyle:on cyclomatic.complexity
+
 }
 
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
