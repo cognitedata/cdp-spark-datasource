@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.Foldable
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.DataModelInstanceRelation._
@@ -10,6 +11,7 @@ import fs2.Stream
 import io.circe.Json
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
+import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -68,41 +70,53 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 
   // scalastyle:off cyclomatic.complexity
-  def getInstanceFilter(sparkFilter: Filter): DataModelInstanceFilter =
+  def getInstanceFilter(sparkFilter: Filter): Seq[DataModelInstanceFilter] =
     sparkFilter match {
-      case EqualTo(left, right) =>
-        DMIEqualsFilter(Seq(left), parseValue(right))
-      case In(attribute, values) =>
-        if (multiValuedTypes contains propertyTypes(attribute)._1) {
-          DMIContainsAnyFilter(Seq(attribute), values.map(parseValue)) // Not sure
+      case EqualTo(left, right) if left != "externalId" =>
+        Seq(DMIEqualsFilter(Seq(left), parseValue(right)))
+      case In(attribute, values) if attribute != "externalId" =>
+        val setValues = values.filter(_ != null)
+        Seq(if (multiValuedTypes contains propertyTypes(attribute)._1) {
+          DMIContainsAnyFilter(Seq(attribute), setValues.map(parseValue)) // Not sure
         } else {
-          DMIInFilter(Seq(attribute), values.map(parseValue))
-        }
+          DMIInFilter(Seq(attribute), setValues.map(parseValue))
+        })
       case GreaterThanOrEqual(attribute, value) =>
-        DMIRangeFilter(Seq(attribute), gte = Some(parseValue(value)))
+        Seq(DMIRangeFilter(Seq(attribute), gte = Some(parseValue(value))))
       case GreaterThan(attribute, value) =>
-        DMIRangeFilter(Seq(attribute), gt = Some(parseValue(value)))
+        Seq(DMIRangeFilter(Seq(attribute), gt = Some(parseValue(value))))
       case LessThanOrEqual(attribute, value) =>
-        DMIRangeFilter(Seq(attribute), lte = Some(parseValue(value)))
+        Seq(DMIRangeFilter(Seq(attribute), lte = Some(parseValue(value))))
       case LessThan(attribute, value) =>
-        DMIRangeFilter(Seq(attribute), lt = Some(parseValue(value)))
-      case StringStartsWith(attribute, value) =>
-        DMIPrefixFilter(Seq(attribute), parseValue(value))
+        Seq(DMIRangeFilter(Seq(attribute), lt = Some(parseValue(value))))
+      case StringStartsWith(attribute, value) if attribute != "externalId" =>
+        Seq(DMIPrefixFilter(Seq(attribute), parseValue(value)))
       case And(f1, f2) =>
         val instancef1 = getInstanceFilter(f1)
         val instancef2 = getInstanceFilter(f2)
-        DMIAndFilter(Seq(instancef1, instancef2))
+        Seq(DMIAndFilter(instancef1 ++ instancef2))
       case Or(f1, f2) =>
         val instancef1 = getInstanceFilter(f1)
         val instancef2 = getInstanceFilter(f2)
-        DMIOrFilter(Seq(instancef1, instancef2))
+        Seq(DMIOrFilter(instancef1 ++ instancef2))
       case IsNotNull(attribute) =>
-        DMIExistsFilter(Seq(attribute))
+        Seq(DMIExistsFilter(Seq(attribute)))
       case Not(f) =>
-        DMINotFilter(getInstanceFilter(f))
-      case _ => ???
+        Seq(DMINotFilter(getInstanceFilter(f).head))
+      case _ => Seq()
     }
   // scalastyle:on cyclomatic.complexity
+
+  def toProjectedInstance(dmi: DataModelInstanceQueryResponse): ProjectedDataModelInstance =
+    ProjectedDataModelInstance(
+      externalId = dmi.externalId,
+      properties = dmi.properties
+        .map(_.map {
+          case (name, value) =>
+            parseFromJson(value, propertyTypes(name)._1)
+        })
+        .toArray
+        .flatten)
 
   def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
@@ -111,10 +125,8 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     val dmiFilter = if (filters.isEmpty) {
       None
     } else {
-      val andFilters = filters.toVector.map { filter =>
-        getInstanceFilter(filter)
-      }
-      Some(DMIAndFilter(andFilters))
+      val andFilters = filters.toVector.flatMap(getInstanceFilter)
+      if (andFilters.isEmpty) None else Some(DMIAndFilter(andFilters))
     }
 
     val dmiQuery = DataModelInstanceQuery(
@@ -123,7 +135,11 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       sort = None,
       limit = limit,
       cursor = None)
-    client.dataModelInstances.query(dmiQuery)
+    val res = client.dataModelInstances.query(dmiQuery)
+    val items: IO[Seq[DataModelInstanceQueryResponse]] = res.map(_.items)
+    val nextCursor = res.map(_.nextCursor)
+    items.map(_.map(toProjectedInstance))
+
   }
 
   def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
@@ -218,6 +234,19 @@ object DataModelInstanceRelation {
     case null => Json.Null // scalastyle:off null
   }
 
+  private def parseFromJson(value: Json, propType: String): Any =
+    if (value.isNull) {
+      Some(null)
+    } else {
+      propType.toLowerCase match {
+        case complex if stringTypes contains complex =>
+          value.asString
+        case "numeric" | "float64" | "float32" => value.asNumber.map(_.toDouble)
+        case "int" | "int32" | "int64" | "bigint" => value.asNumber.flatMap(_.toLong)
+        case a => throw new CdfSparkException(s"Unknown property type $a")
+      }
+    }
+
   // scalastyle:off cyclomatic.complexity
   def propertyTypeToSparkType(propertyType: String): DataType =
     propertyType.toLowerCase match {
@@ -237,7 +266,7 @@ object DataModelInstanceRelation {
     Json.fromDouble(num).getOrElse(throw new CdfSparkException(s"Numeric value $num"))
   private def tryGetValue(propertyType: String, nullable: Boolean): PartialFunction[Any, Json] = // scalastyle:off
     propertyType.toLowerCase match {
-      case _ if !nullable =>
+      case null if !nullable => // scalastyle:off null
         throw new CdfSparkException(s"Property is not nullable: $propertyType")
       case "float32" | "float64" | "numeric" => {
         case null => Json.Null // scalastyle:off null
