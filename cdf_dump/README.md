@@ -154,6 +154,8 @@ Options:
                                                  10) and we use exponential backoff. Set to 0 for debugging, to improve
                                                  responsibility.
 
+      --preview  <count>                         When specified, a preview of the loaded data will be printed to standard output.
+                                                 --preview 100 will print the first 100 rows.
   -Skey=value [key=value]...                     Spark config option. You can use any property listed in the Spark Docs:
                                                  https://spark.apache.org/docs/latest/configuration.html#available-properties
   -h, --help                                     Show help message

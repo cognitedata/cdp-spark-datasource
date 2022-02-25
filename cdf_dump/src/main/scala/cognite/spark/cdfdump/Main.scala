@@ -6,6 +6,7 @@ import org.log4s._
 import org.rogach.scallop._
 
 import java.nio.file.{Files, Paths}
+import scala.concurrent.duration.DurationInt
 
 class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
   noshort = true
@@ -69,6 +70,8 @@ class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
   val clearOutDir = opt[Boolean]("clear-out-dir", descr = "When set, all items will be removed from the output directory before the process starts.", default = Some(false))
   group("Basic output options").append(outDir, format, clearOutDir)
 
+  val preview = opt[Int]("preview", argName = "count", descr = "When specified, a preview of the loaded data will be printed to standard output. --preview 100 will print the first 100 rows.")
+
   val readOptions = props[String]('R', "Spark read options. You can use any option supported by CDF Spark Data Source, see: https://github.com/cognitedata/cdp-spark-datasource/#common-options")
   val writeOptions = props[String]('W', "Spark write options. You can use any option supported in your selected output format. For example `-f csv -WincludeHeader=true` to write CSV with headers.")
   val sparkConfig = props[String]('S', "Spark config option. You can use any property listed in the Spark Docs: https://spark.apache.org/docs/latest/configuration.html#available-properties")
@@ -83,6 +86,12 @@ class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
 object Main extends App {
   val logger = getLogger("Main")
   val a = new Conf(args)
+
+  val writeToDisk = !a.preview.isSupplied || a.outDir.isSupplied
+
+  if (!writeToDisk && a.clearOutDir()) {
+    errorOut("Can not clear output directory since no data will be written to disk (--preview was used).")
+  }
 
   val outDir = a.outDir()
 
@@ -102,14 +111,18 @@ object Main extends App {
     a.sparkConfig,
     a.writeOptions,
     a.readOptions,
-    outDir,
+    if (writeToDisk) Some(outDir) else None,
     a.format(),
+    a.preview.toOption,
     a.columns.toOption,
     a.excludeColumn.getOrElse(List.empty),
     a.filter.toOption,
     a.outputPartitions.toOption,
     a.maxRetries.toOption
   )
+
+  val metrics = new MetricsWatcher()
+  metrics.startLogger(15.seconds)
 
   a.raw().foreach(table => {
     val Array(db, t) = table.split("[.]", 2)
@@ -148,6 +161,11 @@ object Main extends App {
     log("Datasets", helper.saveClean("datasets"))
   }
 
+  def errorOut(message: String): Unit = {
+    logger.error(message)
+    sys.exit(1)
+  }
+
   def log(c: String, action: => Unit): Unit = {
     logger.info(s"Downloading $c")
     val t0 = System.nanoTime()
@@ -156,6 +174,6 @@ object Main extends App {
     val time = (t1 - t0) / 1000 / 1000
     //val time = java.time.Duration.ofNanos(t1 - t0)
     // println(s"Loaded $c in ${DurationFormatUtils.formatDurationWords(time, true, true)}")
-    logger.info(s"Loaded $c in ${DurationFormatUtils.formatDurationHMS(time)}")
+    logger.info(s"Loaded $c in ${DurationFormatUtils.formatDurationHMS(time)}. Metrics: ${metrics.getFullMessage()}")
   }
 }
