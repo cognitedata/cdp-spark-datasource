@@ -3,6 +3,7 @@
 ## Fixes
 
 * Remove deduplication table for RAW (again, the revert didn't fix our problem).
+* Call RAW /cursors API just once to get consistent set of parallel cursors.
 
 # 2.0.0
 

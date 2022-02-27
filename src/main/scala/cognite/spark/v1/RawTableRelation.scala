@@ -129,7 +129,6 @@ class RawTableRelation(
         rowConverter(item)
       },
       (r: RawRow) => r.key,
-      getStreams(filter),
       getStreams(filter, partitionCursors),
       deduplicateRows = true // if false we might end up with 429 when trying to update assets with multiple same request
     )
