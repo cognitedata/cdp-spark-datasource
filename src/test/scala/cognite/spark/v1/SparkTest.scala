@@ -74,7 +74,6 @@ trait SparkTest {
 
 
   def getBlufieldClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
-    implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4)))
     implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
       val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
       val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")

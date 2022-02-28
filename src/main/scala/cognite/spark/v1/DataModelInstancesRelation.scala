@@ -22,13 +22,14 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     with WritableRelation {
   import CdpConnector._
 
-  val mappingInfo: DataModelMapping = alphaClient.dataModelMappings
-    .retrieveByExternalId(modelExternalId)
+  val mappingInfo: DataModel = alphaClient.dataModelMappings
+    .retrieveByExternalIds(Seq(modelExternalId), true, false)
     .adaptError {
       case e: CdpApiException =>
         new CdfSparkException(s"Could not resolve schema of sequence $modelExternalId.", e)
     }
     .unsafeRunSync()
+    .head
 
   val mappingPropertyStructFields: Seq[StructField] = mappingInfo.properties
     .map { props =>
@@ -53,7 +54,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .getOrElse(Map())
 
   override def schema: StructType = new StructType(
-    Array(StructField("externalId", DataTypes.StringType, nullable = false)) ++ mappingPropertyStructFields
+    Array() ++ mappingPropertyStructFields
   )
 
   override def upsert(rows: Seq[Row]): IO[Unit] =
@@ -109,7 +110,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 
   def toProjectedInstance(dmi: DataModelInstanceQueryResponse): ProjectedDataModelInstance =
     ProjectedDataModelInstance(
-      externalId = dmi.externalId,
+      externalId = dmi.modelExternalId,
       properties = dmi.properties
         .map(_.map {
           case (name, value) =>
@@ -156,7 +157,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     }
 
     val properties: Array[(Int, String, (String, Boolean))] = schema.fields.zipWithIndex
-      .filter(props => !Seq("externalId").contains(props._1.name))
+//      .filter(props => !Seq("externalId").contains(props._1.name))
       .map {
         case (field: StructField, index: Int) =>
           val propertyType = propertyTypes.getOrElse(
@@ -184,7 +185,9 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
                 .badRowError(row, name, propT, "")
           )
       }.toMap
-      DataModelInstance(Some(modelExternalId), Some(externalId), properties = Some(propertyValues))
+      val dm = DataModelInstance(modelExternalId, properties = Some(propertyValues))
+      println(s"****** $dm")
+      dm
     }
     parseRow
   }
@@ -256,7 +259,6 @@ object DataModelInstanceRelation {
       case "boolean" => DataTypes.BooleanType
       case "numeric" | "float64" => DataTypes.DoubleType
       case "float32" => DataTypes.FloatType
-      case "float64" => DataTypes.DoubleType
       case "int32" | "int" => DataTypes.IntegerType
       case "int64" | "bigint" => DataTypes.LongType
       case propType if multiValuedTypes contains propType =>
