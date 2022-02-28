@@ -18,11 +18,11 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)(
     val sqlContext: SQLContext)
-    extends CdfRelation(config, "mappinginstances")
+    extends CdfRelation(config, "modelinstances")
     with WritableRelation {
   import CdpConnector._
 
-  val mappingInfo: DataModelMapping = client.dataModelMappings
+  val mappingInfo: DataModelMapping = alphaClient.dataModelMappings
     .retrieveByExternalId(modelExternalId)
     .adaptError {
       case e: CdpApiException =>
@@ -62,7 +62,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     } else {
       val fromRowFn = fromRow(rows.head.schema)
       val dataModelInstances: Seq[DataModelInstance] = rows.map(fromRowFn)
-      client.dataModelInstances.createItems(Items(dataModelInstances)) *> IO.unit
+      alphaClient.dataModelInstances.createItems(Items(dataModelInstances)) *> IO.unit
     }
 
   def toRow(a: ProjectedDataModelInstance): Row = ???
@@ -118,29 +118,29 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         .toArray
         .flatten)
 
-  def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
-    val dmiFilter = if (filters.isEmpty) {
-      None
-    } else {
-      val andFilters = filters.toVector.flatMap(getInstanceFilter)
-      if (andFilters.isEmpty) None else Some(DMIAndFilter(andFilters))
-    }
-
-    val dmiQuery = DataModelInstanceQuery(
-      modelExternalId = modelExternalId,
-      filter = dmiFilter,
-      sort = None,
-      limit = limit,
-      cursor = None)
-    val res = client.dataModelInstances.query(dmiQuery)
-    val items: IO[Seq[DataModelInstanceQueryResponse]] = res.map(_.items)
-    val nextCursor = res.map(_.nextCursor)
-    items.map(_.map(toProjectedInstance))
-
-  }
+//  def getStreams(filters: Array[Filter])(
+//      client: GenericClient[IO],
+//      limit: Option[Int],
+//      numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
+//    val dmiFilter = if (filters.isEmpty) {
+//      None
+//    } else {
+//      val andFilters = filters.toVector.flatMap(getInstanceFilter)
+//      if (andFilters.isEmpty) None else Some(DMIAndFilter(andFilters))
+//    }
+//
+//    val dmiQuery = DataModelInstanceQuery(
+//      modelExternalId = modelExternalId,
+//      filter = dmiFilter,
+//      sort = None,
+//      limit = limit,
+//      cursor = None)
+//    val res = alphaClient.dataModelInstances.query(dmiQuery)
+//    val items: IO[Seq[DataModelInstanceQueryResponse]] = res.map(_.items)
+//    val nextCursor = res.map(_.nextCursor)
+//    items.map(_.map(toProjectedInstance))
+//
+//  }
 
   def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
 
@@ -161,8 +161,9 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         case (field: StructField, index: Int) =>
           val propertyType = propertyTypes.getOrElse(
             field.name,
-            throw new CdfSparkException(s"Can't insert property `${field.name}` " +
-              s"into data model mapping $modelExternalId, the property does not exist in the definition")
+            throw new CdfSparkException(
+              s"Can't insert property `${field.name}` " +
+                s"into data model $modelExternalId, the property does not exist in the definition")
           )
           (index, field.name, propertyType)
       }

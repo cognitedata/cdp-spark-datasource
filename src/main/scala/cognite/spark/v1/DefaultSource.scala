@@ -156,14 +156,14 @@ class DefaultSource
         new RelationshipsRelation(config)(sqlContext)
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
-      case "mappinginstances" =>
+      case "modelinstances" =>
         val modelName =
           parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
         new DataModelInstanceRelation(
           config,
           modelName
         )(sqlContext)
-      case "mappings" =>
+      case "models" =>
         new DataModelMappingsRelation(
           config
         )(sqlContext)
@@ -227,6 +227,13 @@ class DefaultSource
           new RelationshipsRelation(config)(sqlContext)
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
+        case "modelinstances" =>
+          val modelName =
+            parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
+          new DataModelInstanceRelation(
+            config,
+            modelName
+          )(sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {

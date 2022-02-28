@@ -23,6 +23,9 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
+  @transient lazy val alphaClient: GenericClient[IO] =
+    CdpConnector.clientFromConfig(config, Some("alpha"))
+
   def incMetrics(counter: Counter, count: Int): IO[Unit] =
     IO(
       if (config.collectMetrics) {

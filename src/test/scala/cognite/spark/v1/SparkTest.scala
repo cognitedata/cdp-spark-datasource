@@ -3,9 +3,10 @@ package cognite.spark.v1
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.Executors
+
 import cats.Id
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common.ApiKeyAuth
+import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
 import org.apache.spark.sql.{Encoder, SparkSession}
 import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.{Matchers, Tag}
@@ -14,13 +15,15 @@ import org.apache.spark.datasource.MetricsSource
 import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import scala.util.Random
-import cats.effect.{IO, Timer}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits.catsSyntaxFlatMapOps
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.types.StructType
 import org.scalactic.{Prettifier, source}
 import org.scalatest.prop.TableFor1
+import sttp.client3.{SttpBackend, UriContext}
+import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import scala.reflect.{ClassTag, classTag}
 
@@ -28,6 +31,7 @@ object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
 
 trait SparkTest {
+
   implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1)))
 
   implicit def single[A](implicit c: ClassTag[OptionalField[A]], inner: Encoder[Option[A]]): Encoder[OptionalField[A]] =
@@ -36,6 +40,11 @@ trait SparkTest {
 
       override def clsTag: ClassTag[OptionalField[A]] = c
     }
+
+
+  val bluefieldClient = getBlufieldClient()
+  val bluefieldAlphaClient = getBlufieldClient(Some("alpha"))
+
 
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
   assert(writeApiKey != null && !writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
@@ -64,6 +73,33 @@ trait SparkTest {
 
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
   spark.sparkContext.setLogLevel("OFF")
+
+
+  def getBlufieldClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
+    implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4)))
+    implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
+      val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+      val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+      val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    val credentials = OAuth2.ClientCredentials(
+      tokenUri = uri"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token",
+      clientId = clientId,
+      clientSecret = clientSecret,
+      scopes = List("https://bluefield.cognitedata.com/.default"),
+      cdfProjectName = "extractor-bluefield-testing"
+    )
+
+    val authProvider =
+      OAuth2.ClientCredentialsProvider[IO](credentials).unsafeRunTimed(1.second).get
+    new GenericClient[IO](applicationName = "CogniteScalaSDK-OAuth-Test",
+      projectName = "extractor-bluefield-testing",
+      baseUrl = "https://bluefield.cognitedata.com",
+      authProvider = authProvider,
+      apiVersion = None,
+      clientTag = None,
+      cdfVersion = cdfVersion
+    )
+  }
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 

@@ -90,7 +90,7 @@ object CdpConnector {
           MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries")))
   }
 
-  def clientFromConfig(config: RelationConfig): GenericClient[IO] = {
+  def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
     val metricsPrefix = if (config.collectMetrics) {
       Some(config.metricsPrefix)
     } else {
@@ -108,7 +108,8 @@ object CdpConnector {
       authProvider = config.auth.provider.unsafeRunSync(),
       baseUrl = config.baseUrl,
       apiVersion = None,
-      clientTag = config.clientTag
+      clientTag = config.clientTag,
+      cdfVersion = cdfVersion
     )
   }
 
