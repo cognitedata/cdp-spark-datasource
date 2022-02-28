@@ -30,11 +30,12 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   val mappingPropertyStructFields: Seq[StructField] = mappingInfo.properties
     .map { props =>
       props.map {
-        case (name, prop) =>
+        case (name, prop) => {
           StructField(
             name,
             propertyTypeToSparkType(prop.`type`),
             nullable = prop.nullable.getOrElse(DEFAULT_NULLABLE))
+        }
       }
     }
     .toList
@@ -43,8 +44,9 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   val propertyTypes: Map[String, (String, Boolean)] = mappingInfo.properties
     .map { props =>
       props.map {
-        case (name, prop) =>
+        case (name, prop) => {
           (name, (prop.`type`, prop.nullable.getOrElse(DEFAULT_NULLABLE)))
+        }
       }
     }
     .getOrElse(Map())
@@ -290,7 +292,7 @@ object DataModelInstanceRelation {
         case x: String => Json.fromString(x)
       }
       case "text[]" => {
-        case null => Json.Null
+        case null => Json.Null // scalastyle:off null
         case x: Seq[String] @unchecked if x.head.isInstanceOf[String] =>
           Json.fromValues(x.map(Json.fromString))
       }
