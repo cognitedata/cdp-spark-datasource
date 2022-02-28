@@ -18,7 +18,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     with WritableRelation {
   import CdpConnector._
 
-  val mappingInfo: DataModel = alphaClient.dataModelMappings
+  val mappingInfo: DataModel = alphaClient.dataModels
     .retrieveByExternalIds(Seq(modelExternalId), true, false)
     .adaptError {
       case e: CdpApiException =>
@@ -34,7 +34,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
           StructField(
             name,
             propertyTypeToSparkType(prop.`type`),
-            nullable = prop.nullable.getOrElse(DEFAULT_NULLABLE))
+            nullable = prop.nullable)
         }
       }
     }
@@ -45,7 +45,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .map { props =>
       props.map {
         case (name, prop) => {
-          (name, (prop.`type`, prop.nullable.getOrElse(DEFAULT_NULLABLE)))
+          (name, (prop.`type`, prop.nullable))
         }
       }
     }
@@ -188,7 +188,6 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 }
 
 object DataModelInstanceRelation {
-  val DEFAULT_NULLABLE = true
   val stringTypes = Seq(
     "text",
     "geometry",

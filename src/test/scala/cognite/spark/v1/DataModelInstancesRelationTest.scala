@@ -53,10 +53,10 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     val modelExternalId = "Equipment_sparkDS4"
 
     val props = Map(
-      "arr_int"-> DataModelProperty(`type`="int[]", nullable = Some(false)),
-      "arr_boolean"-> DataModelProperty(`type`="boolean[]", nullable = Some(true)),
-      "arr_str"-> DataModelProperty(`type`="text[]", nullable = Some(true)),
-      "str_prop" -> DataModelProperty(`type`="text", nullable = Some(true))
+      "arr_int"-> DataModelProperty(`type`="int[]", nullable = false),
+      "arr_boolean"-> DataModelProperty(`type`="boolean[]", nullable = true),
+      "arr_str"-> DataModelProperty(`type`="text[]", nullable = true),
+      "str_prop" -> DataModelProperty(`type`="text", nullable = true)
     )
    bluefieldAlphaClient.dataModels.createItems(
      Items(Seq(DataModel(externalId = modelExternalId, properties = Some(props)))))
