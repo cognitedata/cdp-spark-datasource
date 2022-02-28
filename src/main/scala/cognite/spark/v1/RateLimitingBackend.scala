@@ -1,7 +1,9 @@
 package cognite.spark.v1
 
-import cats.effect.{ContextShift, IO}
-import cats.effect.concurrent.Semaphore
+import cats.effect.IO
+import cats.effect.kernel.MonadCancel
+import cats.effect.std.Semaphore
+import cats.effect.unsafe.IORuntime
 import sttp.capabilities.Effect
 import sttp.client3.{Request, Response, SttpBackend}
 import sttp.monad.MonadError
@@ -11,7 +13,8 @@ import scala.language.higherKinds
 class RateLimitingBackend[F[_], +P] private (
     delegate: SttpBackend[F, P],
     semaphore: Semaphore[F]
-) extends SttpBackend[F, P] {
+)(implicit monadCancel: MonadCancel[F, Throwable])
+    extends SttpBackend[F, P] {
   override def send[T, R >: P with Effect[F]](
       request: Request[T, R]
   ): F[Response[T]] =
@@ -20,7 +23,9 @@ class RateLimitingBackend[F[_], +P] private (
     // actually respond to backpressure when used with the RetryingBackend:
     // The 503 rate limit response is retried, but with a delay. It will also
     // block the semaphore for new requests, so it will reduce the rate
-    semaphore.withPermit(delegate.send(request))
+    semaphore.permit.use { _ =>
+      delegate.send(request)
+    }
 
   override def close(): F[Unit] = delegate.close()
   override def responseMonad: MonadError[F] = delegate.responseMonad
@@ -30,7 +35,7 @@ object RateLimitingBackend {
   def apply[S](
       delegate: SttpBackend[IO, S],
       maxParallelRequests: Int
-  )(implicit cs: ContextShift[IO]): RateLimitingBackend[IO, S] =
+  )(implicit ioRuntime: IORuntime): RateLimitingBackend[IO, S] =
     new RateLimitingBackend[IO, S](
       delegate,
       Semaphore[IO](maxParallelRequests).unsafeRunSync()

@@ -25,10 +25,11 @@ class OAuth2Test
         .option("clientSecret", clientSecret)
         .option("project", "extractor-bluefield-testing")
         .option("scopes", "https://bluefield.cognitedata.com/.default")
+        .option("limitPerPartition", "100")
         .load()
     )
 
-    assert(df.head().size > 0)
+    assert(df.count() > 0)
   }
 
   it should "authenticate using client credentials in Aize" in {
@@ -44,6 +45,7 @@ class OAuth2Test
         .option("clientSecret", aizeClientSecret)
         .option("project", "aize")
         .option("audience", "https://twindata.io/cdf/T101014843")
+        .option("limitPerPartition", "100")
         .load()
       )
     assert(df.count() > 0)
@@ -59,6 +61,7 @@ class OAuth2Test
           .option("clientId", clientId)
           .option("clientSecret", clientSecret)
           .option("scopes", "https://bluefield.cognitedata.com/.default")
+          .option("limitPerPartition", "100")
           .load()
         )
       df.count()
@@ -75,6 +78,7 @@ class OAuth2Test
         .option("clientSecret", "1")
         .option("project", "extractor-bluefield-testing")
         .option("scopes", "https://bluefield.cognitedata.com/.default")
+        .option("limitPerPartition", "100")
         .load()
       )
     sparkIntercept{

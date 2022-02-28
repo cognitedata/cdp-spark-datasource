@@ -69,16 +69,20 @@ final case class InvalidRootChangeException(assetIds: Seq[String], subtreeId: St
 class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdfRelation(config, "assethierarchy") {
 
-  import CdpConnector.cdpConnectorContextShift
+  import CdpConnector.ioRuntime
 
   def delete(data: DataFrame): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
-      val deletes = rows.map(r => fromRow[DeleteItem](r))
+      val deletes = rows.map(r => fromRow[DeleteItemByCogniteId](r))
       Stream
         .fromIterator[IO](deletes, chunkSize = batchSize)
         .chunks
         .parEvalMapUnordered(config.parallelismPerPartition) { chunk =>
-          client.assets.deleteByIds(chunk.map(_.id).toVector, recursive = true, ignoreUnknownIds = true)
+          client.assets
+            .deleteRecursive(
+              chunk.toVector.map(_.toCogniteId),
+              recursive = true,
+              ignoreUnknownIds = true)
         }
         .compile
         .drain

@@ -157,14 +157,12 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   }
 
   def deleteWithIgnoreUnknownIds(
-      resource: DeleteByIdsWithIgnoreUnknownIds[IO, Long],
-      deletes: Seq[DeleteItem],
-      ignoreUnknownIds: Boolean = true): IO[Unit] = {
-    val ids = deletes.map(_.id)
+      resource: DeleteByCogniteIds[IO],
+      ids: Seq[CogniteId],
+      ignoreUnknownIds: Boolean = config.ignoreUnknownIds): IO[Unit] =
     resource
-      .deleteByIds(ids, ignoreUnknownIds)
+      .delete(ids, ignoreUnknownIds)
       .flatTap(_ => incMetrics(itemsDeleted, ids.length))
-  }
 
   def genericUpsert[
       // The Item (read) type

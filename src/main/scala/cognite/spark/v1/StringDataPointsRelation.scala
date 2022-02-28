@@ -36,7 +36,6 @@ final case class StringDataPointsInsertItem(
 class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext: SQLContext)
     extends DataPointsRelationV1[StringDataPointsItem](config, "stringdatapoints")(sqlContext)
     with WritableRelation {
-  import CdpConnector._
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Insert not supported for stringdatapoints. Please use upsert instead.")
 
@@ -59,7 +58,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
 
   def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
     // we basically use Stream.fromIterator instead of Seq.grouped, because it's significantly more efficient
-    val dataPoints = Stream.fromIterator(
+    val dataPoints = Stream.fromIterator[IO](
       rows.map(r => fromRow[StringDataPointsInsertItem](r)),
       chunkSize = Constants.CreateDataPointsLimit
     )

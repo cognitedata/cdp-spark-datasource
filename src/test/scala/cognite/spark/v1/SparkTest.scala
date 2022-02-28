@@ -12,11 +12,10 @@ import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.{Matchers, Tag}
 import org.apache.spark.datasource.MetricsSource
 
-import scala.concurrent.{ExecutionContext, TimeoutException}
+import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.util.Random
-import cats.effect.{ContextShift, IO, Timer}
-import cats.implicits.catsSyntaxFlatMapOps
+import cats.effect.IO
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.types.StructType
@@ -31,8 +30,7 @@ object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
 
 trait SparkTest {
-
-  implicit lazy val timer: Timer[IO] = IO.timer(ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1)))
+  import CdpConnector.ioRuntime
 
   implicit def single[A](implicit c: ClassTag[OptionalField[A]], inner: Encoder[Option[A]]): Encoder[OptionalField[A]] =
     new Encoder[OptionalField[A]] {

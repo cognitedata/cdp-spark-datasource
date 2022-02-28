@@ -10,6 +10,7 @@ import sttp.client3.SttpBackend
 
 
 class FunctionsUDFTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest with Inspectors {
+  import CdpConnector.ioRuntime
 
   ignore should "read assets with functionUDF" taggedAs ReadTest in {
     implicit val backend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)

@@ -2,7 +2,6 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.CdpConnector.cdpConnectorConcurrent
 import cognite.spark.v1.PushdownUtilities.{executeFilterOnePartition, pushdownToFilters, timeRange}
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId

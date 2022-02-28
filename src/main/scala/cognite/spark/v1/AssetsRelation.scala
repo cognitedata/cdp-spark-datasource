@@ -31,7 +31,18 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .map(
         _.map(
           _.into[AssetsReadSchema]
-            .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
+            .withFieldComputed(_.labels, asset => cogniteExternalIdSeqToStringSeq(asset.labels))
+            .withFieldComputed(
+              _.aggregates,
+              asset =>
+                asset.aggregates.map { aggregates =>
+                  AssetsAggregatesSchema(
+                    aggregates.get("childCount"),
+                    None, // No support for path yet.
+                    aggregates.get("depth")
+                  )
+              }
+            )
             .transform))
   }
 
@@ -39,7 +50,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     AssetsFilter(
       name = m.get("name"),
       source = m.get("source"),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
+      dataSetIds = m.get("dataSetId").map(idsFromStringifiedArray(_).map(CogniteInternalId(_))),
       labels = m.get("labels").flatMap(externalIdsToContainsAny),
       lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
       createdTime = timeRange(m, "createdTime"),
@@ -69,8 +80,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val deletes = rows.map(r => fromRow[DeleteItem](r))
-    deleteWithIgnoreUnknownIds(client.assets, deletes, config.ignoreUnknownIds)
+    val deletes = rows.map(fromRow[DeleteItemByCogniteId](_))
+    deleteWithIgnoreUnknownIds(client.assets, deletes.map(_.toCogniteId), config.ignoreUnknownIds)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
@@ -160,7 +171,14 @@ final case class AssetsReadSchema(
     createdTime: Instant = Instant.ofEpochMilli(0),
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
     rootId: Option[Long] = Some(0),
-    aggregates: Option[Map[String, Long]] = None,
+    aggregates: Option[AssetsAggregatesSchema] = None,
     dataSetId: Option[Long] = None,
     labels: Option[Seq[String]] = None
+)
+
+final case class AssetsAggregatesSchema(
+    // TODO: add actual support for these aggregated properties
+    childCount: Option[Long] = None,
+    path: Option[Array[String]] = None,
+    depth: Option[Long] = None
 )

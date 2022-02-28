@@ -1,3 +1,79 @@
+# 2.0.1
+
+## Fixes
+
+* Remove deduplication table for RAW (again, the revert didn't fix our problem).
+* Call RAW /cursors API just once to get consistent set of parallel cursors.
+
+# 2.0.0
+
+## Enhancements
+
+* Upgrades cats-effect to 3.x, a core library we use for concurrent programming,
+as well as many other dependencies. No functional changes are included in this release.
+
+# 1.4.67
+
+## Fixes
+
+* Fixes writing of `Map[String, String]` to RAW.
+
+# 1.4.66
+
+## Fixes
+
+* Put back deduplicate when reading from RAW to avoid sending multiple same update request
+
+# 1.4.65
+
+## Enhancements
+
+* Support both Id and ExternalId for Sequence Rows inserting
+
+# 1.4.64
+
+## Enhancements
+
+* Add support Scala 2.13
+* Improve error reporting of invalid types in nested structures
+* Improve error reporting of invalid types in RAW json. The error will now include row key and column name
+
+# 1.4.63
+
+## Fixes
+
+* Reduce unnecessary memory consumption when reading RAW rows
+
+# 1.4.62
+
+## Fixes
+
+* Chunk sequences when creating to avoid limit 10000 columns
+
+# 1.4.61
+
+## Fixes
+
+* Handle empty string for Byte, Short, Integer and Long type in RawJsonConverter
+
+# 1.4.60
+
+## Enhancements
+
+* Add support delete by externalIds for Assets, Events and TimeSeries
+
+# 1.4.59
+
+## Fixes
+
+* Handle empty string for Boolean type in RawJsonConverter
+
+# 1.4.58
+
+## Fixes
+
+* Handle empty string for Double and Float type in RawJsonConverter
+
 # 1.4.57
 
 ## Enhancements
@@ -39,7 +115,7 @@
 
 ## Enhancements
 
-* Using onconflict=delete on assethierarchy will delete assets recursively 
+* Using onconflict=delete on assethierarchy will delete assets recursively
 
 # 1.4.49
 

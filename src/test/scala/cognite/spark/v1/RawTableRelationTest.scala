@@ -6,7 +6,7 @@ import io.circe.Json
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
-import org.scalatest.{FlatSpec, LoneElement, Matchers, ParallelTestExecution, BeforeAndAfterAll}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, LoneElement, Matchers, ParallelTestExecution}
 
 class RawTableRelationTest
     extends FlatSpec
@@ -46,15 +46,26 @@ class RawTableRelationTest
       StructField("value", IntegerType, false)
     ))
   private val dataWithManyKeys = Seq(
-    RawRow("key5", Map("___key" -> Json.fromString("___k1"), "__key" -> Json.fromString("__k1"), "value" -> Json.fromInt(1))),
-    RawRow("key6", Map ("___key" -> Json.fromString("___k2"), "value" -> Json.fromInt(2), "__key" -> Json.fromString("__k2"), "key" -> Json.fromString("k2")))
+    RawRow(
+      "key5",
+      Map(
+        "___key" -> Json.fromString("___k1"),
+        "__key" -> Json.fromString("__k1"),
+        "value" -> Json.fromInt(1))),
+    RawRow(
+      "key6",
+      Map(
+        "___key" -> Json.fromString("___k2"),
+        "value" -> Json.fromInt(2),
+        "__key" -> Json.fromString("__k2"),
+        "key" -> Json.fromString("k2")))
   )
 
   private val dfWithoutlastUpdatedTimeSchema = StructType(
     Seq(StructField("notlastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
   private val dataWithoutlastUpdatedTime = Seq(
-    RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt)),
-    RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt))
+    RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt).toMap),
+    RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt).toMap)
   )
   private val dfWithlastUpdatedTimeSchema = StructType(
     Seq(StructField("lastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
@@ -70,16 +81,38 @@ class RawTableRelationTest
       StructField("value", IntegerType, false)
     ))
   private val dataWithManylastUpdatedTime = Seq(
-    RawRow("key5", Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt)),
-    RawRow("key6", Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2).mapValues(Json.fromInt))
+    RawRow("key5", Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt).toMap),
+    RawRow("key6", Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2).mapValues(Json.fromInt).toMap)
   )
 
   private val dataWithSimpleNestedStruct = Seq(
     RawRow("k", Map("nested" -> Json.obj("field" -> Json.fromString("Ř"), "field2" -> Json.fromInt(1))))
   )
+
+  private val dataWithEmptyStringInByteField = Seq(
+    RawRow("k1", Map("byte" -> Json.fromString(""))),
+    RawRow("k2", Map("byte" -> Json.fromInt(1.toByte)))
+  )
+  private val dataWithEmptyStringInShortField = Seq(
+    RawRow("k1", Map("short" -> Json.fromString(""))),
+    RawRow("k2", Map("short" -> Json.fromInt(12.toShort)))
+  )
+  private val dataWithEmptyStringInIntegerField = Seq(
+    RawRow("k1", Map("integer" -> Json.fromString(""))),
+    RawRow("k2", Map("integer" -> Json.fromInt(123)))
+  )
+  private val dataWithEmptyStringInLongField = Seq(
+    RawRow("k1", Map("long" -> Json.fromString(""))),
+    RawRow("k2", Map("long" -> Json.fromLong(12345L)))
+  )
   private val dataWithEmptyStringInDoubleField = Seq(
     RawRow("k1", Map("num" -> Json.fromString(""))),
     RawRow("k2", Map("num" -> Json.fromDouble(12.3).get))
+  )
+  private val dataWithEmptyStringInBooleanField = Seq(
+    RawRow("k1", Map("bool" -> Json.fromString(""))),
+    RawRow("k2", Map("bool" -> Json.fromBoolean(java.lang.Boolean.parseBoolean("true")))),
+    RawRow("k3", Map("bool" -> Json.fromBoolean(false)))
   )
 
   override def beforeAll(): Unit = {
@@ -92,7 +125,12 @@ class RawTableRelationTest
       ("with-lastUpdatedTime", dataWithlastUpdatedTime),
       ("with-many-lastUpdatedTime", dataWithManylastUpdatedTime),
       ("with-nesting", dataWithSimpleNestedStruct),
-      ("with-number-empty-str", dataWithEmptyStringInDoubleField)
+      ("with-byte-empty-str", dataWithEmptyStringInByteField),
+      ("with-short-empty-str", dataWithEmptyStringInShortField),
+      ("with-integer-empty-str", dataWithEmptyStringInIntegerField),
+      ("with-long-empty-str", dataWithEmptyStringInLongField),
+      ("with-number-empty-str", dataWithEmptyStringInDoubleField),
+      ("with-boolean-empty-str", dataWithEmptyStringInBooleanField)
     )
     if (!writeClient.rawDatabases.list().compile.toVector.exists(_.name == db)) {
       writeClient.rawDatabases.createOne(RawDatabase(db))
@@ -116,7 +154,13 @@ class RawTableRelationTest
   lazy private val dfWithManylastUpdatedTime = rawRead("with-many-lastUpdatedTime")
 
   lazy private val dfWithSimpleNestedStruct = rawRead("with-nesting")
+
+  lazy private val dfWithEmptyStringInByteField = rawRead("with-byte-empty-str")
+  lazy private val dfWithEmptyStringInShortField = rawRead("with-short-empty-str")
+  lazy private val dfWithEmptyStringInIntegerField = rawRead("with-integer-empty-str")
+  lazy private val dfWithEmptyStringInLongField = rawRead("with-long-empty-str")
   lazy private val dfWithEmptyStringInDoubleField = rawRead("with-number-empty-str")
+  lazy private val dfWithEmptyStringInBooleanField = rawRead("with-boolean-empty-str")
 
   it should "smoke test raw" taggedAs WriteTest in {
     val limit = 100
@@ -138,7 +182,10 @@ class RawTableRelationTest
     assert(res.count == limit * partitions)
   }
 
-  def rawRead(table: String, database: String = "spark-test-database", inferSchema: Boolean = true): DataFrame = {
+  def rawRead(
+      table: String,
+      database: String = "spark-test-database",
+      inferSchema: Boolean = true): DataFrame =
     spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -149,12 +196,10 @@ class RawTableRelationTest
       .option("inferSchema", inferSchema)
       .option("inferSchemaLimit", "100")
       .load()
-      //.cache()
-  }
+  //.cache()
 
   "A RawTableRelation" should "allow data columns named key, _key etc. but rename them to _key, __key etc." in {
-    dfWithoutKey.schema.fieldNames.toSet should equal(
-      Set("key", "lastUpdatedTime", "notKey", "value"))
+    dfWithoutKey.schema.fieldNames.toSet should equal(Set("key", "lastUpdatedTime", "notKey", "value"))
     collectToSet[String](dfWithoutKey.select($"key")) should equal(Set("key1", "key2"))
 
     dfWithKey.schema.fieldNames.toSet should equal(Set("key", "lastUpdatedTime", "_key", "value"))
@@ -190,10 +235,8 @@ class RawTableRelationTest
         "value"))
 
     collectToSet[java.sql.Timestamp](dfWithManylastUpdatedTime.select($"lastUpdatedTime"))
-    collectToSet[Long](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(
-      Set(null, 2))
-    collectToSet[Long](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(
-      Set(11, 22))
+    collectToSet[Long](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(null, 2))
+    collectToSet[Long](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(Set(11, 22))
     collectToSet[Long](dfWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
       Set(111, 222))
   }
@@ -230,25 +273,17 @@ class RawTableRelationTest
     val schema = dfWithSimpleNestedStruct.schema
     schema.fieldNames should contain("nested")
     val nestedSchema = schema.fields(schema.fieldIndex("nested")).dataType.asInstanceOf[StructType]
-    nestedSchema.fieldNames should (contain("field") and contain("field2"))
+    nestedSchema.fieldNames should (contain("field").and(contain("field2")))
 
     collectToSet[String](dfWithSimpleNestedStruct.selectExpr("nested.field")) should equal(Set("Ř"))
     collectToSet[Int](dfWithSimpleNestedStruct.selectExpr("nested.field2")) should equal(Set(1))
 
   }
 
-  it should "infer schema to be Double even though it contains empty string sometimes" in {
-    // It's a weird use case, but some customer complained when we broke this, so let's make sure we don't do that again :)
-
-    val schema = dfWithEmptyStringInDoubleField.schema
-    schema("num").dataType shouldBe DoubleType
-    dfWithEmptyStringInDoubleField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
-    dfWithEmptyStringInDoubleField.collect().map(_.getAs[Any]("num")).toSet shouldBe Set(null, 12.3) // scalastyle:off null
-  }
-
   "rowsToRawItems" should "return RawRows from Rows" in {
     val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
-    val rawItems: Seq[RawRow] = RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq)
+    val rawItems: Seq[RawRow] =
+      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq)
     rawItems.map(_.key.toString).toSet should equal(Set("key3", "key4"))
 
     val expectedResult: Seq[Map[String, Json]] = Seq[Map[String, Json]](
@@ -267,13 +302,13 @@ class RawTableRelationTest
 
     val dfWithKey = data.toDF("_key", "key", "value2")
     val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
-    val toInsert = RawJsonConverter.rowsToRawItems(
-      columnNames,
-      temporaryKeyName,
-      unRenamed.collect.toSeq).toVector
+    val toInsert =
+      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq).toVector
 
     toInsert.map(_.key) shouldBe Vector("key1", "key2")
-    toInsert.map(_.columns.get("key")) shouldBe Vector(Some(Json.fromString("notkey1")), Some(Json.fromString("notkey2")))
+    toInsert.map(_.columns.get("key")) shouldBe Vector(
+      Some(Json.fromString("notkey1")),
+      Some(Json.fromString("notkey2")))
   }
 
   it should "throw an CDFSparkIllegalArgumentException when DataFrame has null key" in {
@@ -284,10 +319,9 @@ class RawTableRelationTest
 
     val dfWithKey = dataWithNullKey.toDF("_key", "key", "value2")
     val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
-    an[CdfSparkIllegalArgumentException] should be thrownBy RawJsonConverter.rowsToRawItems(
-      columnNames,
-      temporaryKeyName,
-      unRenamed.collect.toSeq).toArray
+    an[CdfSparkIllegalArgumentException] should be thrownBy RawJsonConverter
+      .rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq)
+      .toArray
   }
 
   "Infer Schema" should "use a different limit for infer schema" in {
@@ -483,6 +517,58 @@ class RawTableRelationTest
       assert(nestedStruct.schema != null)
       nestedStruct.schema.fieldNames.toSeq.loneElement shouldBe "foo"
       nestedStruct.toSeq.loneElement shouldBe 123L
+
+      val arrayOfStruct = struct.getSeq[Row](struct.fieldIndex("array_of_struct"))
+      val structInArray = arrayOfStruct.loneElement
+
+      assert(structInArray.schema != null)
+      structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
+      structInArray.toSeq.loneElement shouldBe 123L
+    } finally {
+      writeClient.rawRows(database, table).deleteById(key)
+    }
+  }
+
+  it should "create the table with ensureParent option" in {
+    val database = "testdb"
+    val table = "ensureParent-test-" + shortRandomString()
+
+    // remove the DB to be sure
+    try {
+      writeClient.rawTables(database).deleteById(table)
+    } catch {
+      case _: CdpApiException => ()// Ignore
+    }
+
+    val key = shortRandomString()
+
+    try {
+      val source = spark.sql(
+        s"""select
+           |  '$key' as key,
+           |  123 as something
+           |""".stripMargin)
+      val destination = spark.read
+        .format("cognite.spark.v1")
+        .schema(source.schema)
+        .option("apiKey", writeApiKey)
+        .option("type", "raw")
+        .option("database", database)
+        .option("table", table)
+        .option("rawEnsureParent", "true")
+        .load()
+      destination.createTempView("ensureParent_test")
+      source
+        .select(destination.columns.map(c => col(c)): _*)
+        .write
+        .insertInto("ensureParent_test")
+
+    } finally {
+      try {
+        writeClient.rawTables(database).deleteById(table)
+      } catch {
+        case _: CdpApiException => ()// Ignore
+      }
     }
   }
 
@@ -586,5 +672,87 @@ class RawTableRelationTest
     // just test that Spark did not die in the process
     val select1result = spark.sql("select 1 as col").collect()
     assert(select1result.map(_.getInt(0)).toList == List(1))
+  }
+
+  // It's a weird use case, but some customer complained when we broke this, so let's make sure we don't do that again :)
+  "RawJsonConverter" should "handle empty string as null for Byte type" in {
+    val schema = dfWithEmptyStringInByteField.schema
+    schema("byte").dataType shouldBe LongType
+    dfWithEmptyStringInByteField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInByteField
+      .collect()
+      .map(_.getAs[Any]("byte"))
+      .toSet shouldBe Set(null, 1.toByte) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Short type" in {
+    val schema = dfWithEmptyStringInShortField.schema
+    schema("short").dataType shouldBe LongType
+    dfWithEmptyStringInShortField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInShortField
+      .collect()
+      .map(_.getAs[Any]("short"))
+      .toSet shouldBe Set(null, 12.toShort) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Integer type" in {
+    val schema = dfWithEmptyStringInIntegerField.schema
+    schema("integer").dataType shouldBe LongType
+    dfWithEmptyStringInIntegerField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInIntegerField
+      .collect()
+      .map(_.getAs[Any]("integer"))
+      .toSet shouldBe Set(null, 123) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Long type" in {
+    val schema = dfWithEmptyStringInLongField.schema
+    schema("long").dataType shouldBe LongType
+    dfWithEmptyStringInLongField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInLongField
+      .collect()
+      .map(_.getAs[Any]("long"))
+      .toSet shouldBe Set(null, 12345L) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Double type" in {
+    val schema = dfWithEmptyStringInDoubleField.schema
+    schema("num").dataType shouldBe DoubleType
+    dfWithEmptyStringInDoubleField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
+    dfWithEmptyStringInDoubleField
+      .collect()
+      .map(_.getAs[Any]("num"))
+      .toSet shouldBe Set(null, 12.3) // scalastyle:off null
+  }
+
+  it should "handle empty string as null for Boolean type" in {
+    val schema = dfWithEmptyStringInBooleanField.schema
+    schema("bool").dataType shouldBe BooleanType
+    dfWithEmptyStringInBooleanField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set(
+      "k1",
+      "k2",
+      "k3")
+    dfWithEmptyStringInBooleanField
+      .collect()
+      .map(_.getAs[Any]("bool"))
+      .toSet shouldBe Set(null, true, false) // scalastyle:off null
+  }
+
+  it should "fail reasonably on invalid types" in {
+    val schema: StructType = StructType(
+      Seq(
+        StructField("key", DataTypes.StringType),
+        StructField("lastUpdatedTime", DataTypes.TimestampType),
+        StructField("value", DataTypes.FloatType)
+      ))
+    val converter =
+      RawJsonConverter.makeRowConverter(schema, Array("value"), "lastUpdatedTime", "key")
+
+    val testRow = RawRow("k", Map("value" -> Json.fromString("test")))
+
+    val err = intercept[SparkRawRowMappingException](converter.apply(testRow))
+
+    err.getMessage shouldBe "Error while loading RAW row [key='k'] in column 'value': java.lang.NumberFormatException: For input string: \"test\""
+
   }
 }

@@ -1,4 +1,4 @@
-![Maven Central](https://img.shields.io/maven-central/v/com.cognite.spark.datasource/cdf-spark-datasource_2.12?label=version)
+![Maven Central](https://img.shields.io/maven-central/v/com.cognite.spark.datasource/cdf-spark-datasource_2.13?label=version)
 # Spark Data Source
 
 The [Cognite Spark Data Source](https://github.com/cognitedata/cdp-spark-datasource)
@@ -7,6 +7,8 @@ lets you use [Spark](https://spark.apache.org/) to read and write data from and 
 Reads and writes are done in parallel using asynchronous calls.
 
 The instructions below explain how to read from, and write to, the different resource types in CDF.
+
+This repository also contains `cdf_dump` command line tool for reading data from CDF locally. There is a [separate documentation page for it](./cdf_dump/).
 
 **In this article**
 
@@ -1337,3 +1339,13 @@ res0: Long = 1000
 
 Note that if you're on an older version than `1.1.0` you'll need to use the old name,
 `cdp-spark-datasource`.
+
+## Run cdf_dump locally
+
+To run `cdf_dump` from the sources, run
+
+```shell
+sbt "cdfdump/run --help"
+```
+
+See [./cdf_dump](./cdf_dump) for more details.

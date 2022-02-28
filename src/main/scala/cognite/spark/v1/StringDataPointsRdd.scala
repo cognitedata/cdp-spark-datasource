@@ -3,7 +3,6 @@ package cognite.spark.v1
 import cats.effect.IO
 import com.cognite.sdk.scala.common.StringDataPoint
 import com.cognite.sdk.scala.v1._
-import sttp.client3.SttpBackend
 import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -14,7 +13,7 @@ final case class StringDataPointsRdd(
     getIOs: GenericClient[IO] => Seq[(CogniteId, IO[Seq[StringDataPoint]])],
     toRow: StringDataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
-
+  import CdpConnector.ioRuntime
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 

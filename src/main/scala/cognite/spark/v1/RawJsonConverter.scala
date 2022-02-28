@@ -50,9 +50,9 @@ object RawJsonConverter {
       case v: Array[Byte] =>
         throw new CdfSparkIllegalArgumentException(
           "BinaryType is not supported when writing raw, please convert it to base64 string or array of numbers")
-      case v: Seq[Any] => Json.arr(v.map(anyToRawJson): _*)
       case v: Map[Any @unchecked, Any @unchecked] =>
         Json.obj(v.toSeq.map(x => x._1.toString -> anyToRawJson(x._2)): _*)
+      case v: Iterable[Any] => Json.arr(v.toSeq.map(anyToRawJson): _*)
       case v: Row => rowToJson(v)
       case _ =>
         throw new CdfSparkIllegalArgumentException(
@@ -117,7 +117,12 @@ object RawJsonConverter {
         for ((key, value) <- row.columns) {
           val fieldIndex = nameMap.getOrDefault(key, -1)
           if (fieldIndex >= 0) {
-            rowArray(fieldIndex + 2) = fieldConverters(fieldIndex).convertNullSafe(value)
+            try {
+              rowArray(fieldIndex + 2) = fieldConverters(fieldIndex).convertNullSafe(value)
+            } catch {
+              case e: Exception =>
+                throw new SparkRawRowMappingException(key, row, e)
+            }
           }
         }
         new GenericRowWithSchema(rowArray, sparkSchema)
@@ -188,24 +193,58 @@ object RawJsonConverter {
     case BooleanType => {
       case Json.True => java.lang.Boolean.TRUE
       case Json.False => java.lang.Boolean.FALSE
-      case j => mappingError(dataType, j)
+      case j: Json =>
+        j.asString
+          .map {
+            case "" => null
+            case s => java.lang.Boolean.valueOf(java.lang.Boolean.parseBoolean(s))
+          }
+          .getOrElse(mappingError(dataType, j))
     }
 
     case ByteType =>
       (j: Json) =>
-        j.asNumber.flatMap(_.toByte).map(java.lang.Byte.valueOf).getOrElse(mappingError(dataType, j))
+        j.asNumber
+          .flatMap(_.toByte)
+          .map(java.lang.Byte.valueOf)
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Byte.valueOf(java.lang.Byte.parseByte(s))
+          })
+          .getOrElse(mappingError(dataType, j))
 
     case ShortType =>
       (j: Json) =>
-        j.asNumber.flatMap(_.toShort).map(java.lang.Short.valueOf).getOrElse(mappingError(dataType, j))
+        j.asNumber
+          .flatMap(_.toShort)
+          .map(java.lang.Short.valueOf)
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Short.valueOf(java.lang.Short.parseShort(s))
+          })
+          .getOrElse(mappingError(dataType, j))
 
     case IntegerType =>
       (j: Json) =>
-        j.asNumber.flatMap(_.toInt).map(java.lang.Integer.valueOf).getOrElse(mappingError(dataType, j))
+        j.asNumber
+          .flatMap(_.toInt)
+          .map(java.lang.Integer.valueOf)
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Integer.valueOf(java.lang.Integer.parseInt(s))
+          })
+          .getOrElse(mappingError(dataType, j))
 
     case LongType =>
       (j: Json) =>
-        j.asNumber.flatMap(_.toLong).map(java.lang.Long.valueOf).getOrElse(mappingError(dataType, j))
+        j.asNumber
+          .flatMap(_.toLong)
+          .map(java.lang.Long.valueOf)
+          .orElse(j.asString.map {
+            case "" => null
+            case s => java.lang.Long.valueOf(java.lang.Long.parseLong(s))
+          })
+          .getOrElse(mappingError(dataType, j))
 
     case FloatType =>
       (j: Json) =>
@@ -358,3 +397,8 @@ object RawJsonConverter {
   }
 
 }
+
+class SparkRawRowMappingException(val column: String, val row: RawRow, cause: Throwable)
+    extends CdfSparkException(
+      s"Error while loading RAW row [key='${row.key}'] in column '$column': $cause",
+      cause)

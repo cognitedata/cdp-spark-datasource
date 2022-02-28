@@ -18,8 +18,6 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
     with WritableRelation
     with InsertableRelation {
-  import CdpConnector._
-
   override def insert(rows: Seq[Row]): IO[Unit] =
     getFromRowsAndCreate(rows, doUpsert = false)
 
@@ -35,8 +33,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val deletes = rows.map(r => fromRow[DeleteItem](r))
-    deleteWithIgnoreUnknownIds(client.timeSeries, deletes, config.ignoreUnknownIds)
+    val deletes = rows.map(fromRow[DeleteItemByCogniteId](_))
+    deleteWithIgnoreUnknownIds(client.timeSeries, deletes.map(_.toCogniteId), config.ignoreUnknownIds)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
@@ -86,8 +84,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       unit = m.get("unit"),
       isStep = m.get("isStep").map(_.toBoolean),
       isString = m.get("isString").map(_.toBoolean),
-      assetIds = m.get("assetId").map(idsFromWrappedArray),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
+      assetIds = m.get("assetId").map(idsFromStringifiedArray),
+      dataSetIds = m.get("dataSetId").map(idsFromStringifiedArray(_).map(CogniteInternalId(_))),
       externalIdPrefix = m.get("externalIdPrefix"),
       createdTime = timeRange(m, "createdTime"),
       lastUpdatedTime = timeRange(m, "lastUpdatedTime")

@@ -1057,6 +1057,30 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       }
     }
   }
+  it should "fail reasonably when assetIds is a string" taggedAs WriteTest in {
+    val error = sparkIntercept {
+      // Post new events
+      spark
+        .sql(s"""
+                |select "foo" as description,
+                |least(startTime, endTime) as startTime,
+                |greatest(startTime, endTime) as endTime,
+                |array('test-what-happens-with-a-string') as assetIds,
+                |map("foo", null, "bar", "test") as metadata,
+                |$testDataSetId as datasetId
+                |from sourceEvent
+                |limit 1
+     """.stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "events")
+        .save()
+
+    }
+    assert(error.getMessage.contains("Column 'assetIds' was expected to have type Seq[Long], but"))
+  }
+
 
   it should "allow deletes in savemode" taggedAs WriteTest in {
     val source = s"spark-events-delete-save-${shortRandomString()}"
@@ -1183,6 +1207,75 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       e.getCause shouldBe a[CdpApiException]
       val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
       assert(cdpApiException.code == 400)
+    } finally {
+      try {
+        cleanupEvents(source)
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
+  }
+
+  it should "support deletes by externalIds" in {
+    val source = s"spark-externalIds-delete-save-${shortRandomString()}"
+    val randomSuffix = shortRandomString()
+
+    try {
+      // Insert some test data
+      spark
+        .sql(s"""
+                |select "foo" as description,
+                |least(startTime, endTime) as startTime,
+                |greatest(startTime, endTime) as endTime,
+                |type,
+                |subtype,
+                |null as assetIds,
+                |bigint(0) as id,
+                |map("foo", null, "bar", "test") as metadata,
+                |"$source" as source,
+                |concat(string(id), '${randomSuffix}') as externalId,
+                |0 as createdTime,
+                |lastUpdatedTime,
+                |null as dataSetId
+                |from sourceEvent
+                |limit 100
+     """.stripMargin)
+        .select(destinationDf.columns.map(col): _*)
+        .write
+        .insertInto("destinationEvent")
+
+      // Check if insert worked
+      val idsAfterInsert =
+        retryWhile[Array[Row]](
+          spark
+            .sql(s"select externalId from destinationEvent where source = '$source'")
+            .collect,
+          df => df.length < 100)
+      assert(idsAfterInsert.length == 100)
+
+      val metricsPrefix = s"events.delete.${shortRandomString()}"
+      // Delete the data
+      val idsAfterDelete =
+        retryWhile[Array[Row]](
+          {
+            spark
+              .sql(s"select externalId from destinationEvent where source = '$source'")
+              .write
+              .format("cognite.spark.v1")
+              .option("apiKey", writeApiKey)
+              .option("type", "events")
+              .option("onconflict", "delete")
+              .option("collectMetrics", "true")
+              .option("metricsPrefix", metricsPrefix)
+              .save()
+            spark
+              .sql(s"select externalId from destinationEvent where source = '$source'")
+              .collect
+          },
+          df => df.length > 0
+        )
+      assert(idsAfterDelete.isEmpty)
+      getNumberOfRowsDeleted(metricsPrefix, "events") should be >= 100L
     } finally {
       try {
         cleanupEvents(source)

@@ -12,7 +12,7 @@ object Metrics {
 
   val testFailedCounter = Counter
     .build()
-    .name("cognite_cdf_spark_test_failed_total")
+    .name("cognite_cdf_spark_test_failed")
     .help("The number of failed benchmark tests.")
     .register()
 }

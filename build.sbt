@@ -3,15 +3,15 @@ import sbtassembly.AssemblyPlugin.autoImport._
 import sbtassembly.MergeStrategy
 
 val scala212 = "2.12.15"
-//val scala213 = "2.13.6"
-val supportedScalaVersions = List(scala212)
+val scala213 = "2.13.8"
+val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.2.0"
-val circeVersion = "0.13.0"
-val sttpVersion = "3.3.15"
+val circeVersion = "0.14.1"
+val sttpVersion = "3.4.1"
 val Specs2Version = "4.6.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "1.5.20"
-val prometheusVersion = "0.8.1"
+val cogniteSdkVersion = "2.0.2"
+val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
 
 resolvers += "libs-release" at artifactory + "libs-release/"
@@ -22,8 +22,9 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "1.4.58",
+  version := "2.0.1",
   crossScalaVersions := supportedScalaVersions,
+  scalaVersion := scala212, // default to Scala 2.12
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
@@ -66,7 +67,11 @@ lazy val commonSettings = Seq(
     if (gpgPass.isDefined) gpgPass.map(_.toCharArray)
     else None
   },
-  Test / fork := true
+  Test / fork := true,
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
+  // Yell at tests that take longer than 120 seconds to finish.
+  // Yell at them once every 60 seconds.
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60")
 )
 
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
@@ -94,14 +99,14 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
+      "io.scalaland" %% "chimney" % "0.6.1"
         // scala-collection-compat is used in TransformerF, but we don't use that,
         // and this dependency causes issues with Livy.
-        exclude("org.scala-lang.modules", "scala-collection-compat_2.11")
-        exclude("org.scala-lang.modules", "scala-collection-compat_2.12"),
+        exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
+        exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
-      "com.softwaremill.sttp.client3" %% "async-http-client-backend" % sttpVersion,
-      "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats-ce2" % sttpVersion
+      "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion
         // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
         exclude("io.netty", "netty-buffer")
         exclude("io.netty", "netty-codec-http")
@@ -111,19 +116,19 @@ lazy val library = (project in file("."))
         exclude("io.netty", "netty-handler-proxy")
         exclude("io.netty", "netty-resolver-dns")
         exclude("io.netty", "netty-transport-native-epoll")
-        exclude("com.softwaremill.sttp", "circe_2.11")
         exclude("com.softwaremill.sttp", "circe_2.12")
-        exclude("org.typelevel", "cats-effect_2.11")
+        exclude("com.softwaremill.sttp", "circe_2.13")
         exclude("org.typelevel", "cats-effect_2.12")
-        exclude("org.typelevel", "cats-core_2.11")
-        exclude("org.typelevel", "cats-core_2.12"),
+        exclude("org.typelevel", "cats-effect_2.13")
+        exclude("org.typelevel", "cats-core_2.12")
+        exclude("org.typelevel", "cats-core_2.13"),
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
       "io.circe" %% "circe-generic" % circeVersion
-        exclude("org.typelevel", "cats-core_2.11")
-        exclude("org.typelevel", "cats-core_2.12"),
+        exclude("org.typelevel", "cats-core_2.12")
+        exclude("org.typelevel", "cats-core_2.13"),
       "io.circe" %% "circe-generic-extras" % circeVersion
-        exclude("org.typelevel", "cats-core_2.11")
-        exclude("org.typelevel", "cats-core_2.12"),
+        exclude("org.typelevel", "cats-core_2.12")
+        exclude("org.typelevel", "cats-core_2.13"),
       "org.scalatest" %% "scalatest" % "3.0.8" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.4.44.v20210927" % Provided,
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided
@@ -154,7 +159,7 @@ lazy val library = (project in file("."))
     Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
     coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
-    buildInfoPackage := "BuildInfo"
+    buildInfoPackage := "cognite.spark"
   )
 
 lazy val performancebench = (project in file("performancebench"))
@@ -183,12 +188,20 @@ lazy val performancebench = (project in file("performancebench"))
   )
 
 lazy val cdfdump = (project in file("cdf_dump"))
-  .enablePlugins(JavaAppPackaging, UniversalPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, UniversalPlugin)
   .dependsOn(library)
   .settings(
     commonSettings,
     publish / skip := true,
-    name := "cdf-dump",
+    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
+    buildInfoPackage := "cognite.spark.cdfdump",
+    assembly / assemblyJarName := "cdf_dump.jar",
+    assembly / assemblyMergeStrategy := {
+      case n if n.contains("services") || n.startsWith("reference.conf") || n.endsWith(".conf") => MergeStrategy.concat
+      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+      case x => MergeStrategy.first
+    },
+    name := "cdf_dump",
     fork := true,
     libraryDependencies ++= Seq(
       "org.rogach" %% "scallop" % "4.0.1",

@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import java.time.Instant
-
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
@@ -10,6 +9,7 @@ import com.cognite.sdk.scala.common.{WithExternalId, WithId}
 import com.cognite.sdk.scala.v1.resources.SequencesResource
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
+import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
@@ -19,8 +19,6 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[SequenceReadSchema, Long](config, "sequences")
     with InsertableRelation
     with WritableRelation {
-  import CdpConnector._
-
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -48,9 +46,29 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         s.dataSetId
       )
     }
-    client.sequences
-      .create(sequences)
-      .flatTap(_ => incMetrics(itemsCreated, sequences.size)) *> IO.unit
+
+    // Sequence API does not support more than 200 columns per sequence,
+    // and the maximum total columns per request is 10000
+    // so grouped by 50 ensure that each chunk can not have more than 10000 columns in total,
+    // otherwise we already reject because of the first condition
+    val (_, groupedSequences) = sequences
+      .foldLeft((0, List(Vector.empty[SequenceCreate]))) {
+        case ((currentGroupColumnsCount, groups @ currentGroup :: otherGroups), sequence) =>
+          val columnsInSequence = sequence.columns.size
+          if (currentGroupColumnsCount + columnsInSequence > Constants.DefaultSequencesTotalColumnsLimit) {
+            // create a new group
+            (columnsInSequence, Vector(sequence) :: groups)
+          } else {
+            // add to current group
+            (currentGroupColumnsCount + columnsInSequence, (sequence +: currentGroup) :: otherGroups)
+          }
+      }
+    groupedSequences.map { sequencesToCreate =>
+      client.sequences
+        .create(sequencesToCreate)
+        .flatMap(_ => incMetrics(itemsCreated, sequencesToCreate.size))
+    }.sequence_
+
   }
 
   private def isUpdateEmpty(u: SequenceUpdate): Boolean = u == SequenceUpdate()
@@ -78,15 +96,35 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     throw new CdfSparkException("Upsert not supported for sequences.")
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
-    val sequences = rows.map(fromRow[SequenceCreate](_))
+    val sequences =
+      rows
+        .map(fromRow[SequenceUpdateSchema](_))
+
+    implicit val toCreate =
+      Transformer
+        .define[SequenceUpdateSchema, SequenceCreate]
+        .withFieldComputed(
+          _.columns,
+          x =>
+            cats.data.NonEmptyList
+              .fromFoldable(
+                x.columns
+                  .getOrElse(throw new CdfSparkIllegalArgumentException(
+                    s"columns is required when inserting sequences (on row $x)"))
+                  .toVector
+              )
+              .getOrElse(
+                throw new CdfSparkIllegalArgumentException(s"columns must not be empty (on row $x)"))
+        )
+        .buildTransformer
 
     // scalastyle:off no.whitespace.after.left.bracket
     createOrUpdateByExternalId[
       Sequence,
       SequenceUpdate,
       SequenceCreate,
-      SequenceCreate,
-      Option,
+      SequenceUpdateSchema,
+      OptionalField,
       SequencesResource[IO]](Set.empty, sequences, client.sequences, doUpsert = true)
   }
 

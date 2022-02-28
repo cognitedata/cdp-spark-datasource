@@ -35,10 +35,10 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       subtype = m.get("subtype"),
       startTime = timeRangeFromMinAndMax(m.get("minStartTime"), m.get("maxStartTime")),
       endTime = timeRangeFromMinAndMax(m.get("minEndTime"), m.get("maxEndTime")),
-      assetIds = m.get("assetIds").map(idsFromWrappedArray),
+      assetIds = m.get("assetIds").map(idsFromStringifiedArray),
       createdTime = timeRangeFromMinAndMax(m.get("minCreatedTime"), m.get("maxCreatedTime")),
       lastUpdatedTime = timeRangeFromMinAndMax(m.get("minLastUpdatedTime"), m.get("maxLastUpdatedTime")),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
+      dataSetIds = m.get("dataSetId").map(idsFromStringifiedArray(_).map(CogniteInternalId(_))),
       externalIdPrefix = m.get("externalIdPrefix")
     )
 
@@ -61,8 +61,8 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val deletes = rows.map(r => fromRow[DeleteItem](r))
-    deleteWithIgnoreUnknownIds(client.events, deletes, config.ignoreUnknownIds)
+    val deletes = rows.map(fromRow[DeleteItemByCogniteId](_))
+    deleteWithIgnoreUnknownIds(client.events, deletes.map(_.toCogniteId), config.ignoreUnknownIds)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {

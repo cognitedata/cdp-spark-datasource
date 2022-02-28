@@ -3,42 +3,41 @@ package cognite.spark.v1
 import java.time.Instant
 import cats.effect.IO
 import com.cognite.sdk.scala.v1.{
-  AssetsFilter,
   CogniteInternalId,
   File,
   FileCreate,
   FileUpdate,
   FilesFilter,
-  GenericClient,
-  TimeRange,
-  TimeSeriesFilter
+  GenericClient
 }
 import cognite.spark.v1.SparkSchemaHelper._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import cats.implicits._
-import cognite.spark.v1.CdpConnector.cdpConnectorConcurrent
 import cognite.spark.v1.PushdownUtilities.{
+  cogniteExternalIdSeqToStringSeq,
   executeFilter,
   externalIdsToContainsAny,
-  idsFromWrappedArray,
+  idsFromStringifiedArray,
   pushdownToFilters,
-  timeRange,
-  timeRangeFromMinAndMax
+  stringSeqToCogniteExternalIdSeq,
+  timeRange
 }
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.Files
-import fs2.Stream
 import io.scalaland.chimney.Transformer
+import io.scalaland.chimney.dsl._
+import fs2.Stream
 
 class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[File, Long](config, "files")
+    extends SdkV1Relation[FilesReadSchema, Long](config, "files")
     with InsertableRelation
     with WritableRelation {
 
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
-    val files = rows.map(fromRow[FileCreate](_))
+    val filesUpserts = rows.map(fromRow[FilesUpsertSchema](_))
+    val files = filesUpserts.map(_.transformInto[FileCreate])
     createOrUpdateByExternalId[File, FileUpdate, FileCreate, FileCreate, Option, Files[IO]](
       Set.empty,
       files,
@@ -50,7 +49,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     FilesFilter(
       name = m.get("name"),
       mimeType = m.get("mimeType"),
-      assetIds = m.get("assetIds").map(idsFromWrappedArray),
+      assetIds = m.get("assetIds").map(idsFromStringifiedArray),
       createdTime = timeRange(m, "createdTime"),
       lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
       uploadedTime = timeRange(m, "uploadedTime"),
@@ -58,21 +57,29 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       sourceModifiedTime = timeRange(m, "sourceModifiedTime"),
       uploaded = m.get("uploaded").map(_.toBoolean),
       source = m.get("source"),
-      dataSetIds = m.get("dataSetId").map(idsFromWrappedArray(_).map(CogniteInternalId(_))),
-      //labels = m.get("labels").flatMap(externalIdsToContainsAny),
+      dataSetIds = m.get("dataSetId").map(idsFromStringifiedArray(_).map(CogniteInternalId(_))),
+      labels = m.get("labels").flatMap(externalIdsToContainsAny),
       externalIdPrefix = m.get("externalIdPrefix")
     )
 
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, File]] = {
+      numPartitions: Int): Seq[Stream[IO, FilesReadSchema]] = {
     val (ids, filters) = pushdownToFilters(sparkFilters, filesFilterFromMap, FilesFilter())
-    executeFilter(client.files, filters, ids, numPartitions, limit)
+    executeFilter(client.files, filters, ids, numPartitions, limit).map(
+      _.map(
+        _.into[FilesReadSchema]
+          .withFieldComputed(_.labels, u => cogniteExternalIdSeqToStringSeq(u.labels))
+          .transform))
   }
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
-    val files = rows.map(fromRow[FileCreate](_))
+    val filesInsertions = rows.map(fromRow[FilesInsertSchema](_))
+    val files = filesInsertions.map(
+      _.into[FileCreate]
+        .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
+        .transform)
     client.files
       .create(files)
       .flatTap(_ => incMetrics(itemsCreated, files.size)) *> IO.unit
@@ -107,11 +114,11 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       mustBeUpdate = f => f.name.isEmpty && f.getExternalId.nonEmpty)
   }
 
-  override def schema: StructType = structType[File]
+  override def schema: StructType = structType[FilesReadSchema]
 
-  override def toRow(t: File): Row = asRow(t)
+  override def toRow(t: FilesReadSchema): Row = asRow(t)
 
-  override def uniqueId(a: File): Long = a.id
+  override def uniqueId(a: FilesReadSchema): Long = a.id
 }
 object FilesRelation extends UpsertSchema {
   val upsertSchema: StructType = structType[FilesUpsertSchema]
@@ -131,7 +138,8 @@ final case class FilesUpsertSchema(
     mimeType: OptionalField[String] = FieldNotSpecified,
     sourceCreatedTime: OptionalField[Instant] = FieldNotSpecified,
     sourceModifiedTime: OptionalField[Instant] = FieldNotSpecified,
-    securityCategories: Option[Seq[Long]] = None
+    securityCategories: Option[Seq[Long]] = None,
+    labels: Option[Seq[String]] = None
 ) extends WithNullableExtenalId
     with WithId[Option[Long]]
 
@@ -143,6 +151,7 @@ object FilesUpsertSchema {
         _.name,
         _.name.getOrElse(
           throw new CdfSparkIllegalArgumentException("The name field must be set when creating files.")))
+      .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
       .buildTransformer
 
 }
@@ -158,7 +167,8 @@ final case class FilesInsertSchema(
     dataSetId: Option[Long] = None,
     sourceCreatedTime: Option[Instant] = None,
     sourceModifiedTime: Option[Instant] = None,
-    securityCategories: Option[Seq[Long]] = None
+    securityCategories: Option[Seq[Long]] = None,
+    labels: Option[Seq[String]] = None
 )
 
 final case class FilesReadSchema(
@@ -174,6 +184,7 @@ final case class FilesReadSchema(
     uploadedTime: Option[Instant] = None,
     createdTime: Instant = Instant.ofEpochMilli(0),
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
+    labels: Option[Seq[String]] = None,
     sourceCreatedTime: Option[Instant] = None,
     sourceModifiedTime: Option[Instant] = None,
     securityCategories: Option[Seq[Long]] = None,

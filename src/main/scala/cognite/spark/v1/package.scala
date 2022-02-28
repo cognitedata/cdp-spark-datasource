@@ -79,10 +79,11 @@ package object v1 {
       override def transform(seq: SequenceColumn): SequenceColumnCreate =
         SequenceColumnCreate(
           name = seq.name,
-          externalId = seq.externalId.get,
+          externalId = seq.externalId.getOrElse(throw new RuntimeException("Missing externalId")),
           description = seq.description,
           metadata = seq.metadata,
-          valueType = seq.valueType)
+          valueType = seq.valueType
+        )
     }
 
   implicit def encodeNonNullableSetter[T](
