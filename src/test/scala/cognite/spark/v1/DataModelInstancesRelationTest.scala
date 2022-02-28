@@ -41,8 +41,8 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with Paralle
              |'first_test' as externalId""".stripMargin))
     val resp = bluefieldAlphaClient.dataModelInstances.query(DataModelInstanceQuery(modelExternalId = modelExternalId,
       filter = None, sort = None, limit = None)).unsafeRunTimed(5.minutes).get.items
-    resp.size shouldBe 1
-//    getNumberOfRowsCreated(modelExternalId, "modelinstances") shouldBe 1
+    resp.size should be >= 1
+    getNumberOfRowsUpserted(modelExternalId, "modelinstances") shouldBe 1
   }
 
 }

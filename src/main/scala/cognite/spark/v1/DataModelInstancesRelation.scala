@@ -63,7 +63,9 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     } else {
       val fromRowFn = fromRow(rows.head.schema)
       val dataModelInstances: Seq[DataModelInstance] = rows.map(fromRowFn)
-      alphaClient.dataModelInstances.createItems(Items(dataModelInstances)) *> IO.unit
+      alphaClient.dataModelInstances
+        .createItems(Items(dataModelInstances))
+        .flatTap(_ => incMetrics(itemsUpserted, dataModelInstances.length)) *> IO.unit
     }
 
   def toRow(a: ProjectedDataModelInstance): Row = ???

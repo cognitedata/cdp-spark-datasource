@@ -171,6 +171,9 @@ trait SparkTest {
   def getNumberOfRowsCreated(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.created")
 
+  def getNumberOfRowsUpserted(metricsPrefix: String, resourceType: String): Long =
+    getCounter(s"$metricsPrefix.$resourceType.upserted")
+
   def getNumberOfRequests(metricsPrefix: String): Long =
     getCounter(s"$metricsPrefix.requestsWithoutRetries")
 
