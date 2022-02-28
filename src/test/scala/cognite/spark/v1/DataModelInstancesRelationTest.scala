@@ -13,11 +13,25 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
   val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
   import CdpConnector.ioRuntime
 
+
   private def getExternalIdList(modelExternalId: String): Seq[String] =
     bluefieldAlphaClient.dataModelInstances.query(DataModelInstanceQuery(modelExternalId = modelExternalId,
       filter = None, sort = None, limit = None))
       .unsafeRunTimed(5.minutes).get.items
       .flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList)
+
+  private def createModelView(modelExternalId: String) = spark.read
+      .format("cognite.spark.v1")
+      .option("baseUrl", "https://bluefield.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", "extractor-bluefield-testing")
+      .option("scopes", "https://bluefield.cognitedata.com/.default")
+      .option("modelExternalId", modelExternalId)
+      .option("type", "modelinstances")
+      .load()
+//  modelInstancesDf.createOrReplaceTempView("modelInstances")
 
   def insertRows(modelExternalId: String, df: DataFrame, onconflict: String = "upsert"): Unit =
     df.write
@@ -41,11 +55,11 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       modelExternalId,
       spark
         .sql(
-          s"""select 1.0 as prop_float,
+          s"""select 2.0 as prop_float,
              |true as prop_bool,
              |'abc' as prop_string,
              |'first_test2' as externalId""".stripMargin))
-    getExternalIdList(modelExternalId) should contain("first_test")
+    getExternalIdList(modelExternalId) should contain("first_test2")
     getNumberOfRowsUpserted(modelExternalId, "modelinstances") shouldBe 1
   }
 
@@ -78,15 +92,28 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       modelExternalId,
       spark
         .sql(
-          s"""select array(int(t.id)) as arr_int,
+          s"""select array(1) as arr_int,
              |array(true, false) as arr_boolean,
-             |null as arr_str,
-             |null as str_prop,
+             |NULL as arr_str,
+             |NULL as str_prop,
              |'test_arr3' as externalId
-             |from timeSeries t
-             |limit 1""".stripMargin))
-    getExternalIdList(modelExternalId) should contain("test_arr3")
-    getNumberOfRowsUpserted(modelExternalId, "modelinstances") shouldBe 1
+             |
+             |union all
+             |
+             |select array(1,2) as arr_int,
+             |NULL as arr_boolean,
+             |array('hehe') as arr_str,
+             |'hehe' as str_prop,
+             |'test_arr4' as externalId""".stripMargin))
+    getExternalIdList(modelExternalId) should contain allOf("test_arr3", "test_arr4")
+    getNumberOfRowsUpserted(modelExternalId, "modelinstances") shouldBe 2
   }
+
+//  it should "read instances" in {
+//    val modelExternalId = "Equipment-0de0774f"
+//    val df = createModelView(modelExternalId)
+//    df.where("externalId = 'first_test'").count() shouldBe 1
+//    getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 1
+//  }
 
 }

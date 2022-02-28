@@ -64,19 +64,13 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         .flatTap(_ => incMetrics(itemsUpserted, dataModelInstances.length)) *> IO.unit
     }
 
-  def toRow(a: ProjectedDataModelInstance, p: Option[Int]): Row = ???
+  def toRow(a: ProjectedDataModelInstance, p: Option[Int]): Row = Row.fromSeq(a.properties)
 
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 
   // scalastyle:off cyclomatic.complexity
   def getInstanceFilter(sparkFilter: Filter): Seq[DataModelInstanceFilter] =
     sparkFilter match {
-      case EqualTo("externalId", value) =>
-        Seq(DMIEqualsFilter(Seq("instance", "externalId"), parseValue(value)))
-      case In("externalId", values) =>
-        Seq(DMIInFilter(Seq("instance", "externalId"), values.map(parseValue)))
-      case StringStartsWith("externalId", value) =>
-        Seq(DMIPrefixFilter(Seq("instance", "externalId"), parseValue(value)))
       case EqualTo(left, right) =>
         Seq(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
       case In(attribute, values) =>
@@ -128,12 +122,14 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         .map(_.map {
           case (name, value) =>
             parseFromJson(value, propertyTypes(name)._1)
+              .getOrElse(throw new CdfSparkException(s"Unexpected value $value in property $name"))
         })
         .toArray
-        .flatten)
+        .flatten
+    )
 
   def getStreams(filters: Array[Filter])(
-      alphaClient: GenericClient[IO],
+      client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
     val dmiFilter = if (filters.isEmpty) {
@@ -149,7 +145,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       sort = None,
       limit = limit,
       cursor = None)
-    Seq(alphaClient.dataModelInstances.queryStream(dmiQuery, None).map(toProjectedInstance))
+    Seq(alphaClient.dataModelInstances.queryStream(dmiQuery, limit).map(toProjectedInstance))
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
@@ -232,24 +228,27 @@ object DataModelInstanceRelation {
     case null => Json.Null // scalastyle:off null
   }
 
-  private def parseFromJson(value: Json, propType: String): Any =
+  private def parseFromJson(value: Json, propType: String): Option[Any] =
     if (value.isNull) {
       Some(null)
     } else {
       propType.toLowerCase match {
         case prop if stringTypes contains prop =>
           value.asString
-        case "numeric" | "float64" | "float32" => value.asNumber.map(_.toDouble)
-        case "int" | "int32" | "int64" | "bigint" => value.asNumber.flatMap(_.toLong)
-        case "text[]" =>
-          value.asArray.getOrElse(Vector()).flatMap(_.asString)
-        case "boolean[]" =>
-          value.asArray.getOrElse(Vector()).flatMap(_.asBoolean)
-        case "numeric[]" | "float64[]" | "float32[]" =>
-          value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toDouble))
-        case "int[]" | "int32[]" | "int64[]" | "bigint[]" =>
+        case "boolean" =>
+          value.asBoolean
+        case "numeric" | "float64" | "float32" =>
+          value.asNumber.map(_.toDouble)
+        case "int" | "int32" | "int64" | "bigint" =>
           value.asNumber.flatMap(_.toLong)
-          value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toLong))
+        case "text[]" =>
+          Some(value.asArray.getOrElse(Vector()).flatMap(_.asString))
+        case "boolean[]" =>
+          Some(value.asArray.getOrElse(Vector()).flatMap(_.asBoolean))
+        case "numeric[]" | "float64[]" | "float32[]" =>
+          Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toDouble)))
+        case "int[]" | "int32[]" | "int64[]" | "bigint[]" =>
+          Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toLong).toList))
         case a => throw new CdfSparkException(s"Unknown property type $a")
       }
     }
