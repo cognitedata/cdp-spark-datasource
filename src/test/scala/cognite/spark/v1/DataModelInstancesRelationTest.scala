@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.Items
-import com.cognite.sdk.scala.v1.{DMIEqualsFilter, DataModel, DataModelInstanceQuery, DataModelProperty, DataModelPropertyIndex}
+import com.cognite.sdk.scala.v1.{DMIEqualsFilter, DataModel, DataModelInstanceFilter, DataModelInstanceQuery, DataModelInstanceQueryResponse, DataModelProperty, DataModelPropertyIndex}
 import io.circe.Json
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
@@ -15,17 +15,16 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
   val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
   import CdpConnector.ioRuntime
 
+  private def listInstances(modelExternalId: String, filter: Option[DataModelInstanceFilter] = None): Seq[DataModelInstanceQueryResponse] =
+    bluefieldAlphaClient.dataModelInstances.query(DataModelInstanceQuery(modelExternalId = modelExternalId,
+      filter = filter, sort = None, limit = None))
+      .unsafeRunTimed(5.minutes).get.items
 
   private def getExternalIdList(modelExternalId: String): Seq[String] =
-    bluefieldAlphaClient.dataModelInstances.query(DataModelInstanceQuery(modelExternalId = modelExternalId,
-      filter = None, sort = None, limit = None))
-      .unsafeRunTimed(5.minutes).get.items
-      .flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList)
+    listInstances(modelExternalId).flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList)
 
   private def byExternalId(modelExternalId: String, externalId: String): String =
-    bluefieldAlphaClient.dataModelInstances.query(DataModelInstanceQuery(modelExternalId = modelExternalId,
-      filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), Json.fromString(externalId))), sort = None, limit = None))
-      .unsafeRunTimed(5.minutes).get.items
+    listInstances(modelExternalId, filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), Json.fromString(externalId))))
       .flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList).head
 
 
@@ -122,8 +121,15 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
   ignore should "read instances" in {
     val modelExternalId = "Equipment-0de0774f"
     val df = readRows(modelExternalId)
-    df.count() shouldBe 2
+    df.count() shouldBe 1
     getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 2
+  }
+
+  ignore should "query instances by externalId" in {
+    val modelExternalId = "Equipment-0de0774f"
+    val df = readRows(modelExternalId)
+    df.where("externalId = 'first_test'").count() shouldBe 1
+    getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 1
   }
 
 }

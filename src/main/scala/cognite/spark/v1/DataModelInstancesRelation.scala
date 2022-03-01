@@ -214,6 +214,10 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 }
 
 object DataModelInstanceRelation {
+  private def propertyNotNullableMessage(propertyType: String) =
+    s"Property of $propertyType type is not nullable."
+  private def unknownPropertyType(a: Any) = s"Unknown property type $a."
+
   val stringTypes = Seq(
     "text",
     "geometry",
@@ -259,7 +263,7 @@ object DataModelInstanceRelation {
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toDouble)))
         case "int[]" | "int32[]" | "int64[]" | "bigint[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toLong).toList))
-        case a => throw new CdfSparkException(s"Unknown property type $a")
+        case a => throw new CdfSparkException(unknownPropertyType(a))
       }
     }
 
@@ -278,7 +282,7 @@ object DataModelInstanceRelation {
       case "float32[]" => DataTypes.createArrayType(DataTypes.FloatType)
       case "int32[]" | "int[]" => DataTypes.createArrayType(DataTypes.IntegerType)
       case "int64[]" | "bigint[]" => DataTypes.createArrayType(DataTypes.LongType)
-      case a => throw new CdfSparkException(s"Unknown property type $a")
+      case a => throw new CdfSparkException(unknownPropertyType(a))
     }
 
   private def jsonFromDouble(num: Double): Json =
@@ -286,6 +290,7 @@ object DataModelInstanceRelation {
   private def tryGetValue(propertyType: String, nullable: Boolean): PartialFunction[Any, Json] = // scalastyle:off
     propertyType.toLowerCase match {
       case "float32" | "float64" | "numeric" => {
+        case null if !nullable => throw new CdfSparkException(propertyNotNullableMessage(propertyType))
         case null => Json.Null // scalastyle:off null
         case x: Double => jsonFromDouble(x)
         case x: Int => jsonFromDouble(x.toDouble)
@@ -295,25 +300,36 @@ object DataModelInstanceRelation {
         case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
       }
       case "boolean" => {
+        case null if !nullable =>
+          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case x: Boolean => Json.fromBoolean(x)
       }
       case "int" | "int64" | "int32" | "bigint" => {
+        case null if !nullable =>
+          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case x: Int => Json.fromInt(x)
         case x: Long => Json.fromLong(x)
         case x: java.math.BigInteger => Json.fromBigInt(x)
       }
       case strType if stringTypes contains strType => {
+        case null if !nullable =>
+          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case x: String => Json.fromString(x)
       }
       case "text[]" => {
+        case null if !nullable =>
+          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
+        case Seq() => Json.arr()
         case x: Seq[String] @unchecked if x.head.isInstanceOf[String] =>
           Json.fromValues(x.map(Json.fromString))
       }
       case "float32[]" | "float64[]" | "numeric[]" => {
+        case null if !nullable =>
+          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case Seq() => Json.arr()
         case x: Seq[Double] @unchecked if x.head.isInstanceOf[Double] =>
@@ -330,12 +346,16 @@ object DataModelInstanceRelation {
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
       }
       case "boolean[]" => {
+        case null if !nullable =>
+          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case Seq() => Json.arr()
         case x: Seq[Boolean] @unchecked if x.head.isInstanceOf[Boolean] =>
           Json.fromValues(x.map(Json.fromBoolean))
       }
       case "int[]" | "int64[]" | "int32[]" | "bigint[]" => {
+        case null if !nullable =>
+          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case Seq() => Json.arr()
         case x: Seq[Int] @unchecked if x.head.isInstanceOf[Int] =>
@@ -346,7 +366,7 @@ object DataModelInstanceRelation {
           Json.fromValues(x.map(value => Json.fromLong(value.doubleValue.toLong)))
       }
       case a =>
-        throw new CdfSparkException(s"Unknown property type $a")
+        throw new CdfSparkException(unknownPropertyType(a))
     }
   // scalastyle:on cyclomatic.complexity
 
