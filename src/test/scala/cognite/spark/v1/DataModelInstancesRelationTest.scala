@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.Items
-import com.cognite.sdk.scala.v1.{DMIEqualsFilter, DataModel, DataModelInstanceFilter, DataModelInstanceQuery, DataModelInstanceQueryResponse, DataModelProperty, DataModelPropertyIndex}
+import com.cognite.sdk.scala.v1._
 import io.circe.Json
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
@@ -27,6 +27,27 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     listInstances(modelExternalId, filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), Json.fromString(externalId))))
       .flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList).head
 
+  private val multiValuedExtId = "Equipment_sparkDS5"
+  private val primitiveExtId = "Equipment_sparkDS6"
+
+  private val props = Map(
+    "arr_int"-> DataModelProperty(`type`="int[]", nullable = false),
+    "arr_boolean"-> DataModelProperty(`type`="boolean[]", nullable = true),
+    "arr_str"-> DataModelProperty(`type`="text[]", nullable = true),
+    "str_prop" -> DataModelProperty(`type`="text", nullable = true)
+  )
+  private val props2 = Map(
+    "prop_float"-> DataModelProperty(`type`="float64", nullable = true),
+    "prop_bool"-> DataModelProperty(`type`="boolean", nullable = true),
+    "prop_string"-> DataModelProperty(`type`="text", nullable = true)
+  )
+
+  bluefieldAlphaClient.dataModels.createItems(
+    Items(Seq(
+      DataModel(externalId = multiValuedExtId, properties = Some(props)),
+      DataModel(externalId = primitiveExtId, properties = Some(props2))
+    )))
+    .unsafeRunTimed(5.minutes).get
 
   private def readRows(modelExternalId: String) = spark.read
       .format("cognite.spark.v1")
@@ -59,31 +80,20 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       .save
 
   it should "ingest data" in {
-    val modelExternalId = "Equipment-0de0774f"
     insertRows(
-      modelExternalId,
+      primitiveExtId,
       spark
         .sql(
           s"""select 2.0 as prop_float,
              |true as prop_bool,
              |'abc' as prop_string,
-             |'first_test2' as externalId""".stripMargin))
-    byExternalId(modelExternalId, "first_test2") shouldBe "first_test2"
-    getNumberOfRowsUpserted(modelExternalId, "modelinstances") shouldBe 1
+             |'prim_test' as externalId""".stripMargin))
+    byExternalId(primitiveExtId, "prim_test") shouldBe "prim_test"
+    getNumberOfRowsUpserted(primitiveExtId, "modelinstances") shouldBe 1
   }
 
   it should "ingest multi valued data" in {
-    val modelExternalId = "Equipment_sparkDS4"
 
-    val props = Map(
-      "arr_int"-> DataModelProperty(`type`="int[]", nullable = false),
-      "arr_boolean"-> DataModelProperty(`type`="boolean[]", nullable = true),
-      "arr_str"-> DataModelProperty(`type`="text[]", nullable = true),
-      "str_prop" -> DataModelProperty(`type`="text", nullable = true)
-    )
-   bluefieldAlphaClient.dataModels.createItems(
-     Items(Seq(DataModel(externalId = modelExternalId, properties = Some(props)))))
-     .unsafeRunTimed(5.minutes).get
 
     val tsDf = spark.read
       .format("cognite.spark.v1")
@@ -98,14 +108,14 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     tsDf.createOrReplaceTempView("timeSeries")
 
     insertRows(
-      modelExternalId,
+      multiValuedExtId,
       spark
         .sql(
           s"""select array(1) as arr_int,
              |array(true, false) as arr_boolean,
              |NULL as arr_str,
              |NULL as str_prop,
-             |'test_arr3' as externalId
+             |'test_multi' as externalId
              |
              |union all
              |
@@ -113,23 +123,26 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
              |NULL as arr_boolean,
              |array('hehe') as arr_str,
              |'hehe' as str_prop,
-             |'test_arr4' as externalId""".stripMargin))
-    getExternalIdList(modelExternalId) should contain allOf("test_arr3", "test_arr4")
-    getNumberOfRowsUpserted(modelExternalId, "modelinstances") shouldBe 2
+             |'test_multi2' as externalId""".stripMargin))
+    getExternalIdList(multiValuedExtId) should contain allOf("test_multi", "test_multi2")
+    getNumberOfRowsUpserted(multiValuedExtId, "modelinstances") shouldBe 2
   }
 
   it should "read instances" in {
-    val modelExternalId = "Equipment-0de0774f"
-    val df = readRows(modelExternalId)
-    df.limit(3).count() shouldBe 3
-    getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 3
+    val df = readRows(primitiveExtId)
+    df.limit(1).count() shouldBe 1
+    getNumberOfRowsRead(primitiveExtId, "modelinstances") shouldBe 1
+  }
+
+  it should "read multi valued instances" in {
+    val df = readRows(multiValuedExtId)
+    df.limit(2).count() shouldBe 2
+    getNumberOfRowsRead(multiValuedExtId, "modelinstances") shouldBe 2
   }
 
   ignore should "query instances by externalId" in {
-    val modelExternalId = "Equipment-0de0774f"
-    val df = readRows(modelExternalId)
-    df.where("externalId = 'first_test'").count() shouldBe 1
-    getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 1
+    val df = readRows(primitiveExtId)
+    df.where("externalId = 'prim_test'").count() shouldBe 1
+    getNumberOfRowsRead(primitiveExtId, "modelinstances") shouldBe 1
   }
-
 }

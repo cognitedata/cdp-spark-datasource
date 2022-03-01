@@ -75,12 +75,6 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   // scalastyle:off cyclomatic.complexity
   def getInstanceFilter(sparkFilter: Filter): Seq[DataModelInstanceFilter] =
     sparkFilter match {
-      case EqualTo("externalId", right) =>
-        Seq(DMIEqualsFilter(Seq("instance", "externalId"), parseValue(right)))
-      case In("externalId", right) =>
-        Seq(DMIInFilter(Seq("instance", "externalId"), right.filter(_ != null).map(parseValue)))
-      case StringStartsWith("externalId", value) =>
-        Seq(DMIPrefixFilter(Seq("instance", "externalId"), parseValue(value)))
       case EqualTo(left, right) =>
         Seq(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
       case In(attribute, values) =>
@@ -125,24 +119,24 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     }
   // scalastyle:on cyclomatic.complexity
 
-  def toProjectedInstance(dmi: DataModelInstanceQueryResponse): ProjectedDataModelInstance =
+  def toProjectedInstance(dmi: DataModelInstanceQueryResponse): ProjectedDataModelInstance = {
+    val dmiProperties = dmi.properties.getOrElse(Map())
     ProjectedDataModelInstance(
       externalId = dmi.properties
         .flatMap(_.get("externalId"))
         .flatMap(_.asString)
         .getOrElse(
           throw new CdfSparkException("Can't read data model instance, `externalId` is missing.")),
-      properties = dmi.properties
-        .map(_.map {
-          case (name, value) =>
-            (
-              propertyTypes(name).schemaIndex,
-              parseFromJson(value, propertyTypes(name).`type`)
-                .getOrElse(throw new CdfSparkException(s"Unexpected value $value in property $name")))
-        })
-        .toArray
-        .flatten
+      properties = propertyTypes.map {
+        case (name: String, indexedType: IndexedType) =>
+          val value = dmiProperties.getOrElse(name, Json.Null)
+          (
+            indexedType.schemaIndex,
+            parseFromJson(value, indexedType.`type`)
+              .getOrElse(throw new CdfSparkException(s"Unexpected value $value in property $name")))
+      }.toArray
     )
+  }
 
   def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
@@ -223,15 +217,6 @@ object DataModelInstanceRelation {
     s"Property of $propertyType type is not nullable."
   private def unknownPropertyType(a: Any) = s"Unknown property type $a."
 
-  val stringTypes = Seq(
-    "text",
-    "geometry",
-    "geography",
-    "direct_relation",
-    "timestamp",
-    "date"
-  )
-
   //scalastyle:off cyclomatic.complexity
   private def parseValue(value: Any): Json = value match {
     case x: Double => jsonFromDouble(x)
@@ -252,13 +237,15 @@ object DataModelInstanceRelation {
       Some(null)
     } else {
       propType.toLowerCase match {
-        case prop if stringTypes contains prop =>
+        case "text" =>
           value.asString
         case "boolean" =>
           value.asBoolean
         case "numeric" | "float64" | "float32" =>
           value.asNumber.map(_.toDouble)
-        case "int" | "int32" | "int64" | "bigint" =>
+        case "int" | "int32" =>
+          value.asNumber.flatMap(_.toInt)
+        case "int64" | "bigint" =>
           value.asNumber.flatMap(_.toLong)
         case "text[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asString))
@@ -266,7 +253,9 @@ object DataModelInstanceRelation {
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asBoolean))
         case "numeric[]" | "float64[]" | "float32[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toDouble)))
-        case "int[]" | "int32[]" | "int64[]" | "bigint[]" =>
+        case "int[]" | "int32[]" =>
+          Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toInt).toList))
+        case "int64[]" | "bigint[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toLong).toList))
         case a => throw new CdfSparkException(unknownPropertyType(a))
       }
@@ -274,7 +263,7 @@ object DataModelInstanceRelation {
 
   def propertyTypeToSparkType(propertyType: String): DataType =
     propertyType.toLowerCase match {
-      case strType if stringTypes contains strType =>
+      case "text" =>
         DataTypes.StringType
       case "boolean" => DataTypes.BooleanType
       case "numeric" | "float64" => DataTypes.DoubleType
@@ -318,7 +307,7 @@ object DataModelInstanceRelation {
         case x: Long => Json.fromLong(x)
         case x: java.math.BigInteger => Json.fromBigInt(x)
       }
-      case strType if stringTypes contains strType => {
+      case "text" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
