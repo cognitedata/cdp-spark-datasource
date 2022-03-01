@@ -62,8 +62,12 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         .flatTap(_ => incMetrics(itemsUpserted, dataModelInstances.length)) *> IO.unit
     }
 
-  def toRow(a: ProjectedDataModelInstance, p: Option[Int]): Row =
+  def toRow(a: ProjectedDataModelInstance, p: Option[Int]): Row = {
+    if (config.collectMetrics) {
+      itemsRead.inc()
+    }
     Row.fromSeq(a.properties.sortBy(_._1).map(_._2))
+  }
 
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 

@@ -29,7 +29,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       .flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList).head
 
 
-  private def createModelView(modelExternalId: String) = spark.read
+  private def readRows(modelExternalId: String) = spark.read
       .format("cognite.spark.v1")
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
@@ -38,9 +38,10 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       .option("project", "extractor-bluefield-testing")
       .option("scopes", "https://bluefield.cognitedata.com/.default")
       .option("modelExternalId", modelExternalId)
+      .option("collectMetrics", true)
+      .option("metricsPrefix", modelExternalId)
       .option("type", "modelinstances")
       .load()
-//  modelInstancesDf.createOrReplaceTempView("modelInstances")
 
   def insertRows(modelExternalId: String, df: DataFrame, onconflict: String = "upsert"): Unit =
     df.write
@@ -120,9 +121,9 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
 
   ignore should "read instances" in {
     val modelExternalId = "Equipment-0de0774f"
-    val df = createModelView(modelExternalId)
-    df.where("externalId = 'first_test'").count() shouldBe 1
-//    getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 1
+    val df = readRows(modelExternalId)
+    df.count() shouldBe 2
+    getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 2
   }
 
 }
