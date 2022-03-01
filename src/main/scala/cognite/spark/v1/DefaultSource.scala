@@ -164,10 +164,6 @@ class DefaultSource
           config,
           modelName
         )(sqlContext)
-      case "models" =>
-        new DataModelMappingsRelation(
-          config
-        )(sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
