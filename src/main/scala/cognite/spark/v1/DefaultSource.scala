@@ -157,7 +157,7 @@ class DefaultSource
         new RelationshipsRelation(config)(sqlContext)
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
-      case "modelinstances" =>
+      case "datamodelinstances" =>
         val modelName =
           parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
         new DataModelInstanceRelation(
@@ -224,7 +224,7 @@ class DefaultSource
           new RelationshipsRelation(config)(sqlContext)
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
-        case "modelinstances" =>
+        case "datamodelinstances" =>
           val modelName =
             parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
           new DataModelInstanceRelation(

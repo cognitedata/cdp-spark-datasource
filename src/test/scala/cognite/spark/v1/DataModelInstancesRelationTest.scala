@@ -60,13 +60,13 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       .option("modelExternalId", modelExternalId)
       .option("collectMetrics", true)
       .option("metricsPrefix", modelExternalId)
-      .option("type", "modelinstances")
+      .option("type", "datamodelinstances")
       .load()
 
   def insertRows(modelExternalId: String, df: DataFrame, onconflict: String = "upsert"): Unit =
     df.write
       .format("cognite.spark.v1")
-      .option("type", "modelinstances")
+      .option("type", "datamodelinstances")
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)
@@ -89,7 +89,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
              |'abc' as prop_string,
              |'prim_test' as externalId""".stripMargin))
     byExternalId(primitiveExtId, "prim_test") shouldBe "prim_test"
-    getNumberOfRowsUpserted(primitiveExtId, "modelinstances") shouldBe 1
+    getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
   }
 
   it should "ingest multi valued data" in {
@@ -125,24 +125,24 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
              |'hehe' as str_prop,
              |'test_multi2' as externalId""".stripMargin))
     getExternalIdList(multiValuedExtId) should contain allOf("test_multi", "test_multi2")
-    getNumberOfRowsUpserted(multiValuedExtId, "modelinstances") shouldBe 2
+    getNumberOfRowsUpserted(multiValuedExtId, "datamodelinstances") shouldBe 2
   }
 
   it should "read instances" in {
     val df = readRows(primitiveExtId)
     df.limit(1).count() shouldBe 1
-    getNumberOfRowsRead(primitiveExtId, "modelinstances") shouldBe 1
+    getNumberOfRowsRead(primitiveExtId, "datamodelinstances") shouldBe 1
   }
 
   it should "read multi valued instances" in {
     val df = readRows(multiValuedExtId)
     df.limit(2).count() shouldBe 2
-    getNumberOfRowsRead(multiValuedExtId, "modelinstances") shouldBe 2
+    getNumberOfRowsRead(multiValuedExtId, "datamodelinstances") shouldBe 2
   }
 
   ignore should "query instances by externalId" in {
     val df = readRows(primitiveExtId)
     df.where("externalId = 'prim_test'").count() shouldBe 1
-    getNumberOfRowsRead(primitiveExtId, "modelinstances") shouldBe 1
+    getNumberOfRowsRead(primitiveExtId, "datamodelinstances") shouldBe 1
   }
 }

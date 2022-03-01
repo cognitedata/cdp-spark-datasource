@@ -16,7 +16,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)(
     val sqlContext: SQLContext)
-    extends CdfRelation(config, "modelinstances")
+    extends CdfRelation(config, "datamodelinstances")
     with WritableRelation
     with PrunedFilteredScan {
   import CdpConnector._
