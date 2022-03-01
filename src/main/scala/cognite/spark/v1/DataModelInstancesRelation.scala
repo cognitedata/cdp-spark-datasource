@@ -126,7 +126,11 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 
   def toProjectedInstance(dmi: DataModelInstanceQueryResponse): ProjectedDataModelInstance =
     ProjectedDataModelInstance(
-      externalId = dmi.modelExternalId,
+      externalId = dmi.properties
+        .flatMap(_.get("externalId"))
+        .flatMap(_.asString)
+        .getOrElse(
+          throw new CdfSparkException("Can't read data model instance, `externalId` is missing.")),
       properties = dmi.properties
         .map(_.map {
           case (name, value) =>
@@ -165,8 +169,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       config,
       toRow,
       uniqueId,
-      getStreams(filters),
-      deduplicateRows = false // Not sure why it breaks the logic when true
+      getStreams(filters)
     )
 
   def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)

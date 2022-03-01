@@ -121,7 +121,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
   it should "read instances" in {
     val modelExternalId = "Equipment-0de0774f"
     val df = readRows(modelExternalId)
-    df.count() shouldBe 3
+    df.limit(3).count() shouldBe 3
     getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 3
   }
 
