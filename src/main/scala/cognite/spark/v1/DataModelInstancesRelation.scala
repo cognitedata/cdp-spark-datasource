@@ -41,15 +41,13 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .toList
     .flatten
 
-  val propertyTypes: Map[String, (String, Boolean)] = modelInfo.properties
-    .map { props =>
-      props.map {
-        case (name, prop) => {
-          (name, (prop.`type`, prop.nullable))
-        }
-      }
-    }
+  val propertyTypes: Map[String, IndexedType] = modelInfo.properties
     .getOrElse(Map())
+    .zipWithIndex
+    .map {
+      case ((name, prop), i: Int) =>
+        (name, IndexedType(i, prop.`type`, prop.nullable))
+    }
 
   override def schema: StructType = new StructType(modelPropertyStructFields.toArray)
 
@@ -64,13 +62,20 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         .flatTap(_ => incMetrics(itemsUpserted, dataModelInstances.length)) *> IO.unit
     }
 
-  def toRow(a: ProjectedDataModelInstance, p: Option[Int]): Row = Row.fromSeq(a.properties)
+  def toRow(a: ProjectedDataModelInstance, p: Option[Int]): Row =
+    Row.fromSeq(a.properties.sortBy(_._1).map(_._2))
 
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 
   // scalastyle:off cyclomatic.complexity
   def getInstanceFilter(sparkFilter: Filter): Seq[DataModelInstanceFilter] =
     sparkFilter match {
+      case EqualTo("externalId", right) =>
+        Seq(DMIEqualsFilter(Seq("instance", "externalId"), parseValue(right)))
+      case In("externalId", right) =>
+        Seq(DMIInFilter(Seq("instance", "externalId"), right.filter(_ != null).map(parseValue)))
+      case StringStartsWith("externalId", value) =>
+        Seq(DMIPrefixFilter(Seq("instance", "externalId"), parseValue(value)))
       case EqualTo(left, right) =>
         Seq(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
       case In(attribute, values) =>
@@ -84,7 +89,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
             "int32[]",
             "int[]",
             "int64[]",
-            "bigint[]") contains propertyTypes(attribute)._1) {
+            "bigint[]") contains propertyTypes(attribute).`type`) {
           Seq()
         } else {
           Seq(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
@@ -121,8 +126,10 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       properties = dmi.properties
         .map(_.map {
           case (name, value) =>
-            parseFromJson(value, propertyTypes(name)._1)
-              .getOrElse(throw new CdfSparkException(s"Unexpected value $value in property $name"))
+            (
+              propertyTypes(name).schemaIndex,
+              parseFromJson(value, propertyTypes(name).`type`)
+                .getOrElse(throw new CdfSparkException(s"Unexpected value $value in property $name")))
         })
         .toArray
         .flatten
@@ -170,7 +177,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
     }
 
-    val properties: Array[(Int, String, (String, Boolean))] = schema.fields.zipWithIndex
+    val properties: Array[(Int, String, IndexedType)] = schema.fields.zipWithIndex
       .map {
         case (field: StructField, index: Int) =>
           val propertyType = propertyTypes.getOrElse(
@@ -188,13 +195,12 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
       }
       val propertyValues: Map[String, Json] = properties.map {
-        case (index, name, propType) =>
-          val (propT, nullable) = propType
-          name -> tryGetValue(propT, nullable).applyOrElse(
+        case (index, name, indexedType) =>
+          name -> tryGetValue(indexedType.`type`, indexedType.nullable).applyOrElse(
             row.get(index),
             (_: Any) =>
               throw SparkSchemaHelperRuntime
-                .badRowError(row, name, propT, "")
+                .badRowError(row, name, indexedType.`type`, "")
           )
       }.toMap
       DataModelInstance(modelExternalId, properties = Some(propertyValues))
@@ -342,4 +348,5 @@ object DataModelInstanceRelation {
 
 }
 
-final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
+final case class ProjectedDataModelInstance(externalId: String, properties: Array[(Int, Any)]) // properties: Index in schema and value
+final case class IndexedType(schemaIndex: Int, `type`: String, nullable: Boolean)

@@ -1,9 +1,11 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.Items
-import com.cognite.sdk.scala.v1.{DataModel, DataModelInstanceQuery, DataModelProperty, DataModelPropertyIndex}
+import com.cognite.sdk.scala.v1.{DMIEqualsFilter, DataModel, DataModelInstanceQuery, DataModelProperty, DataModelPropertyIndex}
+import io.circe.Json
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
+
 import scala.concurrent.duration.DurationInt
 
 class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTest {
@@ -19,6 +21,13 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       filter = None, sort = None, limit = None))
       .unsafeRunTimed(5.minutes).get.items
       .flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList)
+
+  private def byExternalId(modelExternalId: String, externalId: String): String =
+    bluefieldAlphaClient.dataModelInstances.query(DataModelInstanceQuery(modelExternalId = modelExternalId,
+      filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), Json.fromString(externalId))), sort = None, limit = None))
+      .unsafeRunTimed(5.minutes).get.items
+      .flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList).head
+
 
   private def createModelView(modelExternalId: String) = spark.read
       .format("cognite.spark.v1")
@@ -59,7 +68,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
              |true as prop_bool,
              |'abc' as prop_string,
              |'first_test2' as externalId""".stripMargin))
-    getExternalIdList(modelExternalId) should contain("first_test2")
+    byExternalId(modelExternalId, "first_test2") shouldBe "first_test2"
     getNumberOfRowsUpserted(modelExternalId, "modelinstances") shouldBe 1
   }
 
@@ -109,11 +118,11 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     getNumberOfRowsUpserted(modelExternalId, "modelinstances") shouldBe 2
   }
 
-//  it should "read instances" in {
-//    val modelExternalId = "Equipment-0de0774f"
-//    val df = createModelView(modelExternalId)
-//    df.where("externalId = 'first_test'").count() shouldBe 1
+  ignore should "read instances" in {
+    val modelExternalId = "Equipment-0de0774f"
+    val df = createModelView(modelExternalId)
+    df.where("externalId = 'first_test'").count() shouldBe 1
 //    getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 1
-//  }
+  }
 
 }
