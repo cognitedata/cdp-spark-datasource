@@ -118,11 +118,11 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     getNumberOfRowsUpserted(modelExternalId, "modelinstances") shouldBe 2
   }
 
-  ignore should "read instances" in {
+  it should "read instances" in {
     val modelExternalId = "Equipment-0de0774f"
     val df = readRows(modelExternalId)
-    df.count() shouldBe 1
-    getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 2
+    df.count() shouldBe 3
+    getNumberOfRowsRead(modelExternalId, "modelinstances") shouldBe 3
   }
 
   ignore should "query instances by externalId" in {

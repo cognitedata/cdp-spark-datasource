@@ -165,7 +165,8 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       config,
       toRow,
       uniqueId,
-      getStreams(filters)
+      getStreams(filters),
+      deduplicateRows = false // Not sure why it breaks the logic when true
     )
 
   def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
