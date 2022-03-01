@@ -48,6 +48,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       case ((name, prop), i: Int) =>
         (name, IndexedType(i, prop.`type`, prop.nullable))
     }
+    .toMap
 
   override def schema: StructType = new StructType(modelPropertyStructFields.toArray)
 
