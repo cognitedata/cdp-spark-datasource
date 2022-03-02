@@ -179,12 +179,14 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       getStreams(filters, requiredColumns)
     )
 
-  def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
+  def insert(rows: Seq[Row]): IO[Unit] =
+    throw new CdfSparkException("Insert is not supported for data model instances. Use upsert instead.")
 
-  def update(rows: Seq[Row]): IO[Unit] = upsert(rows)
+  def update(rows: Seq[Row]): IO[Unit] =
+    throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
 
   override def delete(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Delete not supported for data model instances. Use upsert instead.")
+    throw new CdfSparkException("Delete is not supported for data model instances.")
 
   def fromRow(schema: StructType): Row => DataModelInstance = {
     val externalIdIndex = schema.fieldNames.indexOf("externalId")
