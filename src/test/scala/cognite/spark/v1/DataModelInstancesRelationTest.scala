@@ -49,7 +49,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     )))
     .unsafeRunTimed(5.minutes).get
 
-  private def readRows(modelExternalId: String) = spark.read
+  private def readRows(modelExternalId: String, metricPrefix: String) = spark.read
       .format("cognite.spark.v1")
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
@@ -59,7 +59,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       .option("scopes", "https://bluefield.cognitedata.com/.default")
       .option("modelExternalId", modelExternalId)
       .option("collectMetrics", true)
-      .option("metricsPrefix", modelExternalId)
+      .option("metricsPrefix", metricPrefix)
       .option("type", "datamodelinstances")
       .load()
 
@@ -129,20 +129,23 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
   }
 
   it should "read instances" in {
-    val df = readRows(primitiveExtId)
+    val metricPrefix = shortRandomString()
+    val df = readRows(primitiveExtId, metricPrefix)
     df.limit(1).count() shouldBe 1
-    getNumberOfRowsRead(primitiveExtId, "datamodelinstances") shouldBe 1
+    getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
   }
 
   it should "read multi valued instances" in {
-    val df = readRows(multiValuedExtId)
+    val metricPrefix = shortRandomString()
+    val df = readRows(multiValuedExtId, metricPrefix)
     df.limit(2).count() shouldBe 2
-    getNumberOfRowsRead(multiValuedExtId, "datamodelinstances") shouldBe 2
+    getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 2
   }
 
-  ignore should "query instances by externalId" in {
-    val df = readRows(primitiveExtId)
-    df.where("externalId = 'prim_test'").count() shouldBe 1
-    getNumberOfRowsRead(primitiveExtId, "datamodelinstances") shouldBe 1
+  it should "query instances by externalId" in {
+    val metricPrefix = shortRandomString()
+    val df = readRows(primitiveExtId, metricPrefix)
+    df.limit(1).where("externalId = 'prim_test'").count() shouldBe 1
+    getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
   }
 }

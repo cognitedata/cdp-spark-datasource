@@ -41,12 +41,12 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .toList
     .flatten
 
-  val propertyTypes: Map[String, IndexedType] = modelInfo.properties
+  val propertyTypes: Map[String, (String, Boolean)] = modelInfo.properties
     .getOrElse(Map())
     .zipWithIndex
     .map {
       case ((name, prop), i: Int) =>
-        (name, IndexedType(i, prop.`type`, prop.nullable))
+        (name, (prop.`type`, prop.nullable))
     }
     .toMap
 
@@ -67,16 +67,18 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     if (config.collectMetrics) {
       itemsRead.inc()
     }
-    Row.fromSeq(a.properties.sortBy(_._1).map(_._2))
+    Row.fromSeq(a.properties)
   }
 
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 
   // scalastyle:off cyclomatic.complexity
+  // TODO: Use filter conversions in getStreams
   def getInstanceFilter(sparkFilter: Filter): Seq[DataModelInstanceFilter] =
     sparkFilter match {
-      case EqualTo(left, right) =>
+      case EqualTo(left, right) => {
         Seq(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
+      }
       case In(attribute, values) =>
         val setValues = values.filter(_ != null)
         if (Seq(
@@ -88,7 +90,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
             "int32[]",
             "int[]",
             "int64[]",
-            "bigint[]") contains propertyTypes(attribute).`type`) {
+            "bigint[]") contains propertyTypes(attribute)._1) {
           Seq()
         } else {
           Seq(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
@@ -119,7 +121,9 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     }
   // scalastyle:on cyclomatic.complexity
 
-  def toProjectedInstance(dmi: DataModelInstanceQueryResponse): ProjectedDataModelInstance = {
+  def toProjectedInstance(
+      dmi: DataModelInstanceQueryResponse,
+      requiredPropsArray: Seq[String]): ProjectedDataModelInstance = {
     val dmiProperties = dmi.properties.getOrElse(Map())
     ProjectedDataModelInstance(
       externalId = dmi.properties
@@ -127,22 +131,27 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         .flatMap(_.asString)
         .getOrElse(
           throw new CdfSparkException("Can't read data model instance, `externalId` is missing.")),
-      properties = propertyTypes.map {
-        case (name: String, indexedType: IndexedType) =>
-          val value = dmiProperties.getOrElse(name, Json.Null)
-          (
-            indexedType.schemaIndex,
-            parseFromJson(value, indexedType.`type`)
-              .getOrElse(throw new CdfSparkException(s"Unexpected value $value in property $name")))
+      properties = requiredPropsArray.map { name: String =>
+        val value = dmiProperties.getOrElse(name, Json.Null)
+        parseFromJson(value, propertyTypes(name)._1)
+          .getOrElse(throw new CdfSparkException(s"Unexpected value $value in property $name"))
+
       }.toArray
     )
   }
 
-  def getStreams(filters: Array[Filter])(
+  def getStreams(filters: Array[Filter], requiredColumns: Array[String])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
-    val dmiFilter = if (filters.isEmpty) {
+    val requiredPropsArray: Seq[String] = if (requiredColumns.isEmpty) {
+      modelPropertyStructFields.map(_.name)
+    } else {
+      requiredColumns
+    }
+
+    // TODO: Use filter conversions in getStreams, disables in this version
+    val _ = if (filters.isEmpty) {
       None
     } else {
       val andFilters = filters.toVector.flatMap(getInstanceFilter)
@@ -151,11 +160,14 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 
     val dmiQuery = DataModelInstanceQuery(
       modelExternalId = modelExternalId,
-      filter = dmiFilter,
+      filter = None,
       sort = None,
       limit = limit,
       cursor = None)
-    Seq(alphaClient.dataModelInstances.queryStream(dmiQuery, limit).map(toProjectedInstance))
+    Seq(
+      alphaClient.dataModelInstances
+        .queryStream(dmiQuery, limit)
+        .map(r => toProjectedInstance(r, requiredPropsArray)))
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
@@ -164,7 +176,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       config,
       toRow,
       uniqueId,
-      getStreams(filters)
+      getStreams(filters, requiredColumns)
     )
 
   def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
@@ -180,7 +192,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
     }
 
-    val properties: Array[(Int, String, IndexedType)] = schema.fields.zipWithIndex
+    val properties: Array[(Int, String, (String, Boolean))] = schema.fields.zipWithIndex
       .map {
         case (field: StructField, index: Int) =>
           val propertyType = propertyTypes.getOrElse(
@@ -198,12 +210,12 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
       }
       val propertyValues: Map[String, Json] = properties.map {
-        case (index, name, indexedType) =>
-          name -> tryGetValue(indexedType.`type`, indexedType.nullable).applyOrElse(
+        case (index, name, propT) =>
+          name -> tryGetValue(propT._1, propT._2).applyOrElse(
             row.get(index),
             (_: Any) =>
               throw SparkSchemaHelperRuntime
-                .badRowError(row, name, indexedType.`type`, "")
+                .badRowError(row, name, propT._1, "")
           )
       }.toMap
       DataModelInstance(modelExternalId, properties = Some(propertyValues))
@@ -366,5 +378,4 @@ object DataModelInstanceRelation {
 
 }
 
-final case class ProjectedDataModelInstance(externalId: String, properties: Array[(Int, Any)]) // properties: Index in schema and value
-final case class IndexedType(schemaIndex: Int, `type`: String, nullable: Boolean)
+final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
