@@ -150,7 +150,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       requiredColumns
     }
 
-    // TODO: Use filter conversions in getStreams, disables in this version
+    // TODO: Use filter conversions in getStreams, disabled in this version
     val _ = if (filters.isEmpty) {
       None
     } else {
