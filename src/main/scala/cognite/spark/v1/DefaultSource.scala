@@ -86,6 +86,18 @@ class DefaultSource
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
   }
 
+  private def createDataModelInstances(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext) = {
+    val modelName =
+      parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
+    new DataModelInstanceRelation(
+      config,
+      modelName
+    )(sqlContext)
+  }
+
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
       sqlContext: SQLContext,
@@ -158,12 +170,7 @@ class DefaultSource
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
-        val modelName =
-          parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
-        new DataModelInstanceRelation(
-          config,
-          modelName
-        )(sqlContext)
+        createDataModelInstances(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -225,12 +232,7 @@ class DefaultSource
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
-          val modelName =
-            parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
-          new DataModelInstanceRelation(
-            config,
-            modelName
-          )(sqlContext)
+          createDataModelInstances(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {

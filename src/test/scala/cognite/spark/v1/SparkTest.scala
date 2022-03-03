@@ -40,10 +40,6 @@ trait SparkTest {
     }
 
 
-  val bluefieldClient = getBlufieldClient()
-  val bluefieldAlphaClient = getBlufieldClient(Some("alpha"))
-
-
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
   assert(writeApiKey != null && !writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
   implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)

@@ -9,22 +9,26 @@ import org.scalatest.{FlatSpec, Matchers}
 import scala.concurrent.duration.DurationInt
 
 class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTest {
+  import CdpConnector.ioRuntime
+
   val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
   val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
   val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
   val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
-  import CdpConnector.ioRuntime
+  private val bluefieldAlphaClient = getBlufieldClient(Some("alpha"))
 
-  private def listInstances(modelExternalId: String, filter: Option[DataModelInstanceFilter] = None): Seq[DataModelInstanceQueryResponse] =
+  private def listInstances(modelExternalId: String,
+      filter: Option[DataModelInstanceFilter] = None): Seq[DataModelInstanceQueryResponse] =
     bluefieldAlphaClient.dataModelInstances.query(DataModelInstanceQuery(modelExternalId = modelExternalId,
       filter = filter, sort = None, limit = None))
-      .unsafeRunTimed(5.minutes).get.items
+      .unsafeRunTimed(30.seconds).get.items
 
   private def getExternalIdList(modelExternalId: String): Seq[String] =
     listInstances(modelExternalId).flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList)
 
   private def byExternalId(modelExternalId: String, externalId: String): String =
-    listInstances(modelExternalId, filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), Json.fromString(externalId))))
+    listInstances(modelExternalId, filter = Some(DMIEqualsFilter(Seq("instance", "externalId"),
+      Json.fromString(externalId))))
       .flatMap(_.properties.flatMap(_.get("externalId")).toList).flatMap(_.asString.toList).head
 
   private val multiValuedExtId = "Equipment_sparkDS5"
@@ -47,7 +51,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       DataModel(externalId = multiValuedExtId, properties = Some(props)),
       DataModel(externalId = primitiveExtId, properties = Some(props2))
     )))
-    .unsafeRunTimed(5.minutes).get
+    .unsafeRunTimed(30.seconds).get
 
   private def readRows(modelExternalId: String, metricPrefix: String) = spark.read
       .format("cognite.spark.v1")

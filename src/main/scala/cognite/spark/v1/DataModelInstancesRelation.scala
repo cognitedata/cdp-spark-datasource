@@ -1,10 +1,8 @@
 package cognite.spark.v1
 
-import cats.Foldable
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.DataModelInstanceRelation._
-import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
@@ -63,7 +61,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         .flatTap(_ => incMetrics(itemsUpserted, dataModelInstances.length)) *> IO.unit
     }
 
-  def toRow(a: ProjectedDataModelInstance, p: Option[Int]): Row = {
+  def toRow(a: ProjectedDataModelInstance): Row = {
     if (config.collectMetrics) {
       itemsRead.inc()
     }
@@ -71,55 +69,6 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   }
 
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
-
-  // scalastyle:off cyclomatic.complexity
-  // TODO: Use filter conversions in getStreams
-  def getInstanceFilter(sparkFilter: Filter): Seq[DataModelInstanceFilter] =
-    sparkFilter match {
-      case EqualTo(left, right) => {
-        Seq(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
-      }
-      case In(attribute, values) =>
-        val setValues = values.filter(_ != null)
-        if (Seq(
-            "text[]",
-            "boolean[]",
-            "numeric[]",
-            "float32[]",
-            "float64[]",
-            "int32[]",
-            "int[]",
-            "int64[]",
-            "bigint[]") contains propertyTypes(attribute)._1) {
-          Seq()
-        } else {
-          Seq(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
-        }
-      case GreaterThanOrEqual(attribute, value) =>
-        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), gte = Some(parseValue(value))))
-      case GreaterThan(attribute, value) =>
-        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), gt = Some(parseValue(value))))
-      case LessThanOrEqual(attribute, value) =>
-        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), lte = Some(parseValue(value))))
-      case LessThan(attribute, value) =>
-        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), lt = Some(parseValue(value))))
-      case StringStartsWith(attribute, value) =>
-        Seq(DMIPrefixFilter(Seq(modelExternalId, attribute), parseValue(value)))
-      case And(f1, f2) =>
-        val instancef1 = getInstanceFilter(f1)
-        val instancef2 = getInstanceFilter(f2)
-        Seq(DMIAndFilter(instancef1 ++ instancef2))
-      case Or(f1, f2) =>
-        val instancef1 = getInstanceFilter(f1)
-        val instancef2 = getInstanceFilter(f2)
-        Seq(DMIOrFilter(instancef1 ++ instancef2))
-      case IsNotNull(attribute) =>
-        Seq(DMIExistsFilter(Seq(modelExternalId, attribute)))
-      case Not(f) =>
-        Seq(DMINotFilter(getInstanceFilter(f).head))
-      case _ => Seq()
-    }
-  // scalastyle:on cyclomatic.complexity
 
   def toProjectedInstance(
       dmi: DataModelInstanceQueryResponse,
@@ -150,14 +99,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       requiredColumns
     }
 
-    // TODO: Use filter conversions in getStreams, disabled in this version
-    val _ = if (filters.isEmpty) {
-      None
-    } else {
-      val andFilters = filters.toVector.flatMap(getInstanceFilter)
-      if (andFilters.isEmpty) None else Some(DMIAndFilter(andFilters))
-    }
-
+    // TODO: Implement pushdown filters
     val dmiQuery = DataModelInstanceQuery(
       modelExternalId = modelExternalId,
       filter = None,
@@ -174,7 +116,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     SdkV1Rdd[ProjectedDataModelInstance, String](
       sqlContext.sparkContext,
       config,
-      toRow,
+      (item: ProjectedDataModelInstance, _) => toRow(item),
       uniqueId,
       getStreams(filters, requiredColumns)
     )
