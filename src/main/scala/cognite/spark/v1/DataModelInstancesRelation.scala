@@ -228,7 +228,7 @@ object DataModelInstanceRelation {
       case "int64" | "bigint" => DataTypes.LongType
       case "text[]" => DataTypes.createArrayType(DataTypes.StringType)
       case "boolean[]" => DataTypes.createArrayType(DataTypes.BooleanType)
-      case "numeric[]" | "float64" => DataTypes.createArrayType(DataTypes.DoubleType)
+      case "numeric[]" | "float64[]" => DataTypes.createArrayType(DataTypes.DoubleType)
       case "float32[]" => DataTypes.createArrayType(DataTypes.FloatType)
       case "int32[]" | "int[]" => DataTypes.createArrayType(DataTypes.IntegerType)
       case "int64[]" | "bigint[]" => DataTypes.createArrayType(DataTypes.LongType)
