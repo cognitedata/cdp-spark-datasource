@@ -112,20 +112,6 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
   }
 
   it should "ingest multi valued data" in {
-
-
-    val tsDf = spark.read
-      .format("cognite.spark.v1")
-      .option("baseUrl", "https://bluefield.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", "extractor-bluefield-testing")
-      .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("type", "timeseries")
-      .load()
-    tsDf.createOrReplaceTempView("timeSeries")
-
     insertRows(
       multiValuedExtId,
       spark
@@ -180,7 +166,21 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
              |array(0.618, 1.618) as arr_float32,
              |array(0.618, 1.618) as arr_float64,
              |array(1.00000000001) as arr_numeric,
-             |'numeric_test' as externalId""".stripMargin
+             |'numeric_test' as externalId
+             |
+             |union all
+             |
+             |select 1234 as prop_int32,
+             |4398046511104 as prop_int64,
+             |NULL as prop_float32,
+             |NULL as prop_float64,
+             |1.00000000001 as prop_numeric,
+             |array(1,2,3) as arr_int32,
+             |array(1,2,3) as arr_int64,
+             |array(0.618, 1.618) as arr_float32,
+             |NULL as arr_float64,
+             |array(1.00000000001) as arr_numeric,
+             |'numeric_test2' as externalId""".stripMargin
         )
     )
 
@@ -188,7 +188,10 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     val df = readRows(multiValuedExtId2, metricPrefix)
     df.limit(1).count() shouldBe 1
     getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
-    bluefieldAlphaClient.dataModelInstances.deleteByExternalId("numeric_test")
+    df.select("externalId").collect()
+      .map(_.getAs[String]("externalId")).toList should contain allOf("numeric_test", "numeric_test2")
+    getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
+    bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(Seq("numeric_test", "numeric_test2"))
   }
 
   it should "fail when writing null to a non nullable property" in {
