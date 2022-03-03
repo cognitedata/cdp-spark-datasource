@@ -149,7 +149,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       }
 
     def parseRow(row: Row): DataModelInstance = {
-      val externalId = row.get(externalIdIndex) match {
+      val _ = row.get(externalIdIndex) match {
         case x: String => x
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
       }
@@ -174,23 +174,9 @@ object DataModelInstanceRelation {
   private def unknownPropertyType(a: Any) = s"Unknown property type $a."
 
   //scalastyle:off cyclomatic.complexity
-  private def parseValue(value: Any): Json = value match {
-    case x: Double => jsonFromDouble(x)
-    case x: Int => jsonFromDouble(x.toDouble)
-    case x: Float => jsonFromDouble(x.toDouble)
-    case x: Long => jsonFromDouble(x.toDouble)
-    case x: java.math.BigDecimal => jsonFromDouble(x.doubleValue)
-    case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
-    case x: String => Json.fromString(x)
-    case x: Boolean => Json.fromBoolean(x)
-    case x: Array[Any] =>
-      Json.fromValues(x.map(parseValue))
-    case null => Json.Null // scalastyle:off null
-  }
-
   private def parseFromJson(value: Json, propType: String): Option[Any] =
     if (value.isNull) {
-      Some(null)
+      Some(null) // scalastyle:off null
     } else {
       propType.toLowerCase match {
         case "text" =>
