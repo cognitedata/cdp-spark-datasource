@@ -19,9 +19,15 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.updated")
   @transient lazy protected val itemsDeleted: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.deleted")
+  // We are not aware if it is `created` or `updated in flexible data modelling case
+  @transient lazy protected val itemsUpserted: Counter =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.upserted")
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
+
+  @transient lazy val alphaClient: GenericClient[IO] =
+    CdpConnector.clientFromConfig(config, Some("alpha"))
 
   def incMetrics(counter: Counter, count: Int): IO[Unit] =
     IO(
