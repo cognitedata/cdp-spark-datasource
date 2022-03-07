@@ -89,6 +89,52 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     )
   }
 
+  // scalastyle:off cyclomatic.complexity
+  def getInstanceFilter(sparkFilter: Filter): Seq[DataModelInstanceFilter] =
+    sparkFilter match {
+      case EqualTo(left, right) => {
+        Seq(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
+      }
+      case In(attribute, values) =>
+        val setValues = values.filter(_ != null)
+        if (Seq(
+            "text[]",
+            "boolean[]",
+            "numeric[]",
+            "float32[]",
+            "float64[]",
+            "int32[]",
+            "int[]",
+            "int64[]",
+            "bigint[]") contains propertyTypes(attribute)._1) {
+          Seq()
+        } else {
+          Seq(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
+        }
+      case GreaterThanOrEqual(attribute, value) =>
+        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), gte = Some(parseValue(value))))
+      case GreaterThan(attribute, value) =>
+        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), gt = Some(parseValue(value))))
+      case LessThanOrEqual(attribute, value) =>
+        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), lte = Some(parseValue(value))))
+      case LessThan(attribute, value) =>
+        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), lt = Some(parseValue(value))))
+      case And(f1, f2) =>
+        val instancef1 = getInstanceFilter(f1)
+        val instancef2 = getInstanceFilter(f2)
+        Seq(DMIAndFilter(instancef1 ++ instancef2))
+      case Or(f1, f2) =>
+        val instancef1 = getInstanceFilter(f1)
+        val instancef2 = getInstanceFilter(f2)
+        Seq(DMIOrFilter(instancef1 ++ instancef2))
+      case IsNotNull(attribute) =>
+        Seq(DMIExistsFilter(Seq(modelExternalId, attribute)))
+      case Not(f) =>
+        Seq(DMINotFilter(getInstanceFilter(f).head))
+      case _ => Seq()
+    }
+  // scalastyle:on cyclomatic.complexity
+
   def getStreams(filters: Array[Filter], requiredColumns: Array[String])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -99,10 +145,16 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       requiredColumns
     }
 
-    // TODO: Implement pushdown filters
+    val filter = if (filters.isEmpty) {
+      None
+    } else {
+      val andFilters = filters.toVector.flatMap(getInstanceFilter)
+      if (andFilters.isEmpty) None else Some(DMIAndFilter(andFilters))
+    }
+
     val dmiQuery = DataModelInstanceQuery(
       modelExternalId = modelExternalId,
-      filter = None,
+      filter = filter,
       sort = None,
       limit = limit,
       cursor = None)
@@ -174,6 +226,20 @@ object DataModelInstanceRelation {
   private def unknownPropertyType(a: Any) = s"Unknown property type $a."
 
   //scalastyle:off cyclomatic.complexity
+  private def parseValue(value: Any): Json = value match {
+    case x: Double => jsonFromDouble(x)
+    case x: Int => jsonFromDouble(x.toDouble)
+    case x: Float => jsonFromDouble(x.toDouble)
+    case x: Long => jsonFromDouble(x.toDouble)
+    case x: java.math.BigDecimal => jsonFromDouble(x.doubleValue)
+    case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
+    case x: String => Json.fromString(x)
+    case x: Boolean => Json.fromBoolean(x)
+    case x: Array[Any] =>
+      Json.fromValues(x.map(parseValue))
+    case null => Json.Null // scalastyle:off null
+  }
+
   private def parseFromJson(value: Json, propType: String): Option[Any] =
     if (value.isNull) {
       Some(null) // scalastyle:off null
@@ -183,8 +249,10 @@ object DataModelInstanceRelation {
           value.asString
         case "boolean" =>
           value.asBoolean
-        case "numeric" | "float64" | "float32" =>
+        case "numeric" | "float64" =>
           value.asNumber.map(_.toDouble)
+        case "float32" =>
+          value.asNumber.map(_.toFloat)
         case "int" | "int32" =>
           value.asNumber.flatMap(_.toInt)
         case "int64" | "bigint" =>
@@ -193,8 +261,10 @@ object DataModelInstanceRelation {
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asString))
         case "boolean[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asBoolean))
-        case "numeric[]" | "float64[]" | "float32[]" =>
+        case "numeric[]" | "float64[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toDouble)))
+        case "float32[]" =>
+          Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toFloat)))
         case "int[]" | "int32[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toInt).toList))
         case "int64[]" | "bigint[]" =>
