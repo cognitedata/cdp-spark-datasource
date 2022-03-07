@@ -23,7 +23,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .retrieveByExternalIds(Seq(modelExternalId), true, false)
     .adaptError {
       case e: CdpApiException =>
-        new CdfSparkException(s"Could not resolve schema of sequence $modelExternalId.", e)
+        new CdfSparkException(s"Could not resolve schema of data model $modelExternalId.", e)
     }
     .unsafeRunSync()
     .head
