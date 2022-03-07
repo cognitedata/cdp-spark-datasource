@@ -111,7 +111,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
              |'prim_test' as externalId""".stripMargin))
     byExternalId(primitiveExtId, "prim_test") shouldBe "prim_test"
     getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
-    bluefieldAlphaClient.dataModelInstances.deleteByExternalId("prim_test")
+    bluefieldAlphaClient.dataModelInstances.deleteByExternalId("prim_test").unsafeRunSync()
   }
 
   it should "ingest multi valued data" in {
@@ -134,7 +134,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
              |'test_multi2' as externalId""".stripMargin))
     getExternalIdList(multiValuedExtId) should contain allOf("test_multi", "test_multi2")
     getNumberOfRowsUpserted(multiValuedExtId, "datamodelinstances") shouldBe 2
-    bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(Seq("test_multi2", "test_multi"))
+    bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(Seq("test_multi2", "test_multi")).unsafeRunSync()
   }
 
   it should "read instances" in {
@@ -151,7 +151,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     val df = readRows(primitiveExtId, metricPrefix)
     df.limit(1).count() shouldBe 1
     getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
-    bluefieldAlphaClient.dataModelInstances.deleteByExternalId("prim_test2")
+    bluefieldAlphaClient.dataModelInstances.deleteByExternalId("prim_test2").unsafeRunSync()
   }
 
   it should "read multi valued instances" in {
@@ -194,7 +194,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     df.select("externalId").collect()
       .map(_.getAs[String]("externalId")).toList should contain allOf("numeric_test", "numeric_test2")
     getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
-    bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(Seq("numeric_test", "numeric_test2"))
+    bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(Seq("numeric_test", "numeric_test2")).unsafeRunSync()
   }
 
   it should "fail when writing null to a non nullable property" in {
@@ -226,7 +226,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     val df = readRows(primitiveExtId, metricPrefix)
     df.where("externalId = 'prim_test'").count() shouldBe 1
      getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
-    bluefieldAlphaClient.dataModelInstances.deleteByExternalId("prim_test")
+    bluefieldAlphaClient.dataModelInstances.deleteByExternalId("prim_test").unsafeRunSync()
   }
 
   it should "filter instances" in {
@@ -270,7 +270,8 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     collectExternalIds(andDf) should contain only "numeric_test"
 
     val metricPrefix2 = shortRandomString()
-    val df2 = readRows(multiValuedExtId2, metricPrefix2).where("not (prop_numeric > 1.5 and prop_float64 >= 0.7)")
+    val df2 = readRows(multiValuedExtId2, metricPrefix2)
+      .where("not (prop_numeric > 1.5 and prop_float64 >= 0.7)")
     df2.count() shouldBe 1
     getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 1
     collectExternalIds(df2) should contain only "numeric_test2"
@@ -281,11 +282,12 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
     collectExternalIds(df3) should contain only "numeric_test"
 
-    bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(Seq("numeric_test", "numeric_test2"))
+    bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(
+      Seq("numeric_test", "numeric_test2")).unsafeRunSync()
   }
 
 
-  it should "filter instances by starts with" in {
+  it should "filter instances using or" in {
     insertRows(
       primitiveExtId,
       spark
@@ -323,13 +325,47 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     collectExternalIds(df) should contain only("prim_test", "prim_test3", "prim_test4")
 
     val metricPrefix2 = shortRandomString()
-    val df2 = readRows(primitiveExtId, metricPrefix2).where("prop_string in('abc', 'yyyy') or prop_float < 6.8")
+    val df2 = readRows(primitiveExtId, metricPrefix2)
+      .where("prop_string in('abc', 'yyyy') or prop_float < 6.8")
     df2.count() shouldBe 3
     getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 3
     collectExternalIds(df2) should contain only("prim_test", "prim_test2", "prim_test4")
 
-    bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(Seq("prim_test", "prim_test2", "prim_test3", "prim_test4"))
+    bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(
+      Seq("prim_test", "prim_test2", "prim_test3", "prim_test4"))
+      .unsafeRunSync()
   }
+  it should "delete data model instances" in {
+    insertRows(
+      primitiveExtId,
+      spark
+        .sql(
+          s"""select 2.1 as prop_float,
+             |false as prop_bool,
+             |'abc' as prop_string,
+             |'prim_test' as externalId
+             |
+             |union all
+             |
+             |select 5.0 as prop_float,
+             |true as prop_bool,
+             |'zzzz' as prop_string,
+             |'prim_test2' as externalId""".stripMargin))
 
+    val metricPrefix = shortRandomString()
+    val df = readRows(primitiveExtId, metricPrefix)
+    df.count() shouldBe 2
 
+    insertRows(
+      modelExternalId = primitiveExtId,
+      spark
+        .sql(
+          """select 'prim_test' as externalId
+            |union all
+            |select 'prim_test2' as externalId""".stripMargin),
+      "delete")
+    getNumberOfRowsDeleted(primitiveExtId, "datamodelinstances") shouldBe 2
+    val df2 = readRows(primitiveExtId, metricPrefix).where("externalId in('prim_test', 'prim_test2')")
+    df2.count() shouldBe 0
+  }
 }

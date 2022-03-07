@@ -179,8 +179,12 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
 
-  override def delete(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Delete is not supported for data model instances.")
+  override def delete(rows: Seq[Row]): IO[Unit] = {
+    val deletes = rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceDeleteSchema](r))
+    client.dataModelInstances
+      .deleteByExternalIds(deletes.map(_.externalId))
+      .flatTap(_ => incMetrics(itemsDeleted, rows.length))
+  }
 
   def fromRow(schema: StructType): Row => DataModelInstance = {
     val externalIdIndex = schema.fieldNames.indexOf("externalId")
@@ -378,3 +382,4 @@ object DataModelInstanceRelation {
 }
 
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
+final case class DataModelInstanceDeleteSchema(externalId: String)
