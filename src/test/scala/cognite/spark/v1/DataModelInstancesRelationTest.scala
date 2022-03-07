@@ -119,7 +119,7 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       multiValuedExtId,
       spark
         .sql(
-          s"""select array(1) as arr_int,
+          s"""select array() as arr_int,
              |array(true, false) as arr_boolean,
              |NULL as arr_str,
              |NULL as str_prop,

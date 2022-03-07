@@ -96,7 +96,6 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         Seq(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
       }
       case In(attribute, values) =>
-        val setValues = values.filter(_ != null)
         if (Seq(
             "text[]",
             "boolean[]",
@@ -109,6 +108,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
             "bigint[]") contains propertyTypes(attribute)._1) {
           Seq()
         } else {
+          val setValues = values.filter(_ != null)
           Seq(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
         }
       case GreaterThanOrEqual(attribute, value) =>
@@ -333,45 +333,46 @@ object DataModelInstanceRelation {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
-        case x: Iterable[String] @unchecked if x.nonEmpty && x.head.isInstanceOf[String] =>
+        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[String] @unchecked if x.head.isInstanceOf[String] =>
           Json.fromValues(x.map(Json.fromString))
       }
       case "float32[]" | "float64[]" | "numeric[]" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
-        case x: Iterable[Double] @unchecked if x.nonEmpty && x.head.isInstanceOf[Double] =>
+        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[Double] @unchecked if x.head.isInstanceOf[Double] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[Int] @unchecked if x.nonEmpty && x.head.isInstanceOf[Int] =>
+        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[Float] @unchecked if x.nonEmpty && x.head.isInstanceOf[Float] =>
+        case x: Iterable[Float] @unchecked if x.head.isInstanceOf[Float] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[Long] @unchecked if x.nonEmpty && x.head.isInstanceOf[Long] =>
+        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[java.math.BigDecimal] @unchecked
-            if x.nonEmpty && x.head.isInstanceOf[java.math.BigDecimal] =>
+        case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[java.math.BigInteger] @unchecked
-            if x.nonEmpty && x.head.isInstanceOf[java.math.BigInteger] =>
+        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
       }
       case "boolean[]" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
-        case x: Iterable[Boolean] @unchecked if x.nonEmpty && x.head.isInstanceOf[Boolean] =>
+        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[Boolean] @unchecked if x.head.isInstanceOf[Boolean] =>
           Json.fromValues(x.map(Json.fromBoolean))
       }
       case "int[]" | "int64[]" | "int32[]" | "bigint[]" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
-        case x: Iterable[Int] @unchecked if x.nonEmpty && x.head.isInstanceOf[Int] =>
+        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
           Json.fromValues(x.map(Json.fromInt))
-        case x: Iterable[Long] @unchecked if x.nonEmpty && x.head.isInstanceOf[Long] =>
+        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
           Json.fromValues(x.map(Json.fromLong))
-        case x: Iterable[java.math.BigInteger] @unchecked
-            if x.nonEmpty && x.head.isInstanceOf[java.math.BigInteger] =>
+        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
           Json.fromValues(x.map(value => Json.fromLong(value.doubleValue.toLong)))
       }
       case a =>
