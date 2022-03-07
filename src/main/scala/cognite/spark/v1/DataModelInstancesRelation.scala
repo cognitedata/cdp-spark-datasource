@@ -181,7 +181,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceDeleteSchema](r))
-    client.dataModelInstances
+    alphaClient.dataModelInstances
       .deleteByExternalIds(deletes.map(_.externalId))
       .flatTap(_ => incMetrics(itemsDeleted, rows.length))
   }
