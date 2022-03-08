@@ -102,6 +102,8 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
           val setValues = values.filter(_ != null)
           Some(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
         }
+      case StringStartsWith(attribute, value) =>
+        Some(DMIPrefixFilter(Seq(modelExternalId, attribute), parseValue(value)))
       case GreaterThanOrEqual(attribute, value) =>
         Some(DMIRangeFilter(Seq(modelExternalId, attribute), gte = Some(parseValue(value))))
       case GreaterThan(attribute, value) =>

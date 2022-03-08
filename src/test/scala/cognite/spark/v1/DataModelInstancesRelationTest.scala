@@ -329,7 +329,16 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
       .where("prop_string in('abc', 'yyyy') or prop_float < 6.8")
     df2.count() shouldBe 3
     getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 3
-    collectExternalIds(df2) should contain only("prim_test", "prim_test2", "prim_test4")
+
+
+    val metricPrefix3 = shortRandomString()
+    val df3 = readRows(primitiveExtId, metricPrefix3)
+      .where("prop_string LIKE 'xx%'")
+    df3.count() shouldBe 1
+    getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
+
+
+    collectExternalIds(df3) should contain only("prim_test3")
 
     bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(
       Seq("prim_test", "prim_test2", "prim_test3", "prim_test4"))
