@@ -136,9 +136,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       requiredColumns
     }
 
-    val filter = if (filters.isEmpty) {
-      None
-    } else {
+    val filter = {
       val andFilters = filters.toVector.flatMap(getInstanceFilter)
       if (andFilters.isEmpty) None else Some(DMIAndFilter(andFilters))
     }
