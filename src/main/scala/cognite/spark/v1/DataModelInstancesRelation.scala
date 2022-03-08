@@ -218,6 +218,9 @@ object DataModelInstanceRelation {
     s"Property of $propertyType type is not nullable."
   private def unknownPropertyType(a: Any) = s"Unknown property type $a."
 
+  private def notValidPropertyTypeMessage(a: Any, propertyType: String) =
+    s"$a is npt a valid $propertyType"
+
   //scalastyle:off cyclomatic.complexity
   private def parseValue(value: Any): Json = value match {
     case x: Double => jsonFromDouble(x)
@@ -281,7 +284,7 @@ object DataModelInstanceRelation {
       case "float32[]" => DataTypes.createArrayType(DataTypes.FloatType)
       case "int32[]" | "int[]" => DataTypes.createArrayType(DataTypes.IntegerType)
       case "int64[]" | "bigint[]" => DataTypes.createArrayType(DataTypes.LongType)
-      case a => throw new CdfSparkException(unknownPropertyType(a))
+      case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
     }
 
   private def jsonFromDouble(num: Double): Json =
@@ -297,12 +300,14 @@ object DataModelInstanceRelation {
         case x: Long => jsonFromDouble(x.toDouble)
         case x: java.math.BigDecimal => jsonFromDouble(x.doubleValue)
         case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "boolean" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case x: Boolean => Json.fromBoolean(x)
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "int" | "int64" | "int32" | "bigint" => {
         case null if !nullable =>
@@ -311,12 +316,14 @@ object DataModelInstanceRelation {
         case x: Int => Json.fromInt(x)
         case x: Long => Json.fromLong(x)
         case x: java.math.BigInteger => Json.fromBigInt(x)
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "text" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case x: String => Json.fromString(x)
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "text[]" => {
         case null if !nullable =>
@@ -325,6 +332,7 @@ object DataModelInstanceRelation {
         case x: Iterable[_] if x.isEmpty => Json.arr()
         case x: Iterable[String] @unchecked if x.head.isInstanceOf[String] =>
           Json.fromValues(x.map(Json.fromString))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "float32[]" | "float64[]" | "numeric[]" => {
         case null if !nullable =>
@@ -343,6 +351,7 @@ object DataModelInstanceRelation {
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
         case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "boolean[]" => {
         case null if !nullable =>
@@ -351,6 +360,7 @@ object DataModelInstanceRelation {
         case x: Iterable[_] if x.isEmpty => Json.arr()
         case x: Iterable[Boolean] @unchecked if x.head.isInstanceOf[Boolean] =>
           Json.fromValues(x.map(Json.fromBoolean))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "int[]" | "int64[]" | "int32[]" | "bigint[]" => {
         case null if !nullable =>
@@ -363,6 +373,7 @@ object DataModelInstanceRelation {
           Json.fromValues(x.map(Json.fromLong))
         case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
           Json.fromValues(x.map(value => Json.fromLong(value.doubleValue.toLong)))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case a =>
         throw new CdfSparkException(unknownPropertyType(a))
