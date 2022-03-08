@@ -90,39 +90,45 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   }
 
   // scalastyle:off cyclomatic.complexity
-  def getInstanceFilter(sparkFilter: Filter): Seq[DataModelInstanceFilter] =
+  def getInstanceFilter(sparkFilter: Filter): Option[DataModelInstanceFilter] =
     sparkFilter match {
       case EqualTo(left, right) => {
-        Seq(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
+        Some(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
       }
       case In(attribute, values) =>
         if (propertyTypes(attribute)._1.endsWith("[]")) {
-          Seq()
+          None
         } else {
           val setValues = values.filter(_ != null)
-          Seq(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
+          Some(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
         }
       case GreaterThanOrEqual(attribute, value) =>
-        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), gte = Some(parseValue(value))))
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gte = Some(parseValue(value))))
       case GreaterThan(attribute, value) =>
-        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), gt = Some(parseValue(value))))
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gt = Some(parseValue(value))))
       case LessThanOrEqual(attribute, value) =>
-        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), lte = Some(parseValue(value))))
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lte = Some(parseValue(value))))
       case LessThan(attribute, value) =>
-        Seq(DMIRangeFilter(Seq(modelExternalId, attribute), lt = Some(parseValue(value))))
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lt = Some(parseValue(value))))
       case And(f1, f2) =>
-        val instancef1 = getInstanceFilter(f1)
-        val instancef2 = getInstanceFilter(f2)
-        Seq(DMIAndFilter(instancef1 ++ instancef2))
+        (getInstanceFilter(f1), getInstanceFilter(f2)) match {
+          case (Some(sf1), Some(sf2)) =>
+            Some(DMIAndFilter(Seq(sf1, sf2)))
+          case _ =>
+            None
+        }
       case Or(f1, f2) =>
-        val instancef1 = getInstanceFilter(f1)
-        val instancef2 = getInstanceFilter(f2)
-        Seq(DMIOrFilter(instancef1 ++ instancef2))
+        (getInstanceFilter(f1), getInstanceFilter(f2)) match {
+          case (Some(sf1), Some(sf2)) =>
+            Some(DMIOrFilter(Seq(sf1, sf2)))
+          case _ =>
+            None
+        }
       case IsNotNull(attribute) =>
-        Seq(DMIExistsFilter(Seq(modelExternalId, attribute)))
+        Some(DMIExistsFilter(Seq(modelExternalId, attribute)))
       case Not(f) =>
-        Seq(DMINotFilter(getInstanceFilter(f).head))
-      case _ => Seq()
+        getInstanceFilter(f).map(DMINotFilter)
+      case _ => None
     }
   // scalastyle:on cyclomatic.complexity
 
