@@ -23,7 +23,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .retrieveByExternalIds(Seq(modelExternalId), true, false)
     .adaptError {
       case e: CdpApiException =>
-        new CdfSparkException(s"Could not resolve schema of sequence $modelExternalId.", e)
+        new CdfSparkException(s"Could not resolve schema of data model $modelExternalId.", e)
     }
     .unsafeRunSync()
     .head
@@ -89,6 +89,47 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     )
   }
 
+  // scalastyle:off cyclomatic.complexity
+  def getInstanceFilter(sparkFilter: Filter): Option[DataModelInstanceFilter] =
+    sparkFilter match {
+      case EqualTo(left, right) => {
+        Some(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
+      }
+      case In(attribute, values) =>
+        if (propertyTypes(attribute)._1.endsWith("[]")) {
+          None
+        } else {
+          val setValues = values.filter(_ != null)
+          Some(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
+        }
+      case StringStartsWith(attribute, value) =>
+        Some(DMIPrefixFilter(Seq(modelExternalId, attribute), parseValue(value)))
+      case GreaterThanOrEqual(attribute, value) =>
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gte = Some(parseValue(value))))
+      case GreaterThan(attribute, value) =>
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gt = Some(parseValue(value))))
+      case LessThanOrEqual(attribute, value) =>
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lte = Some(parseValue(value))))
+      case LessThan(attribute, value) =>
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lt = Some(parseValue(value))))
+      case And(f1, f2) =>
+        (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
+          DMIAndFilter(Seq(sf1, sf2)))
+      case Or(f1, f2) =>
+        (getInstanceFilter(f1), getInstanceFilter(f2)) match {
+          case (Some(sf1), Some(sf2)) =>
+            Some(DMIOrFilter(Seq(sf1, sf2)))
+          case _ =>
+            None
+        }
+      case IsNotNull(attribute) =>
+        Some(DMIExistsFilter(Seq(modelExternalId, attribute)))
+      case Not(f) =>
+        getInstanceFilter(f).map(DMINotFilter)
+      case _ => None
+    }
+  // scalastyle:on cyclomatic.complexity
+
   def getStreams(filters: Array[Filter], requiredColumns: Array[String])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -99,10 +140,14 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       requiredColumns
     }
 
-    // TODO: Implement pushdown filters
+    val filter = {
+      val andFilters = filters.toVector.flatMap(getInstanceFilter)
+      if (andFilters.isEmpty) None else Some(DMIAndFilter(andFilters))
+    }
+
     val dmiQuery = DataModelInstanceQuery(
       modelExternalId = modelExternalId,
-      filter = None,
+      filter = filter,
       sort = None,
       limit = limit,
       cursor = None)
@@ -127,8 +172,12 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
 
-  override def delete(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Delete is not supported for data model instances.")
+  override def delete(rows: Seq[Row]): IO[Unit] = {
+    val deletes = rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceDeleteSchema](r))
+    alphaClient.dataModelInstances
+      .deleteByExternalIds(deletes.map(_.externalId))
+      .flatTap(_ => incMetrics(itemsDeleted, rows.length))
+  }
 
   def fromRow(schema: StructType): Row => DataModelInstance = {
     val externalIdIndex = schema.fieldNames.indexOf("externalId")
@@ -171,9 +220,26 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 object DataModelInstanceRelation {
   private def propertyNotNullableMessage(propertyType: String) =
     s"Property of $propertyType type is not nullable."
-  private def unknownPropertyType(a: Any) = s"Unknown property type $a."
+  private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
+
+  private def notValidPropertyTypeMessage(a: Any, propertyType: String) =
+    s"$a is not a valid $propertyType"
 
   //scalastyle:off cyclomatic.complexity
+  private def parseValue(value: Any): Json = value match {
+    case x: Double => jsonFromDouble(x)
+    case x: Int => jsonFromDouble(x.toDouble)
+    case x: Float => jsonFromDouble(x.toDouble)
+    case x: Long => jsonFromDouble(x.toDouble)
+    case x: java.math.BigDecimal => jsonFromDouble(x.doubleValue)
+    case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
+    case x: String => Json.fromString(x)
+    case x: Boolean => Json.fromBoolean(x)
+    case x: Array[Any] =>
+      Json.fromValues(x.map(parseValue))
+    case null => Json.Null // scalastyle:off null
+  }
+
   private def parseFromJson(value: Json, propType: String): Option[Any] =
     if (value.isNull) {
       Some(null) // scalastyle:off null
@@ -183,8 +249,10 @@ object DataModelInstanceRelation {
           value.asString
         case "boolean" =>
           value.asBoolean
-        case "numeric" | "float64" | "float32" =>
+        case "numeric" | "float64" =>
           value.asNumber.map(_.toDouble)
+        case "float32" =>
+          value.asNumber.map(_.toFloat)
         case "int" | "int32" =>
           value.asNumber.flatMap(_.toInt)
         case "int64" | "bigint" =>
@@ -193,13 +261,15 @@ object DataModelInstanceRelation {
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asString))
         case "boolean[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asBoolean))
-        case "numeric[]" | "float64[]" | "float32[]" =>
+        case "numeric[]" | "float64[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toDouble)))
+        case "float32[]" =>
+          Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toFloat)))
         case "int[]" | "int32[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toInt).toList))
         case "int64[]" | "bigint[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toLong).toList))
-        case a => throw new CdfSparkException(unknownPropertyType(a))
+        case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
       }
     }
 
@@ -218,7 +288,7 @@ object DataModelInstanceRelation {
       case "float32[]" => DataTypes.createArrayType(DataTypes.FloatType)
       case "int32[]" | "int[]" => DataTypes.createArrayType(DataTypes.IntegerType)
       case "int64[]" | "bigint[]" => DataTypes.createArrayType(DataTypes.LongType)
-      case a => throw new CdfSparkException(unknownPropertyType(a))
+      case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
 
   private def jsonFromDouble(num: Double): Json =
@@ -234,12 +304,14 @@ object DataModelInstanceRelation {
         case x: Long => jsonFromDouble(x.toDouble)
         case x: java.math.BigDecimal => jsonFromDouble(x.doubleValue)
         case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "boolean" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case x: Boolean => Json.fromBoolean(x)
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "int" | "int64" | "int32" | "bigint" => {
         case null if !nullable =>
@@ -248,63 +320,71 @@ object DataModelInstanceRelation {
         case x: Int => Json.fromInt(x)
         case x: Long => Json.fromLong(x)
         case x: java.math.BigInteger => Json.fromBigInt(x)
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "text" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
         case x: String => Json.fromString(x)
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "text[]" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
-        case x: Iterable[String] @unchecked if x.nonEmpty && x.head.isInstanceOf[String] =>
+        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[String] @unchecked if x.head.isInstanceOf[String] =>
           Json.fromValues(x.map(Json.fromString))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "float32[]" | "float64[]" | "numeric[]" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
-        case x: Iterable[Double] @unchecked if x.nonEmpty && x.head.isInstanceOf[Double] =>
+        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[Double] @unchecked if x.head.isInstanceOf[Double] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[Int] @unchecked if x.nonEmpty && x.head.isInstanceOf[Int] =>
+        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[Float] @unchecked if x.nonEmpty && x.head.isInstanceOf[Float] =>
+        case x: Iterable[Float] @unchecked if x.head.isInstanceOf[Float] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[Long] @unchecked if x.nonEmpty && x.head.isInstanceOf[Long] =>
+        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[java.math.BigDecimal] @unchecked
-            if x.nonEmpty && x.head.isInstanceOf[java.math.BigDecimal] =>
+        case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[java.math.BigInteger] @unchecked
-            if x.nonEmpty && x.head.isInstanceOf[java.math.BigInteger] =>
+        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
           Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "boolean[]" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
-        case x: Iterable[Boolean] @unchecked if x.nonEmpty && x.head.isInstanceOf[Boolean] =>
+        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[Boolean] @unchecked if x.head.isInstanceOf[Boolean] =>
           Json.fromValues(x.map(Json.fromBoolean))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "int[]" | "int64[]" | "int32[]" | "bigint[]" => {
         case null if !nullable =>
           throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
         case null => Json.Null // scalastyle:off null
-        case x: Iterable[Int] @unchecked if x.nonEmpty && x.head.isInstanceOf[Int] =>
+        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
           Json.fromValues(x.map(Json.fromInt))
-        case x: Iterable[Long] @unchecked if x.nonEmpty && x.head.isInstanceOf[Long] =>
+        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
           Json.fromValues(x.map(Json.fromLong))
-        case x: Iterable[java.math.BigInteger] @unchecked
-            if x.nonEmpty && x.head.isInstanceOf[java.math.BigInteger] =>
+        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
           Json.fromValues(x.map(value => Json.fromLong(value.doubleValue.toLong)))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case a =>
-        throw new CdfSparkException(unknownPropertyType(a))
+        throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
   // scalastyle:on cyclomatic.complexity
 
 }
 
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
+final case class DataModelInstanceDeleteSchema(externalId: String)
