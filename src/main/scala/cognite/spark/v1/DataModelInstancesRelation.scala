@@ -111,12 +111,8 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       case LessThan(attribute, value) =>
         Some(DMIRangeFilter(Seq(modelExternalId, attribute), lt = Some(parseValue(value))))
       case And(f1, f2) =>
-        (getInstanceFilter(f1), getInstanceFilter(f2)) match {
-          case (Some(sf1), Some(sf2)) =>
-            Some(DMIAndFilter(Seq(sf1, sf2)))
-          case _ =>
-            None
-        }
+        (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
+          DMIAndFilter(Seq(sf1, sf2)))
       case Or(f1, f2) =>
         (getInstanceFilter(f1), getInstanceFilter(f2)) match {
           case (Some(sf1), Some(sf2)) =>
@@ -222,10 +218,10 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 object DataModelInstanceRelation {
   private def propertyNotNullableMessage(propertyType: String) =
     s"Property of $propertyType type is not nullable."
-  private def unknownPropertyType(a: Any) = s"Unknown property type $a."
+  private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
 
   private def notValidPropertyTypeMessage(a: Any, propertyType: String) =
-    s"$a is npt a valid $propertyType"
+    s"$a is not a valid $propertyType"
 
   //scalastyle:off cyclomatic.complexity
   private def parseValue(value: Any): Json = value match {
@@ -271,7 +267,7 @@ object DataModelInstanceRelation {
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toInt).toList))
         case "int64[]" | "bigint[]" =>
           Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toLong).toList))
-        case a => throw new CdfSparkException(unknownPropertyType(a))
+        case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
       }
     }
 
@@ -290,7 +286,7 @@ object DataModelInstanceRelation {
       case "float32[]" => DataTypes.createArrayType(DataTypes.FloatType)
       case "int32[]" | "int[]" => DataTypes.createArrayType(DataTypes.IntegerType)
       case "int64[]" | "bigint[]" => DataTypes.createArrayType(DataTypes.LongType)
-      case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
+      case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
 
   private def jsonFromDouble(num: Double): Json =
@@ -382,7 +378,7 @@ object DataModelInstanceRelation {
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case a =>
-        throw new CdfSparkException(unknownPropertyType(a))
+        throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
   // scalastyle:on cyclomatic.complexity
 
