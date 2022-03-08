@@ -96,16 +96,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         Seq(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
       }
       case In(attribute, values) =>
-        if (Seq(
-            "text[]",
-            "boolean[]",
-            "numeric[]",
-            "float32[]",
-            "float64[]",
-            "int32[]",
-            "int[]",
-            "int64[]",
-            "bigint[]") contains propertyTypes(attribute)._1) {
+        if (propertyTypes(attribute)._1.endsWith("[]")) {
           Seq()
         } else {
           val setValues = values.filter(_ != null)
