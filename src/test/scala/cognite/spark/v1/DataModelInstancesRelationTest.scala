@@ -377,4 +377,49 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
     val df2 = readRows(primitiveExtId, metricPrefix).where("externalId in('prim_test', 'prim_test2')")
     df2.count() shouldBe 0
   }
+
+  it should "upsert 3M rows with test data" in {
+
+    val id = sys.env("INTERNS_ID")
+    val secret = sys.env("INTERNS_SECRET")
+    val tokenUrl = sys.env("INTERNS_TOKENURL")
+    val scopes = "https://bluefield.cognitedata.com/.default"
+    val modelExternalId = "Events"
+
+    val eventsDf = spark.read
+        .format("cognite.spark.v1")
+        .option("baseUrl", "https://bluefield.cognitedata.com")
+        .option("tokenUri", tokenUrl)
+        .option("clientId", id)
+        .option("clientSecret", secret)
+        .option("project", "interns-blue")
+        .option("scopes", scopes)
+        .option("type", "events")
+        .option("limitPerPartition", "100")
+        .option("partitions", "10")
+        .load()
+    eventsDf.createTempView("events")
+
+    val df = spark.sql(
+      """
+        |select id, string(id) as externalId, type, subtype, description from events limit 1000
+        |""".stripMargin
+    )
+    df.show()
+
+    df.write
+      .format("cognite.spark.v1")
+      .option("type", "datamodelinstances")
+      .option("baseUrl", "https://bluefield.cognitedata.com")
+      .option("tokenUri", tokenUrl)
+      .option("clientId", id)
+      .option("clientSecret", secret)
+      .option("project", "interns-blue")
+      .option("scopes", scopes)
+      .option("modelExternalId", modelExternalId)
+      .option("onconflict", "upsert")
+      .option("collectMetrics", true)
+      .option("metricsPrefix", modelExternalId)
+      .save
+  }
 }
