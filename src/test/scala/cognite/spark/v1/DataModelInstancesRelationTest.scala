@@ -1,10 +1,13 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.Items
+import cats.effect.IO
+import com.cognite.sdk.scala.common.{Items, OAuth2}
 import com.cognite.sdk.scala.v1._
 import io.circe.Json
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
+import sttp.client3.{SttpBackend, UriContext}
+import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import scala.concurrent.duration.DurationInt
 
@@ -380,11 +383,33 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
 
   it should "upsert 3M rows with test data" in {
 
+    implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
     val id = sys.env("INTERNS_ID")
     val secret = sys.env("INTERNS_SECRET")
     val tokenUrl = sys.env("INTERNS_TOKENURL")
     val scopes = "https://bluefield.cognitedata.com/.default"
     val modelExternalId = "Events"
+    val project = "interns-blue"
+    val credentials = OAuth2.ClientCredentials(
+      tokenUri = uri"$tokenUrl",
+      clientId = id,
+      clientSecret = secret,
+      scopes = List(scopes),
+      cdfProjectName = project
+    )
+
+    val authProvider =
+      OAuth2.ClientCredentialsProvider[IO](credentials).unsafeRunTimed(1.second).get
+    val alphaClient = new GenericClient[IO](applicationName = "CogniteScalaSDK-OAuth-Test",
+      projectName = project,
+      baseUrl = "https://bluefield.cognitedata.com",
+      authProvider = authProvider,
+      apiVersion = None,
+      clientTag = None,
+      cdfVersion = Some("alpha")
+    )
+
+
 
     val eventsDf = spark.read
         .format("cognite.spark.v1")
@@ -405,7 +430,11 @@ class DataModelInstancesRelationTest extends FlatSpec with Matchers with SparkTe
         |select id, string(id) as externalId, type, subtype, description from events limit 1000
         |""".stripMargin
     )
-    df.show()
+
+    println("Getting schema")
+    val schema = alphaClient.dataModels.retrieveByExternalIds(Seq(modelExternalId), true).unsafeRunSync()
+    println(schema)
+    println("done")
 
     df.write
       .format("cognite.spark.v1")
