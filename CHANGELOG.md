@@ -1,3 +1,9 @@
+# 2.0.4
+
+## Fixes
+
+* Use IO.blocking to wrap when dealing with queue in StreamIterator
+
 # 2.0.1
 
 ## Fixes

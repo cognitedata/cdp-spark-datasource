@@ -113,7 +113,7 @@ object CdpConnector {
       retryingSttpBackend(
         config.maxRetries,
         config.maxRetryDelaySeconds,
-        config.partitions,
+        config.parallelismPerPartition,
         metricsPrefix)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),

@@ -5,7 +5,7 @@ import sbtassembly.MergeStrategy
 val scala212 = "2.12.15"
 val scala213 = "2.13.8"
 val supportedScalaVersions = List(scala212, scala213)
-val sparkVersion = "3.2.0"
+val sparkVersion = "3.2.1"
 val circeVersion = "0.14.1"
 val sttpVersion = "3.4.1"
 val Specs2Version = "4.6.0"
@@ -23,7 +23,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "2.0.3",
+  version := "2.0.4",
   crossScalaVersions := supportedScalaVersions,
   scalaVersion := scala212, // default to Scala 2.12
   description := "Spark data source for the Cognite Data Platform.",
