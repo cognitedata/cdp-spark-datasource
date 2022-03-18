@@ -65,8 +65,7 @@ trait SparkTest {
   val spark: SparkSession = SparkSession
     .builder()
     .master("local[*]")
-    .config("spark.ui.enabled", "false") //comment this and use the line below if you need to use Spark UI
-    //.config("spark.ui.port", "4041")
+    .config("spark.ui.enabled", "false") // comment this out to use Spark UI during tests, on https://localhost:4040 by default
     // https://medium.com/@mrpowers/how-to-cut-the-run-time-of-a-spark-sbt-test-suite-by-40-52d71219773f
     .config("spark.sql.shuffle.partitions", "1")
     .config("spark.sql.storeAssignmentPolicy", "legacy")
