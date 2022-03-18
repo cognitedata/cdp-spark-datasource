@@ -36,7 +36,7 @@ object StreamIterator {
     val putOnQueueStream =
       enqueueStreamResults(stream, queue, queueBufferSize, processChunk)
         .handleErrorWith(e =>
-          Stream.eval(IO.blocking(queue.put(Left(e)))) ++ Stream.eval(IO {
+          Stream.eval(IO.blocking(queue.put(Left(e)))) ++ Stream.eval(IO.blocking {
             if (!drainPool.isShutdown) {
               drainPool.shutdownNow()
             }

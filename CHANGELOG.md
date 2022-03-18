@@ -2,19 +2,7 @@
 
 ## Fixes
 
-* Use Queue.offer() instead of Queue.put() to avoid block thread in StreamIterator
-
-# 2.0.3
-
-## Enhancements
-
-* Add pushdown filters on data model instances
-
-# 2.0.2
-
-## Enhancements
-
-* Support ingesting and reading data model instances
+* Use IO.blocking to wrap when dealing with queue in StreamIterator
 
 # 2.0.1
 
