@@ -32,23 +32,30 @@ object WriteTest extends Tag("WriteTest")
 trait SparkTest {
   import CdpConnector.ioRuntime
 
-  implicit def single[A](implicit c: ClassTag[OptionalField[A]], inner: Encoder[Option[A]]): Encoder[OptionalField[A]] =
+  implicit def single[A](
+      implicit c: ClassTag[OptionalField[A]],
+      inner: Encoder[Option[A]]): Encoder[OptionalField[A]] =
     new Encoder[OptionalField[A]] {
       override def schema: StructType = inner.schema
 
       override def clsTag: ClassTag[OptionalField[A]] = c
     }
 
-
   val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-  assert(writeApiKey != null && !writeApiKey.isEmpty, "Environment variable \"TEST_API_KEY_WRITE\" was not set")
+  assert(
+    writeApiKey != null && !writeApiKey.isEmpty,
+    "Environment variable \"TEST_API_KEY_WRITE\" was not set")
   implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
-  val writeClient: GenericClient[Id] = GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
+  val writeClient: GenericClient[Id] =
+    GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
 
   val readApiKey = System.getenv("TEST_API_KEY_READ")
-  assert(readApiKey != null && !readApiKey.isEmpty, "Environment variable \"TEST_API_KEY_READ\" was not set")
+  assert(
+    readApiKey != null && !readApiKey.isEmpty,
+    "Environment variable \"TEST_API_KEY_READ\" was not set")
   implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
-  val readClient: GenericClient[Id] = GenericClient.forAuth[Id]("cdp-spark-datasource-test", readApiKeyAuth)
+  val readClient: GenericClient[Id] =
+    GenericClient.forAuth[Id]("cdp-spark-datasource-test", readApiKeyAuth)
 
   // not needed to run tests, only for replicating some problems specific to this tenant
   lazy val jetfiretest2ApiKey = System.getenv("TEST_APU_KEY_JETFIRETEST2")
@@ -58,7 +65,8 @@ trait SparkTest {
   val spark: SparkSession = SparkSession
     .builder()
     .master("local[*]")
-    .config("spark.ui.enabled", "false")
+    .config("spark.ui.enabled", "false") //comment this and use the line below if you need to use Spark UI
+    //.config("spark.ui.port", "4041")
     // https://medium.com/@mrpowers/how-to-cut-the-run-time-of-a-spark-sbt-test-suite-by-40-52d71219773f
     .config("spark.sql.shuffle.partitions", "1")
     .config("spark.sql.storeAssignmentPolicy", "legacy")
@@ -68,12 +76,11 @@ trait SparkTest {
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
   spark.sparkContext.setLogLevel("OFF")
 
-
   def getBlufieldClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
     implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
-      val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-      val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-      val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+    val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+    val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
     val credentials = OAuth2.ClientCredentials(
       tokenUri = uri"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token",
       clientId = clientId,
@@ -84,7 +91,8 @@ trait SparkTest {
 
     val authProvider =
       OAuth2.ClientCredentialsProvider[IO](credentials).unsafeRunTimed(1.second).get
-    new GenericClient[IO](applicationName = "CogniteScalaSDK-OAuth-Test",
+    new GenericClient[IO](
+      applicationName = "CogniteScalaSDK-OAuth-Test",
       projectName = "extractor-bluefield-testing",
       baseUrl = "https://bluefield.cognitedata.com",
       authProvider = authProvider,
@@ -97,7 +105,11 @@ trait SparkTest {
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
   // scalastyle:off cyclomatic.complexity
-  def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int, maxDelay: FiniteDuration = 20.seconds): IO[A] = {
+  def retryWithBackoff[A](
+      ioa: IO[A],
+      initialDelay: FiniteDuration,
+      maxRetries: Int,
+      maxDelay: FiniteDuration = 20.seconds): IO[A] = {
     val exponentialDelay = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2)
     val randomDelayScale = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
     val nextDelay = Random.nextInt(randomDelayScale.toInt).millis + exponentialDelay
@@ -113,19 +125,21 @@ trait SparkTest {
   }
   // scalastyle:on cyclomatic.complexity
 
-  def retryWhile[A](action: => A, shouldRetry: A => Boolean)(implicit prettifier: Prettifier, pos: source.Position): A =
+  def retryWhile[A](action: => A, shouldRetry: A => Boolean)(
+      implicit prettifier: Prettifier,
+      pos: source.Position): A =
     retryWithBackoff(
       IO {
         val actionValue = action
         if (shouldRetry(actionValue)) {
-          throw new TimeoutException(s"Retry timed out at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
+          throw new TimeoutException(
+            s"Retry timed out at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
         }
         actionValue
       },
       1.second,
       20
     ).unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
-
 
   val updateAndUpsert: TableFor1[String] = Table(heading = "mode", "upsert", "update")
 
@@ -134,7 +148,11 @@ trait SparkTest {
       auth,
       Some("SparkDatasourceTestTag"),
       Some("SparkDatasourceTestApp"),
-      DefaultSource.getProjectFromAuth(auth, Constants.DefaultMaxRetries, Constants.DefaultMaxRetryDelaySeconds, Constants.DefaultBaseUrl),
+      DefaultSource.getProjectFromAuth(
+        auth,
+        Constants.DefaultMaxRetries,
+        Constants.DefaultMaxRetryDelaySeconds,
+        Constants.DefaultBaseUrl),
       Some(Constants.DefaultBatchSize),
       None,
       Constants.DefaultPartitions,
@@ -188,11 +206,10 @@ trait SparkTest {
     }
   }
 
-  def sparkIntercept(f: => Any)(implicit pos: source.Position): Throwable = {
+  def sparkIntercept(f: => Any)(implicit pos: source.Position): Throwable =
     Matchers.intercept[Throwable](f)(classTag[Throwable], pos) match {
-      case ex : SparkException if ex.getCause != null =>
+      case ex: SparkException if ex.getCause != null =>
         ex.getCause
       case ex => ex
     }
-  }
 }

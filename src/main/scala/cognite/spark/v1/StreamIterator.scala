@@ -2,8 +2,8 @@ package cognite.spark.v1
 
 import cats.effect.unsafe.IORuntime
 
-import java.util.concurrent.{ArrayBlockingQueue, Executors}
-import cats.effect.{Concurrent, IO}
+import java.util.concurrent.{ArrayBlockingQueue, Executors, TimeUnit}
+import cats.effect.IO
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import fs2.{Chunk, Stream}
 import org.log4s._
@@ -73,7 +73,7 @@ object StreamIterator {
     stream.chunks.parEvalMapUnordered(queueBufferSize) { chunk =>
       IO {
         val processedChunk = processChunk.map(f => f(chunk)).getOrElse(chunk)
-        queue.put(Right(processedChunk))
+        queue.offer(Right(processedChunk), 30, TimeUnit.SECONDS)
       }
     }
 
