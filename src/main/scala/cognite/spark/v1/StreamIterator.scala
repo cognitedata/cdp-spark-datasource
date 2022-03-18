@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.unsafe.IORuntime
 
-import java.util.concurrent.{ArrayBlockingQueue, Executors, TimeUnit}
+import java.util.concurrent.{ArrayBlockingQueue, Executors}
 import cats.effect.IO
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import fs2.{Chunk, Stream}
@@ -36,7 +36,7 @@ object StreamIterator {
     val putOnQueueStream =
       enqueueStreamResults(stream, queue, queueBufferSize, processChunk)
         .handleErrorWith(e =>
-          Stream.eval(IO(queue.put(Left(e)))) ++ Stream.eval(IO {
+          Stream.eval(IO.blocking(queue.put(Left(e)))) ++ Stream.eval(IO {
             if (!drainPool.isShutdown) {
               drainPool.shutdownNow()
             }
@@ -71,9 +71,9 @@ object StreamIterator {
       queueBufferSize: Int,
       processChunk: Option[Chunk[A] => Chunk[A]]): Stream[IO, Unit] =
     stream.chunks.parEvalMapUnordered(queueBufferSize) { chunk =>
-      IO {
+      IO.blocking {
         val processedChunk = processChunk.map(f => f(chunk)).getOrElse(chunk)
-        queue.offer(Right(processedChunk), 30, TimeUnit.SECONDS)
+        queue.put(Right(processedChunk))
       }
     }
 
