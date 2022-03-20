@@ -755,4 +755,39 @@ class RawTableRelationTest
     err.getMessage shouldBe "Error while loading RAW row [key='k'] in column 'value': java.lang.NumberFormatException: For input string: \"test\""
 
   }
+
+  private def inferSchema(json: String): DataType = {
+    val circeJson = io.circe.parser.parse(json).right.get
+    RawSchemaInferrer.toSparkSchema(RawSchemaInferrer.infer(circeJson))
+  }
+
+  "RawSchemaInferrer" should "handle integers" in {
+    val schema = inferSchema("[1, 2, 3, 9223372036854775807]")
+    schema shouldBe ArrayType(LongType)
+  }
+
+  "RawSchemaInferrer" should "handle integers larger than 2^64" in {
+    val schema = inferSchema("[1, 2, 3, 1000000000000000000000000000000000000000000000]")
+    schema shouldBe ArrayType(DoubleType)
+  }
+
+  it should "parse numbers from strings" in {
+    val schema = inferSchema("""["Infinity","-Infinity", "NaN", "1234", "23.1234676543212345654324", "10e10", "-10", "-0.0", "+Infinity", "12.1e-10", "2e+2"]""")
+    schema shouldBe ArrayType(DoubleType)
+  }
+  it should "parse ints from strings" in {
+    val schema = inferSchema("""["1", 0, "2", "3", "4", "-10"]""")
+    schema shouldBe ArrayType(LongType)
+  }
+  it should "handle strings" in {
+    val schema = inferSchema("""["2e+2","had","hadice"]""")
+    schema shouldBe ArrayType(StringType)
+  }
+  it should "unify objects with different fields" in {
+    val schema = inferSchema("""[{"a":1},{"b": 10},{"a": 1.1}]""")
+    schema shouldBe ArrayType(StructType(Seq(
+      StructField("a", DoubleType, nullable = true),
+      StructField("b", LongType, nullable = true)
+    )))
+  }
 }

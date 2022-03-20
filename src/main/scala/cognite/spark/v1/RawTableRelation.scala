@@ -46,26 +46,38 @@ class RawTableRelation(
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
-      val rdd =
-        readRows(
-          inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
-          Some(1),
-          RawRowFilter(),
-          None,
-          collectSchemaInferenceMetrics,
-          false)
-
-      import sqlContext.sparkSession.implicits._
-      val df = sqlContext.createDataFrame(rdd, defaultSchema)
-      val jsonDf =
-        renameColumns(sqlContext.sparkSession.read.json(df.select($"columns").as[String]))
+      val jsonSchema =
+        inferSchema(inferSchemaLimit.getOrElse(Constants.DefaultInferSchemaLimit))
+          .unsafeRunSync()
+      val renamedJsonSchema = schemaWithRenamedColumns(jsonSchema)
       StructType(
         StructField("key", DataTypes.StringType, nullable = false)
           +: StructField(lastUpdatedTimeColName, DataTypes.TimestampType, nullable = true)
-          +: jsonDf.schema.fields)
+          +: renamedJsonSchema.fields)
     } else {
       defaultSchema
     }
+  }
+
+  private def inferSchema(
+      limit: Int
+  ): IO[StructType] = {
+    val client = CdpConnector.clientFromConfig(config).rawRows(database, table)
+
+    client
+      .list(Some(limit))
+      .mapChunks { chunk =>
+        if (collectSchemaInferenceMetrics) {
+          rowsRead.inc(chunk.size)
+        }
+        chunk
+      }
+      .map(row => RawSchemaInferrer.infer(row.columns))
+      .fold(RawSchemaInferrer.JsonObject(Map.empty))(RawSchemaInferrer.unifyObjects)
+      .map(RawSchemaInferrer.toSparkSchema)
+      .compile
+      .toList
+      .map(_.head)
   }
 
   def getStreams(filter: RawRowFilter, cursors: Vector[String])(
@@ -250,13 +262,22 @@ object RawTableRelation {
       }
     }))
 
-  private def renameColumns(df: DataFrame): DataFrame = {
-    val columnsToRename = keyColumns(df.schema) ++ lastUpdatedTimeColumns(df.schema)
-    // rename columns starting with the longest one first, to avoid creating a column with the same name
-    columnsToRename.sorted.foldLeft(df) { (df, column) =>
-      df.withColumnRenamed(column, s"_$column")
+  private def renameColumn(col: String): Option[String] =
+    if (keyColumnPattern.findFirstIn(col).isDefined) {
+      Some("_" + col)
+    } else if (lastUpdatedTimeColumnPattern.findFirstIn(col).isDefined) {
+      Some("_" + col)
+    } else {
+      None
     }
-  }
+
+  private def schemaWithRenamedColumns(schema: StructType) =
+    StructType.apply(schema.fields.map(field => {
+      renameColumn(field.name) match {
+        case Some(newName) => field.copy(name = newName)
+        case None => field
+      }
+    }))
 
   private def unRenameColumns(df: DataFrame): DataFrame = {
     val columnsToRename = keyColumns(df.schema) ++ lastUpdatedTimeColumns(df.schema)
