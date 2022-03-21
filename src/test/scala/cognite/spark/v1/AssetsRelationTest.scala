@@ -1179,6 +1179,214 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(assetsRead == 1)
   }
 
+  it should "reproduce peter" taggedAs WriteTest in {
+
+    val metricsPrefix = "peter"
+
+    // [DONE] please add your credentials for the project here
+    val clientId = System.getenv("PETER_CLIENT")
+    val clientSecret = System.getenv("PETER_CLIENT_SECRET")
+    val project = System.getenv("PETER_PROJECT")
+    val tokenUri = System.getenv("PETER_TOKENURI")
+
+    val assetDf = spark.read
+      .format("cognite.spark.v1")
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("tokenUri", tokenUri)
+      .option("baseUrl", "https://westeurope-1.cognitedata.com")
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", "https://westeurope-1.cognitedata.com/.default")
+      .load()
+
+    val rawDf = spark.read
+      .format("cognite.spark.v1")
+      .option("type", "raw")
+      .option("database", "src:001:exact:rawdb")
+      .option("table", "exact_ais_v2")
+      .option("tokenUri", tokenUri)
+      .option("baseUrl", "https://westeurope-1.cognitedata.com")
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", "https://westeurope-1.cognitedata.com/.default")
+      .option("inferSchema", "true")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+
+    assetDf.createOrReplaceTempView("assets")
+    rawDf.createOrReplaceTempView("tablename")
+
+    val epochMilliTime = 1747858131L
+
+    val reproDf = spark.sql(s"""
+--- 220316 ais_v2 migration
+--    template: tr:008a + tr:008c
+--    merge ts creation for numeric and string-datapoints into one
+--      conditional isString
+--      added conditional 'isStep'
+--      reduced stack() to quantity and unit_of_measure,
+--         as a mix of float and string 'value' was breaking the SQL
+--         but not required at all for creating tses
+--    keep lower case to match exact_ais format_string
+--    change ext-ids
+--    source: reference full RAW or only table?
+--    all quantities lower-case
+--    source_type: 'ExactEarth AIS'
+
+-- Create numeric timeseries parsing AIS EXACT data
+--  NOTES:
+--    a. naming convention for timeseries: "ais_v2:vessel:{quantity}:{imo}"
+--    b. timeseries constrained (by INNER JOIN) with existing "ais_v2:vessel:{imo}""
+--    c. input data fron AIS Exact Earth is limited to datapoints
+SELECT
+    -- ais_v2:vessel:course_over_ground:9281152
+    externalId,
+    externalId AS name,
+    -- the TS will be attached to this vessel-asset
+    assetId,
+    unit,
+    quantity in (
+        "eta",
+        "dt_static_utc",
+        "nav_status",
+        "source",
+        "destination"
+    ) AS isString,
+    quantity in (
+        "nav_status_code",
+        "draught"
+    ) AS isStep,
+    -- extended list of metadata to allow filtering
+
+    CONCAT(
+        "From ExactEarth AIS for vessel IMO:'",
+        imo,
+        " (",
+        quantity,
+        ")"
+    ) AS description
+FROM
+    (
+        SELECT
+            *,
+            RANK() OVER(
+                PARTITION BY aisv2_vessel_with_asset.externalId
+                ORDER BY
+                    aisv2_vessel_with_asset.lastUpdatedTime DESC
+            ) Rank
+        FROM
+            (
+                SELECT
+                    imo,
+                    unit_of_measure AS unit,
+                    vessel_asset.id AS assetId,
+                    aisv2_vessel.lastUpdatedTime AS lastUpdatedTime,
+                    -- metdata
+                    "source" AS ts_type,
+                    -- TODO: pattern for freetext?
+                    "ExactEarth AIS" AS source_type,
+                    "exact_ais_v2" AS source_raw,
+                    quantity AS ts_quantity,
+                    unit_of_measure AS ts_unit,
+                    -- external_id
+                    CONCAT("ais_v2:vessel:", int(imo), ":", quantity) AS externalId,
+                    stack(
+                        17,
+                        -- 12 numeric-datapoint columns (isString=false)
+                        "heading",
+                        "deg",
+
+                        "draught",
+                        "m",
+
+                        "from_latitude",
+                        "deg",
+
+                        "from_longitude",
+                        "deg",
+
+                        "latitude",
+                        "deg",
+
+                        "longitude",
+                        "deg",
+
+                        "rot",
+                        "deg/min",
+
+                        "course_over_ground",
+                        "deg",
+
+                        "speed_over_ground",
+                        "kn",
+
+                        "nav_status_code",
+                        "-",
+
+                        "message_type",
+                        "deg",
+
+                        -- live data have timestamp unixtime in ms
+                        "ts_static_utc",
+                        "-",
+
+                        -- 5 string-datapoint columns (isString=true)
+                        "eta",
+                        '-',
+
+                        "dt_static_utc",
+                        "-",
+
+                        "nav_status",
+                        "-",
+
+                        "source",
+                        "-",
+
+                        "destination",
+                        "-"
+                    ) as (quantity, unit_of_measure)
+                FROM
+                    (
+                        SELECT
+                            *
+                        FROM
+                            tablename
+                        -- WHERE TRUE
+                        WHERE
+                            lastUpdatedTime > to_timestamp($epochMilliTime)
+                    ) AS aisv2_vessel
+                -- limit to vessels with an existing asset
+                INNER JOIN (
+                        SELECT
+                            externalId,
+                            id
+                        FROM
+                            assets
+                        WHERE
+                            parentExternalId = "ais_v2:vessel:root"
+                    ) AS vessel_asset ON
+                        CONCAT(
+                            "ais_v2:vessel:", int(imo)
+                        ) = vessel_asset.externalId
+            ) AS aisv2_vessel_with_asset
+    )
+WHERE
+    Rank = 1
+""")
+
+    println(reproDf.explain())
+
+    assert(reproDf.count() == 1)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
+    assert(assetsRead == 1)
+  }
+
   def cleanupAssets(source: String): Unit =
     spark
       .sql(s"""select id from destinationAssets where source = '$source'""")
