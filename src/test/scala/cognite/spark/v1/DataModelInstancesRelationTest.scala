@@ -7,6 +7,7 @@ import org.apache.spark.sql.DataFrame
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
+import scala.util.Try
 import scala.util.control.NonFatal
 
 class DataModelInstancesRelationTest
@@ -152,13 +153,20 @@ class DataModelInstancesRelationTest
   it should "ingest data" in {
     val randomId = "prim_test_" + shortRandomString()
     try {
-      insertRows(
-        primitiveExtId,
-        spark
-          .sql(s"""select 2.0 as prop_float,
+      retryWhile[Boolean](
+        {
+          Try {
+            insertRows(
+              primitiveExtId,
+              spark
+                .sql(s"""select 2.0 as prop_float,
                   |true as prop_bool,
                   |'abc' as prop_string,
                   |'${randomId}' as externalId""".stripMargin)
+            )
+          }.isFailure
+        },
+        failure => failure
       )
       byExternalId(primitiveExtId, randomId) shouldBe randomId
       getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
@@ -175,10 +183,13 @@ class DataModelInstancesRelationTest
     val randomId1 = "test_multi_" + shortRandomString()
     val randomId2 = "test_multi_" + shortRandomString()
     try {
-      insertRows(
-        multiValuedExtId,
-        spark
-          .sql(s"""select array() as arr_int,
+      retryWhile[Boolean](
+        {
+          Try {
+            insertRows(
+              multiValuedExtId,
+              spark
+                .sql(s"""select array() as arr_int,
                 |array(true, false) as arr_boolean,
                 |NULL as arr_str,
                 |NULL as str_prop,
@@ -191,6 +202,10 @@ class DataModelInstancesRelationTest
                 |array('hehe') as arr_str,
                 |'hehe' as str_prop,
                 |'${randomId2}' as externalId""".stripMargin)
+            )
+          }.isFailure
+        },
+        failure => failure
       )
       (getExternalIdList(multiValuedExtId) should contain).allOf(randomId1, randomId2)
       getNumberOfRowsUpserted(multiValuedExtId, "datamodelinstances") shouldBe 2
@@ -208,13 +223,20 @@ class DataModelInstancesRelationTest
   it should "read instances" in {
     val randomId = "prim_test2_" + shortRandomString()
     try {
-      insertRows(
-        primitiveExtId,
-        spark
-          .sql(s"""select 2.1 as prop_float,
+      retryWhile[Boolean](
+        {
+          Try {
+            insertRows(
+              primitiveExtId,
+              spark
+                .sql(s"""select 2.1 as prop_float,
              |false as prop_bool,
              |'abc' as prop_string,
              |'$randomId' as externalId""".stripMargin)
+            )
+          }.isFailure
+        },
+        failure => failure
       )
 
       val metricPrefix = shortRandomString()
@@ -234,11 +256,14 @@ class DataModelInstancesRelationTest
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     try {
-      insertRows(
-        multiValuedExtId2,
-        spark
-          .sql(
-            s"""select 1234 as prop_int32,
+      retryWhile[Boolean](
+        {
+          Try {
+            insertRows(
+              multiValuedExtId2,
+              spark
+                .sql(
+                  s"""select 1234 as prop_int32,
              |4398046511104 as prop_int64,
              |0.424242 as prop_float32,
              |0.424242 as prop_float64,
@@ -263,7 +288,11 @@ class DataModelInstancesRelationTest
              |NULL as arr_float64,
              |array(1.00000000001) as arr_numeric,
              |'$randomId2' as externalId""".stripMargin
-          )
+                )
+            )
+          }.isFailure
+        },
+        failure => failure
       )
 
       val metricPrefix = shortRandomString()
@@ -306,13 +335,20 @@ class DataModelInstancesRelationTest
   it should "filter instances by externalId" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     try {
-      insertRows(
-        primitiveExtId,
-        spark
-          .sql(s"""select 2.1 as prop_float,
+      retryWhile[Boolean](
+        {
+          Try {
+            insertRows(
+              primitiveExtId,
+              spark
+                .sql(s"""select 2.1 as prop_float,
              |false as prop_bool,
              |'abc' as prop_string,
              |'$randomId1' as externalId""".stripMargin)
+            )
+          }.isFailure
+        },
+        failure => failure
       )
       val metricPrefix = shortRandomString()
       val df = readRows(primitiveExtId, metricPrefix)
@@ -321,7 +357,6 @@ class DataModelInstancesRelationTest
     } finally {
       try {
         bluefieldAlphaClient.dataModelInstances.deleteByExternalId(randomId1).unsafeRunSync()
-
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -332,11 +367,14 @@ class DataModelInstancesRelationTest
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     try {
-      insertRows(
-        multiValuedExtId2,
-        spark
-          .sql(
-            s"""select 1234 as prop_int32,
+      retryWhile[Boolean](
+        {
+          Try {
+            insertRows(
+              multiValuedExtId2,
+              spark
+                .sql(
+                  s"""select 1234 as prop_int32,
              |4398046511104 as prop_int64,
              |0.424242 as prop_float32,
              |0.8 as prop_float64,
@@ -361,7 +399,11 @@ class DataModelInstancesRelationTest
              |NULL as arr_float64,
              |array(1.00000000001) as arr_numeric,
              |'$randomId2' as externalId""".stripMargin
-          )
+                )
+            )
+          }.isFailure
+        },
+        failure => failure
       )
 
       val metricPrefix = shortRandomString()
@@ -401,34 +443,41 @@ class DataModelInstancesRelationTest
     val randomId3 = "prim_test_" + shortRandomString()
     val randomId4 = "prim_test_" + shortRandomString()
     try {
-      insertRows(
-        primitiveExtId,
-        spark
-          .sql(s"""select 2.1 as prop_float,
-             |false as prop_bool,
-             |'abc' as prop_string,
-             |'$randomId1' as externalId
-             |
-             |union all
-             |
-             |select 5.0 as prop_float,
-             |true as prop_bool,
-             |'zzzz' as prop_string,
-             |'$randomId2' as externalId
-             |
-             |union all
-             |
-             |select 9.0 as prop_float,
-             |false as prop_bool,
-             |'xxxx' as prop_string,
-             |'$randomId3' as externalId
-             |
-             |union all
-             |
-             |select 8.0 as prop_float,
-             |false as prop_bool,
-             |'yyyy' as prop_string,
-             |'$randomId4' as externalId""".stripMargin)
+      retryWhile[Boolean](
+        {
+          Try {
+            insertRows(
+              primitiveExtId,
+              spark
+                .sql(s"""select 2.1 as prop_float,
+                    |false as prop_bool,
+                    |'abc' as prop_string,
+                    |'$randomId1' as externalId
+                    |
+                    |union all
+                    |
+                    |select 5.0 as prop_float,
+                    |true as prop_bool,
+                    |'zzzz' as prop_string,
+                    |'$randomId2' as externalId
+                    |
+                    |union all
+                    |
+                    |select 9.0 as prop_float,
+                    |false as prop_bool,
+                    |'xxxx' as prop_string,
+                    |'$randomId3' as externalId
+                    |
+                    |union all
+                    |
+                    |select 8.0 as prop_float,
+                    |false as prop_bool,
+                    |'yyyy' as prop_string,
+                    |'$randomId4' as externalId""".stripMargin)
+            )
+          }.isFailure
+        },
+        failure => failure
       )
 
       val metricPrefix = shortRandomString()
@@ -465,10 +514,13 @@ class DataModelInstancesRelationTest
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test2_" + shortRandomString()
     try {
-      insertRows(
-        primitiveExtId,
-        spark
-          .sql(s"""select 2.1 as prop_float,
+      retryWhile[Boolean](
+        {
+          Try {
+            insertRows(
+              primitiveExtId,
+              spark
+                .sql(s"""select 2.1 as prop_float,
              |false as prop_bool,
              |'abc' as prop_string,
              |'$randomId1' as externalId
@@ -479,6 +531,10 @@ class DataModelInstancesRelationTest
              |true as prop_bool,
              |'zzzz' as prop_string,
              |'$randomId2' as externalId""".stripMargin)
+            )
+          }.isFailure
+        },
+        failure => failure
       )
 
       val metricPrefix = shortRandomString()
