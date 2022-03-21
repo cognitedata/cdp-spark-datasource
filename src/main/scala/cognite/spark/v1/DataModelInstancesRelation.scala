@@ -6,7 +6,6 @@ import cognite.spark.v1.DataModelInstanceRelation._
 import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
-import io.circe.Json
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
@@ -39,12 +38,11 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .toList
     .flatten
 
-  val propertyTypes: Map[String, (String, Boolean)] = modelInfo.properties
+  val propertyTypes: Map[String, String] = modelInfo.properties
     .getOrElse(Map())
-    .zipWithIndex
     .map {
-      case ((name, prop), i: Int) =>
-        (name, (prop.`type`, prop.nullable))
+      case (name, prop) =>
+        (name, prop.`type`)
     }
     .toMap
 
@@ -55,7 +53,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       IO.unit
     } else {
       val fromRowFn = fromRow(rows.head.schema)
-      val dataModelInstances: Seq[DataModelInstance] = rows.map(fromRowFn)
+      val dataModelInstances: Seq[DataModelInstanceCreate] = rows.map(fromRowFn)
       alphaClient.dataModelInstances
         .createItems(Items(dataModelInstances))
         .flatTap(_ => incMetrics(itemsUpserted, dataModelInstances.length)) *> IO.unit
@@ -77,14 +75,12 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     ProjectedDataModelInstance(
       externalId = dmi.properties
         .flatMap(_.get("externalId"))
-        .flatMap(_.asString)
+        .map(_.asInstanceOf[StringProperty].value)
         .getOrElse(
           throw new CdfSparkException("Can't read data model instance, `externalId` is missing.")),
       properties = requiredPropsArray.map { name: String =>
-        val value = dmiProperties.getOrElse(name, Json.Null)
-        parseFromJson(value, propertyTypes(name)._1)
-          .getOrElse(throw new CdfSparkException(s"Unexpected value $value in property $name"))
-
+        val value = dmiProperties.get(name)
+        value.map(fromProperty)
       }.toArray
     )
   }
@@ -93,25 +89,25 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
   def getInstanceFilter(sparkFilter: Filter): Option[DataModelInstanceFilter] =
     sparkFilter match {
       case EqualTo(left, right) => {
-        Some(DMIEqualsFilter(Seq(modelExternalId, left), parseValue(right)))
+        Some(DMIEqualsFilter(Seq(modelExternalId, left), parsePropertyValue(right)))
       }
       case In(attribute, values) =>
-        if (propertyTypes(attribute)._1.endsWith("[]")) {
+        if (propertyTypes(attribute).endsWith("[]")) {
           None
         } else {
           val setValues = values.filter(_ != null)
-          Some(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parseValue)))
+          Some(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parsePropertyValue)))
         }
       case StringStartsWith(attribute, value) =>
-        Some(DMIPrefixFilter(Seq(modelExternalId, attribute), parseValue(value)))
+        Some(DMIPrefixFilter(Seq(modelExternalId, attribute), parsePropertyValue(value)))
       case GreaterThanOrEqual(attribute, value) =>
-        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gte = Some(parseValue(value))))
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gte = Some(parsePropertyValue(value))))
       case GreaterThan(attribute, value) =>
-        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gt = Some(parseValue(value))))
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gt = Some(parsePropertyValue(value))))
       case LessThanOrEqual(attribute, value) =>
-        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lte = Some(parseValue(value))))
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lte = Some(parsePropertyValue(value))))
       case LessThan(attribute, value) =>
-        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lt = Some(parseValue(value))))
+        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lt = Some(parsePropertyValue(value))))
       case And(f1, f2) =>
         (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
           DMIAndFilter(Seq(sf1, sf2)))
@@ -179,13 +175,13 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       .flatTap(_ => incMetrics(itemsDeleted, rows.length))
   }
 
-  def fromRow(schema: StructType): Row => DataModelInstance = {
+  def fromRow(schema: StructType): Row => DataModelInstanceCreate = {
     val externalIdIndex = schema.fieldNames.indexOf("externalId")
     if (externalIdIndex < 0) {
       throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
     }
 
-    val properties: Array[(Int, String, (String, Boolean))] = schema.fields.zipWithIndex
+    val properties: Array[(Int, String, String)] = schema.fields.zipWithIndex
       .map {
         case (field: StructField, index: Int) =>
           val propertyType = propertyTypes.getOrElse(
@@ -197,81 +193,63 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
           (index, field.name, propertyType)
       }
 
-    def parseRow(row: Row): DataModelInstance = {
+    def parseRow(row: Row): DataModelInstanceCreate = {
       val _ = row.get(externalIdIndex) match {
         case x: String => x
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
       }
-      val propertyValues: Map[String, Json] = properties.map {
+      val propertyValues: Map[String, PropertyType] = properties.map {
         case (index, name, propT) =>
-          name -> tryGetValue(propT._1, propT._2).applyOrElse(
+          name -> toPropertyType(propT).applyOrElse(
             row.get(index),
             (_: Any) =>
               throw SparkSchemaHelperRuntime
-                .badRowError(row, name, propT._1, "")
+                .badRowError(row, name, propT, "")
           )
       }.toMap
-      DataModelInstance(modelExternalId, properties = Some(propertyValues))
+      DataModelInstanceCreate(modelExternalId, properties = Some(propertyValues))
     }
     parseRow
   }
 }
 
 object DataModelInstanceRelation {
-  private def propertyNotNullableMessage(propertyType: String) =
-    s"Property of $propertyType type is not nullable."
   private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
 
   private def notValidPropertyTypeMessage(a: Any, propertyType: String) =
     s"$a is not a valid $propertyType"
 
   //scalastyle:off cyclomatic.complexity
-  private def parseValue(value: Any): Json = value match {
-    case x: Double => jsonFromDouble(x)
-    case x: Int => jsonFromDouble(x.toDouble)
-    case x: Float => jsonFromDouble(x.toDouble)
-    case x: Long => jsonFromDouble(x.toDouble)
-    case x: java.math.BigDecimal => jsonFromDouble(x.doubleValue)
-    case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
-    case x: String => Json.fromString(x)
-    case x: Boolean => Json.fromBoolean(x)
-    case x: Array[Any] =>
-      Json.fromValues(x.map(parseValue))
-    case null => Json.Null // scalastyle:off null
+  private def parsePropertyValue(value: Any): PropertyType = value match {
+    case x: Double => Float64Property(x)
+    case x: Int => Int32Property(x)
+    case x: Float => Float32Property(x)
+    case x: Long => Int64Property(x)
+    case x: java.math.BigDecimal => Float64Property(x.doubleValue())
+    case x: java.math.BigInteger => Int64Property(x.longValue())
+    case x: String => StringProperty(x)
+    case x: Boolean => BooleanProperty(x)
+    case x: Array[Double] => ArrayProperty(x.toVector.map(Float64Property))
+    case x: Array[Int] => ArrayProperty(x.toVector.map(Int32Property))
+    case x: Array[Float] => ArrayProperty(x.toVector.map(Float32Property))
+    case x: Array[Long] => ArrayProperty(x.toVector.map(Int64Property))
+    case x: Array[String] => ArrayProperty(x.toVector.map(StringProperty))
+    case x: Array[Boolean] => ArrayProperty(x.toVector.map(BooleanProperty))
+    case x: Array[java.math.BigDecimal] =>
+      ArrayProperty(x.toVector.map(i => Float64Property(i.doubleValue())))
+    case x: Array[java.math.BigInteger] =>
+      ArrayProperty(x.toVector.map(i => Int64Property(i.longValue())))
   }
 
-  private def parseFromJson(value: Json, propType: String): Option[Any] =
-    if (value.isNull) {
-      Some(null) // scalastyle:off null
-    } else {
-      propType.toLowerCase match {
-        case "text" =>
-          value.asString
-        case "boolean" =>
-          value.asBoolean
-        case "numeric" | "float64" =>
-          value.asNumber.map(_.toDouble)
-        case "float32" =>
-          value.asNumber.map(_.toFloat)
-        case "int" | "int32" =>
-          value.asNumber.flatMap(_.toInt)
-        case "int64" | "bigint" =>
-          value.asNumber.flatMap(_.toLong)
-        case "text[]" =>
-          Some(value.asArray.getOrElse(Vector()).flatMap(_.asString))
-        case "boolean[]" =>
-          Some(value.asArray.getOrElse(Vector()).flatMap(_.asBoolean))
-        case "numeric[]" | "float64[]" =>
-          Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toDouble)))
-        case "float32[]" =>
-          Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.map(_.toFloat)))
-        case "int[]" | "int32[]" =>
-          Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toInt).toList))
-        case "int64[]" | "bigint[]" =>
-          Some(value.asArray.getOrElse(Vector()).flatMap(_.asNumber.flatMap(_.toLong).toList))
-        case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
-      }
-    }
+  private def fromProperty(x: PropertyType): Any = x match {
+    case Int32Property(value) => value
+    case Int64Property(value) => value
+    case Float32Property(value) => value
+    case Float64Property(value) => value
+    case BooleanProperty(value) => value
+    case StringProperty(value) => value
+    case ArrayProperty(values) => values.map(fromProperty)
+  }
 
   def propertyTypeToSparkType(propertyType: String): DataType =
     propertyType.toLowerCase match {
@@ -291,92 +269,105 @@ object DataModelInstanceRelation {
       case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
 
-  private def jsonFromDouble(num: Double): Json =
-    Json.fromDouble(num).getOrElse(throw new CdfSparkException(s"Numeric value $num"))
-  private def tryGetValue(propertyType: String, nullable: Boolean): PartialFunction[Any, Json] = // scalastyle:off
+  private def toPropertyType(propertyType: String): PartialFunction[Any, PropertyType] = // scalastyle:off
     propertyType.toLowerCase match {
-      case "float32" | "float64" | "numeric" => {
-        case null if !nullable => throw new CdfSparkException(propertyNotNullableMessage(propertyType))
-        case null => Json.Null // scalastyle:off null
-        case x: Double => jsonFromDouble(x)
-        case x: Int => jsonFromDouble(x.toDouble)
-        case x: Float => jsonFromDouble(x.toDouble)
-        case x: Long => jsonFromDouble(x.toDouble)
-        case x: java.math.BigDecimal => jsonFromDouble(x.doubleValue)
-        case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
+      case "float32" => {
+        case x: Float => Float32Property(x)
+        case x: Float => Float32Property(x)
+        case x: Int => Float32Property(x.toFloat)
+        case x: Long => Float32Property(x.toFloat)
+        case x: java.math.BigDecimal => Float32Property(x.floatValue())
+        case x: java.math.BigInteger => Float32Property(x.floatValue())
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
+      }
+      case "float64" | "numeric" => {
+        case x: Double => Float64Property(x)
+        case x: Float => Float64Property(x.toDouble)
+        case x: Int => Float64Property(x.toDouble)
+        case x: Long => Float64Property(x.toDouble)
+        case x: java.math.BigDecimal => Float64Property(x.doubleValue())
+        case x: java.math.BigInteger => Float64Property(x.doubleValue())
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "boolean" => {
-        case null if !nullable =>
-          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
-        case null => Json.Null // scalastyle:off null
-        case x: Boolean => Json.fromBoolean(x)
+        case x: Boolean => BooleanProperty(x)
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
-      case "int" | "int64" | "int32" | "bigint" => {
-        case null if !nullable =>
-          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
-        case null => Json.Null // scalastyle:off null
-        case x: Int => Json.fromInt(x)
-        case x: Long => Json.fromLong(x)
-        case x: java.math.BigInteger => Json.fromBigInt(x)
+      case "int" | "int32" => {
+        case x: Int => Int32Property(x)
+        case x: java.math.BigInteger => Int32Property(x.longValue().toInt)
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
+      }
+      case "int64" | "bigint" => {
+        case x: Int => Int64Property(x.toLong)
+        case x: Long => Int64Property(x)
+        case x: java.math.BigInteger => Int64Property(x.longValue())
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "text" => {
-        case null if !nullable =>
-          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
-        case null => Json.Null // scalastyle:off null
-        case x: String => Json.fromString(x)
+        case x: String => StringProperty(x)
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "text[]" => {
-        case null if !nullable =>
-          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
-        case null => Json.Null // scalastyle:off null
-        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
         case x: Iterable[String] @unchecked if x.head.isInstanceOf[String] =>
-          Json.fromValues(x.map(Json.fromString))
+          ArrayProperty(x.toVector.map(StringProperty))
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
-      case "float32[]" | "float64[]" | "numeric[]" => {
-        case null if !nullable =>
-          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
-        case null => Json.Null // scalastyle:off null
-        case x: Iterable[_] if x.isEmpty => Json.arr()
-        case x: Iterable[Double] @unchecked if x.head.isInstanceOf[Double] =>
-          Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
-        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
-          Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
+      case "float32[]" => {
+        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
         case x: Iterable[Float] @unchecked if x.head.isInstanceOf[Float] =>
-          Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
+          ArrayProperty(x.toVector.map(Float32Property))
+        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
+          ArrayProperty(x.toVector.map(i => Float32Property(i.toFloat)))
         case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
-          Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
+          ArrayProperty(x.toVector.map(i => Float32Property(i.toFloat)))
         case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
-          Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
+          ArrayProperty(x.toVector.map(i => Float32Property(i.floatValue())))
         case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
-          Json.fromValues(x.map(value => jsonFromDouble(value.doubleValue)))
+          ArrayProperty(x.toVector.map(i => Float32Property(i.floatValue())))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
+      }
+      case "float64[]" => {
+        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
+        case x: Iterable[Double] @unchecked if x.head.isInstanceOf[Double] =>
+          ArrayProperty(x.toVector.map(Float64Property))
+        case x: Iterable[Float] @unchecked if x.head.isInstanceOf[Float] =>
+          ArrayProperty(x.toVector.map(f => Float64Property(f.toDouble)))
+        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
+          ArrayProperty(x.toVector.map(f => Float64Property(f.toDouble)))
+        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
+          ArrayProperty(x.toVector.map(f => Float64Property(f.toDouble)))
+        case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
+          ArrayProperty(x.toVector.map(i => Float64Property(i.doubleValue())))
+        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
+          ArrayProperty(x.toVector.map(i => Float64Property(i.doubleValue())))
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "boolean[]" => {
-        case null if !nullable =>
-          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
-        case null => Json.Null // scalastyle:off null
-        case x: Iterable[_] if x.isEmpty => Json.arr()
+        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
         case x: Iterable[Boolean] @unchecked if x.head.isInstanceOf[Boolean] =>
-          Json.fromValues(x.map(Json.fromBoolean))
+          ArrayProperty(x.toVector.map(BooleanProperty))
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
-      case "int[]" | "int64[]" | "int32[]" | "bigint[]" => {
-        case null if !nullable =>
-          throw new CdfSparkException(propertyNotNullableMessage(propertyType)) // scalastyle:off null
-        case null => Json.Null // scalastyle:off null
-        case x: Iterable[_] if x.isEmpty => Json.arr()
+      case "int[]" | "int32[]" => {
         case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
-          Json.fromValues(x.map(Json.fromInt))
-        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
-          Json.fromValues(x.map(Json.fromLong))
+          ArrayProperty(x.toVector.map(Int32Property))
+//        case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
+//          ArrayProperty(x.toVector.map(i => Int32Property(i.intValue())))
         case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
-          Json.fromValues(x.map(value => Json.fromLong(value.doubleValue.toLong)))
+          ArrayProperty(x.toVector.map(i => Int32Property(i.intValue())))
+        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
+      }
+      case "int64[]" | "bigint[]" => {
+        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
+          ArrayProperty(x.toVector.map(i => Int64Property(i.toLong)))
+        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
+          ArrayProperty(x.toVector.map(Int64Property))
+//        case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
+//          ArrayProperty(x.toVector.map(i => Int64Property(i.longValue())))
+        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
+          ArrayProperty(x.toVector.map(i => Int64Property(i.longValue())))
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case a =>
