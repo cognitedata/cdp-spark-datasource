@@ -1133,26 +1133,42 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     eventsDf.createOrReplaceTempView("events")
 
     val df = spark.sql("""
-    select * from(
-     select *,
-     externalId,
-      RANK() over (
-          PARTITION BY externalId
-          ORDER BY lastUpdatedTime desc
-          ) RANK
-      from (
-          select assets.externalId as externalId,
-          assets.lastUpdatedTime as lastUpdatedTime
-          from (
-            select assets.externalId as externalId,
-            assets.lastUpdatedTime as lastUpdatedTime
-            from assets
-            left join events
-            on assets.externalId = events.externalId
-            where assets.source = "some source"
-          ) as assets
-       ) as ass
-      )
+    SELECT * FROM
+    (
+        SELECT
+            *,
+            RANK() OVER(
+                PARTITION BY main_assets.externalId
+                ORDER BY
+                    main_assets.lastUpdatedTime DESC
+            ) Rank
+        FROM
+            (
+                SELECT
+                    ass.externalId as externalId,
+                    ass.lastUpdatedTime as lastUpdatedTime
+                FROM
+                    (
+                        SELECT
+                            *
+                        FROM
+                            assets
+
+                        WHERE
+                            source = 'some source'
+                    ) AS ass
+                INNER JOIN (
+                        SELECT
+                            externalId,
+                            id
+                        FROM
+                            events
+                    ) AS events ON
+                        events.externalId = ass.externalId
+            ) AS main_assets
+        )
+    WHERE
+    Rank = 1
      """)
 
     println(df.explain())
