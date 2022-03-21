@@ -1119,9 +1119,37 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("partitions", "1")
       .load()
 
-    assetDf.createOrReplaceTempView("assets")
+  val eventsDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .load()
 
-    val df = spark.sql("select * from (select * from assets where source = 'some source')")
+    assetDf.createOrReplaceTempView("assets")
+    eventsDf.createOrReplaceTempView("events")
+
+    val df = spark.sql("""
+     select *,
+     externalId,
+      RANK() over (
+          PARTITION BY externalId
+          ORDER BY lastUpdatedTime desc
+          ) RANK
+      from (
+          select assets.externalId as externalId,
+          assets.lastUpdatedTime as lastUpdatedTime
+          from assets
+          left join events
+          on assets.externalId = events.externalId
+          where assets.source = "some source"
+     ) as ass
+     """)
+
+    println(df.explain())
 
     assert(df.count() == 1)
 
