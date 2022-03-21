@@ -1107,6 +1107,28 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     }
   }
 
+  it should "support pushdown filters on subqueries" taggedAs WriteTest in {
+    val metricsPrefix = s"pushdown.assets.source.${shortRandomString()}"
+    val assetDf = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .load()
+
+    assetDf.createOrReplaceTempView("assets")
+
+    val df = spark.sql("select * from (select * from assets where source = 'some source')")
+
+    assert(df.count() == 1)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
+    assert(assetsRead == 1)
+  }
+
   def cleanupAssets(source: String): Unit =
     spark
       .sql(s"""select id from destinationAssets where source = '$source'""")
