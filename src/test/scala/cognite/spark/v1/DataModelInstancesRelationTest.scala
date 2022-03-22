@@ -155,7 +155,7 @@ class DataModelInstancesRelationTest
               primitiveExtId,
               spark
                 .sql(s"""select 2.0 as prop_float,
-                  |true as prop_bool,
+                  |null as prop_bool,
                   |'abc' as prop_string,
                   |'${randomId}' as externalId""".stripMargin)
             )
@@ -174,7 +174,7 @@ class DataModelInstancesRelationTest
     }
   }
 
-  it should "ingest multi valued data" in {
+  ignore should "ingest multi valued data" in {
     val randomId1 = "test_multi_" + shortRandomString()
     val randomId2 = "test_multi_" + shortRandomString()
     try {
@@ -311,7 +311,7 @@ class DataModelInstancesRelationTest
     }
   }
 
-  ignore should "fail when writing null to a non nullable property" in {
+  it should "fail when writing null to a non nullable property" in {
     val ex = sparkIntercept {
       insertRows(
         multiValuedExtId,

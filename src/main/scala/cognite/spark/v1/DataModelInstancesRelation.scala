@@ -198,15 +198,24 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         case x: String => x
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
       }
-      val propertyValues: Map[String, PropertyType] = properties.map {
-        case (index, name, propT) =>
-          name -> toPropertyType(propT).applyOrElse(
-            row.get(index),
-            (_: Any) =>
-              throw SparkSchemaHelperRuntime
-                .badRowError(row, name, propT, "")
-          )
-      }.toMap
+      val propertyValues: Map[String, PropertyType] = properties
+        .map {
+          case (index, name, propT) =>
+            name -> (row.get(index) match {
+              case null => None // scalastyle:off null
+              case _ =>
+                Some(
+                  toPropertyType(propT).applyOrElse(
+                    row.get(index),
+                    (_: Any) =>
+                      throw SparkSchemaHelperRuntime
+                        .badRowError(row, name, propT, "")
+                  ))
+            })
+        }
+        .collect { case (a, Some(value)) => a -> value }
+        .toMap
+
       DataModelInstanceCreate(modelExternalId, properties = Some(propertyValues))
     }
     parseRow
