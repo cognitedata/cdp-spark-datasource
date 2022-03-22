@@ -174,7 +174,7 @@ class DataModelInstancesRelationTest
     }
   }
 
-  ignore should "ingest multi valued data" in {
+  it should "ingest multi valued data" in {
     val randomId1 = "test_multi_" + shortRandomString()
     val randomId2 = "test_multi_" + shortRandomString()
     try {
@@ -215,7 +215,7 @@ class DataModelInstancesRelationTest
     }
   }
 
-  ignore should "read instances" in {
+  it should "read instances" in {
     val randomId = "prim_test2_" + shortRandomString()
     try {
       retryWhile[Boolean](
@@ -247,7 +247,7 @@ class DataModelInstancesRelationTest
     }
   }
 
-  ignore should "read multi valued instances" in {
+  it should "read multi valued instances" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     try {
@@ -327,7 +327,7 @@ class DataModelInstancesRelationTest
     ex.getMessage shouldBe s"Property of int[] type is not nullable."
   }
 
-  ignore should "filter instances by externalId" in {
+  it should "filter instances by externalId" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     try {
       retryWhile[Boolean](
@@ -358,7 +358,7 @@ class DataModelInstancesRelationTest
     }
   }
 
-  ignore should "filter instances" in {
+  it should "filter instances" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     try {
@@ -432,7 +432,7 @@ class DataModelInstancesRelationTest
 
   }
 
-  ignore should "filter instances using or" in {
+  it should "filter instances using or" in {
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test_" + shortRandomString()
     val randomId3 = "prim_test_" + shortRandomString()
@@ -505,7 +505,7 @@ class DataModelInstancesRelationTest
     }
 
   }
-  ignore should "delete data model instances" in {
+  it should "delete data model instances" in {
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test2_" + shortRandomString()
     try {

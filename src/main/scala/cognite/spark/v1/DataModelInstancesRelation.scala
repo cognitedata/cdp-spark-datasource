@@ -38,11 +38,11 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .toList
     .flatten
 
-  val propertyTypes: Map[String, String] = modelInfo.properties
+  val propertyTypes: Map[String, (String, Boolean)] = modelInfo.properties
     .getOrElse(Map())
     .map {
       case (name, prop) =>
-        (name, prop.`type`)
+        (name, (prop.`type`, prop.nullable))
     }
     .toMap
 
@@ -72,7 +72,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       dmi: DataModelInstanceQueryResponse,
       requiredPropsArray: Seq[String]): ProjectedDataModelInstance = {
     val dmiProperties = dmi.properties.getOrElse(Map())
-    ProjectedDataModelInstance(
+    val res = ProjectedDataModelInstance(
       externalId = dmi.properties
         .flatMap(_.get("externalId"))
         .map(_.asInstanceOf[StringProperty].value)
@@ -80,9 +80,10 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
           throw new CdfSparkException("Can't read data model instance, `externalId` is missing.")),
       properties = requiredPropsArray.map { name: String =>
         val value = dmiProperties.get(name)
-        value.map(fromProperty)
+        value.map(fromProperty).orNull
       }.toArray
     )
+    res
   }
 
   // scalastyle:off cyclomatic.complexity
@@ -92,7 +93,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         Some(DMIEqualsFilter(Seq(modelExternalId, left), parsePropertyValue(right)))
       }
       case In(attribute, values) =>
-        if (propertyTypes(attribute).endsWith("[]")) {
+        if (propertyTypes(attribute)._1.endsWith("[]")) {
           None
         } else {
           val setValues = values.filter(_ != null)
@@ -181,7 +182,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
     }
 
-    val properties: Array[(Int, String, String)] = schema.fields.zipWithIndex
+    val properties: Array[(Int, String, (String, Boolean))] = schema.fields.zipWithIndex
       .map {
         case (field: StructField, index: Int) =>
           val propertyType = propertyTypes.getOrElse(
@@ -202,14 +203,17 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         .map {
           case (index, name, propT) =>
             name -> (row.get(index) match {
-              case null => None // scalastyle:off null
+              case null if !propT._2 => // scalastyle:off null
+                throw new CdfSparkException(propertyNotNullableMessage(propT._1))
+              case null => // scalastyle:off null
+                None
               case _ =>
                 Some(
-                  toPropertyType(propT).applyOrElse(
+                  toPropertyType(propT._1).applyOrElse(
                     row.get(index),
                     (_: Any) =>
                       throw SparkSchemaHelperRuntime
-                        .badRowError(row, name, propT, "")
+                        .badRowError(row, name, propT._1, "")
                   ))
             })
         }
@@ -227,6 +231,9 @@ object DataModelInstanceRelation {
 
   private def notValidPropertyTypeMessage(a: Any, propertyType: String) =
     s"$a is not a valid $propertyType"
+
+  private def propertyNotNullableMessage(propertyType: String) =
+    s"Property of $propertyType type is not nullable."
 
   //scalastyle:off cyclomatic.complexity
   private def parsePropertyValue(value: Any): PropertyType = value match {
@@ -258,6 +265,7 @@ object DataModelInstanceRelation {
     case BooleanProperty(value) => value
     case StringProperty(value) => value
     case ArrayProperty(values) => values.map(fromProperty)
+    case x => throw new CdfSparkException(s"Unknown property type with value $x")
   }
 
   def propertyTypeToSparkType(propertyType: String): DataType =
@@ -282,7 +290,7 @@ object DataModelInstanceRelation {
     propertyType.toLowerCase match {
       case "float32" => {
         case x: Float => Float32Property(x)
-        case x: Float => Float32Property(x)
+        case x: Double => Float32Property(x.toFloat)
         case x: Int => Float32Property(x.toFloat)
         case x: Long => Float32Property(x.toFloat)
         case x: java.math.BigDecimal => Float32Property(x.floatValue())
@@ -337,7 +345,7 @@ object DataModelInstanceRelation {
           ArrayProperty(x.toVector.map(i => Float32Property(i.floatValue())))
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
-      case "float64[]" => {
+      case "float64[]" | "numeric[]" => {
         case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
         case x: Iterable[Double] @unchecked if x.head.isInstanceOf[Double] =>
           ArrayProperty(x.toVector.map(Float64Property))
@@ -360,21 +368,19 @@ object DataModelInstanceRelation {
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "int[]" | "int32[]" => {
+        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
         case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
           ArrayProperty(x.toVector.map(Int32Property))
-//        case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
-//          ArrayProperty(x.toVector.map(i => Int32Property(i.intValue())))
         case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
           ArrayProperty(x.toVector.map(i => Int32Property(i.intValue())))
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
       }
       case "int64[]" | "bigint[]" => {
+        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
         case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
           ArrayProperty(x.toVector.map(i => Int64Property(i.toLong)))
         case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
           ArrayProperty(x.toVector.map(Int64Property))
-//        case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
-//          ArrayProperty(x.toVector.map(i => Int64Property(i.longValue())))
         case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
           ArrayProperty(x.toVector.map(i => Int64Property(i.longValue())))
         case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
