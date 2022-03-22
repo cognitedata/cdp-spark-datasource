@@ -64,7 +64,7 @@ class RawTableRelation(
   ): IO[StructType] = {
     val client = CdpConnector.clientFromConfig(config).rawRows(database, table)
 
-    client
+    val rows = client
       .list(Some(limit))
       .mapChunks { chunk =>
         if (collectSchemaInferenceMetrics) {
@@ -72,12 +72,8 @@ class RawTableRelation(
         }
         chunk
       }
-      .map(row => RawSchemaInferrer.infer(row.columns))
-      .fold(RawSchemaInferrer.JsonObject(Map.empty))(RawSchemaInferrer.unifyObjects)
+    RawSchemaInferrer.inferRows(rows)
       .map(RawSchemaInferrer.toSparkSchema)
-      .compile
-      .toList
-      .map(_.head)
   }
 
   def getStreams(filter: RawRowFilter, cursors: Vector[String])(
