@@ -1223,25 +1223,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val epochMilliTime = 1747858131L
 
     val reproDf = spark.sql(s"""
---- 220316 ais_v2 migration
---    template: tr:008a + tr:008c
---    merge ts creation for numeric and string-datapoints into one
---      conditional isString
---      added conditional 'isStep'
---      reduced stack() to quantity and unit_of_measure,
---         as a mix of float and string 'value' was breaking the SQL
---         but not required at all for creating tses
---    keep lower case to match exact_ais format_string
---    change ext-ids
---    source: reference full RAW or only table?
---    all quantities lower-case
---    source_type: 'ExactEarth AIS'
-
--- Create numeric timeseries parsing AIS EXACT data
---  NOTES:
---    a. naming convention for timeseries: "ais_v2:vessel:{quantity}:{imo}"
---    b. timeseries constrained (by INNER JOIN) with existing "ais_v2:vessel:{imo}""
---    c. input data fron AIS Exact Earth is limited to datapoints
 SELECT
     -- ais_v2:vessel:course_over_ground:9281152
     externalId,
@@ -1385,6 +1366,85 @@ WHERE
 
     val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
     assert(assetsRead == 1)
+  }
+
+  it should "dump data" taggedAs WriteTest in {
+
+    val clientId = System.getenv("PETER_CLIENT")
+    val clientSecret = System.getenv("PETER_CLIENT_SECRET")
+    val project = System.getenv("PETER_PROJECT")
+    val tokenUri = System.getenv("PETER_TOKENURI")
+
+    spark.read
+      .format("cognite.spark.v1")
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("tokenUri", tokenUri)
+      .option("baseUrl", "https://westeurope-1.cognitedata.com")
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", "https://westeurope-1.cognitedata.com/.default")
+      .load()
+      .createOrReplaceTempView("peter_assets")
+
+    val rawDf = spark.read
+      .format("cognite.spark.v1")
+      .option("type", "raw")
+      .option("database", "src:001:exact:rawdb")
+      .option("table", "exact_ais_v2")
+      .option("tokenUri", tokenUri)
+      .option("baseUrl", "https://westeurope-1.cognitedata.com")
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", "https://westeurope-1.cognitedata.com/.default")
+      .option("inferSchema", "true")
+      .option("collectMetrics", "true")
+      .load()
+
+    val clientIdG = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+    val clientSecretG = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+    val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    val tokenUriG = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+    val projectG = "jetfiretest-greenfield"
+
+    val greenfieldBase = spark.read
+      .format("cognite.spark.v1")
+      .option("tokenUri", tokenUriG)
+      .option("baseUrl", "https://greenfield.cognitedata.com")
+      .option("clientId", clientIdG)
+      .option("clientSecret", clientSecretG)
+      .option("project", projectG)
+      .option("scopes", "https://greenfield.cognitedata.com/.default")
+
+    spark.sql("""
+                  |select
+                  |externalId,
+                  |parentExternalId,
+                  |source,
+                  |name,
+                  |description,
+                  |metadata,
+                  |parentExternalId,
+                  |null as datasetId,
+                  |null as labels
+                  |from peter_assets
+                  |""".stripMargin)
+      .na.fill("", Array("parentExternalId"))
+      .write
+      .format("cognite.spark.v1")
+      .option("tokenUri", tokenUriG)
+      .option("baseUrl", "https://greenfield.cognitedata.com")
+      .option("clientId", clientIdG)
+      .option("clientSecret", clientSecretG)
+      .option("project", projectG)
+      .option("scopes", "https://greenfield.cognitedata.com/.default")
+      .option("type", "assethierarchy")
+      .save
+//    val greenfieldRaw = greenfieldBase.option("type", "raw").option("database","peter").option("table", "dump").load().createOrReplaceTempView("graw")
+
+//    rawDf.write.insertInto("graw")
   }
 
   def cleanupAssets(source: String): Unit =
