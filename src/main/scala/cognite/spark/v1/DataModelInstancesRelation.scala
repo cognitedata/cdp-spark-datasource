@@ -68,7 +68,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
           throw new CdfSparkException("Can't read data model instance, `externalId` is missing.")),
       properties = requiredPropsArray.map { name: String =>
         val value = dmiProperties.get(name)
-        value.map(fromProperty).orNull
+        value.map(fromPropertyType).orNull
       }.toArray
     )
   }
@@ -196,13 +196,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
               case null => // scalastyle:off null
                 None
               case _ =>
-                Some(
-                  toPropertyType(propT.`type`).applyOrElse(
-                    row.get(index),
-                    (_: Any) =>
-                      throw SparkSchemaHelperRuntime
-                        .badRowError(row, name, propT.`type`, "")
-                  ))
+                Some(toPropertyType(propT.`type`)(row.get(index)))
             })
         }
         .collect { case (a, Some(value)) => a -> value }
@@ -246,14 +240,14 @@ object DataModelInstanceRelation {
     case x => throw new CdfSparkException(s"Cannot parse the value with udentified type: $x")
   }
 
-  private def fromProperty(x: PropertyType): Any = x match {
+  private def fromPropertyType(x: PropertyType): Any = x match {
     case Int32Property(value) => value
     case Int64Property(value) => value
     case Float32Property(value) => value
     case Float64Property(value) => value
     case BooleanProperty(value) => value
     case StringProperty(value) => value
-    case ArrayProperty(values) => values.map(fromProperty)
+    case ArrayProperty(values) => values.map(fromPropertyType)
     case x => throw new CdfSparkException(s"Unknown property type with value $x")
   }
 
@@ -275,109 +269,132 @@ object DataModelInstanceRelation {
       case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
 
-  private def toPropertyType(propertyType: String): PartialFunction[Any, PropertyType] = // scalastyle:off
+  private def toFloat32Property: Any => Float32Property = {
+    case x: Float => Float32Property(x)
+    case x: Int => Float32Property(x.toFloat)
+    case x: java.math.BigDecimal => Float32Property(x.floatValue())
+    case x: java.math.BigInteger => Float32Property(x.floatValue())
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "float32"))
+  }
+
+  private def toFloat64Property(propAlias: String): Any => Float64Property = {
+    case x: Double => Float64Property(x)
+    case x: Float => Float64Property(x.toDouble)
+    case x: Int => Float64Property(x.toDouble)
+    case x: Long => Float64Property(x.toDouble)
+    case x: java.math.BigDecimal => Float64Property(x.doubleValue())
+    case x: java.math.BigInteger => Float64Property(x.doubleValue())
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propAlias))
+  }
+
+  private def toBooleanProperty: Any => BooleanProperty = {
+    case x: Boolean => BooleanProperty(x)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "boolean"))
+  }
+
+  private def toInt32Property(propertyAlias: String): Any => Int32Property = {
+    case x: Int => Int32Property(x)
+    case x: java.math.BigInteger => Int32Property(x.intValue())
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias))
+  }
+
+  private def toInt64Property(propertyAlias: String): PartialFunction[Any, Int64Property] = {
+    case x: Int => Int64Property(x.toLong)
+    case x: Long => Int64Property(x)
+    case x: java.math.BigInteger => Int64Property(x.longValue())
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias))
+  }
+
+  private def toStringProperty: Any => StringProperty = {
+    case x: String => StringProperty(x)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "text"))
+  }
+
+  private def toStringArrayProperty: Any => ArrayProperty[StringProperty] = {
+    case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
+    case x: Iterable[_] if x.head.isInstanceOf[String] =>
+      ArrayProperty(x.map(i => StringProperty(i.asInstanceOf[String])).toVector)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "text[]"))
+  }
+  private def toFloat32ArrayProperty: Any => ArrayProperty[Float32Property] = {
+    case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
+    case x: Iterable[_] if x.head.isInstanceOf[Float] =>
+      ArrayProperty(x.map(i => Float32Property(i.asInstanceOf[Float])).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[Int] =>
+      ArrayProperty(x.map(i => Float32Property(i.asInstanceOf[Int].toFloat)).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[java.math.BigDecimal] =>
+      ArrayProperty(
+        x.map(i => Float32Property(i.asInstanceOf[java.math.BigDecimal].floatValue())).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[java.math.BigInteger] =>
+      ArrayProperty(
+        x.map(i => Float32Property(i.asInstanceOf[java.math.BigInteger].floatValue())).toVector)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "float32[]"))
+  }
+
+  private def toFloat64ArrayProperty(propertyAlias: String): Any => ArrayProperty[Float64Property] = {
+    case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
+    case x: Iterable[_] if x.head.isInstanceOf[Double] =>
+      ArrayProperty(x.map(i => Float64Property(i.asInstanceOf[Double])).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[Float] =>
+      ArrayProperty(x.map(i => Float64Property(i.asInstanceOf[Float].toDouble)).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[Long] =>
+      ArrayProperty(x.map(i => Float64Property(i.asInstanceOf[Long].toDouble)).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[Int] =>
+      ArrayProperty(x.map(i => Float64Property(i.asInstanceOf[Int].toDouble)).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[java.math.BigDecimal] =>
+      ArrayProperty(
+        x.map(i => Float64Property(i.asInstanceOf[java.math.BigDecimal].doubleValue())).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[java.math.BigInteger] =>
+      ArrayProperty(
+        x.map(i => Float64Property(i.asInstanceOf[java.math.BigInteger].doubleValue())).toVector)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias))
+  }
+
+  private def toBooleanArrayProperty: Any => ArrayProperty[BooleanProperty] = {
+    case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
+    case x: Iterable[_] if x.head.isInstanceOf[Boolean] =>
+      ArrayProperty(x.map(i => BooleanProperty(i.asInstanceOf[Boolean])).toVector)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "boolean[]"))
+  }
+
+  private def toInt32ArrayProperty(propertyAlias: String): Any => ArrayProperty[Int32Property] = {
+    case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
+    case x: Iterable[_] if x.head.isInstanceOf[Int] =>
+      ArrayProperty(x.map(i => Int32Property(i.asInstanceOf[Int])).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[java.math.BigInteger] =>
+      ArrayProperty(x.map(i => Int32Property(i.asInstanceOf[java.math.BigInteger].intValue())).toVector)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias))
+  }
+
+  private def toInt64ArrayProperty(propertyAlias: String): Any => ArrayProperty[Int64Property] = {
+    case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
+    case x: Iterable[_] if x.head.isInstanceOf[Int] =>
+      ArrayProperty(x.map(i => Int64Property(i.asInstanceOf[Int].toLong)).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[Long] =>
+      ArrayProperty(x.map(i => Int64Property(i.asInstanceOf[Long])).toVector)
+    case x: Iterable[_] if x.head.isInstanceOf[java.math.BigInteger] =>
+      ArrayProperty(x.map(i => Int64Property(i.asInstanceOf[java.math.BigInteger].longValue())).toVector)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias))
+  }
+
+  private def toPropertyType(propertyType: String): Any => PropertyType =
     propertyType.toLowerCase match {
-      case "float32" => {
-        case x: Float => Float32Property(x)
-        case x: Double => Float32Property(x.toFloat)
-        case x: Int => Float32Property(x.toFloat)
-        case x: Long => Float32Property(x.toFloat)
-        case x: java.math.BigDecimal => Float32Property(x.floatValue())
-        case x: java.math.BigInteger => Float32Property(x.floatValue())
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "float64" | "numeric" => {
-        case x: Double => Float64Property(x)
-        case x: Float => Float64Property(x.toDouble)
-        case x: Int => Float64Property(x.toDouble)
-        case x: Long => Float64Property(x.toDouble)
-        case x: java.math.BigDecimal => Float64Property(x.doubleValue())
-        case x: java.math.BigInteger => Float64Property(x.doubleValue())
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "boolean" => {
-        case x: Boolean => BooleanProperty(x)
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "int" | "int32" => {
-        case x: Int => Int32Property(x)
-        case x: java.math.BigInteger => Int32Property(x.longValue().toInt)
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "int64" | "bigint" => {
-        case x: Int => Int64Property(x.toLong)
-        case x: Long => Int64Property(x)
-        case x: java.math.BigInteger => Int64Property(x.longValue())
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "text" => {
-        case x: String => StringProperty(x)
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "text[]" => {
-        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
-        case x: Iterable[String] @unchecked if x.head.isInstanceOf[String] =>
-          ArrayProperty(x.toVector.map(StringProperty))
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "float32[]" => {
-        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
-        case x: Iterable[Float] @unchecked if x.head.isInstanceOf[Float] =>
-          ArrayProperty(x.toVector.map(Float32Property))
-        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
-          ArrayProperty(x.toVector.map(i => Float32Property(i.toFloat)))
-        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
-          ArrayProperty(x.toVector.map(i => Float32Property(i.toFloat)))
-        case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
-          ArrayProperty(x.toVector.map(i => Float32Property(i.floatValue())))
-        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
-          ArrayProperty(x.toVector.map(i => Float32Property(i.floatValue())))
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "float64[]" | "numeric[]" => {
-        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
-        case x: Iterable[Double] @unchecked if x.head.isInstanceOf[Double] =>
-          ArrayProperty(x.toVector.map(Float64Property))
-        case x: Iterable[Float] @unchecked if x.head.isInstanceOf[Float] =>
-          ArrayProperty(x.toVector.map(f => Float64Property(f.toDouble)))
-        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
-          ArrayProperty(x.toVector.map(f => Float64Property(f.toDouble)))
-        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
-          ArrayProperty(x.toVector.map(f => Float64Property(f.toDouble)))
-        case x: Iterable[java.math.BigDecimal] @unchecked if x.head.isInstanceOf[java.math.BigDecimal] =>
-          ArrayProperty(x.toVector.map(i => Float64Property(i.doubleValue())))
-        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
-          ArrayProperty(x.toVector.map(i => Float64Property(i.doubleValue())))
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "boolean[]" => {
-        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
-        case x: Iterable[Boolean] @unchecked if x.head.isInstanceOf[Boolean] =>
-          ArrayProperty(x.toVector.map(BooleanProperty))
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "int[]" | "int32[]" => {
-        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
-        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
-          ArrayProperty(x.toVector.map(Int32Property))
-        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
-          ArrayProperty(x.toVector.map(i => Int32Property(i.intValue())))
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
-      case "int64[]" | "bigint[]" => {
-        case x: Iterable[_] if x.isEmpty => ArrayProperty(Vector.empty)
-        case x: Iterable[Int] @unchecked if x.head.isInstanceOf[Int] =>
-          ArrayProperty(x.toVector.map(i => Int64Property(i.toLong)))
-        case x: Iterable[Long] @unchecked if x.head.isInstanceOf[Long] =>
-          ArrayProperty(x.toVector.map(Int64Property))
-        case x: Iterable[java.math.BigInteger] @unchecked if x.head.isInstanceOf[java.math.BigInteger] =>
-          ArrayProperty(x.toVector.map(i => Int64Property(i.longValue())))
-        case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyType))
-      }
+      case "float32" => toFloat32Property
+      case "float64" | "numeric" => toFloat64Property(propertyType)
+      case "boolean" => toBooleanProperty
+      case "int" | "int32" => toInt32Property(propertyType)
+      case "int64" | "bigint" => toInt64Property(propertyType)
+      case "text" => toStringProperty
+      case "text[]" => toStringArrayProperty
+      case "float32[]" => toFloat32ArrayProperty
+      case "float64[]" | "numeric[]" => toFloat64ArrayProperty(propertyType)
+      case "boolean[]" => toBooleanArrayProperty
+      case "int[]" | "int32[]" => toInt32ArrayProperty(propertyType)
+      case "int64[]" | "bigint[]" => toInt64ArrayProperty(propertyType)
       case a =>
         throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
-  // scalastyle:on cyclomatic.complexity
+  //scalastyle:on cyclomatic.complexity
 
 }
 
