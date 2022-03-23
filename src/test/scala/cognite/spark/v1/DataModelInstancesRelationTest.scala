@@ -2,8 +2,9 @@ package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.Items
 import com.cognite.sdk.scala.v1._
+import io.circe.Json
 import org.apache.spark.sql.DataFrame
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
 import scala.util.Try
@@ -38,12 +39,16 @@ class DataModelInstancesRelationTest
 
   private def getExternalIdList(modelExternalId: String): Seq[String] =
     listInstances(modelExternalId)
-      .flatMap(_.properties.flatMap(_.get("externalId")).toList).map(_.asInstanceOf[StringProperty].value)
+      .flatMap(_.properties.flatMap(_.get("externalId")).toList)
+      .flatMap(_.asString.toList)
 
   private def byExternalId(modelExternalId: String, externalId: String): String =
     listInstances(
       modelExternalId,
-      filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), StringProperty(externalId)))).head.properties.flatMap(_.get("externalId")).get.asInstanceOf[StringProperty].value
+      filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), Json.fromString(externalId))))
+      .flatMap(_.properties.flatMap(_.get("externalId")).toList)
+      .flatMap(_.asString.toList)
+      .head
 
   private val multiValuedExtId = "MultiValues_" + shortRandomString()
   private val primitiveExtId = "Primitive_" + shortRandomString()
@@ -145,46 +150,53 @@ class DataModelInstancesRelationTest
       .option("metricsPrefix", modelExternalId)
       .save
 
-  it should "ingest data" in {
-    val randomId = "prim_test_" + shortRandomString()
+  private def tryTestAndCleanUp(externalIds: Seq[String], testCode: Assertion) =
     try {
-      retryWhile[Boolean](
-        {
-          Try {
-            insertRows(
-              primitiveExtId,
-              spark
-                .sql(s"""select 2.0 as prop_float,
-                  |null as prop_bool,
-                  |'abc' as prop_string,
-                  |'${randomId}' as externalId""".stripMargin)
-            )
-          }.isFailure
-        },
-        failure => failure
-      )
-      byExternalId(primitiveExtId, randomId) shouldBe randomId
-      getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
+      testCode
     } finally {
       try {
-        bluefieldAlphaClient.dataModelInstances.deleteByExternalId(randomId).unsafeRunSync()
+        bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(externalIds).unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
     }
+
+  it should "ingest data" in {
+    val randomId = "prim_test_" + shortRandomString()
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""select 2.0 as prop_float,
+                        |true as prop_bool,
+                        |'abc' as prop_string,
+                        |'${randomId}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        byExternalId(primitiveExtId, randomId) shouldBe randomId
+        getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
+      }
+    )
   }
 
   it should "ingest multi valued data" in {
     val randomId1 = "test_multi_" + shortRandomString()
     val randomId2 = "test_multi_" + shortRandomString()
-    try {
-      retryWhile[Boolean](
-        {
-          Try {
-            insertRows(
-              multiValuedExtId,
-              spark
-                .sql(s"""select array() as arr_int,
+    tryTestAndCleanUp(
+      Seq(randomId1, randomId2), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                multiValuedExtId,
+                spark.sql(s"""select array() as arr_int,
                 |array(true, false) as arr_boolean,
                 |NULL as arr_str,
                 |NULL as str_prop,
@@ -197,68 +209,58 @@ class DataModelInstancesRelationTest
                 |array('hehe') as arr_str,
                 |'hehe' as str_prop,
                 |'${randomId2}' as externalId""".stripMargin)
-            )
-          }.isFailure
-        },
-        failure => failure
-      )
-      (getExternalIdList(multiValuedExtId) should contain).allOf(randomId1, randomId2)
-      getNumberOfRowsUpserted(multiValuedExtId, "datamodelinstances") shouldBe 2
-    } finally {
-      try {
-        bluefieldAlphaClient.dataModelInstances
-          .deleteByExternalIds(Seq(randomId1, randomId2))
-          .unsafeRunSync()
-      } catch {
-        case NonFatal(_) => // ignore
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        (getExternalIdList(multiValuedExtId) should contain).allOf(randomId1, randomId2)
+        getNumberOfRowsUpserted(multiValuedExtId, "datamodelinstances") shouldBe 2
       }
-    }
+    )
   }
 
   it should "read instances" in {
     val randomId = "prim_test2_" + shortRandomString()
-    try {
-      retryWhile[Boolean](
-        {
-          Try {
-            insertRows(
-              primitiveExtId,
-              spark
-                .sql(s"""select 2.1 as prop_float,
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""select 2.1 as prop_float,
              |false as prop_bool,
              |'abc' as prop_string,
              |'$randomId' as externalId""".stripMargin)
-            )
-          }.isFailure
-        },
-        failure => failure
-      )
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
 
-      val metricPrefix = shortRandomString()
-      val df = readRows(primitiveExtId, metricPrefix)
-      df.limit(1).count() shouldBe 1
-      getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
-    } finally {
-      try {
-        bluefieldAlphaClient.dataModelInstances.deleteByExternalId(randomId).unsafeRunSync()
-      } catch {
-        case NonFatal(_) => // ignore
+        val metricPrefix = shortRandomString()
+        val df = readRows(primitiveExtId, metricPrefix)
+        df.limit(1).count() shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
       }
-    }
+    )
   }
 
   it should "read multi valued instances" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
-    try {
-      retryWhile[Boolean](
-        {
-          Try {
-            insertRows(
-              multiValuedExtId2,
-              spark
-                .sql(
-                  s"""select 1234 as prop_int32,
+    tryTestAndCleanUp(
+      Seq(randomId1, randomId2), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                multiValuedExtId2,
+                spark
+                  .sql(
+                    s"""select 1234 as prop_int32,
              |4398046511104 as prop_int64,
              |0.424242 as prop_float32,
              |0.424242 as prop_float64,
@@ -283,32 +285,25 @@ class DataModelInstancesRelationTest
              |NULL as arr_float64,
              |array(1.00000000001) as arr_numeric,
              |'$randomId2' as externalId""".stripMargin
-                )
-            )
-          }.isFailure
-        },
-        failure => failure
-      )
+                  )
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
 
-      val metricPrefix = shortRandomString()
-      val df = readRows(multiValuedExtId2, metricPrefix)
-      df.limit(1).count() shouldBe 1
-      getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
-      (df
-        .select("externalId")
-        .collect()
-        .map(_.getAs[String]("externalId"))
-        .toList should contain).allOf(randomId1, randomId2)
-      getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
-    } finally {
-      try {
-        bluefieldAlphaClient.dataModelInstances
-          .deleteByExternalIds(Seq(randomId1, randomId2))
-          .unsafeRunSync()
-      } catch {
-        case NonFatal(_) => // ignore
+        val metricPrefix = shortRandomString()
+        val df = readRows(multiValuedExtId2, metricPrefix)
+        df.limit(1).count() shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
+        (df
+          .select("externalId")
+          .collect()
+          .map(_.getAs[String]("externalId"))
+          .toList should contain).allOf(randomId1, randomId2)
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
       }
-    }
+    )
   }
 
   it should "fail when writing null to a non nullable property" in {
@@ -329,47 +324,44 @@ class DataModelInstancesRelationTest
 
   it should "filter instances by externalId" in {
     val randomId1 = "numeric_test_" + shortRandomString()
-    try {
-      retryWhile[Boolean](
-        {
-          Try {
-            insertRows(
-              primitiveExtId,
-              spark
-                .sql(s"""select 2.1 as prop_float,
+    tryTestAndCleanUp(
+      Seq(randomId1), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""select 2.1 as prop_float,
              |false as prop_bool,
              |'abc' as prop_string,
              |'$randomId1' as externalId""".stripMargin)
-            )
-          }.isFailure
-        },
-        failure => failure
-      )
-      val metricPrefix = shortRandomString()
-      val df = readRows(primitiveExtId, metricPrefix)
-      df.where(s"externalId = '$randomId1'").count() shouldBe 1
-      getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
-    } finally {
-      try {
-        bluefieldAlphaClient.dataModelInstances.deleteByExternalId(randomId1).unsafeRunSync()
-      } catch {
-        case NonFatal(_) => // ignore
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        val metricPrefix = shortRandomString()
+        val df = readRows(primitiveExtId, metricPrefix)
+        df.where(s"externalId = '$randomId1'").count() shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
       }
-    }
+    )
   }
 
   it should "filter instances" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
-    try {
-      retryWhile[Boolean](
-        {
-          Try {
-            insertRows(
-              multiValuedExtId2,
-              spark
-                .sql(
-                  s"""select 1234 as prop_int32,
+    tryTestAndCleanUp(
+      Seq(randomId1, randomId2), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                multiValuedExtId2,
+                spark
+                  .sql(
+                    s"""select 1234 as prop_int32,
              |4398046511104 as prop_int64,
              |0.424242 as prop_float32,
              |0.8 as prop_float64,
@@ -394,42 +386,34 @@ class DataModelInstancesRelationTest
              |NULL as arr_float64,
              |array(1.00000000001) as arr_numeric,
              |'$randomId2' as externalId""".stripMargin
-                )
-            )
-          }.isFailure
-        },
-        failure => failure
-      )
+                  )
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
 
-      val metricPrefix = shortRandomString()
-      val df = readRows(multiValuedExtId2, metricPrefix)
-      val andDf = df.where("prop_numeric > 1.5 and prop_float64 = 0.8")
-      andDf.count() shouldBe 1
-      getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
-      (collectExternalIds(andDf) should contain).only(randomId1)
+        val metricPrefix = shortRandomString()
+        val df = readRows(multiValuedExtId2, metricPrefix)
+        val andDf = df.where("prop_numeric > 1.5 and prop_float64 = 0.8")
+        andDf.count() shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
+        (collectExternalIds(andDf) should contain).only(randomId1)
 
-      val metricPrefix2 = shortRandomString()
-      val df2 = readRows(multiValuedExtId2, metricPrefix2)
-        .where("not (prop_numeric > 1.5 and prop_float64 >= 0.7)")
-      df2.count() shouldBe 1
-      getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 1
-      (collectExternalIds(df2) should contain).only(randomId2)
+        val metricPrefix2 = shortRandomString()
+        val df2 = readRows(multiValuedExtId2, metricPrefix2)
+          .where("not (prop_numeric > 1.5 and prop_float64 >= 0.7)")
+        df2.count() shouldBe 1
+        getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 1
+        (collectExternalIds(df2) should contain).only(randomId2)
 
-      val metricPrefix3 = shortRandomString()
-      val df3 = readRows(multiValuedExtId2, metricPrefix3).where("prop_float32 is not null")
-      df3.count() shouldBe 1
-      getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
-      (collectExternalIds(df3) should contain).only(randomId1)
-    } finally {
-      try {
-        bluefieldAlphaClient.dataModelInstances
-          .deleteByExternalIds(Seq(randomId1, randomId2))
-          .unsafeRunSync()
-      } catch {
-        case NonFatal(_) => // ignore
+        val metricPrefix3 = shortRandomString()
+        val df3 = readRows(multiValuedExtId2, metricPrefix3).where("prop_float32 is not null")
+        df3.count() shouldBe 1
+        getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
+        (collectExternalIds(df3) should contain).only(randomId1)
       }
-    }
-
+    )
   }
 
   it should "filter instances using or" in {
@@ -437,14 +421,15 @@ class DataModelInstancesRelationTest
     val randomId2 = "prim_test_" + shortRandomString()
     val randomId3 = "prim_test_" + shortRandomString()
     val randomId4 = "prim_test_" + shortRandomString()
-    try {
-      retryWhile[Boolean](
-        {
-          Try {
-            insertRows(
-              primitiveExtId,
-              spark
-                .sql(s"""select 2.1 as prop_float,
+    tryTestAndCleanUp(
+      Seq(randomId1, randomId2, randomId3, randomId4), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""select 2.1 as prop_float,
                     |false as prop_bool,
                     |'abc' as prop_string,
                     |'$randomId1' as externalId
@@ -469,53 +454,46 @@ class DataModelInstancesRelationTest
                     |false as prop_bool,
                     |'yyyy' as prop_string,
                     |'$randomId4' as externalId""".stripMargin)
-            )
-          }.isFailure
-        },
-        failure => failure
-      )
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
 
-      val metricPrefix = shortRandomString()
-      val df = readRows(primitiveExtId, metricPrefix).where("prop_string = 'abc' or prop_bool = false")
-      df.count() shouldBe 3
-      getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
-      (collectExternalIds(df) should contain).only(randomId1, randomId3, randomId4)
+        val metricPrefix = shortRandomString()
+        val df = readRows(primitiveExtId, metricPrefix).where("prop_string = 'abc' or prop_bool = false")
+        df.count() shouldBe 3
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
+        (collectExternalIds(df) should contain).only(randomId1, randomId3, randomId4)
 
-      val metricPrefix2 = shortRandomString()
-      val df2 = readRows(primitiveExtId, metricPrefix2)
-        .where("prop_string in('abc', 'yyyy') or prop_float < 6.8")
-      df2.count() shouldBe 3
-      getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 3
+        val metricPrefix2 = shortRandomString()
+        val df2 = readRows(primitiveExtId, metricPrefix2)
+          .where("prop_string in('abc', 'yyyy') or prop_float < 6.8")
+        df2.count() shouldBe 3
+        getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 3
 
-      val metricPrefix3 = shortRandomString()
-      val df3 = readRows(primitiveExtId, metricPrefix3)
-        .where("prop_string LIKE 'xx%'")
-      df3.count() shouldBe 1
-      getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
+        val metricPrefix3 = shortRandomString()
+        val df3 = readRows(primitiveExtId, metricPrefix3)
+          .where("prop_string LIKE 'xx%'")
+        df3.count() shouldBe 1
+        getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
 
-      (collectExternalIds(df3) should contain).only(randomId3)
-    } finally {
-      try {
-        bluefieldAlphaClient.dataModelInstances
-          .deleteByExternalIds(Seq(randomId1, randomId2, randomId3, randomId4))
-          .unsafeRunSync()
-      } catch {
-        case NonFatal(_) => // ignore
+        (collectExternalIds(df3) should contain).only(randomId3)
       }
-    }
-
+    )
   }
   it should "delete data model instances" in {
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test2_" + shortRandomString()
-    try {
-      retryWhile[Boolean](
-        {
-          Try {
-            insertRows(
-              primitiveExtId,
-              spark
-                .sql(s"""select 2.1 as prop_float,
+    tryTestAndCleanUp(
+      Seq(randomId1, randomId2), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""select 2.1 as prop_float,
              |false as prop_bool,
              |'abc' as prop_string,
              |'$randomId1' as externalId
@@ -526,36 +504,29 @@ class DataModelInstancesRelationTest
              |true as prop_bool,
              |'zzzz' as prop_string,
              |'$randomId2' as externalId""".stripMargin)
-            )
-          }.isFailure
-        },
-        failure => failure
-      )
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
 
-      val metricPrefix = shortRandomString()
-      val df = readRows(primitiveExtId, metricPrefix)
-      df.count() shouldBe 2
+        val metricPrefix = shortRandomString()
+        val df = readRows(primitiveExtId, metricPrefix)
+        df.count() shouldBe 2
 
-      insertRows(
-        modelExternalId = primitiveExtId,
-        spark
-          .sql(s"""select '$randomId1' as externalId
+        insertRows(
+          modelExternalId = primitiveExtId,
+          spark
+            .sql(s"""select '$randomId1' as externalId
             |union all
             |select '$randomId2' as externalId""".stripMargin),
-        "delete"
-      )
-      getNumberOfRowsDeleted(primitiveExtId, "datamodelinstances") shouldBe 2
-      val df2 =
-        readRows(primitiveExtId, metricPrefix).where(s"externalId in('$randomId1', '$randomId2')")
-      df2.count() shouldBe 0
-    } finally {
-      try {
-        bluefieldAlphaClient.dataModelInstances
-          .deleteByExternalIds(Seq(randomId1, randomId2))
-          .unsafeRunSync()
-      } catch {
-        case NonFatal(_) => // ignore
+          "delete"
+        )
+        getNumberOfRowsDeleted(primitiveExtId, "datamodelinstances") shouldBe 2
+        val df2 =
+          readRows(primitiveExtId, metricPrefix).where(s"externalId in('$randomId1', '$randomId2')")
+        df2.count() shouldBe 0
       }
-    }
+    )
   }
 }
