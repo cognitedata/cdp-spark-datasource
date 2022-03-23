@@ -114,14 +114,14 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     }
   // scalastyle:on cyclomatic.complexity
 
-  def getStreams(filters: Array[Filter], requiredColumns: Array[String])(
+  def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
-    val requiredPropsArray: Seq[String] = if (requiredColumns.isEmpty) {
+    val selectedPropsArray: Seq[String] = if (selectedColumns.isEmpty) {
       schema.fields.map(_.name)
     } else {
-      requiredColumns
+      selectedColumns
     }
 
     val filter = {
@@ -138,16 +138,16 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     Seq(
       alphaClient.dataModelInstances
         .queryStream(dmiQuery, limit)
-        .map(r => toProjectedInstance(r, requiredPropsArray)))
+        .map(r => toProjectedInstance(r, selectedPropsArray)))
   }
 
-  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
+  override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
     SdkV1Rdd[ProjectedDataModelInstance, String](
       sqlContext.sparkContext,
       config,
       (item: ProjectedDataModelInstance, _) => toRow(item),
       uniqueId,
-      getStreams(filters, requiredColumns)
+      getStreams(filters, selectedColumns)
     )
 
   def insert(rows: Seq[Row]): IO[Unit] =
