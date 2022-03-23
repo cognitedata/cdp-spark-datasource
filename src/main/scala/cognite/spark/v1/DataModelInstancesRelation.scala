@@ -18,7 +18,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     with PrunedFilteredScan {
   import CdpConnector._
 
-  val modelInfo: DataModel = alphaClient.dataModels
+  val modelInfo: Map[String, DataModelProperty] = alphaClient.dataModels
     .retrieveByExternalIds(Seq(modelExternalId), true, false)
     .adaptError {
       case e: CdpApiException =>
@@ -26,27 +26,15 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     }
     .unsafeRunSync()
     .head
-
-  val modelPropertyStructFields: Seq[StructField] = modelInfo.properties
-    .map { props =>
-      props.map {
-        case (name, prop) => {
-          StructField(name, propertyTypeToSparkType(prop.`type`), nullable = prop.nullable)
-        }
-      }
-    }
-    .toList
-    .flatten
-
-  val propertyTypes: Map[String, (String, Boolean)] = modelInfo.properties
+    .properties
     .getOrElse(Map())
-    .map {
-      case (name, prop) =>
-        (name, (prop.`type`, prop.nullable))
-    }
-    .toMap
 
-  override def schema: StructType = new StructType(modelPropertyStructFields.toArray)
+  override def schema: StructType = new StructType(
+    modelInfo.map {
+      case (name, prop) =>
+        StructField(name, propertyTypeToSparkType(prop.`type`), nullable = prop.nullable)
+    }.toArray
+  )
 
   override def upsert(rows: Seq[Row]): IO[Unit] =
     if (rows.isEmpty) {
@@ -72,7 +60,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       dmi: DataModelInstanceQueryResponse,
       requiredPropsArray: Seq[String]): ProjectedDataModelInstance = {
     val dmiProperties = dmi.properties.getOrElse(Map())
-    val res = ProjectedDataModelInstance(
+    ProjectedDataModelInstance(
       externalId = dmi.properties
         .flatMap(_.get("externalId"))
         .map(_.asInstanceOf[StringProperty].value)
@@ -83,7 +71,6 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         value.map(fromProperty).orNull
       }.toArray
     )
-    res
   }
 
   // scalastyle:off cyclomatic.complexity
@@ -93,7 +80,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
         Some(DMIEqualsFilter(Seq(modelExternalId, left), parsePropertyValue(right)))
       }
       case In(attribute, values) =>
-        if (propertyTypes(attribute)._1.endsWith("[]")) {
+        if (modelInfo(attribute).`type`.endsWith("[]")) {
           None
         } else {
           val setValues = values.filter(_ != null)
@@ -132,7 +119,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
     val requiredPropsArray: Seq[String] = if (requiredColumns.isEmpty) {
-      modelPropertyStructFields.map(_.name)
+      schema.fields.map(_.name)
     } else {
       requiredColumns
     }
@@ -182,10 +169,10 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
       throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
     }
 
-    val properties: Array[(Int, String, (String, Boolean))] = schema.fields.zipWithIndex
+    val indexedPropertyList: Array[(Int, String, DataModelProperty)] = schema.fields.zipWithIndex
       .map {
         case (field: StructField, index: Int) =>
-          val propertyType = propertyTypes.getOrElse(
+          val propertyType = modelInfo.getOrElse(
             field.name,
             throw new CdfSparkException(
               s"Can't insert property `${field.name}` " +
@@ -193,27 +180,28 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
           )
           (index, field.name, propertyType)
       }
-
-    def parseRow(row: Row): DataModelInstanceCreate = {
-      val _ = row.get(externalIdIndex) match {
+    def parseRow(indexedPropertyList: Array[(Int, String, DataModelProperty)])(
+        row: Row): DataModelInstanceCreate = {
+      row.get(externalIdIndex) match {
         case x: String => x
-        case _ => throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
+        case _ =>
+          throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
       }
-      val propertyValues: Map[String, PropertyType] = properties
+      val propertyValues: Map[String, PropertyType] = indexedPropertyList
         .map {
           case (index, name, propT) =>
             name -> (row.get(index) match {
-              case null if !propT._2 => // scalastyle:off null
-                throw new CdfSparkException(propertyNotNullableMessage(propT._1))
+              case null if !propT.nullable => // scalastyle:off null
+                throw new CdfSparkException(propertyNotNullableMessage(propT.`type`))
               case null => // scalastyle:off null
                 None
               case _ =>
                 Some(
-                  toPropertyType(propT._1).applyOrElse(
+                  toPropertyType(propT.`type`).applyOrElse(
                     row.get(index),
                     (_: Any) =>
                       throw SparkSchemaHelperRuntime
-                        .badRowError(row, name, propT._1, "")
+                        .badRowError(row, name, propT.`type`, "")
                   ))
             })
         }
@@ -222,7 +210,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 
       DataModelInstanceCreate(modelExternalId, properties = Some(propertyValues))
     }
-    parseRow
+    parseRow(indexedPropertyList)
   }
 }
 
@@ -255,6 +243,7 @@ object DataModelInstanceRelation {
       ArrayProperty(x.toVector.map(i => Float64Property(i.doubleValue())))
     case x: Array[java.math.BigInteger] =>
       ArrayProperty(x.toVector.map(i => Int64Property(i.longValue())))
+    case x => throw new CdfSparkException(s"Cannot parse the value with udentified type: $x")
   }
 
   private def fromProperty(x: PropertyType): Any = x match {
