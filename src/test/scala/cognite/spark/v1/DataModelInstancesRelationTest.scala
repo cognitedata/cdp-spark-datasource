@@ -39,16 +39,13 @@ class DataModelInstancesRelationTest
 
   private def getExternalIdList(modelExternalId: String): Seq[String] =
     listInstances(modelExternalId)
-      .flatMap(_.properties.flatMap(_.get("externalId")).toList)
-      .flatMap(_.asString.toList)
+      .flatMap(_.properties.flatMap(_.get("externalId")).toList).map(_.asInstanceOf[StringProperty].value)
 
   private def byExternalId(modelExternalId: String, externalId: String): String =
     listInstances(
       modelExternalId,
-      filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), Json.fromString(externalId))))
-      .flatMap(_.properties.flatMap(_.get("externalId")).toList)
-      .flatMap(_.asString.toList)
-      .head
+      filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), StringProperty(externalId))))
+      .flatMap(_.properties.flatMap(_.get("externalId")).toList).head.asInstanceOf[StringProperty].value
 
   private val multiValuedExtId = "MultiValues_" + shortRandomString()
   private val primitiveExtId = "Primitive_" + shortRandomString()
