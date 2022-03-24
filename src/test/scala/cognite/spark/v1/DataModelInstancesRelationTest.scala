@@ -41,11 +41,12 @@ class DataModelInstancesRelationTest
     listInstances(modelExternalId)
       .flatMap(_.properties.flatMap(_.get("externalId")).toList).map(_.asInstanceOf[StringProperty].value)
 
-  private def byExternalId(modelExternalId: String, externalId: String): String =
+  private def byExternalId(modelExternalId: String, externalId: String): Option[String] =
     listInstances(
       modelExternalId,
       filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), StringProperty(externalId))))
-      .flatMap(_.properties.flatMap(_.get("externalId")).toList).head.asInstanceOf[StringProperty].value
+      .flatMap(_.properties.flatMap(_.get("externalId")))
+      .collectFirst { case StringProperty(id) => id }
 
   private val multiValuedExtId = "MultiValues_" + shortRandomString()
   private val primitiveExtId = "Primitive_" + shortRandomString()
@@ -177,7 +178,7 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        byExternalId(primitiveExtId, randomId) shouldBe randomId
+        byExternalId(primitiveExtId, randomId) shouldBe Some(randomId)
         getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
       }
     )
