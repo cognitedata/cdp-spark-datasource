@@ -64,16 +64,31 @@ class RawTableRelation(
   ): IO[StructType] = {
     val client = CdpConnector.clientFromConfig(config).rawRows(database, table)
 
-    val rows = client
-      .list(Some(limit))
-      .mapChunks { chunk =>
+    // Use parallel retrival if inferSchemaLimit is larger than one batchSize
+    // paralelism is limited to config.partitions
+    val numPartitions = Math.min(
+      config.partitions,
+      limit / config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
+    )
+
+    for {
+      rowsPartitions <- if (numPartitions > 1) {
+        client.filterPartitionsF(RawRowFilter(), numPartitions)
+      } else {
+        // if we are fine with 1 partition, avoid the /cursors request to lower latency
+        IO.pure(Seq(client.list(Some(limit))))
+      }
+
+      rows = Stream.emits(rowsPartitions).parJoin(config.partitions).mapChunks { chunk =>
         if (collectSchemaInferenceMetrics) {
           rowsRead.inc(chunk.size)
         }
         chunk
       }
-    RawSchemaInferrer.inferRows(rows)
-      .map(RawSchemaInferrer.toSparkSchema)
+
+      schema <- RawSchemaInferrer.inferRows(rows)
+
+    } yield RawSchemaInferrer.toSparkSchema(schema)
   }
 
   def getStreams(filter: RawRowFilter, cursors: Vector[String])(

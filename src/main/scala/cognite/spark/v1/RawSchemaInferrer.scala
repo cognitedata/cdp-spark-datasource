@@ -40,7 +40,9 @@ object RawSchemaInferrer {
       }
     )
 
-  private def inferObject(obj: Iterable[(String, Json)], result: scala.collection.mutable.HashMap[String, JsonType]): Unit = {
+  private def inferObject(
+      obj: Iterable[(String, Json)],
+      result: scala.collection.mutable.HashMap[String, JsonType]): Unit =
     for ((k, v) <- obj) {
       val t = infer(v)
       result.get(k) match {
@@ -52,14 +54,15 @@ object RawSchemaInferrer {
           }
       }
     }
-  }
 
   /** Returns unified inferred schema of all objects in the Stream */
   def inferRows[F[_]: Concurrent](rows: fs2.Stream[F, RawRow]): F[JsonObject] =
-    rows.compile.fold(scala.collection.mutable.HashMap[String, JsonType]()) { (result, row) =>
-      inferObject(row.columns, result)
-      result
-    }.map(r => JsonObject(r.toMap))
+    rows.compile
+      .fold(scala.collection.mutable.HashMap[String, JsonType]()) { (result, row) =>
+        inferObject(row.columns, result)
+        result
+      }
+      .map(r => JsonObject(r.toMap))
 
   // scalastyle:off cyclomatic.complexity
   /** Returns true if the `to` type is compatible with `from` */
@@ -91,7 +94,7 @@ object RawSchemaInferrer {
       case (_, _) => JsonString
     }
 
-  def unifyObjects(a: JsonObject, b: JsonObject): JsonObject = {
+  def unifyObjects(a: JsonObject, b: JsonObject): JsonObject =
     if (isAssignableTo(b, a)) {
       a
     } else if (isAssignableTo(a, b)) {
@@ -101,7 +104,6 @@ object RawSchemaInferrer {
       val fields = keys.iterator.map(k => k -> unify(a.field(k), b.field(k))).toMap
       JsonObject(fields)
     }
-  }
 
   def toSparkSchema(j: JsonType): DataType = {
     import org.apache.spark.sql.types._
@@ -121,7 +123,6 @@ object RawSchemaInferrer {
       case (name, t) => StructField(name, toSparkSchema(t), nullable = true)
     }.toArray)
 
-
   /** Skips a sequence of digits. Returns index right after the last consumed digit */
   private def skipInteger(str: String, index: Int): Int = {
     var i = index
@@ -138,7 +139,6 @@ object RawSchemaInferrer {
     } else {
       index
     }
-
 
   /** Return true if the string can be parsed a 64-bit Int.
     * Essentially implements this regex: [-+]?\d{1,18} */
@@ -184,7 +184,6 @@ object RawSchemaInferrer {
 
     i == str.length
   }
-
 
   sealed trait JsonType
 
