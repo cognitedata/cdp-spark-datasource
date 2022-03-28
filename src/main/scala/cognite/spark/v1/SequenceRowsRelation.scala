@@ -89,12 +89,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         }
       val projectedRows =
         client.sequenceRows
-          .query(
-            CogniteInternalId(sequenceInfo.id),
-            filter.inclusiveStart,
-            filter.exclusiveEnd,
-            limit,
-            Some(requestedColumns))
+          .query(sequenceId, filter.inclusiveStart, filter.exclusiveEnd, limit, Some(requestedColumns))
           .map {
             case (_, rows) =>
               rows.map { r =>
@@ -227,9 +222,9 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         .groupBy(_.id)
         .toList
         .parTraverse {
-          case (cogniteExternalId, rows) =>
+          case (cogniteId, rows) =>
             client.sequenceRows
-              .insert(cogniteExternalId, columns, rows.map(_.sequenceRow))
+              .insert(cogniteId, columns, rows.map(_.sequenceRow))
               .flatTap(_ => incMetrics(itemsCreated, rows.length))
 
         } *> IO.unit
