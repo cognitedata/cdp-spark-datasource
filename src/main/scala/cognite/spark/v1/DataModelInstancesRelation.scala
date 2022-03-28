@@ -289,13 +289,9 @@ object DataModelInstanceRelation {
   }
 
   private def toTimestampProperty: Any => TimeStampProperty = {
-    case x: Instant => TimeStampProperty(ZonedDateTime.ofInstant(x, ZoneId.systemDefault()))
+    case x: Instant => TimeStampProperty(x.atZone(ZoneId.systemDefault()))
     case x: java.sql.Timestamp =>
-      TimeStampProperty(ZonedDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()))
-    case x: java.sql.Date =>
-      TimeStampProperty(ZonedDateTime.of(x.toLocalDate.atStartOfDay(), ZoneId.systemDefault()))
-    case x: LocalDate => TimeStampProperty(x.atStartOfDay(ZoneId.systemDefault()))
-    case x: LocalDateTime => TimeStampProperty(ZonedDateTime.of(x, ZoneId.systemDefault()))
+      TimeStampProperty(x.toInstant.atZone(ZoneId.systemDefault()))
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "timestamp"))
   }
 
