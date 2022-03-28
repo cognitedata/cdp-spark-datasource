@@ -51,7 +51,8 @@ class DataModelInstancesRelationTest
   private val multiValuedExtId = "MultiValues_" + shortRandomString()
   private val primitiveExtId = "Primitive_" + shortRandomString()
   private val multiValuedExtId2 = "MultiValues2_" + shortRandomString
-  private val allModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2)
+  private val primitiveExtId2 = "Primitive_" + shortRandomString()
+  private val allModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
 
   private val props = Map(
     "arr_int" -> DataModelProperty(`type` = "int[]", nullable = false),
@@ -77,6 +78,14 @@ class DataModelInstancesRelationTest
     "arr_numeric" -> DataModelProperty(`type` = "numeric[]", nullable = true)
   )
 
+  private val props4 = Map(
+    "prop_direct_relation" -> DataModelProperty(`type` = "direct_relation", nullable = true),
+//    "prop_timestamp" -> DataModelProperty(`type` = "timestamp", nullable = true),
+//    "prop_geography" -> DataModelProperty(`type` = "geography", nullable = true),
+//    "prop_geometry" -> DataModelProperty(`type` = "geometry", nullable = true),
+    "prop_date" -> DataModelProperty(`type` = "date", nullable = true)
+  )
+
   override def beforeAll(): Unit = {
     def createAndGetModels(): Seq[DataModel] = {
       bluefieldAlphaClient.dataModels
@@ -84,7 +93,9 @@ class DataModelInstancesRelationTest
           Items[DataModel](Seq(
             DataModel(externalId = multiValuedExtId, properties = Some(props)),
             DataModel(externalId = primitiveExtId, properties = Some(props2)),
-            DataModel(externalId = multiValuedExtId2, properties = Some(props3))
+            DataModel(externalId = multiValuedExtId2, properties = Some(props3)),
+            DataModel(externalId = primitiveExtId2, properties = Some(props4))
+
           )))
         .unsafeRunTimed(30.seconds)
       bluefieldAlphaClient.dataModels.list().unsafeRunSync()
@@ -100,7 +111,7 @@ class DataModelInstancesRelationTest
   override def afterAll(): Unit = {
     def deleteAndGetModels(): Seq[DataModel] = {
       bluefieldAlphaClient.dataModels
-        .deleteItems(Seq(multiValuedExtId, primitiveExtId, multiValuedExtId2))
+        .deleteItems(Seq(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2))
         .unsafeRunSync()
       bluefieldAlphaClient.dataModels.list().unsafeRunSync()
     }
@@ -524,6 +535,43 @@ class DataModelInstancesRelationTest
         val df2 =
           readRows(primitiveExtId, metricPrefix).where(s"externalId in('$randomId1', '$randomId2')")
         df2.count() shouldBe 0
+      }
+    )
+  }
+
+  it should "ingest data with special property types" in {
+    val randomId = "prim_test_" + shortRandomString()
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            val mtry = Try {
+
+//              insertRows(
+//                primitiveExtId2,
+//                spark
+//                  .sql(s"""select 'asset' as prop_direct_relation,
+//                          |null as prop_timestamp,
+//                          |'POINT(-126.4 45.32)' as prop_geography,
+//                          |'{"type": "Point", "coordinates": [42, 24]}' as prop_geometry,
+//                          |date('2022-01-01') as prop_date,
+//                          |'${randomId}' as externalId""".stripMargin)
+//              )
+              insertRows(
+                primitiveExtId2,
+                spark
+                  .sql(s"""select 'asset' as prop_direct_relation,
+                          |date('2022-01-01') as prop_date,
+                          |'${randomId}' as externalId""".stripMargin)
+              )
+            }
+            mtry.recover({case e => println(e.getLocalizedMessage + e.getCause + e.getMessage)})
+            mtry.isFailure
+          },
+          failure => failure
+        )
+        byExternalId(primitiveExtId2, randomId) shouldBe Some(randomId)
+        getNumberOfRowsUpserted(primitiveExtId2, "datamodelinstances") shouldBe 1
       }
     )
   }

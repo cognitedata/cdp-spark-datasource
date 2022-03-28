@@ -239,6 +239,12 @@ object DataModelInstanceRelation {
       ArrayProperty(x.toVector.map(i => Float64Property(i.doubleValue())))
     case x: Array[java.math.BigInteger] =>
       ArrayProperty(x.toVector.map(i => Int64Property(i.longValue())))
+    case x: LocalDate => DateProperty(x)
+    case x: java.sql.Date => DateProperty(x.toLocalDate)
+    case x: LocalDateTime => DateProperty(x.toLocalDate)
+    case x: Instant => TimeStampProperty(x.atZone(ZoneId.systemDefault()))
+    case x: java.sql.Timestamp =>
+      TimeStampProperty(x.toInstant.atZone(ZoneId.systemDefault()))
     case x => throw new CdfSparkException(s"Cannot parse the value with udentified type: $x")
   }
 
