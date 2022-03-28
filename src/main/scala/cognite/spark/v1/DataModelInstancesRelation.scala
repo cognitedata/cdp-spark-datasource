@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId}
+import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId, ZonedDateTime}
 
 import cats.effect.IO
 import cats.implicits._
@@ -246,6 +246,8 @@ object DataModelInstanceRelation {
       TimeStampProperty(OffsetDateTime.ofInstant(x, ZoneId.systemDefault()).toZonedDateTime)
     case x: java.sql.Timestamp =>
       TimeStampProperty(OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
+    case x: java.time.ZonedDateTime =>
+      TimeStampProperty(x)
     case x => throw new CdfSparkException(s"Cannot parse the value with udentified type: $x")
   }
 
@@ -256,8 +258,8 @@ object DataModelInstanceRelation {
     case Float64Property(value) => value
     case BooleanProperty(value) => value
     case StringProperty(value) => value
-    case DateProperty(value) => value
-    case TimeStampProperty(value) => value
+    case DateProperty(value) => java.sql.Date.valueOf(value)
+    case TimeStampProperty(value) => java.sql.Timestamp.from(value.toInstant)
     case DirectRelationProperty(value) => value
     case GeographyProperty(value) => value
     case GeometryProperty(value) => value
@@ -302,6 +304,8 @@ object DataModelInstanceRelation {
       // Using ZonedDateTime directly without OffSetDateTime, adds ZoneId to the end of encoded string
       // 2019-10-02T07:00+09:00[Asia/Seoul] instead of 2019-10-02T07:00+09:00, API does not like it.
       TimeStampProperty(OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
+    case x: ZonedDateTime =>
+      TimeStampProperty(x)
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "timestamp"))
   }
 
