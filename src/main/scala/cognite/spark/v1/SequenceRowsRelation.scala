@@ -201,7 +201,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[SequenceRowDeleteSchema](r))
     client.sequenceRows
-      .delete(CogniteInternalId(sequenceInfo.id), deletes.map(_.rowNumber))
+      .delete(sequenceId, deletes.map(_.rowNumber))
       .flatTap(_ => incMetrics(itemsDeleted, rows.length))
   }
   def insert(rows: Seq[Row]): IO[Unit] =
