@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import java.time.{Instant, LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
+
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.DataModelInstanceRelation._
@@ -247,6 +249,11 @@ object DataModelInstanceRelation {
     case Float64Property(value) => value
     case BooleanProperty(value) => value
     case StringProperty(value) => value
+    case DateProperty(value) => value
+    case TimeStampProperty(value) => value
+    case DirectRelationProperty(value) => value
+    case GeographyProperty(value) => value
+    case GeometryProperty(value) => value
     case ArrayProperty(values) => values.map(fromPropertyType)
     case x => throw new CdfSparkException(s"Unknown property type with value $x")
   }
@@ -260,6 +267,11 @@ object DataModelInstanceRelation {
       case "float32" => DataTypes.FloatType
       case "int32" | "int" => DataTypes.IntegerType
       case "int64" | "bigint" => DataTypes.LongType
+      case "date" => DataTypes.DateType
+      case "timestamp" => DataTypes.TimestampType
+      case "direct_relation" => DataTypes.StringType
+      case "geometry" => DataTypes.StringType
+      case "geography" => DataTypes.StringType
       case "text[]" => DataTypes.createArrayType(DataTypes.StringType)
       case "boolean[]" => DataTypes.createArrayType(DataTypes.BooleanType)
       case "numeric[]" | "float64[]" => DataTypes.createArrayType(DataTypes.DoubleType)
@@ -268,6 +280,39 @@ object DataModelInstanceRelation {
       case "int64[]" | "bigint[]" => DataTypes.createArrayType(DataTypes.LongType)
       case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
+
+  private def toDateProperty: Any => DateProperty = {
+    case x: LocalDate => DateProperty(x)
+    case x: java.sql.Date => DateProperty(x.toLocalDate)
+    case x: LocalDateTime => DateProperty(x.toLocalDate)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "date"))
+  }
+
+  private def toTimestampProperty: Any => TimeStampProperty = {
+    case x: Instant => TimeStampProperty(ZonedDateTime.ofInstant(x, ZoneId.systemDefault()))
+    case x: java.sql.Timestamp =>
+      TimeStampProperty(ZonedDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()))
+    case x: java.sql.Date =>
+      TimeStampProperty(ZonedDateTime.of(x.toLocalDate.atStartOfDay(), ZoneId.systemDefault()))
+    case x: LocalDate => TimeStampProperty(x.atStartOfDay(ZoneId.systemDefault()))
+    case x: LocalDateTime => TimeStampProperty(ZonedDateTime.of(x, ZoneId.systemDefault()))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "timestamp"))
+  }
+
+  private def toDirectRelationProperty: Any => DirectRelationProperty = {
+    case x: String => DirectRelationProperty(x)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "direct_relation"))
+  }
+
+  private def toGeographyProperty: Any => GeographyProperty = {
+    case x: String => GeographyProperty(x)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geography"))
+  }
+
+  private def toGeometryProperty: Any => GeometryProperty = {
+    case x: String => GeometryProperty(x)
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geometry"))
+  }
 
   private def toFloat32Property: Any => Float32Property = {
     case x: Float => Float32Property(x)
@@ -385,6 +430,11 @@ object DataModelInstanceRelation {
       case "int" | "int32" => toInt32Property(propertyType)
       case "int64" | "bigint" => toInt64Property(propertyType)
       case "text" => toStringProperty
+      case "date" => toDateProperty
+      case "timestamp" => toTimestampProperty
+      case "direct_relation" => toDirectRelationProperty
+      case "geometry" => toGeometryProperty
+      case "geography" => toGeographyProperty
       case "text[]" => toStringArrayProperty
       case "float32[]" => toFloat32ArrayProperty
       case "float64[]" | "numeric[]" => toFloat64ArrayProperty(propertyType)
