@@ -248,7 +248,8 @@ object DataModelInstanceRelation {
       TimeStampProperty(OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
     case x: java.time.ZonedDateTime =>
       TimeStampProperty(x)
-    case x => throw new CdfSparkException(s"Unsupported value ${x.toString} of type ${x.getClass.getName}")
+    case x =>
+      throw new CdfSparkException(s"Unsupported value ${x.toString} of type ${x.getClass.getName}")
   }
 
   private def fromPropertyType(x: PropertyType): Any = x match {
@@ -264,7 +265,9 @@ object DataModelInstanceRelation {
     case GeographyProperty(value) => value
     case GeometryProperty(value) => value
     case ArrayProperty(values) => values.map(fromPropertyType)
-    case x => throw new CdfSparkException(s"Unknown property type ${x.getClass.getName} with value ${x.toString}")
+    case x =>
+      throw new CdfSparkException(
+        s"Unknown property type ${x.getClass.getName} with value ${x.toString}")
   }
 
   def propertyTypeToSparkType(propertyType: String): DataType =
