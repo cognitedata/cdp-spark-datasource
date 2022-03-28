@@ -39,21 +39,20 @@ class DataModelInstancesRelationTest
 
   private def getExternalIdList(modelExternalId: String): Seq[String] =
     listInstances(modelExternalId)
-      .flatMap(_.properties.flatMap(_.get("externalId")).toList)
-      .flatMap(_.asString.toList)
+      .flatMap(_.properties.flatMap(_.get("externalId")).toList).map(_.asInstanceOf[StringProperty].value)
 
-  private def byExternalId(modelExternalId: String, externalId: String): String =
+  private def byExternalId(modelExternalId: String, externalId: String): Option[String] =
     listInstances(
       modelExternalId,
-      filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), Json.fromString(externalId))))
-      .flatMap(_.properties.flatMap(_.get("externalId")).toList)
-      .flatMap(_.asString.toList)
-      .head
+      filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), StringProperty(externalId))))
+      .flatMap(_.properties.flatMap(_.get("externalId")))
+      .collectFirst { case StringProperty(id) => id }
 
   private val multiValuedExtId = "MultiValues_" + shortRandomString()
   private val primitiveExtId = "Primitive_" + shortRandomString()
   private val multiValuedExtId2 = "MultiValues2_" + shortRandomString
-  private val allModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2)
+  private val primitiveExtId2 = "Primitive_" + shortRandomString()
+  private val allModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
 
   private val props = Map(
     "arr_int" -> DataModelProperty(`type` = "int[]", nullable = false),
@@ -79,6 +78,12 @@ class DataModelInstancesRelationTest
     "arr_numeric" -> DataModelProperty(`type` = "numeric[]", nullable = true)
   )
 
+  private val props4 = Map(
+    "prop_direct_relation" -> DataModelProperty(`type` = "direct_relation", nullable = true),
+    "prop_timestamp" -> DataModelProperty(`type` = "timestamp", nullable = true),
+    "prop_date" -> DataModelProperty(`type` = "date", nullable = true)
+  )
+
   override def beforeAll(): Unit = {
     def createAndGetModels(): Seq[DataModel] = {
       bluefieldAlphaClient.dataModels
@@ -86,7 +91,9 @@ class DataModelInstancesRelationTest
           Items[DataModel](Seq(
             DataModel(externalId = multiValuedExtId, properties = Some(props)),
             DataModel(externalId = primitiveExtId, properties = Some(props2)),
-            DataModel(externalId = multiValuedExtId2, properties = Some(props3))
+            DataModel(externalId = multiValuedExtId2, properties = Some(props3)),
+            DataModel(externalId = primitiveExtId2, properties = Some(props4))
+
           )))
         .unsafeRunTimed(30.seconds)
       bluefieldAlphaClient.dataModels.list().unsafeRunSync()
@@ -102,7 +109,12 @@ class DataModelInstancesRelationTest
   override def afterAll(): Unit = {
     def deleteAndGetModels(): Seq[DataModel] = {
       bluefieldAlphaClient.dataModels
-        .deleteItems(Seq(multiValuedExtId, primitiveExtId, multiValuedExtId2))
+        .deleteItems(Seq(
+          multiValuedExtId,
+          primitiveExtId,
+          multiValuedExtId2,
+          primitiveExtId2)
+        )
         .unsafeRunSync()
       bluefieldAlphaClient.dataModels.list().unsafeRunSync()
     }
@@ -161,7 +173,7 @@ class DataModelInstancesRelationTest
       }
     }
 
-  it should "ingest data" in {
+ it should "ingest data" in {
     val randomId = "prim_test_" + shortRandomString()
     tryTestAndCleanUp(
       Seq(randomId), {
@@ -180,13 +192,13 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        byExternalId(primitiveExtId, randomId) shouldBe randomId
+        byExternalId(primitiveExtId, randomId) shouldBe Some(randomId)
         getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
       }
     )
   }
 
-  it should "ingest multi valued data" in {
+ it should "ingest multi valued data" in {
     val randomId1 = "test_multi_" + shortRandomString()
     val randomId2 = "test_multi_" + shortRandomString()
     tryTestAndCleanUp(
@@ -220,7 +232,7 @@ class DataModelInstancesRelationTest
     )
   }
 
-  it should "read instances" in {
+ it should "read instances" in {
     val randomId = "prim_test2_" + shortRandomString()
     tryTestAndCleanUp(
       Seq(randomId), {
@@ -248,7 +260,7 @@ class DataModelInstancesRelationTest
     )
   }
 
-  it should "read multi valued instances" in {
+ it should "read multi valued instances" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     tryTestAndCleanUp(
@@ -306,7 +318,7 @@ class DataModelInstancesRelationTest
     )
   }
 
-  it should "fail when writing null to a non nullable property" in {
+ it should "fail when writing null to a non nullable property" in {
     val ex = sparkIntercept {
       insertRows(
         multiValuedExtId,
@@ -322,7 +334,7 @@ class DataModelInstancesRelationTest
     ex.getMessage shouldBe s"Property of int[] type is not nullable."
   }
 
-  it should "filter instances by externalId" in {
+ it should "filter instances by externalId" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     tryTestAndCleanUp(
       Seq(randomId1), {
@@ -349,7 +361,7 @@ class DataModelInstancesRelationTest
     )
   }
 
-  it should "filter instances" in {
+ it should "filter instances" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     tryTestAndCleanUp(
@@ -416,7 +428,7 @@ class DataModelInstancesRelationTest
     )
   }
 
-  it should "filter instances using or" in {
+ it should "filter instances using or" in {
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test_" + shortRandomString()
     val randomId3 = "prim_test_" + shortRandomString()
@@ -482,7 +494,7 @@ class DataModelInstancesRelationTest
       }
     )
   }
-  it should "delete data model instances" in {
+ it should "delete data model instances" in {
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test2_" + shortRandomString()
     tryTestAndCleanUp(
@@ -527,6 +539,67 @@ class DataModelInstancesRelationTest
           readRows(primitiveExtId, metricPrefix).where(s"externalId in('$randomId1', '$randomId2')")
         df2.count() shouldBe 0
       }
+    )
+  }
+
+ it should "ingest data with special property types" in {
+    val randomId = "prim_test_" + shortRandomString()
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId2,
+                spark
+                  .sql(s"""select 'asset' as prop_direct_relation,
+                          |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
+                          |date('2022-01-01') as prop_date,
+                          |'${randomId}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        byExternalId(primitiveExtId2, randomId) shouldBe Some(randomId)
+        getNumberOfRowsUpserted(primitiveExtId2, "datamodelinstances") shouldBe 1
+      }
+    )
+  }
+
+ it should "read instances with special property types" in {
+    val randomId = "prim_test_" + shortRandomString()
+   val randomId2 = "prim_test_" + shortRandomString() + "_2"
+   tryTestAndCleanUp(
+      Seq(randomId, randomId2), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId2,
+                spark
+                  .sql(
+                    s"""select 'asset' as prop_direct_relation,
+                       |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
+                       |date('2022-01-20') as prop_date,
+                       |'${randomId}' as externalId
+                       |
+                       |union all
+                       |
+                       |select 'asset2' as prop_direct_relation,
+                       |timestamp('2022-01-10T12:34:56.789+00:00') as prop_timestamp,
+                       |date('2022-01-01') as prop_date,
+                       |'${randomId2}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+       val metricPrefix = shortRandomString()
+        val df = readRows(primitiveExtId2, metricPrefix)
+        df.count() shouldBe 2
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 2
+     }
     )
   }
 }
