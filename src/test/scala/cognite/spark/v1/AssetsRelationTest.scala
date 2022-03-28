@@ -5,6 +5,7 @@ import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
+import org.apache.spark.sql.catalyst.util.quoteIdentifier
 import org.apache.spark.sql.functions._
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
@@ -1368,7 +1369,7 @@ WHERE
     assert(assetsRead == 1)
   }
 
-  it should "dump data" taggedAs WriteTest in {
+  it should "create the Asset Hirarchy" taggedAs WriteTest in {
 
     val clientId = System.getenv("PETER_CLIENT")
     val clientSecret = System.getenv("PETER_CLIENT_SECRET")
@@ -1388,35 +1389,11 @@ WHERE
       .load()
       .createOrReplaceTempView("peter_assets")
 
-    val rawDf = spark.read
-      .format("cognite.spark.v1")
-      .option("type", "raw")
-      .option("database", "src:001:exact:rawdb")
-      .option("table", "exact_ais_v2")
-      .option("tokenUri", tokenUri)
-      .option("baseUrl", "https://westeurope-1.cognitedata.com")
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", "https://westeurope-1.cognitedata.com/.default")
-      .option("inferSchema", "true")
-      .option("collectMetrics", "true")
-      .load()
-
     val clientIdG = sys.env("TEST_CLIENT_ID_BLUEFIELD")
     val clientSecretG = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
     val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
     val tokenUriG = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
     val projectG = "jetfiretest-greenfield"
-
-    val greenfieldBase = spark.read
-      .format("cognite.spark.v1")
-      .option("tokenUri", tokenUriG)
-      .option("baseUrl", "https://greenfield.cognitedata.com")
-      .option("clientId", clientIdG)
-      .option("clientSecret", clientSecretG)
-      .option("project", projectG)
-      .option("scopes", "https://greenfield.cognitedata.com/.default")
 
     spark.sql("""
                   |select
@@ -1442,9 +1419,54 @@ WHERE
       .option("scopes", "https://greenfield.cognitedata.com/.default")
       .option("type", "assethierarchy")
       .save
-//    val greenfieldRaw = greenfieldBase.option("type", "raw").option("database","peter").option("table", "dump").load().createOrReplaceTempView("graw")
+  }
 
-//    rawDf.write.insertInto("graw")
+  it should "insert the data into RAW" in {
+    val clientId = System.getenv("PETER_CLIENT")
+    val clientSecret = System.getenv("PETER_CLIENT_SECRET")
+    val project = System.getenv("PETER_PROJECT")
+    val tokenUri = System.getenv("PETER_TOKENURI")
+
+    val rawDf = spark.read
+      .format("cognite.spark.v1")
+      .option("type", "raw")
+      .option("database", "src:001:exact:rawdb")
+      .option("table", "exact_ais_v2")
+      .option("tokenUri", tokenUri)
+      .option("baseUrl", "https://westeurope-1.cognitedata.com")
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", "https://westeurope-1.cognitedata.com/.default")
+      .option("collectMetrics", "true")
+      .load()
+
+    val clientIdG = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+    val clientSecretG = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+    val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    val tokenUriG = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+    val projectG = "jetfiretest-greenfield"
+
+    val greenfieldBase = spark.read
+      .format("cognite.spark.v1")
+      .option("tokenUri", tokenUriG)
+      .option("baseUrl", "https://greenfield.cognitedata.com")
+      .option("clientId", clientIdG)
+      .option("clientSecret", clientSecretG)
+      .option("project", projectG)
+      .option("scopes", "https://greenfield.cognitedata.com/.default")
+
+    val gfbase = greenfieldBase
+      .option("type", "raw")
+      .option("database","src:001:exact:rawdb")
+      .option("table", "exact_ais_v2")
+      .option("ensureParent", "true")
+      .load()
+    gfbase
+      .createOrReplaceTempView("graw")
+
+    rawDf
+      .write.insertInto("graw")
   }
 
   def cleanupAssets(source: String): Unit =
