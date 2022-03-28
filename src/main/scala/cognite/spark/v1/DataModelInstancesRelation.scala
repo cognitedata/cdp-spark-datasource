@@ -242,9 +242,10 @@ object DataModelInstanceRelation {
     case x: LocalDate => DateProperty(x)
     case x: java.sql.Date => DateProperty(x.toLocalDate)
     case x: LocalDateTime => DateProperty(x.toLocalDate)
-    case x: Instant => TimeStampProperty(x.atZone(ZoneId.systemDefault()))
+    case x: Instant =>
+      TimeStampProperty(OffsetDateTime.ofInstant(x, ZoneId.systemDefault()).toZonedDateTime)
     case x: java.sql.Timestamp =>
-      TimeStampProperty(x.toInstant.atZone(ZoneId.systemDefault()))
+      TimeStampProperty(OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
     case x => throw new CdfSparkException(s"Cannot parse the value with udentified type: $x")
   }
 
