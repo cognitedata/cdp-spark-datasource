@@ -65,7 +65,7 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     ProjectedDataModelInstance(
       externalId = dmi.properties
         .flatMap(_.get("externalId"))
-        .map(_.asInstanceOf[StringProperty].value)
+        .collect { case StringProperty(externalId) => externalId }
         .getOrElse(
           throw new CdfSparkException("Can't read data model instance, `externalId` is missing.")),
       properties = requiredPropsArray.map { name: String =>
@@ -248,7 +248,7 @@ object DataModelInstanceRelation {
       TimeStampProperty(OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
     case x: java.time.ZonedDateTime =>
       TimeStampProperty(x)
-    case x => throw new CdfSparkException(s"Cannot parse the value with udentified type: $x")
+    case x => throw new CdfSparkException(s"Unsupported value ${x.toString} of type ${x.getClass.getName}")
   }
 
   private def fromPropertyType(x: PropertyType): Any = x match {
@@ -264,7 +264,7 @@ object DataModelInstanceRelation {
     case GeographyProperty(value) => value
     case GeometryProperty(value) => value
     case ArrayProperty(values) => values.map(fromPropertyType)
-    case x => throw new CdfSparkException(s"Unknown property type with value $x")
+    case x => throw new CdfSparkException(s"Unknown property type ${x.getClass.getName} with value ${x.toString}")
   }
 
   def propertyTypeToSparkType(propertyType: String): DataType =
@@ -454,7 +454,7 @@ object DataModelInstanceRelation {
       case a =>
         throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
-  //scalastyle:on cyclomatic.complexity
+  // scalastyle:on cyclomatic.complexity
 
 }
 

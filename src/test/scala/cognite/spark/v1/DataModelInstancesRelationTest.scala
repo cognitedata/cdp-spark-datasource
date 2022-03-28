@@ -81,8 +81,6 @@ class DataModelInstancesRelationTest
   private val props4 = Map(
     "prop_direct_relation" -> DataModelProperty(`type` = "direct_relation", nullable = true),
     "prop_timestamp" -> DataModelProperty(`type` = "timestamp", nullable = true),
-//    "prop_geography" -> DataModelProperty(`type` = "geography", nullable = true),
-//    "prop_geometry" -> DataModelProperty(`type` = "geometry", nullable = true),
     "prop_date" -> DataModelProperty(`type` = "date", nullable = true)
   )
 
@@ -599,7 +597,6 @@ class DataModelInstancesRelationTest
         )
        val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId2, metricPrefix)
-       // .where("prop_timestamp < timestamp('2022-01-08T12:34:56.789+00:00')")
         df.count() shouldBe 2
         getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 2
      }
