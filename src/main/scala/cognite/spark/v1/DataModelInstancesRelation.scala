@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import java.time.{Instant, LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
+import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId}
 
 import cats.effect.IO
 import cats.implicits._
@@ -295,9 +295,12 @@ object DataModelInstanceRelation {
   }
 
   private def toTimestampProperty: Any => TimeStampProperty = {
-    case x: Instant => TimeStampProperty(x.atZone(ZoneId.systemDefault()))
+    case x: Instant =>
+      TimeStampProperty(OffsetDateTime.ofInstant(x, ZoneId.systemDefault()).toZonedDateTime)
     case x: java.sql.Timestamp =>
-      TimeStampProperty(x.toInstant.atZone(ZoneId.systemDefault()))
+      // Using ZonedDateTime directly without OffSetDateTime, adds ZoneId to the end of encoded string
+      // 2019-10-02T07:00+09:00[Asia/Seoul] instead of 2019-10-02T07:00+09:00, API does not like it.
+      TimeStampProperty(OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "timestamp"))
   }
 

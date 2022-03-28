@@ -80,9 +80,9 @@ class DataModelInstancesRelationTest
 
   private val props4 = Map(
     "prop_direct_relation" -> DataModelProperty(`type` = "direct_relation", nullable = true),
-//    "prop_timestamp" -> DataModelProperty(`type` = "timestamp", nullable = true),
-//    "prop_geography" -> DataModelProperty(`type` = "geography", nullable = true),
-//    "prop_geometry" -> DataModelProperty(`type` = "geometry", nullable = true),
+    "prop_timestamp" -> DataModelProperty(`type` = "timestamp", nullable = true),
+    "prop_geography" -> DataModelProperty(`type` = "geography", nullable = true),
+    "prop_geometry" -> DataModelProperty(`type` = "geometry", nullable = true),
     "prop_date" -> DataModelProperty(`type` = "date", nullable = true)
   )
 
@@ -545,28 +545,18 @@ class DataModelInstancesRelationTest
       Seq(randomId), {
         retryWhile[Boolean](
           {
-            val mtry = Try {
-
-//              insertRows(
-//                primitiveExtId2,
-//                spark
-//                  .sql(s"""select 'asset' as prop_direct_relation,
-//                          |null as prop_timestamp,
-//                          |'POINT(-126.4 45.32)' as prop_geography,
-//                          |'{"type": "Point", "coordinates": [42, 24]}' as prop_geometry,
-//                          |date('2022-01-01') as prop_date,
-//                          |'${randomId}' as externalId""".stripMargin)
-//              )
+            Try {
               insertRows(
                 primitiveExtId2,
                 spark
                   .sql(s"""select 'asset' as prop_direct_relation,
+                          |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
+                          |null as prop_geography, -- Not implemented: 'POINT(-126.4 45.32)'
+                          |null as prop_geometry, -- Not implemented:  '{"type": "Point", "coordinates": [42, 24]}'
                           |date('2022-01-01') as prop_date,
                           |'${randomId}' as externalId""".stripMargin)
               )
-            }
-            mtry.recover({case e => println(e.getLocalizedMessage + e.getCause + e.getMessage)})
-            mtry.isFailure
+            }.isFailure
           },
           failure => failure
         )
