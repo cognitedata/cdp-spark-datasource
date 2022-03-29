@@ -1,3 +1,9 @@
+# 2.0.7
+
+## Enhancements
+
+* Bump scala sdk to 2.0.8 and use CogniteId when calling api of Sequence Rows
+
 # 2.0.4
 
 ## Fixes
