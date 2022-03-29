@@ -89,12 +89,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         }
       val projectedRows =
         client.sequenceRows
-          .queryById(
-            sequenceInfo.id,
-            filter.inclusiveStart,
-            filter.exclusiveEnd,
-            limit,
-            Some(requestedColumns))
+          .query(sequenceId, filter.inclusiveStart, filter.exclusiveEnd, limit, Some(requestedColumns))
           .map {
             case (_, rows) =>
               rows.map { r =>
@@ -206,7 +201,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[SequenceRowDeleteSchema](r))
     client.sequenceRows
-      .deleteById(sequenceInfo.id, deletes.map(_.rowNumber))
+      .delete(sequenceId, deletes.map(_.rowNumber))
       .flatTap(_ => incMetrics(itemsDeleted, rows.length))
   }
   def insert(rows: Seq[Row]): IO[Unit] =
@@ -227,17 +222,10 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         .groupBy(_.id)
         .toList
         .parTraverse {
-          case (cogniteExternalId, rows) =>
-            cogniteExternalId match {
-              case externalId: CogniteExternalId =>
-                client.sequenceRows
-                  .insertByExternalId(externalId.externalId, columns, rows.map(_.sequenceRow))
-                  .flatTap(_ => incMetrics(itemsCreated, rows.length))
-              case internalId: CogniteInternalId =>
-                client.sequenceRows
-                  .insertById(internalId.id, columns, rows.map(_.sequenceRow))
-                  .flatTap(_ => incMetrics(itemsCreated, rows.length))
-            }
+          case (cogniteId, rows) =>
+            client.sequenceRows
+              .insert(cogniteId, columns, rows.map(_.sequenceRow))
+              .flatTap(_ => incMetrics(itemsCreated, rows.length))
 
         } *> IO.unit
     }
