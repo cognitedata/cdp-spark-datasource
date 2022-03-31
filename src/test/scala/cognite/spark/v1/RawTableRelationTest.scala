@@ -3,6 +3,8 @@ package cognite.spark.v1
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{RawDatabase, RawRow, RawTable}
 import io.circe.Json
+import org.apache.spark.sql.catalyst.json.JsonInferSchema
+import org.apache.spark.sql.cognite.tests.SparkInternalsHack
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
@@ -103,7 +105,7 @@ class RawTableRelationTest
   )
   private val dataWithEmptyStringInLongField = Seq(
     RawRow("k1", Map("long" -> Json.fromString(""))),
-    RawRow("k2", Map("long" -> Json.fromLong(12345L)))
+    RawRow("k2", Map("long" -> Json.fromInt(12345)))
   )
   private val dataWithEmptyStringInDoubleField = Seq(
     RawRow("k1", Map("num" -> Json.fromString(""))),
@@ -111,7 +113,7 @@ class RawTableRelationTest
   )
   private val dataWithEmptyStringInBooleanField = Seq(
     RawRow("k1", Map("bool" -> Json.fromString(""))),
-    RawRow("k2", Map("bool" -> Json.fromBoolean(java.lang.Boolean.parseBoolean("true")))),
+    RawRow("k2", Map("bool" -> Json.fromBoolean(true))),
     RawRow("k3", Map("bool" -> Json.fromBoolean(false)))
   )
 
@@ -716,6 +718,7 @@ class RawTableRelationTest
   }
 
   it should "handle empty string as null for Double type" in {
+
     val schema = dfWithEmptyStringInDoubleField.schema
     schema("num").dataType shouldBe DoubleType
     dfWithEmptyStringInDoubleField.collect().map(_.getAs[Any]("key")).toSet shouldBe Set("k1", "k2")
@@ -756,35 +759,69 @@ class RawTableRelationTest
 
   }
 
-  private def inferSchema(json: String): DataType = {
-    val circeJson = io.circe.parser.parse(json).right.get
-    RawSchemaInferrer.toSparkSchema(RawSchemaInferrer.infer(circeJson))
+  private def inferSchema(json: String*): DataType =
+    RawSchemaInferrer.toSparkSchema(
+      json.map { json =>
+        val circeJson = io.circe.parser.parse(json).right.get
+        RawSchemaInferrer.infer(circeJson)
+      }.reduce(RawSchemaInferrer.unify))
+
+  private def sparkInferSchema(json: String*): StructType =
+    spark.read.json(spark.createDataset(json)).schema
+
+  /** Infers schema using our inferrer and using Spark's inferrer and checks that they are equal */
+  private def checkInferSchema(json: String*): DataType = {
+    val schema = inferSchema(json: _*)
+    val sparkSchema = sparkInferSchema(json.map(x => s"""{"x": $x}"""): _*)("x").dataType
+
+    assert(SparkInternalsHack.sameTypes(schema, sparkSchema), s"Inferred schema ${schema.sql} is not equal to Spark inferred schema ${sparkSchema.sql}")
+    schema
   }
 
   "RawSchemaInferrer" should "handle integers" in {
-    val schema = inferSchema("[1, 2, 3, 9223372036854775807]")
+    val schema = checkInferSchema("[1, 2, 3, 9223372036854775807]")
     schema shouldBe ArrayType(LongType)
   }
 
-  "RawSchemaInferrer" should "handle integers larger than 2^64" in {
-    val schema = inferSchema("[1, 2, 3, 1000000000000000000000000000000000000000000000]")
+  it should "handle integers larger than 2^64" in {
+    val schema = checkInferSchema("[1, 2, 3, 1000000000000000000000000000000000000000000000]")
     schema shouldBe ArrayType(DoubleType)
   }
 
-  it should "parse numbers from strings" in {
-    val schema = inferSchema("""["Infinity","-Infinity", "NaN", "1234", "23.1234676543212345654324", "10e10", "-10", "-0.0", "+Infinity", "12.1e-10", "2e+2"]""")
+  it should "handle floats" in {
+    val schema = checkInferSchema("""[1234, 23.1234676543212345654324, 10e10, -10, -0.0, 12.1e-10, 2e+2]""")
     schema shouldBe ArrayType(DoubleType)
   }
-  it should "parse ints from strings" in {
-    val schema = inferSchema("""["1", 0, "2", "3", "4", "-10"]""")
-    schema shouldBe ArrayType(LongType)
+  it should "handle NaN and Infinity" in {
+    val schema = inferSchema("""["Infinity", "-Infinity", "+Infinity", "NaN"]""")
+    schema shouldBe ArrayType(DoubleType)
+  }
+  it should "unify int and float" in {
+    val schema = checkInferSchema("""[1, 0.1]""")
+    schema shouldBe ArrayType(DoubleType)
   }
   it should "handle strings" in {
-    val schema = inferSchema("""["2e+2","had","hadice"]""")
+    val schema = checkInferSchema("""["2e+2","had","hadice"]""")
+    schema shouldBe ArrayType(StringType)
+  }
+  it should "unify int and obj to string" in {
+    val schema = checkInferSchema("""[1,{ "a": "ooooo" }]""")
+    schema shouldBe ArrayType(StringType)
+  }
+  it should "unify int and array to string" in {
+    val schema = checkInferSchema("""[1,[2]]""")
+    schema shouldBe ArrayType(StringType)
+  }
+  it should "not parse numbers from string" in {
+    val schema = checkInferSchema("""["1", 2]""")
+    schema shouldBe ArrayType(StringType)
+  }
+  it should "not parse floats from string" in {
+    val schema = checkInferSchema("""["1.123", 2.1]""")
     schema shouldBe ArrayType(StringType)
   }
   it should "unify objects with different fields" in {
-    val schema = inferSchema("""[{"a":1},{"b": 10},{"a": 1.1}]""")
+    val schema = checkInferSchema("""[{"a":1},{"b": 10},{"a": 1.1}]""")
     schema shouldBe ArrayType(StructType(Seq(
       StructField("a", DoubleType, nullable = true),
       StructField("b", LongType, nullable = true)

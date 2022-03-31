@@ -19,15 +19,13 @@ object RawSchemaInferrer {
         if (num.toLong.isDefined) {
           JsonInteger
         } else {
-          // TODO: do we need to handle big integers?
           JsonDouble
       },
       str =>
         if (str.isEmpty) {
           JsonNull
-        } else if (isIntegerString(str)) {
-          JsonInteger
-        } else if (isFloatString(str)) {
+        } else if (str.equals("NaN") || str.equals("Infinity") || str.equals("+Infinity") || str.equals(
+            "-Infinity")) {
           JsonDouble
         } else {
           JsonString
@@ -122,68 +120,6 @@ object RawSchemaInferrer {
     StructType(j.fields.map {
       case (name, t) => StructField(name, toSparkSchema(t), nullable = true)
     }.toArray)
-
-  /** Skips a sequence of digits. Returns index right after the last consumed digit */
-  private def skipInteger(str: String, index: Int): Int = {
-    var i = index
-    while (i < str.length && str(i) >= '0' && str(i) <= '9') {
-      i += 1
-    }
-    i
-  }
-
-  /** Skips + or - sign. Returns index right after this sign */
-  private def skipPlusMinus(str: String, index: Int): Int =
-    if (str(index) == '-' || str(index) == '+') {
-      index + 1
-    } else {
-      index
-    }
-
-  /** Return true if the string can be parsed a 64-bit Int.
-    * Essentially implements this regex: [-+]?\d{1,18} */
-  private def isIntegerString(str: String): Boolean = {
-    val i = skipPlusMinus(str, 0)
-
-    if (i + 18 < str.length) {
-      // won't fit into int64
-      false
-    } else {
-      val i2 = skipInteger(str, i)
-      i2 > i && i2 == str.length
-    }
-  }
-
-  /** Returns true if the string can be parsed as a Float.
-    * Essentially allows NaN, + or - Infinity and anything matching [-+]?\d*(.\d*)?(e[+-]?\d+)? */
-  private def isFloatString(str: String): Boolean = {
-    if ("NaN".equals(str)) {
-      return true
-    }
-    var i = skipPlusMinus(str, 0)
-
-    if (str.length == i + "Infinity".length && str.endsWith("Infinity")) {
-      return true
-    }
-
-    i = skipInteger(str, i)
-    if (i < str.length && str(i) == '.') {
-      // consume the decimal part `.1234`
-      i = skipInteger(str, i + 1)
-    }
-    if (i < str.length && (str(i) == 'e' || str(i) == 'E')) {
-      // consume exponential part ("scientific notation"), for example ...`e-12`
-      i = skipPlusMinus(str, i + 1)
-      val i2 = skipInteger(str, i)
-      if (i2 == i) {
-        // force that we have at least one digit after the `e`
-        return false
-      }
-      i = i2
-    }
-
-    i == str.length
-  }
 
   sealed trait JsonType
 
