@@ -813,7 +813,11 @@ class AssetHierarchyBuilderTest
       .option("apiKey", writeApiKey)
       .option("type", "assethierarchy")
       .option("onconflict", "delete")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", "assethierarchy-deletetest")
       .save
+
+    getNumberOfRowsDeleted("assethierarchy-deletetest", "assethierarchy") shouldBe 1 // counts the number of deleted hierarchies
 
     retryWhile[Array[Row]](
       spark.sql(s"select id from assets where source = '$testName$key'").collect,

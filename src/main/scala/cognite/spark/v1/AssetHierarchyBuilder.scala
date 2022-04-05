@@ -83,6 +83,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
               chunk.toVector.map(_.toCogniteId),
               recursive = true,
               ignoreUnknownIds = true)
+            .flatTap(_ => incMetrics(itemsDeleted, chunk.size))
         }
         .compile
         .drain
