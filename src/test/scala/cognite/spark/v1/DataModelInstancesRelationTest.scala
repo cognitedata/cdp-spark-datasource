@@ -198,6 +198,22 @@ class DataModelInstancesRelationTest
     )
   }
 
+  it should "return an informative error when a value with wrong type is attempted to be ingested" in {
+    val ex = sparkIntercept {
+      insertRows(
+        primitiveExtId,
+        spark
+          .sql(s"""select '2.0' as prop_float,
+                  |true as prop_bool,
+                  |'abc' as prop_string,
+                  |'test' as externalId""".stripMargin)
+      )
+    }
+    ex shouldBe an[CdfSparkException]
+    ex.getMessage shouldBe "2.0 of type class java.lang.String is not a valid float64. " +
+      "Try to cast the value to double. For example, ‘double(col_name) as prop_name’ or ‘cast(col_name as double) as prop_name’."
+  }
+
  it should "ingest multi valued data" in {
     val randomId1 = "test_multi_" + shortRandomString()
     val randomId2 = "test_multi_" + shortRandomString()
