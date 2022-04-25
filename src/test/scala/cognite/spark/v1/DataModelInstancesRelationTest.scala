@@ -41,10 +41,12 @@ class DataModelInstancesRelationTest
     listInstances(modelExternalId)
       .flatMap(_.properties.flatMap(_.get("externalId")).toList).map(_.asInstanceOf[StringProperty].value)
 
-  private def byExternalId(modelExternalId: String, externalId: String): Option[String] =
-    listInstances(
+  private def getByExternalId(modelExternalId: String, externalId: String): Seq[DataModelInstanceQueryResponse] = listInstances(
       modelExternalId,
       filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), StringProperty(externalId))))
+
+  private def byExternalId(modelExternalId: String, externalId: String): Option[String] =
+    getByExternalId(modelExternalId, externalId)
       .flatMap(_.properties.flatMap(_.get("externalId")))
       .collectFirst { case StringProperty(id) => id }
 
@@ -212,6 +214,57 @@ class DataModelInstancesRelationTest
     ex shouldBe an[CdfSparkException]
     ex.getMessage shouldBe "2.0 of type class java.lang.String is not a valid float64. " +
       "Try to cast the value to double. For example, ‘double(col_name) as prop_name’ or ‘cast(col_name as double) as prop_name’."
+  }
+
+
+  it should "cast correctly using float() and ingest data " in {
+    val randomId = "prim_test_" + shortRandomString()
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""select float('2.0') as prop_float,
+                          |true as prop_bool,
+                          |'abc' as prop_string,
+                          |'${randomId}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        getByExternalId(primitiveExtId, randomId)
+          .flatMap(dmi => dmi.properties.map(mp => mp.get("prop_float"))).head shouldBe Some(Float64Property(2.0))
+      }
+    )
+  }
+
+  it should "cast correctly using cast() and ingest data " in {
+    val randomId = "prim_test_" + shortRandomString()
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""select cast('3.0' as float) as prop_float,
+                          |true as prop_bool,
+                          |'abc' as prop_string,
+                          |'${randomId}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        getByExternalId(primitiveExtId, randomId)
+          .flatMap(dmi => dmi.properties.map(mp => mp.get("prop_float"))).head shouldBe Some(Float64Property(3.0))
+      }
+    )
   }
 
  it should "ingest multi valued data" in {
