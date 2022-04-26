@@ -213,8 +213,19 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
 object DataModelInstanceRelation {
   private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
 
-  private def notValidPropertyTypeMessage(a: Any, propertyType: String) =
-    s"$a is not a valid $propertyType"
+  private def notValidPropertyTypeMessage(
+      a: Any,
+      propertyType: String,
+      sparkSqlType: Option[String] = None) = {
+    val sparkSqlTypeMessage = sparkSqlType
+      .map(
+        tname =>
+          s" Try to cast the value to $tname. " +
+            s"For example, ‘$tname(col_name) as prop_name’ or ‘cast(col_name as $tname) as prop_name’.")
+      .getOrElse("")
+
+    s"$a of type ${a.getClass} is not a valid $propertyType.$sparkSqlTypeMessage"
+  }
 
   private def propertyNotNullableMessage(propertyType: String) =
     s"Property of $propertyType type is not nullable."
@@ -297,7 +308,7 @@ object DataModelInstanceRelation {
     case x: LocalDate => DateProperty(x)
     case x: java.sql.Date => DateProperty(x.toLocalDate)
     case x: LocalDateTime => DateProperty(x.toLocalDate)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "date"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "date", Some("date")))
   }
 
   private def toTimestampProperty: Any => TimeStampProperty = {
@@ -309,22 +320,23 @@ object DataModelInstanceRelation {
       TimeStampProperty(OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
     case x: ZonedDateTime =>
       TimeStampProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "timestamp"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "timestamp", Some("timestamp")))
   }
 
   private def toDirectRelationProperty: Any => DirectRelationProperty = {
     case x: String => DirectRelationProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "direct_relation"))
+    case a =>
+      throw new CdfSparkException(notValidPropertyTypeMessage(a, "direct_relation", Some("string")))
   }
 
   private def toGeographyProperty: Any => GeographyProperty = {
     case x: String => GeographyProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geography"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geography", Some("string")))
   }
 
   private def toGeometryProperty: Any => GeometryProperty = {
     case x: String => GeometryProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geometry"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geometry", Some("string")))
   }
 
   private def toFloat32Property: Any => Float32Property = {
@@ -332,7 +344,7 @@ object DataModelInstanceRelation {
     case x: Int => Float32Property(x.toFloat)
     case x: java.math.BigDecimal => Float32Property(x.floatValue())
     case x: java.math.BigInteger => Float32Property(x.floatValue())
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "float32"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "float32", Some("float")))
   }
 
   private def toFloat64Property(propAlias: String): Any => Float64Property = {
@@ -342,30 +354,30 @@ object DataModelInstanceRelation {
     case x: Long => Float64Property(x.toDouble)
     case x: java.math.BigDecimal => Float64Property(x.doubleValue())
     case x: java.math.BigInteger => Float64Property(x.doubleValue())
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propAlias))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propAlias, Some("double")))
   }
 
   private def toBooleanProperty: Any => BooleanProperty = {
     case x: Boolean => BooleanProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "boolean"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "boolean", Some("boolean")))
   }
 
   private def toInt32Property(propertyAlias: String): Any => Int32Property = {
     case x: Int => Int32Property(x)
     case x: java.math.BigInteger => Int32Property(x.intValue())
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias, Some("int")))
   }
 
   private def toInt64Property(propertyAlias: String): PartialFunction[Any, Int64Property] = {
     case x: Int => Int64Property(x.toLong)
     case x: Long => Int64Property(x)
     case x: java.math.BigInteger => Int64Property(x.longValue())
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias, Some("bigint")))
   }
 
   private def toStringProperty: Any => StringProperty = {
     case x: String => StringProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "text"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "text", Some("string")))
   }
 
   private def toStringArrayProperty: Any => ArrayProperty[StringProperty] = {
