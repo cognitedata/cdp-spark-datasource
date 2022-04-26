@@ -325,17 +325,18 @@ object DataModelInstanceRelation {
 
   private def toDirectRelationProperty: Any => DirectRelationProperty = {
     case x: String => DirectRelationProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "direct_relation"))
+    case a =>
+      throw new CdfSparkException(notValidPropertyTypeMessage(a, "direct_relation", Some("string")))
   }
 
   private def toGeographyProperty: Any => GeographyProperty = {
     case x: String => GeographyProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geography"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geography", Some("string")))
   }
 
   private def toGeometryProperty: Any => GeometryProperty = {
     case x: String => GeometryProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geometry"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "geometry", Some("string")))
   }
 
   private def toFloat32Property: Any => Float32Property = {
@@ -358,7 +359,7 @@ object DataModelInstanceRelation {
 
   private def toBooleanProperty: Any => BooleanProperty = {
     case x: Boolean => BooleanProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "boolean"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "boolean", Some("boolean")))
   }
 
   private def toInt32Property(propertyAlias: String): Any => Int32Property = {
@@ -376,7 +377,7 @@ object DataModelInstanceRelation {
 
   private def toStringProperty: Any => StringProperty = {
     case x: String => StringProperty(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "text"))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "text", Some("string")))
   }
 
   private def toStringArrayProperty: Any => ArrayProperty[StringProperty] = {
