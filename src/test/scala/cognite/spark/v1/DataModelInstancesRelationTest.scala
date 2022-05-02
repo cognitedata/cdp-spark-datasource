@@ -217,6 +217,23 @@ class DataModelInstancesRelationTest
   }
 
 
+  it should "return an informative error when schema inference fails" in {
+    val ex = sparkIntercept {
+      insertRows(
+        "non-existing-model",
+        spark
+          .sql(s"""select '2.0' as prop_float,
+                  |true as prop_bool,
+                  |'abc' as prop_string,
+                  |'test' as externalId""".stripMargin)
+      )
+    }
+    ex shouldBe an[CdfSparkException]
+    ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. " +
+      "Got an exception from CDF API: ids not found: non-existing-model (code: 400)"
+  }
+
+
   it should "cast correctly using float() and ingest data " in {
     val randomId = "prim_test_" + shortRandomString()
     tryTestAndCleanUp(

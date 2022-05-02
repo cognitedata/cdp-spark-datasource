@@ -24,7 +24,9 @@ class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)
     .retrieveByExternalIds(Seq(modelExternalId), true, false)
     .adaptError {
       case e: CdpApiException =>
-        new CdfSparkException(s"Could not resolve schema of data model $modelExternalId.", e)
+        new CdfSparkException(
+          s"Could not resolve schema of data model $modelExternalId. Got an exception from CDF API: ${e.message} (code: ${e.code})",
+          e)
     }
     .unsafeRunSync()
     .head
