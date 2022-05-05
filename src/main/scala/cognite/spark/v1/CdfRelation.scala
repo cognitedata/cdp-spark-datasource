@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common.{Auth, NonNullableSetter, SetNull, SetValue, Setter}
+import com.cognite.sdk.scala.common.{NonNullableSetter, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1._
 import io.scalaland.chimney.Transformer
 import org.apache.spark.datasource.MetricsSource

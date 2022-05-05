@@ -1,13 +1,12 @@
 package cognite.spark.v1
 
-import cats.effect.unsafe.IORuntime
-
-import java.util.concurrent.{ArrayBlockingQueue, Executors}
 import cats.effect.IO
+import cats.effect.unsafe.IORuntime
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import fs2.{Chunk, Stream}
 import org.log4s._
 
+import java.util.concurrent.{ArrayBlockingQueue, Executors}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 

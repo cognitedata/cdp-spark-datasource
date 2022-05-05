@@ -11,16 +11,14 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
-import scala.util.Try
-
 case class SequenceRowWithId(id: CogniteId, sequenceRow: SequenceRow)
 
 class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)
     extends CdfRelation(config, "sequencerows")
     with WritableRelation
     with PrunedFilteredScan {
-  import SequenceRowsRelation._
   import CdpConnector._
+  import SequenceRowsRelation._
 
   val sequenceInfo: Sequence = (sequenceId match {
     case CogniteExternalId(externalId) => client.sequences.retrieveByExternalId(externalId)

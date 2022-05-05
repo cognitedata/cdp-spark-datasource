@@ -2,11 +2,11 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.SparkSchemaHelper._
+import com.cognite.sdk.scala.v1.{GenericClient, ThreeDRevision}
+import fs2.Stream
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import com.cognite.sdk.scala.v1.{GenericClient, ThreeDRevision}
-import org.apache.spark.sql.sources.Filter
-import fs2.Stream
 
 final case class ModelRevisionItem(
     id: Long,

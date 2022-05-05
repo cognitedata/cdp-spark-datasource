@@ -1,20 +1,18 @@
 package cognite.spark.v1
 
-import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
 import com.cognite.sdk.scala.common.Items
 import com.cognite.sdk.scala.v1._
-import io.circe.{Json, JsonObject}
-import io.circe.syntax._
+import fs2.Stream
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import org.apache.spark.datasource.MetricsSource
-import fs2.Stream
 
+import java.time.Instant
 import scala.util.Try
 
 class RawTableRelation(
@@ -30,8 +28,8 @@ class RawTableRelation(
     with TableScan
     with PrunedFilteredScan
     with Serializable {
-  import RawTableRelation._
   import CdpConnector._
+  import RawTableRelation._
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)

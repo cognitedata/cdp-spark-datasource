@@ -1,18 +1,18 @@
 package cognite.spark.v1
 
-import java.time.Instant
 import cats.effect.IO
-import cats.implicits._
+import cognite.spark.v1.PushdownUtilities._
+import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1._
-import cognite.spark.v1.SparkSchemaHelper._
-import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types.{DataTypes, StructType}
-import org.apache.spark.sql.{Row, SQLContext}
-import PushdownUtilities._
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
 import io.scalaland.chimney.Transformer
+import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types.{DataTypes, StructType}
+import org.apache.spark.sql.{Row, SQLContext}
+
+import java.time.Instant
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")

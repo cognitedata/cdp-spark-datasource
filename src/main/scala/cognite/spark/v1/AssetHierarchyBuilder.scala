@@ -1,17 +1,15 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.effect.syntax.all._
 import cats.implicits._
-import cats.syntax._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
-import com.cognite.sdk.scala.common.{CdpApiException, NonNullableSetter, SetValue}
+import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
 import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, CogniteExternalId}
+import fs2.{Chunk, Stream}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import fs2.{Chunk, Stream}
 
 import scala.collection.mutable
 

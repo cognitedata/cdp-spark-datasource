@@ -1,15 +1,12 @@
 package cognite.spark.v1
 import com.cognite.sdk.scala.v1.RawRow
-import io.circe.{Json, JsonObject}
 import io.circe.syntax._
+import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.expressions.{GenericRow, GenericRowWithSchema}
-import org.apache.spark.sql.catalyst.util.LegacyDateFormats.FAST_DATE_FORMAT
-import org.apache.spark.sql.catalyst.util.TimestampFormatter
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
 
-import java.util
-import java.util.{Base64, Locale}
+import java.util.Base64
 
 object RawJsonConverter {
   // scalastyle:off cyclomatic.complexity

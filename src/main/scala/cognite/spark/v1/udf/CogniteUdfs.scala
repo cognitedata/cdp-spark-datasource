@@ -11,9 +11,9 @@ import cognite.spark.v1.udf.CogniteUdfs.{
 import cognite.spark.v1.{CdfSparkException, CdpConnector, Constants}
 import com.cognite.sdk.scala.common.ApiKeyAuth
 import com.cognite.sdk.scala.v1.{FunctionCall, GenericClient}
-import sttp.client3.SttpBackend
 import io.circe.{Json, JsonObject, parser}
 import org.apache.spark.sql.SparkSession
+import sttp.client3.SttpBackend
 
 class CogniteUdfs(sparkSession: SparkSession) {
   def initializeUdfs(apiKey: ApiKeyAuth, baseUrl: String = DefaultBaseUrl)(

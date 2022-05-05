@@ -1,7 +1,5 @@
 package cognite.spark.v1
 
-import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId, ZonedDateTime}
-
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.DataModelInstanceRelation._
@@ -12,6 +10,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
+
+import java.time._
 
 class DataModelInstanceRelation(config: RelationConfig, modelExternalId: String)(
     val sqlContext: SQLContext)

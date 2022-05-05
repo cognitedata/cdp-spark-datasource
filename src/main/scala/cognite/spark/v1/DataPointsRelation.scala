@@ -1,13 +1,13 @@
 package cognite.spark.v1
 
-import java.time.Instant
 import cats.effect.IO
-import cats.implicits._
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import com.cognite.sdk.scala.v1._
 import fs2.{Chunk, Pull}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+
+import java.time.Instant
 
 abstract class Limit extends Ordered[Limit] with Serializable {
   def value: Instant
@@ -21,7 +21,7 @@ sealed case class Max(value: Instant) extends Limit
 
 final case class AggregationFilter(aggregation: String)
 
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import cognite.spark.v1.SparkSchemaHelper.fromRow
 
 abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String)(
     override val sqlContext: SQLContext)
