@@ -1,9 +1,9 @@
 package sttp.client3.asynchttpclient
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder
-import sttp.client3.SttpBackendOptions
 import io.netty.util.HashedWheelTimer
 import org.asynchttpclient.AsyncHttpClient
+import sttp.client3.SttpBackendOptions
 
 object SttpClientBackendFactory {
   def create(): AsyncHttpClient = {

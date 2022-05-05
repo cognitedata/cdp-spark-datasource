@@ -1,7 +1,10 @@
 package cognite.spark.v1
 
-import java.time.Instant
 import cats.effect.IO
+import cognite.spark.v1.PushdownUtilities._
+import cognite.spark.v1.SparkSchemaHelper._
+import com.cognite.sdk.scala.common.WithId
+import com.cognite.sdk.scala.v1.resources.Files
 import com.cognite.sdk.scala.v1.{
   CogniteInternalId,
   File,
@@ -10,25 +13,14 @@ import com.cognite.sdk.scala.v1.{
   FilesFilter,
   GenericClient
 }
-import cognite.spark.v1.SparkSchemaHelper._
+import fs2.Stream
+import io.scalaland.chimney.Transformer
+import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import cats.implicits._
-import cognite.spark.v1.PushdownUtilities.{
-  cogniteExternalIdSeqToStringSeq,
-  executeFilter,
-  externalIdsToContainsAny,
-  idsFromStringifiedArray,
-  pushdownToFilters,
-  stringSeqToCogniteExternalIdSeq,
-  timeRange
-}
-import com.cognite.sdk.scala.common.WithId
-import com.cognite.sdk.scala.v1.resources.Files
-import io.scalaland.chimney.Transformer
-import io.scalaland.chimney.dsl._
-import fs2.Stream
+
+import java.time.Instant
 
 class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[FilesReadSchema, Long](config, "files")

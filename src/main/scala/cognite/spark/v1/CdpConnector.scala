@@ -1,10 +1,8 @@
 package cognite.spark.v1
 
-import java.util.concurrent.Executors
-import cats.Parallel
+import cats.effect.IO
 import cats.effect.std.Queue
 import cats.effect.unsafe.{IORuntime, IORuntimeConfig}
-import cats.effect.IO
 import com.cognite.sdk.scala.common.{GzipSttpBackend, Items, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
@@ -15,6 +13,7 @@ import sttp.client3.asynchttpclient.SttpClientBackendFactory
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import java.lang.Thread.UncaughtExceptionHandler
+import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.language.higherKinds

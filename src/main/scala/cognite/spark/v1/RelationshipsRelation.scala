@@ -1,28 +1,10 @@
 package cognite.spark.v1
 
 import cats.Id
-
-import java.time.Instant
 import cats.effect.IO
-import cats.implicits._
-import cognite.spark.v1.PushdownUtilities.{
-  checkDuplicateCogniteIds,
-  cogniteExternalIdSeqToStringSeq,
-  executeFilterOnePartition,
-  externalIdsToContainsAny,
-  getFromIds,
-  idsFromStringifiedArray,
-  mergeStreams,
-  pushdownToFilters,
-  pushdownToParameters,
-  shouldGetAll,
-  stringSeqToCogniteExternalIdSeq,
-  timeRange,
-  timeRangeFromMinAndMax,
-  toPushdownFilterExpression
-}
+import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.cognite.sdk.scala.common.{WithId, WithRequiredExternalId}
+import com.cognite.sdk.scala.common.WithRequiredExternalId
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Relationships
 import fs2.Stream
@@ -31,11 +13,12 @@ import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
+import java.time.Instant
+
 class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[RelationshipsReadSchema, String](config, "relationships")
     with InsertableRelation
     with WritableRelation {
-  import CdpConnector._
 
   override def schema: StructType = structType[RelationshipsReadSchema]
 

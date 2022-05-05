@@ -1,21 +1,24 @@
 package cognite.spark.v1
 
-import java.time.Instant
-import java.time.temporal.ChronoUnit
-import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
+import cats.data.Validated.{Invalid, Valid}
 import cats.effect.IO
 import cats.implicits._
-import PushdownUtilities.{getIdFromMap, pushdownToParameters, toPushdownFilterExpression}
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow}
-import cats.data.Validated.{Invalid, Valid}
+import cognite.spark.v1.PushdownUtilities.{
+  getIdFromMap,
+  pushdownToParameters,
+  toPushdownFilterExpression
+}
+import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
+import fs2.Stream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
-import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
-import cognite.spark.v1.SparkSchemaHelper.structType
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
-import fs2.{Chunk, Stream}
+import org.apache.spark.sql.{Row, SQLContext}
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import scala.util.matching.Regex
 
 final case class DataPointsFilter(
@@ -117,8 +120,6 @@ object Granularity {
 class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)
     extends DataPointsRelationV1[DataPointsItem](config, "datapoints")(sqlContext)
     with WritableRelation {
-  import CdpConnector._
-
   import PushdownUtilities.filtersToTimestampLimits
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Insert not supported for datapoints. Use upsert instead.")

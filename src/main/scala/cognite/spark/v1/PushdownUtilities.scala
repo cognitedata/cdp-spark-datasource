@@ -8,14 +8,12 @@ import com.cognite.sdk.scala.common.{
   WithGetExternalId,
   WithId
 }
-
-import java.time.Instant
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, ContainsAny, TimeRange}
 import fs2.Stream
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
-import sttp.model.Uri
 
+import java.time.Instant
 import scala.util.Try
 
 final case class DeleteItem(id: Long)

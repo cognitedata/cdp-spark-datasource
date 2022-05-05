@@ -1,23 +1,22 @@
 package cognite.spark.v1
 
-import java.time.Instant
 import cats.effect.IO
-import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{WithExternalIdGeneric, WithId}
-import com.cognite.sdk.scala.v1.resources.Events
 import com.cognite.sdk.scala.v1._
+import com.cognite.sdk.scala.v1.resources.Events
 import fs2.Stream
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+import java.time.Instant
+
 class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Event, Long](config, "events")
     with InsertableRelation
     with WritableRelation {
-  import CdpConnector._
 
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],

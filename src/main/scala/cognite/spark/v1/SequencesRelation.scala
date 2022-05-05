@@ -1,19 +1,20 @@
 package cognite.spark.v1
 
-import java.time.Instant
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{WithExternalId, WithId}
-import com.cognite.sdk.scala.v1.resources.SequencesResource
 import com.cognite.sdk.scala.v1._
+import com.cognite.sdk.scala.v1.resources.SequencesResource
 import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
+
+import java.time.Instant
 
 class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[SequenceReadSchema, Long](config, "sequences")

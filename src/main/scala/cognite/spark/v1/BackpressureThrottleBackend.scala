@@ -1,9 +1,8 @@
 package cognite.spark.v1
 
 import cats.Applicative
-import cats.effect.kernel.Async
+import cats.effect.Temporal
 import cats.effect.std.Queue
-import cats.effect.{Concurrent, Temporal}
 import cats.syntax.all._
 import com.cognite.sdk.scala.common.{CdpApiException, SdkException}
 import sttp.capabilities.Effect

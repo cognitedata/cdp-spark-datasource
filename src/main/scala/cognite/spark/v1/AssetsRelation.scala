@@ -1,13 +1,11 @@
 package cognite.spark.v1
 
-import java.time.Instant
 import cats.effect.IO
-import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper._
 import com.cognite.sdk.scala.common._
-import com.cognite.sdk.scala.v1.resources.Assets
 import com.cognite.sdk.scala.v1._
+import com.cognite.sdk.scala.v1.resources.Assets
 import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
@@ -15,11 +13,12 @@ import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
+import java.time.Instant
+
 class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
     with InsertableRelation
     with WritableRelation {
-  import CdpConnector._
   private val fieldNames =
     Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
   override def getStreams(sparkFilters: Array[Filter])(

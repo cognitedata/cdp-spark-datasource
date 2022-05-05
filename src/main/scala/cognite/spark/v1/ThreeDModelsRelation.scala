@@ -1,12 +1,12 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.{GenericClient, ThreeDModel}
 import cognite.spark.v1.SparkSchemaHelper._
+import com.cognite.sdk.scala.v1.{GenericClient, ThreeDModel}
+import fs2.Stream
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.sql.sources.Filter
-import fs2.Stream
 
 final case class ModelItem(id: Long, name: String, createdTime: Long)
 

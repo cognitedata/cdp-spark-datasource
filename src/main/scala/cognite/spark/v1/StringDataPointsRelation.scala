@@ -1,23 +1,22 @@
 package cognite.spark.v1
 
-import java.time.Instant
 import cats.effect.IO
-import cats.implicits._
-import com.cognite.sdk.scala.common.StringDataPoint
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
-import PushdownUtilities.{
+import cognite.spark.v1.PushdownUtilities.{
   filtersToTimestampLimits,
   getIdFromMap,
   pushdownToParameters,
   toPushdownFilterExpression
 }
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow}
+import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import com.cognite.sdk.scala.common.StringDataPoint
+import com.cognite.sdk.scala.v1.{CogniteId, GenericClient}
+import fs2.Stream
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
-import cognite.spark.v1.SparkSchemaHelper.structType
-import fs2.Stream
+import org.apache.spark.sql.{Row, SQLContext}
+
+import java.time.Instant
 
 final case class StringDataPointsItem(
     id: Option[Long],

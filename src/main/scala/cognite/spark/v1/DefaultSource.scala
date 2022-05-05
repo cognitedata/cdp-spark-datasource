@@ -1,16 +1,15 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cats.effect.unsafe.IORuntime
-import cats.effect.{Clock, IO}
 import cats.implicits._
-import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
 import fs2.Stream
-import sttp.client3.SttpBackend
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
+import sttp.client3.SttpBackend
 import sttp.model.Uri
 
 final case class RelationConfig(
