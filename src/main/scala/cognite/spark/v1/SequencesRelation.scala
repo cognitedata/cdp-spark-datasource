@@ -4,7 +4,7 @@ import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.cognite.sdk.scala.common.{WithExternalId, WithId}
+import com.cognite.sdk.scala.common.{SetNull, SetValue, Setter, WithExternalId, WithId}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.SequencesResource
 import fs2.Stream
@@ -13,8 +13,9 @@ import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.sources.{Filter, InsertableRelation}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-
 import java.time.Instant
+
+import cognite.spark.v1.CdpConnector.ioRuntime
 
 class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[SequenceReadSchema, Long](config, "sequences")
@@ -74,9 +75,58 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   private def isUpdateEmpty(u: SequenceUpdate): Boolean = u == SequenceUpdate()
 
+  private def getExistingSequenceColumnsByIds(
+      sequenceUpdates: Seq[SequenceUpsertSchema]): Map[Option[Long], Seq[String]] = {
+    val ids = sequenceUpdates.filter(_.id.nonEmpty).flatMap(_.id.toList)
+    if (ids.nonEmpty) {
+      client.sequences
+        .retrieveByIds(ids, ignoreUnknownIds = true)
+        .unsafeRunSync()
+        .map(s => Some(s.id) -> s.columns.toList.flatMap(_.externalId.toList))
+        .toMap
+    } else {
+      Map()
+    }
+  }
+
+  private def getExistingSequenceColumnsByExternalIds(
+      sequenceUpdates: Seq[SequenceUpsertSchema]): Map[Option[String], Seq[String]] = {
+    val externalIds = sequenceUpdates
+      .filter(s => s.id.isEmpty && s.externalId.toOption.nonEmpty)
+      .flatMap(_.externalId.toOption.toList)
+    if (externalIds.nonEmpty) {
+      client.sequences
+        .retrieveByExternalIds(externalIds, ignoreUnknownIds = true)
+        .unsafeRunSync()
+        .collect {
+          case s if s.externalId.nonEmpty =>
+            s.externalId -> s.columns.toList.flatMap(_.externalId.toList)
+        }
+        .toMap
+    } else {
+      Map()
+    }
+  }
+
   override def update(rows: Seq[Row]): IO[Unit] = {
-    val sequenceUpdates = rows.map(r => fromRow[SequenceUpdateSchema](r))
-    updateByIdOrExternalId[SequenceUpdateSchema, SequenceUpdate, SequencesResource[IO], Sequence](
+    val sequenceUpdates = rows.map(r => fromRow[SequenceUpsertSchema](r))
+    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequenceUpdates)
+    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
+      getExistingSequenceColumnsByExternalIds(sequenceUpdates)
+
+    implicit val toUpdate = Transformer
+      .define[SequenceUpsertSchema, SequenceUpdate]
+      .withFieldComputed(
+        _.columns,
+        x =>
+          x.getSequenceColumnsUpdate(
+            existingSeqs
+              .getOrElse(x.id, existingSeqsWithExtId.getOrElse(x.externalId.toOption, Seq()))
+              .toSet)
+      )
+      .buildTransformer
+
+    updateByIdOrExternalId[SequenceUpsertSchema, SequenceUpdate, SequencesResource[IO], Sequence](
       sequenceUpdates,
       client.sequences,
       isUpdateEmpty
@@ -91,43 +141,85 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .flatTap(_ => incMetrics(itemsDeleted, ids.length))
   }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] =
-    // Sequences fail with 400 error code when id already exists:
-    // /api/v1/projects/jetfiretest2/sequences failed with status 400: The following external id(s) are already in the database:
-    throw new CdfSparkException("Upsert not supported for sequences.")
-
-  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
     val sequences =
       rows
-        .map(fromRow[SequenceUpdateSchema](_))
+        .map(fromRow[SequenceUpsertSchema](_))
 
     implicit val toCreate =
       Transformer
-        .define[SequenceUpdateSchema, SequenceCreate]
+        .define[SequenceUpsertSchema, SequenceCreate]
         .withFieldComputed(
           _.columns,
-          x =>
-            cats.data.NonEmptyList
-              .fromFoldable(
-                x.columns
-                  .getOrElse(throw new CdfSparkIllegalArgumentException(
-                    s"columns is required when inserting sequences (on row $x)"))
-                  .toVector
-              )
-              .getOrElse(
-                throw new CdfSparkIllegalArgumentException(s"columns must not be empty (on row $x)"))
+          x => x.getSequenceColumnCreate
         )
         .buildTransformer
+
+    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequences)
+    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
+      getExistingSequenceColumnsByExternalIds(sequences)
+
+    implicit val toUpdate = Transformer
+      .define[SequenceUpsertSchema, SequenceUpdate]
+      .withFieldComputed(
+        _.columns,
+        x =>
+          x.getSequenceColumnsUpdate(
+            existingSeqs
+              .getOrElse(x.id, existingSeqsWithExtId.getOrElse(x.externalId.toOption, Seq()))
+              .toSet)
+      )
+      .buildTransformer
+
+    genericUpsert[Sequence, SequenceUpsertSchema, SequenceCreate, SequenceUpdate, SequencesResource[IO]](
+      sequences,
+      isUpdateEmpty,
+      client.sequences,
+      mustBeUpdate = r => r.getExternalId.nonEmpty
+    )
+  }
+
+  // scalastyle:off method.length
+  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
+    val sequences =
+      rows
+        .map(fromRow[SequenceUpsertSchema](_))
+
+    implicit val toCreate =
+      Transformer
+        .define[SequenceUpsertSchema, SequenceCreate]
+        .withFieldComputed(
+          _.columns,
+          x => x.getSequenceColumnCreate
+        )
+        .buildTransformer
+
+    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequences)
+    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
+      getExistingSequenceColumnsByExternalIds(sequences)
+
+    implicit val toUpdate = Transformer
+      .define[SequenceUpsertSchema, SequenceUpdate]
+      .withFieldComputed(
+        _.columns,
+        x =>
+          x.getSequenceColumnsUpdate(
+            existingSeqs
+              .getOrElse(x.id, existingSeqsWithExtId.getOrElse(x.externalId.toOption, Seq()))
+              .toSet)
+      )
+      .buildTransformer
 
     // scalastyle:off no.whitespace.after.left.bracket
     createOrUpdateByExternalId[
       Sequence,
       SequenceUpdate,
       SequenceCreate,
-      SequenceUpdateSchema,
+      SequenceUpsertSchema,
       OptionalField,
       SequencesResource[IO]](Set.empty, sequences, client.sequences, doUpsert = true)
   }
+  // scalastyle:off method.length
 
   override def schema: StructType = structType[SequenceReadSchema]
 
@@ -137,22 +229,94 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object SequenceRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[SequenceUpdateSchema]
+  val upsertSchema: StructType = structType[SequenceUpsertSchema]
   val insertSchema: StructType = structType[SequenceInsertSchema]
   val readSchema: StructType = structType[SequenceReadSchema]
 }
 
-final case class SequenceUpdateSchema(
+final case class SequenceColumnUpsertSchema(
+    externalId: String,
+    name: OptionalField[String] = FieldNotSpecified,
+    description: OptionalField[String] = FieldNotSpecified,
+    valueType: Option[String] = None,
+    metadata: Option[Map[String, String]] = None
+) {
+  def toColumnCreate: SequenceColumnCreate = SequenceColumnCreate(
+    name = name.toOption,
+    externalId = externalId,
+    description = description.toOption,
+    valueType = valueType.getOrElse("STRING"),
+    metadata = metadata
+  )
+  def toColumnUpdate(implicit tr: Transformer[OptionalField[String], Option[Setter[String]]])
+    : SequenceColumnModifyUpdate =
+    SequenceColumnModifyUpdate(
+      externalId = externalId,
+      update = SequenceColumnModify(
+        description = description.transformInto[Option[Setter[String]]],
+        name = name.transformInto[Option[Setter[String]]],
+        metadata = metadata.map(SetValue(_))
+      )
+    )
+}
+
+final case class SequenceUpsertSchema(
     id: Option[Long] = None,
     externalId: OptionalField[String] = FieldNotSpecified,
     name: OptionalField[String] = FieldNotSpecified,
     description: OptionalField[String] = FieldNotSpecified,
     assetId: OptionalField[Long] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
-    columns: Option[Seq[SequenceColumnCreate]] = None,
+    columns: Option[Seq[SequenceColumnUpsertSchema]] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified
 ) extends WithNullableExtenalId
-    with WithId[Option[Long]]
+    with WithId[Option[Long]] {
+
+  def getSequenceColumnCreate: NonEmptyList[SequenceColumnCreate] = {
+    val cols = cats.data.NonEmptyList
+      .fromFoldable(
+        columns
+          .getOrElse(throw new CdfSparkIllegalArgumentException(
+            s"columns is required when inserting sequences (on row $this)"))
+          .toVector)
+      .getOrElse(throw new CdfSparkIllegalArgumentException(s"columns must not be empty (on row $this)"))
+    cols.map(_.toColumnCreate)
+  }
+
+  def getSequenceColumnsUpdate(existingColumns: Set[String])(
+      implicit tr: Transformer[OptionalField[String], Option[Setter[String]]])
+    : Option[SequenceColumnsUpdate] =
+    // Helper for updates and upserts
+    // SequenceColumnUpsertSchema types is used for column updates in SequenceColumnUpsertSchema,
+    // This helper converts SequenceColumnUpsertSchema to SDK Column updates by detecting what to add, remove or modify
+    columns match {
+      // Not to break update backward compatibility,
+      // upserting empty column list causes 422 (Deleting all columns of the sequence) so we skip columns in the update
+      case None => None
+      case Some(Seq()) => None
+      // When value provided we upsert columns in sequence update ->
+      // we implement columns.set here ourselves using add+remove+modify.
+      case Some(colUpsert) =>
+        val requestedCols = colUpsert.map(col => col.externalId -> col).toMap
+        val (modifyMap, addMap) = requestedCols.partition(item => existingColumns contains item._1)
+
+        val removeData =
+          Option(existingColumns.diff(requestedCols.keySet).toList.map(CogniteExternalId(_)))
+            .filter(_.nonEmpty)
+
+        val addData = Option(addMap.values.toList.map(_.toColumnCreate)).filter(_.nonEmpty)
+
+        val modifyData = Option(modifyMap.map {
+          case (_: String, createVal: SequenceColumnUpsertSchema) => createVal.toColumnUpdate
+        }.toList).filter(_.nonEmpty)
+
+        (addData, removeData, modifyData) match {
+          case (None, None, None) => None
+          case (add, remove, modify) =>
+            Some(SequenceColumnsUpdate(add = add, remove = remove, modify = modify))
+        }
+    }
+}
 
 final case class SequenceInsertSchema(
     externalId: Option[String] = None,

@@ -124,7 +124,13 @@ class SequencesRelationTest
       externalId = Some(id),
       name = Some("a"),
       description = Some("description abc"),
-      columns = Seq()
+      columns = Seq(SequenceColumnCreate(
+        name = Some("col2"),
+        externalId = "col1",
+        description = Some("col2 description"),
+        valueType = "STRING",
+        metadata = Some(Map("foo2" -> "bar2"))
+      ))
     )
 
     ingests(Seq(sequenceUpdate), conflictMode = "update")
