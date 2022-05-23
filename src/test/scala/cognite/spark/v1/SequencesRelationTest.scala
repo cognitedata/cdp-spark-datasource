@@ -4,7 +4,6 @@ import com.cognite.sdk.scala.v1.SequenceColumnCreate
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
-
 import java.util.UUID
 import scala.util.control.NonFatal
 
@@ -98,7 +97,6 @@ class SequencesRelationTest
   }
 
   it should "create and update sequence" in {
-    val key = shortRandomString()
     val id = UUID.randomUUID().toString
     val sequence = SequenceInsertSchema(
       externalId = Some(id),
@@ -139,9 +137,108 @@ class SequencesRelationTest
       spark
         .sql(s"select * from sequences where description = 'description abc' and externalId = '$id'")
         .collect,
-      _.length != 1)
+      rows => rows.length != 1)
 
+    val colHead = writeClient.sequences.retrieveByExternalId(s"$id").columns.head
+    colHead.name shouldBe Some("col2")
+    colHead.description shouldBe Some("col2 description")
+    colHead.metadata shouldBe Some(Map("foo2" -> "bar2"))
     cleanupSequences(Seq(id))
+  }
+
+
+  it should "upsert using SQL" in {
+    val id = UUID.randomUUID().toString
+    val sequenceToCreate = SequenceInsertSchema(
+      externalId = Some(id),
+      name = Some("a"),
+      columns = Seq(
+        SequenceColumnCreate(
+          name = Some("col1"),
+          externalId = "c_col1",
+          description = Some("col1 description"),
+          valueType = "STRING",
+          metadata = Some(Map("foo" -> "bar"))
+        ),
+        SequenceColumnCreate(
+          name = Some("col10"),
+          externalId = "c_col10",
+          description = Some("col10 description"),
+          valueType = "STRING",
+          metadata = Some(Map("foo" -> "bar"))
+        )
+      )
+    )
+
+    ingests(Seq(sequenceToCreate))
+
+    spark
+      .sql(s"""select '$id' as externalId,
+              |       'seq name1' as name,
+              |       'desc1' as description,
+              |       array(
+              |           named_struct(
+              |               'metadata', map('m1', 'v1', 'm2', NULL),
+              |               'name', 'col1_updated',
+              |               'description', 'updated desc1',
+              |               'externalId', 'c_col1',
+              |               'valueType', NULL
+              |           ),
+              |           named_struct(
+              |               'metadata', map('m1', 'v1', 'm2', 'v2'),
+              |               'name', 'col2',
+              |               'description', 'updated desc2',
+              |               'externalId', 'c_col2',
+              |               'valueType', 'STRING'
+              |           )
+              |       ) as columns
+              |
+              |union all
+              |
+              |select '$id-2' as externalId,
+              |       'seq name2' as name,
+              |       'desc2' as description,
+              |       array(
+              |           named_struct(
+              |               'metadata', map('foo', 'bar', 'nothing', NULL),
+              |               'name', 's2c3',
+              |               'description', 'hey',
+              |               'externalId', 'c_col3',
+              |               'valueType', 'STRING'
+              |           )
+              |       ) as columns
+              |""".stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "sequences")
+      .option("onconflict", "upsert")
+      .save
+
+    val sequence1 = writeClient.sequences.retrieveByExternalId(id)
+    val columns1 = sequence1.columns
+    val sequence2 = writeClient.sequences.retrieveByExternalId(s"$id-2")
+    val columns2 = sequence2.columns
+
+    sequence1.name shouldBe Some("seq name1")
+    sequence1.description shouldBe Some("desc1")
+
+    sequence2.name shouldBe Some("seq name2")
+    sequence2.description shouldBe Some("desc2")
+
+    columns1.toList.flatMap(_.name.toList).toSet shouldBe Set("col1_updated", "col2")
+    columns1.toList.flatMap(_.externalId.toList).toSet shouldBe Set("c_col1", "c_col2")
+    columns1.toList.flatMap(_.description).toSet shouldBe Set("updated desc1", "updated desc2")
+    columns1.toList.flatMap(_.metadata.toList).toSet shouldBe Set(Map("m1" -> "v1"), Map("m1" -> "v1", "m2" -> "v2"))
+    columns1.map(_.valueType).toList shouldBe List("STRING", "STRING")
+
+    columns2.head.name shouldBe Some("s2c3")
+    columns2.head.externalId shouldBe Some("c_col3")
+    columns2.head.description shouldBe Some("hey")
+    columns2.head.metadata shouldBe Some(Map("foo" -> "bar"))
+    columns2.head.valueType shouldBe "STRING"
+
+    cleanupSequences(Seq(id, s"$id-2"))
   }
 
   it should "chunk sequence if more than 10000 columns in the request" in {

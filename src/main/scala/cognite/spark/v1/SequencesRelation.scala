@@ -174,8 +174,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     genericUpsert[Sequence, SequenceUpsertSchema, SequenceCreate, SequenceUpdate, SequencesResource[IO]](
       sequences,
       isUpdateEmpty,
-      client.sequences,
-      mustBeUpdate = r => r.getExternalId.nonEmpty
+      client.sequences
     )
   }
 
