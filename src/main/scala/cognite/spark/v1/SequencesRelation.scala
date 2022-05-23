@@ -110,11 +110,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val sequenceUpdates = rows.map(r => fromRow[SequenceUpsertSchema](r))
-    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequenceUpdates)
-    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
-      getExistingSequenceColumnsByExternalIds(sequenceUpdates)
-
-    implicit val toUpdate = transformerUpsertToUpdate(existingSeqs, existingSeqsWithExtId)
+    implicit val toUpdate = transformerUpsertToUpdate(sequenceUpdates)
 
     updateByIdOrExternalId[SequenceUpsertSchema, SequenceUpdate, SequencesResource[IO], Sequence](
       sequenceUpdates,
@@ -140,9 +136,10 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       )
       .buildTransformer
 
-  private def transformerUpsertToUpdate(
-      existingSeqs: Map[Option[Long], Seq[String]],
-      existingSeqsWithExtId: Map[Option[String], Seq[String]]) =
+  private def transformerUpsertToUpdate(sequences: Seq[SequenceUpsertSchema]) = {
+    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequences)
+    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
+      getExistingSequenceColumnsByExternalIds(sequences)
     Transformer
       .define[SequenceUpsertSchema, SequenceUpdate]
       .withFieldComputed(
@@ -154,6 +151,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
               .toSet)
       )
       .buildTransformer
+  }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val sequences =
@@ -162,11 +160,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     implicit val toCreate = transformerUpsertToCreate()
 
-    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequences)
-    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
-      getExistingSequenceColumnsByExternalIds(sequences)
-
-    implicit val toUpdate = transformerUpsertToUpdate(existingSeqs, existingSeqsWithExtId)
+    implicit val toUpdate = transformerUpsertToUpdate(sequences)
 
     genericUpsert[Sequence, SequenceUpsertSchema, SequenceCreate, SequenceUpdate, SequencesResource[IO]](
       sequences,
@@ -183,11 +177,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     implicit val toCreate = transformerUpsertToCreate()
 
-    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequences)
-    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
-      getExistingSequenceColumnsByExternalIds(sequences)
-
-    implicit val toUpdate = transformerUpsertToUpdate(existingSeqs, existingSeqsWithExtId)
+    implicit val toUpdate = transformerUpsertToUpdate(sequences)
 
     // scalastyle:off no.whitespace.after.left.bracket
     createOrUpdateByExternalId[
