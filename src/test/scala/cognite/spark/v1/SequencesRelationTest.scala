@@ -154,16 +154,16 @@ class SequencesRelationTest
       name = Some("a"),
       columns = Seq(
         SequenceColumnCreate(
-          name = Some("col1"),
-          externalId = "c_col1",
-          description = Some("col1 description"),
+          name = Some("col_will_be_updated_name"),
+          externalId = "col_will_be_updated",
+          description = Some("col_will_be_updated_description"),
           valueType = "STRING",
           metadata = Some(Map("foo" -> "bar"))
         ),
         SequenceColumnCreate(
-          name = Some("col10"),
-          externalId = "c_col10",
-          description = Some("col10 description"),
+          name = Some("col_will_be_removed_name"),
+          externalId = "col_will_be_removed",
+          description = Some("col_will_be_removed_description"),
           valueType = "STRING",
           metadata = Some(Map("foo" -> "bar"))
         )
@@ -179,16 +179,16 @@ class SequencesRelationTest
               |       array(
               |           named_struct(
               |               'metadata', map('m1', 'v1', 'm2', NULL),
-              |               'name', 'col1_updated',
-              |               'description', 'updated desc1',
-              |               'externalId', 'c_col1',
+              |               'name', 'col_updated_name',
+              |               'description', 'col_updated_description',
+              |               'externalId', 'col_updated',
               |               'valueType', NULL
               |           ),
               |           named_struct(
               |               'metadata', map('m1', 'v1', 'm2', 'v2'),
-              |               'name', 'col2',
-              |               'description', 'updated desc2',
-              |               'externalId', 'c_col2',
+              |               'name', 'new_col_added_name',
+              |               'description', 'new_col_added_description',
+              |               'externalId', 'new_col_added',
               |               'valueType', 'STRING'
               |           )
               |       ) as columns
@@ -201,9 +201,9 @@ class SequencesRelationTest
               |       array(
               |           named_struct(
               |               'metadata', map('foo', 'bar', 'nothing', NULL),
-              |               'name', 's2c3',
-              |               'description', 'hey',
-              |               'externalId', 'c_col3',
+              |               'name', 'new_sequence_new_column_name',
+              |               'description', 'new_sequence_new_column_description',
+              |               'externalId', 'new_sequence_new_column',
               |               'valueType', 'STRING'
               |           )
               |       ) as columns
@@ -226,19 +226,63 @@ class SequencesRelationTest
     sequence2.name shouldBe Some("seq name2")
     sequence2.description shouldBe Some("desc2")
 
-    columns1.toList.flatMap(_.name).toSet shouldBe Set("col1_updated", "col2")
-    columns1.toList.flatMap(_.externalId).toSet shouldBe Set("c_col1", "c_col2")
-    columns1.toList.flatMap(_.description).toSet shouldBe Set("updated desc1", "updated desc2")
+    columns1.toList.flatMap(_.name).toSet shouldBe Set("col_updated_name", "new_col_added_name")
+    columns1.toList.flatMap(_.externalId).toSet shouldBe Set("col_updated", "new_col_added")
+    columns1.toList.flatMap(_.description).toSet shouldBe Set("col_updated_description", "new_col_added_description")
     columns1.toList.flatMap(_.metadata).toSet shouldBe Set(Map("m1" -> "v1"), Map("m1" -> "v1", "m2" -> "v2"))
     columns1.map(_.valueType).toList shouldBe List("STRING", "STRING")
 
-    columns2.head.name shouldBe Some("s2c3")
-    columns2.head.externalId shouldBe Some("c_col3")
-    columns2.head.description shouldBe Some("hey")
+    columns2.head.name shouldBe Some("new_sequence_new_column_name")
+    columns2.head.externalId shouldBe Some("new_sequence_new_column")
+    columns2.head.description shouldBe Some("new_sequence_new_column_description")
     columns2.head.metadata shouldBe Some(Map("foo" -> "bar"))
     columns2.head.valueType shouldBe "STRING"
 
     cleanupSequences(Seq(id, s"$id-2"))
+  }
+
+  it should "not update columns when none provided" in {
+    val id = UUID.randomUUID().toString
+    val sequenceToCreate = SequenceInsertSchema(
+      externalId = Some(id),
+      name = Some("a"),
+      columns = Seq(
+        SequenceColumnCreate(
+          name = Some("c1"),
+          externalId = "c_c1",
+          description = Some("hehe"),
+          valueType = "STRING",
+          metadata = Some(Map("foo" -> "bar"))
+        )
+      )
+    )
+
+    ingests(Seq(sequenceToCreate))
+
+    spark
+      .sql(s"""select '$id' as externalId,
+              |'xD' as name,
+              |'lol' as description""".stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "sequences")
+      .option("onconflict", "update")
+      .save
+
+    val sequence = writeClient.sequences.retrieveByExternalId(id)
+    val columns = sequence.columns
+
+    sequence.name shouldBe Some("xD")
+    sequence.description shouldBe Some("lol")
+
+    columns.head.name shouldBe Some("c1")
+    columns.head.externalId shouldBe Some("c_c1")
+    columns.head.description shouldBe Some("hehe")
+    columns.head.metadata shouldBe Some(Map("foo" -> "bar"))
+    columns.head.valueType shouldBe "STRING"
+
+    cleanupSequences(Seq(id))
   }
 
   it should "chunk sequence if more than 10000 columns in the request" in {
