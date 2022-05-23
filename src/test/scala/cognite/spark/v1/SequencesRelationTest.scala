@@ -5,6 +5,9 @@ import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 import java.util.UUID
+
+import org.apache.spark.SparkException
+
 import scala.util.control.NonFatal
 
 class SequencesRelationTest
@@ -283,6 +286,53 @@ class SequencesRelationTest
     columns.head.valueType shouldBe "STRING"
 
     cleanupSequences(Seq(id))
+  }
+
+  it should "return error when column valueType is attempted to be changed" in {
+    val id = UUID.randomUUID().toString
+    val sequenceToCreate = SequenceInsertSchema(
+      externalId = Some(id),
+      name = Some("a"),
+      columns = Seq(
+        SequenceColumnCreate(
+          name = Some("hey"),
+          externalId = "hey",
+          description = Some("hey"),
+          valueType = "STRING",
+          metadata = Some(Map("foo" -> "bar"))
+        )
+      )
+    )
+
+    ingests(Seq(sequenceToCreate))
+
+    val exception = intercept[SparkException] {
+      spark
+        .sql(
+          s"""select '$id' as externalId,
+             |'xD' as name,
+             |'lol' as description,
+             |array(
+             |   named_struct(
+             |     'metadata', map('foo', 'bar', 'nothing', NULL),
+             |     'name', 'hey',
+             |     'description', 'hey',
+             |     'externalId', 'hey',
+             |     'valueType', 'LONG'
+             |   )
+             |) as columns""".stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "sequences")
+        .option("onconflict", "update")
+        .save
+    }
+
+    cleanupSequences(Seq(id))
+
+    exception.getMessage should
+      include("Column valueType cannot be modified: the previous value is STRING and the user attempted to update it with LONG")
   }
 
   it should "chunk sequence if more than 10000 columns in the request" in {

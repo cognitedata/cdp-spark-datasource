@@ -76,13 +76,13 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   private def isUpdateEmpty(u: SequenceUpdate): Boolean = u == SequenceUpdate()
 
   private def getExistingSequenceColumnsByIds(
-      sequenceUpdates: Seq[SequenceUpsertSchema]): Map[Option[Long], Seq[String]] = {
+      sequenceUpdates: Seq[SequenceUpsertSchema]): Map[Option[Long], Seq[(String, String)]] = {
     val ids = sequenceUpdates.filter(_.id.nonEmpty).flatMap(_.id.toList)
     if (ids.nonEmpty) {
       client.sequences
         .retrieveByIds(ids, ignoreUnknownIds = true)
         .unsafeRunSync()
-        .map(s => Some(s.id) -> s.columns.toList.flatMap(_.externalId.toList))
+        .map(s => Some(s.id) -> s.columns.toList.map(c => (c.externalId.getOrElse(""), c.valueType)))
         .toMap
     } else {
       Map()
@@ -90,7 +90,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   private def getExistingSequenceColumnsByExternalIds(
-      sequenceUpdates: Seq[SequenceUpsertSchema]): Map[Option[String], Seq[String]] = {
+      sequenceUpdates: Seq[SequenceUpsertSchema]): Map[Option[String], Seq[(String, String)]] = {
     val externalIds = sequenceUpdates
       .filter(s => s.id.isEmpty && s.externalId.toOption.nonEmpty)
       .flatMap(_.externalId.toOption.toList)
@@ -100,7 +100,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         .unsafeRunSync()
         .collect {
           case s if s.externalId.nonEmpty =>
-            s.externalId -> s.columns.toList.flatMap(_.externalId.toList)
+            s.externalId -> s.columns.toList.map(c => (c.externalId.getOrElse(""), c.valueType))
         }
         .toMap
     } else {
@@ -137,8 +137,9 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .buildTransformer
 
   private def transformerUpsertToUpdate(sequences: Seq[SequenceUpsertSchema]) = {
-    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequences)
-    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
+    val existingSeqs: Map[Option[Long], Seq[(String, String)]] = getExistingSequenceColumnsByIds(
+      sequences)
+    val existingSeqsWithExtId: Map[Option[String], Seq[(String, String)]] =
       getExistingSequenceColumnsByExternalIds(sequences)
     Transformer
       .define[SequenceUpsertSchema, SequenceUpdate]
@@ -252,25 +253,39 @@ final case class SequenceUpsertSchema(
     cols.map(_.toColumnCreate)
   }
 
-  def getSequenceColumnsUpdate(existingColumns: Set[String])(
+  def getSequenceColumnsUpdate(existingColumns: Set[(String, String)])(
       implicit tr: Transformer[OptionalField[String], Option[Setter[String]]])
     : Option[SequenceColumnsUpdate] =
     // Helper for updates and upserts
-    // SequenceColumnUpsertSchema types is used for column updates in SequenceColumnUpsertSchema,
+    // SequenceColumnUpsertSchema type is used for column updates in SequenceColumnUpsertSchema,
     // This helper converts SequenceColumnUpsertSchema to SDK Column updates by detecting what to add, remove or modify
     columns match {
       // Not to break update backward compatibility,
       // upserting empty column list causes 422 (Deleting all columns of the sequence) so we skip columns in the update
       case None => None
       case Some(Seq()) => None
-      // When value provided we upsert columns in sequence update ->
+      // When value provided, we upsert columns in sequence update ->
       // we implement columns.set here ourselves using add+remove+modify.
       case Some(colUpsert) =>
         val requestedCols = colUpsert.map(col => col.externalId -> col).toMap
-        val (modifyMap, addMap) = requestedCols.partition(item => existingColumns contains item._1)
+        val existingColumnExternalIds = existingColumns.map(_._1)
+        val (modifyMap, addMap) =
+          requestedCols.partition(item => existingColumnExternalIds contains item._1)
+
+        // Column.modify do not allow valueType updates,
+        // If user tries to change the valueType, we abort.
+        existingColumns.foreach {
+          case (externalId: String, valueType: String) =>
+            val newValueType = modifyMap.get(externalId).flatMap(_.valueType)
+            if (newValueType.nonEmpty && !newValueType.contains(valueType)) {
+              throw new CdfSparkIllegalArgumentException(
+                s"Column valueType cannot be modified: the previous value is $valueType and the user" +
+                  s" attempted to update it with ${newValueType.getOrElse("null")}")
+            }
+        }
 
         val removeData =
-          Option(existingColumns.diff(requestedCols.keySet).toList.map(CogniteExternalId(_)))
+          Option(existingColumnExternalIds.diff(requestedCols.keySet).toList.map(CogniteExternalId(_)))
             .filter(_.nonEmpty)
 
         val addData = Option(addMap.values.toList.map(_.toColumnCreate)).filter(_.nonEmpty)
