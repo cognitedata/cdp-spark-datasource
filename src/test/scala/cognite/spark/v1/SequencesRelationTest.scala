@@ -226,10 +226,10 @@ class SequencesRelationTest
     sequence2.name shouldBe Some("seq name2")
     sequence2.description shouldBe Some("desc2")
 
-    columns1.toList.flatMap(_.name.toList).toSet shouldBe Set("col1_updated", "col2")
-    columns1.toList.flatMap(_.externalId.toList).toSet shouldBe Set("c_col1", "c_col2")
+    columns1.toList.flatMap(_.name).toSet shouldBe Set("col1_updated", "col2")
+    columns1.toList.flatMap(_.externalId).toSet shouldBe Set("c_col1", "c_col2")
     columns1.toList.flatMap(_.description).toSet shouldBe Set("updated desc1", "updated desc2")
-    columns1.toList.flatMap(_.metadata.toList).toSet shouldBe Set(Map("m1" -> "v1"), Map("m1" -> "v1", "m2" -> "v2"))
+    columns1.toList.flatMap(_.metadata).toSet shouldBe Set(Map("m1" -> "v1"), Map("m1" -> "v1", "m2" -> "v2"))
     columns1.map(_.valueType).toList shouldBe List("STRING", "STRING")
 
     columns2.head.name shouldBe Some("s2c3")
