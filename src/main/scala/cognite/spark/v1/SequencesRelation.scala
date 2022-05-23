@@ -114,17 +114,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
       getExistingSequenceColumnsByExternalIds(sequenceUpdates)
 
-    implicit val toUpdate = Transformer
-      .define[SequenceUpsertSchema, SequenceUpdate]
-      .withFieldComputed(
-        _.columns,
-        x =>
-          x.getSequenceColumnsUpdate(
-            existingSeqs
-              .getOrElse(x.id, existingSeqsWithExtId.getOrElse(x.externalId.toOption, Seq()))
-              .toSet)
-      )
-      .buildTransformer
+    implicit val toUpdate = transformerUpsertToUpdate(existingSeqs, existingSeqsWithExtId)
 
     updateByIdOrExternalId[SequenceUpsertSchema, SequenceUpdate, SequencesResource[IO], Sequence](
       sequenceUpdates,
@@ -141,25 +131,19 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .flatTap(_ => incMetrics(itemsDeleted, ids.length))
   }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val sequences =
-      rows
-        .map(fromRow[SequenceUpsertSchema](_))
+  private def transformerUpsertToCreate() =
+    Transformer
+      .define[SequenceUpsertSchema, SequenceCreate]
+      .withFieldComputed(
+        _.columns,
+        x => x.getSequenceColumnCreate
+      )
+      .buildTransformer
 
-    implicit val toCreate =
-      Transformer
-        .define[SequenceUpsertSchema, SequenceCreate]
-        .withFieldComputed(
-          _.columns,
-          x => x.getSequenceColumnCreate
-        )
-        .buildTransformer
-
-    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequences)
-    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
-      getExistingSequenceColumnsByExternalIds(sequences)
-
-    implicit val toUpdate = Transformer
+  private def transformerUpsertToUpdate(
+      existingSeqs: Map[Option[Long], Seq[String]],
+      existingSeqsWithExtId: Map[Option[String], Seq[String]]) =
+    Transformer
       .define[SequenceUpsertSchema, SequenceUpdate]
       .withFieldComputed(
         _.columns,
@@ -170,6 +154,19 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
               .toSet)
       )
       .buildTransformer
+
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
+    val sequences =
+      rows
+        .map(fromRow[SequenceUpsertSchema](_))
+
+    implicit val toCreate = transformerUpsertToCreate()
+
+    val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequences)
+    val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
+      getExistingSequenceColumnsByExternalIds(sequences)
+
+    implicit val toUpdate = transformerUpsertToUpdate(existingSeqs, existingSeqsWithExtId)
 
     genericUpsert[Sequence, SequenceUpsertSchema, SequenceCreate, SequenceUpdate, SequencesResource[IO]](
       sequences,
@@ -184,30 +181,13 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       rows
         .map(fromRow[SequenceUpsertSchema](_))
 
-    implicit val toCreate =
-      Transformer
-        .define[SequenceUpsertSchema, SequenceCreate]
-        .withFieldComputed(
-          _.columns,
-          x => x.getSequenceColumnCreate
-        )
-        .buildTransformer
+    implicit val toCreate = transformerUpsertToCreate()
 
     val existingSeqs: Map[Option[Long], Seq[String]] = getExistingSequenceColumnsByIds(sequences)
     val existingSeqsWithExtId: Map[Option[String], Seq[String]] =
       getExistingSequenceColumnsByExternalIds(sequences)
 
-    implicit val toUpdate = Transformer
-      .define[SequenceUpsertSchema, SequenceUpdate]
-      .withFieldComputed(
-        _.columns,
-        x =>
-          x.getSequenceColumnsUpdate(
-            existingSeqs
-              .getOrElse(x.id, existingSeqsWithExtId.getOrElse(x.externalId.toOption, Seq()))
-              .toSet)
-      )
-      .buildTransformer
+    implicit val toUpdate = transformerUpsertToUpdate(existingSeqs, existingSeqsWithExtId)
 
     // scalastyle:off no.whitespace.after.left.bracket
     createOrUpdateByExternalId[
