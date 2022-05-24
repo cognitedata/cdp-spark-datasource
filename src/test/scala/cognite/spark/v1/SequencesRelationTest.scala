@@ -4,8 +4,10 @@ import com.cognite.sdk.scala.v1.SequenceColumnCreate
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
-
 import java.util.UUID
+
+import org.apache.spark.SparkException
+
 import scala.util.control.NonFatal
 
 class SequencesRelationTest
@@ -98,7 +100,6 @@ class SequencesRelationTest
   }
 
   it should "create and update sequence" in {
-    val key = shortRandomString()
     val id = UUID.randomUUID().toString
     val sequence = SequenceInsertSchema(
       externalId = Some(id),
@@ -124,7 +125,13 @@ class SequencesRelationTest
       externalId = Some(id),
       name = Some("a"),
       description = Some("description abc"),
-      columns = Seq()
+      columns = Seq(SequenceColumnCreate(
+        name = Some("col2"),
+        externalId = "col1",
+        description = Some("col2 description"),
+        valueType = "STRING",
+        metadata = Some(Map("foo2" -> "bar2"))
+      ))
     )
 
     ingests(Seq(sequenceUpdate), conflictMode = "update")
@@ -133,9 +140,199 @@ class SequencesRelationTest
       spark
         .sql(s"select * from sequences where description = 'description abc' and externalId = '$id'")
         .collect,
-      _.length != 1)
+      rows => rows.length != 1)
+
+    val colHead = writeClient.sequences.retrieveByExternalId(s"$id").columns.head
+    colHead.name shouldBe Some("col2")
+    colHead.description shouldBe Some("col2 description")
+    colHead.metadata shouldBe Some(Map("foo2" -> "bar2"))
+    cleanupSequences(Seq(id))
+  }
+
+
+  it should "upsert using SQL" in {
+    val id = UUID.randomUUID().toString
+    val sequenceToCreate = SequenceInsertSchema(
+      externalId = Some(id),
+      name = Some("a"),
+      columns = Seq(
+        SequenceColumnCreate(
+          name = Some("col_will_be_updated_name"),
+          externalId = "col_will_be_updated",
+          description = Some("col_will_be_updated_description"),
+          valueType = "STRING",
+          metadata = Some(Map("foo" -> "bar"))
+        ),
+        SequenceColumnCreate(
+          name = Some("col_will_be_removed_name"),
+          externalId = "col_will_be_removed",
+          description = Some("col_will_be_removed_description"),
+          valueType = "STRING",
+          metadata = Some(Map("foo" -> "bar"))
+        )
+      )
+    )
+
+    ingests(Seq(sequenceToCreate))
+
+    spark
+      .sql(s"""select '$id' as externalId,
+              |       'seq name1' as name,
+              |       'desc1' as description,
+              |       array(
+              |           named_struct(
+              |               'metadata', map('m1', 'v1', 'm2', NULL),
+              |               'name', 'col_updated_name',
+              |               'description', 'col_updated_description',
+              |               'externalId', 'col_updated',
+              |               'valueType', NULL
+              |           ),
+              |           named_struct(
+              |               'metadata', map('m1', 'v1', 'm2', 'v2'),
+              |               'name', 'new_col_added_name',
+              |               'description', 'new_col_added_description',
+              |               'externalId', 'new_col_added',
+              |               'valueType', 'STRING'
+              |           )
+              |       ) as columns
+              |
+              |union all
+              |
+              |select '$id-2' as externalId,
+              |       'seq name2' as name,
+              |       'desc2' as description,
+              |       array(
+              |           named_struct(
+              |               'metadata', map('foo', 'bar', 'nothing', NULL),
+              |               'name', 'new_sequence_new_column_name',
+              |               'description', 'new_sequence_new_column_description',
+              |               'externalId', 'new_sequence_new_column',
+              |               'valueType', 'STRING'
+              |           )
+              |       ) as columns
+              |""".stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "sequences")
+      .option("onconflict", "upsert")
+      .save
+
+    val sequence1 = writeClient.sequences.retrieveByExternalId(id)
+    val columns1 = sequence1.columns
+    val sequence2 = writeClient.sequences.retrieveByExternalId(s"$id-2")
+    val columns2 = sequence2.columns
+
+    sequence1.name shouldBe Some("seq name1")
+    sequence1.description shouldBe Some("desc1")
+
+    sequence2.name shouldBe Some("seq name2")
+    sequence2.description shouldBe Some("desc2")
+
+    columns1.toList.flatMap(_.name).toSet shouldBe Set("col_updated_name", "new_col_added_name")
+    columns1.toList.flatMap(_.externalId).toSet shouldBe Set("col_updated", "new_col_added")
+    columns1.toList.flatMap(_.description).toSet shouldBe Set("col_updated_description", "new_col_added_description")
+    columns1.toList.flatMap(_.metadata).toSet shouldBe Set(Map("m1" -> "v1"), Map("m1" -> "v1", "m2" -> "v2"))
+    columns1.map(_.valueType).toList shouldBe List("STRING", "STRING")
+
+    columns2.head.name shouldBe Some("new_sequence_new_column_name")
+    columns2.head.externalId shouldBe Some("new_sequence_new_column")
+    columns2.head.description shouldBe Some("new_sequence_new_column_description")
+    columns2.head.metadata shouldBe Some(Map("foo" -> "bar"))
+    columns2.head.valueType shouldBe "STRING"
+
+    cleanupSequences(Seq(id, s"$id-2"))
+  }
+
+  it should "not update columns when none provided" in {
+    val id = UUID.randomUUID().toString
+    val sequenceToCreate = SequenceInsertSchema(
+      externalId = Some(id),
+      name = Some("a"),
+      columns = Seq(
+        SequenceColumnCreate(
+          name = Some("c1"),
+          externalId = "c_c1",
+          description = Some("hehe"),
+          valueType = "STRING",
+          metadata = Some(Map("foo" -> "bar"))
+        )
+      )
+    )
+
+    ingests(Seq(sequenceToCreate))
+
+    spark
+      .sql(s"""select '$id' as externalId,
+              |'xD' as name,
+              |'lol' as description""".stripMargin)
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "sequences")
+      .option("onconflict", "update")
+      .save
+
+    val sequence = writeClient.sequences.retrieveByExternalId(id)
+    val columns = sequence.columns
+
+    sequence.name shouldBe Some("xD")
+    sequence.description shouldBe Some("lol")
+
+    columns.head.name shouldBe Some("c1")
+    columns.head.externalId shouldBe Some("c_c1")
+    columns.head.description shouldBe Some("hehe")
+    columns.head.metadata shouldBe Some(Map("foo" -> "bar"))
+    columns.head.valueType shouldBe "STRING"
 
     cleanupSequences(Seq(id))
+  }
+
+  it should "return error when column valueType is attempted to be changed" in {
+    val id = UUID.randomUUID().toString
+    val sequenceToCreate = SequenceInsertSchema(
+      externalId = Some(id),
+      name = Some("a"),
+      columns = Seq(
+        SequenceColumnCreate(
+          name = Some("hey"),
+          externalId = "hey",
+          description = Some("hey"),
+          valueType = "STRING",
+          metadata = Some(Map("foo" -> "bar"))
+        )
+      )
+    )
+
+    ingests(Seq(sequenceToCreate))
+
+    val exception = intercept[SparkException] {
+      spark
+        .sql(
+          s"""select '$id' as externalId,
+             |'xD' as name,
+             |'lol' as description,
+             |array(
+             |   named_struct(
+             |     'metadata', map('foo', 'bar', 'nothing', NULL),
+             |     'name', 'hey',
+             |     'description', 'hey',
+             |     'externalId', 'hey',
+             |     'valueType', 'LONG'
+             |   )
+             |) as columns""".stripMargin)
+        .write
+        .format("cognite.spark.v1")
+        .option("apiKey", writeApiKey)
+        .option("type", "sequences")
+        .option("onconflict", "update")
+        .save
+    }
+
+    cleanupSequences(Seq(id))
+
+    exception.getMessage should
+      include("Column valueType cannot be modified: the previous value is STRING and the user attempted to update it with LONG")
   }
 
   it should "chunk sequence if more than 10000 columns in the request" in {
