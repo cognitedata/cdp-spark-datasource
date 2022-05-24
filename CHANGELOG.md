@@ -1,3 +1,10 @@
+# 2.0.10
+
+## Enhancements
+
+* Added support for column updates in sequences relation
+* Added support for upsert in sequences relation
+
 # 2.0.7
 
 ## Enhancements
