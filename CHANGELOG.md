@@ -1,3 +1,22 @@
+# 2.0.10
+
+## Enhancements
+
+* Added support for column updates in sequences relation
+* Added support for upsert in sequences relation
+
+# 2.0.9
+
+## Enhancements
+
+* Expose CDP API error on schema resolution
+
+# 2.0.8
+
+## Enhancements
+
+* Improve error messages for alpha data model instances relation
+
 # 2.0.7
 
 ## Enhancements
