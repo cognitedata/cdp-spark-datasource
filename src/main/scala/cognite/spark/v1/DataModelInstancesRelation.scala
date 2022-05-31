@@ -54,17 +54,16 @@ class DataModelInstanceRelation(
         "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false),
         "type" -> DataModelPropertyDefinition(PropertyType.Text, true),
         "name" -> DataModelPropertyDefinition(PropertyType.Text, true),
-        "description" -> DataModelPropertyDefinition(PropertyType.Text, true),
+        "description" -> DataModelPropertyDefinition(PropertyType.Text, true)
       )
     }
   }
 
-  override def schema: StructType = new StructType(
-    modelInfo.map {
+  override def schema: StructType =
+    new StructType(modelInfo.map {
       case (name, prop) =>
         StructField(name, propertyTypeToSparkType(prop.`type`), nullable = prop.nullable)
-    }.toArray
-  )
+    }.toArray)
 
   private def upsertOrInsert(rows: Seq[Row], overwrite: Boolean) =
     if (rows.isEmpty) {
@@ -209,16 +208,17 @@ class DataModelInstanceRelation(
     val nameIndex = schema.fieldNames.indexOf("name")
     val descriptionIndex = schema.fieldNames.indexOf("description")
 
-    val indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)] = schema.fields.zipWithIndex.map {
-          case (field: StructField, index: Int) =>
-            val propertyType = modelInfo.getOrElse(
-              field.name,
-              throw new CdfSparkException(
-                s"Can't insert property `${field.name}` " +
-                  s"into data model $modelExternalId, the property does not exist in the definition")
-            )
-            (index, field.name, propertyType)
-        }
+    val indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)] =
+      schema.fields.zipWithIndex.map {
+        case (field: StructField, index: Int) =>
+          val propertyType = modelInfo.getOrElse(
+            field.name,
+            throw new CdfSparkException(
+              s"Can't insert property `${field.name}` " +
+                s"into data model $modelExternalId, the property does not exist in the definition")
+          )
+          (index, field.name, propertyType)
+      }
 
     def parseNodeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Node = {
@@ -261,6 +261,7 @@ class DataModelInstanceRelation(
   }
   // scalastyle:on method.length
 }
+// scalastyle:off
 
 object DataModelInstanceRelation {
   private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
@@ -278,9 +279,9 @@ object DataModelInstanceRelation {
 
     s"$a of type ${a.getClass} is not a valid $propertyType.$sparkSqlTypeMessage"
   }
-
   private def propertyNotNullableMessage(propertyType: PropertyType[_]) =
     s"Property of ${propertyType.code} type is not nullable."
+  // scalastyle:on
 
 //  private def parsePropertyValue(value: Any): PropertyType = value match {
 //    case x: Double => Float64Property(x)
