@@ -90,9 +90,9 @@ class DefaultSource
       config: RelationConfig,
       sqlContext: SQLContext) = {
     val spaceExternalId =
-      parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
-    val modelExternalId =
       parameters.getOrElse("spaceExternalId", sys.error("spaceExternalId must be specified"))
+    val modelExternalId =
+      parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
     val instanceSpaceExternalId =
       parameters.getOrElse(
         "instanceSpaceExternalId",

@@ -58,7 +58,8 @@ class DataModelInstancesRelationTest
       ???
     }
 
-  private def byExternalId(isNode: Boolean, modelExternalId: String, externalId: String): String = getByExternalId(isNode = isNode, modelExternalId, externalId).externalId
+  private def byExternalId(isNode: Boolean, modelExternalId: String, externalId: String): String =
+    getByExternalId(isNode = isNode, modelExternalId, externalId).externalId
 
   // TODO reenable shortRandomString suffix after delete is implemented in DMS. Now just create once for tests.
   private val multiValuedExtId = "MultiValues" // + shortRandomString()
@@ -100,7 +101,7 @@ class DataModelInstancesRelationTest
 
   override def beforeAll(): Unit = {
     def createAndGetModels(): Seq[DataModel] = {
-      bluefieldAlphaClient.dataModels
+      /*bluefieldAlphaClient.dataModels
         .createItems(
           Seq(
             DataModel(externalId = multiValuedExtId, dataModelType = NodeType, properties = Some(props)),
@@ -108,7 +109,7 @@ class DataModelInstancesRelationTest
             DataModel(externalId = multiValuedExtId2, dataModelType = NodeType, properties = Some(props3)),
             DataModel(externalId = primitiveExtId2, dataModelType = NodeType, properties = Some(props4)),
           ), spaceExternalId)
-        .unsafeRunSync()
+        .unsafeRunSync()*/
       bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
 
@@ -172,6 +173,8 @@ class DataModelInstancesRelationTest
       .option("project", "extractor-bluefield-testing")
       .option("scopes", "https://bluefield.cognitedata.com/.default")
       .option("modelExternalId", modelExternalId)
+      .option("spaceExternalId", spaceExternalId)
+      .option("instanceSpaceExternalId", spaceExternalId)
       .option("onconflict", onconflict)
       .option("collectMetrics", true)
       .option("metricsPrefix", modelExternalId)
@@ -187,14 +190,14 @@ class DataModelInstancesRelationTest
         case NonFatal(_) => // ignore
       }
     }
-/*
+
  it should "ingest data" in {
     val randomId = "prim_test_" + shortRandomString()
     tryTestAndCleanUp(
       Seq(randomId), {
         retryWhile[Boolean](
           {
-            Try {
+            val res = Try {
               insertRows(
                 primitiveExtId,
                 spark
@@ -203,15 +206,19 @@ class DataModelInstancesRelationTest
                         |'abc' as prop_string,
                         |'${randomId}' as externalId""".stripMargin)
               )
-            }.isFailure
+            }
+            println(res)
+              res.isFailure
           },
           failure => failure
         )
-        byExternalId(primitiveExtId, randomId) shouldBe Some(randomId)
+        byExternalId(true, primitiveExtId, randomId) shouldBe randomId
         getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
       }
     )
   }
+
+
 
   it should "return an informative error when a value with wrong type is attempted to be ingested" in {
     val ex = sparkIntercept {
@@ -230,6 +237,7 @@ class DataModelInstancesRelationTest
   }
 
 
+
   it should "return an informative error when schema inference fails" in {
     val ex = sparkIntercept {
       insertRows(
@@ -241,9 +249,12 @@ class DataModelInstancesRelationTest
                   |'test' as externalId""".stripMargin)
       )
     }
+    // TODO Missing model externalId used to result in CdpApiException, now it returns empty list
+    //  Check with dms team
+    // ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. " +
+    //  "Got an exception from CDF API: ids not found: non-existing-model (code: 400)"
+    ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. Please check if the model exists."
     ex shouldBe an[CdfSparkException]
-    ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. " +
-      "Got an exception from CDF API: ids not found: non-existing-model (code: 400)"
   }
 
 
@@ -266,8 +277,7 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(primitiveExtId, randomId)
-          .flatMap(dmi => dmi.properties.map(mp => mp.get("prop_float"))).head shouldBe Some(Float64Property(2.0))
+        getByExternalId(true, primitiveExtId, randomId).allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(2.0))
       }
     )
   }
@@ -291,8 +301,7 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(primitiveExtId, randomId)
-          .flatMap(dmi => dmi.properties.map(mp => mp.get("prop_float"))).head shouldBe Some(Float64Property(3.0))
+        getByExternalId(true, primitiveExtId, randomId).allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(3.0))
       }
     )
   }
@@ -304,7 +313,7 @@ class DataModelInstancesRelationTest
       Seq(randomId1, randomId2), {
         retryWhile[Boolean](
           {
-            Try {
+            val res = Try {
               insertRows(
                 multiValuedExtId,
                 spark.sql(s"""select array() as arr_int,
@@ -317,19 +326,22 @@ class DataModelInstancesRelationTest
                 |
                 |select array(1,2) as arr_int,
                 |NULL as arr_boolean,
-                |array('hehe') as arr_str,
+                |array('x', 'y') as arr_str,
                 |'hehe' as str_prop,
                 |'${randomId2}' as externalId""".stripMargin)
               )
-            }.isFailure
+            }
+            println(res)
+              res.isFailure
           },
           failure => failure
         )
-        (getExternalIdList(multiValuedExtId) should contain).allOf(randomId1, randomId2)
+        (getExternalIdList(true, multiValuedExtId) should contain).allOf(randomId1, randomId2)
         getNumberOfRowsUpserted(multiValuedExtId, "datamodelinstances") shouldBe 2
       }
     )
   }
+  /*
 
  it should "read instances" in {
     val randomId = "prim_test2_" + shortRandomString()

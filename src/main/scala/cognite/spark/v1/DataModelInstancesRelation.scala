@@ -24,6 +24,7 @@ class DataModelInstanceRelation(
     with WritableRelation
     with PrunedFilteredScan {
   import CdpConnector._
+  import com.cognite.sdk.scala.v1.resources.DataModels.{dataModelPropertyTypeDecoder, dataModelPropertyTypeEncoder}
 
   private val model: DataModel = alphaClient.dataModels
     .retrieveByExternalIds(Seq(modelExternalId), spaceExternalId = spaceExternalId)
@@ -35,7 +36,11 @@ class DataModelInstanceRelation(
           e)
     }
     .unsafeRunSync()
-    .head
+    .headOption
+    // TODO Missing model externalId used to result in CdpApiException, now it returns empty list
+    //  Check with dms team
+    .getOrElse(
+    throw new CdfSparkException(s"Could not resolve schema of data model $modelExternalId. Please check if the model exists."))
 
   private val modelType = model.dataModelType
 
@@ -425,7 +430,7 @@ object DataModelInstanceRelation {
 
   private def toBooleanProperty: Any => DataModelProperty[_] = {
     case x: Boolean => PropertyType.Boolean.Property(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "boolean", Some("boolean")))
+    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, PropertyType.Boolean.code, Some("boolean")))
   }
 
   private def toInt32Property(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
