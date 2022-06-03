@@ -3,7 +3,19 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.DataModelInstanceRelation._
-import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.common.{
+  CdpApiException,
+  DSLAndFilter,
+  DSLEqualsFilter,
+  DSLExistsFilter,
+  DSLInFilter,
+  DSLNotFilter,
+  DSLOrFilter,
+  DSLPrefixFilter,
+  DSLRangeFilter,
+  DomainSpecificLanguageFilter,
+  EmptyFilter
+}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import org.apache.spark.rdd.RDD
@@ -24,7 +36,10 @@ class DataModelInstanceRelation(
     with WritableRelation
     with PrunedFilteredScan {
   import CdpConnector._
-  import com.cognite.sdk.scala.v1.resources.DataModels.{dataModelPropertyTypeDecoder, dataModelPropertyTypeEncoder}
+  import com.cognite.sdk.scala.v1.resources.DataModels.{
+    dataModelPropertyTypeDecoder,
+    dataModelPropertyTypeEncoder
+  }
 
   private val model: DataModel = alphaClient.dataModels
     .retrieveByExternalIds(Seq(modelExternalId), spaceExternalId = spaceExternalId)
@@ -39,8 +54,8 @@ class DataModelInstanceRelation(
     .headOption
     // TODO Missing model externalId used to result in CdpApiException, now it returns empty list
     //  Check with dms team
-    .getOrElse(
-    throw new CdfSparkException(s"Could not resolve schema of data model $modelExternalId. Please check if the model exists."))
+    .getOrElse(throw new CdfSparkException(
+      s"Could not resolve schema of data model $modelExternalId. Please check if the model exists."))
 
   private val modelType = model.dataModelType
 
@@ -93,112 +108,131 @@ class DataModelInstanceRelation(
 
   def insert(rows: Seq[Row]): IO[Unit] = upsertOrInsert(rows, false)
 
-//  def toRow(a: ProjectedDataModelInstance): Row = {
-//    if (config.collectMetrics) {
-//      itemsRead.inc()
-//    }
-//    Row.fromSeq(a.properties)
-//  }
-//
-//  def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
-//
-//  def toProjectedInstance(
-//      dmi: DataModelInstanceQueryResponse,
-//      requiredPropsArray: Seq[String]): ProjectedDataModelInstance = {
-//    val dmiProperties = dmi.properties.getOrElse(Map())
-//    ProjectedDataModelInstance(
-//      externalId = dmi.properties
-//        .flatMap(_.get("externalId"))
-//        .collect { case StringProperty(externalId) => externalId }
-//        .getOrElse(
-//          throw new CdfSparkException("Can't read data model instance, `externalId` is missing.")),
-//      properties = requiredPropsArray.map { name: String =>
-//        val value = dmiProperties.get(name)
-//        value.map(fromPropertyType).orNull
-//      }.toArray
-//    )
-//  }
-//
-//  def getInstanceFilter(sparkFilter: Filter): Option[DataModelInstanceFilter] =
-//    sparkFilter match {
-//      case EqualTo(left, right) => {
-//        Some(DMIEqualsFilter(Seq(modelExternalId, left), parsePropertyValue(right)))
-//      }
-//      case In(attribute, values) =>
-//        if (modelInfo(attribute).`type`.endsWith("[]")) {
-//          None
-//        } else {
-//          val setValues = values.filter(_ != null)
-//          Some(DMIInFilter(Seq(modelExternalId, attribute), setValues.map(parsePropertyValue)))
-//        }
-//      case StringStartsWith(attribute, value) =>
-//        Some(DMIPrefixFilter(Seq(modelExternalId, attribute), parsePropertyValue(value)))
-//      case GreaterThanOrEqual(attribute, value) =>
-//        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gte = Some(parsePropertyValue(value))))
-//      case GreaterThan(attribute, value) =>
-//        Some(DMIRangeFilter(Seq(modelExternalId, attribute), gt = Some(parsePropertyValue(value))))
-//      case LessThanOrEqual(attribute, value) =>
-//        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lte = Some(parsePropertyValue(value))))
-//      case LessThan(attribute, value) =>
-//        Some(DMIRangeFilter(Seq(modelExternalId, attribute), lt = Some(parsePropertyValue(value))))
-//      case And(f1, f2) =>
-//        (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
-//          DMIAndFilter(Seq(sf1, sf2)))
-//      case Or(f1, f2) =>
-//        (getInstanceFilter(f1), getInstanceFilter(f2)) match {
-//          case (Some(sf1), Some(sf2)) =>
-//            Some(DMIOrFilter(Seq(sf1, sf2)))
-//          case _ =>
-//            None
-//        }
-//      case IsNotNull(attribute) =>
-//        Some(DMIExistsFilter(Seq(modelExternalId, attribute)))
-//      case Not(f) =>
-//        getInstanceFilter(f).map(DMINotFilter)
-//      case _ => None
-//    }
-//
-//  def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-//      client: GenericClient[IO],
-//      limit: Option[Int],
-//      numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
-//    val selectedPropsArray: Seq[String] = if (selectedColumns.isEmpty) {
-//      schema.fields.map(_.name)
-//    } else {
-//      selectedColumns
-//    }
-//
-//    val filter = {
-//      val andFilters = filters.toVector.flatMap(getInstanceFilter)
-//      if (andFilters.isEmpty) None else Some(DMIAndFilter(andFilters))
-//    }
-//
-//    val dmiQuery = DataModelInstanceQuery(
-//      modelExternalId = modelExternalId,
-//      filter = filter,
-//      sort = None,
-//      limit = limit,
-//      cursor = None)
-//    Seq(
-//      alphaClient.dataModelInstances
-//        .queryStream(dmiQuery, limit)
-//        .map(r => toProjectedInstance(r, selectedPropsArray)))
-//  }
-//
-//  override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-//    SdkV1Rdd[ProjectedDataModelInstance, String](
-//      sqlContext.sparkContext,
-//      config,
-//      (item: ProjectedDataModelInstance, _) => toRow(item),
-//      uniqueId,
-//      getStreams(filters, selectedColumns)
-//    )
+  def toRow(a: ProjectedDataModelInstance): Row = {
+    if (config.collectMetrics) {
+      itemsRead.inc()
+    }
+    Row.fromSeq(a.properties)
+  }
+
+  def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
+
+  def toProjectedInstance(
+      pmap: PropertyMap,
+      requiredPropsArray: Seq[String]): ProjectedDataModelInstance = {
+    val dmiProperties = pmap.allProperties
+    ProjectedDataModelInstance(
+      externalId = pmap.externalId,
+      properties = requiredPropsArray.map { name: String =>
+        dmiProperties.get(name).map(_.value).orNull
+      }.toArray
+    )
+  }
+
+  // scalastyle:off method.length
+  def getInstanceFilter(sparkFilter: Filter): Option[DomainSpecificLanguageFilter] =
+    sparkFilter match {
+      case EqualTo(left, right) => {
+        Some(DSLEqualsFilter(Seq(spaceExternalId, modelExternalId, left), parsePropertyValue(right)))
+      }
+      case In(attribute, values) =>
+        if (modelInfo(attribute).`type`.code.endsWith("[]")) {
+          None
+        } else {
+          val setValues = values.filter(_ != null)
+          Some(
+            DSLInFilter(
+              Seq(spaceExternalId, modelExternalId, attribute),
+              setValues.map(parsePropertyValue)))
+        }
+      case StringStartsWith(attribute, value) =>
+        Some(
+          DSLPrefixFilter(Seq(spaceExternalId, modelExternalId, attribute), parsePropertyValue(value)))
+      case GreaterThanOrEqual(attribute, value) =>
+        Some(
+          DSLRangeFilter(
+            Seq(spaceExternalId, modelExternalId, attribute),
+            gte = Some(parsePropertyValue(value))))
+      case GreaterThan(attribute, value) =>
+        Some(
+          DSLRangeFilter(
+            Seq(spaceExternalId, modelExternalId, attribute),
+            gt = Some(parsePropertyValue(value))))
+      case LessThanOrEqual(attribute, value) =>
+        Some(
+          DSLRangeFilter(
+            Seq(spaceExternalId, modelExternalId, attribute),
+            lte = Some(parsePropertyValue(value))))
+      case LessThan(attribute, value) =>
+        Some(
+          DSLRangeFilter(
+            Seq(spaceExternalId, modelExternalId, attribute),
+            lt = Some(parsePropertyValue(value))))
+      case And(f1, f2) =>
+        (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
+          DSLAndFilter(Seq(sf1, sf2)))
+      case Or(f1, f2) =>
+        (getInstanceFilter(f1), getInstanceFilter(f2)) match {
+          case (Some(sf1), Some(sf2)) =>
+            Some(DSLOrFilter(Seq(sf1, sf2)))
+          case _ =>
+            None
+        }
+      case IsNotNull(attribute) =>
+        Some(DSLExistsFilter(Seq(spaceExternalId, modelExternalId, attribute)))
+      case Not(f) =>
+        getInstanceFilter(f).map(DSLNotFilter)
+      case _ => None
+    }
+  // scalastyle:on method.length
+
+  def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
+      client: GenericClient[IO],
+      limit: Option[Int],
+      numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
+    val selectedPropsArray: Seq[String] = if (selectedColumns.isEmpty) {
+      schema.fields.map(_.name)
+    } else {
+      selectedColumns
+    }
+
+    val filter: DomainSpecificLanguageFilter = {
+      val andFilters = filters.toVector.flatMap(getInstanceFilter)
+      if (andFilters.isEmpty) EmptyFilter else DSLAndFilter(andFilters)
+    }
+
+    val dmiQuery = DataModelInstanceQuery(
+      model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
+      filter = filter,
+      sort = None,
+      limit = limit,
+      cursor = None)
+
+    Seq(
+      alphaClient.nodes
+        .queryStream(dmiQuery, limit)
+        .map(r => toProjectedInstance(r, selectedPropsArray)))
+  }
 
   override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    throw new CdfSparkException("TODO")
+    SdkV1Rdd[ProjectedDataModelInstance, String](
+      sqlContext.sparkContext,
+      config,
+      (item: ProjectedDataModelInstance, _) => toRow(item),
+      uniqueId,
+      getStreams(filters, selectedColumns)
+    )
 
-  override def delete(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Delete is not supported for data model instances.")
+  override def delete(rows: Seq[Row]): IO[Unit] = {
+    val deletes = rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceDeleteSchema](r))
+    if (modelType == DataModelType.NodeType) {
+      alphaClient.nodes
+        .deleteByExternalIds(deletes.map(_.externalId))
+        .flatTap(_ => incMetrics(itemsDeleted, rows.length))
+    } else {
+      ???
+    }
+  }
 
   def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
@@ -288,55 +322,50 @@ object DataModelInstanceRelation {
     s"Property of ${propertyType.code} type is not nullable."
   // scalastyle:on
 
-//  private def parsePropertyValue(value: Any): PropertyType = value match {
-//    case x: Double => Float64Property(x)
-//    case x: Int => Int32Property(x)
-//    case x: Float => Float32Property(x)
-//    case x: Long => Int64Property(x)
-//    case x: java.math.BigDecimal => Float64Property(x.doubleValue())
-//    case x: java.math.BigInteger => Int64Property(x.longValue())
-//    case x: String => StringProperty(x)
-//    case x: Boolean => BooleanProperty(x)
-//    case x: Array[Double] => ArrayProperty(x.toVector.map(Float64Property))
-//    case x: Array[Int] => ArrayProperty(x.toVector.map(Int32Property))
-//    case x: Array[Float] => ArrayProperty(x.toVector.map(Float32Property))
-//    case x: Array[Long] => ArrayProperty(x.toVector.map(Int64Property))
-//    case x: Array[String] => ArrayProperty(x.toVector.map(StringProperty))
-//    case x: Array[Boolean] => ArrayProperty(x.toVector.map(BooleanProperty))
-//    case x: Array[java.math.BigDecimal] =>
-//      ArrayProperty(x.toVector.map(i => Float64Property(i.doubleValue())))
-//    case x: Array[java.math.BigInteger] =>
-//      ArrayProperty(x.toVector.map(i => Int64Property(i.longValue())))
-//    case x: LocalDate => DateProperty(x)
-//    case x: java.sql.Date => DateProperty(x.toLocalDate)
-//    case x: LocalDateTime => DateProperty(x.toLocalDate)
-//    case x: Instant =>
-//      TimeStampProperty(OffsetDateTime.ofInstant(x, ZoneId.systemDefault()).toZonedDateTime)
-//    case x: java.sql.Timestamp =>
-//      TimeStampProperty(OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
-//    case x: java.time.ZonedDateTime =>
-//      TimeStampProperty(x)
-//    case x =>
-//      throw new CdfSparkException(s"Unsupported value ${x.toString} of type ${x.getClass.getName}")
-//  }
-//
-//  private def fromPropertyType(x: PropertyType): Any = x match {
-//    case Int32Property(value) => value
-//    case Int64Property(value) => value
-//    case Float32Property(value) => value
-//    case Float64Property(value) => value
-//    case BooleanProperty(value) => value
-//    case StringProperty(value) => value
-//    case DateProperty(value) => java.sql.Date.valueOf(value)
-//    case TimeStampProperty(value) => java.sql.Timestamp.from(value.toInstant)
-//    case DirectRelationProperty(value) => value
-//    case GeographyProperty(value) => value
-//    case GeometryProperty(value) => value
-//    case ArrayProperty(values) => values.map(fromPropertyType)
-//    case x =>
-//      throw new CdfSparkException(
-//        s"Unknown property type ${x.getClass.getName} with value ${x.toString}")
-//  }
+  private def parsePropertyValue(value: Any): DataModelProperty[_] = value match {
+    case x: Double => PropertyType.Float64.Property(x)
+    case x: Int => PropertyType.Int32.Property(x)
+    case x: Float => PropertyType.Float32.Property(x)
+    case x: Long => PropertyType.Int64.Property(x)
+    case x: java.math.BigDecimal => PropertyType.Float64.Property(x.doubleValue())
+    case x: java.math.BigInteger => PropertyType.Int64.Property(x.longValue())
+    case x: String => PropertyType.Text.Property(x)
+    case x: Boolean => PropertyType.Boolean.Property(x)
+    case x: Array[Double] => PropertyType.Array.Float64.Property(x)
+    case x: Array[Int] => PropertyType.Array.Int32.Property(x)
+    case x: Array[Float] => PropertyType.Array.Float32.Property(x)
+    case x: Array[Long] => PropertyType.Array.Int64.Property(x)
+    case x: Array[String] => PropertyType.Array.Text.Property(x)
+    case x: Array[Boolean] => PropertyType.Array.Boolean.Property(x)
+    case x: Array[java.math.BigDecimal] =>
+      PropertyType.Array.Float64.Property(x.toVector.map(i => i.doubleValue()))
+    case x: Array[java.math.BigInteger] =>
+      PropertyType.Array.Int64.Property(x.toVector.map(i => i.longValue()))
+    case x: LocalDate => PropertyType.Date.Property(x)
+    case x: java.sql.Date => PropertyType.Date.Property(x.toLocalDate)
+    case x: LocalDateTime => PropertyType.Date.Property(x.toLocalDate)
+    case x: Instant =>
+      PropertyType.Timestamp.Property(
+        OffsetDateTime.ofInstant(x, ZoneId.systemDefault()).toZonedDateTime)
+    case x: java.sql.Timestamp =>
+      PropertyType.Timestamp.Property(
+        OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
+    case x: java.time.ZonedDateTime =>
+      PropertyType.Timestamp.Property(x)
+    case x: Array[LocalDate] => PropertyType.Array.Date.Property(x)
+    case x: Array[java.sql.Date] => PropertyType.Array.Date.Property(x.map(_.toLocalDate))
+    case x: Array[LocalDateTime] => PropertyType.Array.Date.Property(x.map(_.toLocalDate))
+    case x: Array[Instant] =>
+      PropertyType.Array.Timestamp
+        .Property(x.map(OffsetDateTime.ofInstant(_, ZoneId.systemDefault()).toZonedDateTime))
+    case x: Array[java.sql.Timestamp] =>
+      PropertyType.Array.Timestamp.Property(x.map(ts =>
+        OffsetDateTime.ofInstant(ts.toInstant, ZoneId.systemDefault()).toZonedDateTime))
+    case x: Array[java.time.ZonedDateTime] =>
+      PropertyType.Array.Timestamp.Property(x)
+    case x =>
+      throw new CdfSparkException(s"Unsupported value ${x.toString} of type ${x.getClass.getName}")
+  }
 
   def propertyTypeToSparkType(propertyType: PropertyType[_]): DataType =
     propertyType match {
@@ -430,7 +459,9 @@ object DataModelInstanceRelation {
 
   private def toBooleanProperty: Any => DataModelProperty[_] = {
     case x: Boolean => PropertyType.Boolean.Property(x)
-    case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, PropertyType.Boolean.code, Some("boolean")))
+    case a =>
+      throw new CdfSparkException(
+        notValidPropertyTypeMessage(a, PropertyType.Boolean.code, Some("boolean")))
   }
 
   private def toInt32Property(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
@@ -553,4 +584,5 @@ object DataModelInstanceRelation {
 
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
 final case class DataModelInstanceDeleteSchema(externalId: String)
+
 // scalastyle:on cyclomatic.complexity

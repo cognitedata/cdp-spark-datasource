@@ -69,7 +69,7 @@ class DataModelInstancesRelationTest
   private val allModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
 
   private val props = Map(
-    "arr_int" -> DataModelPropertyDefinition(`type` = PropertyType.Int, nullable = false),
+    "arr_int" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Int, nullable = false),
     "arr_boolean" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Boolean, nullable = true),
     "arr_str" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Text, nullable = true),
     "str_prop" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true)
@@ -217,7 +217,6 @@ class DataModelInstancesRelationTest
       }
     )
   }
-
 
 
   it should "return an informative error when a value with wrong type is attempted to be ingested" in {
