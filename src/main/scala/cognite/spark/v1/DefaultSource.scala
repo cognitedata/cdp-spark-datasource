@@ -94,9 +94,7 @@ class DefaultSource
     val modelExternalId =
       parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
     val instanceSpaceExternalId =
-      parameters.getOrElse(
-        "instanceSpaceExternalId",
-        sys.error("instanceSpaceExternalId must be specified"))
+      parameters.get("instanceSpaceExternalId")
     new DataModelInstanceRelation(
       config,
       spaceExternalId,

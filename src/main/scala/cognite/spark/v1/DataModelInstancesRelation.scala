@@ -31,7 +31,7 @@ class DataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
     modelExternalId: String,
-    instanceSpaceExternalId: String)(val sqlContext: SQLContext)
+    instanceSpaceExternalId: Option[String] = None)(val sqlContext: SQLContext)
     extends CdfRelation(config, "datamodelinstances")
     with WritableRelation
     with PrunedFilteredScan {
@@ -94,10 +94,12 @@ class DataModelInstanceRelation(
         val dataModelNodes: Seq[Node] = rows.map(fromRowFn)
         alphaClient.nodes
           .createItems(
-            instanceSpaceExternalId,
+            instanceSpaceExternalId
+              .getOrElse(throw new CdfSparkException("instanceSpaceExternalId must be specified")),
             DataModelIdentifier(Some(spaceExternalId), modelExternalId),
             overwrite,
-            dataModelNodes)
+            dataModelNodes
+          )
           .flatTap(_ => incMetrics(itemsUpserted, dataModelNodes.length)) *> IO.unit
       } else {
         IO.unit
