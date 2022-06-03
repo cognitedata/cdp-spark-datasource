@@ -62,8 +62,8 @@ This repository also contains `cdf_dump` command line tool for reading data from
 ## Quickstart
 
 Add the Spark data source to your cluster. We recommend using the [latest version](https://mvnrepository.com/artifact/com.cognite.spark.datasource/cdf-spark-datasource).
-If using `spark-submit` or `spark-shell`, use `--packages com.cognite.spark.datasource:cdf-spark-datasource_2.11:<latest-release>` (change to 2.12 if you're using Scala 2.12).
-If you're using Databricks, add the Maven coordinate `com.cognite.spark.datasource:cdf-spark-datasource_2.11:<latest-release>` as a library to your cluster.
+If using `spark-submit` or `spark-shell` or `pyspark`, you can use `--packages com.cognite.spark.datasource:cdf-spark-datasource-fat_2.12:<latest-release>` (change to 2.13 if you're using Scala 2.13).
+If you're using Databricks, add the Maven coordinate `com.cognite.spark.datasource:cdf-spark-datasource-fat_2.12:<latest-release>` as a library to your cluster.
 
 You can also use `spark.jars.packages` to include this data source using the same coordinate.
 See the [official documentation](https://spark.apache.org/docs/latest/configuration.html) for more information.
