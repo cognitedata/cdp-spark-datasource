@@ -69,7 +69,7 @@ class DataModelInstancesRelationTest
   private val allModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
 
   private val props = Map(
-    "arr_int" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Int, nullable = false),
+    "arr_int_fix" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Int, nullable = false),
     "arr_boolean" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Boolean, nullable = true),
     "arr_str" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Text, nullable = true),
     "str_prop" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true)
@@ -219,6 +219,7 @@ class DataModelInstancesRelationTest
   }
 
 
+
   it should "return an informative error when a value with wrong type is attempted to be ingested" in {
     val ex = sparkIntercept {
       insertRows(
@@ -315,7 +316,7 @@ class DataModelInstancesRelationTest
             val res = Try {
               insertRows(
                 multiValuedExtId,
-                spark.sql(s"""select array() as arr_int,
+                spark.sql(s"""select array() as arr_int_fix,
                 |array(true, false) as arr_boolean,
                 |NULL as arr_str,
                 |NULL as str_prop,
@@ -323,7 +324,7 @@ class DataModelInstancesRelationTest
                 |
                 |union all
                 |
-                |select array(1,2) as arr_int,
+                |select array(1,2) as arr_int_fix,
                 |NULL as arr_boolean,
                 |array('x', 'y') as arr_str,
                 |'hehe' as str_prop,
