@@ -119,6 +119,25 @@ class DataModelInstanceRelation(
 
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 
+  private def getValue(prop: DataModelProperty[_]): Any =
+    prop.value match {
+      case x: java.math.BigDecimal =>
+        x.doubleValue()
+      case x: java.math.BigInteger => x.longValue()
+      case x: Array[java.math.BigDecimal] =>
+        x.toVector.map(i => i.doubleValue())
+      case x: Array[java.math.BigInteger] =>
+        x.toVector.map(i => i.longValue())
+      case x: BigDecimal =>
+        x.doubleValue()
+      case x: BigInt => x.longValue()
+      case x: Array[BigDecimal] =>
+        x.toVector.map(i => i.doubleValue())
+      case x: Array[BigInt] =>
+        x.toVector.map(i => i.longValue())
+      case _ => prop.value
+    }
+
   def toProjectedInstance(
       pmap: PropertyMap,
       requiredPropsArray: Seq[String]): ProjectedDataModelInstance = {
@@ -126,7 +145,7 @@ class DataModelInstanceRelation(
     ProjectedDataModelInstance(
       externalId = pmap.externalId,
       properties = requiredPropsArray.map { name: String =>
-        dmiProperties.get(name).map(_.value).orNull
+        dmiProperties.get(name).map(getValue).orNull
       }.toArray
     )
   }
@@ -331,6 +350,8 @@ object DataModelInstanceRelation {
     case x: Long => PropertyType.Int64.Property(x)
     case x: java.math.BigDecimal => PropertyType.Float64.Property(x.doubleValue())
     case x: java.math.BigInteger => PropertyType.Int64.Property(x.longValue())
+    case x: BigDecimal => PropertyType.Float64.Property(x.doubleValue())
+    case x: BigInt => PropertyType.Int64.Property(x.longValue())
     case x: String => PropertyType.Text.Property(x)
     case x: Boolean => PropertyType.Boolean.Property(x)
     case x: Array[Double] => PropertyType.Array.Float64.Property(x)
@@ -343,6 +364,9 @@ object DataModelInstanceRelation {
       PropertyType.Array.Float64.Property(x.toVector.map(i => i.doubleValue()))
     case x: Array[java.math.BigInteger] =>
       PropertyType.Array.Int64.Property(x.toVector.map(i => i.longValue()))
+    case x: Array[BigDecimal] =>
+      PropertyType.Array.Float64.Property(x.toVector.map(i => i.doubleValue()))
+    case x: Array[BigInt] => PropertyType.Array.Int64.Property(x.toVector.map(i => i.longValue()))
     case x: LocalDate => PropertyType.Date.Property(x)
     case x: java.sql.Date => PropertyType.Date.Property(x.toLocalDate)
     case x: LocalDateTime => PropertyType.Date.Property(x.toLocalDate)

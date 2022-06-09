@@ -99,6 +99,8 @@ class DataModelInstancesRelationTest
     "prop_date" ->DataModelPropertyDefinition(`type` = PropertyType.Date, nullable = true)
   )
 
+
+
   override def beforeAll(): Unit = {
     def createAndGetModels(): Seq[DataModel] = {
       /*bluefieldAlphaClient.dataModels
@@ -112,7 +114,7 @@ class DataModelInstancesRelationTest
         .unsafeRunSync()*/
       bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
-
+    cleanUpNodes()
     retryWhile[scala.Seq[DataModel]](
       createAndGetModels(),
       dm => !allModelExternalIds.subsetOf(dm.map(_.externalId).toSet)
@@ -122,30 +124,39 @@ class DataModelInstancesRelationTest
 
   override def afterAll(): Unit = {
     // TODO enable this after delete is supported
-    /* def deleteAndGetModels(): Seq[DataModel] = {
+   /* def deleteAndGetModels(): Seq[DataModel] = {
       bluefieldAlphaClient.dataModels
         .deleteItems(Seq(
           multiValuedExtId,
           primitiveExtId,
           multiValuedExtId2,
-          primitiveExtId2)
+          primitiveExtId2),
+          spaceExternalId
         )
         .unsafeRunSync()
-      bluefieldAlphaClient.dataModels.list().unsafeRunSync()
+      bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
     retryWhile[scala.Seq[DataModel]](
       deleteAndGetModels(),
       dm => dm.map(_.externalId).toSet.intersect(allModelExternalIds).nonEmpty
-    )
-    */
+    )*/
+    cleanUpNodes()
     ()
   }
 
+  // TODO remove this function and enable model deletion instead when available
+  private def cleanUpNodes(): Unit =
+    allModelExternalIds.foreach{ modelExtId =>
+      val nodes: DataModelInstanceQueryResponse = bluefieldAlphaClient.nodes
+        .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId))).unsafeRunSync()
+      nodes.items.map(_.externalId).grouped(500).foreach(ids => if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByExternalIds(ids).unsafeRunSync())
+    }
+
   private def collectExternalIds(df: DataFrame): List[String] =
-    df.select("externalId")
-      .collect()
-      .map(_.getAs[String]("externalId"))
-      .toList
+  df.select("externalId")
+    .collect()
+    .map(_.getAs[String]("externalId"))
+    .toList
 
   private def readRows(modelExternalId: String, metricPrefix: String) =
     spark.read
@@ -191,6 +202,7 @@ class DataModelInstancesRelationTest
         case NonFatal(_) => // ignore
       }
     }
+
 
  it should "ingest data" in {
     val randomId = "prim_test_" + shortRandomString()
@@ -431,7 +443,7 @@ class DataModelInstancesRelationTest
       insertRows(
         multiValuedExtId,
         spark
-          .sql(s"""select NULL as arr_int,
+          .sql(s"""select NULL as arr_int_fix,
              |array(true, false) as arr_boolean,
              |NULL as arr_str,
              |NULL as str_prop,
@@ -537,7 +549,7 @@ it should "filter instances" in {
     }
   )
 }
-  /*
+
 it should "filter instances using or" in {
   val randomId1 = "prim_test_" + shortRandomString()
   val randomId2 = "prim_test_" + shortRandomString()
@@ -604,6 +616,7 @@ it should "filter instances using or" in {
     }
   )
 }
+
 it should "delete data model instances" in {
   val randomId1 = "prim_test_" + shortRandomString()
   val randomId2 = "prim_test2_" + shortRandomString()
@@ -651,7 +664,7 @@ it should "delete data model instances" in {
     }
   )
 }
-
+/*
 it should "ingest data with special property types" in {
   val randomId = "prim_test_" + shortRandomString()
   tryTestAndCleanUp(
