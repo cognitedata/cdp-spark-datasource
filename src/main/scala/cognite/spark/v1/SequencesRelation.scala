@@ -74,12 +74,11 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     val groupedSequences: Seq[Vector[SequenceCreate]] =
       splitSequences[SequenceCreate](sequences, (s: SequenceCreate) => s.columns.size)
-    groupedSequences.toList.map { sequencesToCreate =>
+    groupedSequences.toList.traverse_ { sequencesToCreate =>
       client.sequences
         .create(sequencesToCreate)
         .flatMap(_ => incMetrics(itemsCreated, sequencesToCreate.size))
-    }.sequence_
-
+    }
   }
 
   private def isUpdateEmpty(u: SequenceUpdate): Boolean = u == SequenceUpdate()
@@ -175,14 +174,14 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       (s: SequenceUpsertSchema) => s.columns.map(_.size).getOrElse(0))
 
     // scalastyle:off no.whitespace.after.left.bracket
-    groupedSequences.toList.map { sequencesToCreate =>
+    groupedSequences.toList.traverse_ { sequencesToCreate =>
       genericUpsert[
         Sequence,
         SequenceUpsertSchema,
         SequenceCreate,
         SequenceUpdate,
         SequencesResource[IO]](sequencesToCreate, isUpdateEmpty, client.sequences)
-    }.sequence_
+    }
     // scalastyle:on no.whitespace.after.left.bracket
   }
 
