@@ -1,9 +1,7 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.{DSLEqualsFilter, DSLPrefixFilter, DomainSpecificLanguageFilter, EmptyFilter, Items}
-import com.cognite.sdk.scala.v1.DataModelType.NodeType
+import com.cognite.sdk.scala.common.{DomainSpecificLanguageFilter, EmptyFilter}
 import com.cognite.sdk.scala.v1._
-import io.circe.Json
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
@@ -148,8 +146,10 @@ class DataModelInstancesRelationTest
   private def cleanUpNodes(): Unit =
     allModelExternalIds.foreach{ modelExtId =>
       val nodes: DataModelInstanceQueryResponse = bluefieldAlphaClient.nodes
-        .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId))).unsafeRunSync()
-      nodes.items.map(_.externalId).grouped(500).foreach(ids => if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByExternalIds(ids).unsafeRunSync())
+        .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
+        .unsafeRunSync()
+      nodes.items.map(_.externalId).grouped(500).foreach(ids =>
+        if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByExternalIds(ids).unsafeRunSync())
     }
 
   private def collectExternalIds(df: DataFrame): List[String] =
@@ -214,10 +214,11 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select 2.0 as prop_float,
-                        |true as prop_bool,
-                        |'abc' as prop_string,
-                        |'${randomId}' as externalId""".stripMargin)
+                  .sql(s"""
+                          |select 2.0 as prop_float,
+                          |true as prop_bool,
+                          |'abc' as prop_string,
+                          |'${randomId}' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -236,7 +237,8 @@ class DataModelInstancesRelationTest
       insertRows(
         primitiveExtId,
         spark
-          .sql(s"""select '2.0' as prop_float,
+          .sql(s"""
+                  |select '2.0' as prop_float,
                   |true as prop_bool,
                   |'abc' as prop_string,
                   |'test' as externalId""".stripMargin)
@@ -254,7 +256,8 @@ class DataModelInstancesRelationTest
       insertRows(
         "non-existing-model",
         spark
-          .sql(s"""select '2.0' as prop_float,
+          .sql(s"""
+                  |select '2.0' as prop_float,
                   |true as prop_bool,
                   |'abc' as prop_string,
                   |'test' as externalId""".stripMargin)
@@ -279,7 +282,8 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select float('2.0') as prop_float,
+                  .sql(s"""
+                          |select float('2.0') as prop_float,
                           |true as prop_bool,
                           |'abc' as prop_string,
                           |'${randomId}' as externalId""".stripMargin)
@@ -288,7 +292,8 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(true, primitiveExtId, randomId).allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(2.0))
+        getByExternalId(true, primitiveExtId, randomId)
+          .allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(2.0))
       }
     )
   }
@@ -303,7 +308,8 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select cast('3.0' as float) as prop_float,
+                  .sql(s"""
+                          |select cast('3.0' as float) as prop_float,
                           |true as prop_bool,
                           |'abc' as prop_string,
                           |'${randomId}' as externalId""".stripMargin)
@@ -312,7 +318,8 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(true, primitiveExtId, randomId).allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(3.0))
+        getByExternalId(true, primitiveExtId, randomId)
+          .allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(3.0))
       }
     )
   }
@@ -327,19 +334,20 @@ class DataModelInstancesRelationTest
             Try {
               insertRows(
                 multiValuedExtId,
-                spark.sql(s"""select array() as arr_int_fix,
-                |array(true, false) as arr_boolean,
-                |NULL as arr_str,
-                |NULL as str_prop,
-                |'${randomId1}' as externalId
-                |
-                |union all
-                |
-                |select array(1,2) as arr_int_fix,
-                |NULL as arr_boolean,
-                |array('x', 'y') as arr_str,
-                |'hehe' as str_prop,
-                |'${randomId2}' as externalId""".stripMargin)
+                spark.sql(s"""
+                              |select array() as arr_int_fix,
+                              |array(true, false) as arr_boolean,
+                              |NULL as arr_str,
+                              |NULL as str_prop,
+                              |'${randomId1}' as externalId
+                              |
+                              |union all
+                              |
+                              |select array(1,2) as arr_int_fix,
+                              |NULL as arr_boolean,
+                              |array('x', 'y') as arr_str,
+                              |'hehe' as str_prop,
+                              |'${randomId2}' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -362,10 +370,11 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select 2.1 as prop_float,
-             |false as prop_bool,
-             |'abc' as prop_string,
-             |'$randomId' as externalId""".stripMargin)
+                  .sql(s"""
+                           |select 2.1 as prop_float,
+                           |false as prop_bool,
+                           |'abc' as prop_string,
+                           |'$randomId' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -392,31 +401,32 @@ class DataModelInstancesRelationTest
                 multiValuedExtId2,
                 spark
                   .sql(
-                    s"""select 1234 as prop_int32,
-             |4398046511104 as prop_int64,
-             |0.424242 as prop_float32,
-             |0.424242 as prop_float64,
-             |1.00000000001 as prop_numeric,
-             |array(1,2,3) as arr_int32,
-             |array(1,2,3) as arr_int64,
-             |array(0.618, 1.618) as arr_float32,
-             |array(0.618, 1.618) as arr_float64,
-             |array(1.00000000001) as arr_numeric,
-             |'$randomId1' as externalId
-             |
-             |union all
-             |
-             |select 1234 as prop_int32,
-             |4398046511104 as prop_int64,
-             |NULL as prop_float32,
-             |NULL as prop_float64,
-             |1.00000000001 as prop_numeric,
-             |array(1,2,3) as arr_int32,
-             |array(1,2,3) as arr_int64,
-             |array(0.618, 1.618) as arr_float32,
-             |NULL as arr_float64,
-             |array(1.00000000001) as arr_numeric,
-             |'$randomId2' as externalId""".stripMargin
+                    s"""
+                       |select 1234 as prop_int32,
+                       |4398046511104 as prop_int64,
+                       |0.424242 as prop_float32,
+                       |0.424242 as prop_float64,
+                       |1.00000000001 as prop_numeric,
+                       |array(1,2,3) as arr_int32,
+                       |array(1,2,3) as arr_int64,
+                       |array(0.618, 1.618) as arr_float32,
+                       |array(0.618, 1.618) as arr_float64,
+                       |array(1.00000000001) as arr_numeric,
+                       |'$randomId1' as externalId
+                       |
+                       |union all
+                       |
+                       |select 1234 as prop_int32,
+                       |4398046511104 as prop_int64,
+                       |NULL as prop_float32,
+                       |NULL as prop_float64,
+                       |1.00000000001 as prop_numeric,
+                       |array(1,2,3) as arr_int32,
+                       |array(1,2,3) as arr_int64,
+                       |array(0.618, 1.618) as arr_float32,
+                       |NULL as arr_float64,
+                       |array(1.00000000001) as arr_numeric,
+                       |'$randomId2' as externalId""".stripMargin
                   )
               )
             }.isFailure
@@ -443,18 +453,17 @@ class DataModelInstancesRelationTest
         insertRows(
           multiValuedExtId,
           spark
-            .sql(s"""select NULL as arr_int_fix,
-               |array(true, false) as arr_boolean,
-               |NULL as arr_str,
-               |NULL as str_prop,
-               |'test_multi' as externalId""".stripMargin)
+            .sql(s"""
+                     |select NULL as arr_int_fix,
+                     |array(true, false) as arr_boolean,
+                     |NULL as arr_str,
+                     |NULL as str_prop,
+                     |'test_multi' as externalId""".stripMargin)
         )
       }
       ex shouldBe an[CdfSparkException]
       ex.getMessage shouldBe s"Property of int[] type is not nullable."
     }
-
-
 
   it should "filter instances by externalId" in {
     val randomId1 = "numeric_test_" + shortRandomString()
@@ -467,9 +476,9 @@ class DataModelInstancesRelationTest
                 primitiveExtId,
                 spark
                   .sql(s"""select 2.1 as prop_float,
-             |false as prop_bool,
-             |'abc' as prop_string,
-             |'$randomId1' as externalId""".stripMargin)
+                           |false as prop_bool,
+                           |'abc' as prop_string,
+                           |'$randomId1' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -495,31 +504,32 @@ class DataModelInstancesRelationTest
                 multiValuedExtId2,
                 spark
                   .sql(
-                    s"""select 1234 as prop_int32,
-             |4398046511104 as prop_int64,
-             |0.424242 as prop_float32,
-             |0.8 as prop_float64,
-             |2.0 as prop_numeric,
-             |array(1,2,3) as arr_int32,
-             |array(1,2,3) as arr_int64,
-             |array(0.618, 1.618) as arr_float32,
-             |array(0.618, 1.618) as arr_float64,
-             |array(1.00000000001) as arr_numeric,
-             |'$randomId1' as externalId
-             |
-             |union all
-             |
-             |select 1234 as prop_int32,
-             |4398046511104 as prop_int64,
-             |NULL as prop_float32,
-             |NULL as prop_float64,
-             |1.00000000001 as prop_numeric,
-             |array(1,2,3) as arr_int32,
-             |array(1,2,3) as arr_int64,
-             |array(0.618, 1.618) as arr_float32,
-             |NULL as arr_float64,
-             |array(1.00000000001) as arr_numeric,
-             |'$randomId2' as externalId""".stripMargin
+                    s"""
+                       |select 1234 as prop_int32,
+                       |4398046511104 as prop_int64,
+                       |0.424242 as prop_float32,
+                       |0.8 as prop_float64,
+                       |2.0 as prop_numeric,
+                       |array(1,2,3) as arr_int32,
+                       |array(1,2,3) as arr_int64,
+                       |array(0.618, 1.618) as arr_float32,
+                       |array(0.618, 1.618) as arr_float64,
+                       |array(1.00000000001) as arr_numeric,
+                       |'$randomId1' as externalId
+                       |
+                       |union all
+                       |
+                       |select 1234 as prop_int32,
+                       |4398046511104 as prop_int64,
+                       |NULL as prop_float32,
+                       |NULL as prop_float64,
+                       |1.00000000001 as prop_numeric,
+                       |array(1,2,3) as arr_int32,
+                       |array(1,2,3) as arr_int64,
+                       |array(0.618, 1.618) as arr_float32,
+                       |NULL as arr_float64,
+                       |array(1.00000000001) as arr_numeric,
+                       |'$randomId2' as externalId""".stripMargin
                   )
               )
             }.isFailure
@@ -563,31 +573,32 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select 2.1 as prop_float,
-                    |false as prop_bool,
-                    |'abc' as prop_string,
-                    |'$randomId1' as externalId
-                    |
-                    |union all
-                    |
-                    |select 5.0 as prop_float,
-                    |true as prop_bool,
-                    |'zzzz' as prop_string,
-                    |'$randomId2' as externalId
-                    |
-                    |union all
-                    |
-                    |select 9.0 as prop_float,
-                    |false as prop_bool,
-                    |'xxxx' as prop_string,
-                    |'$randomId3' as externalId
-                    |
-                    |union all
-                    |
-                    |select 8.0 as prop_float,
-                    |false as prop_bool,
-                    |'yyyy' as prop_string,
-                    |'$randomId4' as externalId""".stripMargin)
+                  .sql(s"""
+                          |select 2.1 as prop_float,
+                          |false as prop_bool,
+                          |'abc' as prop_string,
+                          |'$randomId1' as externalId
+                          |
+                          |union all
+                          |
+                          |select 5.0 as prop_float,
+                          |true as prop_bool,
+                          |'zzzz' as prop_string,
+                          |'$randomId2' as externalId
+                          |
+                          |union all
+                          |
+                          |select 9.0 as prop_float,
+                          |false as prop_bool,
+                          |'xxxx' as prop_string,
+                          |'$randomId3' as externalId
+                          |
+                          |union all
+                          |
+                          |select 8.0 as prop_float,
+                          |false as prop_bool,
+                          |'yyyy' as prop_string,
+                          |'$randomId4' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -628,17 +639,18 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select 2.1 as prop_float,
-             |false as prop_bool,
-             |'abc' as prop_string,
-             |'$randomId1' as externalId
-             |
-             |union all
-             |
-             |select 5.0 as prop_float,
-             |true as prop_bool,
-             |'zzzz' as prop_string,
-             |'$randomId2' as externalId""".stripMargin)
+                  .sql(s"""
+                           |select 2.1 as prop_float,
+                           |false as prop_bool,
+                           |'abc' as prop_string,
+                           |'$randomId1' as externalId
+                           |
+                           |union all
+                           |
+                           |select 5.0 as prop_float,
+                           |true as prop_bool,
+                           |'zzzz' as prop_string,
+                           |'$randomId2' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -652,9 +664,10 @@ class DataModelInstancesRelationTest
         insertRows(
           modelExternalId = primitiveExtId,
           spark
-            .sql(s"""select '$randomId1' as externalId
-            |union all
-            |select '$randomId2' as externalId""".stripMargin),
+            .sql(s"""
+                    |select '$randomId1' as externalId
+                    |union all
+                    |select '$randomId2' as externalId""".stripMargin),
           "delete"
         )
         getNumberOfRowsDeleted(primitiveExtId, "datamodelinstances") shouldBe 2
@@ -675,11 +688,12 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId2,
                 spark
-                  .sql(s"""select 'asset' as prop_direct_relation,
+                  .sql(s"""
+                          |select 'asset' as prop_direct_relation,
                           |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
                           |date('2022-01-01') as prop_date,
                           |'${randomId}' as externalId""".stripMargin)
-              )
+                      )
             }.isFailure
           },
           failure => failure
@@ -692,37 +706,38 @@ class DataModelInstancesRelationTest
 
   it should "read instances with special property types" in {
     val randomId = "prim_test_" + shortRandomString()
-   val randomId2 = "prim_test_" + shortRandomString() + "_2"
-   tryTestAndCleanUp(
-      Seq(randomId, randomId2), {
-        retryWhile[Boolean](
-          {
-            Try {
-              insertRows(
-                primitiveExtId2,
-                spark
-                  .sql(
-                    s"""select 'asset' as prop_direct_relation,
-                       |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
-                       |date('2022-01-20') as prop_date,
-                       |'${randomId}' as externalId
-                       |
-                       |union all
-                       |
-                       |select 'asset2' as prop_direct_relation,
-                       |timestamp('2022-01-10T12:34:56.789+00:00') as prop_timestamp,
-                       |date('2022-01-01') as prop_date,
-                       |'${randomId2}' as externalId""".stripMargin)
-              )
-            }.isFailure
-          },
-          failure => failure
-        )
-       val metricPrefix = shortRandomString()
+    val randomId2 = "prim_test_" + shortRandomString() + "_2"
+    tryTestAndCleanUp(
+        Seq(randomId, randomId2), {
+          retryWhile[Boolean](
+            {
+              Try {
+                insertRows(
+                  primitiveExtId2,
+                  spark
+                    .sql(
+                      s"""
+                         |select 'asset' as prop_direct_relation,
+                         |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
+                         |date('2022-01-20') as prop_date,
+                         |'${randomId}' as externalId
+                         |
+                         |union all
+                         |
+                         |select 'asset2' as prop_direct_relation,
+                         |timestamp('2022-01-10T12:34:56.789+00:00') as prop_timestamp,
+                         |date('2022-01-01') as prop_date,
+                         |'${randomId2}' as externalId""".stripMargin)
+                )
+              }.isFailure
+            },
+            failure => failure
+          )
+        val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId2, metricPrefix)
         df.count() shouldBe 2
         getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 2
-     }
+      }
     )
   }
 }
