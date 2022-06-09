@@ -122,19 +122,19 @@ class DataModelInstanceRelation(
   private def getValue(prop: DataModelProperty[_]): Any =
     prop.value match {
       case x: java.math.BigDecimal =>
-        x.doubleValue()
-      case x: java.math.BigInteger => x.longValue()
+        x.doubleValue
+      case x: java.math.BigInteger => x.longValue
       case x: Array[java.math.BigDecimal] =>
-        x.toVector.map(i => i.doubleValue())
+        x.toVector.map(i => i.doubleValue)
       case x: Array[java.math.BigInteger] =>
-        x.toVector.map(i => i.longValue())
+        x.toVector.map(i => i.longValue)
       case x: BigDecimal =>
-        x.doubleValue()
-      case x: BigInt => x.longValue()
+        x.doubleValue
+      case x: BigInt => x.longValue
       case x: Array[BigDecimal] =>
-        x.toVector.map(i => i.doubleValue())
+        x.toVector.map(i => i.doubleValue)
       case x: Array[BigInt] =>
-        x.toVector.map(i => i.longValue())
+        x.toVector.map(i => i.longValue)
       case _ => prop.value
     }
 
@@ -348,10 +348,10 @@ object DataModelInstanceRelation {
     case x: Int => PropertyType.Int32.Property(x)
     case x: Float => PropertyType.Float32.Property(x)
     case x: Long => PropertyType.Int64.Property(x)
-    case x: java.math.BigDecimal => PropertyType.Float64.Property(x.doubleValue())
-    case x: java.math.BigInteger => PropertyType.Int64.Property(x.longValue())
-    case x: BigDecimal => PropertyType.Float64.Property(x.doubleValue())
-    case x: BigInt => PropertyType.Int64.Property(x.longValue())
+    case x: java.math.BigDecimal => PropertyType.Float64.Property(x.doubleValue)
+    case x: java.math.BigInteger => PropertyType.Int64.Property(x.longValue)
+    case x: BigDecimal => PropertyType.Float64.Property(x.doubleValue)
+    case x: BigInt => PropertyType.Int64.Property(x.longValue)
     case x: String => PropertyType.Text.Property(x)
     case x: Boolean => PropertyType.Boolean.Property(x)
     case x: Array[Double] => PropertyType.Array.Float64.Property(x)
@@ -361,12 +361,12 @@ object DataModelInstanceRelation {
     case x: Array[String] => PropertyType.Array.Text.Property(x)
     case x: Array[Boolean] => PropertyType.Array.Boolean.Property(x)
     case x: Array[java.math.BigDecimal] =>
-      PropertyType.Array.Float64.Property(x.toVector.map(i => i.doubleValue()))
+      PropertyType.Array.Float64.Property(x.toVector.map(i => i.doubleValue))
     case x: Array[java.math.BigInteger] =>
-      PropertyType.Array.Int64.Property(x.toVector.map(i => i.longValue()))
+      PropertyType.Array.Int64.Property(x.toVector.map(i => i.longValue))
     case x: Array[BigDecimal] =>
-      PropertyType.Array.Float64.Property(x.toVector.map(i => i.doubleValue()))
-    case x: Array[BigInt] => PropertyType.Array.Int64.Property(x.toVector.map(i => i.longValue()))
+      PropertyType.Array.Float64.Property(x.toVector.map(i => i.doubleValue))
+    case x: Array[BigInt] => PropertyType.Array.Int64.Property(x.toVector.map(i => i.longValue))
     case x: LocalDate => PropertyType.Date.Property(x)
     case x: java.sql.Date => PropertyType.Date.Property(x.toLocalDate)
     case x: LocalDateTime => PropertyType.Date.Property(x.toLocalDate)
@@ -478,8 +478,8 @@ object DataModelInstanceRelation {
     case x: Float => PropertyType.Float64.Property(x.toDouble)
     case x: Int => PropertyType.Float64.Property(x.toDouble)
     case x: Long => PropertyType.Float64.Property(x.toDouble)
-    case x: java.math.BigDecimal => PropertyType.Float64.Property(x.doubleValue())
-    case x: java.math.BigInteger => PropertyType.Float64.Property(x.doubleValue())
+    case x: java.math.BigDecimal => PropertyType.Float64.Property(x.doubleValue)
+    case x: java.math.BigInteger => PropertyType.Float64.Property(x.doubleValue)
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propAlias.code, Some("double")))
   }
 
@@ -500,7 +500,7 @@ object DataModelInstanceRelation {
   private def toInt64Property(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
     case x: Int => PropertyType.Bigint.Property(x.toLong)
     case x: Long => PropertyType.Bigint.Property(x)
-    case x: java.math.BigInteger => PropertyType.Bigint.Property(x.longValue())
+    case x: java.math.BigInteger => PropertyType.Bigint.Property(x.longValue)
     case a =>
       throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias.code, Some("bigint")))
   }
@@ -545,10 +545,10 @@ object DataModelInstanceRelation {
       PropertyType.Array.Float64.Property(x.map(i => i.asInstanceOf[Int].toDouble).toVector)
     case x: Iterable[_] if x.head.isInstanceOf[java.math.BigDecimal] =>
       PropertyType.Array.Float64
-        .Property(x.map(i => i.asInstanceOf[java.math.BigDecimal].doubleValue()).toVector)
+        .Property(x.map(i => i.asInstanceOf[java.math.BigDecimal].doubleValue).toVector)
     case x: Iterable[_] if x.head.isInstanceOf[java.math.BigInteger] =>
       PropertyType.Array.Float64
-        .Property(x.map(i => i.asInstanceOf[java.math.BigInteger].doubleValue()).toVector)
+        .Property(x.map(i => i.asInstanceOf[java.math.BigInteger].doubleValue).toVector)
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias.code))
   }
 
@@ -578,7 +578,7 @@ object DataModelInstanceRelation {
       PropertyType.Array.Bigint.Property(x.map(i => i.asInstanceOf[Long]).toVector)
     case x: Iterable[_] if x.head.isInstanceOf[java.math.BigInteger] =>
       PropertyType.Array.Bigint
-        .Property(x.map(i => i.asInstanceOf[java.math.BigInteger].longValue()).toVector)
+        .Property(x.map(i => i.asInstanceOf[java.math.BigInteger].longValue).toVector)
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias.code))
   }
 
