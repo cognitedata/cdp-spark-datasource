@@ -125,13 +125,14 @@ class SequencesRelationTest
       externalId = Some(id),
       name = Some("a"),
       description = Some("description abc"),
-      columns = Seq(SequenceColumnCreate(
-        name = Some("col2"),
-        externalId = "col1",
-        description = Some("col2 description"),
-        valueType = "STRING",
-        metadata = Some(Map("foo2" -> "bar2"))
-      ))
+      columns = Seq(
+        SequenceColumnCreate(
+          name = Some("col2"),
+          externalId = "col1",
+          description = Some("col2 description"),
+          valueType = "STRING",
+          metadata = Some(Map("foo2" -> "bar2"))
+        ))
     )
 
     ingests(Seq(sequenceUpdate), conflictMode = "update")
@@ -148,7 +149,6 @@ class SequencesRelationTest
     colHead.metadata shouldBe Some(Map("foo2" -> "bar2"))
     cleanupSequences(Seq(id))
   }
-
 
   it should "upsert using SQL" in {
     val id = UUID.randomUUID().toString
@@ -231,8 +231,12 @@ class SequencesRelationTest
 
     columns1.toList.flatMap(_.name).toSet shouldBe Set("col_updated_name", "new_col_added_name")
     columns1.toList.flatMap(_.externalId).toSet shouldBe Set("col_updated", "new_col_added")
-    columns1.toList.flatMap(_.description).toSet shouldBe Set("col_updated_description", "new_col_added_description")
-    columns1.toList.flatMap(_.metadata).toSet shouldBe Set(Map("m1" -> "v1"), Map("m1" -> "v1", "m2" -> "v2"))
+    columns1.toList.flatMap(_.description).toSet shouldBe Set(
+      "col_updated_description",
+      "new_col_added_description")
+    columns1.toList.flatMap(_.metadata).toSet shouldBe Set(
+      Map("m1" -> "v1"),
+      Map("m1" -> "v1", "m2" -> "v2"))
     columns1.map(_.valueType).toList shouldBe List("STRING", "STRING")
 
     columns2.head.name shouldBe Some("new_sequence_new_column_name")
@@ -308,8 +312,7 @@ class SequencesRelationTest
 
     val exception = intercept[SparkException] {
       spark
-        .sql(
-          s"""select '$id' as externalId,
+        .sql(s"""select '$id' as externalId,
              |'xD' as name,
              |'lol' as description,
              |array(
@@ -332,44 +335,47 @@ class SequencesRelationTest
     cleanupSequences(Seq(id))
 
     exception.getMessage should
-      include("Column valueType cannot be modified: the previous value is STRING and the user attempted to update it with LONG")
+      include(
+        "Column valueType cannot be modified: the previous value is STRING and the user attempted to update it with LONG")
   }
 
   it should "chunk sequence if more than 10000 columns in the request" in {
-    val key = shortRandomString()
+    Seq("abort", "upsert").foreach { mode =>
+      val key = shortRandomString()
 
-    //650 * 200 give us 130000 columns in total
-    val ids = (1 to 650).map(_ => UUID.randomUUID().toString)
-    try {
-      val sequencesToInsert = ids.map(
-        id =>
-          SequenceInsertSchema(
-            externalId = Some(id),
-            name = Some(s"a|${key}"),
-            columns = (1 to 200).map(
-              i =>
-                SequenceColumnCreate(
-                  name = Some("col" + i),
-                  externalId = "col" + i,
-                  description = Some("col1 description"),
-                  valueType = "STRING",
-                  metadata = Some(Map("foo" -> "bar"))
-              ))
-        ))
-
-      ingests(sequencesToInsert)
-
-      val sequences = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequences where name = 'a|$key'").collect,
-        _.length != 650)
-      sequences.length shouldBe 650
-      sequences.head.getAs[String]("name").startsWith("a|") shouldBe true
-
-    } finally {
+      //650 * 200 give us 130000 columns in total
+      val ids = (1 to 650).map(_ => UUID.randomUUID().toString)
       try {
-        cleanupSequences(ids)
-      } catch {
-        case NonFatal(_) => // ignore
+        val sequencesToInsert = ids.map(
+          id =>
+            SequenceInsertSchema(
+              externalId = Some(id),
+              name = Some(s"a|${key}"),
+              columns = (1 to 200).map(
+                i =>
+                  SequenceColumnCreate(
+                    name = Some("col" + i),
+                    externalId = "col" + i,
+                    description = Some("col1 description"),
+                    valueType = "STRING",
+                    metadata = Some(Map("foo" -> "bar"))
+                ))
+          ))
+
+        ingests(sequencesToInsert, conflictMode = mode)
+
+        val sequences = retryWhile[Array[Row]](
+          spark.sql(s"select * from sequences where name = 'a|$key'").collect,
+          _.length != 650)
+        sequences.length shouldBe 650
+        sequences.head.getAs[String]("name").startsWith("a|") shouldBe true
+
+      } finally {
+        try {
+          cleanupSequences(ids)
+        } catch {
+          case NonFatal(_) => // ignore
+        }
       }
     }
   }
