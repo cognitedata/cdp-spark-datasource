@@ -30,6 +30,29 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .listPartitions(numPartitions)
       .map(_.map(_.into[SequenceReadSchema].withFieldComputed(_.columns, _.columns.toList).transform))
 
+  /*
+     Sequence API does not support more than 200 columns per sequence,
+     and the maximum total columns per request is 10000
+     so we need to split them to ensure that each chunk can not have more than 10000 columns in total
+   */
+  private def splitSequences[T](sequences: Seq[T], getSizeOfColumns: T => Int): Seq[Vector[T]] = {
+    val (_, groupedSequences) = sequences
+      .foldLeft((0, List(Vector.empty[T]))) {
+        case ((_, Nil), sequence) =>
+          (getSizeOfColumns(sequence), List(Vector(sequence)))
+        case ((currentGroupColumnsCount, groups @ currentGroup :: otherGroups), sequence) =>
+          val columnsInSequence = getSizeOfColumns(sequence)
+          if (currentGroupColumnsCount + columnsInSequence > Constants.DefaultSequencesTotalColumnsLimit) {
+            // create a new group
+            (columnsInSequence, Vector(sequence) :: groups)
+          } else {
+            // add to current group
+            (currentGroupColumnsCount + columnsInSequence, (sequence +: currentGroup) :: otherGroups)
+          }
+      }
+    groupedSequences
+  }
+
   override def insert(rows: Seq[Row]): IO[Unit] = {
     val sequences = rows.map { row =>
       val s = fromRow[SequenceInsertSchema](row)
@@ -49,28 +72,13 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       )
     }
 
-    // Sequence API does not support more than 200 columns per sequence,
-    // and the maximum total columns per request is 10000
-    // so grouped by 50 ensure that each chunk can not have more than 10000 columns in total,
-    // otherwise we already reject because of the first condition
-    val (_, groupedSequences) = sequences
-      .foldLeft((0, List(Vector.empty[SequenceCreate]))) {
-        case ((currentGroupColumnsCount, groups @ currentGroup :: otherGroups), sequence) =>
-          val columnsInSequence = sequence.columns.size
-          if (currentGroupColumnsCount + columnsInSequence > Constants.DefaultSequencesTotalColumnsLimit) {
-            // create a new group
-            (columnsInSequence, Vector(sequence) :: groups)
-          } else {
-            // add to current group
-            (currentGroupColumnsCount + columnsInSequence, (sequence +: currentGroup) :: otherGroups)
-          }
-      }
-    groupedSequences.map { sequencesToCreate =>
+    val groupedSequences: Seq[Vector[SequenceCreate]] =
+      splitSequences[SequenceCreate](sequences, (s: SequenceCreate) => s.columns.size)
+    groupedSequences.toList.traverse_ { sequencesToCreate =>
       client.sequences
         .create(sequencesToCreate)
         .flatMap(_ => incMetrics(itemsCreated, sequencesToCreate.size))
-    }.sequence_
-
+    }
   }
 
   private def isUpdateEmpty(u: SequenceUpdate): Boolean = u == SequenceUpdate()
@@ -155,19 +163,26 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val sequences =
-      rows
-        .map(fromRow[SequenceUpsertSchema](_))
+    val sequences = rows.map(fromRow[SequenceUpsertSchema](_))
 
     implicit val toCreate = transformerUpsertToCreate()
 
     implicit val toUpdate = transformerUpsertToUpdate(sequences)
 
-    genericUpsert[Sequence, SequenceUpsertSchema, SequenceCreate, SequenceUpdate, SequencesResource[IO]](
+    val groupedSequences: Seq[Vector[SequenceUpsertSchema]] = splitSequences[SequenceUpsertSchema](
       sequences,
-      isUpdateEmpty,
-      client.sequences
-    )
+      (s: SequenceUpsertSchema) => s.columns.map(_.size).getOrElse(0))
+
+    // scalastyle:off no.whitespace.after.left.bracket
+    groupedSequences.toList.traverse_ { sequencesToCreate =>
+      genericUpsert[
+        Sequence,
+        SequenceUpsertSchema,
+        SequenceCreate,
+        SequenceUpdate,
+        SequencesResource[IO]](sequencesToCreate, isUpdateEmpty, client.sequences)
+    }
+    // scalastyle:on no.whitespace.after.left.bracket
   }
 
   // scalastyle:off method.length

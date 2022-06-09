@@ -1,3 +1,9 @@
+# 2.0.11
+
+## Fixes
+
+* Chunk sequences when upserting to avoid limit 10000 columns
+
 # 2.0.10
 
 ## Enhancements
