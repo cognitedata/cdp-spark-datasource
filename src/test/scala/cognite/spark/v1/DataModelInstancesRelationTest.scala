@@ -261,7 +261,7 @@ class DataModelInstancesRelationTest
       )
     }
     // TODO Missing model externalId used to result in CdpApiException, now it returns empty list
-    //  Check with dms team
+    //  Check with DMS team
     // ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. " +
     //  "Got an exception from CDF API: ids not found: non-existing-model (code: 400)"
     ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. Please check if the model exists."
@@ -664,7 +664,7 @@ it should "delete data model instances" in {
     }
   )
 }
-/*
+
 it should "ingest data with special property types" in {
   val randomId = "prim_test_" + shortRandomString()
   tryTestAndCleanUp(
@@ -684,7 +684,7 @@ it should "ingest data with special property types" in {
         },
         failure => failure
       )
-      byExternalId(primitiveExtId2, randomId) shouldBe Some(randomId)
+      byExternalId(true, primitiveExtId2, randomId) shouldBe randomId
       getNumberOfRowsUpserted(primitiveExtId2, "datamodelinstances") shouldBe 1
     }
   )
@@ -726,5 +726,4 @@ it should "read instances with special property types" in {
   )
 }
 
-*/
 }
