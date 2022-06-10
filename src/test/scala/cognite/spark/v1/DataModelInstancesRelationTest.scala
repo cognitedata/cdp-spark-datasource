@@ -203,29 +203,33 @@ class DataModelInstancesRelationTest
       }
     }
 
-
   it should "ingest data" in {
     val randomId = "prim_test_" + shortRandomString()
+    val randomId2 = "prim_test_" + shortRandomString()
+
     tryTestAndCleanUp(
-      Seq(randomId), {
+      Seq(randomId, randomId2), {
         retryWhile[Boolean](
           {
-            Try {
-              insertRows(
-                primitiveExtId,
-                spark
-                  .sql(s"""
-                          |select 2.0 as prop_float,
-                          |true as prop_bool,
-                          |'abc' as prop_string,
-                          |'${randomId}' as externalId""".stripMargin)
-              )
-            }.isFailure
+            Seq((randomId, "upsert"), (randomId2, "abort")).map{ case (rId: String, action: String) =>
+              Try {
+                insertRows(
+                  primitiveExtId,
+                  spark
+                    .sql(s"""
+                            |select 2.0 as prop_float,
+                            |true as prop_bool,
+                            |'abc' as prop_string,
+                            |'$rId' as externalId""".stripMargin),
+                  action
+                )
+              }.isFailure
+            }.reduce(_&&_)
           },
           failure => failure
         )
         byExternalId(true, primitiveExtId, randomId) shouldBe randomId
-        getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
+        getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 2
       }
     )
   }
