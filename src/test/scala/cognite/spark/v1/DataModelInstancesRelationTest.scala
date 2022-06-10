@@ -38,7 +38,7 @@ class DataModelInstancesRelationTest
       .unsafeRunTimed(30.seconds)
       .get
   } else  {
-    ???
+    throw new CdfSparkException("Edges are not supported.")
   }
 
   private def getExternalIdList(
@@ -53,7 +53,7 @@ class DataModelInstancesRelationTest
         model = modelExternalId), externalIds =  Seq(externalId)).unsafeRunSync().items.head
     }
     else {
-      ???
+      throw new CdfSparkException("Edges are not supported.")
     }
 
   private def byExternalId(isNode: Boolean, modelExternalId: String, externalId: String): String =
@@ -230,7 +230,20 @@ class DataModelInstancesRelationTest
     )
   }
 
-
+  it should "return an informative error when externalId is missing" in {
+    val ex = sparkIntercept {
+      insertRows(
+        primitiveExtId,
+        spark
+          .sql(s"""
+                  |select '2.0' as prop_float,
+                  |true as prop_bool,
+                  |'abc' as prop_string""".stripMargin)
+      )
+    }
+    ex shouldBe an[CdfSparkException]
+    ex.getMessage shouldBe "Can't upsert data model instances, `externalId` is missing."
+  }
 
   it should "return an informative error when a value with wrong type is attempted to be ingested" in {
     val ex = sparkIntercept {

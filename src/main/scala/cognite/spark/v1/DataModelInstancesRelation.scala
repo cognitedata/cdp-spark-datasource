@@ -100,7 +100,7 @@ class DataModelInstanceRelation(
           )
           .flatTap(_ => incMetrics(itemsUpserted, dataModelNodes.length)) *> IO.unit
       } else {
-        IO.unit
+        throw new CdfSparkException(s"Edges are not supported when $insertStr.")
       }
     }
 
@@ -248,7 +248,7 @@ class DataModelInstanceRelation(
         .deleteByExternalIds(deletes.map(_.externalId))
         .flatTap(_ => incMetrics(itemsDeleted, rows.length))
     } else {
-      ???
+      throw new CdfSparkException("Deleting edges is not supported.")
     }
   }
 
@@ -258,9 +258,6 @@ class DataModelInstanceRelation(
   // scalastyle:off method.length
   def nodeFromRow(schema: StructType): Row => Node = {
     val externalIdIndex = schema.fieldNames.indexOf("externalId")
-    if (externalIdIndex < 0) {
-      throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
-    }
     val typeIndex = schema.fieldNames.indexOf("type")
     val nameIndex = schema.fieldNames.indexOf("name")
     val descriptionIndex = schema.fieldNames.indexOf("description")
@@ -279,6 +276,10 @@ class DataModelInstanceRelation(
 
     def parseNodeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Node = {
+      if (externalIdIndex < 0) {
+        throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
+      }
+
       val externalId = row.get(externalIdIndex) match {
         case x: String => x
         case _ =>
