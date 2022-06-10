@@ -171,13 +171,13 @@ class DataModelInstancesRelationTest
       .option("spaceExternalId", spaceExternalId)
       .option("collectMetrics", true)
       .option("metricsPrefix", metricPrefix)
-      .option("type", "datamodelinstances")
+      .option("type", "alphadatamodelinstances")
       .load()
 
   def insertRows(modelExternalId: String, df: DataFrame, onconflict: String = "upsert"): Unit =
     df.write
       .format("cognite.spark.v1")
-      .option("type", "datamodelinstances")
+      .option("type", "alphadatamodelinstances")
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)
@@ -226,7 +226,7 @@ class DataModelInstancesRelationTest
           failure => failure
         )
         byExternalId(true, primitiveExtId, randomId) shouldBe randomId
-        getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
+        getNumberOfRowsUpserted(primitiveExtId, "alphadatamodelinstances") shouldBe 1
 
       }
     )
@@ -369,7 +369,7 @@ class DataModelInstancesRelationTest
           failure => failure
         )
         (getExternalIdList(true, multiValuedExtId) should contain).allOf(randomId1, randomId2)
-        getNumberOfRowsUpserted(multiValuedExtId, "datamodelinstances") shouldBe 2
+        getNumberOfRowsUpserted(multiValuedExtId, "alphadatamodelinstances") shouldBe 2
       }
     )
   }
@@ -399,7 +399,7 @@ class DataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId, metricPrefix)
         df.limit(1).count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
       }
     )
   }
@@ -452,13 +452,13 @@ class DataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(multiValuedExtId2, metricPrefix)
         df.limit(1).count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
         (df
           .select("externalId")
           .collect()
           .map(_.getAs[String]("externalId"))
           .toList should contain).allOf(randomId1, randomId2)
-        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 3
       }
     )
   }
@@ -502,7 +502,7 @@ class DataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId, metricPrefix)
         df.where(s"externalId = '$randomId1'").count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
       }
     )
   }
@@ -556,20 +556,20 @@ class DataModelInstancesRelationTest
         val df = readRows(multiValuedExtId2, metricPrefix)
         val andDf = df.where("prop_numeric > 1.5 and prop_float64 = 0.8")
         andDf.count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
         (collectExternalIds(andDf) should contain).only(randomId1)
 
         val metricPrefix2 = shortRandomString()
         val df2 = readRows(multiValuedExtId2, metricPrefix2)
           .where("not (prop_numeric > 1.5 and prop_float64 >= 0.7)")
         df2.count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 1
         (collectExternalIds(df2) should contain).only(randomId2)
 
         val metricPrefix3 = shortRandomString()
         val df3 = readRows(multiValuedExtId2, metricPrefix3).where("prop_float32 is not null")
         df3.count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix3, "alphadatamodelinstances") shouldBe 1
         (collectExternalIds(df3) should contain).only(randomId1)
       }
     )
@@ -623,20 +623,20 @@ class DataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId, metricPrefix).where("prop_string = 'abc' or prop_bool = false")
         df.count() shouldBe 3
-        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 3
         (collectExternalIds(df) should contain).only(randomId1, randomId3, randomId4)
 
         val metricPrefix2 = shortRandomString()
         val df2 = readRows(primitiveExtId, metricPrefix2)
           .where("prop_string in('abc', 'yyyy') or prop_float < 6.8")
         df2.count() shouldBe 3
-        getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 3
+        getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 3
 
         val metricPrefix3 = shortRandomString()
         val df3 = readRows(primitiveExtId, metricPrefix3)
           .where("prop_string LIKE 'xx%'")
         df3.count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix3, "alphadatamodelinstances") shouldBe 1
 
         (collectExternalIds(df3) should contain).only(randomId3)
       }
@@ -685,7 +685,7 @@ class DataModelInstancesRelationTest
                     |select '$randomId2' as externalId""".stripMargin),
           "delete"
         )
-        getNumberOfRowsDeleted(primitiveExtId, "datamodelinstances") shouldBe 2
+        getNumberOfRowsDeleted(primitiveExtId, "alphadatamodelinstances") shouldBe 2
         val df2 =
           readRows(primitiveExtId, metricPrefix).where(s"externalId in('$randomId1', '$randomId2')")
         df2.count() shouldBe 0
@@ -714,7 +714,7 @@ class DataModelInstancesRelationTest
           failure => failure
         )
         byExternalId(true, primitiveExtId2, randomId) shouldBe randomId
-        getNumberOfRowsUpserted(primitiveExtId2, "datamodelinstances") shouldBe 1
+        getNumberOfRowsUpserted(primitiveExtId2, "alphadatamodelinstances") shouldBe 1
       }
     )
   }
@@ -751,7 +751,7 @@ class DataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId2, metricPrefix)
         df.count() shouldBe 2
-        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 2
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 2
       }
     )
   }
