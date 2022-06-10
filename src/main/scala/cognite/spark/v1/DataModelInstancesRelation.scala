@@ -85,7 +85,7 @@ class DataModelInstanceRelation(
     if (rows.isEmpty) {
       IO.unit
     } else {
-      val fromRowFn = fromNodeRow(rows.head.schema)
+      val fromRowFn = nodeFromRow(rows.head.schema)
       val insertStr = if (overwrite) "upserting" else "inserting"
       if (modelType == NodeType) {
         val dataModelNodes: Seq[Node] = rows.map(fromRowFn)
@@ -256,7 +256,7 @@ class DataModelInstanceRelation(
     throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
 
   // scalastyle:off method.length
-  def fromNodeRow(schema: StructType): Row => Node = {
+  def nodeFromRow(schema: StructType): Row => Node = {
     val externalIdIndex = schema.fieldNames.indexOf("externalId")
     if (externalIdIndex < 0) {
       throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
