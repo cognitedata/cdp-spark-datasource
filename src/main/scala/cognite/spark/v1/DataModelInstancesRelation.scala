@@ -36,10 +36,6 @@ class DataModelInstanceRelation(
     with WritableRelation
     with PrunedFilteredScan {
   import CdpConnector._
-  import com.cognite.sdk.scala.v1.resources.DataModels.{
-    dataModelPropertyTypeDecoder,
-    dataModelPropertyTypeEncoder
-  }
 
   private val model: DataModel = alphaClient.dataModels
     .retrieveByExternalIds(Seq(modelExternalId), spaceExternalId = spaceExternalId)
@@ -153,9 +149,8 @@ class DataModelInstanceRelation(
   // scalastyle:off method.length
   def getInstanceFilter(sparkFilter: Filter): Option[DomainSpecificLanguageFilter] =
     sparkFilter match {
-      case EqualTo(left, right) => {
+      case EqualTo(left, right) =>
         Some(DSLEqualsFilter(Seq(spaceExternalId, modelExternalId, left), parsePropertyValue(right)))
-      }
       case In(attribute, values) =>
         if (modelInfo(attribute).`type`.code.endsWith("[]")) {
           None
