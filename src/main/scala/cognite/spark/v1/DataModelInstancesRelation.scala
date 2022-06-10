@@ -81,32 +81,31 @@ class DataModelInstanceRelation(
         StructField(name, propertyTypeToSparkType(prop.`type`), nullable = prop.nullable)
     }.toArray)
 
-  private def upsertOrInsert(rows: Seq[Row], overwrite: Boolean) =
+  override def upsert(rows: Seq[Row]): IO[Unit] =
     if (rows.isEmpty) {
       IO.unit
     } else {
       val fromRowFn = nodeFromRow(rows.head.schema)
-      val insertStr = if (overwrite) "upserting" else "inserting"
       if (modelType == NodeType) {
         val dataModelNodes: Seq[Node] = rows.map(fromRowFn)
         alphaClient.nodes
           .createItems(
             instanceSpaceExternalId
               .getOrElse(throw new CdfSparkException(
-                s"instanceSpaceExternalId must be specified when $insertStr data.")),
+                s"instanceSpaceExternalId must be specified when upserting data.")),
             DataModelIdentifier(Some(spaceExternalId), modelExternalId),
-            overwrite,
+            true,
             dataModelNodes
           )
           .flatTap(_ => incMetrics(itemsUpserted, dataModelNodes.length)) *> IO.unit
       } else {
-        throw new CdfSparkException(s"Edges are not supported when $insertStr.")
+        throw new CdfSparkException(s"Upserting edges is not supported.")
       }
     }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = upsertOrInsert(rows, true)
-
-  def insert(rows: Seq[Row]): IO[Unit] = upsertOrInsert(rows, false)
+  def insert(rows: Seq[Row]): IO[Unit] =
+    throw new CdfSparkException(
+      "Create (abort) is not supported for data model instances. Use upsert instead.")
 
   def toRow(a: ProjectedDataModelInstance): Row = {
     if (config.collectMetrics) {

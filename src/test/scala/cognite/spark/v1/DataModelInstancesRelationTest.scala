@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.{DomainSpecificLanguageFilter, EmptyFilter}
+import com.cognite.sdk.scala.common.{CdpApiException, DomainSpecificLanguageFilter, EmptyFilter}
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
@@ -205,13 +205,11 @@ class DataModelInstancesRelationTest
 
   it should "ingest data" in {
     val randomId = "prim_test_" + shortRandomString()
-    val randomId2 = "prim_test_" + shortRandomString()
 
     tryTestAndCleanUp(
-      Seq(randomId, randomId2), {
+      Seq(randomId), {
         retryWhile[Boolean](
           {
-            Seq((randomId, "upsert"), (randomId2, "abort")).map{ case (rId: String, action: String) =>
               Try {
                 insertRows(
                   primitiveExtId,
@@ -220,16 +218,16 @@ class DataModelInstancesRelationTest
                             |select 2.0 as prop_float,
                             |true as prop_bool,
                             |'abc' as prop_string,
-                            |'$rId' as externalId""".stripMargin),
-                  action
+                            |'$randomId' as externalId""".stripMargin),
                 )
               }.isFailure
-            }.reduce(_&&_)
+
           },
           failure => failure
         )
         byExternalId(true, primitiveExtId, randomId) shouldBe randomId
-        getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 2
+        getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
+
       }
     )
   }
