@@ -174,7 +174,7 @@ class DefaultSource
         new RelationshipsRelation(config)(sqlContext)
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
-      case "datamodelinstances" =>
+      case "alphadatamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
@@ -236,7 +236,7 @@ class DefaultSource
           new RelationshipsRelation(config)(sqlContext)
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
-        case "datamodelinstances" =>
+        case "alphadatamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
