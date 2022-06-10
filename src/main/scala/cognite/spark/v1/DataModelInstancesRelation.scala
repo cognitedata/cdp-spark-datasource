@@ -43,7 +43,7 @@ class DataModelInstanceRelation(
       case e: CdpApiException =>
         new CdfSparkException(
           s"Could not resolve schema of data model $modelExternalId. " +
-            s"Got an exception from CDF API: ${e.message} (code: ${e.code})",
+            s"Got an exception from the CDF API: ${e.message} (code: ${e.code})",
           e)
     }
     .unsafeRunSync()
