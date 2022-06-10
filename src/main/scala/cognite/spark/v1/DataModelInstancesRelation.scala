@@ -86,12 +86,14 @@ class DataModelInstanceRelation(
       IO.unit
     } else {
       val fromRowFn = fromNodeRow(rows.head.schema)
+      val insertStr = if (overwrite) "upserting" else "inserting"
       if (modelType == NodeType) {
         val dataModelNodes: Seq[Node] = rows.map(fromRowFn)
         alphaClient.nodes
           .createItems(
             instanceSpaceExternalId
-              .getOrElse(throw new CdfSparkException("instanceSpaceExternalId must be specified")),
+              .getOrElse(throw new CdfSparkException(
+                s"instanceSpaceExternalId must be specified when $insertStr data.")),
             DataModelIdentifier(Some(spaceExternalId), modelExternalId),
             overwrite,
             dataModelNodes
