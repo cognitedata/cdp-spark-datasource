@@ -89,11 +89,17 @@ class DefaultSource
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext) = {
-    val modelName =
+    val spaceExternalId =
+      parameters.getOrElse("spaceExternalId", sys.error("spaceExternalId must be specified"))
+    val modelExternalId =
       parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
+    val instanceSpaceExternalId =
+      parameters.get("instanceSpaceExternalId")
     new DataModelInstanceRelation(
       config,
-      modelName
+      spaceExternalId,
+      modelExternalId,
+      instanceSpaceExternalId
     )(sqlContext)
   }
 

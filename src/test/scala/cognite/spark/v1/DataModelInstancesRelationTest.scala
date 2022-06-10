@@ -1,8 +1,7 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.Items
+import com.cognite.sdk.scala.common.{CdpApiException, DomainSpecificLanguageFilter, EmptyFilter}
 import com.cognite.sdk.scala.v1._
-import io.circe.Json
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
@@ -22,85 +21,98 @@ class DataModelInstancesRelationTest
   val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
   val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
   private val bluefieldAlphaClient = getBlufieldClient(Some("alpha"))
+  private val spaceExternalId = "test-space"
 
   private def listInstances(
+      isNode: Boolean,
       modelExternalId: String,
-      filter: Option[DataModelInstanceFilter] = None): Seq[DataModelInstanceQueryResponse] =
-    bluefieldAlphaClient.dataModelInstances
+      filter: DomainSpecificLanguageFilter = EmptyFilter): DataModelInstanceQueryResponse = if (isNode){
+    bluefieldAlphaClient.nodes
       .query(
         DataModelInstanceQuery(
-          modelExternalId = modelExternalId,
+          model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
           filter = filter,
           sort = None,
-          limit = None))
+          limit = None)
+      )
       .unsafeRunTimed(30.seconds)
       .get
-      .items
+  } else  {
+    throw new CdfSparkException("Edges are not supported.")
+  }
 
-  private def getExternalIdList(modelExternalId: String): Seq[String] =
-    listInstances(modelExternalId)
-      .flatMap(_.properties.flatMap(_.get("externalId")).toList).map(_.asInstanceOf[StringProperty].value)
+  private def getExternalIdList(
+      isNode: Boolean,
+      modelExternalId: String): Seq[String] = listInstances(isNode = isNode, modelExternalId).items.map(_.externalId)
 
-  private def getByExternalId(modelExternalId: String, externalId: String): Seq[DataModelInstanceQueryResponse] = listInstances(
-      modelExternalId,
-      filter = Some(DMIEqualsFilter(Seq("instance", "externalId"), StringProperty(externalId))))
+  private def getByExternalId(isNode: Boolean,
+                              modelExternalId: String,
+                              externalId: String): PropertyMap =
+    if (isNode) {
+      bluefieldAlphaClient.nodes.retrieveByExternalIds(model = DataModelIdentifier(space = Some(spaceExternalId),
+        model = modelExternalId), externalIds =  Seq(externalId)).unsafeRunSync().items.head
+    }
+    else {
+      throw new CdfSparkException("Edges are not supported.")
+    }
 
-  private def byExternalId(modelExternalId: String, externalId: String): Option[String] =
-    getByExternalId(modelExternalId, externalId)
-      .flatMap(_.properties.flatMap(_.get("externalId")))
-      .collectFirst { case StringProperty(id) => id }
+  private def byExternalId(isNode: Boolean, modelExternalId: String, externalId: String): String =
+    getByExternalId(isNode = isNode, modelExternalId, externalId).externalId
 
-  private val multiValuedExtId = "MultiValues_" + shortRandomString()
-  private val primitiveExtId = "Primitive_" + shortRandomString()
-  private val multiValuedExtId2 = "MultiValues2_" + shortRandomString
-  private val primitiveExtId2 = "Primitive_" + shortRandomString()
+  // TODO reenable shortRandomString suffix after delete is implemented in DMS. Now just create once for tests.
+  private val multiValuedExtId = "MultiValues" // + shortRandomString()
+  private val primitiveExtId = "Primitive" // + shortRandomString()
+  private val multiValuedExtId2 = "MultiValues2" // + shortRandomString
+  private val primitiveExtId2 = "Primitive2" // + shortRandomString()
   private val allModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
 
   private val props = Map(
-    "arr_int" -> DataModelProperty(`type` = "int[]", nullable = false),
-    "arr_boolean" -> DataModelProperty(`type` = "boolean[]", nullable = true),
-    "arr_str" -> DataModelProperty(`type` = "text[]", nullable = true),
-    "str_prop" -> DataModelProperty(`type` = "text", nullable = true)
+    "arr_int_fix" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Int, nullable = false),
+    "arr_boolean" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Boolean, nullable = true),
+    "arr_str" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Text, nullable = true),
+    "str_prop" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true)
   )
+
   private val props2 = Map(
-    "prop_float" -> DataModelProperty(`type` = "float64", nullable = true),
-    "prop_bool" -> DataModelProperty(`type` = "boolean", nullable = true),
-    "prop_string" -> DataModelProperty(`type` = "text", nullable = true)
+    "prop_float" -> DataModelPropertyDefinition(`type` = PropertyType.Float64, nullable = true),
+    "prop_bool" -> DataModelPropertyDefinition(`type` = PropertyType.Boolean, nullable = true),
+    "prop_string" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true)
   )
   private val props3 = Map(
-    "prop_int32" -> DataModelProperty(`type` = "int32", nullable = false),
-    "prop_int64" -> DataModelProperty(`type` = "int64", nullable = false),
-    "prop_float32" -> DataModelProperty(`type` = "float32", nullable = true),
-    "prop_float64" -> DataModelProperty(`type` = "float64", nullable = true),
-    "prop_numeric" -> DataModelProperty(`type` = "numeric", nullable = true),
-    "arr_int32" -> DataModelProperty(`type` = "int32[]", nullable = false),
-    "arr_int64" -> DataModelProperty(`type` = "int64[]", nullable = false),
-    "arr_float32" -> DataModelProperty(`type` = "float32[]", nullable = true),
-    "arr_float64" -> DataModelProperty(`type` = "float64[]", nullable = true),
-    "arr_numeric" -> DataModelProperty(`type` = "numeric[]", nullable = true)
+    "prop_int32" -> DataModelPropertyDefinition(`type` = PropertyType.Int32, nullable = false),
+    "prop_int64" -> DataModelPropertyDefinition(`type` = PropertyType.Int64, nullable = false),
+    "prop_float32" -> DataModelPropertyDefinition(`type` = PropertyType.Float32, nullable = true),
+    "prop_float64" -> DataModelPropertyDefinition(`type` = PropertyType.Float64, nullable = true),
+    "prop_numeric" -> DataModelPropertyDefinition(`type` = PropertyType.Numeric, nullable = true),
+    "arr_int32" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Int32, nullable = false),
+    "arr_int64" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Int64, nullable = false),
+    "arr_float32" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Float32, nullable = true),
+    "arr_float64" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Float64, nullable = true),
+    "arr_numeric" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Numeric, nullable = true)
   )
 
   private val props4 = Map(
-    "prop_direct_relation" -> DataModelProperty(`type` = "direct_relation", nullable = true),
-    "prop_timestamp" -> DataModelProperty(`type` = "timestamp", nullable = true),
-    "prop_date" -> DataModelProperty(`type` = "date", nullable = true)
+    "prop_direct_relation" -> DataModelPropertyDefinition(`type` = PropertyType.DirectRelation, nullable = true),
+    "prop_timestamp" -> DataModelPropertyDefinition(`type` = PropertyType.Timestamp, nullable = true),
+    "prop_date" ->DataModelPropertyDefinition(`type` = PropertyType.Date, nullable = true)
   )
+
+
 
   override def beforeAll(): Unit = {
     def createAndGetModels(): Seq[DataModel] = {
-      bluefieldAlphaClient.dataModels
+      /*bluefieldAlphaClient.dataModels
         .createItems(
-          Items[DataModel](Seq(
-            DataModel(externalId = multiValuedExtId, properties = Some(props)),
-            DataModel(externalId = primitiveExtId, properties = Some(props2)),
-            DataModel(externalId = multiValuedExtId2, properties = Some(props3)),
-            DataModel(externalId = primitiveExtId2, properties = Some(props4))
-
-          )))
-        .unsafeRunTimed(30.seconds)
-      bluefieldAlphaClient.dataModels.list().unsafeRunSync()
+          Seq(
+            DataModel(externalId = multiValuedExtId, dataModelType = NodeType, properties = Some(props)),
+            DataModel(externalId = primitiveExtId, dataModelType = NodeType, properties = Some(props2)),
+            DataModel(externalId = multiValuedExtId2, dataModelType = NodeType, properties = Some(props3)),
+            DataModel(externalId = primitiveExtId2, dataModelType = NodeType, properties = Some(props4)),
+          ), spaceExternalId)
+        .unsafeRunSync()*/
+      bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
-
+    cleanUpNodes()
     retryWhile[scala.Seq[DataModel]](
       createAndGetModels(),
       dm => !allModelExternalIds.subsetOf(dm.map(_.externalId).toSet)
@@ -109,29 +121,42 @@ class DataModelInstancesRelationTest
   }
 
   override def afterAll(): Unit = {
-    def deleteAndGetModels(): Seq[DataModel] = {
+    // TODO enable this after delete is supported
+   /* def deleteAndGetModels(): Seq[DataModel] = {
       bluefieldAlphaClient.dataModels
         .deleteItems(Seq(
           multiValuedExtId,
           primitiveExtId,
           multiValuedExtId2,
-          primitiveExtId2)
+          primitiveExtId2),
+          spaceExternalId
         )
         .unsafeRunSync()
-      bluefieldAlphaClient.dataModels.list().unsafeRunSync()
+      bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
     retryWhile[scala.Seq[DataModel]](
       deleteAndGetModels(),
       dm => dm.map(_.externalId).toSet.intersect(allModelExternalIds).nonEmpty
-    )
+    )*/
+    cleanUpNodes()
     ()
   }
 
+  // TODO remove this function and enable model deletion instead when available
+  private def cleanUpNodes(): Unit =
+    allModelExternalIds.foreach{ modelExtId =>
+      val nodes: DataModelInstanceQueryResponse = bluefieldAlphaClient.nodes
+        .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
+        .unsafeRunSync()
+      nodes.items.map(_.externalId).grouped(500).foreach(ids =>
+        if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByExternalIds(ids).unsafeRunSync())
+    }
+
   private def collectExternalIds(df: DataFrame): List[String] =
-    df.select("externalId")
-      .collect()
-      .map(_.getAs[String]("externalId"))
-      .toList
+  df.select("externalId")
+    .collect()
+    .map(_.getAs[String]("externalId"))
+    .toList
 
   private def readRows(modelExternalId: String, metricPrefix: String) =
     spark.read
@@ -143,6 +168,7 @@ class DataModelInstancesRelationTest
       .option("project", "extractor-bluefield-testing")
       .option("scopes", "https://bluefield.cognitedata.com/.default")
       .option("modelExternalId", modelExternalId)
+      .option("spaceExternalId", spaceExternalId)
       .option("collectMetrics", true)
       .option("metricsPrefix", metricPrefix)
       .option("type", "datamodelinstances")
@@ -159,6 +185,8 @@ class DataModelInstancesRelationTest
       .option("project", "extractor-bluefield-testing")
       .option("scopes", "https://bluefield.cognitedata.com/.default")
       .option("modelExternalId", modelExternalId)
+      .option("spaceExternalId", spaceExternalId)
+      .option("instanceSpaceExternalId", spaceExternalId)
       .option("onconflict", onconflict)
       .option("collectMetrics", true)
       .option("metricsPrefix", modelExternalId)
@@ -169,35 +197,54 @@ class DataModelInstancesRelationTest
       testCode
     } finally {
       try {
-        bluefieldAlphaClient.dataModelInstances.deleteByExternalIds(externalIds).unsafeRunSync()
+        bluefieldAlphaClient.nodes.deleteByExternalIds(externalIds).unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
     }
 
- it should "ingest data" in {
+  it should "ingest data" in {
     val randomId = "prim_test_" + shortRandomString()
+
     tryTestAndCleanUp(
       Seq(randomId), {
         retryWhile[Boolean](
           {
-            Try {
-              insertRows(
-                primitiveExtId,
-                spark
-                  .sql(s"""select 2.0 as prop_float,
-                        |true as prop_bool,
-                        |'abc' as prop_string,
-                        |'${randomId}' as externalId""".stripMargin)
-              )
-            }.isFailure
+              Try {
+                insertRows(
+                  primitiveExtId,
+                  spark
+                    .sql(s"""
+                            |select 2.0 as prop_float,
+                            |true as prop_bool,
+                            |'abc' as prop_string,
+                            |'$randomId' as externalId""".stripMargin),
+                )
+              }.isFailure
+
           },
           failure => failure
         )
-        byExternalId(primitiveExtId, randomId) shouldBe Some(randomId)
+        byExternalId(true, primitiveExtId, randomId) shouldBe randomId
         getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
+
       }
     )
+  }
+
+  it should "return an informative error when externalId is missing" in {
+    val ex = sparkIntercept {
+      insertRows(
+        primitiveExtId,
+        spark
+          .sql(s"""
+                  |select '2.0' as prop_float,
+                  |true as prop_bool,
+                  |'abc' as prop_string""".stripMargin)
+      )
+    }
+    ex shouldBe an[CdfSparkException]
+    ex.getMessage shouldBe "Can't upsert data model instances, `externalId` is missing."
   }
 
   it should "return an informative error when a value with wrong type is attempted to be ingested" in {
@@ -205,7 +252,8 @@ class DataModelInstancesRelationTest
       insertRows(
         primitiveExtId,
         spark
-          .sql(s"""select '2.0' as prop_float,
+          .sql(s"""
+                  |select '2.0' as prop_float,
                   |true as prop_bool,
                   |'abc' as prop_string,
                   |'test' as externalId""".stripMargin)
@@ -217,20 +265,25 @@ class DataModelInstancesRelationTest
   }
 
 
+
   it should "return an informative error when schema inference fails" in {
     val ex = sparkIntercept {
       insertRows(
         "non-existing-model",
         spark
-          .sql(s"""select '2.0' as prop_float,
+          .sql(s"""
+                  |select '2.0' as prop_float,
                   |true as prop_bool,
                   |'abc' as prop_string,
                   |'test' as externalId""".stripMargin)
       )
     }
+    // TODO Missing model externalId used to result in CdpApiException, now it returns empty list
+    //  Check with DMS team
+    // ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. " +
+    //  "Got an exception from CDF API: ids not found: non-existing-model (code: 400)"
+    ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. Please check if the model exists."
     ex shouldBe an[CdfSparkException]
-    ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. " +
-      "Got an exception from CDF API: ids not found: non-existing-model (code: 400)"
   }
 
 
@@ -244,7 +297,8 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select float('2.0') as prop_float,
+                  .sql(s"""
+                          |select float('2.0') as prop_float,
                           |true as prop_bool,
                           |'abc' as prop_string,
                           |'${randomId}' as externalId""".stripMargin)
@@ -253,8 +307,8 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(primitiveExtId, randomId)
-          .flatMap(dmi => dmi.properties.map(mp => mp.get("prop_float"))).head shouldBe Some(Float64Property(2.0))
+        getByExternalId(true, primitiveExtId, randomId)
+          .allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(2.0))
       }
     )
   }
@@ -269,7 +323,8 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select cast('3.0' as float) as prop_float,
+                  .sql(s"""
+                          |select cast('3.0' as float) as prop_float,
                           |true as prop_bool,
                           |'abc' as prop_string,
                           |'${randomId}' as externalId""".stripMargin)
@@ -278,13 +333,13 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(primitiveExtId, randomId)
-          .flatMap(dmi => dmi.properties.map(mp => mp.get("prop_float"))).head shouldBe Some(Float64Property(3.0))
+        getByExternalId(true, primitiveExtId, randomId)
+          .allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(3.0))
       }
     )
   }
 
- it should "ingest multi valued data" in {
+  it should "ingest multi valued data" in {
     val randomId1 = "test_multi_" + shortRandomString()
     val randomId2 = "test_multi_" + shortRandomString()
     tryTestAndCleanUp(
@@ -294,31 +349,33 @@ class DataModelInstancesRelationTest
             Try {
               insertRows(
                 multiValuedExtId,
-                spark.sql(s"""select array() as arr_int,
-                |array(true, false) as arr_boolean,
-                |NULL as arr_str,
-                |NULL as str_prop,
-                |'${randomId1}' as externalId
-                |
-                |union all
-                |
-                |select array(1,2) as arr_int,
-                |NULL as arr_boolean,
-                |array('hehe') as arr_str,
-                |'hehe' as str_prop,
-                |'${randomId2}' as externalId""".stripMargin)
+                spark.sql(s"""
+                              |select array() as arr_int_fix,
+                              |array(true, false) as arr_boolean,
+                              |NULL as arr_str,
+                              |NULL as str_prop,
+                              |'${randomId1}' as externalId
+                              |
+                              |union all
+                              |
+                              |select array(1,2) as arr_int_fix,
+                              |NULL as arr_boolean,
+                              |array('x', 'y') as arr_str,
+                              |'hehe' as str_prop,
+                              |'${randomId2}' as externalId""".stripMargin)
               )
             }.isFailure
           },
           failure => failure
         )
-        (getExternalIdList(multiValuedExtId) should contain).allOf(randomId1, randomId2)
+        (getExternalIdList(true, multiValuedExtId) should contain).allOf(randomId1, randomId2)
         getNumberOfRowsUpserted(multiValuedExtId, "datamodelinstances") shouldBe 2
       }
     )
   }
 
- it should "read instances" in {
+
+  it should "read instances" in {
     val randomId = "prim_test2_" + shortRandomString()
     tryTestAndCleanUp(
       Seq(randomId), {
@@ -328,10 +385,11 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select 2.1 as prop_float,
-             |false as prop_bool,
-             |'abc' as prop_string,
-             |'$randomId' as externalId""".stripMargin)
+                  .sql(s"""
+                           |select 2.1 as prop_float,
+                           |false as prop_bool,
+                           |'abc' as prop_string,
+                           |'$randomId' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -346,7 +404,7 @@ class DataModelInstancesRelationTest
     )
   }
 
- it should "read multi valued instances" in {
+  it should "read multi valued instances" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     tryTestAndCleanUp(
@@ -358,31 +416,32 @@ class DataModelInstancesRelationTest
                 multiValuedExtId2,
                 spark
                   .sql(
-                    s"""select 1234 as prop_int32,
-             |4398046511104 as prop_int64,
-             |0.424242 as prop_float32,
-             |0.424242 as prop_float64,
-             |1.00000000001 as prop_numeric,
-             |array(1,2,3) as arr_int32,
-             |array(1,2,3) as arr_int64,
-             |array(0.618, 1.618) as arr_float32,
-             |array(0.618, 1.618) as arr_float64,
-             |array(1.00000000001) as arr_numeric,
-             |'$randomId1' as externalId
-             |
-             |union all
-             |
-             |select 1234 as prop_int32,
-             |4398046511104 as prop_int64,
-             |NULL as prop_float32,
-             |NULL as prop_float64,
-             |1.00000000001 as prop_numeric,
-             |array(1,2,3) as arr_int32,
-             |array(1,2,3) as arr_int64,
-             |array(0.618, 1.618) as arr_float32,
-             |NULL as arr_float64,
-             |array(1.00000000001) as arr_numeric,
-             |'$randomId2' as externalId""".stripMargin
+                    s"""
+                       |select 1234 as prop_int32,
+                       |4398046511104 as prop_int64,
+                       |0.424242 as prop_float32,
+                       |0.424242 as prop_float64,
+                       |1.00000000001 as prop_numeric,
+                       |array(1,2,3) as arr_int32,
+                       |array(1,2,3) as arr_int64,
+                       |array(0.618, 1.618) as arr_float32,
+                       |array(0.618, 1.618) as arr_float64,
+                       |array(1.00000000001) as arr_numeric,
+                       |'$randomId1' as externalId
+                       |
+                       |union all
+                       |
+                       |select 1234 as prop_int32,
+                       |4398046511104 as prop_int64,
+                       |NULL as prop_float32,
+                       |NULL as prop_float64,
+                       |1.00000000001 as prop_numeric,
+                       |array(1,2,3) as arr_int32,
+                       |array(1,2,3) as arr_int64,
+                       |array(0.618, 1.618) as arr_float32,
+                       |NULL as arr_float64,
+                       |array(1.00000000001) as arr_numeric,
+                       |'$randomId2' as externalId""".stripMargin
                   )
               )
             }.isFailure
@@ -404,23 +463,24 @@ class DataModelInstancesRelationTest
     )
   }
 
- it should "fail when writing null to a non nullable property" in {
-    val ex = sparkIntercept {
-      insertRows(
-        multiValuedExtId,
-        spark
-          .sql(s"""select NULL as arr_int,
-             |array(true, false) as arr_boolean,
-             |NULL as arr_str,
-             |NULL as str_prop,
-             |'test_multi' as externalId""".stripMargin)
-      )
+   it should "fail when writing null to a non nullable property" in {
+      val ex = sparkIntercept {
+        insertRows(
+          multiValuedExtId,
+          spark
+            .sql(s"""
+                     |select NULL as arr_int_fix,
+                     |array(true, false) as arr_boolean,
+                     |NULL as arr_str,
+                     |NULL as str_prop,
+                     |'test_multi' as externalId""".stripMargin)
+        )
+      }
+      ex shouldBe an[CdfSparkException]
+      ex.getMessage shouldBe s"Property of int[] type is not nullable."
     }
-    ex shouldBe an[CdfSparkException]
-    ex.getMessage shouldBe s"Property of int[] type is not nullable."
-  }
 
- it should "filter instances by externalId" in {
+  it should "filter instances by externalId" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     tryTestAndCleanUp(
       Seq(randomId1), {
@@ -431,9 +491,9 @@ class DataModelInstancesRelationTest
                 primitiveExtId,
                 spark
                   .sql(s"""select 2.1 as prop_float,
-             |false as prop_bool,
-             |'abc' as prop_string,
-             |'$randomId1' as externalId""".stripMargin)
+                           |false as prop_bool,
+                           |'abc' as prop_string,
+                           |'$randomId1' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -447,7 +507,7 @@ class DataModelInstancesRelationTest
     )
   }
 
- it should "filter instances" in {
+  it should "filter instances" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     tryTestAndCleanUp(
@@ -459,31 +519,32 @@ class DataModelInstancesRelationTest
                 multiValuedExtId2,
                 spark
                   .sql(
-                    s"""select 1234 as prop_int32,
-             |4398046511104 as prop_int64,
-             |0.424242 as prop_float32,
-             |0.8 as prop_float64,
-             |2.0 as prop_numeric,
-             |array(1,2,3) as arr_int32,
-             |array(1,2,3) as arr_int64,
-             |array(0.618, 1.618) as arr_float32,
-             |array(0.618, 1.618) as arr_float64,
-             |array(1.00000000001) as arr_numeric,
-             |'$randomId1' as externalId
-             |
-             |union all
-             |
-             |select 1234 as prop_int32,
-             |4398046511104 as prop_int64,
-             |NULL as prop_float32,
-             |NULL as prop_float64,
-             |1.00000000001 as prop_numeric,
-             |array(1,2,3) as arr_int32,
-             |array(1,2,3) as arr_int64,
-             |array(0.618, 1.618) as arr_float32,
-             |NULL as arr_float64,
-             |array(1.00000000001) as arr_numeric,
-             |'$randomId2' as externalId""".stripMargin
+                    s"""
+                       |select 1234 as prop_int32,
+                       |4398046511104 as prop_int64,
+                       |0.424242 as prop_float32,
+                       |0.8 as prop_float64,
+                       |2.0 as prop_numeric,
+                       |array(1,2,3) as arr_int32,
+                       |array(1,2,3) as arr_int64,
+                       |array(0.618, 1.618) as arr_float32,
+                       |array(0.618, 1.618) as arr_float64,
+                       |array(1.00000000001) as arr_numeric,
+                       |'$randomId1' as externalId
+                       |
+                       |union all
+                       |
+                       |select 1234 as prop_int32,
+                       |4398046511104 as prop_int64,
+                       |NULL as prop_float32,
+                       |NULL as prop_float64,
+                       |1.00000000001 as prop_numeric,
+                       |array(1,2,3) as arr_int32,
+                       |array(1,2,3) as arr_int64,
+                       |array(0.618, 1.618) as arr_float32,
+                       |NULL as arr_float64,
+                       |array(1.00000000001) as arr_numeric,
+                       |'$randomId2' as externalId""".stripMargin
                   )
               )
             }.isFailure
@@ -514,7 +575,7 @@ class DataModelInstancesRelationTest
     )
   }
 
- it should "filter instances using or" in {
+  it should "filter instances using or" in {
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test_" + shortRandomString()
     val randomId3 = "prim_test_" + shortRandomString()
@@ -527,31 +588,32 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select 2.1 as prop_float,
-                    |false as prop_bool,
-                    |'abc' as prop_string,
-                    |'$randomId1' as externalId
-                    |
-                    |union all
-                    |
-                    |select 5.0 as prop_float,
-                    |true as prop_bool,
-                    |'zzzz' as prop_string,
-                    |'$randomId2' as externalId
-                    |
-                    |union all
-                    |
-                    |select 9.0 as prop_float,
-                    |false as prop_bool,
-                    |'xxxx' as prop_string,
-                    |'$randomId3' as externalId
-                    |
-                    |union all
-                    |
-                    |select 8.0 as prop_float,
-                    |false as prop_bool,
-                    |'yyyy' as prop_string,
-                    |'$randomId4' as externalId""".stripMargin)
+                  .sql(s"""
+                          |select 2.1 as prop_float,
+                          |false as prop_bool,
+                          |'abc' as prop_string,
+                          |'$randomId1' as externalId
+                          |
+                          |union all
+                          |
+                          |select 5.0 as prop_float,
+                          |true as prop_bool,
+                          |'zzzz' as prop_string,
+                          |'$randomId2' as externalId
+                          |
+                          |union all
+                          |
+                          |select 9.0 as prop_float,
+                          |false as prop_bool,
+                          |'xxxx' as prop_string,
+                          |'$randomId3' as externalId
+                          |
+                          |union all
+                          |
+                          |select 8.0 as prop_float,
+                          |false as prop_bool,
+                          |'yyyy' as prop_string,
+                          |'$randomId4' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -580,7 +642,8 @@ class DataModelInstancesRelationTest
       }
     )
   }
- it should "delete data model instances" in {
+
+  it should "delete data model instances" in {
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test2_" + shortRandomString()
     tryTestAndCleanUp(
@@ -591,17 +654,18 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId,
                 spark
-                  .sql(s"""select 2.1 as prop_float,
-             |false as prop_bool,
-             |'abc' as prop_string,
-             |'$randomId1' as externalId
-             |
-             |union all
-             |
-             |select 5.0 as prop_float,
-             |true as prop_bool,
-             |'zzzz' as prop_string,
-             |'$randomId2' as externalId""".stripMargin)
+                  .sql(s"""
+                           |select 2.1 as prop_float,
+                           |false as prop_bool,
+                           |'abc' as prop_string,
+                           |'$randomId1' as externalId
+                           |
+                           |union all
+                           |
+                           |select 5.0 as prop_float,
+                           |true as prop_bool,
+                           |'zzzz' as prop_string,
+                           |'$randomId2' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -615,9 +679,10 @@ class DataModelInstancesRelationTest
         insertRows(
           modelExternalId = primitiveExtId,
           spark
-            .sql(s"""select '$randomId1' as externalId
-            |union all
-            |select '$randomId2' as externalId""".stripMargin),
+            .sql(s"""
+                    |select '$randomId1' as externalId
+                    |union all
+                    |select '$randomId2' as externalId""".stripMargin),
           "delete"
         )
         getNumberOfRowsDeleted(primitiveExtId, "datamodelinstances") shouldBe 2
@@ -628,7 +693,7 @@ class DataModelInstancesRelationTest
     )
   }
 
- it should "ingest data with special property types" in {
+  it should "ingest data with special property types" in {
     val randomId = "prim_test_" + shortRandomString()
     tryTestAndCleanUp(
       Seq(randomId), {
@@ -638,54 +703,56 @@ class DataModelInstancesRelationTest
               insertRows(
                 primitiveExtId2,
                 spark
-                  .sql(s"""select 'asset' as prop_direct_relation,
+                  .sql(s"""
+                          |select 'asset' as prop_direct_relation,
                           |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
                           |date('2022-01-01') as prop_date,
                           |'${randomId}' as externalId""".stripMargin)
-              )
+                      )
             }.isFailure
           },
           failure => failure
         )
-        byExternalId(primitiveExtId2, randomId) shouldBe Some(randomId)
+        byExternalId(true, primitiveExtId2, randomId) shouldBe randomId
         getNumberOfRowsUpserted(primitiveExtId2, "datamodelinstances") shouldBe 1
       }
     )
   }
 
- it should "read instances with special property types" in {
+  it should "read instances with special property types" in {
     val randomId = "prim_test_" + shortRandomString()
-   val randomId2 = "prim_test_" + shortRandomString() + "_2"
-   tryTestAndCleanUp(
-      Seq(randomId, randomId2), {
-        retryWhile[Boolean](
-          {
-            Try {
-              insertRows(
-                primitiveExtId2,
-                spark
-                  .sql(
-                    s"""select 'asset' as prop_direct_relation,
-                       |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
-                       |date('2022-01-20') as prop_date,
-                       |'${randomId}' as externalId
-                       |
-                       |union all
-                       |
-                       |select 'asset2' as prop_direct_relation,
-                       |timestamp('2022-01-10T12:34:56.789+00:00') as prop_timestamp,
-                       |date('2022-01-01') as prop_date,
-                       |'${randomId2}' as externalId""".stripMargin)
-              )
-            }.isFailure
-          },
-          failure => failure
-        )
-       val metricPrefix = shortRandomString()
+    val randomId2 = "prim_test_" + shortRandomString() + "_2"
+    tryTestAndCleanUp(
+        Seq(randomId, randomId2), {
+          retryWhile[Boolean](
+            {
+              Try {
+                insertRows(
+                  primitiveExtId2,
+                  spark
+                    .sql(
+                      s"""
+                         |select 'asset' as prop_direct_relation,
+                         |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
+                         |date('2022-01-20') as prop_date,
+                         |'${randomId}' as externalId
+                         |
+                         |union all
+                         |
+                         |select 'asset2' as prop_direct_relation,
+                         |timestamp('2022-01-10T12:34:56.789+00:00') as prop_timestamp,
+                         |date('2022-01-01') as prop_date,
+                         |'${randomId2}' as externalId""".stripMargin)
+                )
+              }.isFailure
+            },
+            failure => failure
+          )
+        val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId2, metricPrefix)
         df.count() shouldBe 2
         getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 2
-     }
+      }
     )
   }
 }
