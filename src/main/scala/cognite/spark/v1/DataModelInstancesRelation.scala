@@ -85,21 +85,32 @@ class DataModelInstanceRelation(
     if (rows.isEmpty) {
       IO.unit
     } else {
-      val fromRowFn = nodeFromRow(rows.head.schema)
+      val instanceSpace = instanceSpaceExternalId
+        .getOrElse(
+          throw new CdfSparkException(s"instanceSpaceExternalId must be specified when upserting data."))
       if (modelType == NodeType) {
+        val fromRowFn = nodeFromRow(rows.head.schema)
         val dataModelNodes: Seq[Node] = rows.map(fromRowFn)
         alphaClient.nodes
           .createItems(
-            instanceSpaceExternalId
-              .getOrElse(throw new CdfSparkException(
-                s"instanceSpaceExternalId must be specified when upserting data.")),
+            instanceSpace,
             DataModelIdentifier(Some(spaceExternalId), modelExternalId),
             true,
-            dataModelNodes
-          )
+            dataModelNodes)
           .flatTap(_ => incMetrics(itemsUpserted, dataModelNodes.length)) *> IO.unit
       } else {
-        throw new CdfSparkException(s"Upserting edges is not supported.")
+        val fromRowFn = edgeFromRow(rows.head.schema)
+        val dataModelEdges: Seq[Edge] = rows.map(fromRowFn)
+        alphaClient.edges
+          .createItems(
+            spaceExternalId = instanceSpace,
+            model = DataModelIdentifier(Some(spaceExternalId), modelExternalId),
+            autoCreateStartNodes = true,
+            autoCreateEndNodes = true,
+            overwrite = true,
+            dataModelEdges
+          )
+          .flatTap(_ => incMetrics(itemsUpserted, dataModelEdges.length)) *> IO.unit
       }
     }
 
