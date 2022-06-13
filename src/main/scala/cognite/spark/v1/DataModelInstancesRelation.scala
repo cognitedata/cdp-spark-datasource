@@ -26,7 +26,7 @@ import java.time._
 
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
 
-// scalastyle:off cyclomatic.complexity
+// scalastyle:off cyclomatic.complexity file.length
 class DataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
@@ -254,57 +254,83 @@ class DataModelInstanceRelation(
   def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
 
-  // scalastyle:off method.length
+  def getIndexedPropertyList(rSchema: StructType): Array[(Int, String, DataModelPropertyDefinition)] =
+    rSchema.fields.zipWithIndex.map {
+      case (field: StructField, index: Int) =>
+        val propertyType = modelInfo.getOrElse(
+          field.name,
+          throw new CdfSparkException(
+            s"Can't insert property `${field.name}` " +
+              s"into data model $modelExternalId, the property does not exist in the definition")
+        )
+        (index, field.name, propertyType)
+    }
+
+  def getDataModelPropertyMap(
+      indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)],
+      row: Row): Map[String, DataModelProperty[_]] =
+    indexedPropertyList
+      .map {
+        case (index, name, propT) =>
+          name -> (row.get(index) match {
+            case null if !propT.nullable => // scalastyle:off null
+              throw new CdfSparkException(propertyNotNullableMessage(propT.`type`))
+            case null => // scalastyle:off null
+              None
+            case _ if Seq("externalId", "type", "name", "description") contains name =>
+              None
+            case _ =>
+              Some(toPropertyType(propT.`type`)(row.get(index)))
+          })
+      }
+      .collect { case (a, Some(value)) => a -> value }
+      .toMap
+
+  def edgeFromRow(schema: StructType): Row => Edge = {
+    val externalIdIndex = getRequiredStringPropertyIndex(schema, modelType, "externalId")
+    val startNodeIndex = getRequiredStringPropertyIndex(schema, modelType, "startNode")
+    val endNodeIndex = getRequiredStringPropertyIndex(schema, modelType, "endNode")
+    val typeIndex = getRequiredStringPropertyIndex(schema, modelType, "type")
+    val indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)] = getIndexedPropertyList(
+      schema)
+
+    def parseEdgeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
+        row: Row): Edge = {
+      val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
+      val startNode = getStringValueForFixedProperty(row, "startNode", startNodeIndex)
+      val endNode = getStringValueForFixedProperty(row, "endNode", endNodeIndex)
+      val edgeType = getStringValueForFixedProperty(row, "type", typeIndex)
+      val propertyValues: Map[String, DataModelProperty[_]] =
+        getDataModelPropertyMap(indexedPropertyList, row)
+
+      Edge(
+        externalId = externalId,
+        `type` = edgeType,
+        startNode = startNode,
+        endNode = endNode,
+        properties = Some(propertyValues))
+    }
+
+    parseEdgeRow(indexedPropertyList)
+  }
+
   def nodeFromRow(schema: StructType): Row => Node = {
-    val externalIdIndex = schema.fieldNames.indexOf("externalId")
+    val externalIdIndex = getRequiredStringPropertyIndex(schema, modelType, "externalId")
     val typeIndex = schema.fieldNames.indexOf("type")
     val nameIndex = schema.fieldNames.indexOf("name")
     val descriptionIndex = schema.fieldNames.indexOf("description")
-
-    val indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)] =
-      schema.fields.zipWithIndex.map {
-        case (field: StructField, index: Int) =>
-          val propertyType = modelInfo.getOrElse(
-            field.name,
-            throw new CdfSparkException(
-              s"Can't insert property `${field.name}` " +
-                s"into data model $modelExternalId, the property does not exist in the definition")
-          )
-          (index, field.name, propertyType)
-      }
+    val indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)] = getIndexedPropertyList(
+      schema)
 
     def parseNodeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Node = {
-      if (externalIdIndex < 0) {
-        throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
-      }
-
-      val externalId = row.get(externalIdIndex) match {
-        case x: String => x
-        case _ =>
-          throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
-      }
-      val nodeType: Option[String] = if (typeIndex < 0) None else Some(row.getAs[String](typeIndex))
-      val nodeName: Option[String] = if (nameIndex < 0) None else Some(row.getAs[String](nameIndex))
+      val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
+      val nodeType: Option[String] = getOptionalStringValueForFixedProperty(row, "type", typeIndex)
+      val nodeName: Option[String] = getOptionalStringValueForFixedProperty(row, "name", nameIndex)
       val nodeDescription: Option[String] =
-        if (descriptionIndex < 0) None else Some(row.getAs[String](descriptionIndex))
-
-      val propertyValues: Map[String, DataModelProperty[_]] = indexedPropertyList
-        .map {
-          case (index, name, propT) =>
-            name -> (row.get(index) match {
-              case null if !propT.nullable => // scalastyle:off null
-                throw new CdfSparkException(propertyNotNullableMessage(propT.`type`))
-              case null => // scalastyle:off null
-                None
-              case _ if Seq("externalId", "type", "name", "description") contains name =>
-                None
-              case _ =>
-                Some(toPropertyType(propT.`type`)(row.get(index)))
-            })
-        }
-        .collect { case (a, Some(value)) => a -> value }
-        .toMap
+        getOptionalStringValueForFixedProperty(row, "description", descriptionIndex)
+      val propertyValues: Map[String, DataModelProperty[_]] =
+        getDataModelPropertyMap(indexedPropertyList, row)
 
       Node(
         externalId = externalId,
@@ -314,13 +340,13 @@ class DataModelInstanceRelation(
         properties = Some(propertyValues)
       )
     }
+
     parseNodeRow(indexedPropertyList)
   }
-  // scalastyle:on method.length
 }
-// scalastyle:off
 
 object DataModelInstanceRelation {
+  // scalastyle:off
   private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
 
   private def notValidPropertyTypeMessage(
@@ -603,9 +629,31 @@ object DataModelInstanceRelation {
         throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
 
+  def getRequiredStringPropertyIndex(
+      rSchema: StructType,
+      modelType: DataModelType,
+      keyString: String): Int = {
+    val typeString = if (modelType == NodeType) "node" else "edge"
+    val index = rSchema.fieldNames.indexOf(keyString)
+    if (index < 0) {
+      throw new CdfSparkException(s"Can't upsert data model $typeString, `$keyString` is missing.")
+    } else {
+      index
+    }
+  }
+
+  def getStringValueForFixedProperty(row: Row, keyString: String, index: Int): String =
+    row.get(index) match {
+      case x: String => x
+      case _ =>
+        throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
+    }
+
+  def getOptionalStringValueForFixedProperty(row: Row, keyString: String, index: Int): Option[String] =
+    if (index < 0) None else Some(getStringValueForFixedProperty(row, keyString, index))
 }
 
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
 final case class DataModelInstanceDeleteSchema(externalId: String)
 
-// scalastyle:on cyclomatic.complexity
+// scalastyle:on cyclomatic.complexity file.length
