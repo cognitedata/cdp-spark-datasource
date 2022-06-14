@@ -68,8 +68,11 @@ class DataModelInstancesRelationTest
   private val multiValuedExtId2 = "MultiValues2" // + shortRandomString
   private val primitiveExtId2 = "Primitive2" // + shortRandomString()
   private val edgeExtId = "myEdge" // + shortRandomString()
+  private val primEdgeExtId = "primitiveEdge" // + shortRandomString()
+  private val specialEdge = "specialEdge" // + shortRandomString()
+
   private val allNodeModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
-  private val allEdgeModelExternalIds = Set(edgeExtId)
+  private val allEdgeModelExternalIds = Set(edgeExtId, primEdgeExtId, specialEdge)
 
   private val props = Map(
     "arr_int_fix" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Int, nullable = false),
@@ -99,7 +102,7 @@ class DataModelInstancesRelationTest
   private val props4 = Map(
     "prop_direct_relation" -> DataModelPropertyDefinition(`type` = PropertyType.DirectRelation, nullable = true),
     "prop_timestamp" -> DataModelPropertyDefinition(`type` = PropertyType.Timestamp, nullable = true),
-    "prop_date" ->DataModelPropertyDefinition(`type` = PropertyType.Date, nullable = true)
+    "prop_date" -> DataModelPropertyDefinition(`type` = PropertyType.Date, nullable = true)
   )
 
 
@@ -115,10 +118,12 @@ class DataModelInstancesRelationTest
             DataModel(externalId = primitiveExtId2, dataModelType = NodeType, properties = Some(props4)),
           ), spaceExternalId)
         .unsafeRunSync()*/
-     bluefieldAlphaClient.dataModels.createItems(
+      /*bluefieldAlphaClient.dataModels.createItems(
         Seq(
-          DataModel(externalId = edgeExtId, dataModelType = EdgeType, properties = Some(props))
-        ), spaceExternalId).unsafeRunSync()
+            DataModel(externalId = edgeExtId, dataModelType = EdgeType, properties = Some(props)),
+            DataModel(externalId = primEdgeExtId, dataModelType = EdgeType, properties = Some(props2)),
+          DataModel(externalId = specialEdge, dataModelType = EdgeType, properties = Some(props4))
+        ), spaceExternalId).unsafeRunSync()*/
       bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
     cleanUpNodes()
@@ -809,4 +814,79 @@ class DataModelInstancesRelationTest
     )
   }
 
+  it should "read edges" in {
+    val randomId = "prim_edge_test2_" + shortRandomString()
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primEdgeExtId,
+                spark
+                  .sql(s"""
+                          |select 2.1 as prop_float,
+                          |'testNode1' as startNode,
+                          |'testNode2' as endNode,
+                          |'test2' as type,
+                          |false as prop_bool,
+                          |'abc' as prop_string,
+                          |'$randomId' as externalId""".stripMargin)
+              )
+            }.isFailure
+
+          },
+          failure => failure
+        )
+
+        val metricPrefix = shortRandomString()
+        val df = readRows(primEdgeExtId, metricPrefix)
+        df.limit(1).count() shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
+      }
+    )
+  }
+
+  it should "read edges with special property types" in {
+    val randomId = "prim_edge_test_" + shortRandomString()
+    val randomId2 = "prim_edge_test_" + shortRandomString() + "_2"
+    tryTestAndCleanUp(
+      Seq(randomId, randomId2), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                specialEdge,
+                spark
+                  .sql(
+                    s"""
+                       |select 'testNode1' as startNode,
+                       |'testNode3' as endNode,
+                       |'test1' as type,
+                       |'asset' as prop_direct_relation,
+                       |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
+                       |date('2022-01-20') as prop_date,
+                       |'${randomId}' as externalId
+                       |
+                       |union all
+                       |
+                       |select 'testNode1' as startNode,
+                       |'testNode2' as endNode,
+                       |'test2' as type,
+                       |'asset2' as prop_direct_relation,
+                       |timestamp('2022-01-10T12:34:56.789+00:00') as prop_timestamp,
+                       |date('2022-01-01') as prop_date,
+                       |'${randomId2}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        val metricPrefix = shortRandomString()
+        val df = readRows(specialEdge, metricPrefix)
+        df.count() shouldBe 2
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 2
+      }
+    )
+  }
 }
