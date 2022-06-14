@@ -25,6 +25,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time._
 
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
+import com.cognite.sdk.scala.v1.resources.EdgeQuery
 
 // scalastyle:off cyclomatic.complexity file.length
 class DataModelInstanceRelation(
@@ -228,18 +229,30 @@ class DataModelInstanceRelation(
       val andFilters = filters.toVector.flatMap(getInstanceFilter)
       if (andFilters.isEmpty) EmptyFilter else DSLAndFilter(andFilters)
     }
-
-    val dmiQuery = DataModelInstanceQuery(
-      model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
-      filter = filter,
-      sort = None,
-      limit = limit,
-      cursor = None)
-
-    Seq(
-      alphaClient.nodes
-        .queryStream(dmiQuery, limit)
-        .map(r => toProjectedInstance(r, selectedPropsArray)))
+    if (modelType == NodeType) {
+      val dmiQuery = DataModelInstanceQuery(
+        model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
+        filter = filter,
+        sort = None,
+        limit = limit,
+        cursor = None)
+      Seq(
+        alphaClient.nodes
+          .queryStream(dmiQuery, limit)
+          .map(r => toProjectedInstance(r, selectedPropsArray)))
+    } else {
+      // TODO will be refactored in sdk
+      val edgeQuery = EdgeQuery(
+        model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
+        filter = filter,
+        sort = None,
+        limit = limit,
+        cursor = None)
+      Seq(
+        alphaClient.edges
+          .queryStream(edgeQuery, limit)
+          .map(r => toProjectedInstance(r, selectedPropsArray)))
+    }
   }
 
   override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
@@ -258,7 +271,9 @@ class DataModelInstanceRelation(
         .deleteByExternalIds(deletes.map(_.externalId))
         .flatTap(_ => incMetrics(itemsDeleted, rows.length))
     } else {
-      throw new CdfSparkException("Deleting edges is not supported.")
+      alphaClient.edges
+        .deleteByExternalIds(deletes.map(_.externalId))
+        .flatTap(_ => incMetrics(itemsDeleted, rows.length))
     }
   }
 
