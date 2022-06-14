@@ -1,7 +1,9 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.{CdpApiException, DomainSpecificLanguageFilter, EmptyFilter}
+import com.cognite.sdk.scala.v1.DataModelType.EdgeType
 import com.cognite.sdk.scala.v1._
+import com.cognite.sdk.scala.v1.resources.{EdgeQuery, EdgeQueryResponse}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
@@ -53,7 +55,8 @@ class DataModelInstancesRelationTest
         model = modelExternalId), externalIds =  Seq(externalId)).unsafeRunSync().items.head
     }
     else {
-      throw new CdfSparkException("Edges are not supported.")
+      bluefieldAlphaClient.edges.retrieveByExternalIds(model = DataModelIdentifier(space = Some(spaceExternalId),
+        model = modelExternalId), externalIds =  Seq(externalId)).unsafeRunSync().items.head
     }
 
   private def byExternalId(isNode: Boolean, modelExternalId: String, externalId: String): String =
@@ -64,7 +67,9 @@ class DataModelInstancesRelationTest
   private val primitiveExtId = "Primitive" // + shortRandomString()
   private val multiValuedExtId2 = "MultiValues2" // + shortRandomString
   private val primitiveExtId2 = "Primitive2" // + shortRandomString()
-  private val allModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
+  private val edgeExtId = "myEdge" // + shortRandomString()
+  private val allNodeModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
+  private val allEdgeModelExternalIds = Set(edgeExtId)
 
   private val props = Map(
     "arr_int_fix" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Int, nullable = false),
@@ -110,12 +115,17 @@ class DataModelInstancesRelationTest
             DataModel(externalId = primitiveExtId2, dataModelType = NodeType, properties = Some(props4)),
           ), spaceExternalId)
         .unsafeRunSync()*/
+     bluefieldAlphaClient.dataModels.createItems(
+        Seq(
+          DataModel(externalId = edgeExtId, dataModelType = EdgeType, properties = Some(props))
+        ), spaceExternalId).unsafeRunSync()
       bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
     cleanUpNodes()
+    cleanUpEdges()
     retryWhile[scala.Seq[DataModel]](
       createAndGetModels(),
-      dm => !allModelExternalIds.subsetOf(dm.map(_.externalId).toSet)
+      dm => !(allEdgeModelExternalIds ++ allNodeModelExternalIds).subsetOf(dm.map(_.externalId).toSet)
     )
     ()
   }
@@ -139,16 +149,27 @@ class DataModelInstancesRelationTest
       dm => dm.map(_.externalId).toSet.intersect(allModelExternalIds).nonEmpty
     )*/
     cleanUpNodes()
+    cleanUpEdges()
     ()
   }
 
   // TODO remove this function and enable model deletion instead when available
   private def cleanUpNodes(): Unit =
-    allModelExternalIds.foreach{ modelExtId =>
+    allNodeModelExternalIds.foreach{ modelExtId =>
       val nodes: DataModelInstanceQueryResponse = bluefieldAlphaClient.nodes
         .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
         .unsafeRunSync()
       nodes.items.map(_.externalId).grouped(500).foreach(ids =>
+        if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByExternalIds(ids).unsafeRunSync())
+    }
+
+  // TODO remove this function and enable model deletion instead when available
+  private def cleanUpEdges(): Unit =
+    allEdgeModelExternalIds.foreach{ modelExtId =>
+      val edges: EdgeQueryResponse = bluefieldAlphaClient.edges
+        .query(EdgeQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
+        .unsafeRunSync()
+      edges.items.map(_.externalId).grouped(500).foreach(ids =>
         if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByExternalIds(ids).unsafeRunSync())
     }
 
@@ -244,7 +265,7 @@ class DataModelInstancesRelationTest
       )
     }
     ex shouldBe an[CdfSparkException]
-    ex.getMessage shouldBe "Can't upsert data model instances, `externalId` is missing."
+    ex.getMessage shouldBe "Can't upsert data model node, `externalId` is missing."
   }
 
   it should "return an informative error when a value with wrong type is attempted to be ingested" in {
@@ -755,4 +776,37 @@ class DataModelInstancesRelationTest
       }
     )
   }
+
+  it should "ingest edge data" in {
+    val randomId = "edge_test_" + shortRandomString()
+
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                edgeExtId,
+                spark
+                  .sql(s"""
+                          |select array(2) as arr_int_fix,
+                          |'testNode' as startNode,
+                          |'testNode2' as endNode,
+                          |'test' as type,
+                          |array(false,true) as arr_boolean,
+                          |array('x', 'abc') as arr_str,
+                          |'abc' as str_prop,
+                          |'$randomId' as externalId""".stripMargin),
+              )
+            }.isFailure
+
+          },
+          failure => failure
+        )
+        byExternalId(false, edgeExtId, randomId) shouldBe randomId
+        getNumberOfRowsUpserted(edgeExtId, "alphadatamodelinstances") shouldBe 1
+      }
+    )
+  }
+
 }
