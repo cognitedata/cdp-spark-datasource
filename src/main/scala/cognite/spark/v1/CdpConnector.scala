@@ -3,7 +3,13 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.effect.unsafe.{IORuntime, IORuntimeConfig}
-import com.cognite.sdk.scala.common.{GzipSttpBackend, Items, RetryingBackend}
+import com.cognite.sdk.scala.common.Items
+import com.cognite.sdk.scala.sttp.{
+  BackpressureThrottleBackend,
+  GzipBackend,
+  RateLimitingBackend,
+  RetryingBackend
+}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.apache.spark.datasource.MetricsSource
@@ -54,8 +60,7 @@ object CdpConnector {
     IORuntimeConfig()
   )
   private val sttpBackend: SttpBackend[IO, Any] =
-    new GzipSttpBackend[IO, Any](
-      AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
+    new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
   def retryingSttpBackend(
       maxRetries: Int,
