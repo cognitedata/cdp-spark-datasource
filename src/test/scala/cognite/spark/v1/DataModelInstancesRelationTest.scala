@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import java.time.{Instant, ZoneId, ZonedDateTime}
+
 import com.cognite.sdk.scala.common.{CdpApiException, DomainSpecificLanguageFilter, EmptyFilter}
 import com.cognite.sdk.scala.v1.DataModelType.EdgeType
 import com.cognite.sdk.scala.v1._
@@ -175,7 +177,7 @@ class DataModelInstancesRelationTest
         .query(EdgeQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
         .unsafeRunSync()
       edges.items.map(_.externalId).grouped(500).foreach(ids =>
-        if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByExternalIds(ids).unsafeRunSync())
+        if (ids.nonEmpty) bluefieldAlphaClient.edges.deleteByExternalIds(ids).unsafeRunSync())
     }
 
   private def collectExternalIds(df: DataFrame): List[String] =
@@ -401,7 +403,7 @@ class DataModelInstancesRelationTest
   }
 
 
-  it should "read instances" in {
+  it should "read nodes" in {
     val randomId = "prim_test2_" + shortRandomString()
     tryTestAndCleanUp(
       Seq(randomId), {
@@ -430,7 +432,7 @@ class DataModelInstancesRelationTest
     )
   }
 
-  it should "read multi valued instances" in {
+  it should "read multi valued nodes" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     tryTestAndCleanUp(
@@ -506,7 +508,7 @@ class DataModelInstancesRelationTest
       ex.getMessage shouldBe s"Property of int[] type is not nullable."
     }
 
-  it should "filter instances by externalId" in {
+  it should "filter nodes by externalId" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     tryTestAndCleanUp(
       Seq(randomId1), {
@@ -533,7 +535,7 @@ class DataModelInstancesRelationTest
     )
   }
 
-  it should "filter instances" in {
+  it should "filter nodes" in {
     val randomId1 = "numeric_test_" + shortRandomString()
     val randomId2 = "numeric_test_" + shortRandomString()
     tryTestAndCleanUp(
@@ -601,7 +603,7 @@ class DataModelInstancesRelationTest
     )
   }
 
-  it should "filter instances using or" in {
+  it should "filter nodes using or" in {
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test_" + shortRandomString()
     val randomId3 = "prim_test_" + shortRandomString()
@@ -669,7 +671,7 @@ class DataModelInstancesRelationTest
     )
   }
 
-  it should "delete data model instances" in {
+  it should "delete data model nodes" in {
     val randomId1 = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test2_" + shortRandomString()
     tryTestAndCleanUp(
@@ -741,11 +743,14 @@ class DataModelInstancesRelationTest
         )
         byExternalId(true, primitiveExtId2, randomId) shouldBe randomId
         getNumberOfRowsUpserted(primitiveExtId2, "alphadatamodelinstances") shouldBe 1
+        val props = getByExternalId(true, primitiveExtId2, randomId).allProperties
+        props.get("prop_timestamp").map(_.value.toString) shouldBe Some("2022-01-01T12:34:56.789Z")
+        props.get("prop_direct_relation").map(_.value) shouldBe Some("asset")
       }
     )
   }
 
-  it should "read instances with special property types" in {
+  it should "read nodes with special property types" in {
     val randomId = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test_" + shortRandomString() + "_2"
     tryTestAndCleanUp(
@@ -843,6 +848,11 @@ class DataModelInstancesRelationTest
         val df = readRows(primEdgeExtId, metricPrefix)
         df.limit(1).count() shouldBe 1
         getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
+        val data = df.collect()
+        data.head.getAs[Float]("prop_float") shouldBe 2.1
+        data.head.getAs[String]("type") shouldBe "test2"
+        data.head.getAs[Boolean]("prop_bool") shouldBe false
+        data.head.getAs[String]("prop_string") shouldBe "abc"
       }
     )
   }
@@ -884,8 +894,21 @@ class DataModelInstancesRelationTest
         )
         val metricPrefix = shortRandomString()
         val df = readRows(specialEdge, metricPrefix)
-        df.count() shouldBe 2
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 2
+        df.where("endNode = 'testNode3'").count() shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
+
+        val metricPrefix2 = shortRandomString()
+        val data = readRows(specialEdge, metricPrefix2)
+          .where("timestamp('2022-01-01T12:34:56.789+00:00') = prop_timestamp and prop_date > date('2022-01-02')")
+          .collect()
+        getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 1
+        data.length shouldBe 1
+        data.head.getAs[String]("prop_direct_relation") shouldBe "asset"
+        data.head.getAs[String]("startNode") shouldBe "testNode1"
+        data.head.getAs[String]("endNode") shouldBe "testNode3"
+        data.head.getAs[String]("type") shouldBe "test1"
+        data.head.getAs[java.sql.Timestamp]("prop_timestamp") shouldBe java.sql.Timestamp.valueOf("2022-01-01 13:34:56.789")
+        data.head.getAs[java.sql.Date]("prop_date") shouldBe java.sql.Date.valueOf("2022-01-20")
       }
     )
   }

@@ -144,6 +144,14 @@ class DataModelInstanceRelation(
         x.toVector.map(i => i.doubleValue)
       case x: Array[BigInt] =>
         x.toVector.map(i => i.longValue)
+      case x: Array[LocalDate] =>
+        x.toVector.map(i => java.sql.Date.valueOf(i))
+      case x: java.time.LocalDate =>
+        java.sql.Date.valueOf(x)
+      case x: java.time.ZonedDateTime =>
+        java.sql.Timestamp.from(x.toInstant)
+      case x: Array[java.time.ZonedDateTime] =>
+        x.toVector.map(i => java.sql.Timestamp.from(i.toInstant))
       case _ => prop.value
     }
 
