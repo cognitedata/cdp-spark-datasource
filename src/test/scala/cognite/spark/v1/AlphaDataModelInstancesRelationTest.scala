@@ -13,7 +13,7 @@ import scala.concurrent.duration.DurationInt
 import scala.util.Try
 import scala.util.control.NonFatal
 
-class DataModelInstancesRelationTest
+class AlphaDataModelInstancesRelationTest
     extends FlatSpec
     with Matchers
     with SparkTest

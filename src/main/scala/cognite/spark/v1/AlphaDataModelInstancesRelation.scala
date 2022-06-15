@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.DataModelInstanceRelation._
+import cognite.spark.v1.AlphaDataModelInstanceRelation._
 import com.cognite.sdk.scala.common.{
   CdpApiException,
   DSLAndFilter,
@@ -28,7 +28,7 @@ import com.cognite.sdk.scala.v1.DataModelType.NodeType
 import com.cognite.sdk.scala.v1.resources.EdgeQuery
 
 // scalastyle:off cyclomatic.complexity file.length
-class DataModelInstanceRelation(
+class AlphaDataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
     modelExternalId: String,
@@ -379,7 +379,7 @@ class DataModelInstanceRelation(
   }
 }
 
-object DataModelInstanceRelation {
+object AlphaDataModelInstanceRelation {
   // scalastyle:off
   private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
 
