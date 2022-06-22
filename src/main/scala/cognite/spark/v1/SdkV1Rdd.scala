@@ -36,7 +36,7 @@ final case class SdkV1Rdd[A, I](
   }
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
-    val split = _split.asInstanceOf[CdfPartition]
+    val split = _split.asInstanceOf[CdfPartition] // scalafix:ok
 
     // Spark doesn't cancel tasks immediately if using a normal
     // iterator. Instead, they provide InterruptibleIterator,

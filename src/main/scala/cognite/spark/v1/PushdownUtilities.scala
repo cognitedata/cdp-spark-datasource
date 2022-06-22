@@ -1,19 +1,14 @@
 package cognite.spark.v1
 
 import cats.effect.Concurrent
-import com.cognite.sdk.scala.common.{
-  PartitionedFilter,
-  RetrieveByExternalIdsWithIgnoreUnknownIds,
-  RetrieveByIdsWithIgnoreUnknownIds,
-  WithGetExternalId,
-  WithId
-}
+import com.cognite.sdk.scala.common.{PartitionedFilter, RetrieveByExternalIdsWithIgnoreUnknownIds, RetrieveByIdsWithIgnoreUnknownIds, WithGetExternalId, WithId}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, ContainsAny, TimeRange}
 import fs2.Stream
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 
 import java.time.Instant
+import scala.language.higherKinds
 import scala.util.Try
 
 final case class DeleteItem(id: Long)
@@ -177,10 +172,10 @@ object PushdownUtilities {
 
     Tuple2(
       // Note that this way of aggregating filters will not work with "Or" predicates.
-      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption
+      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption // scalafix:ok
         .map(_.value)
         .getOrElse(Instant.ofEpochMilli(0)),
-      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption
+      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption // scalafix:ok
         .map(_.value)
         .getOrElse(Instant.ofEpochMilli(Constants.millisSinceEpochIn2100)) // Year 2100 should be sufficient
     )
@@ -328,12 +323,12 @@ object PushdownUtilities {
       limit: Option[Int]
   ): Vector[Stream[F, R]] = {
     if (numPartitions == 1) {
-      return Vector(executeFilterOnePartition(resource, filters, ids, limit))
+      return Vector(executeFilterOnePartition(resource, filters, ids, limit)) // scalafix:ok
     }
 
     val streamsPerFilter: Vector[Seq[Stream[F, R]]] =
       filters.map(f => resource.filterPartitions(f, numPartitions, limit))
-    var partitionStreams =
+    var partitionStreams = // scalafix:ok
       streamsPerFilter.transpose
         .map(mergeStreams(_))
         .map(_.filter(checkDuplicateCogniteIds(ids)))

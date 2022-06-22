@@ -4,7 +4,7 @@ import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.cognite.sdk.scala.common.{SetNull, SetValue, Setter, WithExternalId, WithId}
+import com.cognite.sdk.scala.common.{SetValue, Setter, WithExternalId, WithId}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.SequencesResource
 import fs2.Stream
