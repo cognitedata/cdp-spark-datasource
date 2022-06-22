@@ -22,7 +22,6 @@ import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.language.higherKinds
 
 final case class Data[A](data: A)
 final case class CdpApiErrorPayload(code: Int, message: String)

@@ -19,8 +19,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
     with InsertableRelation
     with WritableRelation {
-  private val fieldNames =
-    Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
+  Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
