@@ -31,8 +31,8 @@ class OAuth2Test
 
     assert(df.count() > 0)
   }
-
-  it should "authenticate using client credentials in Aize" in {
+  //TODO enable when we get a new set of Aize credentials
+  ignore should "authenticate using client credentials in Aize" in {
     val aizeClientId = sys.env("AIZE_CLIENT_ID")
     val aizeClientSecret = sys.env("AIZE_CLIENT_SECRET")
 
