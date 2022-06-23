@@ -1,11 +1,8 @@
 package cognite.spark.v1
 
-import java.time.{Instant, ZoneId, ZonedDateTime}
-
-import com.cognite.sdk.scala.common.{CdpApiException, DomainSpecificLanguageFilter, EmptyFilter}
-import com.cognite.sdk.scala.v1.DataModelType.EdgeType
+import com.cognite.sdk.scala.common.{DomainSpecificLanguageFilter, EmptyFilter}
+import com.cognite.sdk.scala.v1.DataModelType.{EdgeType, NodeType}
 import com.cognite.sdk.scala.v1._
-import com.cognite.sdk.scala.v1.resources.{EdgeQuery, EdgeQueryResponse}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
@@ -107,11 +104,12 @@ class AlphaDataModelInstancesRelationTest
     "prop_date" -> DataModelPropertyDefinition(`type` = PropertyType.Date, nullable = true)
   )
 
-
+  val helperModelExtId = "helperModel3"
+  val helperNode = Node(externalId = "testNode1", properties = Some(Map("hjelp1" -> PropertyType.Int.Property(1))))
 
   override def beforeAll(): Unit = {
     def createAndGetModels(): Seq[DataModel] = {
-      /*bluefieldAlphaClient.dataModels
+      bluefieldAlphaClient.dataModels
         .createItems(
           Seq(
             DataModel(externalId = multiValuedExtId, dataModelType = NodeType, properties = Some(props)),
@@ -119,17 +117,24 @@ class AlphaDataModelInstancesRelationTest
             DataModel(externalId = multiValuedExtId2, dataModelType = NodeType, properties = Some(props3)),
             DataModel(externalId = primitiveExtId2, dataModelType = NodeType, properties = Some(props4)),
           ), spaceExternalId)
-        .unsafeRunSync()*/
-      /*bluefieldAlphaClient.dataModels.createItems(
+        .unsafeRunSync()
+      bluefieldAlphaClient.dataModels.createItems(
         Seq(
             DataModel(externalId = edgeExtId, dataModelType = EdgeType, properties = Some(props)),
             DataModel(externalId = primEdgeExtId, dataModelType = EdgeType, properties = Some(props2)),
           DataModel(externalId = specialEdge, dataModelType = EdgeType, properties = Some(props4))
-        ), spaceExternalId).unsafeRunSync()*/
+        ), spaceExternalId).unsafeRunSync()
+      bluefieldAlphaClient.dataModels.createItems(spaceExternalId = spaceExternalId,
+        items = Seq(DataModel(externalId = helperModelExtId,
+          properties = Some(Map("hjelp1" -> DataModelPropertyDefinition(`type` = PropertyType.Int, nullable = false)))))).unsafeRunSync()
+
+      bluefieldAlphaClient.nodes.createItems(
+        spaceExternalId = spaceExternalId,
+        DataModelIdentifier(Some(spaceExternalId), helperModelExtId),
+        items = Seq(helperNode, helperNode.copy(externalId="testNode2"), helperNode.copy(externalId="testNode3"))
+      ).unsafeRunSync()
       bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
-    cleanUpNodes()
-    cleanUpEdges()
     retryWhile[scala.Seq[DataModel]](
       createAndGetModels(),
       dm => !(allEdgeModelExternalIds ++ allNodeModelExternalIds).subsetOf(dm.map(_.externalId).toSet)
@@ -162,7 +167,7 @@ class AlphaDataModelInstancesRelationTest
 
   // TODO remove this function and enable model deletion instead when available
   private def cleanUpNodes(): Unit =
-    allNodeModelExternalIds.foreach{ modelExtId =>
+    (allNodeModelExternalIds ++ Seq(helperModelExtId)).foreach{ modelExtId =>
       val nodes: DataModelInstanceQueryResponse = bluefieldAlphaClient.nodes
         .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
         .unsafeRunSync()
@@ -173,8 +178,8 @@ class AlphaDataModelInstancesRelationTest
   // TODO remove this function and enable model deletion instead when available
   private def cleanUpEdges(): Unit =
     allEdgeModelExternalIds.foreach{ modelExtId =>
-      val edges: EdgeQueryResponse = bluefieldAlphaClient.edges
-        .query(EdgeQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
+      val edges: DataModelInstanceQueryResponse = bluefieldAlphaClient.edges
+        .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
         .unsafeRunSync()
       edges.items.map(_.externalId).grouped(500).foreach(ids =>
         if (ids.nonEmpty) bluefieldAlphaClient.edges.deleteByExternalIds(ids).unsafeRunSync())
@@ -800,7 +805,7 @@ class AlphaDataModelInstancesRelationTest
                 spark
                   .sql(s"""
                           |select array(2) as arr_int_fix,
-                          |'testNode' as startNode,
+                          |'testNode1' as startNode,
                           |'testNode2' as endNode,
                           |'test' as type,
                           |array(false,true) as arr_boolean,

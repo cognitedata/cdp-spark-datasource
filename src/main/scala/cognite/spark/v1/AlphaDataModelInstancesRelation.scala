@@ -25,7 +25,6 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time._
 
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
-import com.cognite.sdk.scala.v1.resources.EdgeQuery
 
 // scalastyle:off cyclomatic.complexity file.length
 class AlphaDataModelInstanceRelation(
@@ -106,8 +105,8 @@ class AlphaDataModelInstanceRelation(
           .createItems(
             spaceExternalId = instanceSpace,
             model = DataModelIdentifier(Some(spaceExternalId), modelExternalId),
-            autoCreateStartNodes = true,
-            autoCreateEndNodes = true,
+            autoCreateStartNodes = false,
+            autoCreateEndNodes = false,
             overwrite = true,
             dataModelEdges
           )
@@ -237,28 +236,23 @@ class AlphaDataModelInstanceRelation(
       val andFilters = filters.toVector.flatMap(getInstanceFilter)
       if (andFilters.isEmpty) EmptyFilter else DSLAndFilter(andFilters)
     }
+
+    val dmiQuery = DataModelInstanceQuery(
+      model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
+      filter = filter,
+      sort = None,
+      limit = limit,
+      cursor = None)
+
     if (modelType == NodeType) {
-      val dmiQuery = DataModelInstanceQuery(
-        model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
-        filter = filter,
-        sort = None,
-        limit = limit,
-        cursor = None)
       Seq(
         alphaClient.nodes
           .queryStream(dmiQuery, limit)
           .map(r => toProjectedInstance(r, selectedPropsArray)))
     } else {
-      // TODO will be refactored in sdk
-      val edgeQuery = EdgeQuery(
-        model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
-        filter = filter,
-        sort = None,
-        limit = limit,
-        cursor = None)
       Seq(
         alphaClient.edges
-          .queryStream(edgeQuery, limit)
+          .queryStream(dmiQuery, limit)
           .map(r => toProjectedInstance(r, selectedPropsArray)))
     }
   }
