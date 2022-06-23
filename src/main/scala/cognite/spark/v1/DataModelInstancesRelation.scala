@@ -61,16 +61,16 @@ class DataModelInstanceRelation(
     if (modelType == DataModelType.EdgeType) {
       modelProps ++ Map(
         "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false),
-        "type" -> DataModelPropertyDefinition(PropertyType.Text, false),
+        "nodeType" -> DataModelPropertyDefinition(PropertyType.Text, false),
         "startNode" -> DataModelPropertyDefinition(PropertyType.Text, false),
         "endNode" -> DataModelPropertyDefinition(PropertyType.Text, false)
       )
     } else {
       modelProps ++ Map(
         "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false),
-        "type" -> DataModelPropertyDefinition(PropertyType.Text, true),
-        "name" -> DataModelPropertyDefinition(PropertyType.Text, true),
-        "description" -> DataModelPropertyDefinition(PropertyType.Text, true)
+        "nodeType" -> DataModelPropertyDefinition(PropertyType.Text, true),
+        "nodeName" -> DataModelPropertyDefinition(PropertyType.Text, true),
+        "nodeDescription" -> DataModelPropertyDefinition(PropertyType.Text, true)
       )
     }
   }
@@ -132,6 +132,14 @@ class DataModelInstanceRelation(
         x.toVector.map(i => i.doubleValue)
       case x: Array[BigInt] =>
         x.toVector.map(i => i.longValue)
+      case x: Array[LocalDate] =>
+        x.toVector.map(i => java.sql.Date.valueOf(i))
+      case x: java.time.LocalDate =>
+        java.sql.Date.valueOf(x)
+      case x: java.time.ZonedDateTime =>
+        java.sql.Timestamp.from(x.toInstant)
+      case x: Array[java.time.ZonedDateTime] =>
+        x.toVector.map(i => java.sql.Timestamp.from(i.toInstant))
       case _ => prop.value
     }
 
@@ -257,9 +265,9 @@ class DataModelInstanceRelation(
   // scalastyle:off method.length
   def nodeFromRow(schema: StructType): Row => Node = {
     val externalIdIndex = schema.fieldNames.indexOf("externalId")
-    val typeIndex = schema.fieldNames.indexOf("type")
-    val nameIndex = schema.fieldNames.indexOf("name")
-    val descriptionIndex = schema.fieldNames.indexOf("description")
+    val typeIndex = schema.fieldNames.indexOf("nodeType")
+    val nameIndex = schema.fieldNames.indexOf("nodeName")
+    val descriptionIndex = schema.fieldNames.indexOf("nodeDescription")
 
     val indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)] =
       schema.fields.zipWithIndex.map {
@@ -297,7 +305,7 @@ class DataModelInstanceRelation(
                 throw new CdfSparkException(propertyNotNullableMessage(propT.`type`))
               case null => // scalastyle:off null
                 None
-              case _ if Seq("externalId", "type", "name", "description") contains name =>
+              case _ if Seq("externalId", "nodeType", "nodeName", "nodeDescription") contains name =>
                 None
               case _ =>
                 Some(toPropertyType(propT.`type`)(row.get(index)))
@@ -412,6 +420,8 @@ object DataModelInstanceRelation {
         DataTypes.createArrayType(DataTypes.DoubleType)
       case PropertyType.Array.Float32 => DataTypes.createArrayType(DataTypes.FloatType)
       case PropertyType.Array.Int => DataTypes.createArrayType(DataTypes.IntegerType)
+      case PropertyType.Array.Int32 => DataTypes.createArrayType(DataTypes.IntegerType)
+      case PropertyType.Array.Int64 => DataTypes.createArrayType(DataTypes.LongType)
       case PropertyType.Array.Bigint => DataTypes.createArrayType(DataTypes.LongType)
       case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
