@@ -67,10 +67,7 @@ class DataModelInstanceRelation(
       )
     } else {
       modelProps ++ Map(
-        "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false),
-        "type" -> DataModelPropertyDefinition(PropertyType.Text, true),
-        "name" -> DataModelPropertyDefinition(PropertyType.Text, true),
-        "description" -> DataModelPropertyDefinition(PropertyType.Text, true)
+        "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false)
       )
     }
   }
@@ -132,6 +129,14 @@ class DataModelInstanceRelation(
         x.toVector.map(i => i.doubleValue)
       case x: Array[BigInt] =>
         x.toVector.map(i => i.longValue)
+      case x: Array[LocalDate] =>
+        x.toVector.map(i => java.sql.Date.valueOf(i))
+      case x: java.time.LocalDate =>
+        java.sql.Date.valueOf(x)
+      case x: java.time.ZonedDateTime =>
+        java.sql.Timestamp.from(x.toInstant)
+      case x: Array[java.time.ZonedDateTime] =>
+        x.toVector.map(i => java.sql.Timestamp.from(i.toInstant))
       case _ => prop.value
     }
 
@@ -257,10 +262,6 @@ class DataModelInstanceRelation(
   // scalastyle:off method.length
   def nodeFromRow(schema: StructType): Row => Node = {
     val externalIdIndex = schema.fieldNames.indexOf("externalId")
-    val typeIndex = schema.fieldNames.indexOf("type")
-    val nameIndex = schema.fieldNames.indexOf("name")
-    val descriptionIndex = schema.fieldNames.indexOf("description")
-
     val indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)] =
       schema.fields.zipWithIndex.map {
         case (field: StructField, index: Int) =>
@@ -284,10 +285,6 @@ class DataModelInstanceRelation(
         case _ =>
           throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
       }
-      val nodeType: Option[String] = if (typeIndex < 0) None else Some(row.getAs[String](typeIndex))
-      val nodeName: Option[String] = if (nameIndex < 0) None else Some(row.getAs[String](nameIndex))
-      val nodeDescription: Option[String] =
-        if (descriptionIndex < 0) None else Some(row.getAs[String](descriptionIndex))
 
       val propertyValues: Map[String, DataModelProperty[_]] = indexedPropertyList
         .map {
@@ -296,8 +293,6 @@ class DataModelInstanceRelation(
               case null if !propT.nullable => // scalastyle:off null
                 throw new CdfSparkException(propertyNotNullableMessage(propT.`type`))
               case null => // scalastyle:off null
-                None
-              case _ if Seq("externalId", "type", "name", "description") contains name =>
                 None
               case _ =>
                 Some(toPropertyType(propT.`type`)(row.get(index)))
@@ -308,9 +303,6 @@ class DataModelInstanceRelation(
 
       Node(
         externalId = externalId,
-        `type` = nodeType,
-        name = nodeName,
-        description = nodeDescription,
         properties = Some(propertyValues)
       )
     }
@@ -412,6 +404,8 @@ object DataModelInstanceRelation {
         DataTypes.createArrayType(DataTypes.DoubleType)
       case PropertyType.Array.Float32 => DataTypes.createArrayType(DataTypes.FloatType)
       case PropertyType.Array.Int => DataTypes.createArrayType(DataTypes.IntegerType)
+      case PropertyType.Array.Int32 => DataTypes.createArrayType(DataTypes.IntegerType)
+      case PropertyType.Array.Int64 => DataTypes.createArrayType(DataTypes.LongType)
       case PropertyType.Array.Bigint => DataTypes.createArrayType(DataTypes.LongType)
       case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }

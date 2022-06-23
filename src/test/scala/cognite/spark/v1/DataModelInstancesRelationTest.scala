@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.{CdpApiException, DomainSpecificLanguageFilter, EmptyFilter}
+import com.cognite.sdk.scala.v1.DataModelType.NodeType
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
@@ -101,7 +102,7 @@ class DataModelInstancesRelationTest
 
   override def beforeAll(): Unit = {
     def createAndGetModels(): Seq[DataModel] = {
-      /*bluefieldAlphaClient.dataModels
+      bluefieldAlphaClient.dataModels
         .createItems(
           Seq(
             DataModel(externalId = multiValuedExtId, dataModelType = NodeType, properties = Some(props)),
@@ -109,7 +110,7 @@ class DataModelInstancesRelationTest
             DataModel(externalId = multiValuedExtId2, dataModelType = NodeType, properties = Some(props3)),
             DataModel(externalId = primitiveExtId2, dataModelType = NodeType, properties = Some(props4)),
           ), spaceExternalId)
-        .unsafeRunSync()*/
+        .unsafeRunSync()
       bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
     cleanUpNodes()
@@ -138,7 +139,8 @@ class DataModelInstancesRelationTest
       deleteAndGetModels(),
       dm => dm.map(_.externalId).toSet.intersect(allModelExternalIds).nonEmpty
     )*/
-    cleanUpNodes()
+    // List fails when model has no items, so we only call it in the beginning of the tests.
+    // cleanUpNodes()
     ()
   }
 
@@ -307,8 +309,7 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(true, primitiveExtId, randomId)
-          .allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(2.0))
+        getByExternalId(true, primitiveExtId, randomId).allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(2.0))
       }
     )
   }
