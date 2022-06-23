@@ -48,16 +48,31 @@ class InternsBlueTest
       .save
 
   it should "ingest data" in {
-    readRows().createTempView("assets")
+    readRows().limit(100).createTempView("assets")
+    println(readRows().select("name").collect().mkString("Array(", ", ", ")"))
 
     insertRows(
       spark
         .sql(
-          s"""select id, string(id) as externalId, name,
-             |description, true as inUse,
-             |float(1000*rand(100)) as weight,
+          s"""select id,
+             |string(id) as externalId,
+             |name as nodeName,
+             |name,
+             |description as nodeDescription,
+             |true as inUse, float(1000*rand(100)) as weight,
              |"cdf" as source from assets""".stripMargin),
     )
+
+//    insertRows(
+//      spark
+//        .sql(
+//          s"""select id,
+//             |string(id) as externalId,
+//             |true as inUse,
+//             |float(1000*rand(100)) as weight,
+//             |array('asd') as comments,
+//             |"cdf" as source from assets""".stripMargin),
+//    )
 
   }
 
