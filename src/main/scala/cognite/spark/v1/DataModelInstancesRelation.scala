@@ -61,16 +61,13 @@ class DataModelInstanceRelation(
     if (modelType == DataModelType.EdgeType) {
       modelProps ++ Map(
         "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false),
-        "nodeType" -> DataModelPropertyDefinition(PropertyType.Text, false),
+        "type" -> DataModelPropertyDefinition(PropertyType.Text, false),
         "startNode" -> DataModelPropertyDefinition(PropertyType.Text, false),
         "endNode" -> DataModelPropertyDefinition(PropertyType.Text, false)
       )
     } else {
       modelProps ++ Map(
-        "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false),
-        "nodeType" -> DataModelPropertyDefinition(PropertyType.Text, true),
-        "nodeName" -> DataModelPropertyDefinition(PropertyType.Text, true),
-        "nodeDescription" -> DataModelPropertyDefinition(PropertyType.Text, true)
+        "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false)
       )
     }
   }
