@@ -309,8 +309,7 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(true, primitiveExtId, randomId)
-          .allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(2.0))
+        getByExternalId(true, primitiveExtId, randomId).allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(2.0))
       }
     )
   }
