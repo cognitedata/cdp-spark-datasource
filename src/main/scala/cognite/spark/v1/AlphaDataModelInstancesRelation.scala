@@ -344,27 +344,17 @@ class AlphaDataModelInstanceRelation(
 
   def nodeFromRow(schema: StructType): Row => Node = {
     val externalIdIndex = getRequiredStringPropertyIndex(schema, modelType, "externalId")
-    val typeIndex = schema.fieldNames.indexOf("type")
-    val nameIndex = schema.fieldNames.indexOf("name")
-    val descriptionIndex = schema.fieldNames.indexOf("description")
     val indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)] = getIndexedPropertyList(
       schema)
 
     def parseNodeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Node = {
       val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
-      val nodeType: Option[String] = getOptionalStringValueForFixedProperty(row, "type", typeIndex)
-      val nodeName: Option[String] = getOptionalStringValueForFixedProperty(row, "name", nameIndex)
-      val nodeDescription: Option[String] =
-        getOptionalStringValueForFixedProperty(row, "description", descriptionIndex)
       val propertyValues: Map[String, DataModelProperty[_]] =
         getDataModelPropertyMap(indexedPropertyList, row)
 
       Node(
         externalId = externalId,
-        `type` = nodeType,
-        name = nodeName,
-        description = nodeDescription,
         properties = Some(propertyValues)
       )
     }
@@ -422,11 +412,10 @@ object AlphaDataModelInstanceRelation {
     case x: java.sql.Date => PropertyType.Date.Property(x.toLocalDate)
     case x: LocalDateTime => PropertyType.Date.Property(x.toLocalDate)
     case x: Instant =>
-      PropertyType.Timestamp.Property(
-        OffsetDateTime.ofInstant(x, ZoneId.systemDefault()).toZonedDateTime)
+      PropertyType.Timestamp.Property(OffsetDateTime.ofInstant(x, ZoneId.of("UTC")).toZonedDateTime)
     case x: java.sql.Timestamp =>
       PropertyType.Timestamp.Property(
-        OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
+        OffsetDateTime.ofInstant(x.toInstant, ZoneId.of("UTC")).toZonedDateTime)
     case x: java.time.ZonedDateTime =>
       PropertyType.Timestamp.Property(x)
     case x: Array[LocalDate] => PropertyType.Array.Date.Property(x)
@@ -434,10 +423,10 @@ object AlphaDataModelInstanceRelation {
     case x: Array[LocalDateTime] => PropertyType.Array.Date.Property(x.map(_.toLocalDate))
     case x: Array[Instant] =>
       PropertyType.Array.Timestamp
-        .Property(x.map(OffsetDateTime.ofInstant(_, ZoneId.systemDefault()).toZonedDateTime))
+        .Property(x.map(OffsetDateTime.ofInstant(_, ZoneId.of("UTC")).toZonedDateTime))
     case x: Array[java.sql.Timestamp] =>
       PropertyType.Array.Timestamp.Property(x.map(ts =>
-        OffsetDateTime.ofInstant(ts.toInstant, ZoneId.systemDefault()).toZonedDateTime))
+        OffsetDateTime.ofInstant(ts.toInstant, ZoneId.of("UTC")).toZonedDateTime))
     case x: Array[java.time.ZonedDateTime] =>
       PropertyType.Array.Timestamp.Property(x)
     case x =>
@@ -466,6 +455,8 @@ object AlphaDataModelInstanceRelation {
         DataTypes.createArrayType(DataTypes.DoubleType)
       case PropertyType.Array.Float32 => DataTypes.createArrayType(DataTypes.FloatType)
       case PropertyType.Array.Int => DataTypes.createArrayType(DataTypes.IntegerType)
+      case PropertyType.Array.Int32 => DataTypes.createArrayType(DataTypes.IntegerType)
+      case PropertyType.Array.Int64 => DataTypes.createArrayType(DataTypes.LongType)
       case PropertyType.Array.Bigint => DataTypes.createArrayType(DataTypes.LongType)
       case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
@@ -479,13 +470,12 @@ object AlphaDataModelInstanceRelation {
 
   private def toTimestampProperty: Any => DataModelProperty[_] = {
     case x: Instant =>
-      PropertyType.Timestamp.Property(
-        OffsetDateTime.ofInstant(x, ZoneId.systemDefault()).toZonedDateTime)
+      PropertyType.Timestamp.Property(OffsetDateTime.ofInstant(x, ZoneId.of("UTC")).toZonedDateTime)
     case x: java.sql.Timestamp =>
       // Using ZonedDateTime directly without OffSetDateTime, adds ZoneId to the end of encoded string
       // 2019-10-02T07:00+09:00[Asia/Seoul] instead of 2019-10-02T07:00+09:00, API does not like it.
       PropertyType.Timestamp.Property(
-        OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
+        OffsetDateTime.ofInstant(x.toInstant, ZoneId.of("UTC")).toZonedDateTime)
     case x: ZonedDateTime =>
       PropertyType.Timestamp.Property(x)
     case a =>
@@ -676,9 +666,6 @@ object AlphaDataModelInstanceRelation {
       case _ =>
         throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
     }
-
-  def getOptionalStringValueForFixedProperty(row: Row, keyString: String, index: Int): Option[String] =
-    if (index < 0) None else Some(getStringValueForFixedProperty(row, keyString, index))
 }
 
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
