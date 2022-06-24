@@ -67,10 +67,7 @@ class AlphaDataModelInstanceRelation(
       )
     } else {
       modelProps ++ Map(
-        "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false),
-        "type" -> DataModelPropertyDefinition(PropertyType.Text, true),
-        "name" -> DataModelPropertyDefinition(PropertyType.Text, true),
-        "description" -> DataModelPropertyDefinition(PropertyType.Text, true)
+        "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false)
       )
     }
   }
@@ -304,8 +301,6 @@ class AlphaDataModelInstanceRelation(
             case null if !propT.nullable => // scalastyle:off null
               throw new CdfSparkException(propertyNotNullableMessage(propT.`type`))
             case null => // scalastyle:off null
-              None
-            case _ if Seq("externalId", "type", "name", "description") contains name =>
               None
             case _ =>
               Some(toPropertyType(propT.`type`)(row.get(index)))

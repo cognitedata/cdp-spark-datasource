@@ -11,7 +11,7 @@ import scala.util.Try
 import scala.util.control.NonFatal
 
 class AlphaDataModelInstancesRelationTest
-    extends FlatSpec
+  extends FlatSpec
     with Matchers
     with SparkTest
     with BeforeAndAfterAll {
@@ -25,9 +25,9 @@ class AlphaDataModelInstancesRelationTest
   private val spaceExternalId = "test-space"
 
   private def listInstances(
-      isNode: Boolean,
-      modelExternalId: String,
-      filter: DomainSpecificLanguageFilter = EmptyFilter): DataModelInstanceQueryResponse = if (isNode){
+                             isNode: Boolean,
+                             modelExternalId: String,
+                             filter: DomainSpecificLanguageFilter = EmptyFilter): DataModelInstanceQueryResponse = if (isNode){
     bluefieldAlphaClient.nodes
       .query(
         DataModelInstanceQuery(
@@ -43,8 +43,8 @@ class AlphaDataModelInstancesRelationTest
   }
 
   private def getExternalIdList(
-      isNode: Boolean,
-      modelExternalId: String): Seq[String] = listInstances(isNode = isNode, modelExternalId).items.map(_.externalId)
+                                 isNode: Boolean,
+                                 modelExternalId: String): Seq[String] = listInstances(isNode = isNode, modelExternalId).items.map(_.externalId)
 
   private def getByExternalId(isNode: Boolean,
                               modelExternalId: String,
@@ -69,6 +69,7 @@ class AlphaDataModelInstancesRelationTest
   private val edgeExtId = "myEdge" // + shortRandomString()
   private val primEdgeExtId = "primitiveEdge" // + shortRandomString()
   private val specialEdge = "specialEdge" // + shortRandomString()
+  private val nodeWithNDT = "no_deNDT" // + shortRandomString()
 
   private val allNodeModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
   private val allEdgeModelExternalIds = Set(edgeExtId, primEdgeExtId, specialEdge)
@@ -104,6 +105,12 @@ class AlphaDataModelInstancesRelationTest
     "prop_date" -> DataModelPropertyDefinition(`type` = PropertyType.Date, nullable = true)
   )
 
+  private val props5 = Map(
+    "type" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true),
+    "description" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true),
+    "name" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true)
+  )
+
   val helperModelExtId = "helperModel3"
   val helperNode = Node(externalId = "testNode1", properties = Some(Map("hjelp1" -> PropertyType.Int.Property(1))))
 
@@ -116,12 +123,13 @@ class AlphaDataModelInstancesRelationTest
             DataModel(externalId = primitiveExtId, dataModelType = NodeType, properties = Some(props2)),
             DataModel(externalId = multiValuedExtId2, dataModelType = NodeType, properties = Some(props3)),
             DataModel(externalId = primitiveExtId2, dataModelType = NodeType, properties = Some(props4)),
+            DataModel(externalId = nodeWithNDT, dataModelType = NodeType, properties = Some(props5))
           ), spaceExternalId)
         .unsafeRunSync()
       bluefieldAlphaClient.dataModels.createItems(
         Seq(
-            DataModel(externalId = edgeExtId, dataModelType = EdgeType, properties = Some(props)),
-            DataModel(externalId = primEdgeExtId, dataModelType = EdgeType, properties = Some(props2)),
+          DataModel(externalId = edgeExtId, dataModelType = EdgeType, properties = Some(props)),
+          DataModel(externalId = primEdgeExtId, dataModelType = EdgeType, properties = Some(props2)),
           DataModel(externalId = specialEdge, dataModelType = EdgeType, properties = Some(props4))
         ), spaceExternalId).unsafeRunSync()
       bluefieldAlphaClient.dataModels.createItems(spaceExternalId = spaceExternalId,
@@ -144,22 +152,22 @@ class AlphaDataModelInstancesRelationTest
 
   override def afterAll(): Unit = {
     // TODO enable this after delete is supported
-   /* def deleteAndGetModels(): Seq[DataModel] = {
-      bluefieldAlphaClient.dataModels
-        .deleteItems(Seq(
-          multiValuedExtId,
-          primitiveExtId,
-          multiValuedExtId2,
-          primitiveExtId2),
-          spaceExternalId
-        )
-        .unsafeRunSync()
-      bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
-    }
-    retryWhile[scala.Seq[DataModel]](
-      deleteAndGetModels(),
-      dm => dm.map(_.externalId).toSet.intersect(allModelExternalIds).nonEmpty
-    )*/
+    /* def deleteAndGetModels(): Seq[DataModel] = {
+       bluefieldAlphaClient.dataModels
+         .deleteItems(Seq(
+           multiValuedExtId,
+           primitiveExtId,
+           multiValuedExtId2,
+           primitiveExtId2),
+           spaceExternalId
+         )
+         .unsafeRunSync()
+       bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
+     }
+     retryWhile[scala.Seq[DataModel]](
+       deleteAndGetModels(),
+       dm => dm.map(_.externalId).toSet.intersect(allModelExternalIds).nonEmpty
+     )*/
     cleanUpNodes()
     cleanUpEdges()
     ()
@@ -167,7 +175,7 @@ class AlphaDataModelInstancesRelationTest
 
   // TODO remove this function and enable model deletion instead when available
   private def cleanUpNodes(): Unit =
-    (allNodeModelExternalIds ++ Seq(helperModelExtId)).foreach{ modelExtId =>
+    (allNodeModelExternalIds ++ Seq(helperModelExtId, nodeWithNDT)).foreach{ modelExtId =>
       val nodes: DataModelInstanceQueryResponse = bluefieldAlphaClient.nodes
         .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
         .unsafeRunSync()
@@ -186,10 +194,10 @@ class AlphaDataModelInstancesRelationTest
     }
 
   private def collectExternalIds(df: DataFrame): List[String] =
-  df.select("externalId")
-    .collect()
-    .map(_.getAs[String]("externalId"))
-    .toList
+    df.select("externalId")
+      .collect()
+      .map(_.getAs[String]("externalId"))
+      .toList
 
   private def readRows(modelExternalId: String, metricPrefix: String) =
     spark.read
@@ -243,23 +251,53 @@ class AlphaDataModelInstancesRelationTest
       Seq(randomId), {
         retryWhile[Boolean](
           {
-              Try {
-                insertRows(
-                  primitiveExtId,
-                  spark
-                    .sql(s"""
-                            |select 2.0 as prop_float,
-                            |true as prop_bool,
-                            |'abc' as prop_string,
-                            |'$randomId' as externalId""".stripMargin),
-                )
-              }.isFailure
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""
+                          |select 2.0 as prop_float,
+                          |true as prop_bool,
+                          |'abc' as prop_string,
+                          |'$randomId' as externalId""".stripMargin),
+              )
+            }.isFailure
 
           },
           failure => failure
         )
         byExternalId(true, primitiveExtId, randomId) shouldBe randomId
         getNumberOfRowsUpserted(primitiveExtId, "alphadatamodelinstances") shouldBe 1
+
+      }
+    )
+  }
+
+  // This test is added to a bug with the models having these keys in property map.
+  it should "ingest data with name, description and type" in {
+    val randomId = "ndt_" + shortRandomString()
+
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                nodeWithNDT,
+                spark
+                  .sql(s"""
+                          |select 'ndt1' as name,
+                          |'ndt2' as description,
+                          |'kedi' as type,
+                          |'$randomId' as externalId""".stripMargin),
+              )
+            }.isFailure
+
+          },
+          failure => failure
+        )
+        byExternalId(true, nodeWithNDT, randomId) shouldBe randomId
+        getNumberOfRowsUpserted(nodeWithNDT, "alphadatamodelinstances") shouldBe 1
 
       }
     )
@@ -383,19 +421,19 @@ class AlphaDataModelInstancesRelationTest
               insertRows(
                 multiValuedExtId,
                 spark.sql(s"""
-                              |select array() as arr_int_fix,
-                              |array(true, false) as arr_boolean,
-                              |NULL as arr_str,
-                              |NULL as str_prop,
-                              |'${randomId1}' as externalId
-                              |
-                              |union all
-                              |
-                              |select array(1,2) as arr_int_fix,
-                              |NULL as arr_boolean,
-                              |array('x', 'y') as arr_str,
-                              |'hehe' as str_prop,
-                              |'${randomId2}' as externalId""".stripMargin)
+                             |select array() as arr_int_fix,
+                             |array(true, false) as arr_boolean,
+                             |NULL as arr_str,
+                             |NULL as str_prop,
+                             |'${randomId1}' as externalId
+                             |
+                             |union all
+                             |
+                             |select array(1,2) as arr_int_fix,
+                             |NULL as arr_boolean,
+                             |array('x', 'y') as arr_str,
+                             |'hehe' as str_prop,
+                             |'${randomId2}' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -419,10 +457,10 @@ class AlphaDataModelInstancesRelationTest
                 primitiveExtId,
                 spark
                   .sql(s"""
-                           |select 2.1 as prop_float,
-                           |false as prop_bool,
-                           |'abc' as prop_string,
-                           |'$randomId' as externalId""".stripMargin)
+                          |select 2.1 as prop_float,
+                          |false as prop_bool,
+                          |'abc' as prop_string,
+                          |'$randomId' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -496,22 +534,22 @@ class AlphaDataModelInstancesRelationTest
     )
   }
 
-   it should "fail when writing null to a non nullable property" in {
-      val ex = sparkIntercept {
-        insertRows(
-          multiValuedExtId,
-          spark
-            .sql(s"""
-                     |select NULL as arr_int_fix,
-                     |array(true, false) as arr_boolean,
-                     |NULL as arr_str,
-                     |NULL as str_prop,
-                     |'test_multi' as externalId""".stripMargin)
-        )
-      }
-      ex shouldBe an[CdfSparkException]
-      ex.getMessage shouldBe s"Property of int[] type is not nullable."
+  it should "fail when writing null to a non nullable property" in {
+    val ex = sparkIntercept {
+      insertRows(
+        multiValuedExtId,
+        spark
+          .sql(s"""
+                  |select NULL as arr_int_fix,
+                  |array(true, false) as arr_boolean,
+                  |NULL as arr_str,
+                  |NULL as str_prop,
+                  |'test_multi' as externalId""".stripMargin)
+      )
     }
+    ex shouldBe an[CdfSparkException]
+    ex.getMessage shouldBe s"Property of int[] type is not nullable."
+  }
 
   it should "filter nodes by externalId" in {
     val randomId1 = "numeric_test_" + shortRandomString()
@@ -524,9 +562,9 @@ class AlphaDataModelInstancesRelationTest
                 primitiveExtId,
                 spark
                   .sql(s"""select 2.1 as prop_float,
-                           |false as prop_bool,
-                           |'abc' as prop_string,
-                           |'$randomId1' as externalId""".stripMargin)
+                          |false as prop_bool,
+                          |'abc' as prop_string,
+                          |'$randomId1' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -688,17 +726,17 @@ class AlphaDataModelInstancesRelationTest
                 primitiveExtId,
                 spark
                   .sql(s"""
-                           |select 2.1 as prop_float,
-                           |false as prop_bool,
-                           |'abc' as prop_string,
-                           |'$randomId1' as externalId
-                           |
-                           |union all
-                           |
-                           |select 5.0 as prop_float,
-                           |true as prop_bool,
-                           |'zzzz' as prop_string,
-                           |'$randomId2' as externalId""".stripMargin)
+                          |select 2.1 as prop_float,
+                          |false as prop_bool,
+                          |'abc' as prop_string,
+                          |'$randomId1' as externalId
+                          |
+                          |union all
+                          |
+                          |select 5.0 as prop_float,
+                          |true as prop_bool,
+                          |'zzzz' as prop_string,
+                          |'$randomId2' as externalId""".stripMargin)
               )
             }.isFailure
           },
@@ -741,7 +779,7 @@ class AlphaDataModelInstancesRelationTest
                           |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
                           |date('2022-01-01') as prop_date,
                           |'${randomId}' as externalId""".stripMargin)
-                      )
+              )
             }.isFailure
           },
           failure => failure
@@ -759,31 +797,31 @@ class AlphaDataModelInstancesRelationTest
     val randomId = "prim_test_" + shortRandomString()
     val randomId2 = "prim_test_" + shortRandomString() + "_2"
     tryTestAndCleanUp(
-        Seq(randomId, randomId2), {
-          retryWhile[Boolean](
-            {
-              Try {
-                insertRows(
-                  primitiveExtId2,
-                  spark
-                    .sql(
-                      s"""
-                         |select 'asset' as prop_direct_relation,
-                         |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
-                         |date('2022-01-20') as prop_date,
-                         |'${randomId}' as externalId
-                         |
-                         |union all
-                         |
-                         |select 'asset2' as prop_direct_relation,
-                         |timestamp('2022-01-10T12:34:56.789+00:00') as prop_timestamp,
-                         |date('2022-01-01') as prop_date,
-                         |'${randomId2}' as externalId""".stripMargin)
-                )
-              }.isFailure
-            },
-            failure => failure
-          )
+      Seq(randomId, randomId2), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId2,
+                spark
+                  .sql(
+                    s"""
+                       |select 'asset' as prop_direct_relation,
+                       |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
+                       |date('2022-01-20') as prop_date,
+                       |'${randomId}' as externalId
+                       |
+                       |union all
+                       |
+                       |select 'asset2' as prop_direct_relation,
+                       |timestamp('2022-01-10T12:34:56.789+00:00') as prop_timestamp,
+                       |date('2022-01-01') as prop_date,
+                       |'${randomId2}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId2, metricPrefix)
         df.count() shouldBe 2
