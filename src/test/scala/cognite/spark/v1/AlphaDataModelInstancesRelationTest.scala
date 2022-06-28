@@ -3,7 +3,7 @@ package cognite.spark.v1
 import com.cognite.sdk.scala.common.{DomainSpecificLanguageFilter, EmptyFilter}
 import com.cognite.sdk.scala.v1.DataModelType.{EdgeType, NodeType}
 import com.cognite.sdk.scala.v1._
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.DataFrame
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt

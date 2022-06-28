@@ -1,8 +1,5 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.InvalidAuthentication
-import org.apache.spark.SparkException
-import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 class OAuth2Test

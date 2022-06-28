@@ -27,7 +27,6 @@ class SequencesRelationTest
   sequencesSourceDf.createOrReplaceTempView("sequences")
 
   it should "create and read sequence" in {
-    val key = shortRandomString()
     val id = UUID.randomUUID().toString
     val sequence = SequenceInsertSchema(
       externalId = Some(id),

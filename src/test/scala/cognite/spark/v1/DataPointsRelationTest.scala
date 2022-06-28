@@ -872,7 +872,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
       .save
 
     // Check if post worked
-    val dataPointsAfterPost = retryWhile[Array[Row]](
+    retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationDatapoints where id = $tsId""")
         .collect,

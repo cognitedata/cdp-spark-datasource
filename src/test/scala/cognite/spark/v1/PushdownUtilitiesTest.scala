@@ -1,12 +1,10 @@
 package cognite.spark.v1
 
+import cognite.spark.v1.PushdownUtilities._
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import sttp.client3._
-import PushdownUtilities._
 class PushdownUtilitiesTest extends FlatSpec with ParallelTestExecution with Matchers with SparkTest {
 
   it should "create one request for 1x1 and expression" in {
-    val baseUri = uri"https://api.com"
     val pushdownExpression = PushdownAnd(PushdownFilter("id", "123"), PushdownFilter("type", "abc"))
     val params = pushdownToParameters(pushdownExpression)
 
@@ -14,7 +12,6 @@ class PushdownUtilitiesTest extends FlatSpec with ParallelTestExecution with Mat
   }
 
   it should "create two requests for 1+1 or expression" in {
-    val baseUri = uri"https://api.com"
     val pushdownExpression =
       PushdownFilters(Seq(PushdownFilter("id", "123"), PushdownFilter("type", "abc")))
     val params = pushdownToParameters(pushdownExpression)
@@ -23,7 +20,6 @@ class PushdownUtilitiesTest extends FlatSpec with ParallelTestExecution with Mat
   }
 
   it should "create 9 requests for 3x3 and or expression" in {
-    val baseUri = uri"https://api.com"
     val left = PushdownFilters(
       Seq(
         PushdownFilter("id", "123"),

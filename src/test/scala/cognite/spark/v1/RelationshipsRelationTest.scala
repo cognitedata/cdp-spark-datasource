@@ -5,7 +5,6 @@ import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.{CogniteExternalId, RelationshipCreate}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.{DataFrame, Row}
-import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 import org.scalatest.{FlatSpec, Inspectors, Matchers}
 
 class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest with Inspectors {
@@ -17,7 +16,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     .load()
   destinationDf.createOrReplaceTempView("destinationRelationship")
 
-  private def getBaseReader(metricsPrefix: String = ""): DataFrame =
+  private def getBaseReader(metricsPrefix: String): DataFrame =
     spark.read
       .format("cognite.spark.v1")
       .option("type", "relationships")

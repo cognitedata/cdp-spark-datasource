@@ -317,7 +317,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
   it should "support pushdown filters on labels" taggedAs WriteTest in {
     val filesTestSource = s"files-relation-test-filter-labels-${shortRandomString()}"
     try {
-      val waitForCreate = spark
+      spark
         .sql(s"""select '${filesTestSource}-externalId' as externalId,
               |null as id,
               |null as directory,

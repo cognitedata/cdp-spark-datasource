@@ -1,7 +1,13 @@
 package cognite.spark.v1
 
 import cats.effect.Concurrent
-import com.cognite.sdk.scala.common.{PartitionedFilter, RetrieveByExternalIdsWithIgnoreUnknownIds, RetrieveByIdsWithIgnoreUnknownIds, WithGetExternalId, WithId}
+import com.cognite.sdk.scala.common.{
+  PartitionedFilter,
+  RetrieveByExternalIdsWithIgnoreUnknownIds,
+  RetrieveByIdsWithIgnoreUnknownIds,
+  WithGetExternalId,
+  WithId
+}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, ContainsAny, TimeRange}
 import fs2.Stream
 import org.apache.spark.sql.sources._
