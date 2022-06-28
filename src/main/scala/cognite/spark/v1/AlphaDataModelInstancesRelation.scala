@@ -164,7 +164,7 @@ class AlphaDataModelInstanceRelation(
     )
   }
 
-  // scalastyle:off method.length
+  // scalastyle:off method.length cyclomatic.complexity
   def getInstanceFilter(sparkFilter: Filter): Option[DomainSpecificLanguageFilter] =
     sparkFilter match {
       case EqualTo(left, right) =>
@@ -218,7 +218,7 @@ class AlphaDataModelInstanceRelation(
         getInstanceFilter(f).map(DSLNotFilter)
       case _ => None
     }
-  // scalastyle:on method.length
+  // scalastyle:on method.length cyclomatic.complexity
 
   def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO],
