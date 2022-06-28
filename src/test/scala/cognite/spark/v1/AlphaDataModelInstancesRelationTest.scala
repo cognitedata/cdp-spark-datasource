@@ -3,7 +3,7 @@ package cognite.spark.v1
 import com.cognite.sdk.scala.common.{DomainSpecificLanguageFilter, EmptyFilter}
 import com.cognite.sdk.scala.v1.DataModelType.{EdgeType, NodeType}
 import com.cognite.sdk.scala.v1._
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
@@ -946,12 +946,12 @@ class AlphaDataModelInstancesRelationTest
           .collect()
         getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 1
         data.length shouldBe 1
-        data.head.getAs[String]("prop_direct_relation") shouldBe "asset"
-        data.head.getAs[String]("startNode") shouldBe "testNode1"
-        data.head.getAs[String]("endNode") shouldBe "testNode3"
-        data.head.getAs[String]("type") shouldBe "test1"
-        data.head.getAs[java.sql.Timestamp]("prop_timestamp") shouldBe java.sql.Timestamp.valueOf("2022-01-01 13:34:56.789")
-        data.head.getAs[java.sql.Date]("prop_date") shouldBe java.sql.Date.valueOf("2022-01-20")
+        data.headOption.map(_.getAs[String]("prop_direct_relation")) shouldBe Some("asset")
+        data.headOption.map(_.getAs[String]("startNode")) shouldBe Some("testNode1")
+        data.headOption.map(_.getAs[String]("endNode")) shouldBe Some("testNode3")
+        data.headOption.map(_.getAs[String]("type")) shouldBe Some("test1")
+        data.headOption.map(_.getAs[java.sql.Timestamp]("prop_timestamp")) shouldBe Some(java.sql.Timestamp.valueOf("2022-01-01 13:34:56.789"))
+        data.headOption.map(_.getAs[java.sql.Date]("prop_date")) shouldBe Some(java.sql.Date.valueOf("2022-01-20"))
       }
     )
   }
