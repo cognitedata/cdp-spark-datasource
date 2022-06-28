@@ -2,7 +2,6 @@ package cognite.spark.v1
 
 import java.io.IOException
 import java.util.UUID
-import java.util.concurrent.Executors
 
 import cats.Id
 import com.codahale.metrics.Counter

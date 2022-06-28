@@ -26,25 +26,14 @@ class RawTableRelationTest
   private def checkRange(leftLimit: Double, rightLimit: Double, number: Long): Boolean =
     (number >= leftLimit) && (number <= rightLimit)
 
-  private val dfWithoutKeySchema = StructType(
-    Seq(StructField("notKey", StringType, false), StructField("value", IntegerType, false)))
   private val dataWithoutKey = Seq(
     RawRow("key1", Map("notKey" -> Json.fromString("k1"), "value" -> Json.fromInt(1))),
     RawRow("key2", Map("notKey" -> Json.fromString("k2"), "value" -> Json.fromInt(2)))
   )
-  private val dfWithKeySchema = StructType(
-    Seq(StructField("key", StringType, false), StructField("value", IntegerType, false)))
   private val dataWithKey = Seq(
     RawRow("key3", Map("key" -> Json.fromString("k1"), "value" -> Json.fromInt(1))),
     RawRow("key4", Map("key" -> Json.fromString("k2"), "value" -> Json.fromInt(2)))
   )
-  private val dfWithManyKeysSchema = StructType(
-    Seq(
-      StructField("key", StringType, true),
-      StructField("__key", StringType, false),
-      StructField("___key", StringType, false),
-      StructField("value", IntegerType, false)
-    ))
   private val dataWithManyKeys = Seq(
     RawRow(
       "key5",
@@ -61,25 +50,14 @@ class RawTableRelationTest
         "key" -> Json.fromString("k2")))
   )
 
-  private val dfWithoutlastUpdatedTimeSchema = StructType(
-    Seq(StructField("notlastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
   private val dataWithoutlastUpdatedTime = Seq(
     RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt).toMap),
     RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt).toMap)
   )
-  private val dfWithlastUpdatedTimeSchema = StructType(
-    Seq(StructField("lastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
   private val dataWithlastUpdatedTime = Seq(
     RawRow("key3", Map("lastUpdatedTime" -> Json.fromInt(1), "value" -> Json.fromInt(1))),
     RawRow("key4", Map("lastUpdatedTime" -> Json.fromInt(2), "value" -> Json.fromInt(2)))
   )
-  private val dfWithManylastUpdatedTimeSchema = StructType(
-    Seq(
-      StructField("lastUpdatedTime", LongType, true),
-      StructField("__lastUpdatedTime", LongType, false),
-      StructField("___lastUpdatedTime", LongType, false),
-      StructField("value", IntegerType, false)
-    ))
   private val dataWithManylastUpdatedTime = Seq(
     RawRow("key5", Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt).toMap),
     RawRow("key6", Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2).mapValues(Json.fromInt).toMap)
@@ -345,11 +323,11 @@ class RawTableRelationTest
       .load()
 
     // Trigger schema evaluation
-    val schema = df.schema
+    val _ = df.schema
 
-    val numRowsReadDuringSchemaInferance =
+    val numRowsReadDuringSchemaInference =
       getNumberOfRowsRead(metricsPrefix, s"raw.$database.$table.rows")
-    numRowsReadDuringSchemaInferance should be(inferSchemaLimit)
+    numRowsReadDuringSchemaInference should be(inferSchemaLimit)
   }
 
   "lastUpdatedTime" should "insert data without error" taggedAs (WriteTest) in {

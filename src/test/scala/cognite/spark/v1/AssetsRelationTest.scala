@@ -78,7 +78,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "support pushdown filters on labels" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     writeClient.assets.deleteByExternalId("asset_with_label_spark_datasource", ignoreUnknownIds = true)
-    val waitForCreate = spark
+    spark
       .sql(s"""select 'asset_with_label_spark_datasource' as externalId,
            |'asset_with_label_spark_datasource' as name,
            |'${assetsTestSource}' as source,

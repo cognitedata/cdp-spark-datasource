@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.implicits._
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{Event, GenericClient}
 import fs2.{Chunk, Stream}
@@ -78,8 +77,6 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
   }
 
   it should "convert multiple streams and keep duplicate" in {
-    import CdpConnector._
-
     val nStreams = 50
     val nItemsPerStream = 1000
     val rdd = new SdkV1Rdd[Event, Long](
@@ -87,7 +84,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       DefaultSource
         .parseRelationConfig(Map("apiKey" -> writeApiKey), spark.sqlContext)
         .copy(parallelismPerPartition = nStreams * 3),
-      (e: Event, partitionIndex: Option[Int]) => asRow(e),
+      (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
       (_: GenericClient[IO], _: Option[Int], _: Int) => {
         val allStreams = 0.until(nStreams).map { i =>

@@ -732,7 +732,7 @@ class TimeSeriesRelationTest
           spark.sql(s"select * from destinationTimeSeries where unit = '$testUnit'").collect,
           df => df.length != 1
         )
-        val id = insertTest(0).getAs[Long]("id")
+        insertTest(0).getAs[Long]("id")
 
         spark
           .sql(s"""
