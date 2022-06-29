@@ -3,7 +3,11 @@ package cognite.spark.v1
 import cats.data.Validated.{Invalid, Valid}
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.PushdownUtilities.{getIdFromMap, pushdownToParameters, toPushdownFilterExpression}
+import cognite.spark.v1.PushdownUtilities.{
+  getIdFromMap,
+  pushdownToParameters,
+  toPushdownFilterExpression
+}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
@@ -98,6 +102,7 @@ object Granularity {
     longStringToUnit.keys.mkString("|")
   val granularityRegex: Regex = f"""([1-9][0-9]*)*($validUnits)""".r
 
+  @SuppressWarnings(Array("scalafix:DisableSyntax.noValPatterns"))
   def parse(s: String): Either[Throwable, Granularity] =
     Either
       .catchNonFatal {

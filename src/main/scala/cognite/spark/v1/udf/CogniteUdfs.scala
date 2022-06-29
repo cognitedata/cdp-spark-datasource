@@ -3,17 +3,16 @@ package cognite.spark.v1.udf
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import cognite.spark.v1.Constants.{DefaultBaseUrl, DefaultMaxRetries, DefaultMaxRetryDelaySeconds}
-import cognite.spark.v1.udf.CogniteUdfs.{
-  callFunctionAndGetResult,
-  callFunctionByExternalId,
-  callFunctionByName
-}
+import cognite.spark.v1.udf.CogniteUdfs.{callFunctionAndGetResult, callFunctionByExternalId, callFunctionByName}
 import cognite.spark.v1.{CdfSparkException, CdpConnector, Constants}
 import com.cognite.sdk.scala.common.ApiKeyAuth
 import com.cognite.sdk.scala.v1.{FunctionCall, GenericClient}
 import io.circe.{Json, JsonObject, parser}
 import org.apache.spark.sql.SparkSession
 import sttp.client3.SttpBackend
+
+import scala.annotation.tailrec
+import scala.concurrent.duration.DurationInt
 
 class CogniteUdfs(sparkSession: SparkSession) {
   def initializeUdfs(apiKey: ApiKeyAuth, baseUrl: String = DefaultBaseUrl)(
@@ -55,11 +54,22 @@ object CogniteUdfs {
   @transient implicit lazy val backend: SttpBackend[IO, Any] =
     CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)
 
-  private def getFunctionResult(client: GenericClient[IO], functionId: Long, result: FunctionCall)(
+  @tailrec
+  private def getFunctionResult(client: GenericClient[IO], functionId: Long, callId: Long, result: FunctionCall, attemptNumber: Int)(
       implicit ioRuntime: IORuntime): IO[Json] = {
+    if (result.status.contains("Running") && attemptNumber < 30) {
+      for {
+        _ <- IO.sleep(500.millis)
+        newResult <- client
+          .functionCalls(functionId)
+          .retrieveById(callId)
+        next <- getFunctionResult(client, functionId, callId, newResult, attemptNumber + 1)
+      } yield ()
+      IO.sleep(500.millis) >>
+    }
     var res = result
     var i = 0
-    while (res.status.isDefined && res.status.get == "Running" && i < 30) {
+    if (res.status.isDefined && res.status.get == "Running" && i < 30) {
       Thread.sleep(500)
       i += 1
       res = client

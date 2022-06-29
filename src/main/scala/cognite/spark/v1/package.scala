@@ -11,8 +11,6 @@ package object v1 {
       "org.wartremover.warts.Null",
       "org.wartremover.warts.Equals",
       "org.wartremover.warts.OptionPartial",
-      "scalafix:DisableSyntax.null",
-      "scalafix:DisableSyntax.!="
     )
   )
   implicit def optionToSetter[T: Manifest]: Transformer[Option[T], Option[Setter[T]]] =
@@ -29,7 +27,6 @@ package object v1 {
       }
     }
 
-  @SuppressWarnings(Array("org.wartremover.warts.Null", "scalafix:DisableSyntax.null"))
   implicit def anyToSetter[T]: Transformer[T, Option[Setter[T]]] =
     new Transformer[T, Option[Setter[T]]] {
       override def transform(src: T): Option[Setter[T]] = Setter.fromAny(src)

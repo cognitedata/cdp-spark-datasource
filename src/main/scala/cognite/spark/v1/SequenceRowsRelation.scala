@@ -275,25 +275,44 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
 
 object SequenceRowsRelation {
 
-  private def parseValue(value: Any, offset: Long = 0) = Some(value.asInstanceOf[Long] + offset)
+  private def parseValue(value: Long, offset: Long = 0) = Some(value + offset)
   def getSeqFilter(filter: Filter): Seq[SequenceRowFilter] = // scalastyle:off
     filter match {
-      case EqualTo("rowNumber", value) =>
+      case EqualTo("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(parseValue(value), parseValue(value, +1)))
-      case EqualNullSafe("rowNumber", value) =>
+      case EqualTo("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
+      case EqualNullSafe("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(parseValue(value), parseValue(value, +1)))
+      case EqualNullSafe("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
       case In("rowNumber", values) =>
+        // throw error if any are null, or not long?
         values
           .filter(_ != null)
-          .map(value => SequenceRowFilter(parseValue(value), parseValue(value, +1)))
+          .collect { case value: Long => SequenceRowFilter(parseValue(value), parseValue(value, +1)) }
           .toIndexedSeq
-      case LessThan("rowNumber", value) => Seq(SequenceRowFilter(exclusiveEnd = parseValue(value)))
-      case LessThanOrEqual("rowNumber", value) =>
+      case LessThan("rowNumber", value: Long) => Seq(SequenceRowFilter(exclusiveEnd = parseValue(value)))
+      case LessThan("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
+      case LessThanOrEqual("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(exclusiveEnd = parseValue(value, +1)))
-      case GreaterThan("rowNumber", value) =>
+      case LessThanOrEqual("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
+      case GreaterThan("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(inclusiveStart = parseValue(value, +1)))
-      case GreaterThanOrEqual("rowNumber", value) =>
+      case GreaterThan("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
+      case GreaterThanOrEqual("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(inclusiveStart = parseValue(value)))
+      case GreaterThanOrEqual("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
       case And(f1, f2) => filterIntersection(getSeqFilter(f1), getSeqFilter(f2))
       case Or(f1, f2) => normalizeFilterSet(getSeqFilter(f1) ++ getSeqFilter(f2))
       case Not(f) => filterComplement(getSeqFilter(f))
@@ -315,7 +334,7 @@ object SequenceRowsRelation {
   }
 
   private def toSegments(f: Vector[SequenceRowFilter]) = {
-    val (minusInfCount, plusInfCount, borders) = toBorders(f.toVector)
+    val (minusInfCount, plusInfCount, borders) = toBorders(f)
     // count number of overlapping intervals in each segment
     val segmentCounts = borders.iterator.scanLeft[Int](minusInfCount)((count, border) => {
       if (border.start) {

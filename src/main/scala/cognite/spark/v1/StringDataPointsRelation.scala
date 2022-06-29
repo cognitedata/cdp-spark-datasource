@@ -1,7 +1,12 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cognite.spark.v1.PushdownUtilities.{filtersToTimestampLimits, getIdFromMap, pushdownToParameters, toPushdownFilterExpression}
+import cognite.spark.v1.PushdownUtilities.{
+  filtersToTimestampLimits,
+  getIdFromMap,
+  pushdownToParameters,
+  toPushdownFilterExpression
+}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.StringDataPoint
 import com.cognite.sdk.scala.v1.{CogniteId, GenericClient}

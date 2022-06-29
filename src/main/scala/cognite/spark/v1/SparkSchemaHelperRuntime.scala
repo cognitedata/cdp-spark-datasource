@@ -37,28 +37,26 @@ private[spark] object SparkSchemaHelperRuntime {
 
   // convert Map[Any, Any] to Map[String, String] by checking every key and value.
   def checkMetadataMap(mapAny: Map[Any, Any], row: Row): Map[String, String] = {
-    val map = mapAny.asInstanceOf[Map[Any, Any]]
-    val badKeys = map.keys
-      .filter(!_.isInstanceOf[String])
-      .map(k =>
-        s"Map with string keys was expected, but ${valueToString(k)} was found (on row ${rowIdentifier(row)}).")
-
-    val badValues = map
-      .filter { case (k, v) => !v.isInstanceOf[String] && v != null }
-      .map {
-        case (k, v) =>
+    val mapStringString = mapAny.collect {
+      case (k: String, v: String) if v != null => (k, v)
+    }
+    val maybeError = mapAny
+      .collectFirst {
+        case (k: String, v) if !mapStringString.contains(k) =>
           s"Map with string values was expected, but ${valueToString(v)} was found (under key '$k' on row ${rowIdentifier(row)})"
+        case (k, v) =>
+          s"Map with string keys was expected, but ${valueToString(k)} was found (on row ${rowIdentifier(row)})."
       }
 
-    (badKeys ++ badValues).headOption match {
+    maybeError match {
       case Some(error) => throw new CdfSparkIllegalArgumentException(error)
-      case None => filterMetadata(map.asInstanceOf[Map[String, String]])
+      case None => filterMetadata(mapStringString)
     }
   }
 
   def badRowError(row: Row, name: String, typeName: String, rowType: String): Throwable =
     Try(row.getAs[Any](name)) match {
-      case Failure(error) =>
+      case Failure(_) =>
         new CdfSparkIllegalArgumentException(
           s"Required column '$name' is missing on row [${row.schema.fieldNames.mkString(", ")}].")
       case Success(value) =>

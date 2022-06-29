@@ -177,9 +177,9 @@ class RawTableRelation(
 
     Tuple2(
       // Note that this way of aggregating filters will not work with "Or" predicates.
-      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption
+      Try(timestampLimits.collect { case min: Min => min: Limit }.max).toOption
         .map(_.value),
-      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption
+      Try(timestampLimits.collect { case max: Max => max: Limit }.min).toOption
         .map(_.value)
     )
   }
