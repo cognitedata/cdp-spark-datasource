@@ -227,9 +227,11 @@ object AlphaDataModelInstancesHelper {
           PropertyType.Array.Float32.Property(x.collect {
             case bigInteger: java.math.BigInteger => bigInteger.floatValue()
           }.toVector)
-        case x => throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Float32.code))
+        case x =>
+          throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Float32.code))
       }
-    case x => throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Float32.code))
+    case x =>
+      throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Float32.code))
   }
 
   private def toFloat64ArrayProperty(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {

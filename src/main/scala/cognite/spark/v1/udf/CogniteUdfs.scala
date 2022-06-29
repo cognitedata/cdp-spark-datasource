@@ -3,7 +3,11 @@ package cognite.spark.v1.udf
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import cognite.spark.v1.Constants.{DefaultBaseUrl, DefaultMaxRetries, DefaultMaxRetryDelaySeconds}
-import cognite.spark.v1.udf.CogniteUdfs.{callFunctionAndGetResult, callFunctionByExternalId, callFunctionByName}
+import cognite.spark.v1.udf.CogniteUdfs.{
+  callFunctionAndGetResult,
+  callFunctionByExternalId,
+  callFunctionByName
+}
 import cognite.spark.v1.{CdfSparkException, CdpConnector, Constants}
 import com.cognite.sdk.scala.common.ApiKeyAuth
 import com.cognite.sdk.scala.v1.{FunctionCall, GenericClient}
@@ -55,8 +59,12 @@ object CogniteUdfs {
     CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)
 
   @tailrec
-  private def getFunctionResult(client: GenericClient[IO], functionId: Long, callId: Long, result: FunctionCall, attemptNumber: Int)(
-      implicit ioRuntime: IORuntime): IO[Json] = {
+  private def getFunctionResult(
+      client: GenericClient[IO],
+      functionId: Long,
+      callId: Long,
+      result: FunctionCall,
+      attemptNumber: Int)(implicit ioRuntime: IORuntime): IO[Json] = {
     if (result.status.contains("Running") && attemptNumber < 30) {
       for {
         _ <- IO.sleep(500.millis)
