@@ -68,7 +68,7 @@ trait SparkTest {
     // https://medium.com/@mrpowers/how-to-cut-the-run-time-of-a-spark-sbt-test-suite-by-40-52d71219773f
     .config("spark.sql.shuffle.partitions", "1")
     .config("spark.sql.storeAssignmentPolicy", "legacy")
-    .config("spark.app.id", this.getClass.getName + math.floor(math.random * 1000).toLong.toString)
+    .config("spark.app.id", this.getClass.getName + math.floor(math.random() * 1000).toLong.toString)
     .getOrCreate()
 
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
@@ -172,7 +172,8 @@ trait SparkTest {
 
   private def getCounter(metricName: String): Long =
     MetricsSource
-      .metricsMap(metricName)
+      .metricsMap
+      .get(metricName)
       .value
       .asInstanceOf[Counter]
       .getCount

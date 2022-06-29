@@ -192,7 +192,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
                    |bigint(123456789) as timestamp,
                    |"somevalue" as value
       """.stripMargin)
-        .select(destinationStringDataPointsDf.columns.map(col): _*)
+        .select(destinationStringDataPointsDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationStringDatapoints")
     }
@@ -235,7 +235,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
               |from sourceTimeSeries
               |limit 1
      """.stripMargin)
-      .select(sourceTimeSeriesDf.columns.map(col): _*)
+      .select(sourceTimeSeriesDf.columns.map(col).toIndexedSeq: _*)
       .write
       .insertInto("destinationTimeSeries")
 
@@ -243,7 +243,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
     val initialDescriptionsAfterPost = retryWhile[Array[Row]](
       spark
         .sql(s"""select id from destinationTimeSeries where name = '$tsName'""")
-        .collect,
+        .collect(),
       df => df.length < 1)
     assert(initialDescriptionsAfterPost.length == 1)
 
@@ -266,7 +266,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
     val dataPointsAfterPost = retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationStringDatapointsInsert where id = '$id'""")
-        .collect,
+        .collect(),
       df => df.length < 1)
     assert(dataPointsAfterPost.length == 1)
 
@@ -288,7 +288,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
     val dataPointsAfterPostByExternalId = retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationStringDatapointsInsert where externalId = 'string-test${randomSuffix}'""")
-        .collect,
+        .collect(),
       df => df.length < 2)
     assert(dataPointsAfterPostByExternalId.length == 2)
   }
@@ -304,7 +304,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
                 |null as aggregation,
                 |null as granularity
       """.stripMargin)
-        .select(destinationStringDataPointsDf.columns.map(col): _*)
+        .select(destinationStringDataPointsDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationStringDatapoints")
     }
@@ -348,7 +348,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
     val Array(tsIdRow) = retryWhile[Array[Row]](
       spark
         .sql(s"""select id from destinationTimeSeries where externalId = '$tsName'""")
-        .collect,
+        .collect(),
       df => df.isEmpty)
     val tsId = tsIdRow.getAs[Long]("id")
 
@@ -376,13 +376,13 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
       .option("apiKey", writeApiKey)
       .option("type", "stringdatapoints")
       .option("onconflict", "upsert")
-      .save
+      .save()
 
     // Check if post worked
     retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationDatapoints where id = $tsId""")
-        .collect,
+        .collect(),
       df => { println(df.mkString(",")); df.length < 3 })
 
     spark
@@ -410,12 +410,12 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
       .option("apiKey", writeApiKey)
       .option("type", "stringdatapoints")
       .option("onconflict", "delete")
-      .save
+      .save()
 
     val dataPointsAfterDelete = retryWhile[Array[Row]](
       spark
         .sql(s"""select value from destinationDatapoints where id = $tsId""")
-        .collect,
+        .collect(),
       df => { println(df.mkString(",")); df.length != 1 })
     dataPointsAfterDelete.head.getAs[String]("value") shouldBe "b"
   }

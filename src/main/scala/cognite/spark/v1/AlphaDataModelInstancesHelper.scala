@@ -38,19 +38,19 @@ object AlphaDataModelInstancesHelper {
     case x: BigInt => PropertyType.Int64.Property(x.longValue)
     case x: String => PropertyType.Text.Property(x)
     case x: Boolean => PropertyType.Boolean.Property(x)
-    case x: Array[Double] => PropertyType.Array.Float64.Property(x)
-    case x: Array[Int] => PropertyType.Array.Int32.Property(x)
-    case x: Array[Float] => PropertyType.Array.Float32.Property(x)
-    case x: Array[Long] => PropertyType.Array.Int64.Property(x)
-    case x: Array[String] => PropertyType.Array.Text.Property(x)
-    case x: Array[Boolean] => PropertyType.Array.Boolean.Property(x)
+    case x: Array[Double] => PropertyType.Array.Float64.Property(x.toIndexedSeq)
+    case x: Array[Int] => PropertyType.Array.Int32.Property(x.toIndexedSeq)
+    case x: Array[Float] => PropertyType.Array.Float32.Property(x.toIndexedSeq)
+    case x: Array[Long] => PropertyType.Array.Int64.Property(x.toIndexedSeq)
+    case x: Array[String] => PropertyType.Array.Text.Property(x.toIndexedSeq)
+    case x: Array[Boolean] => PropertyType.Array.Boolean.Property(x.toIndexedSeq)
     case x: Array[java.math.BigDecimal] =>
-      PropertyType.Array.Float64.Property(x.toVector.map(i => i.doubleValue))
+      PropertyType.Array.Float64.Property(x.map(i => i.doubleValue).toIndexedSeq)
     case x: Array[java.math.BigInteger] =>
-      PropertyType.Array.Int64.Property(x.toVector.map(i => i.longValue))
+      PropertyType.Array.Int64.Property(x.map(i => i.longValue).toIndexedSeq)
     case x: Array[BigDecimal] =>
-      PropertyType.Array.Float64.Property(x.toVector.map(i => i.doubleValue))
-    case x: Array[BigInt] => PropertyType.Array.Int64.Property(x.toVector.map(i => i.longValue))
+      PropertyType.Array.Float64.Property(x.map(i => i.doubleValue).toIndexedSeq)
+    case x: Array[BigInt] => PropertyType.Array.Int64.Property(x.map(i => i.longValue).toIndexedSeq)
     case x: LocalDate => PropertyType.Date.Property(x)
     case x: java.sql.Date => PropertyType.Date.Property(x.toLocalDate)
     case x: LocalDateTime => PropertyType.Date.Property(x.toLocalDate)
@@ -61,17 +61,21 @@ object AlphaDataModelInstancesHelper {
         OffsetDateTime.ofInstant(x.toInstant, ZoneId.of("UTC")).toZonedDateTime)
     case x: java.time.ZonedDateTime =>
       PropertyType.Timestamp.Property(x)
-    case x: Array[LocalDate] => PropertyType.Array.Date.Property(x)
-    case x: Array[java.sql.Date] => PropertyType.Array.Date.Property(x.map(_.toLocalDate))
-    case x: Array[LocalDateTime] => PropertyType.Array.Date.Property(x.map(_.toLocalDate))
+    case x: Array[LocalDate] => PropertyType.Array.Date.Property(x.toIndexedSeq)
+    case x: Array[java.sql.Date] => PropertyType.Array.Date.Property(x.map(_.toLocalDate).toIndexedSeq)
+    case x: Array[LocalDateTime] => PropertyType.Array.Date.Property(x.map(_.toLocalDate).toIndexedSeq)
     case x: Array[Instant] =>
-      PropertyType.Array.Timestamp
-        .Property(x.map(OffsetDateTime.ofInstant(_, ZoneId.of("UTC")).toZonedDateTime))
+      PropertyType.Array.Timestamp.Property(
+        x.map(OffsetDateTime.ofInstant(_, ZoneId.of("UTC")).toZonedDateTime)
+          .toIndexedSeq
+      )
     case x: Array[java.sql.Timestamp] =>
-      PropertyType.Array.Timestamp.Property(x.map(ts =>
-        OffsetDateTime.ofInstant(ts.toInstant, ZoneId.of("UTC")).toZonedDateTime))
+      PropertyType.Array.Timestamp.Property(
+        x.map(ts => OffsetDateTime.ofInstant(ts.toInstant, ZoneId.of("UTC")).toZonedDateTime)
+          .toIndexedSeq
+      )
     case x: Array[java.time.ZonedDateTime] =>
-      PropertyType.Array.Timestamp.Property(x)
+      PropertyType.Array.Timestamp.Property(x.toIndexedSeq)
     case x =>
       throw new CdfSparkException(s"Unsupported value ${x.toString} of type ${x.getClass.getName}")
   }

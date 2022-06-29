@@ -34,7 +34,7 @@ lazy val commonSettings = Seq(
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
-  scalacOptions ++= Seq("-Xlint:unused"),
+  scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
   developers := List(
     Developer(
       id = "wjoel",

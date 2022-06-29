@@ -103,7 +103,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       doUpsert = true)
   }
 
-  override def schema: StructType = structType[AssetsReadSchema]
+  override def schema: StructType = structType[AssetsReadSchema]()
 
   override def toRow(a: AssetsReadSchema): Row = asRow(a)
 
@@ -111,9 +111,9 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object AssetsRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[AssetsUpsertSchema]
-  val insertSchema: StructType = structType[AssetsInsertSchema]
-  val readSchema: StructType = structType[AssetsReadSchema]
+  val upsertSchema: StructType = structType[AssetsUpsertSchema]()
+  val insertSchema: StructType = structType[AssetsInsertSchema]()
+  val readSchema: StructType = structType[AssetsReadSchema]()
 }
 
 final case class AssetsUpsertSchema(

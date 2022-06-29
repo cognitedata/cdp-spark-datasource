@@ -41,7 +41,7 @@ class TimeSeriesRelationTest
     assert(singlePartitionCount > 0)
     for (np <- Seq(4, 8, 12)) {
       val df = dfreader.option("partitions", np.toString).load()
-      assert(df.count == singlePartitionCount)
+      assert(df.count() == singlePartitionCount)
     }
   }
 
@@ -57,7 +57,7 @@ class TimeSeriesRelationTest
       .load()
       .where("createdTime < to_timestamp(1593698800)")
       .where(s"assetId In(6191827428964450, 1081261865374641, 3047932288982463)")
-    assert(df.count == 89)
+    assert(df.count() == 89)
     val timeSeriesRead = getNumberOfRowsRead(metricsPrefix, "timeseries")
     assert(timeSeriesRead == 89)
   }
@@ -75,7 +75,7 @@ class TimeSeriesRelationTest
       .where("createdTime < to_timestamp(1595400000)")
       .where(
         s"assetId In(6191827428964450, 1081261865374641, 3047932288982463) or dataSetId in (1, 2, 3)")
-    assert(df.count == 89)
+    assert(df.count() == 89)
     val timeSeriesRead = getNumberOfRowsRead(metricsPrefix, "timeseries")
     assert(timeSeriesRead == 89)
   }
@@ -90,7 +90,7 @@ class TimeSeriesRelationTest
       .option("metricsPrefix", metricsPrefix)
       .load()
       .where(s"assetId = 99")
-    assert(df.count == 0)
+    assert(df.count() == 0)
 
     // Metrics counter does not create a Map key until reading the first row
     assertThrows[NoSuchElementException](getNumberOfRowsRead(metricsPrefix, "timeseries"))
@@ -109,7 +109,7 @@ class TimeSeriesRelationTest
       .where("createdTime < to_timestamp(1595400000)")
       .where("id in (384300500341710, 881888156367988, 606890273743471)")
 
-    assert(df.count == 3)
+    assert(df.count() == 3)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "timeseries")
     assert(eventsRead == 3)
   }
@@ -127,7 +127,7 @@ class TimeSeriesRelationTest
       .where("createdTime < to_timestamp(1595400000)")
       .where("name = 'VAL_23-KA-9101_PHD:VALUE' or externalId = 'pi:160224'")
 
-    assert(df.count == 2)
+    assert(df.count() == 2)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "timeseries")
     assert(eventsRead == 2)
   }
@@ -156,7 +156,7 @@ class TimeSeriesRelationTest
                 |from sourceTimeSeries
                 |limit 1
      """.stripMargin)
-        .select(sourceDf.columns.map(col): _*)
+        .select(sourceDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationTimeSeries")
 
@@ -165,7 +165,7 @@ class TimeSeriesRelationTest
         spark
           .sql(
             s"""select * from destinationTimeSeries where unit = '$insertNoNameUnit' and description = '$description'""")
-          .collect,
+          .collect(),
         df => df.length != 1)
       assert(dfAfterPost.length == 1)
       assert(dfAfterPost.head.get(0) == null)
@@ -218,7 +218,7 @@ class TimeSeriesRelationTest
                 |from sourceTimeSeries
                 |limit 5
      """.stripMargin)
-        .select(sourceDf.columns.map(col): _*)
+        .select(sourceDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationTimeSeriesInsertAndUpdate")
 
@@ -233,7 +233,7 @@ class TimeSeriesRelationTest
             spark
               .sql(
                 s"""select * from destinationTimeSeriesInsertAndUpdate where unit = '$insertTestUnit' and description = '$initialDescription'""")
-              .collect
+              .collect()
               .length).min,
         length => length < 5
       )
@@ -258,7 +258,7 @@ class TimeSeriesRelationTest
                 |from destinationTimeSeries
                 |where description = '$initialDescription'
           """.stripMargin)
-        .select(sourceDf.columns.map(col): _*)
+        .select(sourceDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationTimeSeriesInsertAndUpdate")
 
@@ -272,7 +272,7 @@ class TimeSeriesRelationTest
         spark
           .sql(
             s"""select * from destinationTimeSeriesInsertAndUpdate where unit = '$insertTestUnit' and description = '$updatedDescription'""")
-          .collect,
+          .collect(),
         df => df.length < 5
       )
       assert(updatedDescriptionsAfterUpdate.length == 5)
@@ -281,7 +281,7 @@ class TimeSeriesRelationTest
         spark
           .sql(
             s"""select * from destinationTimeSeriesInsertAndUpdate where unit = '$insertTestUnit' and description = '$initialDescription'""")
-          .collect,
+          .collect(),
         df => df.length > 0
       )
       assert(initialDescriptionsAfterUpdate.length == 0)
@@ -412,7 +412,7 @@ class TimeSeriesRelationTest
             spark
               .sql(
                 s"""select * from destinationTimeSeries where description = '$insertDescription' and unit = '$partialUpdateUnit'""".stripMargin)
-              .collect
+              .collect()
               .length).min,
         length => length < 5
       )
@@ -472,7 +472,7 @@ class TimeSeriesRelationTest
         spark
           .sql(
             s"select * from destinationTimeSeries where unit = '$partialUpdateUnit' and description = '$updateDescription'")
-          .collect,
+          .collect(),
         df => df.length < 5
       )
       assert(dfWithDescriptionUpdateTest.length == 5)
@@ -562,7 +562,7 @@ class TimeSeriesRelationTest
         spark
           .sql(
             s"select * from destinationTimeSeries where unit = '$upsertUnit' and description = '$insertDescription'")
-          .collect,
+          .collect(),
         df => df.length < 5
       )
       assert(dfWithDescriptionInsertTest.length == 5)
@@ -612,7 +612,7 @@ class TimeSeriesRelationTest
         spark
           .sql(
             s"select * from destinationTimeSeries where unit = '$upsertUnit' and description = '$upsertDescription'")
-          .collect,
+          .collect(),
         df => {
           df.length < 10
         }
@@ -658,13 +658,13 @@ class TimeSeriesRelationTest
                    |from destinationTimeSeries
                    |limit 5
      """.stripMargin)
-        .select(sourceDf.columns.map(col): _*)
+        .select(sourceDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationTimeSeries")
 
       // Check if post worked
       val timeSeriesFromTestdf = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationTimeSeries where unit = '$updateTestUnit'").collect,
+        spark.sql(s"select * from destinationTimeSeries where unit = '$updateTestUnit'").collect(),
         df => df.length < 5
       )
       assert(timeSeriesFromTestdf.length == 5)
@@ -688,7 +688,7 @@ class TimeSeriesRelationTest
           spark
             .sql(
               s"select description from destinationTimeSeries where unit = '$updateTestUnit' and description = 'bar'")
-            .collect
+            .collect()
         },
         df => df.length < 5
       )
@@ -729,7 +729,7 @@ class TimeSeriesRelationTest
           .save()
 
         val insertTest = retryWhile[Array[Row]](
-          spark.sql(s"select * from destinationTimeSeries where unit = '$testUnit'").collect,
+          spark.sql(s"select * from destinationTimeSeries where unit = '$testUnit'").collect(),
           df => df.length != 1
         )
         insertTest(0).getAs[Long]("id")
@@ -753,7 +753,7 @@ class TimeSeriesRelationTest
         val updateTest = retryWhile[Array[Row]](
           spark
             .sql(s"select * from destinationTimeSeries where unit = '$testUnit' and description is null")
-            .collect,
+            .collect(),
           df => df.length != 1
         )
         updateTest.length shouldBe 1
@@ -831,7 +831,7 @@ class TimeSeriesRelationTest
                 |from sourceTimeSeries
                 |limit 10
      """.stripMargin)
-        .select(sourceDf.columns.map(col): _*)
+        .select(sourceDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationTimeSeries")
 
@@ -840,7 +840,7 @@ class TimeSeriesRelationTest
         retryWhile[Array[Row]](
           spark
             .sql(s"select externalId from destinationTimeSeries where unit = '$deleteUnit'")
-            .collect,
+            .collect(),
           df => df.length < 10)
       assert(idsAfterInsert.length == 10)
 
@@ -861,7 +861,7 @@ class TimeSeriesRelationTest
               .save()
             spark
               .sql(s"select externalId from destinationTimeSeries where unit = '$deleteUnit'")
-              .collect
+              .collect()
           },
           df => df.length > 0
         )

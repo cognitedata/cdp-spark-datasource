@@ -190,7 +190,7 @@ final case class NumericDataPointsRdd(
       case granularity +: moreGranular =>
         // convert start to closest previous granularity unit
         // convert end to closest next granularity unit(?)
-        val granularityUnitMillis = granularity.unit.getDuration.toMillis
+        val granularityUnitMillis = granularity.unit.getDuration.toMillis.toDouble
 
         queryAggregates(
           id,
@@ -321,7 +321,7 @@ final case class NumericDataPointsRdd(
       granularity: Granularity,
       firstLatest: Stream[IO, (CogniteId, Option[Instant], Option[Instant])]
   ): IO[Vector[Bucket]] = {
-    val granularityMillis = granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis
+    val granularityMillis = granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis.toDouble
     // TODO: make sure we have a test that covers more than 10000 units
     firstLatest
       .parEvalMapUnordered(50) {
@@ -367,7 +367,7 @@ final case class NumericDataPointsRdd(
       buckets(firstLatest)
     } else {
       granularities.toVector
-        .map(g => aggregationBuckets(aggregations, g, firstLatest))
+        .map(g => aggregationBuckets(aggregations.toIndexedSeq, g, firstLatest))
         .parFlatSequence
     }
     partitions
@@ -486,8 +486,9 @@ final case class NumericDataPointsRdd(
           queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
             .flatMap { queryResponse =>
               val dataPointsAggregates =
-                queryResponse.mapValues(dataPointsResponse =>
-                  dataPointsResponse.flatMap(_.datapoints.map(aggregationDataPointToRow(r, _))))
+                queryResponse.map { case (key, dataPointsResponse) =>
+                  key -> dataPointsResponse.flatMap(_.datapoints.map(aggregationDataPointToRow(r, _)))
+                }
               dataPointsAggregates.get(r.aggregation) match {
                 case Some(dataPoints) =>
                   IO {

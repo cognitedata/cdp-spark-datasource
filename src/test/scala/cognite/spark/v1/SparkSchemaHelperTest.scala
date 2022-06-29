@@ -15,7 +15,7 @@ final case class TestTypeOptionalField(a: OptionalField[Int], b: OptionalField[D
 
 class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Matchers {
   "SparkSchemaHelper structType" should "generate StructType from basic case class" in {
-    structType[TestTypeBasic] should be (StructType(Seq(
+    structType[TestTypeBasic]() should be (StructType(Seq(
       StructField("a", DataTypes.IntegerType, false),
       StructField("b", DataTypes.DoubleType, false),
       StructField("c", DataTypes.ByteType, false),
@@ -28,7 +28,7 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
   }
 
   it should "generate StructType from optional case class" in {
-    structType[TestTypeOption] should be (StructType(Seq(
+    structType[TestTypeOption]() should be (StructType(Seq(
       StructField("a", DataTypes.IntegerType, true),
       StructField("b", DataTypes.DoubleType, true),
       StructField("c", DataTypes.ByteType, true),
@@ -42,36 +42,36 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
 
   "SparkSchemaHelper fromRow" should "construct type from Row" in {
     val r = new GenericRowWithSchema(Array(1, 2.toDouble, 3.toByte,
-      4, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
+      4, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic]())
     fromRow[TestTypeBasic](r) should be(TestTypeBasic(1, 2, 3, 4, Map("foo" -> "bar"), 5, Seq(10), "foo"))
   }
 
   "SparkSchemaHelper fromRow" should "construct type from Row doing implicit conversions" in {
     val r = new GenericRowWithSchema(Array(1, 2, 3.toByte,
-      4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
+      4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic]())
     fromRow[TestTypeBasic](r) should be(TestTypeBasic(1, 2, 3, 4, Map("foo" -> "bar"), 5, Seq(10), "foo"))
   }
 
   "SparkSchemaHelper fromRow" should "construct type from Row doing implicit conversions 2" in {
     val r = new GenericRowWithSchema(Array(1, new java.math.BigDecimal(2).pow(100), 3.toByte,
-      java.math.BigInteger.valueOf(4), Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
+      java.math.BigInteger.valueOf(4), Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic]())
     fromRow[TestTypeBasic](r) should be(TestTypeBasic(1, math.pow(2, 100), 3, 4, Map("foo" -> "bar"), 5, Seq(10), "foo"))
   }
 
   it should "construct optional type from Row of null" in {
-    val r = new GenericRowWithSchema(Array(null, null, null, null, null, null, null, null), structType[TestTypeOption])
+    val r = new GenericRowWithSchema(Array(null, null, null, null, null, null, null, null), structType[TestTypeOption]())
     fromRow[TestTypeOption](r) should be(
       TestTypeOption(None, None, None, None, None, None, None, None))
   }
 
   it should "construct optional type from Row of map values that can be null" in {
-    val r = new GenericRowWithSchema(Array(null, null, null, null, Map("foo" -> "row", "bar" -> "a"), null, null, null), structType[TestTypeOption])
+    val r = new GenericRowWithSchema(Array(null, null, null, null, Map("foo" -> "row", "bar" -> "a"), null, null, null), structType[TestTypeOption]())
     fromRow[TestTypeOption](r) should be(
       TestTypeOption(None, None, None, None, Some(Map("foo" -> "row", "bar" -> "a")), None, None, None))
   }
 
   it should "construct optional type from Row of seq values that can be null" in {
-    val r = new GenericRowWithSchema(Array(null, null, null, null, null, null, Seq(20L, null), null), structType[TestTypeOption])
+    val r = new GenericRowWithSchema(Array(null, null, null, null, null, null, Seq(20L, null), null), structType[TestTypeOption]())
     fromRow[TestTypeOption](r) should be(
       TestTypeOption(None, None, None, None, None, None, Some(Seq(Some(20), None)), None))
   }
@@ -95,13 +95,13 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
   }
 
   it should "ignore null in map" in {
-    val x = new GenericRowWithSchema(Array(null, null, null, null, Map("foo" -> "row", "bar" -> null), null, null, null), structType[TestTypeOption])
+    val x = new GenericRowWithSchema(Array(null, null, null, null, Map("foo" -> "row", "bar" -> null), null, null, null), structType[TestTypeOption]())
     val row = fromRow[TestTypeOption](x)
     row.x.get shouldBe Map("foo" -> "row")
   }
 
   it should "ignore missing fields" in {
-    val x = new GenericRowWithSchema(Array(1, 2, null), structType[TestTypeOptionalField])
+    val x = new GenericRowWithSchema(Array(1, 2, null), structType[TestTypeOptionalField]())
     val row = fromRow[TestTypeOption](x)
     row.a shouldBe Some(1)
     row.b shouldBe Some(2)
@@ -123,35 +123,35 @@ class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Mat
   }
 
   it should "fail nicely on different type in map" in {
-    val x = new GenericRowWithSchema(Array(null, null, null, null, Map("foo" -> "row", "bar" -> 1), null, null, null), structType[TestTypeOption])
+    val x = new GenericRowWithSchema(Array(null, null, null, null, Map("foo" -> "row", "bar" -> 1), null, null, null), structType[TestTypeOption]())
     val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeOption](x) }
     ex.getMessage shouldBe "Map with string values was expected, but '1' of type Int was found (under key 'bar' on row [null,null,null,null,Map(foo -> row, bar -> 1),null,null,null])"
   }
 
   it should "fail nicely on type mismatch" in {
     val x = new GenericRowWithSchema(Array("shouldBeInt", 2.toDouble, 3.toByte,
-      4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
+      4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic]())
     val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeBasic](x) }
     ex.getMessage shouldBe "Column 'a' was expected to have type Int, but 'shouldBeInt' of type String was found (on row [shouldBeInt,2.0,3,4.0,Map(foo -> bar),5,List(10),foo])."
   }
 
   it should "fail nicely on unexpected NULL in int" in {
     val x = new GenericRowWithSchema(Array(null, 2.toDouble, 3.toByte,
-      4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
+      4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic]())
     val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeBasic](x) }
     ex.getMessage shouldBe "Column 'a' was expected to have type Int, but NULL was found (on row [null,2.0,3,4.0,Map(foo -> bar),5,List(10),foo])."
   }
 
   it should "fail nicely on unexpected NULL in string" in {
     val x = new GenericRowWithSchema(Array(1, 2.toDouble, 3.toByte,
-      4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), null), structType[TestTypeBasic])
+      4.toFloat, Map("foo" -> "bar"), 5.toLong, Seq[Long](10), null), structType[TestTypeBasic]())
     val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeBasic](x) }
     ex.getMessage shouldBe "Column 's' was expected to have type String, but NULL was found (on row [1,2.0,3,4.0,Map(foo -> bar),5,List(10),null])."
   }
 
   it should "fail nicely on unexpected NULL in map" in {
     val x = new GenericRowWithSchema(Array(1, 2.toDouble, 3.toByte,
-      4.toFloat, null, 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic])
+      4.toFloat, null, 5.toLong, Seq[Long](10), "foo"), structType[TestTypeBasic]())
     val ex = intercept[CdfSparkIllegalArgumentException] { fromRow[TestTypeBasic](x) }
     ex.getMessage shouldBe "Column 'x' was expected to have type Map[String,String], but NULL was found (on row [1,2.0,3,4.0,null,5,List(10),foo])."
   }

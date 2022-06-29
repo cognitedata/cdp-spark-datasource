@@ -8,6 +8,7 @@ import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -147,7 +148,7 @@ class RawTableRelation(
         filteredRequiredColumns.length == filteredSchemaFields.length) {
         RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime)
       } else {
-        RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime, Some(filteredRequiredColumns))
+        RawRowFilter(minLastUpdatedTime, maxLastUpdatedTime, Some(filteredRequiredColumns.toIndexedSeq))
       }
 
     val jsonSchema = if (schema == defaultSchema || schema == null || schema.tail.isEmpty) {
@@ -161,7 +162,7 @@ class RawTableRelation(
 
     rdd.map(row => {
       val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
-      Row.fromSeq(filteredCols)
+      new GenericRow(filteredCols)
     })
   }
 
@@ -198,7 +199,7 @@ class RawTableRelation(
     })
   }
 
-  private def postRows(nonKeyColumnNames: Seq[String], rows: Seq[Row]): IO[Unit] = {
+  private def postRows(nonKeyColumnNames: Array[String], rows: Seq[Row]): IO[Unit] = {
     val items = RawJsonConverter.rowsToRawItems(nonKeyColumnNames, temporaryKeyName, rows)
 
     client
@@ -271,15 +272,15 @@ object RawTableRelation {
     }
 
   private[cognite] val temporaryKeyName = s"TrE85tFQPCb2fEUZ"
-  private[cognite] val temporarylastUpdatedTimeName = s"J2p972xzM9bf32oD"
+  private[cognite] val temporaryLastUpdatedTimeName = s"J2p972xzM9bf32oD"
 
-  def prepareForInsert(df: DataFrame): (Seq[String], DataFrame) = {
+  def prepareForInsert(df: DataFrame): (Array[String], DataFrame) = {
     val dfWithKeyRenamed = df
       .withColumnRenamed("key", temporaryKeyName)
-      .withColumnRenamed(lastUpdatedTimeColName, temporarylastUpdatedTimeName)
+      .withColumnRenamed(lastUpdatedTimeColName, temporaryLastUpdatedTimeName)
     val dfWithUnRenamedColumns = unRenameColumns(dfWithKeyRenamed)
     val columnNames =
-      dfWithUnRenamedColumns.columns.diff(Array(temporaryKeyName, temporarylastUpdatedTimeName))
+      dfWithUnRenamedColumns.columns.diff(Array(temporaryKeyName, temporaryLastUpdatedTimeName))
     (columnNames, dfWithUnRenamedColumns)
   }
 }

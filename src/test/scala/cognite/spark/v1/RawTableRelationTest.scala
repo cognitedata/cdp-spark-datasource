@@ -8,6 +8,8 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, LoneElement, Matchers, ParallelTestExecution}
 
+import scala.reflect.ClassTag
+
 class RawTableRelationTest
     extends FlatSpec
     with Matchers
@@ -18,10 +20,8 @@ class RawTableRelationTest
   import RawTableRelation._
   import spark.implicits._
 
-  import scala.collection.JavaConverters._
-
-  private def collectToSet[A](df: DataFrame): Set[A] =
-    df.collectAsList().asScala.map(_.getAs[A](0)).toSet
+  private def collectToSet[A: ClassTag](df: DataFrame): Set[A] =
+    df.collect().map(_.getAs[A](0)).toSet
 
   private def checkRange(leftLimit: Double, rightLimit: Double, number: Long): Boolean =
     (number >= leftLimit) && (number <= rightLimit)
@@ -51,16 +51,27 @@ class RawTableRelationTest
   )
 
   private val dataWithoutlastUpdatedTime = Seq(
-    RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt).toMap),
-    RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt).toMap)
+    RawRow("key1", Map("notlastUpdatedTime" -> Json.fromInt(1), "value" -> Json.fromInt(1))),
+    RawRow("key2", Map("notlastUpdatedTime" -> Json.fromInt(2), "value" -> Json.fromInt(2)))
   )
   private val dataWithlastUpdatedTime = Seq(
     RawRow("key3", Map("lastUpdatedTime" -> Json.fromInt(1), "value" -> Json.fromInt(1))),
     RawRow("key4", Map("lastUpdatedTime" -> Json.fromInt(2), "value" -> Json.fromInt(2)))
   )
   private val dataWithManylastUpdatedTime = Seq(
-    RawRow("key5", Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt).toMap),
-    RawRow("key6", Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2).mapValues(Json.fromInt).toMap)
+    RawRow(
+      "key5",
+      Map(
+        "___lastUpdatedTime" -> Json.fromInt(111),
+        "__lastUpdatedTime" -> Json.fromInt(11),
+        "value" -> Json.fromInt(1))),
+    RawRow(
+      "key6",
+      Map(
+        "___lastUpdatedTime" -> Json.fromInt(222),
+        "value" -> Json.fromInt(2),
+        "__lastUpdatedTime" -> Json.fromInt(22),
+        "lastUpdatedTime" -> Json.fromInt(2)))
   )
 
   private val dataWithSimpleNestedStruct = Seq(
@@ -157,7 +168,7 @@ class RawTableRelationTest
     df.createTempView("raw")
     val res = spark.sqlContext
       .sql("select * from raw")
-    assert(res.count == limit * partitions)
+    assert(res.count() == limit * partitions)
   }
 
   def rawRead(
@@ -261,8 +272,8 @@ class RawTableRelationTest
   "rowsToRawItems" should "return RawRows from Rows" in {
     val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
     val rawItems: Seq[RawRow] =
-      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq)
-    rawItems.map(_.key.toString).toSet should equal(Set("key3", "key4"))
+      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect().toSeq)
+    rawItems.map(_.key).toSet should equal(Set("key3", "key4"))
 
     val expectedResult: Seq[Map[String, Json]] = Seq[Map[String, Json]](
       Map(("key" -> Json.fromString("k1")), ("value" -> Json.fromInt(1))),
@@ -281,7 +292,7 @@ class RawTableRelationTest
     val dfWithKey = data.toDF("_key", "key", "value2")
     val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
     val toInsert =
-      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq).toVector
+      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect().toSeq).toVector
 
     toInsert.map(_.key) shouldBe Vector("key1", "key2")
     toInsert.map(_.columns.get("key")) shouldBe Vector(
@@ -298,7 +309,7 @@ class RawTableRelationTest
     val dfWithKey = dataWithNullKey.toDF("_key", "key", "value2")
     val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
     an[CdfSparkIllegalArgumentException] should be thrownBy RawJsonConverter
-      .rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq)
+      .rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect().toSeq)
       .toArray
   }
 
@@ -347,7 +358,7 @@ class RawTableRelationTest
           |"foo" as columns,
           |null as lastUpdatedTime
       """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
+      .select(destinationDf.columns.map(col).toIndexedSeq: _*)
       .write
       .insertInto("destinationTable")
   }
@@ -466,7 +477,7 @@ class RawTableRelationTest
       .load()
     destination.createTempView(tempView)
     source
-      .select(destination.columns.map(c => col(c)): _*)
+      .select(destination.columns.map(c => col(c)).toIndexedSeq: _*)
       .write
       .insertInto(tempView)
 
@@ -515,14 +526,13 @@ class RawTableRelationTest
     try {
       writeClient.rawTables(database).deleteById(table)
     } catch {
-      case _: CdpApiException => ()// Ignore
+      case _: CdpApiException => () // Ignore
     }
 
     val key = shortRandomString()
 
     try {
-      val source = spark.sql(
-        s"""select
+      val source = spark.sql(s"""select
            |  '$key' as key,
            |  123 as something
            |""".stripMargin)
@@ -537,7 +547,7 @@ class RawTableRelationTest
         .load()
       destination.createTempView("ensureParent_test")
       source
-        .select(destination.columns.map(c => col(c)): _*)
+        .select(destination.columns.map(c => col(c)).toIndexedSeq: _*)
         .write
         .insertInto("ensureParent_test")
 
@@ -545,7 +555,7 @@ class RawTableRelationTest
       try {
         writeClient.rawTables(database).deleteById(table)
       } catch {
-        case _: CdpApiException => ()// Ignore
+        case _: CdpApiException => () // Ignore
       }
     }
   }
@@ -608,7 +618,7 @@ class RawTableRelationTest
     assert(allColumnNamesAsString.length > 200)
 
     source
-      .select(source.schema.fields.map(f => col(f.name)): _*)
+      .select(source.schema.fields.map(f => col(f.name)).toIndexedSeq: _*)
       .write
       .insertInto("megaColumnTableDuplicate2TempView")
 

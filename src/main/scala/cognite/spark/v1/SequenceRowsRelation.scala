@@ -7,6 +7,7 @@ import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import io.circe.Json
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -75,7 +76,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         if (expectedColumns.isEmpty) {
           // when no columns are needed, the API does not like it, so we have to request something
           // prefer non-string columns since they can't contain too much data
-          Array(
+          Seq(
             sequenceInfo.columns
               .find(_.valueType != "STRING")
               .getOrElse(sequenceInfo.columns.head)
@@ -83,7 +84,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
               .get
           )
         } else {
-          expectedColumns
+          expectedColumns.toIndexedSeq
         }
       val projectedRows =
         client.sequenceRows
@@ -189,7 +190,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
           tryGetValue(columnType).applyOrElse(
             row.get(index),
             (_: Any) => throw SparkSchemaHelperRuntime.badRowError(row, name, columnType, ""))
-      }
+      }.toIndexedSeq
       SequenceRowWithId(id, SequenceRow(rowNumber, columnValues))
     }
 
@@ -213,6 +214,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       IO.unit
     } else {
       val (columns, fromRowFn) = fromRow(rows.head.schema)
+      val columnSeq = columns.toIndexedSeq
       val projectedRows = rows.map(fromRowFn)
 
       import cats.instances.list._
@@ -222,7 +224,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         .parTraverse {
           case (cogniteId, rows) =>
             client.sequenceRows
-              .insert(cogniteId, columns, rows.map(_.sequenceRow))
+              .insert(cogniteId, columnSeq, rows.map(_.sequenceRow))
               .flatTap(_ => incMetrics(itemsCreated, rows.length))
 
         } *> IO.unit
@@ -239,11 +241,11 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     SdkV1Rdd[ProjectedSequenceRow, Long](
       sqlContext.sparkContext,
       configWithLimit,
-      (item: ProjectedSequenceRow, None) => {
+      (item: ProjectedSequenceRow, _) => {
         if (config.collectMetrics) {
           itemsRead.inc()
         }
-        Row.fromSeq(if (rowNumberIndex < 0) {
+        new GenericRow(if (rowNumberIndex < 0) {
           // when the rowNumber column is not expected
           item.values
         } else {
@@ -284,6 +286,7 @@ object SequenceRowsRelation {
         values
           .filter(_ != null)
           .map(value => SequenceRowFilter(parseValue(value), parseValue(value, +1)))
+          .toIndexedSeq
       case LessThan("rowNumber", value) => Seq(SequenceRowFilter(exclusiveEnd = parseValue(value)))
       case LessThanOrEqual("rowNumber", value) =>
         Seq(SequenceRowFilter(exclusiveEnd = parseValue(value, +1)))
@@ -314,7 +317,7 @@ object SequenceRowsRelation {
   private def toSegments(f: Vector[SequenceRowFilter]) = {
     val (minusInfCount, plusInfCount, borders) = toBorders(f.toVector)
     // count number of overlapping intervals in each segment
-    val segmentCounts = borders.toIterator.scanLeft[Int](minusInfCount)((count, border) => {
+    val segmentCounts = borders.iterator.scanLeft[Int](minusInfCount)((count, border) => {
       if (border.start) {
         // entering new interval -> increment the count of overlaps
         count + 1

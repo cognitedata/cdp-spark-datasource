@@ -31,23 +31,25 @@ class DefaultSourceTest extends WordSpec with Matchers {
       }
 
       "work for apiKey" in {
-        val params = fullParams.filterKeys(!Set("authTicket").contains(_))
-        DefaultSource.parseAuth(params.toMap) shouldBe Some(
+        val params = fullParams.filter { case (key, _) => !Set("authTicket").contains(key) }
+        DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.Static(ApiKeyAuth("value-ApiKey"))
         )
       }
 
       "work for bearerToken" in {
-        val params = fullParams.filterKeys(!Set("authTicket", "apiKey").contains(_))
-        DefaultSource.parseAuth(params.toMap) shouldBe Some(
+        val params = fullParams.filter { case (key, _) => !Set("authTicket", "apiKey").contains(key) }
+        DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.Static(BearerTokenAuth("value-BearerToken"))
         )
       }
 
       "work for session and use baseUrl from input params if it exists" in {
         val params =
-          fullParams.filterKeys(!Set("authTicket", "apiKey", "bearerToken").contains(_))
-        DefaultSource.parseAuth(params.toMap) shouldBe Some(
+          fullParams.filter {
+            case (key, _) => !Set("authTicket", "apiKey", "bearerToken").contains(key)
+          }
+        DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2Sessions(
             OAuth2.Session(
               "https://bluefield.cognitedata.com",
@@ -60,8 +62,10 @@ class DefaultSourceTest extends WordSpec with Matchers {
 
       "work for session and use default baseUrl if it does not exist in input params" in {
         val params =
-          fullParams.filterKeys(!Set("authTicket", "apiKey", "bearerToken", "baseUrl").contains(_))
-        DefaultSource.parseAuth(params.toMap) shouldBe Some(
+          fullParams.filter {
+            case (key, _) => !Set("authTicket", "apiKey", "bearerToken", "baseUrl").contains(key)
+          }
+        DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2Sessions(
             OAuth2.Session(
               Constants.DefaultBaseUrl,
@@ -74,8 +78,10 @@ class DefaultSourceTest extends WordSpec with Matchers {
 
       "work for clientCredential" in {
         val params =
-          fullParams.filterKeys(!Set("authTicket", "apiKey", "bearerToken", "sessionKey").contains(_))
-        DefaultSource.parseAuth(params.toMap) shouldBe Some(
+          fullParams.filter {
+            case (key, _) => !Set("authTicket", "apiKey", "bearerToken", "sessionKey").contains(key)
+          }
+        DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2ClientCredentials(
             OAuth2.ClientCredentials(
               uri"value-TokenUri",
