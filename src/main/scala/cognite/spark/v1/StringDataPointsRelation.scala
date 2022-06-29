@@ -1,17 +1,13 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cognite.spark.v1.PushdownUtilities.{
-  filtersToTimestampLimits,
-  getIdFromMap,
-  pushdownToParameters,
-  toPushdownFilterExpression
-}
+import cognite.spark.v1.PushdownUtilities.{filtersToTimestampLimits, getIdFromMap, pushdownToParameters, toPushdownFilterExpression}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.StringDataPoint
 import com.cognite.sdk.scala.v1.{CogniteId, GenericClient}
 import fs2.Stream
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -134,7 +130,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
     val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
     val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf(f))
     val rowOfAllFields = toRow(item)
-    Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
+    new GenericRow(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
   }
 }
 
@@ -143,8 +139,8 @@ object StringDataPointsRelation extends UpsertSchema {
   // multiple overloaded alternatives and cannot be treated as a method. Consider invoking
   // `<offending symbol>.asTerm.alternatives` and manually picking the required method" in StructTypeEncoder, probably
   // because TimeStamp has multiple constructors. Issue in backlog for investigating this.
-  val upsertSchema = structType[StringDataPointsInsertItem]
-  val readSchema = structType[StringDataPointsItem]
-  val insertSchema = structType[StringDataPointsInsertItem]
-  val deleteSchema = structType[DeleteDataPointsItem]
+  val upsertSchema = structType[StringDataPointsInsertItem]()
+  val readSchema = structType[StringDataPointsItem]()
+  val insertSchema = structType[StringDataPointsInsertItem]()
+  val deleteSchema = structType[DeleteDataPointsItem]()
 }

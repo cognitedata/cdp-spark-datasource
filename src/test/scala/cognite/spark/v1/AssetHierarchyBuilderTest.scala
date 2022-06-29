@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.CdpApiException
-import com.cognite.sdk.scala.v1.AssetCreate
+import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
@@ -55,12 +55,12 @@ class AssetHierarchyBuilderTest
       .option("deleteMissingAssets", deleteMissingAssets)
       .option("batchSize", batchSize)
       .option("metricsPrefix", metricsPrefix.getOrElse(""))
-      .save
+      .save()
   }
 
   private def cleanDB(key: String) =
-    writeClient.assets.deleteByExternalIds(
-      Seq(s"dad$key", s"dad2$key", s"unusedZero$key", s"son$key"),
+    writeClient.assets.deleteRecursive(
+      Seq(s"dad$key", s"dad2$key", s"unusedZero$key", s"son$key").map(CogniteExternalId(_)),
       true,
       true)
 
@@ -307,7 +307,7 @@ class AssetHierarchyBuilderTest
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("type", "assethierarchy")
-        .save
+        .save()
     }
 
     exception.getMessage shouldBe "Column 'source' was expected to have type String, but '1' of type Int was found (on row with externalId='test-asset-rV2yGok98VNzWMb9yWGk')."
@@ -327,7 +327,7 @@ class AssetHierarchyBuilderTest
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("type", "assethierarchy")
-        .save
+        .save()
     }
 
     exception.getMessage shouldBe "Column 'source' was expected to have type String, but '1' of type Int was found (on row with externalId='test-asset-rV2yGok98VNzWMb9yWGk')."
@@ -347,7 +347,7 @@ class AssetHierarchyBuilderTest
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("type", "assethierarchy")
-        .save
+        .save()
     }
 
     exception shouldBe an[CdfSparkIllegalArgumentException]
@@ -366,7 +366,7 @@ class AssetHierarchyBuilderTest
         .format("cognite.spark.v1")
         .option("apiKey", writeApiKey)
         .option("type", "assethierarchy")
-        .save
+        .save()
     }
 
     exception shouldBe an[CdfSparkIllegalArgumentException]
@@ -393,7 +393,7 @@ class AssetHierarchyBuilderTest
     val result = retryWhile[Array[Row]](
       spark
         .sql(s"select * from assets where source = '$testName$key' and dataSetId = $testDataSetId")
-        .collect,
+        .collect(),
       rows => rows.map(r => r.getAs[String]("name")).toSet != assetTree.map(_.name).toSet
     )
 
@@ -420,7 +420,7 @@ class AssetHierarchyBuilderTest
     val result = retryWhile[Array[Row]](
       spark
         .sql(s"select * from assets where source = '$testName$key'")
-        .collect,
+        .collect(),
       rows => rows.map(r => r.getAs[String]("externalId")).toSet != Set(s"dad$key")
     )
 
@@ -450,7 +450,7 @@ class AssetHierarchyBuilderTest
     ingest(key, originalTree, batchSize = 3)
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.length != 6)
     Thread.sleep(2000)
 
@@ -469,7 +469,7 @@ class AssetHierarchyBuilderTest
     ingest(key, updatedTree, deleteMissingAssets = true)
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.map(r => r.getAs[String]("name")).toSet != updatedTree.map(_.name).toSet
     )
 
@@ -496,7 +496,7 @@ class AssetHierarchyBuilderTest
     ingest(key, tree, metricsPrefix = Some(metrics))
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.length != 3)
 
     getNumberOfRowsCreated(metrics, "assethierarchy") shouldBe 3
@@ -527,7 +527,7 @@ class AssetHierarchyBuilderTest
     ingest(key, originalTree, batchSize = 5)
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.length != 4)
     Thread.sleep(2000)
 
@@ -548,7 +548,7 @@ class AssetHierarchyBuilderTest
     ingest(key, updatedTree, batchSize = 1)
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.map(r => r.getAs[String]("name")).toSet != updatedTree.map(_.name).toSet
     )
 
@@ -573,7 +573,7 @@ class AssetHierarchyBuilderTest
     ingest(key, originalTree, batchSize = 3)
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.length != 3)
     Thread.sleep(2000)
 
@@ -587,7 +587,7 @@ class AssetHierarchyBuilderTest
     val allNames = updatedTree.map(_.name) ++ Seq("son", "daughter")
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.map(r => r.getString(1)).toSet != allNames.toSet)
 
     val extIdMap = getAssetsMap(result)
@@ -622,7 +622,7 @@ class AssetHierarchyBuilderTest
     )
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.length != 7)
     Thread.sleep(2000)
 
@@ -651,7 +651,7 @@ class AssetHierarchyBuilderTest
       metricsPrefix = Some(metricsPrefix))
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.map(r => r.getString(1)).toSet != updatedTree.map(_.name).toSet)
 
     val extIdMap = getAssetsMap(result)
@@ -683,7 +683,7 @@ class AssetHierarchyBuilderTest
     )
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.length != 6)
     Thread.sleep(2000)
 
@@ -694,7 +694,7 @@ class AssetHierarchyBuilderTest
     ingest(key, updatedTree, deleteMissingAssets = true)
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.map(r => r.getString(1)).toSet != updatedTree.map(_.name).toSet
     )
     assert(result.map(r => r.getString(1)).toSet == updatedTree.map(_.name).toSet)
@@ -729,7 +729,7 @@ class AssetHierarchyBuilderTest
     val namesOfAssetsToInsert = assetTree.slice(0, 4).map(_.name).toSet
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.map(r => r.getAs[String]("name")).toSet != namesOfAssetsToInsert
     )
 
@@ -758,7 +758,7 @@ class AssetHierarchyBuilderTest
     )
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.map(r => r.getString(1)).toSet != Set("dad", "son")
     )
 
@@ -778,7 +778,7 @@ class AssetHierarchyBuilderTest
     )
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows =>
         rows.map(r => r.getString(1)).toSet != Set("dad", "son", "daughter", "daughterSon", "sonSon")
     )
@@ -803,7 +803,7 @@ class AssetHierarchyBuilderTest
     )
 
     retryWhile[Array[Row]](
-      spark.sql(s"select name from assets where source = '$testName$key'").collect,
+      spark.sql(s"select name from assets where source = '$testName$key'").collect(),
       rows => rows.map(r => r.getString(0)).toSet != Set("dad", "son")
     )
 
@@ -815,12 +815,12 @@ class AssetHierarchyBuilderTest
       .option("onconflict", "delete")
       .option("collectMetrics", "true")
       .option("metricsPrefix", "assethierarchy-deletetest")
-      .save
+      .save()
 
     getNumberOfRowsDeleted("assethierarchy-deletetest", "assethierarchy") shouldBe 1 // counts the number of deleted hierarchies
 
     retryWhile[Array[Row]](
-      spark.sql(s"select id from assets where source = '$testName$key'").collect,
+      spark.sql(s"select id from assets where source = '$testName$key'").collect(),
       rows => rows.length != 0
     )
   }
@@ -861,7 +861,7 @@ class AssetHierarchyBuilderTest
     getNumberOfRowsCreated(metricsPrefix, "assethierarchy") shouldBe sourceTree.length
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.length != sourceTree.length
     )
 
@@ -908,7 +908,7 @@ class AssetHierarchyBuilderTest
     )
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.map(r => r.getString(1)).count(_.endsWith("-updated")) != 5
     )
 
@@ -947,7 +947,7 @@ class AssetHierarchyBuilderTest
     getNumberOfRowsCreated(initialStateMetricsPrefix, "assethierarchy") shouldBe sourceTree.length
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.length != sourceTree.length
     )
 
@@ -962,7 +962,7 @@ class AssetHierarchyBuilderTest
     )
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key' and name = 'child-updated'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key' and name = 'child-updated'").collect(),
       rows => rows.length < 1
     )
 
@@ -995,7 +995,7 @@ class AssetHierarchyBuilderTest
     getNumberOfRowsCreated(initialStateMetricsPrefix, "assethierarchy") shouldBe sourceTree.length
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key'").collect,
+      spark.sql(s"select * from assets where source = '$testName$key'").collect(),
       rows => rows.length != sourceTree.length
     )
 
@@ -1014,7 +1014,7 @@ class AssetHierarchyBuilderTest
     val result = retryWhile[Array[Row]](
       spark
         .sql(s"select * from assets where source = '$testName$key' and name = 'child2-updated'")
-        .collect,
+        .collect(),
       rows => rows.length < 1
     )
 
@@ -1053,7 +1053,7 @@ class AssetHierarchyBuilderTest
 
     val assetRows = retryWhile[DataFrame](
       spark.sql(s"select * from assets where source = '$testName$key'"),
-      rows => rows.count != sourceTree.length
+      rows => rows.count() != sourceTree.length
     )
 
     val apiException = sparkIntercept {
@@ -1077,7 +1077,7 @@ class AssetHierarchyBuilderTest
       ))
     }
 
-    val newRootAssetId = assetRows.where(s"externalId = 'root2$key'").head.getAs[Long]("id")
+    val newRootAssetId = assetRows.where(s"externalId = 'root2$key'").head().getAs[Long]("id")
 
     rootChangeException shouldBe an[InvalidRootChangeException]
     rootChangeException.getMessage shouldBe (
@@ -1153,7 +1153,7 @@ class AssetHierarchyBuilderTest
     }
   }
 
-  def getAssetsMap(assets: Seq[Row]): Map[Option[String], AssetsReadSchema] =
+  def getAssetsMap(assets: Array[Row]): Map[Option[String], AssetsReadSchema] =
     assets
       .map(r => fromRow[AssetsReadSchema](r))
       .map(a => a.externalId -> a)

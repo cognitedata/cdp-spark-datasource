@@ -51,7 +51,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
       data.schema.fieldNames.filter(f => f.equalsIgnoreCase("id") || f.equalsIgnoreCase("externalId"))
     import org.apache.spark.sql.functions.col
     data
-      .repartition(partitions, partitionCols.map(col): _*)
+      .repartition(partitions, partitionCols.map(col).toIndexedSeq: _*)
       .foreachPartition((rows: Iterator[Row]) => {
         insertRowIterator(rows).unsafeRunSync()
       })
@@ -61,7 +61,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
-  def getAggregationSettings(filters: Array[Filter]): (Array[AggregationFilter], Seq[String]) = {
+  def getAggregationSettings(filters: Array[Filter]): (Array[AggregationFilter], Array[String]) = {
     val aggregations = filters.flatMap(getAggregation).distinct
     val granularities = filters.flatMap(getGranularity).distinct
 
@@ -102,7 +102,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
       case EqualTo("aggregation", value) => Seq(toAggregationFilter(value.toString))
       case EqualNullSafe("aggregation", value) => Seq(toAggregationFilter(value.toString))
       case In("aggregation", values) =>
-        values.map(v => toAggregationFilter(v.toString))
+        values.map(v => toAggregationFilter(v.toString)).toIndexedSeq
       case And(_, _) => throw new CdfSparkIllegalArgumentException("AND is not allowed for aggregations")
       case Or(f1, f2) => getAggregation(f1) ++ getAggregation(f2)
       case StringStartsWith("aggregation", value) =>
@@ -118,7 +118,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
     }
 
   def toGranularityFilter(granularity: String): Seq[String] =
-    granularity.split('|')
+    granularity.split('|').toIndexedSeq
 
   def getGranularity(filter: Filter): Seq[String] =
     filter match {
@@ -126,7 +126,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
       case EqualTo("granularity", value) => toGranularityFilter(value.toString)
       case EqualNullSafe("granularity", value) => toGranularityFilter(value.toString)
       case In("granularity", values) =>
-        values.flatMap(v => toGranularityFilter(v.toString))
+        values.flatMap(v => toGranularityFilter(v.toString)).toIndexedSeq
       case And(_, _) => throw new CdfSparkIllegalArgumentException("AND is not allowed for granularity")
       case Or(f1, f2) => getGranularity(f1) ++ getGranularity(f2)
       case StringStartsWith("granularity", value) =>

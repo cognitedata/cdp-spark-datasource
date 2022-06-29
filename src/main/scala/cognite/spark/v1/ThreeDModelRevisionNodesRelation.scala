@@ -11,7 +11,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 class ThreeDModelRevisionNodesRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
     val sqlContext: SQLContext)
     extends SdkV1Relation[ThreeDNode, Long](config, "3dmodelrevisionnodes") {
-  override def schema: StructType = structType[ThreeDNode]
+  override def schema: StructType = structType[ThreeDNode]()
 
   override def toRow(t: ThreeDNode): Row = asRow(t)
 

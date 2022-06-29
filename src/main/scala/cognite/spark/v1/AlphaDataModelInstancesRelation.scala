@@ -3,28 +3,17 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.AlphaDataModelInstancesHelper._
-import com.cognite.sdk.scala.common.{
-  CdpApiException,
-  DSLAndFilter,
-  DSLEqualsFilter,
-  DSLExistsFilter,
-  DSLInFilter,
-  DSLNotFilter,
-  DSLOrFilter,
-  DSLPrefixFilter,
-  DSLRangeFilter,
-  DomainSpecificLanguageFilter,
-  EmptyFilter
-}
+import com.cognite.sdk.scala.common.{CdpApiException, DSLAndFilter, DSLEqualsFilter, DSLExistsFilter, DSLInFilter, DSLNotFilter, DSLOrFilter, DSLPrefixFilter, DSLRangeFilter, DomainSpecificLanguageFilter, EmptyFilter}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import java.time._
 
+import java.time._
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 class AlphaDataModelInstanceRelation(
     config: RelationConfig,
@@ -118,7 +107,7 @@ class AlphaDataModelInstanceRelation(
     if (config.collectMetrics) {
       itemsRead.inc()
     }
-    Row.fromSeq(a.properties)
+    new GenericRow(a.properties)
   }
 
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
@@ -154,13 +143,13 @@ class AlphaDataModelInstanceRelation(
 
   def toProjectedInstance(
       pmap: PropertyMap,
-      requiredPropsArray: Seq[String]): ProjectedDataModelInstance = {
+      requiredPropsArray: Array[String]): ProjectedDataModelInstance = {
     val dmiProperties = pmap.allProperties
     ProjectedDataModelInstance(
       externalId = pmap.externalId,
       properties = requiredPropsArray.map { name: String =>
         dmiProperties.get(name).map(getValue).orNull
-      }.toArray
+      }
     )
   }
 
@@ -177,7 +166,7 @@ class AlphaDataModelInstanceRelation(
           Some(
             DSLInFilter(
               Seq(spaceExternalId, modelExternalId, attribute),
-              setValues.map(parsePropertyValue)))
+              setValues.map(parsePropertyValue).toIndexedSeq))
         }
       case StringStartsWith(attribute, value) =>
         Some(
@@ -224,7 +213,7 @@ class AlphaDataModelInstanceRelation(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
-    val selectedPropsArray: Seq[String] = if (selectedColumns.isEmpty) {
+    val selectedPropsArray: Array[String] = if (selectedColumns.isEmpty) {
       schema.fields.map(_.name)
     } else {
       selectedColumns

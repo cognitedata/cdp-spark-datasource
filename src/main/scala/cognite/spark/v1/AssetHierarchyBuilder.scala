@@ -5,7 +5,7 @@ import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.v1.SparkSchemaHelper.{fromRow, structType}
 import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
-import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, CogniteExternalId}
+import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, CogniteExternalId, CogniteInternalId}
 import fs2.{Chunk, Stream}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.types.{DataTypes, StructType}
@@ -194,21 +194,21 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       val ingestedNodeSet = trees.flatMap(_.allNodes).map(_.externalId).toSet
       // list all subtrees of the tree root and filter those which are not in the ingested set
       for {
-        idsToDelete <- batchedOperation[String, Long](
+        idsToDelete <- batchedOperation[String, CogniteInternalId](
           trees.map(_.root.externalId),
           ids =>
             client.assets
               .filter(AssetsFilter(assetSubtreeIds = Some(ids.map(CogniteExternalId(_)))))
               .filter(a => !a.externalId.exists(ingestedNodeSet.contains))
-              .map(_.id)
+              .map(asset => CogniteInternalId(asset.id))
               .compile
               .toVector
         )
-        _ <- batchedOperation[Long, Nothing](
+        _ <- batchedOperation[CogniteInternalId, Nothing](
           idsToDelete,
           idBatch =>
             client.assets
-              .deleteByIds(idBatch, recursive = true, ignoreUnknownIds = true)
+              .deleteRecursive(idBatch, recursive = true, ignoreUnknownIds = true)
               .flatTap(_ => incMetrics(itemsDeleted, idBatch.length))
               .as(Vector.empty)
         )
@@ -374,7 +374,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   def orderChildren(rootId: String, nodes: Array[AssetsIngestSchema]): Vector[AssetsIngestSchema] =
     iterateChildren(nodes, Set(rootId), Seq()).toVector
 
-  override def schema: StructType = structType[AssetsIngestSchema]
+  override def schema: StructType = structType[AssetsIngestSchema]()
 
   def toAssetCreate(a: AssetsIngestSchema): AssetCreate =
     a.into[AssetCreate]
@@ -403,5 +403,5 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object AssetHierarchyBuilder {
-  val upsertSchema: StructType = structType[AssetsIngestSchema]
+  val upsertSchema: StructType = structType[AssetsIngestSchema]()
 }

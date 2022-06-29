@@ -78,7 +78,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
 
       val allColumns = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length < nbOfRowsToTest
       )
       (allColumns should have).length(nbOfRowsToTest)
@@ -96,13 +96,13 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         .option("metricsPrefix", sequenceId)
         .option("collectMetrics", true)
         .load()
-        .collect
+        .collect()
       getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
 
       (sparkReadResult should contain).theSameElementsAs(allColumns)
 
       val rowNumberOnly = retryWhile[Array[Row]](
-        spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length < nbOfRowsToTest
       )
       rowNumberOnly(0).get(0) shouldBe 1L
@@ -110,7 +110,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       val differentOrderProjection = retryWhile[Array[Row]](
         spark
           .sql(s"select num1, num2, rowNumber, str1 from sequencerows_${sequenceId} order by rowNumber")
-          .collect,
+          .collect(),
         _.length < nbOfRowsToTest
       )
       differentOrderProjection(0).get(2) shouldBe 1L
@@ -119,7 +119,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       differentOrderProjection(0).get(0) shouldBe 6L
 
       val oneColumn = retryWhile[Array[Row]](
-        spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length < nbOfRowsToTest
       )
       oneColumn.map(_.get(0)) shouldBe Seq.fill(nbOfRowsToTest)(1.1)
@@ -141,7 +141,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
 
       val allColumns = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length < nbOfRowsToTest
       )
       (allColumns should have).length(nbOfRowsToTest)
@@ -159,13 +159,13 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
         .option("metricsPrefix", sequenceId)
         .option("collectMetrics", true)
         .load()
-        .collect
+        .collect()
       getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
 
       (sparkReadResult should contain).theSameElementsAs(allColumns)
 
       val rowNumberOnly = retryWhile[Array[Row]](
-        spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length < nbOfRowsToTest
       )
       rowNumberOnly(0).get(0) shouldBe 1L
@@ -173,7 +173,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       val differentOrderProjection = retryWhile[Array[Row]](
         spark
           .sql(s"select num1, num2, rowNumber, str1 from sequencerows_${sequenceId} order by rowNumber")
-          .collect,
+          .collect(),
         _.length < nbOfRowsToTest
       )
       differentOrderProjection(0).get(2) shouldBe 1L
@@ -182,7 +182,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       differentOrderProjection(0).get(0) shouldBe 6L
 
       val oneColumn = retryWhile[Array[Row]](
-        spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length < nbOfRowsToTest
       )
       oneColumn.map(_.get(0)) shouldBe Seq.fill(nbOfRowsToTest)(1.1)
@@ -210,7 +210,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 3
 
       val rows = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length != 3
       )
       rows.map(_.getAs[Long]("rowNumber")) shouldBe Array(1, 2, 3)
@@ -229,7 +229,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
             s"select 1 as rowNumber, '$sequenceId' as externalId, 1 as num1, 1.0 as num2, 'a' as str1"))
 
       retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
         rows => rows.length != 1
       )
 
@@ -239,7 +239,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
           .sql(s"select 1 as rowNumber, '$sequenceId' as externalId, 2 as num1"))
 
       val rows = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
         rows =>
           rows.length != 1 || rows(0).getAs[Long]("num1") != 2 || rows(0).getAs[Double]("num2") < 1.0
       )
@@ -264,7 +264,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe testSize
 
       val allColumns = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length != testSize
       )
       allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1")
@@ -290,11 +290,11 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       getNumberOfRowsCreated(sequenceATwoId, "sequencerows") shouldBe testSize
 
       val AColumns = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceAId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceAId} order by rowNumber").collect(),
         rows => rows.length < testSize
       )
       val ATwoColumns = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceATwoId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceATwoId} order by rowNumber").collect(),
         rows => rows.length < testSize
       )
 
@@ -320,7 +320,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
       retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length != 100
       )
 
@@ -335,7 +335,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       getNumberOfRowsDeleted(sequenceId, "sequencerows") shouldBe 100
 
       retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length != 50
       )
   }
@@ -351,7 +351,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       .option("collectMetrics", "true")
       .load()
       .where(query)
-      .collect
+      .collect()
     if (shouldBeExact) {
       sparkReadResult.length shouldBe getNumberOfRowsRead(prefix, "sequencerows")
     }
@@ -372,7 +372,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
       retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect,
+        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
         _.length != 100
       )
 
@@ -461,7 +461,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       .option("onconflict", onconflict)
       .option("collectMetrics", true)
       .option("metricsPrefix", seqId)
-      .save
+      .save()
 
   def createSequences(
       key: String,
@@ -484,7 +484,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       .option("onconflict", conflictMode)
       .option("collectMetrics", metricsPrefix.isDefined)
       .option("metricsPrefix", metricsPrefix.getOrElse(""))
-      .save
+      .save()
 
     val checkedAssets = processedTree.filter(_.externalId.isDefined)
     val storedCheckedAssets =

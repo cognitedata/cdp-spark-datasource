@@ -64,7 +64,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       TimeSeriesResource[IO]](Set.empty, timeSeriesSeq, client.timeSeries, doUpsert = doUpsert)
   }
 
-  override def schema: StructType = structType[TimeSeries]
+  override def schema: StructType = structType[TimeSeries]()
 
   override def toRow(t: TimeSeries): Row = asRow(t)
 
@@ -92,9 +92,9 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     )
 }
 object TimeSeriesRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]
-  val insertSchema: StructType = structType[TimeSeriesInsertSchema]
-  val readSchema: StructType = structType[TimeSeriesReadSchema]
+  val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]()
+  val insertSchema: StructType = structType[TimeSeriesInsertSchema]()
+  val readSchema: StructType = structType[TimeSeriesReadSchema]()
 }
 
 final case class TimeSeriesUpsertSchema(

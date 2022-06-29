@@ -20,7 +20,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with InsertableRelation
     with WritableRelation {
 
-  override def schema: StructType = structType[RelationshipsReadSchema]
+  override def schema: StructType = structType[RelationshipsReadSchema]()
 
   override def toRow(a: RelationshipsReadSchema): Row = asRow(a)
 
@@ -141,10 +141,10 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object RelationshipsRelation {
-  var insertSchema: StructType = structType[RelationshipsInsertSchema]
-  var readSchema: StructType = structType[RelationshipsReadSchema]
-  var deleteSchema: StructType = structType[RelationshipsDeleteSchema]
-  var upsertSchema: StructType = structType[RelationshipsUpsertSchema]
+  var insertSchema: StructType = structType[RelationshipsInsertSchema]()
+  var readSchema: StructType = structType[RelationshipsReadSchema]()
+  var deleteSchema: StructType = structType[RelationshipsDeleteSchema]()
+  var upsertSchema: StructType = structType[RelationshipsUpsertSchema]()
 }
 
 final case class RelationshipsDeleteSchema(

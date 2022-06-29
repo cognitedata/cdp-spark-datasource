@@ -58,12 +58,12 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       DefaultSource
         .parseRelationConfig(Map("apiKey" -> writeApiKey), spark.sqlContext)
         .copy(parallelismPerPartition = nStreams * 3),
-      (e: Event, partitionIndex: Option[Int]) => asRow(e),
+      (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
       (_: GenericClient[IO], _: Option[Int], _: Int) => {
         val allStreams = 0.until(nStreams).map { i =>
           Stream.evalUnChunk {
-            IO.sleep((scala.math.random * 300).millis) *> IO(
+            IO.sleep((scala.math.random() * 300).millis) *> IO(
               Chunk.seq(1.to(nItemsPerStream).map(j => Event(id = i * nItemsPerStream + j))))
           }
         }
@@ -89,7 +89,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       (_: GenericClient[IO], _: Option[Int], _: Int) => {
         val allStreams = 0.until(nStreams).map { i =>
           Stream.evalUnChunk {
-            IO.sleep((scala.math.random * 300).millis) *> IO(
+            IO.sleep((scala.math.random() * 300).millis) *> IO(
               Chunk.seq(1.to(nItemsPerStream).map(j => Event(id = i * nItemsPerStream + j))))
           }
         }

@@ -106,16 +106,16 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       mustBeUpdate = f => f.name.isEmpty && f.getExternalId.nonEmpty)
   }
 
-  override def schema: StructType = structType[FilesReadSchema]
+  override def schema: StructType = structType[FilesReadSchema]()
 
   override def toRow(t: FilesReadSchema): Row = asRow(t)
 
   override def uniqueId(a: FilesReadSchema): Long = a.id
 }
 object FilesRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[FilesUpsertSchema]
-  val insertSchema: StructType = structType[FilesInsertSchema]
-  val readSchema: StructType = structType[FilesReadSchema]
+  val upsertSchema: StructType = structType[FilesUpsertSchema]()
+  val insertSchema: StructType = structType[FilesInsertSchema]()
+  val readSchema: StructType = structType[FilesReadSchema]()
 }
 
 final case class FilesUpsertSchema(

@@ -59,7 +59,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where(s"type = 'Worktask'")
 
-    assert(df.count == 227)
+    assert(df.count() == 227)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 227)
   }
@@ -79,7 +79,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .where(
         "type = 'Worktask' or dataSetId = 86163806167772 and createdTime < timestamp('2020-03-31 00:00:00.000Z')")
 
-    assert(df.count == 232)
+    assert(df.count() == 232)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 232)
   }
@@ -89,7 +89,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where("id = 1394439528453086")
 
-    assert(df.count == 1)
+    assert(df.count() == 1)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 1)
 
@@ -100,7 +100,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where("dataSetId = 86163806167772 or externalId = 'null-id-events65847147385304'")
 
-    assert(df.count == 18)
+    assert(df.count() == 18)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 18)
   }
@@ -111,7 +111,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where(s"(type = 'Worktask' or description = 'Rule test rule broken.') and type = 'Worktask'")
 
-    assert(df.count == 227)
+    assert(df.count() == 227)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 227)
   }
@@ -121,7 +121,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where(s"type = 'Worktask' or description = 'Rule test rule broken.'")
 
-    assert(df.count == 237)
+    assert(df.count() == 237)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead > 25000)
   }
@@ -147,7 +147,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .where(
         s"type = '***' and assetIds = Array(2091657868296883) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
 
-    assert(df.count == 83)
+    assert(df.count() == 83)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 83)
   }
@@ -158,7 +158,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .where(
         s"(type = 'Workitem' or type = 'Worktask') and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
 
-    assert(df.count == 1483)
+    assert(df.count() == 1483)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 1483)
   }
@@ -167,7 +167,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = "pushdown.filters.in"
     val df = getBaseReader(metricsPrefix)
       .where(s"type in('Workitem','Worktask') and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
-    assert(df.count == 1483)
+    assert(df.count() == 1483)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 1483)
   }
@@ -178,7 +178,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .where(
         s"(type = 'Workitem' or type = '***') and assetIds in(array(2091657868296883), array(8031965690878131)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
 
-    assert(df.count == 172)
+    assert(df.count() == 172)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 172)
   }
@@ -188,7 +188,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where(
         "startTime > to_timestamp(1568105460) and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
-    assert(df.count >= 179)
+    assert(df.count() >= 179)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead >= 179)
   }
@@ -197,7 +197,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = "pushdown.filters.maxCreatedTime"
     val df = getBaseReader(metricsPrefix)
       .where("createdTime <= timestamp('2018-10-26 00:00:00.000Z')")
-    assert(df.count == 1029)
+    assert(df.count() == 1029)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 1029)
   }
@@ -207,9 +207,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where(
         s"startTime < timestamp('1970-01-19 00:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
-    assert(df.count > 10)
+    assert(df.count() > 10)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == df.count)
+    assert(eventsRead == df.count())
   }
 
   it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest in {
@@ -217,7 +217,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where(
         s"startTime < timestamp('1970-01-19 00:00:00.000Z') and startTime > timestamp('1970-01-18 23:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
-    assert(df.count == 9)
+    assert(df.count() == 9)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 9)
   }
@@ -227,7 +227,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where(
         s"assetIds In(Array(2091657868296883)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
-    assert(df.count == 89)
+    assert(df.count() == 89)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 89)
   }
@@ -236,7 +236,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = "pushdown.filters.id"
     val df = getBaseReader(metricsPrefix)
       .where("id = 370545839260513")
-    assert(df.count == 1)
+    assert(df.count() == 1)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 1)
   }
@@ -246,7 +246,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where(
         "id In(607444033860, 3965637099169, 10477877031034, 17515837146970, 19928788984614, 21850891340773)")
-    assert(df.count == 6)
+    assert(df.count() == 6)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 6)
   }
@@ -257,7 +257,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .where("""
           id = 607444033860 or id = 3965637099169 or id = 10477877031034 or
           id = 17515837146970 or id = 19928788984614 or id = 21850891340773""")
-    assert(df.count == 6)
+    assert(df.count() == 6)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 6)
   }
@@ -269,7 +269,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         607444033860, 3965637099169,
         10477877031034, 17515837146970,
         19928788984614, 21850891340773) and description = "eventspushdowntest" """)
-    assert(df.count == 1)
+    assert(df.count() == 1)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 6)
   }
@@ -289,7 +289,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           s"and subtype in('manual', 'automatic')) " +
           s"or (type = 'maintenance' and subtype = 'manual') " +
           s"or (type = 'upgrade') and source = 'something'")
-    assert(df.count == 4)
+    assert(df.count() == 4)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 4)
   }
@@ -298,7 +298,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = "pushdown.filters.idortype"
     val df = getBaseReader(metricsPrefix)
       .where(s"type = 'maintenance' or id = 17515837146970")
-    assert(df.count == 6)
+    assert(df.count() == 6)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 6)
   }
@@ -327,7 +327,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .insertInto("destinationEvent")
 
       val rows = retryWhile[Array[Row]](
-        spark.sql(s"""select * from destinationEvent where source = "$source"""").collect,
+        spark.sql(s"""select * from destinationEvent where source = "$source"""").collect(),
         rows => rows.length < 1)
       assert(rows.length == 1)
       val storedMetadata = rows.head.getAs[Map[String, String]](6)
@@ -375,7 +375,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceEvent
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationEventUpsert")
 
@@ -407,7 +407,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceEvent
                 |limit 500
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationEventUpsert")
 
@@ -421,7 +421,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         spark
           .sql(
             s"select description from destinationEventUpsert where source = '$source' and description = 'foo'")
-          .collect,
+          .collect(),
         df => df.length < 500
       )
       assert(descriptionsAfterUpdate.length == 500)
@@ -434,7 +434,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         spark
           .sql(
             s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'")
-          .collect,
+          .collect(),
         rows => rows.length < 500)
       assert(dfWithCorrectAssetIds.length == 500)
     } finally {
@@ -505,7 +505,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(eventsCreated == 100)
 
       val dfWithSourceInsertTest = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationEvent where source = '$source'").collect,
+        spark.sql(s"select * from destinationEvent where source = '$source'").collect(),
         df => df.length < 100
       )
       assert(dfWithSourceInsertTest.length == 100)
@@ -561,7 +561,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           .save()
 
         val insertTest = retryWhile[Array[Row]](
-          spark.sql(s"select * from destinationEvent where source = '$source'").collect,
+          spark.sql(s"select * from destinationEvent where source = '$source'").collect(),
           df => df.length == 0
         )
 
@@ -588,7 +588,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           spark
             .sql(
               s"select * from destinationEvent where source = '$source' and description = 'foo-$source'")
-            .collect,
+            .collect(),
           df => df.length == 0
         )
         updateTest.length shouldBe 1
@@ -864,7 +864,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         spark
           .sql(
             s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'")
-          .collect,
+          .collect(),
         rows => rows.length != 100)
       assert(dfWithCorrectAssetIds.length == 100)
     } finally {
@@ -913,7 +913,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceEvent
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationEventsUpsertPartial")
 
@@ -924,7 +924,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
             .sql(
               s"select description from destinationEventsUpsertPartial " +
                 s"where source = '$source' and description = 'foo'")
-            .collect,
+            .collect(),
           df => df.length < 100)
       assert(descriptionsAfterInsert.length == 100)
       assert(descriptionsAfterInsert.map(_.getString(0)).forall(_ == "foo"))
@@ -955,7 +955,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .sql(
                 s"select description from destinationEventsUpsertPartial " +
                   s"where source = '$source' and description = 'bar'")
-              .collect
+              .collect()
           },
           df => df.length < 100
         )
@@ -1034,7 +1034,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
              |from sourceEvent
              |limit 5
        """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationEvent")
 
@@ -1043,7 +1043,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         spark
           .sql(
             s"select * from destinationEvent where source = '$source' and description = 'foo' and dataSetId = $testDataSetId")
-          .collect,
+          .collect(),
         df => df.length < 5)
       assert(eventsFromTestDf.length == 5)
 
@@ -1066,7 +1066,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           spark
             .sql(
               s"select description from destinationEvent where source = '$source' and description = 'bar'")
-            .collect
+            .collect()
         },
         df => df.length < 5
       )
@@ -1127,7 +1127,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceEvent
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationEvent")
 
@@ -1136,7 +1136,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         retryWhile[Array[Row]](
           spark
             .sql(s"select id from destinationEvent where source = '$source'")
-            .collect,
+            .collect(),
           df => df.length < 100)
       assert(idsAfterInsert.length == 100)
 
@@ -1154,7 +1154,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .save()
             spark
               .sql(s"select id from destinationEvent where source = '$source'")
-              .collect
+              .collect()
           },
           df => df.length > 0
         )
@@ -1191,7 +1191,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceEvent
                 |limit 1
       """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationEvent")
 
@@ -1200,7 +1200,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         retryWhile[Array[Row]](
           spark
             .sql(s"select id from destinationEvent where source = '$source'")
-            .collect,
+            .collect(),
           df => df.length < 1)
       assert(idsAfterInsert.length == 1)
 
@@ -1262,7 +1262,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceEvent
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationEvent")
 
@@ -1271,7 +1271,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         retryWhile[Array[Row]](
           spark
             .sql(s"select externalId from destinationEvent where source = '$source'")
-            .collect,
+            .collect(),
           df => df.length < 100)
       assert(idsAfterInsert.length == 100)
 
@@ -1292,7 +1292,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .save()
             spark
               .sql(s"select externalId from destinationEvent where source = '$source'")
-              .collect
+              .collect()
           },
           df => df.length > 0
         )

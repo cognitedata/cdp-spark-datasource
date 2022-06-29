@@ -44,7 +44,7 @@ final case class StringDataPointsRdd(
               sdp.value
             ))
         }
-        .toIterator
+        .iterator
     )
   }
 }

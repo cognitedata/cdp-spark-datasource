@@ -5,22 +5,18 @@ import com.codahale.metrics._
 import org.apache.spark._
 
 import java.util.concurrent.ConcurrentHashMap
-import scala.collection.JavaConverters._
 
 class MetricsSource {
   // Add metricNamespace to differentiate with spark system metrics.
   // Keeps track of all the Metric instances that are being published
-  val metricsMap = new ConcurrentHashMap[String, Eval[Metric]]().asScala
+  val metricsMap = new ConcurrentHashMap[String, Eval[Metric]]
 
   def getOrElseUpdate(metricNamespace: String, metricName: String, metric: => Metric): Metric = {
     val wrapped = Eval.later(metric)
-    metricsMap.putIfAbsent(s"${metricNamespace}.${metricName}", wrapped) match {
-      case Some(wrappedMetric) => wrappedMetric.value
-      case None => {
-        registerMetricSource(metricNamespace, metricName, wrapped.value)
-        wrapped.value
-      }
-    }
+    metricsMap.computeIfAbsent(s"${metricNamespace}.${metricName}", (_: String) => {
+      registerMetricSource(metricNamespace, metricName, wrapped.value)
+      wrapped
+    }).value
   }
 
   def getOrCreateCounter(metricNamespace: String, metricName: String): Counter =

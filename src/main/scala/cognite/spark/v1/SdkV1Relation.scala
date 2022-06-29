@@ -8,6 +8,7 @@ import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
@@ -64,7 +65,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
       val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf(f))
       val rowOfAllFields = toRow(item)
-      Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
+      new GenericRow(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
     }
 
   // scalastyle:off no.whitespace.after.left.bracket

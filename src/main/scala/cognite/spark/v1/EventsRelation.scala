@@ -83,16 +83,16 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       doUpsert = true)
   }
 
-  override def schema: StructType = structType[Event]
+  override def schema: StructType = structType[Event]()
 
   override def toRow(a: Event): Row = asRow(a)
 
   override def uniqueId(a: Event): Long = a.id
 }
 object EventsRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[EventsUpsertSchema]
-  val insertSchema: StructType = structType[EventsInsertSchema]
-  val readSchema: StructType = structType[EventsReadSchema]
+  val upsertSchema: StructType = structType[EventsUpsertSchema]()
+  val insertSchema: StructType = structType[EventsInsertSchema]()
+  val readSchema: StructType = structType[EventsReadSchema]()
 }
 
 trait WithNullableExtenalId extends WithExternalIdGeneric[OptionalField] {

@@ -231,7 +231,7 @@ class AlphaDataModelInstancesRelationTest
       .option("onconflict", onconflict)
       .option("collectMetrics", true)
       .option("metricsPrefix", modelExternalId)
-      .save
+      .save()
 
   private def tryTestAndCleanUp(externalIds: Seq[String], testCode: Assertion) =
     try {

@@ -3,16 +3,13 @@ package cognite.spark.v1
 import cats.data.Validated.{Invalid, Valid}
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.PushdownUtilities.{
-  getIdFromMap,
-  pushdownToParameters,
-  toPushdownFilterExpression
-}
+import cognite.spark.v1.PushdownUtilities.{getIdFromMap, pushdownToParameters, toPushdownFilterExpression}
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
 import fs2.Stream
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -147,7 +144,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
     val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf(f))
     val rowOfAllFields = toRow(item)
-    Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
+    new GenericRow(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
   }
 
   def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
@@ -221,8 +218,8 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 }
 
 object NumericDataPointsRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[InsertDataPointsItem]
-  val readSchema: StructType = structType[DataPointsItem]
-  val insertSchema: StructType = structType[InsertDataPointsItem]
-  val deleteSchema: StructType = structType[DeleteDataPointsItem]
+  val upsertSchema: StructType = structType[InsertDataPointsItem]()
+  val readSchema: StructType = structType[DataPointsItem]()
+  val insertSchema: StructType = structType[InsertDataPointsItem]()
+  val deleteSchema: StructType = structType[DeleteDataPointsItem]()
 }
