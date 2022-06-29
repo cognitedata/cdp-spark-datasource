@@ -10,7 +10,7 @@ package object v1 {
     Array(
       "org.wartremover.warts.Null",
       "org.wartremover.warts.Equals",
-      "org.wartremover.warts.OptionPartial",
+      "org.wartremover.warts.OptionPartial"
     )
   )
   implicit def optionToSetter[T: Manifest]: Transformer[Option[T], Option[Setter[T]]] =
