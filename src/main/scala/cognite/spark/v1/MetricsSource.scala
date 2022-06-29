@@ -9,9 +9,9 @@ import java.util.concurrent.ConcurrentHashMap
 class MetricsSource {
   // Add metricNamespace to differentiate with spark system metrics.
   // Keeps track of all the Metric instances that are being published
-  val metricsMap = new ConcurrentHashMap[String, Eval[Metric]]
+  val metricsMap = new ConcurrentHashMap[String, Eval[Counter]]
 
-  def getOrElseUpdate(metricNamespace: String, metricName: String, metric: => Metric): Metric = {
+  def getOrElseUpdate(metricNamespace: String, metricName: String, metric: => Counter): Counter = {
     val wrapped = Eval.later(metric)
     metricsMap.computeIfAbsent(s"${metricNamespace}.${metricName}", (_: String) => {
       registerMetricSource(metricNamespace, metricName, wrapped.value)
@@ -20,7 +20,7 @@ class MetricsSource {
   }
 
   def getOrCreateCounter(metricNamespace: String, metricName: String): Counter =
-    getOrElseUpdate(metricNamespace, metricName, new Counter).asInstanceOf[Counter]
+    getOrElseUpdate(metricNamespace, metricName, new Counter)
 
   /**
     * Register a [[Metric]] with Spark's [[org.apache.spark.metrics.MetricsSystem]].

@@ -76,6 +76,10 @@ object StreamIterator {
       }
     }
 
+  @SuppressWarnings(Array(
+    "scalafix:DisableSyntax.var",
+    "scalafix:DisableSyntax.while"
+  ))
   def queueIterator[A](queue: EitherQueue[A], f: Future[Unit]): Iterator[A] =
     new Iterator[A] {
       var nextItems: Iterator[A] = Iterator.empty

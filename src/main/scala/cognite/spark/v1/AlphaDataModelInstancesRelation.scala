@@ -3,7 +3,19 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.AlphaDataModelInstancesHelper._
-import com.cognite.sdk.scala.common.{CdpApiException, DSLAndFilter, DSLEqualsFilter, DSLExistsFilter, DSLInFilter, DSLNotFilter, DSLOrFilter, DSLPrefixFilter, DSLRangeFilter, DomainSpecificLanguageFilter, EmptyFilter}
+import com.cognite.sdk.scala.common.{
+  CdpApiException,
+  DSLAndFilter,
+  DSLEqualsFilter,
+  DSLExistsFilter,
+  DSLInFilter,
+  DSLNotFilter,
+  DSLOrFilter,
+  DSLPrefixFilter,
+  DSLRangeFilter,
+  DomainSpecificLanguageFilter,
+  EmptyFilter
+}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import org.apache.spark.rdd.RDD

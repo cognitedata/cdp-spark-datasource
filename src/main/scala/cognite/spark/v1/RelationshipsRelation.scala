@@ -141,10 +141,10 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object RelationshipsRelation {
-  var insertSchema: StructType = structType[RelationshipsInsertSchema]()
-  var readSchema: StructType = structType[RelationshipsReadSchema]()
-  var deleteSchema: StructType = structType[RelationshipsDeleteSchema]()
-  var upsertSchema: StructType = structType[RelationshipsUpsertSchema]()
+  val insertSchema: StructType = structType[RelationshipsInsertSchema]()
+  val readSchema: StructType = structType[RelationshipsReadSchema]()
+  val deleteSchema: StructType = structType[RelationshipsDeleteSchema]()
+  val upsertSchema: StructType = structType[RelationshipsUpsertSchema]()
 }
 
 final case class RelationshipsDeleteSchema(
