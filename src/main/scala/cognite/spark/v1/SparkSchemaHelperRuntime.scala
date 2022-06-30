@@ -38,15 +38,24 @@ private[spark] object SparkSchemaHelperRuntime {
   // convert Map[Any, Any] to Map[String, String] by checking every key and value.
   def checkMetadataMap(mapAny: Map[Any, Any], row: Row): Map[String, String] = {
     val mapStringString = mapAny.collect {
-      case (k: String, v: String) if v != null => (k, v)
+      case (k: String, v: String) =>
+        (k, v)
+      case (k: String, null) => // scalastyle:ignore null
+        (k, null: String) // scalastyle:ignore null
     }
-    val maybeError = mapAny
-      .collectFirst {
-        case (k: String, v) if !mapStringString.contains(k) =>
-          s"Map with string values was expected, but ${valueToString(v)} was found (under key '$k' on row ${rowIdentifier(row)})"
-        case (k, v) =>
-          s"Map with string keys was expected, but ${valueToString(k)} was found (on row ${rowIdentifier(row)})."
+    val maybeError = mapAny.view
+      .map {
+        case (k: String, _) if mapStringString.contains(k) =>
+          None // No problem here.
+        case (k: String, v) =>
+          Some(
+            s"Map with string values was expected, but ${valueToString(v)} was found (under key '$k' on row ${rowIdentifier(row)})")
+        case (k, _) =>
+          Some(
+            s"Map with string keys was expected, but ${valueToString(k)} was found (on row ${rowIdentifier(row)}).")
       }
+      .find(_.isDefined)
+      .flatten
 
     maybeError match {
       case Some(error) => throw new CdfSparkIllegalArgumentException(error)
