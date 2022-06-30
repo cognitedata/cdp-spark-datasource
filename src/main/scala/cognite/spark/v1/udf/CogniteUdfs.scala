@@ -15,9 +15,6 @@ import io.circe.{Json, JsonObject, parser}
 import org.apache.spark.sql.SparkSession
 import sttp.client3.SttpBackend
 
-import scala.annotation.tailrec
-import scala.concurrent.duration.DurationInt
-
 class CogniteUdfs(sparkSession: SparkSession) {
   def initializeUdfs(apiKey: ApiKeyAuth, baseUrl: String = DefaultBaseUrl)(
       implicit ioRuntime: IORuntime): Unit = {
@@ -58,26 +55,17 @@ object CogniteUdfs {
   @transient implicit lazy val backend: SttpBackend[IO, Any] =
     CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)
 
-  @tailrec
-  private def getFunctionResult(
-      client: GenericClient[IO],
-      functionId: Long,
-      callId: Long,
-      result: FunctionCall,
-      attemptNumber: Int)(implicit ioRuntime: IORuntime): IO[Json] = {
-    if (result.status.contains("Running") && attemptNumber < 30) {
-      for {
-        _ <- IO.sleep(500.millis)
-        newResult <- client
-          .functionCalls(functionId)
-          .retrieveById(callId)
-        next <- getFunctionResult(client, functionId, callId, newResult, attemptNumber + 1)
-      } yield ()
-      IO.sleep(500.millis) >>
-    }
+  // TODO: Rewrite this to use IO.sleep and recursion, instead of var and while.
+  @SuppressWarnings(
+    Array(
+      "scalafix:DisableSyntax.var",
+      "scalafix:DisableSyntax.while"
+    ))
+  private def getFunctionResult(client: GenericClient[IO], functionId: Long, result: FunctionCall)(
+      implicit ioRuntime: IORuntime): IO[Json] = {
     var res = result
     var i = 0
-    if (res.status.isDefined && res.status.get == "Running" && i < 30) {
+    while (res.status.isDefined && res.status.get == "Running" && i < 30) {
       Thread.sleep(500)
       i += 1
       res = client
