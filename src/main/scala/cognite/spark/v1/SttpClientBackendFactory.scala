@@ -12,12 +12,12 @@ object SttpClientBackendFactory {
     // See for more info https://github.com/cognitedata/cdp-spark-datasource/pull/415/files#r396774391
     lazy val clientThreadFactory =
       new ThreadFactoryBuilder()
-        .setNameFormat("AsyncHttpClient-%d")
+        .setNameFormat("Cdf-SparkDS-AsyncHttpClient-%d")
         .setDaemon(true)
         .build()
     lazy val timerThreadFactory =
       new ThreadFactoryBuilder()
-        .setNameFormat("AsyncHttpClient-%d-timer")
+        .setNameFormat("Cdf-SparkDS-AsyncHttpClient-%d-timer")
         .setDaemon(true)
         .build()
     AsyncHttpClientBackend.clientWithModifiedOptions(
