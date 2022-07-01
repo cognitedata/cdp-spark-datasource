@@ -2,7 +2,7 @@
 
 ## Enhancements
 
-* Rename thread of SttpClientBackendFactory
+* Rename `AsyncHttpClient` threads, to make it easier to tell them apart from other `AsyncHttpClient` threads.
 
 # 2.0.11
 
