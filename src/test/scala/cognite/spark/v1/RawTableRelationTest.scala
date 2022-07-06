@@ -8,6 +8,7 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, LoneElement, Matchers, ParallelTestExecution}
 
+import java.lang.{Long => JavaLong}
 import scala.reflect.ClassTag
 
 class RawTableRelationTest
@@ -212,7 +213,7 @@ class RawTableRelationTest
     dfWithlastUpdatedTime.schema.fieldNames.toSet should equal(
       Set("key", "lastUpdatedTime", "_lastUpdatedTime", "value"))
     collectToSet[java.sql.Timestamp](dfWithlastUpdatedTime.select($"lastUpdatedTime"))
-    collectToSet[Long](dfWithlastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(1, 2))
+    collectToSet[JavaLong](dfWithlastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(1, 2))
 
     dfWithManylastUpdatedTime.schema.fieldNames.toSet should equal(
       Set(
@@ -224,9 +225,9 @@ class RawTableRelationTest
         "value"))
 
     collectToSet[java.sql.Timestamp](dfWithManylastUpdatedTime.select($"lastUpdatedTime"))
-    collectToSet[Long](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(null, 2))
-    collectToSet[Long](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(Set(11, 22))
-    collectToSet[Long](dfWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
+    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(null, 2))
+    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(Set(11, 22))
+    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
       Set(111, 222))
   }
 
@@ -248,14 +249,14 @@ class RawTableRelationTest
   it should "insert data with columns named _lastUpdatedTime, __lastUpdatedTime etc. as data columns lastUpdatedTime, _lastUpdatedTime, etc." in {
     val (columnNames1, unRenamed1) = prepareForInsert(dfWithlastUpdatedTime)
     columnNames1.toSet should equal(Set("lastUpdatedTime", "value"))
-    collectToSet[Long](unRenamed1.select("lastUpdatedTime")) should equal(Set(1, 2))
+    collectToSet[JavaLong](unRenamed1.select("lastUpdatedTime")) should equal(Set(1, 2))
 
     val (columnNames2, unRenamed2) = prepareForInsert(dfWithManylastUpdatedTime)
     columnNames2.toSet should equal(
       Set("lastUpdatedTime", "__lastUpdatedTime", "___lastUpdatedTime", "value"))
-    collectToSet[Long](unRenamed2.select($"lastUpdatedTime")) should equal(Set(null, 2))
-    collectToSet[Long](unRenamed2.select($"__lastUpdatedTime")) should equal(Set(11, 22))
-    collectToSet[Long](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
+    collectToSet[JavaLong](unRenamed2.select($"lastUpdatedTime")) should equal(Set(null, 2))
+    collectToSet[JavaLong](unRenamed2.select($"__lastUpdatedTime")) should equal(Set(11, 22))
+    collectToSet[JavaLong](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
   }
 
   it should "read nested StructType" in {
@@ -265,7 +266,7 @@ class RawTableRelationTest
     nestedSchema.fieldNames should (contain("field").and(contain("field2")))
 
     collectToSet[String](dfWithSimpleNestedStruct.selectExpr("nested.field")) should equal(Set("Ř"))
-    collectToSet[Int](dfWithSimpleNestedStruct.selectExpr("nested.field2")) should equal(Set(1))
+    collectToSet[JavaLong](dfWithSimpleNestedStruct.selectExpr("nested.field2")) should equal(Set(1))
 
   }
 
