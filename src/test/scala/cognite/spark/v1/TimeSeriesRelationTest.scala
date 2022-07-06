@@ -1,12 +1,12 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
-import org.apache.spark.sql.{DataFrame, Row}
-import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
-import org.apache.spark.sql.functions.col
-import org.apache.spark.SparkException
 import io.scalaland.chimney.dsl._
+import org.apache.spark.SparkException
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.prop.TableDrivenPropertyChecks.forAll
+import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
 import scala.util.control.NonFatal
 
@@ -93,7 +93,7 @@ class TimeSeriesRelationTest
     assert(df.count() == 0)
 
     // Metrics counter does not create a Map key until reading the first row
-    assertThrows[NoSuchElementException](getNumberOfRowsRead(metricsPrefix, "timeseries"))
+    assertThrows[NullPointerException](getNumberOfRowsRead(metricsPrefix, "timeseries"))
   }
 
   it should "not fetch all items if filter on id" taggedAs WriteTest in {
@@ -195,8 +195,8 @@ class TimeSeriesRelationTest
         .load()
       df.createOrReplaceTempView("destinationTimeSeriesInsertAndUpdate")
 
-      a[NoSuchElementException] should be thrownBy getNumberOfRowsCreated(metricsPrefix, "timeseries")
-      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+      a[NullPointerException] should be thrownBy getNumberOfRowsCreated(metricsPrefix, "timeseries")
+      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
 
       val randomSuffix = shortRandomString()
       // Insert new time series test data
@@ -222,7 +222,7 @@ class TimeSeriesRelationTest
         .write
         .insertInto("destinationTimeSeriesInsertAndUpdate")
 
-      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
       val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
       assert(rowsCreated == 5)
 
@@ -335,7 +335,7 @@ class TimeSeriesRelationTest
         .option("metricsPrefix", metricsPrefix)
         .save()
 
-      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
       val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
       assert(rowsCreated == 7)
 
@@ -362,7 +362,7 @@ class TimeSeriesRelationTest
       assert(insertCdpApiException.code == 409)
       val rowsCreatedAfterAbort = getNumberOfRowsCreated(metricsPrefix, "timeseries")
       assert(rowsCreatedAfterAbort == 7)
-      assertThrows[NoSuchElementException](getNumberOfRowsUpdated(metricsPrefix, "timeseries"))
+      assertThrows[NullPointerException](getNumberOfRowsUpdated(metricsPrefix, "timeseries"))
     } finally {
       try {
         cleanUpTimeSeriesTestDataByUnit(abortUnit)

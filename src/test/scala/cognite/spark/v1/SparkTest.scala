@@ -175,7 +175,6 @@ trait SparkTest {
       .metricsMap
       .get(metricName)
       .value
-      .asInstanceOf[Counter]
       .getCount
 
   def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
@@ -198,7 +197,7 @@ trait SparkTest {
 
   def getPartitionSize(metricsPrefix: String, resourceType: String, partitionIndex: Int): Long = {
     val metricName = s"$metricsPrefix.$resourceType.$partitionIndex.partitionSize"
-    if (MetricsSource.metricsMap.contains(metricName)) {
+    if (MetricsSource.metricsMap.containsKey(metricName)) {
       getCounter(metricName)
     } else {
       0

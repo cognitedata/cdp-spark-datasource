@@ -3,11 +3,11 @@ package cognite.spark.v1
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.EventCreate
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkException
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.prop.TableDrivenPropertyChecks.forAll
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 import java.util.UUID
 import scala.util.control.NonFatal
@@ -644,7 +644,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
       assert(eventsCreated == 1)
 
-      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "events")
+      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "events")
 
       // We need to add endTime as well, otherwise Spark is clever enough to remove duplicates
       // on its own, it seems.

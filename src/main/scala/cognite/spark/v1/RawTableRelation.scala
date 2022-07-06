@@ -123,7 +123,6 @@ class RawTableRelation(
               config.metricsPrefix,
               s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
           partitionSize.inc()
-
         }
         rowConverter(item)
       },
