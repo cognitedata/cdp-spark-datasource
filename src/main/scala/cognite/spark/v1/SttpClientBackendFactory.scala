@@ -6,7 +6,8 @@ import org.asynchttpclient.AsyncHttpClient
 import sttp.client3.SttpBackendOptions
 
 object SttpClientBackendFactory {
-  def create(prefix: String = "SparkDS"): AsyncHttpClient = {
+  def create(): AsyncHttpClient = {
+    val prefix = "Cdf-Spark"
     // It's important that the threads made by the async http client is daemon threads,
     // so that we don't hang applications using our library during exit.
     // See for more info https://github.com/cognitedata/cdp-spark-datasource/pull/415/files#r396774391
