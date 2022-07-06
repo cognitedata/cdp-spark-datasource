@@ -9,20 +9,12 @@ class SttpClientBackendFactoryTest extends FlatSpec with Matchers {
     def run(): Unit = ()
   }
 
-  "SttpClientBackendFactory" should "create AsyncHttpClient with default prefix SparkDS for threads" in {
+  "SttpClientBackendFactory" should "create AsyncHttpClient with default prefix Cdf-Spark for threads" in {
     val asyncHttpClient = SttpClientBackendFactory.create()
     val thread = asyncHttpClient.getConfig.getThreadFactory.newThread { new DummyTestThread }
-    thread.getName should startWith("SparkDS-AsyncHttpClient")
+    thread.getName should startWith("Cdf-Spark-AsyncHttpClient")
     asyncHttpClient.close()
     asyncHttpClient.isClosed shouldBe true
   }
 
-  it should "create AsyncHttpClient with given prefix for threads" in {
-    val prefix = "toto"
-    val asyncHttpClient = SttpClientBackendFactory.create(prefix)
-    val thread = asyncHttpClient.getConfig.getThreadFactory.newThread { new DummyTestThread }
-    thread.getName should startWith(s"${prefix}-AsyncHttpClient")
-    asyncHttpClient.close()
-    asyncHttpClient.isClosed shouldBe true
-  }
 }
