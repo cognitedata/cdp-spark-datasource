@@ -1,29 +1,26 @@
 package cognite.spark.v1
 
-import java.io.IOException
-import java.util.UUID
-
 import cats.Id
-import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
-import org.apache.spark.sql.{Encoder, SparkSession}
-import org.scalatest.prop.TableDrivenPropertyChecks.Table
-import org.scalatest.{Matchers, Tag}
-import org.apache.spark.datasource.MetricsSource
-
-import scala.concurrent.TimeoutException
-import scala.concurrent.duration._
-import scala.util.Random
 import cats.effect.IO
+import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.SparkException
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{Encoder, SparkSession}
 import org.scalactic.{Prettifier, source}
+import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
-import sttp.client3.{SttpBackend, UriContext}
+import org.scalatest.{Matchers, Tag}
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import sttp.client3.{SttpBackend, UriContext}
 
+import java.io.IOException
+import java.util.UUID
+import scala.concurrent.TimeoutException
+import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
+import scala.util.Random
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
