@@ -4,6 +4,8 @@
 The [Cognite Spark Data Source](https://github.com/cognitedata/cdp-spark-datasource)
 lets you use [Spark](https://spark.apache.org/) to read and write data from and to [Cognite Data Fusion](https://docs.cognite.com/dev/) (CDF).
 
+Check how long it takes to run tests on GitHub.
+
 Reads and writes are done in parallel using asynchronous calls.
 
 The instructions below explain how to read from, and write to, the different resource types in CDF.
