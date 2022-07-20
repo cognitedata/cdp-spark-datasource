@@ -113,6 +113,7 @@ object CdpConnector {
     } else {
       None
     }
+    println(s"Coucou create new Client")
     implicit val sttpBackend: SttpBackend[IO, Any] =
       retryingSttpBackend(
         config.maxRetries,

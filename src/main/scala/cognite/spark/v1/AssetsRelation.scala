@@ -25,6 +25,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, AssetsReadSchema]] = {
+    println(s"Coucou assets getStreams")
     val (ids, filters) = pushdownToFilters(sparkFilters, assetsFilterFromMap, AssetsFilter())
     executeFilter(client.assets, filters, ids, numPartitions, limit)
       .map(

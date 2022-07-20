@@ -23,7 +23,6 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, Event]] = {
     val (ids, filters) = pushdownToFilters(sparkFilters, eventsFilterFromMap, EventsFilter())
-
     executeFilter(client.events, filters, ids, numPartitions, limit)
   }
 
@@ -65,6 +64,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
+    println(s"Coucou events upserts")
     val events = rows.map(fromRow[EventsUpsertSchema](_))
 
     genericUpsert[Event, EventsUpsertSchema, EventCreate, EventUpdate, Events[IO]](
