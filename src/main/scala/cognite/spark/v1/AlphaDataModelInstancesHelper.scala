@@ -1,318 +1,14 @@
 package cognite.spark.v1
 
-import cats.effect.IO
-import cats.implicits._
-import cognite.spark.v1.DataModelInstanceRelation._
-import com.cognite.sdk.scala.common.{
-  CdpApiException,
-  DSLAndFilter,
-  DSLEqualsFilter,
-  DSLExistsFilter,
-  DSLInFilter,
-  DSLNotFilter,
-  DSLOrFilter,
-  DSLPrefixFilter,
-  DSLRangeFilter,
-  DomainSpecificLanguageFilter,
-  EmptyFilter
-}
-import com.cognite.sdk.scala.v1._
-import fs2.Stream
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Row, SQLContext}
-import java.time._
+import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId, ZonedDateTime}
 
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
+import com.cognite.sdk.scala.v1.{DataModelProperty, DataModelType, PropertyType}
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.{DataType, DataTypes, StructType}
 
 // scalastyle:off cyclomatic.complexity
-class DataModelInstanceRelation(
-    config: RelationConfig,
-    spaceExternalId: String,
-    modelExternalId: String,
-    instanceSpaceExternalId: Option[String] = None)(val sqlContext: SQLContext)
-    extends CdfRelation(config, "alphadatamodelinstances")
-    with WritableRelation
-    with PrunedFilteredScan {
-  import CdpConnector._
-
-  private val model: DataModel = alphaClient.dataModels
-    .retrieveByExternalIds(Seq(modelExternalId), spaceExternalId = spaceExternalId)
-    .adaptError {
-      case e: CdpApiException =>
-        new CdfSparkException(
-          s"Could not resolve schema of data model $modelExternalId. " +
-            s"Got an exception from the CDF API: ${e.message} (code: ${e.code})",
-          e)
-    }
-    .unsafeRunSync()
-    .headOption
-    // TODO Missing model externalId used to result in CdpApiException, now it returns empty list
-    //  Check with dms team
-    .getOrElse(throw new CdfSparkException(
-      s"Could not resolve schema of data model $modelExternalId. Please check if the model exists."))
-
-  private val modelType = model.dataModelType
-
-  val modelInfo: Map[String, DataModelPropertyDefinition] = {
-    val modelProps = model.properties.getOrElse(Map())
-
-    if (modelType == DataModelType.EdgeType) {
-      modelProps ++ Map(
-        "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false),
-        "type" -> DataModelPropertyDefinition(PropertyType.Text, false),
-        "startNode" -> DataModelPropertyDefinition(PropertyType.Text, false),
-        "endNode" -> DataModelPropertyDefinition(PropertyType.Text, false)
-      )
-    } else {
-      modelProps ++ Map(
-        "externalId" -> DataModelPropertyDefinition(PropertyType.Text, false)
-      )
-    }
-  }
-
-  override def schema: StructType =
-    new StructType(modelInfo.map {
-      case (name, prop) =>
-        StructField(name, propertyTypeToSparkType(prop.`type`), nullable = prop.nullable)
-    }.toArray)
-
-  override def upsert(rows: Seq[Row]): IO[Unit] =
-    if (rows.isEmpty) {
-      IO.unit
-    } else {
-      val fromRowFn = nodeFromRow(rows.head.schema)
-      if (modelType == NodeType) {
-        val dataModelNodes: Seq[Node] = rows.map(fromRowFn)
-        alphaClient.nodes
-          .createItems(
-            instanceSpaceExternalId
-              .getOrElse(throw new CdfSparkException(
-                s"instanceSpaceExternalId must be specified when upserting data.")),
-            DataModelIdentifier(Some(spaceExternalId), modelExternalId),
-            true,
-            dataModelNodes
-          )
-          .flatTap(_ => incMetrics(itemsUpserted, dataModelNodes.length)) *> IO.unit
-      } else {
-        throw new CdfSparkException(s"Upserting edges is not supported.")
-      }
-    }
-
-  def insert(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException(
-      "Create (abort) is not supported for data model instances. Use upsert instead.")
-
-  def toRow(a: ProjectedDataModelInstance): Row = {
-    if (config.collectMetrics) {
-      itemsRead.inc()
-    }
-    Row.fromSeq(a.properties)
-  }
-
-  def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
-
-  private def getValue(prop: DataModelProperty[_]): Any =
-    prop.value match {
-      case x: java.math.BigDecimal =>
-        x.doubleValue
-      case x: java.math.BigInteger => x.longValue
-      case x: Array[java.math.BigDecimal] =>
-        x.toVector.map(i => i.doubleValue)
-      case x: Array[java.math.BigInteger] =>
-        x.toVector.map(i => i.longValue)
-      case x: BigDecimal =>
-        x.doubleValue
-      case x: BigInt => x.longValue
-      case x: Array[BigDecimal] =>
-        x.toVector.map(i => i.doubleValue)
-      case x: Array[BigInt] =>
-        x.toVector.map(i => i.longValue)
-      case x: Array[LocalDate] =>
-        x.toVector.map(i => java.sql.Date.valueOf(i))
-      case x: java.time.LocalDate =>
-        java.sql.Date.valueOf(x)
-      case x: java.time.ZonedDateTime =>
-        java.sql.Timestamp.from(x.toInstant)
-      case x: Array[java.time.ZonedDateTime] =>
-        x.toVector.map(i => java.sql.Timestamp.from(i.toInstant))
-      case _ => prop.value
-    }
-
-  def toProjectedInstance(
-      pmap: PropertyMap,
-      requiredPropsArray: Seq[String]): ProjectedDataModelInstance = {
-    val dmiProperties = pmap.allProperties
-    ProjectedDataModelInstance(
-      externalId = pmap.externalId,
-      properties = requiredPropsArray.map { name: String =>
-        dmiProperties.get(name).map(getValue).orNull
-      }.toArray
-    )
-  }
-
-  // scalastyle:off method.length
-  def getInstanceFilter(sparkFilter: Filter): Option[DomainSpecificLanguageFilter] =
-    sparkFilter match {
-      case EqualTo(left, right) =>
-        Some(DSLEqualsFilter(Seq(spaceExternalId, modelExternalId, left), parsePropertyValue(right)))
-      case In(attribute, values) =>
-        if (modelInfo(attribute).`type`.code.endsWith("[]")) {
-          None
-        } else {
-          val setValues = values.filter(_ != null)
-          Some(
-            DSLInFilter(
-              Seq(spaceExternalId, modelExternalId, attribute),
-              setValues.map(parsePropertyValue)))
-        }
-      case StringStartsWith(attribute, value) =>
-        Some(
-          DSLPrefixFilter(Seq(spaceExternalId, modelExternalId, attribute), parsePropertyValue(value)))
-      case GreaterThanOrEqual(attribute, value) =>
-        Some(
-          DSLRangeFilter(
-            Seq(spaceExternalId, modelExternalId, attribute),
-            gte = Some(parsePropertyValue(value))))
-      case GreaterThan(attribute, value) =>
-        Some(
-          DSLRangeFilter(
-            Seq(spaceExternalId, modelExternalId, attribute),
-            gt = Some(parsePropertyValue(value))))
-      case LessThanOrEqual(attribute, value) =>
-        Some(
-          DSLRangeFilter(
-            Seq(spaceExternalId, modelExternalId, attribute),
-            lte = Some(parsePropertyValue(value))))
-      case LessThan(attribute, value) =>
-        Some(
-          DSLRangeFilter(
-            Seq(spaceExternalId, modelExternalId, attribute),
-            lt = Some(parsePropertyValue(value))))
-      case And(f1, f2) =>
-        (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
-          DSLAndFilter(Seq(sf1, sf2)))
-      case Or(f1, f2) =>
-        (getInstanceFilter(f1), getInstanceFilter(f2)) match {
-          case (Some(sf1), Some(sf2)) =>
-            Some(DSLOrFilter(Seq(sf1, sf2)))
-          case _ =>
-            None
-        }
-      case IsNotNull(attribute) =>
-        Some(DSLExistsFilter(Seq(spaceExternalId, modelExternalId, attribute)))
-      case Not(f) =>
-        getInstanceFilter(f).map(DSLNotFilter)
-      case _ => None
-    }
-  // scalastyle:on method.length
-
-  def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
-    val selectedPropsArray: Seq[String] = if (selectedColumns.isEmpty) {
-      schema.fields.map(_.name)
-    } else {
-      selectedColumns
-    }
-
-    val filter: DomainSpecificLanguageFilter = {
-      val andFilters = filters.toVector.flatMap(getInstanceFilter)
-      if (andFilters.isEmpty) EmptyFilter else DSLAndFilter(andFilters)
-    }
-
-    val dmiQuery = DataModelInstanceQuery(
-      model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
-      filter = filter,
-      sort = None,
-      limit = limit,
-      cursor = None)
-
-    Seq(
-      alphaClient.nodes
-        .queryStream(dmiQuery, limit)
-        .map(r => toProjectedInstance(r, selectedPropsArray)))
-  }
-
-  override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    SdkV1Rdd[ProjectedDataModelInstance, String](
-      sqlContext.sparkContext,
-      config,
-      (item: ProjectedDataModelInstance, _) => toRow(item),
-      uniqueId,
-      getStreams(filters, selectedColumns)
-    )
-
-  override def delete(rows: Seq[Row]): IO[Unit] = {
-    val deletes = rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceDeleteSchema](r))
-    if (modelType == DataModelType.NodeType) {
-      alphaClient.nodes
-        .deleteByExternalIds(deletes.map(_.externalId))
-        .flatTap(_ => incMetrics(itemsDeleted, rows.length))
-    } else {
-      throw new CdfSparkException("Deleting edges is not supported.")
-    }
-  }
-
-  def update(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
-
-  // scalastyle:off method.length
-  def nodeFromRow(schema: StructType): Row => Node = {
-    val externalIdIndex = schema.fieldNames.indexOf("externalId")
-    val indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)] =
-      schema.fields.zipWithIndex.map {
-        case (field: StructField, index: Int) =>
-          val propertyType = modelInfo.getOrElse(
-            field.name,
-            throw new CdfSparkException(
-              s"Can't insert property `${field.name}` " +
-                s"into data model $modelExternalId, the property does not exist in the definition")
-          )
-          (index, field.name, propertyType)
-      }
-
-    def parseNodeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
-        row: Row): Node = {
-      if (externalIdIndex < 0) {
-        throw new CdfSparkException("Can't upsert data model instances, `externalId` is missing.")
-      }
-
-      val externalId = row.get(externalIdIndex) match {
-        case x: String => x
-        case _ =>
-          throw SparkSchemaHelperRuntime.badRowError(row, "externalId", "String", "")
-      }
-
-      val propertyValues: Map[String, DataModelProperty[_]] = indexedPropertyList
-        .map {
-          case (index, name, propT) =>
-            name -> (row.get(index) match {
-              case null if !propT.nullable => // scalastyle:off null
-                throw new CdfSparkException(propertyNotNullableMessage(propT.`type`))
-              case null => // scalastyle:off null
-                None
-              case _ =>
-                Some(toPropertyType(propT.`type`)(row.get(index)))
-            })
-        }
-        .collect { case (a, Some(value)) => a -> value }
-        .toMap
-
-      Node(
-        externalId = externalId,
-        properties = Some(propertyValues)
-      )
-    }
-    parseNodeRow(indexedPropertyList)
-  }
-  // scalastyle:on method.length
-}
-// scalastyle:off
-
-object DataModelInstanceRelation {
+object AlphaDataModelInstancesHelper {
   private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
 
   private def notValidPropertyTypeMessage(
@@ -328,11 +24,10 @@ object DataModelInstanceRelation {
 
     s"$a of type ${a.getClass} is not a valid $propertyType.$sparkSqlTypeMessage"
   }
-  private def propertyNotNullableMessage(propertyType: PropertyType[_]) =
+  def propertyNotNullableMessage(propertyType: PropertyType[_]): String =
     s"Property of ${propertyType.code} type is not nullable."
-  // scalastyle:on
 
-  private def parsePropertyValue(value: Any): DataModelProperty[_] = value match {
+  def parsePropertyValue(value: Any): DataModelProperty[_] = value match {
     case x: Double => PropertyType.Float64.Property(x)
     case x: Int => PropertyType.Int32.Property(x)
     case x: Float => PropertyType.Float32.Property(x)
@@ -360,11 +55,10 @@ object DataModelInstanceRelation {
     case x: java.sql.Date => PropertyType.Date.Property(x.toLocalDate)
     case x: LocalDateTime => PropertyType.Date.Property(x.toLocalDate)
     case x: Instant =>
-      PropertyType.Timestamp.Property(
-        OffsetDateTime.ofInstant(x, ZoneId.systemDefault()).toZonedDateTime)
+      PropertyType.Timestamp.Property(OffsetDateTime.ofInstant(x, ZoneId.of("UTC")).toZonedDateTime)
     case x: java.sql.Timestamp =>
       PropertyType.Timestamp.Property(
-        OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
+        OffsetDateTime.ofInstant(x.toInstant, ZoneId.of("UTC")).toZonedDateTime)
     case x: java.time.ZonedDateTime =>
       PropertyType.Timestamp.Property(x)
     case x: Array[LocalDate] => PropertyType.Array.Date.Property(x)
@@ -372,10 +66,10 @@ object DataModelInstanceRelation {
     case x: Array[LocalDateTime] => PropertyType.Array.Date.Property(x.map(_.toLocalDate))
     case x: Array[Instant] =>
       PropertyType.Array.Timestamp
-        .Property(x.map(OffsetDateTime.ofInstant(_, ZoneId.systemDefault()).toZonedDateTime))
+        .Property(x.map(OffsetDateTime.ofInstant(_, ZoneId.of("UTC")).toZonedDateTime))
     case x: Array[java.sql.Timestamp] =>
       PropertyType.Array.Timestamp.Property(x.map(ts =>
-        OffsetDateTime.ofInstant(ts.toInstant, ZoneId.systemDefault()).toZonedDateTime))
+        OffsetDateTime.ofInstant(ts.toInstant, ZoneId.of("UTC")).toZonedDateTime))
     case x: Array[java.time.ZonedDateTime] =>
       PropertyType.Array.Timestamp.Property(x)
     case x =>
@@ -419,13 +113,12 @@ object DataModelInstanceRelation {
 
   private def toTimestampProperty: Any => DataModelProperty[_] = {
     case x: Instant =>
-      PropertyType.Timestamp.Property(
-        OffsetDateTime.ofInstant(x, ZoneId.systemDefault()).toZonedDateTime)
+      PropertyType.Timestamp.Property(OffsetDateTime.ofInstant(x, ZoneId.of("UTC")).toZonedDateTime)
     case x: java.sql.Timestamp =>
       // Using ZonedDateTime directly without OffSetDateTime, adds ZoneId to the end of encoded string
       // 2019-10-02T07:00+09:00[Asia/Seoul] instead of 2019-10-02T07:00+09:00, API does not like it.
       PropertyType.Timestamp.Property(
-        OffsetDateTime.ofInstant(x.toInstant, ZoneId.systemDefault()).toZonedDateTime)
+        OffsetDateTime.ofInstant(x.toInstant, ZoneId.of("UTC")).toZonedDateTime)
     case x: ZonedDateTime =>
       PropertyType.Timestamp.Property(x)
     case a =>
@@ -561,7 +254,7 @@ object DataModelInstanceRelation {
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias.code))
   }
 
-  private def toInt64ArrayProperty(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
+  def toInt64ArrayProperty(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
     case x: Iterable[_] if x.isEmpty => PropertyType.Array.Bigint.Property(Vector.empty)
     case x: Iterable[_] if x.head.isInstanceOf[Int] =>
       PropertyType.Array.Bigint.Property(x.map(i => i.asInstanceOf[Int].toLong).toVector)
@@ -573,7 +266,7 @@ object DataModelInstanceRelation {
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias.code))
   }
 
-  private def toPropertyType(propertyType: PropertyType[_]): Any => DataModelProperty[_] =
+  def toPropertyType(propertyType: PropertyType[_]): Any => DataModelProperty[_] =
     propertyType match {
       case PropertyType.Float32 => toFloat32Property
       case PropertyType.Float64 | PropertyType.Numeric => toFloat64Property(propertyType)
@@ -597,9 +290,24 @@ object DataModelInstanceRelation {
         throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
 
+  def getRequiredStringPropertyIndex(
+      rSchema: StructType,
+      modelType: DataModelType,
+      keyString: String): Int = {
+    val typeString = if (modelType == NodeType) "node" else "edge"
+    val index = rSchema.fieldNames.indexOf(keyString)
+    if (index < 0) {
+      throw new CdfSparkException(s"Can't upsert data model $typeString, `$keyString` is missing.")
+    } else {
+      index
+    }
+  }
+
+  def getStringValueForFixedProperty(row: Row, keyString: String, index: Int): String =
+    row.get(index) match {
+      case x: String => x
+      case _ =>
+        throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
+    }
 }
-
-final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
-final case class DataModelInstanceDeleteSchema(externalId: String)
-
 // scalastyle:on cyclomatic.complexity
