@@ -71,6 +71,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val assetUpdates = rows.map(r => fromRow[AssetsUpsertSchema](r))
+
     updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate, Assets[IO], Asset](
       assetUpdates,
       client.assets,
@@ -85,7 +86,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val assets = rows.map(fromRow[AssetsUpsertSchema](_))
-
     genericUpsert[Asset, AssetsUpsertSchema, AssetCreate, AssetUpdate, Assets[IO]](
       assets,
       isUpdateEmpty,

@@ -2,8 +2,8 @@ package cognite.spark
 
 import com.cognite.sdk.scala.common.{NonNullableSetter, SdkException, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1.{SequenceColumn, SequenceColumnCreate}
-import io.circe.{Encoder, Json}
 import io.scalaland.chimney.Transformer
+
 // scalastyle:off
 package object v1 {
   @SuppressWarnings(
@@ -21,9 +21,6 @@ package object v1 {
         case null => Some(SetNull()) // scalastyle:ignore null
         case None => None
         case Some(null) => Some(SetNull()) // scalastyle:ignore null
-        case Some(map: Map[_, _]) if map.isEmpty =>
-          // Workaround for CDF-3540 and CDF-953
-          None
         case Some(value: T) => Some(SetValue(value))
         case Some(badValue) =>
           throw new SdkException(
@@ -41,20 +38,10 @@ package object v1 {
       }
     }
 
-  implicit def encodeSetter[T](implicit encodeT: Encoder[T]): Encoder[Setter[T]] =
-    new Encoder[Setter[T]] {
-      final def apply(a: Setter[T]): Json = a match {
-        case SetValue(value) => Json.obj(("set", encodeT.apply(value)))
-        case SetNull() => Json.obj(("setNull", Json.True))
-      }
-    }
   implicit def optionToNonNullableSetter[T]: Transformer[Option[T], Option[NonNullableSetter[T]]] =
     new Transformer[Option[T], Option[NonNullableSetter[T]]] {
       override def transform(src: Option[T]): Option[NonNullableSetter[T]] = src match {
         case None => None
-        case Some(map: Map[_, _]) if map.isEmpty =>
-          // Workaround for CDF-3540 and CDF-953
-          None
         case Some(value) =>
           require(
             value != null,
@@ -85,12 +72,4 @@ package object v1 {
           valueType = seq.valueType
         )
     }
-
-  implicit def encodeNonNullableSetter[T](
-      implicit encodeT: Encoder[T]
-  ): Encoder[NonNullableSetter[T]] = new Encoder[NonNullableSetter[T]] {
-    final def apply(a: NonNullableSetter[T]): Json = a match {
-      case SetValue(value) => Json.obj(("set", encodeT.apply(value)))
-    }
-  }
 }

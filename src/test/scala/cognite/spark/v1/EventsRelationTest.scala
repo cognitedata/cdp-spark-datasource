@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.v1.EventCreate
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
@@ -8,6 +9,7 @@ import org.apache.spark.SparkException
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 
+import java.util.UUID
 import scala.util.control.NonFatal
 
 class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
@@ -445,6 +447,29 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         case NonFatal(_) => // ignore
       }
     }
+  }
+
+
+  it should "allow empty metadata updates" taggedAs WriteTest in {
+    val externalId1 = UUID.randomUUID.toString
+
+    writeClient.events.create(Seq(EventCreate(externalId = Some(externalId1), metadata = Some(Map("test1"-> "test1")))))
+    writeClient.events.retrieveByExternalId(externalId1).metadata shouldBe Some(Map("test1" -> "test1"))
+
+    val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
+
+    wdf.write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "events")
+      .option("onconflict", "upsert")
+      .save()
+
+    val updated = writeClient.events.retrieveByExternalId(externalId1)
+
+    writeClient.events.deleteByExternalId(externalId1)
+
+    updated.metadata shouldBe None
   }
 
   it should "allow inserts in savemode" taggedAs WriteTest in {
