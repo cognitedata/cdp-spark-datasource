@@ -576,7 +576,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .save
   }
 
-  it should "allow metadata updates" taggedAs WriteTest in {
+  it should "allow empty metadata updates" taggedAs WriteTest in {
     val externalId1 = UUID.randomUUID.toString
 
     writeClient.assets.create(Seq(AssetCreate(name = externalId1, externalId = Some(externalId1), metadata = Some(Map("test1"-> "test1")))))
