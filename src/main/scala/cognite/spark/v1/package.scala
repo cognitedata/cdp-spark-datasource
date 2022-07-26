@@ -32,33 +32,24 @@ package object v1 {
   @SuppressWarnings(Array("org.wartremover.warts.Null", "scalafix:DisableSyntax.null"))
   implicit def anyToSetter[T]: Transformer[T, Option[Setter[T]]] =
     new Transformer[T, Option[Setter[T]]] {
-      override def transform(src: T): Option[Setter[T]] = src match {
-        case null => Some(SetNull()) // scalastyle:ignore null
-        case value => Some(SetValue(value))
-      }
+      override def transform(src: T): Option[Setter[T]] = Setter.fromAny(src)
     }
 
   implicit def optionToNonNullableSetter[T]: Transformer[Option[T], Option[NonNullableSetter[T]]] =
     new Transformer[Option[T], Option[NonNullableSetter[T]]] {
-      override def transform(src: Option[T]): Option[NonNullableSetter[T]] = src match {
-        case None => None
-        case Some(value) =>
-          require(
-            value != null,
-            "Invalid null value for non-nullable field update"
-          ) // scalastyle:ignore null
-          Some(SetValue(value))
-      }
+      override def transform(src: Option[T]): Option[NonNullableSetter[T]] =
+        NonNullableSetter.fromOption(src)
     }
 
   implicit def toNonNullableSetter[T]: Transformer[T, NonNullableSetter[T]] =
     new Transformer[T, NonNullableSetter[T]] {
-      override def transform(value: T): NonNullableSetter[T] = SetValue(value)
+      override def transform(value: T): NonNullableSetter[T] = NonNullableSetter.fromAny(value)
     }
 
   implicit def toOptionNonNullableSetter[T]: Transformer[T, Option[NonNullableSetter[T]]] =
     new Transformer[T, Option[NonNullableSetter[T]]] {
-      override def transform(value: T): Option[NonNullableSetter[T]] = Some(SetValue(value))
+      override def transform(value: T): Option[NonNullableSetter[T]] =
+        Some(NonNullableSetter.fromAny(value))
     }
 
   implicit def sequenceToSequenceColumnCreate: Transformer[SequenceColumn, SequenceColumnCreate] =
