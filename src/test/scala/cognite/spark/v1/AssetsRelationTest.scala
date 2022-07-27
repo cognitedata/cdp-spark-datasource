@@ -1,13 +1,14 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
-import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
+import com.cognite.sdk.scala.v1.{AssetCreate, AssetUpdate, CogniteExternalId}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
+import java.util.UUID
 import scala.util.control.NonFatal
 
 class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
@@ -573,6 +574,28 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("type", "assets")
       .option("onconflict", "update")
       .save
+  }
+
+  it should "allow empty metadata updates" taggedAs WriteTest in {
+    val externalId1 = UUID.randomUUID.toString
+
+    writeClient.assets.create(Seq(AssetCreate(name = externalId1, externalId = Some(externalId1), metadata = Some(Map("test1"-> "test1")))))
+
+    writeClient.assets.retrieveByExternalId(externalId1).metadata shouldBe Some(Map("test1" -> "test1"))
+    val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
+
+    wdf.write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "update")
+      .save()
+
+    val updated = writeClient.assets.retrieveByExternalId(externalId1)
+
+    writeClient.assets.deleteByExternalId(externalId1)
+
+    updated.metadata shouldBe Some(Map())
   }
 
   it should "throw proper exception on invalid onconflict options" taggedAs WriteTest in {

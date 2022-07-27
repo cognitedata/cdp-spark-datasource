@@ -1,3 +1,9 @@
+# 2.1.0
+
+## Enhancements
+
+* Allow updating metadata with empty Map rather than ignoring it.
+
 # 2.0.17
 
 ## Enhancements

@@ -98,6 +98,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       val updatesByExternalIdMap = updatesByExternalId
         .map(u => u.getExternalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
         .toMap
+
       resource
         .updateByExternalId(updatesByExternalIdMap)
         .flatMap(_ => incMetrics(itemsUpdated, updatesByExternalIdMap.size))
