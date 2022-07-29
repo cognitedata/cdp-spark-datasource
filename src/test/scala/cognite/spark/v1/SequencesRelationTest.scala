@@ -1,11 +1,12 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.v1.SequenceColumnCreate
+import cats.data.NonEmptyList
+import com.cognite.sdk.scala.v1.{SequenceColumnCreate, SequenceCreate}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
-import java.util.UUID
 
+import java.util.UUID
 import org.apache.spark.SparkException
 
 import scala.util.control.NonFatal
@@ -378,6 +379,38 @@ class SequencesRelationTest
         }
       }
     }
+  }
+
+  it should "delete sequence" in {
+    val key = UUID.randomUUID().toString
+    writeClient.sequences.createOne(
+      SequenceCreate(
+        Some(s"name-${key}"),
+        Some("description"),
+        None,
+        Some(s"externalId-$key"),
+        None,
+        NonEmptyList.fromListUnsafe(
+          List(SequenceColumnCreate(Some("col1"), "col1", None, "STRING", None)))
+      ))
+    val idsAfterDelete = retryWhile[Array[Row]](
+      {
+        spark
+          .sql(s"select id from sequences where externalId = 'externalId-$key'")
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "sequences")
+          .option("onconflict", "delete")
+          .option("collectMetrics", "true")
+          .save()
+        spark
+          .sql(s"select id from sequences where externalId = 'externalId-$key'")
+          .collect
+      },
+      df => df.length > 0
+    )
+    idsAfterDelete.isEmpty shouldBe true
   }
 
   def ingests(
