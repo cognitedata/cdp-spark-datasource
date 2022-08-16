@@ -2,7 +2,7 @@
 
 ## Enhancements
 
-* Update to Spark version 3.3.0.
+* Remove "fat" jar from release and update to Spark version 3.3.0.
 
 # 2.1.0
 
