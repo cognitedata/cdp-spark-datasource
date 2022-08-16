@@ -1,3 +1,9 @@
+# 2.1.1
+
+## Enhancements
+
+* Update to Spark version 3.3.0.
+
 # 2.1.0
 
 ## Enhancements
