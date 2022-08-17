@@ -297,7 +297,7 @@ class DataModelInstanceRelation(
                 throw new CdfSparkException(propertyNotNullableMessage(propT.`type`))
               case null => // scalastyle:off null
                 None
-              case _ if Seq("externalId", "type", "name", "description") contains name =>
+              case _ if "externalId" == name =>
                 None
               case _ =>
                 Some(toPropertyType(propT.`type`)(row.get(index)))
@@ -308,9 +308,6 @@ class DataModelInstanceRelation(
 
       Node(
         externalId = externalId,
-        `type` = nodeType,
-        name = nodeName,
-        description = nodeDescription,
         properties = Some(propertyValues)
       )
     }

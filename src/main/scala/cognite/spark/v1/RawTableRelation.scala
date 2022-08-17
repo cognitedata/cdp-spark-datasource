@@ -5,7 +5,7 @@ import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
 import com.cognite.sdk.scala.common.Items
 import com.cognite.sdk.scala.v1._
-import fs2.Stream
+import fs2.{Chunk, Pull, Stream}
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
@@ -49,6 +49,7 @@ class RawTableRelation(
           inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
           Some(1),
           RawRowFilter(),
+          Seq(),
           None,
           collectSchemaInferenceMetrics,
           false)
@@ -75,6 +76,30 @@ class RawTableRelation(
     cursors.map(rawClient.filterOnePartition(filter, _, limit))
   }
 
+  def pullFromKeysSeq(
+      keys: List[String],
+      get: String => IO[RawRow]
+  ): Pull[IO, RawRow, Unit] =
+    keys match {
+      case Nil => Pull.done
+      case key :: tail =>
+        Pull.eval(get(key)).flatMap { row =>
+          Pull.output(Chunk.singleton(row)) >>
+            pullFromKeysSeq(tail, get)
+        }
+    }
+
+  def getStreamsByKeys(keys: Array[String])(
+      client: GenericClient[IO],
+      limit: Option[Int],
+      numPartitions: Int): Seq[Stream[IO, RawRow]] = {
+    val rawClient = client.rawRows(database, table)
+    val keysPerPartition = (keys.length.doubleValue / numPartitions).ceil.intValue()
+    Range(0, numPartitions).map { i =>
+      keys.drop(i*keysPerPartition).take(keysPerPartition).toList
+    }.map(partitionKeys => pullFromKeysSeq(partitionKeys,rawClient.retrieveByKey).stream)
+  }
+
   private def getRowConverter(schema: Option[StructType]): RawRow => Row =
     schema match {
       case Some(schema) =>
@@ -93,6 +118,7 @@ class RawTableRelation(
       limit: Option[Int],
       numPartitions: Option[Int],
       filter: RawRowFilter,
+      keysFilter: Seq[String],
       schema: Option[StructType],
       collectMetrics: Boolean = config.collectMetrics,
       collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
@@ -101,13 +127,21 @@ class RawTableRelation(
 
     @transient lazy val rowConverter = getRowConverter(schema)
 
-    val partitionCursors =
-      CdpConnector
-        .clientFromConfig(config)
-        .rawRows(database, table)
-        .getPartitionCursors(filter, configWithLimit.partitions)
-        .unsafeRunSync()
-        .toVector
+    val streams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, RawRow]] = keysFilter match {
+      case Nil => {
+        val partitionCursors =
+          CdpConnector
+            .clientFromConfig(config)
+            .rawRows(database, table)
+            .getPartitionCursors(filter, configWithLimit.partitions)
+            .unsafeRunSync()
+            .toVector
+          getStreams(filter, partitionCursors)
+      }
+      case keys => getStreamsByKeys(keys.toArray)
+    }
+
+    
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
@@ -127,7 +161,7 @@ class RawTableRelation(
         rowConverter(item)
       },
       (r: RawRow) => r.key,
-      getStreams(filter, partitionCursors),
+      streams,
       deduplicateRows = true // if false we might end up with 429 when trying to update assets with multiple same request
     )
   }
@@ -139,6 +173,13 @@ class RawTableRelation(
     val filteredRequiredColumns = getJsonColumnNames(requiredColumns)
     val filteredSchemaFields = getJsonColumnNames(schema.fieldNames)
     val lengthOfRequiredColumnsAsString = requiredColumns.mkString(",").length
+
+    val keysFilter = 
+      filters.flatMap{
+        case EqualTo("key", value) => Array(value.toString())
+        case In("key", values) => values.map(_.toString())
+        case _ => Array.empty[String]
+      }
 
     val rawRowFilter =
       if (lengthOfRequiredColumnsAsString > 200 ||
@@ -157,7 +198,7 @@ class RawTableRelation(
     }
 
     val rdd =
-      readRows(config.limitPerPartition, None, rawRowFilter, jsonSchema)
+      readRows(config.limitPerPartition, None, rawRowFilter, keysFilter, jsonSchema)
 
     rdd.map(row => {
       val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
