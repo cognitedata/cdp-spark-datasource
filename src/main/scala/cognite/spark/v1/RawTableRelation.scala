@@ -95,9 +95,11 @@ class RawTableRelation(
       numPartitions: Int): Seq[Stream[IO, RawRow]] = {
     val rawClient = client.rawRows(database, table)
     val keysPerPartition = (keys.length.doubleValue / numPartitions).ceil.intValue()
-    Range(0, numPartitions).map { i =>
-      keys.drop(i*keysPerPartition).take(keysPerPartition).toList
-    }.map(partitionKeys => pullFromKeysSeq(partitionKeys,rawClient.retrieveByKey).stream)
+    Range(0, numPartitions)
+      .map { i =>
+        keys.drop(i * keysPerPartition).take(keysPerPartition).toList
+      }
+      .map(partitionKeys => pullFromKeysSeq(partitionKeys, rawClient.retrieveByKey).stream)
   }
 
   private def getRowConverter(schema: Option[StructType]): RawRow => Row =
@@ -136,12 +138,10 @@ class RawTableRelation(
             .getPartitionCursors(filter, configWithLimit.partitions)
             .unsafeRunSync()
             .toVector
-          getStreams(filter, partitionCursors)
+        getStreams(filter, partitionCursors)
       }
       case keys => getStreamsByKeys(keys.toArray)
     }
-
-    
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
@@ -174,8 +174,8 @@ class RawTableRelation(
     val filteredSchemaFields = getJsonColumnNames(schema.fieldNames)
     val lengthOfRequiredColumnsAsString = requiredColumns.mkString(",").length
 
-    val keysFilter = 
-      filters.flatMap{
+    val keysFilter =
+      filters.flatMap {
         case EqualTo("key", value) => Array(value.toString())
         case In("key", values) => values.map(_.toString())
         case _ => Array.empty[String]
