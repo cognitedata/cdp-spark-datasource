@@ -168,6 +168,7 @@ class RawTableRelation(
 
   override def buildScan(): RDD[Row] = buildScan(schema.fieldNames, Array.empty)
 
+  // scalastyle:off cyclomatic.complexity
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
     val filteredRequiredColumns = getJsonColumnNames(requiredColumns)
