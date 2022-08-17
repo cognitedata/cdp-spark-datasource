@@ -1,10 +1,14 @@
 package cognite.spark.v1
 
+import cats.effect.IO
+import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import org.scalatest.{Matchers, WordSpec}
-import sttp.client3.UriContext
+import sttp.client3.{SttpBackend, UriContext}
 
 class DefaultSourceTest extends WordSpec with Matchers {
+
+  implicit val backend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(3, 5)
 
   "DefaultSource" should {
     "parseAuth and fall back in order" should {
@@ -56,7 +60,8 @@ class DefaultSourceTest extends WordSpec with Matchers {
               123,
               "value-SessionKey",
               "value-Project",
-              "value-TokenFromVault"))
+              "value-TokenFromVault"),
+            None)
         )
       }
 
@@ -72,7 +77,8 @@ class DefaultSourceTest extends WordSpec with Matchers {
               123,
               "value-SessionKey",
               "value-Project",
-              "value-TokenFromVault"))
+              "value-TokenFromVault"),
+            None)
         )
       }
 
@@ -89,7 +95,8 @@ class DefaultSourceTest extends WordSpec with Matchers {
               "value-ClientSecret",
               List("value-Scopes"),
               "value-Project",
-              Some("value-Audience")))
+              Some("value-Audience")),
+            None)
         )
       }
     }

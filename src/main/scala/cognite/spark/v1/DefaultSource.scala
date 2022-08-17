@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import cats.implicits._
-import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
+import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, OidcTokenAuth, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
 import fs2.Stream
 import org.apache.spark.sql.sources._
@@ -324,7 +324,10 @@ object DefaultSource {
           .mkString(", ")}"))
   }
 
-  def parseAuth(parameters: Map[String, String]): Option[CdfSparkAuth] = {
+  def parseAuth(parameters: Map[String, String])(
+      implicit ioRuntime: IORuntime,
+      backend: SttpBackend[IO, Any]): Option[CdfSparkAuth] = {
+
     val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
     val apiKey = parameters.get("apiKey").map(apiKey => ApiKeyAuth(apiKey))
@@ -342,6 +345,7 @@ object DefaultSource {
       clientId <- parameters.get("clientId")
       clientSecret <- parameters.get("clientSecret")
       project <- parameters.get("project")
+
       clientCredentials = OAuth2.ClientCredentials(
         tokenUri,
         clientId,
@@ -349,7 +353,18 @@ object DefaultSource {
         scopes,
         project,
         audience)
-    } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
+
+      oidcToken = OAuth2
+        .ClientCredentialsProvider[IO](clientCredentials)
+        .unsafeRunSync()
+        .getAuth
+        .unsafeRunSync()
+      originalToken = oidcToken match {
+        case OidcTokenAuth(bearerToken, _) => Some(bearerToken)
+        case _ => None
+      }
+
+    } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials, originalToken)
 
     val session = for {
       sessionId <- parameters.get("sessionId").map(_.toLong)
@@ -362,7 +377,17 @@ object DefaultSource {
         sessionKey,
         cdfProjectName,
         tokenFromVault)
-    } yield CdfSparkAuth.OAuth2Sessions(session)
+      oidcToken = OAuth2
+        .SessionProvider[IO](session)
+        .unsafeRunSync()
+        .getAuth
+        .unsafeRunSync()
+      originalToken = oidcToken match {
+        case OidcTokenAuth(bearerToken, _) => Some(bearerToken)
+        case _ => None
+      }
+
+    } yield CdfSparkAuth.OAuth2Sessions(session, originalToken)
 
     authTicket
       .orElse(apiKey)
@@ -381,6 +406,10 @@ object DefaultSource {
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
 
+    import CdpConnector.ioRuntime
+    implicit val backend: SttpBackend[IO, Any] =
+      CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
+
     val auth = parseAuth(parameters) match {
       case Some(x) => x
       case None =>
@@ -388,11 +417,8 @@ object DefaultSource {
           s"Either apiKey, authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
             .mkString(", ")}")
     }
-    import CdpConnector.ioRuntime
     val projectName = parameters
-      .getOrElse(
-        "project",
-        DefaultSource.getProjectFromAuth(auth, maxRetries, maxRetryDelaySeconds, baseUrl))
+      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
@@ -456,15 +482,9 @@ object DefaultSource {
     )
   }
 
-  def getProjectFromAuth(
-      auth: CdfSparkAuth,
-      maxRetries: Int,
-      maxRetryDelaySeconds: Int,
-      baseUrl: String
-  )(implicit ioRuntime: IORuntime): String = {
-    implicit val backend: SttpBackend[IO, Any] =
-      CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
-
+  def getProjectFromAuth(auth: CdfSparkAuth, baseUrl: String)(
+      implicit ioRuntime: IORuntime,
+      backend: SttpBackend[IO, Any]): String = {
     val getProject = for {
       authProvider <- auth.provider
       client <- GenericClient
