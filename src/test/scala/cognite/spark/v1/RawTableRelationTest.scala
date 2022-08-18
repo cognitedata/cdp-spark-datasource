@@ -81,11 +81,11 @@ class RawTableRelationTest
 
   private val dataWithEmptyStringInByteField = Seq(
     RawRow("k1", Map("byte" -> Json.fromString(""))),
-    RawRow("k2", Map("byte" -> Json.fromInt(1.toByte)))
+    RawRow("k2", Map("byte" -> Json.fromInt(1.toByte.toInt)))
   )
   private val dataWithEmptyStringInShortField = Seq(
     RawRow("k1", Map("short" -> Json.fromString(""))),
-    RawRow("k2", Map("short" -> Json.fromInt(12.toShort)))
+    RawRow("k2", Map("short" -> Json.fromInt(12.toShort.toInt)))
   )
   private val dataWithEmptyStringInIntegerField = Seq(
     RawRow("k1", Map("integer" -> Json.fromString(""))),
@@ -153,8 +153,8 @@ class RawTableRelationTest
   lazy private val dfWithEmptyStringInBooleanField = rawRead("with-boolean-empty-str")
 
   it should "smoke test raw" taggedAs WriteTest in {
-    val limit = 100
-    val partitions = 10
+    val limit = 100L
+    val partitions = 10L
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -318,8 +318,8 @@ class RawTableRelationTest
     val metricsPrefix = "infer_schema_1"
     val database = "testdb"
     val table = "future-event"
-    val inferSchemaLimit = 1
-    val partitions = 10
+    val inferSchemaLimit = 1L
+    val partitions = 10L
     val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -383,7 +383,7 @@ class RawTableRelationTest
     val metricsPrefix = s"partitionSizeTest$shortRand"
     val tablename = "bigTable"
     val resourceType = s"raw.testdb.$tablename"
-    val partitions = 10
+    val partitions = 10L
 
     val df = spark.read
       .format("cognite.spark.v1")
@@ -401,7 +401,7 @@ class RawTableRelationTest
     val totalRows = spark.sqlContext
       .sql(s"select * from futureEvents$shortRand")
       .count()
-    val partitionSizes = for (partitionIndex <- 0 until partitions)
+    val partitionSizes = for (partitionIndex <- 0L until partitions)
       yield getPartitionSize(metricsPrefix, resourceType, partitionIndex)
     assert(partitionSizes.sum == totalRows)
     val expectedSize = totalRows / partitions

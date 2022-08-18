@@ -882,7 +882,12 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     try {
       // Cleanup old events
-      val dfWithUpdatesAsSource = retryWhile[Array[Row]](cleanupEvents(source), df => df.length > 0)
+      val dfWithUpdatesAsSource = retryWhile[Array[Row]]({
+        cleanupEvents(source)
+        spark
+          .sql(s"""select description from destinationEvent where source = "$source"""")
+          .collect()
+      }, df => df.length > 0)
       assert(dfWithUpdatesAsSource.length == 0)
 
       val destinationDf: DataFrame = spark.read
@@ -1320,7 +1325,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .sql(s"""select description from destinationEvent where source = "$source"""")
       .collect()
 
-  def cleanupEvents(source: String): Array[Row] = {
+  def cleanupEvents(source: String): Unit =
     spark
       .sql(s"""select * from destinationEvent where source = '$source'""")
       .write
@@ -1329,9 +1334,5 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("type", "events")
       .option("onconflict", "delete")
       .save()
-    spark
-      .sql(s"""select description from destinationEvent where source = "$source"""")
-      .collect()
-  }
 
 }
