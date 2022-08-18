@@ -192,7 +192,7 @@ trait SparkTest {
   def getNumberOfRowsUpdated(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.updated")
 
-  def getPartitionSize(metricsPrefix: String, resourceType: String, partitionIndex: Int): Long = {
+  def getPartitionSize(metricsPrefix: String, resourceType: String, partitionIndex: Long): Long = {
     val metricName = s"$metricsPrefix.$resourceType.$partitionIndex.partitionSize"
     if (MetricsSource.metricsMap.containsKey(metricName)) {
       getCounter(metricName)

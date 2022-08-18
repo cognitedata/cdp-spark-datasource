@@ -522,7 +522,7 @@ class TimeSeriesRelationTest
     val insertDescription = s"spark-insert-test-savemode-${shortRandomString()}"
     val upsertDescription = s"spark-upsert-test-savemode-${shortRandomString()}"
     val upsertUnit = s"upsert-save-${shortRandomString()}"
-    val metricsPrefix = "timeserie.upsert.save-${shortRandomString()}"
+    val metricsPrefix = s"timeserie.upsert.save-${shortRandomString()}"
 
     try {
       // Insert new time series test data

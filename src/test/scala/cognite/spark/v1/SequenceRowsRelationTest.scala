@@ -62,217 +62,221 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     )
   )
 
-  it should "create and read rows by externalId" in withSequences(Seq(sequenceA)) {
-    case Seq(sequenceId) =>
-      val nbOfRowsToTest = 50
-      spark.sparkContext
-        .parallelize(1 to nbOfRowsToTest)
-        .toDF()
-        .createOrReplaceTempView("numbers_create")
+  it should "create and read rows by externalId" in withSequences(Seq(sequenceA)) { sequenceIds =>
+    val sequenceId = sequenceIds.head
+    val numRowsToTest = 50
+    spark.sparkContext
+      .parallelize(1 to numRowsToTest)
+      .toDF()
+      .createOrReplaceTempView("numbers_create")
 
-      insertRows(
-        sequenceId,
-        spark
-          .sql(
-            s"select value as rowNumber, '$sequenceId' as externalId, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create"))
-      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
+    insertRows(
+      sequenceId,
+      spark
+        .sql(
+          s"select value as rowNumber, '$sequenceId' as externalId, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create"))
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe numRowsToTest
 
-      val allColumns = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length < nbOfRowsToTest
-      )
-      (allColumns should have).length(nbOfRowsToTest)
-      allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
-      allColumns(0).get(0) shouldBe 1L
-      allColumns(0).get(1) shouldBe 6L
-      allColumns(0).get(2) shouldBe "abc"
-      allColumns(0).get(3) shouldBe 1.1
+    val allColumns = retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_$sequenceId order by rowNumber").collect(),
+      _.length < numRowsToTest
+    )
+    (allColumns should have).length(numRowsToTest.toLong)
+    allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
+    allColumns(0).get(0) shouldBe 1L
+    allColumns(0).get(1) shouldBe 6L
+    allColumns(0).get(2) shouldBe "abc"
+    allColumns(0).get(3) shouldBe 1.1
 
-      val sparkReadResult = spark.read
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "sequencerows")
-        .option("externalId", sequenceId)
-        .option("metricsPrefix", sequenceId)
-        .option("collectMetrics", true)
-        .load()
-        .collect()
-      getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
+    val sparkReadResult = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "sequencerows")
+      .option("externalId", sequenceId)
+      .option("metricsPrefix", sequenceId)
+      .option("collectMetrics", true)
+      .load()
+      .collect()
+    getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe numRowsToTest
 
-      (sparkReadResult should contain).theSameElementsAs(allColumns)
+    (sparkReadResult should contain).theSameElementsAs(allColumns)
 
-      val rowNumberOnly = retryWhile[Array[Row]](
-        spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length < nbOfRowsToTest
-      )
-      rowNumberOnly(0).get(0) shouldBe 1L
+    val rowNumberOnly = retryWhile[Array[Row]](
+      spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length < numRowsToTest
+    )
+    rowNumberOnly(0).get(0) shouldBe 1L
 
-      val differentOrderProjection = retryWhile[Array[Row]](
-        spark
-          .sql(s"select num1, num2, rowNumber, str1 from sequencerows_${sequenceId} order by rowNumber")
-          .collect(),
-        _.length < nbOfRowsToTest
-      )
-      differentOrderProjection(0).get(2) shouldBe 1L
-      differentOrderProjection(0).get(3) shouldBe "abc"
-      differentOrderProjection(0).get(1) shouldBe 1.1
-      differentOrderProjection(0).get(0) shouldBe 6L
+    val differentOrderProjection = retryWhile[Array[Row]](
+      spark
+        .sql(s"select num1, num2, rowNumber, str1 from sequencerows_${sequenceId} order by rowNumber")
+        .collect(),
+      _.length < numRowsToTest
+    )
+    differentOrderProjection(0).get(2) shouldBe 1L
+    differentOrderProjection(0).get(3) shouldBe "abc"
+    differentOrderProjection(0).get(1) shouldBe 1.1
+    differentOrderProjection(0).get(0) shouldBe 6L
 
-      val oneColumn = retryWhile[Array[Row]](
-        spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length < nbOfRowsToTest
-      )
-      oneColumn.map(_.get(0)) shouldBe Seq.fill(nbOfRowsToTest)(1.1)
+    val oneColumn = retryWhile[Array[Row]](
+      spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length < numRowsToTest
+    )
+    oneColumn.map(_.get(0)) shouldBe Seq.fill(numRowsToTest)(1.1)
+    ()
   }
 
-  it should "create and read rows by id" in withSequencesById(Seq(sequenceA)) {
-    case Seq((id, sequenceId)) =>
-      val nbOfRowsToTest = 50
-      spark.sparkContext
-        .parallelize(1 to nbOfRowsToTest)
-        .toDF()
-        .createOrReplaceTempView("numbers_create")
+  it should "create and read rows by id" in withSequencesById(Seq(sequenceA)) { sequencesById =>
+    val (id, sequenceId) = sequencesById.head
+    val numRowsToTest = 50
+    spark.sparkContext
+      .parallelize(1 to numRowsToTest)
+      .toDF()
+      .createOrReplaceTempView("numbers_create")
 
-      insertRows(
-        sequenceId,
-        spark
-          .sql(
-            s"select value as rowNumber, $id as id, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create"))
-      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
+    insertRows(
+      sequenceId,
+      spark
+        .sql(
+          s"select value as rowNumber, $id as id, 'abc' as str1, 1.1 as num2, value * 6 as num1 from numbers_create"))
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe numRowsToTest
 
-      val allColumns = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length < nbOfRowsToTest
-      )
-      (allColumns should have).length(nbOfRowsToTest)
-      allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
-      allColumns(0).get(0) shouldBe 1L
-      allColumns(0).get(1) shouldBe 6L
-      allColumns(0).get(2) shouldBe "abc"
-      allColumns(0).get(3) shouldBe 1.1
+    val allColumns = retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length < numRowsToTest
+    )
+    (allColumns should have).length(numRowsToTest.toLong)
+    allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1", "str1", "num2")
+    allColumns(0).get(0) shouldBe 1L
+    allColumns(0).get(1) shouldBe 6L
+    allColumns(0).get(2) shouldBe "abc"
+    allColumns(0).get(3) shouldBe 1.1
 
-      val sparkReadResult = spark.read
-        .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
-        .option("type", "sequencerows")
-        .option("externalId", sequenceId)
-        .option("metricsPrefix", sequenceId)
-        .option("collectMetrics", true)
-        .load()
-        .collect()
-      getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe nbOfRowsToTest
+    val sparkReadResult = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "sequencerows")
+      .option("externalId", sequenceId)
+      .option("metricsPrefix", sequenceId)
+      .option("collectMetrics", true)
+      .load()
+      .collect()
+    getNumberOfRowsRead(sequenceId, "sequencerows") shouldBe numRowsToTest
 
-      (sparkReadResult should contain).theSameElementsAs(allColumns)
+    (sparkReadResult should contain).theSameElementsAs(allColumns)
 
-      val rowNumberOnly = retryWhile[Array[Row]](
-        spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length < nbOfRowsToTest
-      )
-      rowNumberOnly(0).get(0) shouldBe 1L
+    val rowNumberOnly = retryWhile[Array[Row]](
+      spark.sql(s"select rowNumber from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length < numRowsToTest
+    )
+    rowNumberOnly(0).get(0) shouldBe 1L
 
-      val differentOrderProjection = retryWhile[Array[Row]](
-        spark
-          .sql(s"select num1, num2, rowNumber, str1 from sequencerows_${sequenceId} order by rowNumber")
-          .collect(),
-        _.length < nbOfRowsToTest
-      )
-      differentOrderProjection(0).get(2) shouldBe 1L
-      differentOrderProjection(0).get(3) shouldBe "abc"
-      differentOrderProjection(0).get(1) shouldBe 1.1
-      differentOrderProjection(0).get(0) shouldBe 6L
+    val differentOrderProjection = retryWhile[Array[Row]](
+      spark
+        .sql(s"select num1, num2, rowNumber, str1 from sequencerows_${sequenceId} order by rowNumber")
+        .collect(),
+      _.length < numRowsToTest
+    )
+    differentOrderProjection(0).get(2) shouldBe 1L
+    differentOrderProjection(0).get(3) shouldBe "abc"
+    differentOrderProjection(0).get(1) shouldBe 1.1
+    differentOrderProjection(0).get(0) shouldBe 6L
 
-      val oneColumn = retryWhile[Array[Row]](
-        spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length < nbOfRowsToTest
-      )
-      oneColumn.map(_.get(0)) shouldBe Seq.fill(nbOfRowsToTest)(1.1)
+    val oneColumn = retryWhile[Array[Row]](
+      spark.sql(s"select num2 from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length < numRowsToTest
+    )
+    oneColumn.map(_.get(0)) shouldBe Seq.fill(numRowsToTest)(1.1)
+    ()
   }
 
-  it should "insert NULL values" in withSequences(Seq(sequenceA)) {
-    case Seq(sequenceId) =>
-      // num1, str1, num2
-      insertRows(
-        sequenceId,
-        spark
-          .sql(s"select 1 as rowNumber, '$sequenceId' as externalId, 1 as num1"))
+  it should "insert NULL values" in withSequences(Seq(sequenceA)) { sequenceIds =>
+    val sequenceId = sequenceIds.head
+    // num1, str1, num2
+    insertRows(
+      sequenceId,
+      spark
+        .sql(s"select 1 as rowNumber, '$sequenceId' as externalId, 1 as num1"))
 
-      insertRows(
-        sequenceId,
-        spark
-          .sql(
-            s"select 2 as rowNumber, '$sequenceId' as externalId, NULL as num1, 'abc' as str1, 1 as num2"))
+    insertRows(
+      sequenceId,
+      spark
+        .sql(
+          s"select 2 as rowNumber, '$sequenceId' as externalId, NULL as num1, 'abc' as str1, 1 as num2"))
 
-      insertRows(
-        sequenceId,
-        spark
-          .sql(
-            s"select 3 as rowNumber, '$sequenceId' as externalId, 2 as num1, NULL as str1, NULL as num2"))
-      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 3
+    insertRows(
+      sequenceId,
+      spark
+        .sql(
+          s"select 3 as rowNumber, '$sequenceId' as externalId, 2 as num1, NULL as str1, NULL as num2"))
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 3
 
-      val rows = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length != 3
-      )
-      rows.map(_.getAs[Long]("rowNumber")) shouldBe Array(1, 2, 3)
-      rows.map(_.getAs[Any]("num1")) shouldBe Array[Any](1L, null, 2L)
-      rows.map(_.getAs[String]("str1")) shouldBe Array(null, "abc", null)
-      rows.map(_.getAs[Any]("num2")) shouldBe Array[Any](null, 1.0, null)
+    val rows = retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length != 3
+    )
+    rows.map(_.getAs[Long]("rowNumber")) shouldBe Array(1, 2, 3)
+    rows.map(_.getAs[Any]("num1")) shouldBe Array[Any](1L, null, 2L)
+    rows.map(_.getAs[String]("str1")) shouldBe Array(null, "abc", null)
+    rows.map(_.getAs[Any]("num2")) shouldBe Array[Any](null, 1.0, null)
+    ()
   }
 
-  it should "insert and update rows" in withSequences(Seq(sequenceA)) {
-    case Seq(sequenceId) =>
-      // num1, str1, num2
-      insertRows(
-        sequenceId,
-        spark
-          .sql(
-            s"select 1 as rowNumber, '$sequenceId' as externalId, 1 as num1, 1.0 as num2, 'a' as str1"))
+  it should "insert and update rows" in withSequences(Seq(sequenceA)) { sequenceIds =>
+    val sequenceId = sequenceIds.head
+    // num1, str1, num2
+    insertRows(
+      sequenceId,
+      spark
+        .sql(s"select 1 as rowNumber, '$sequenceId' as externalId, 1 as num1, 1.0 as num2, 'a' as str1"))
 
-      retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
-        rows => rows.length != 1
-      )
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
+      rows => rows.length != 1
+    )
 
-      insertRows(
-        sequenceId,
-        spark
-          .sql(s"select 1 as rowNumber, '$sequenceId' as externalId, 2 as num1"))
+    insertRows(
+      sequenceId,
+      spark
+        .sql(s"select 1 as rowNumber, '$sequenceId' as externalId, 2 as num1"))
 
-      val rows = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
-        rows =>
-          rows.length != 1 || rows(0).getAs[Long]("num1") != 2 || rows(0).getAs[Double]("num2") < 1.0
-      )
-      rows(0).getAs[Long]("num1") shouldBe 2 // the updated value
-      rows(0).getAs[Long]("str1") shouldBe "a" // an old value is not replaced
-      rows(0).getAs[Double]("num2") shouldBe 1.0
+    val rows = retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
+      rows => rows.length != 1 || rows(0).getAs[Long]("num1") != 2 || rows(0).getAs[Double]("num2") < 1.0
+    )
+    rows(0).getAs[Long]("num1") shouldBe 2 // the updated value
+    rows(0).getAs[Long]("str1") shouldBe "a" // an old value is not replaced
+    rows(0).getAs[Double]("num2") shouldBe 1.0
+    ()
   }
 
-  it should "create and read many rows" in withSequences(Seq(sequenceB)) {
-    case Seq(sequenceId) =>
-      // exceed the page size
-      val testSize = 20 * 1000
-      spark.sparkContext
-        .parallelize(1 to testSize)
-        .toDF()
-        .createOrReplaceTempView("numbers_many")
-      insertRows(
-        sequenceId,
-        spark
-          .sql(
-            s"select value as rowNumber, '$sequenceId' as externalId, value * 6 as num1 from numbers_many"))
-      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe testSize
+  it should "create and read many rows" in withSequences(Seq(sequenceB)) { sequenceIds =>
+    val sequenceId = sequenceIds.head
+    // exceed the page size
+    val testSize = 20 * 1000
+    spark.sparkContext
+      .parallelize(1 to testSize)
+      .toDF()
+      .createOrReplaceTempView("numbers_many")
+    insertRows(
+      sequenceId,
+      spark
+        .sql(
+          s"select value as rowNumber, '$sequenceId' as externalId, value * 6 as num1 from numbers_many"))
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe testSize
 
-      val allColumns = retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length != testSize
-      )
-      allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1")
-      allColumns.map(_.getAs[Long]("num1")) shouldBe (1 to testSize).map(_ * 6)
+    val allColumns = retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length != testSize
+    )
+    allColumns(0).schema.fieldNames shouldBe Array("rowNumber", "num1")
+    allColumns.map(_.getAs[Long]("num1")) shouldBe (1 to testSize).map(_ * 6)
+    ()
   }
 
   it should "create rows for multiple sequences" in withSequences(Seq(sequenceA, sequenceATwo)) {
-    case Seq(sequenceAId, sequenceATwoId) =>
+    sequenceIds =>
+      val Seq(sequenceAId, sequenceATwoId) = sequenceIds
       val testSize = 100
       spark.sparkContext
         .parallelize(1 to testSize)
@@ -303,41 +307,43 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
       AColumns.map(_.getAs[Long]("num1")) shouldBe (1 to testSize).map(_ * 6)
       ATwoColumns.map(_.getAs[Long]("num1")) shouldBe (1 to testSize).map(_ * 4)
+      ()
   }
 
-  it should "create and delete rows" in withSequences(Seq(sequenceB)) {
-    case Seq(sequenceId) =>
-      spark.sparkContext
-        .parallelize(1 to 100)
-        .toDF()
-        .createOrReplaceTempView("numbers_delete")
-      insertRows(
-        sequenceId,
-        spark
-          .sql(
-            s"select value as rowNumber, '$sequenceId' as externalId, value * 6 as num1 from numbers_delete"))
+  it should "create and delete rows" in withSequences(Seq(sequenceB)) { sequenceIds =>
+    val sequenceId = sequenceIds.head
+    spark.sparkContext
+      .parallelize(1 to 100)
+      .toDF()
+      .createOrReplaceTempView("numbers_delete")
+    insertRows(
+      sequenceId,
+      spark
+        .sql(
+          s"select value as rowNumber, '$sequenceId' as externalId, value * 6 as num1 from numbers_delete"))
 
-      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
-      retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length != 100
-      )
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length != 100
+    )
 
-      // delete every second row
-      insertRows(
-        sequenceId,
-        spark
-          .sql("select value * 2 as rowNumber from numbers_delete"),
-        "delete")
+    // delete every second row
+    insertRows(
+      sequenceId,
+      spark
+        .sql("select value * 2 as rowNumber from numbers_delete"),
+      "delete")
 
-      // we count even the items that are not deleted
-      getNumberOfRowsDeleted(sequenceId, "sequencerows") shouldBe 100
+    // we count even the items that are not deleted
+    getNumberOfRowsDeleted(sequenceId, "sequencerows") shouldBe 100
 
-      retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length != 50
-      )
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length != 50
+    )
+    ()
   }
 
   private def testPushdown(sequenceId: String, query: String, shouldBeExact: Boolean = false) = {
@@ -358,59 +364,60 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     (sparkReadResult, getNumberOfRowsRead(prefix, "sequencerows"))
   }
 
-  it should "support filter pushdown on rowNumber" in withSequences(Seq(sequenceB)) {
-    case Seq(sequenceId) =>
-      spark.sparkContext
-        .parallelize(1 to 100)
-        .toDF()
-        .createOrReplaceTempView("numbers_pushdown")
-      insertRows(
-        sequenceId,
-        spark
-          .sql(
-            s"select value as rowNumber, '$sequenceId' as externalId, value * 6 as num1 from numbers_pushdown"))
-      getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
+  it should "support filter pushdown on rowNumber" in withSequences(Seq(sequenceB)) { sequenceIds =>
+    val sequenceId = sequenceIds.head
+    spark.sparkContext
+      .parallelize(1 to 100)
+      .toDF()
+      .createOrReplaceTempView("numbers_pushdown")
+    insertRows(
+      sequenceId,
+      spark
+        .sql(
+          s"select value as rowNumber, '$sequenceId' as externalId, value * 6 as num1 from numbers_pushdown"))
+    getNumberOfRowsCreated(sequenceId, "sequencerows") shouldBe 100
 
-      retryWhile[Array[Row]](
-        spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
-        _.length != 100
-      )
+    retryWhile[Array[Row]](
+      spark.sql(s"select * from sequencerows_${sequenceId} order by rowNumber").collect(),
+      _.length != 100
+    )
 
-      testPushdown(sequenceId, "rowNumber = 1", shouldBeExact = true)._2 shouldBe 1
-      testPushdown(sequenceId, "rowNumber in (1, 2, 3, 4, 5, 6, 7, 8)", shouldBeExact = true)._2 shouldBe 8
-      testPushdown(sequenceId, "rowNumber not in (1, 2, 3, 4, 5, 6, 7, 8)", shouldBeExact = true)._2 shouldBe 92
-      testPushdown(sequenceId, "rowNumber < 50", shouldBeExact = true)._2 shouldBe 49
-      testPushdown(sequenceId, "rowNumber <= 50 and rowNumber not in (30, 80)", shouldBeExact = true)._2 shouldBe 49
-      testPushdown(
-        sequenceId,
-        "(rowNumber >= 50 and rowNumber != 80) or rowNumber = 2",
-        shouldBeExact = true)._2 shouldBe 51
-      testPushdown(
-        sequenceId,
-        "(rowNumber >= 50 and rowNumber != 80 and rowNumber > 50) or rowNumber = 2",
-        shouldBeExact = true)._2 shouldBe 50
-      testPushdown(
-        sequenceId,
-        "(rowNumber >= 50 and rowNumber < 60) or (rowNumber >= 70 and rowNumber < 80) or (rowNumber >= 10 and rowNumber < 20)",
-        shouldBeExact = true)._2 shouldBe 30
-      testPushdown(sequenceId, "rowNumber in (2, NULL, 1)", shouldBeExact = true)._2 shouldBe 2
-      val (readResult, numberRead) = testPushdown(sequenceId, "rowNumber <= 50 and num1 <= 60")
-      numberRead shouldBe 50
-      readResult.length shouldBe 10
-      // should not read more rows, even though the disjunction would suggest that
-      testPushdown(sequenceId, "rowNumber <= 50 or rowNumber >= 30", shouldBeExact = true)._2 shouldBe 100
-      testPushdown(
-        sequenceId,
-        "(rowNumber < 50 and rowNumber >= 30) or (rowNumber >= 40 and rowNumber < 60)",
-        shouldBeExact = true)._2 shouldBe 30
-      testPushdown(
-        sequenceId,
-        "(rowNumber < 50 and rowNumber >= 30 and num1 > 0) or (rowNumber >= 40 and rowNumber < 60 and num1 < 3000)",
-        shouldBeExact = true)._2 shouldBe 30
-      val (readResult2, numberRead2) =
-        testPushdown(sequenceId, "rowNumber <= 50 and (rowNumber >= 30 or num1 <= 30)")
-      numberRead2 shouldBe 50
-      readResult2.length shouldBe 26
+    testPushdown(sequenceId, "rowNumber = 1", shouldBeExact = true)._2 shouldBe 1
+    testPushdown(sequenceId, "rowNumber in (1, 2, 3, 4, 5, 6, 7, 8)", shouldBeExact = true)._2 shouldBe 8
+    testPushdown(sequenceId, "rowNumber not in (1, 2, 3, 4, 5, 6, 7, 8)", shouldBeExact = true)._2 shouldBe 92
+    testPushdown(sequenceId, "rowNumber < 50", shouldBeExact = true)._2 shouldBe 49
+    testPushdown(sequenceId, "rowNumber <= 50 and rowNumber not in (30, 80)", shouldBeExact = true)._2 shouldBe 49
+    testPushdown(
+      sequenceId,
+      "(rowNumber >= 50 and rowNumber != 80) or rowNumber = 2",
+      shouldBeExact = true)._2 shouldBe 51
+    testPushdown(
+      sequenceId,
+      "(rowNumber >= 50 and rowNumber != 80 and rowNumber > 50) or rowNumber = 2",
+      shouldBeExact = true)._2 shouldBe 50
+    testPushdown(
+      sequenceId,
+      "(rowNumber >= 50 and rowNumber < 60) or (rowNumber >= 70 and rowNumber < 80) or (rowNumber >= 10 and rowNumber < 20)",
+      shouldBeExact = true)._2 shouldBe 30
+    testPushdown(sequenceId, "rowNumber in (2, NULL, 1)", shouldBeExact = true)._2 shouldBe 2
+    val (readResult, numberRead) = testPushdown(sequenceId, "rowNumber <= 50 and num1 <= 60")
+    numberRead shouldBe 50
+    readResult.length shouldBe 10
+    // should not read more rows, even though the disjunction would suggest that
+    testPushdown(sequenceId, "rowNumber <= 50 or rowNumber >= 30", shouldBeExact = true)._2 shouldBe 100
+    testPushdown(
+      sequenceId,
+      "(rowNumber < 50 and rowNumber >= 30) or (rowNumber >= 40 and rowNumber < 60)",
+      shouldBeExact = true)._2 shouldBe 30
+    testPushdown(
+      sequenceId,
+      "(rowNumber < 50 and rowNumber >= 30 and num1 > 0) or (rowNumber >= 40 and rowNumber < 60 and num1 < 3000)",
+      shouldBeExact = true)._2 shouldBe 30
+    val (readResult2, numberRead2) =
+      testPushdown(sequenceId, "rowNumber <= 50 and (rowNumber >= 30 or num1 <= 30)")
+    numberRead2 shouldBe 50
+    readResult2.length shouldBe 26
+    ()
   }
 
   // ----------
