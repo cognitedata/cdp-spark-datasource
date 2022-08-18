@@ -23,14 +23,14 @@ class MetricsSource {
   }
 
   /**
-    * Register a [[Metric]] with Spark's [[org.apache.spark.metrics.MetricsSystem]].
+    * Register a metric with Spark's org.apache.spark.metrics.MetricsSystem.
     *
-    * Since updates to an external [[MetricRegistry]] that is already registered with the
-    * [[org.apache.spark.metrics.MetricsSystem]] aren't propagated to Spark's internal [[MetricRegistry]] instance, a new
-    * [[MetricRegistry]] must be created for each new [[Metric]] that needs to be published.
+    * Since updates to an external MetricRegistry that is already registered with the
+    * org.apache.spark.metrics.MetricsSystem aren't propagated to Spark's internal MetricRegistry instance,
+    * a new MetricRegistry must be created for each new Metric that needs to be published.
     *
     * @param metricName name of the Metric
-    * @param metric [[Metric]] instance to be published
+    * @param metric com.codahale.metrics.Metric instance to be published
     */
   def registerMetricSource(metricNamespace: String, metricName: String, metric: Metric): Unit = {
     val env = SparkEnv.get
