@@ -18,16 +18,14 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val errorMessage = "Some exception"
 
     val getStreams = (_: GenericClient[IO], _: Option[Int], _: Int) =>
-      Seq(Stream.eval(IO {
-        throw com.cognite.sdk.scala.common.CdpApiException(
-          uri"https://api.cognitedata.com/v1/",
-          400,
-          errorMessage,
-          None,
-          None,
-          None,
-          None)
-      }))
+      Seq(Stream.eval(IO.raiseError(com.cognite.sdk.scala.common.CdpApiException(
+        uri"https://api.cognitedata.com/v1/",
+        400,
+        errorMessage,
+        None,
+        None,
+        None,
+        None))))
 
     val toRow = (_: String, _: Option[Int]) => Row.empty
     val uniqueId = (_: String) => "1"
@@ -41,7 +39,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         getStreams)
 
     val e = intercept[CdpApiException] {
-      sdkRdd.compute(CdfPartition(0), TaskContext.get())
+      sdkRdd.compute(CdfPartition(0), TaskContext.get()).size
     }
     assert(e.message == errorMessage)
     assert(e.code == 400)
