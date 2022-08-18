@@ -12,6 +12,8 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+import scala.annotation.nowarn
+
 case class SequenceRowWithId(id: CogniteId, sequenceRow: SequenceRow)
 
 class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)
@@ -70,7 +72,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   def getStreams(filters: Seq[SequenceRowFilter], expectedColumns: Array[String])(
       client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ProjectedSequenceRow]] =
+      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedSequenceRow]] =
     filters.toVector.map { filter =>
       val requestedColumns =
         if (expectedColumns.isEmpty) {
@@ -158,7 +160,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     def parseRow(row: Row): SequenceRowWithId = {
       val rowNumber = row.get(rowNumberIndex) match {
         case x: Long => x
-        case x: Int => x: Long
+        case x: Int => x.toLong
         case _ => throw SparkSchemaHelperRuntime.badRowError(row, "rowNumber", "Long", "")
       }
 
@@ -280,12 +282,12 @@ object SequenceRowsRelation {
     filter match {
       case EqualTo("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(parseValue(value), parseValue(value, +1)))
-      case EqualTo("rowNumber", value: Any) =>
+      case EqualTo("rowNumber", _: Any) =>
         // TODO: Throw error
         Seq(SequenceRowFilter())
       case EqualNullSafe("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(parseValue(value), parseValue(value, +1)))
-      case EqualNullSafe("rowNumber", value: Any) =>
+      case EqualNullSafe("rowNumber", _: Any) =>
         // TODO: Throw error
         Seq(SequenceRowFilter())
       case In("rowNumber", values) =>
@@ -295,22 +297,22 @@ object SequenceRowsRelation {
           .collect { case value: Long => SequenceRowFilter(parseValue(value), parseValue(value, +1)) }
           .toIndexedSeq
       case LessThan("rowNumber", value: Long) => Seq(SequenceRowFilter(exclusiveEnd = parseValue(value)))
-      case LessThan("rowNumber", value: Any) =>
+      case LessThan("rowNumber", _: Any) =>
         // TODO: Throw error
         Seq(SequenceRowFilter())
       case LessThanOrEqual("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(exclusiveEnd = parseValue(value, +1)))
-      case LessThanOrEqual("rowNumber", value: Any) =>
+      case LessThanOrEqual("rowNumber", _: Any) =>
         // TODO: Throw error
         Seq(SequenceRowFilter())
       case GreaterThan("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(inclusiveStart = parseValue(value, +1)))
-      case GreaterThan("rowNumber", value: Any) =>
+      case GreaterThan("rowNumber", _: Any) =>
         // TODO: Throw error
         Seq(SequenceRowFilter())
       case GreaterThanOrEqual("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(inclusiveStart = parseValue(value)))
-      case GreaterThanOrEqual("rowNumber", value: Any) =>
+      case GreaterThanOrEqual("rowNumber", _: Any) =>
         // TODO: Throw error
         Seq(SequenceRowFilter())
       case And(f1, f2) => filterIntersection(getSeqFilter(f1), getSeqFilter(f2))
@@ -330,11 +332,12 @@ object SequenceRowsRelation {
       .sortBy(_.value)
     val plusInfCount = f.count(_.exclusiveEnd.isEmpty)
     val minusInfCount = f.count(_.inclusiveStart.isEmpty)
+    // TODO: plusInfCount is never used, should it be?
     (minusInfCount, plusInfCount, borders)
   }
 
   private def toSegments(f: Vector[SequenceRowFilter]) = {
-    val (minusInfCount, plusInfCount, borders) = toBorders(f)
+    val (minusInfCount, _, borders) = toBorders(f)
     // count number of overlapping intervals in each segment
     val segmentCounts = borders.iterator.scanLeft[Int](minusInfCount)((count, border) => {
       if (border.start) {

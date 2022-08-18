@@ -32,7 +32,7 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
   def incMetrics(counter: Counter, count: Int): IO[Unit] =
     IO(
       if (config.collectMetrics) {
-        counter.inc(count)
+        counter.inc(count.toLong)
       }
     )
 
@@ -47,7 +47,7 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
       }
     }
 
-  implicit def fieldToSetter[T: Manifest]: Transformer[OptionalField[T], Option[Setter[T]]] =
+  implicit def fieldToSetter[T]: Transformer[OptionalField[T], Option[Setter[T]]] =
     new Transformer[OptionalField[T], Option[Setter[T]]] {
       override def transform(src: OptionalField[T]): Option[Setter[T]] = src match {
         case FieldSpecified(null) => // scalastyle:ignore null

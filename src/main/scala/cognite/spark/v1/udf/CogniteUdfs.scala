@@ -48,6 +48,7 @@ class CogniteUdfs(sparkSession: SparkSession) {
           baseUrl
         ).unsafeRunSync()
     )
+    ()
   }
 }
 
