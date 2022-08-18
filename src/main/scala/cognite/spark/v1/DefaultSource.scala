@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import cats.implicits._
-import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, OidcTokenAuth, TicketAuth}
+import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
 import fs2.Stream
 import org.apache.spark.sql.sources._
@@ -354,17 +354,7 @@ object DefaultSource {
         project,
         audience)
 
-      oidcToken = OAuth2
-        .ClientCredentialsProvider[IO](clientCredentials)
-        .unsafeRunSync()
-        .getAuth
-        .unsafeRunSync()
-      originalToken = oidcToken match {
-        case OidcTokenAuth(bearerToken, _) => Some(bearerToken)
-        case _ => None
-      }
-
-    } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials, originalToken)
+    } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 
     val session = for {
       sessionId <- parameters.get("sessionId").map(_.toLong)
@@ -377,17 +367,7 @@ object DefaultSource {
         sessionKey,
         cdfProjectName,
         tokenFromVault)
-      oidcToken = OAuth2
-        .SessionProvider[IO](session)
-        .unsafeRunSync()
-        .getAuth
-        .unsafeRunSync()
-      originalToken = oidcToken match {
-        case OidcTokenAuth(bearerToken, _) => Some(bearerToken)
-        case _ => None
-      }
-
-    } yield CdfSparkAuth.OAuth2Sessions(session, originalToken)
+    } yield CdfSparkAuth.OAuth2Sessions(session)
 
     authTicket
       .orElse(apiKey)

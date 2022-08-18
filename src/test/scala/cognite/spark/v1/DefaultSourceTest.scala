@@ -60,8 +60,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
               123,
               "value-SessionKey",
               "value-Project",
-              "value-TokenFromVault"),
-            None)
+              "value-TokenFromVault"))
         )
       }
 
@@ -77,8 +76,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
               123,
               "value-SessionKey",
               "value-Project",
-              "value-TokenFromVault"),
-            None)
+              "value-TokenFromVault"))
         )
       }
 
@@ -95,8 +93,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
               "value-ClientSecret",
               List("value-Scopes"),
               "value-Project",
-              Some("value-Audience")),
-            None)
+              Some("value-Audience")))
         )
       }
     }
