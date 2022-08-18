@@ -2,14 +2,12 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities.{
-  filtersToTimestampLimits,
   getIdFromMap,
   pushdownToParameters,
   toPushdownFilterExpression
 }
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.StringDataPoint
-import com.cognite.sdk.scala.v1.CogniteId
 import fs2.Stream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -75,22 +73,9 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
       .drain
   }
 
-  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    StringDataPointsRdd(
-      sqlContext.sparkContext,
-      config,
-      getIOs(filters),
-      (item: StringDataPointsItem) => {
-        if (config.collectMetrics) {
-          itemsRead.inc()
-        }
-        toRow(requiredColumns)(item)
-      })
-
-  def getIOs(filters: Array[Filter]): Seq[(CogniteId, IO[Seq[StringDataPoint]])] = {
+  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-
     val ids = filtersAsMaps.flatMap(getIdFromMap).distinct
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
@@ -98,37 +83,13 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
       throw new CdfSparkIllegalArgumentException(
         "Please filter by one or more ids or externalIds when reading string data points.")
     }
-
-    val (lowerTimeLimit, upperTimeLimit) = filtersToTimestampLimits(filters, "timestamp")
-
-    ids.zip(ids.map { id =>
-      DataPointsRelationV1
-        .getAllDataPoints[StringDataPoint](
-          queryStrings,
-          config.batchSize.getOrElse(Constants.DefaultDataPointsLimit),
-          id,
-          lowerTimeLimit,
-          upperTimeLimit.plusMillis(1),
-          config.limitPerPartition)
-        .stream
-        .compile
-        .to(Seq)
+    StringDataPointsRdd(sqlContext.sparkContext, config, filters, ids, (item: StringDataPointsItem) => {
+      if (config.collectMetrics) {
+        itemsRead.inc()
+      }
+      toRow(requiredColumns)(item)
     })
   }
-
-  private def queryStrings(id: CogniteId, lowerLimit: Instant, upperLimit: Instant, limit: Int) =
-    client.dataPoints
-      .queryStrings(Seq(id), lowerLimit, upperLimit, Some(limit), ignoreUnknownIds = true)
-      .map { response =>
-        val dataPoints = response.headOption
-          .map { ts =>
-            WrongDatapointTypeException.check(ts.isString, ts.id, ts.externalId, shouldBeString = true)
-            ts.datapoints
-          }
-          .getOrElse(Seq.empty)
-        val lastTimestamp = dataPoints.lastOption.map(_.timestamp)
-        (lastTimestamp, dataPoints)
-      }
 
   override def toRow(requiredColumns: Array[String])(item: StringDataPointsItem): Row = {
     val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
