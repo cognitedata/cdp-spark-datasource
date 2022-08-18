@@ -9,7 +9,7 @@ import cognite.spark.v1.PushdownUtilities.{
 }
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.StringDataPoint
-import com.cognite.sdk.scala.v1.{CogniteId, GenericClient}
+import com.cognite.sdk.scala.v1.CogniteId
 import fs2.Stream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -87,8 +87,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
         toRow(requiredColumns)(item)
       })
 
-  def getIOs(filters: Array[Filter])(
-      client: GenericClient[IO]): Seq[(CogniteId, IO[Seq[StringDataPoint]])] = {
+  def getIOs(filters: Array[Filter]): Seq[(CogniteId, IO[Seq[StringDataPoint]])] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
 

@@ -10,7 +10,7 @@ import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskCon
 final case class StringDataPointsRdd(
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
-    getIOs: GenericClient[IO] => Seq[(CogniteId, IO[Seq[StringDataPoint]])],
+    ios: Seq[(CogniteId, IO[Seq[StringDataPoint]])],
     toRow: StringDataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
   import CdpConnector.ioRuntime
@@ -18,13 +18,13 @@ final case class StringDataPointsRdd(
     CdpConnector.clientFromConfig(config)
 
   override def getPartitions: Array[Partition] = {
-    val numberofIOs = getIOs(client).length
-    0.until(numberofIOs).toArray.map(CdfPartition)
+    val numberOfIOs = ios.length
+    0.until(numberOfIOs).toArray.map(CdfPartition)
   }
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val split = _split.asInstanceOf[CdfPartition] // scalafix:ok
-    val (id, io) = getIOs(client)(split.index)
+    val (id, io) = ios(split.index)
 
     new InterruptibleIterator(
       context,

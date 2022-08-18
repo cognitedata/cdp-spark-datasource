@@ -26,12 +26,12 @@ final case class RelationConfig(
     collectTestMetrics: Boolean,
     metricsPrefix: String,
     baseUrl: String,
-    onConflict: OnConflict.Value,
+    onConflict: OnConflictOption,
     applicationId: String,
     parallelismPerPartition: Int,
     ignoreUnknownIds: Boolean,
     deleteMissingAssets: Boolean,
-    subtrees: AssetSubtreeOption.AssetSubtreeOption,
+    subtrees: AssetSubtreeOption,
     ignoreNullFields: Boolean,
     rawEnsureParent: Boolean
 ) {
@@ -40,18 +40,35 @@ final case class RelationConfig(
   def sparkPartitions: Int = Math.max(1, partitions / parallelismPerPartition)
 }
 
-object OnConflict extends Enumeration {
-  type Mode = Value
-  val Abort, Update, Upsert, Delete = Value
+sealed trait OnConflictOption
+object OnConflictOption {
+  object Abort extends OnConflictOption
+  object Update extends OnConflictOption
+  object Upsert extends OnConflictOption
+  object Delete extends OnConflictOption
+  val fromString: Map[String, OnConflictOption] = Map(
+    "abort" -> Abort,
+    "update" -> Update,
+    "upsert" -> Upsert,
+    "delete" -> Delete
+  )
 
-  def withNameOpt(s: String): Option[Value] = values.find(_.toString.toLowerCase == s.toLowerCase())
+  def withNameOpt(s: String): Option[OnConflictOption] =
+    fromString.get(s.toLowerCase)
 }
 
-object AssetSubtreeOption extends Enumeration {
-  type AssetSubtreeOption = Value
-  val Ingest, Ignore, Error = Value
-
-  def withNameOpt(s: String): Option[Value] = values.find(_.toString.toLowerCase == s.toLowerCase)
+sealed trait AssetSubtreeOption
+object AssetSubtreeOption {
+  object Ingest extends AssetSubtreeOption
+  object Ignore extends AssetSubtreeOption
+  object Error extends AssetSubtreeOption
+  val fromString: Map[String, AssetSubtreeOption] = Map(
+    "ingest" -> Ingest,
+    "ignore" -> Ignore,
+    "error" -> Error
+  )
+  def withNameOpt(s: String): Option[AssetSubtreeOption] =
+    fromString.get(s.toLowerCase)
 }
 
 class DefaultSource
@@ -74,7 +91,7 @@ class DefaultSource
     val sequenceId =
       parameters
         .get("id")
-        .map(id => CogniteInternalId(id.toInt))
+        .map(id => CogniteInternalId(id.toLong))
         .orElse(
           parameters.get("externalId").map(CogniteExternalId(_))
         )
@@ -190,7 +207,7 @@ class DefaultSource
     if (resourceType == "assethierarchy") {
       val relation = new AssetHierarchyBuilder(config)(sqlContext)
       config.onConflict match {
-        case OnConflict.Delete =>
+        case OnConflictOption.Delete =>
           relation.delete(data)
         case _ =>
           relation.buildFromDf(data)
@@ -203,7 +220,7 @@ class DefaultSource
         case "stringdatapoints" =>
           new StringDataPointsRelationV1(config)(sqlContext)
       }
-      if (config.onConflict == OnConflict.Delete) {
+      if (config.onConflict == OnConflictOption.Delete) {
         // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
         val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
         data.foreachPartition((rows: Iterator[Row]) => {
@@ -265,13 +282,13 @@ class DefaultSource
         val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
         val operation = config.onConflict match {
-          case OnConflict.Abort =>
+          case OnConflictOption.Abort =>
             relation.insert(_)
-          case OnConflict.Upsert =>
+          case OnConflictOption.Upsert =>
             relation.upsert(_)
-          case OnConflict.Update =>
+          case OnConflictOption.Update =>
             relation.update(_)
-          case OnConflict.Delete =>
+          case OnConflictOption.Delete =>
             relation.delete(_)
         }
 
@@ -301,7 +318,7 @@ object DefaultSource {
         } else if (string.equalsIgnoreCase("false")) {
           false
         } else {
-          sys.error("$parameterName must be 'true' or 'false'")
+          sys.error(s"$parameterName must be 'true' or 'false'")
         }
       case None => defaultValue
     }
@@ -317,11 +334,11 @@ object DefaultSource {
 
   private def parseSaveMode(parameters: Map[String, String]) = {
     val onConflictName = parameters.getOrElse("onconflict", "ABORT")
-    OnConflict
+    val validOptions = OnConflictOption.fromString.values.mkString(", ")
+    OnConflictOption
       .withNameOpt(onConflictName.toUpperCase())
       .getOrElse(throw new CdfSparkIllegalArgumentException(
-        s"$onConflictName is not a valid onConflict option. Please choose one of the following options instead: ${OnConflict.values
-          .mkString(", ")}"))
+        s"`$onConflictName` not a valid subtrees option. Valid options are: $validOptions"))
   }
 
   def parseAuth(parameters: Map[String, String]): Option[CdfSparkAuth] = {
@@ -413,12 +430,13 @@ object DefaultSource {
     val subtreesOption =
       (parameters.get("ignoreDisconnectedAssets"), parameters.get("subtrees")) match {
         case (None, None) => AssetSubtreeOption.Ingest
-        case (None, Some(x)) =>
+        case (None, Some(subtreeParameter)) =>
+          val validOptions = AssetSubtreeOption.fromString.values.mkString(", ")
           AssetSubtreeOption
-            .withNameOpt(x)
+            .withNameOpt(subtreeParameter)
             .getOrElse(
               throw new CdfSparkIllegalArgumentException(
-                s"`$x` is an invalid value for option subtree. You can use ingest, ignore or value."))
+                s"`$subtreeParameter` not a valid subtrees option. Valid options are: $validOptions"))
         case (Some(_), None) =>
           if (toBoolean(parameters, "ignoreDisconnectedAssets")) {
             AssetSubtreeOption.Ignore

@@ -111,7 +111,7 @@ object Granularity {
           case Some(unit) => (unit, false)
           case None => (longStringToUnit(unitString), true)
         }
-        Granularity(Option(amount).map(_.toInt), unit, isLongFormat)
+        Granularity(Option(amount).map(_.toLong), unit, isLongFormat)
       }
       .recoverWith {
         case _: RuntimeException =>
@@ -214,7 +214,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
       granularities,
       (i: Int) => {
         if (config.collectMetrics) {
-          itemsRead.inc(i)
+          itemsRead.inc(i.toLong)
         }
       },
       requiredColumns.map(namesToFields)

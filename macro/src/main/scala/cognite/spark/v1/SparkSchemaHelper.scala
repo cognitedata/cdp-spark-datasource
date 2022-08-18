@@ -1,6 +1,5 @@
 package cognite.spark.v1
 
-import scala.language.experimental.macros
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 import com.cognite.sdk.scala.common.{NonNullableSetter, Setter}
@@ -117,7 +116,7 @@ class SparkSchemaHelperImpl(val c: Context) {
           } else if (t == typeOf[Long]) {
             q"""($value match {
              case x: Long => x
-             case x: Int => x: Long
+             case x: Int => x.toLong
              case _ => $throwError
            })"""
           } else if (t == typeOf[java.time.Instant]) {

@@ -157,7 +157,7 @@ trait SparkTest {
       collectTestMetrics = false,
       "",
       Constants.DefaultBaseUrl,
-      OnConflict.Abort,
+      OnConflictOption.Abort,
       spark.sparkContext.applicationId,
       Constants.DefaultParallelismPerPartition,
       ignoreUnknownIds = true,
