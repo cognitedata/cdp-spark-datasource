@@ -56,7 +56,7 @@ jobs:
           if [ ${{github.ref }} == "refs/heads/master" ]; then
             LIB_PACKAGE="+assembly"
           fi
-          sbt -Dsbt.log.noformat=true "set test in library := {}" $LIB_PACKAGE performancebench/docker:stage
+          sbt -Dsbt.log.noformat=true "set library/test := {}" $LIB_PACKAGE performancebench/docker:stage
       - name: Deploy JAR
         if: github.ref == 'refs/heads/master'
         env:
