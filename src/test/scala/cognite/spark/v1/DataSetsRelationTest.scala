@@ -56,7 +56,7 @@ class DataSetsRelationTest extends FlatSpec
       .save()
 
     val rows = retryWhile[Array[Row]](
-      spark.sql(s"select * from datasets where id = $id and externalId = '$externalId'").collect,
+      spark.sql(s"select * from datasets where id = $id and externalId = '$externalId'").collect(),
       rows => rows.length < 1
     )
 

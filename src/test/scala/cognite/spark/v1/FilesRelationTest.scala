@@ -79,12 +79,12 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
                 |null as uploadedTime,
                 |null as uploadUrl
      """.stripMargin)
-        .select(sourceDf.columns.map(col): _*)
+        .select(sourceDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationFiles")
 
       val rows = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationFiles where source = '$source'").collect,
+        spark.sql(s"select * from destinationFiles where source = '$source'").collect(),
         rows => rows.length < 1)
       assert(rows.length == 1)
     } finally {
@@ -117,7 +117,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .save()
 
       val rows = retryWhile[Array[Row]](
-        spark.sql(s"""select * from destinationFiles where source = "$source"""").collect,
+        spark.sql(s"""select * from destinationFiles where source = "$source"""").collect(),
         rows => rows.length < 1)
       assert(rows.length == 1)
 
@@ -148,7 +148,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         retryWhile[Array[Row]](
           spark
             .sql(s"select * from destinationFiles where externalId = 'updatedById-externalId-$source'")
-            .collect,
+            .collect(),
           df => df.length < 1)
       assert(updatedById.length == 1)
 
@@ -174,7 +174,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         retryWhile[Array[Row]](
           spark
             .sql(s"select * from destinationFiles where source = 'updatedByExternalId-$source'")
-            .collect,
+            .collect(),
           df => df.length < 1)
       assert(updatedByExternalId.length == 1)
 
@@ -213,7 +213,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         retryWhile[Array[Row]](
           spark
             .sql(s"select * from destinationFiles where source = '$source'")
-            .collect,
+            .collect(),
           df => df.length < 1)
       assert(insertWithUpsertIds.length == 1)
 
@@ -237,7 +237,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
           spark
             .sql(
               s"select * from destinationFiles where mimeType = 'text/plain-$source' and source = 'upserted-$source'")
-            .collect,
+            .collect(),
           df => df.length < 1)
       assert(updatedWithUpsert.length == 1)
 
@@ -245,7 +245,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
       val updated = retryWhile[Array[Row]](
         spark
           .sql(s"select * from destinationFiles where source = '$source'")
-          .collect,
+          .collect(),
         df => df.length > 0)
       assert(updated.isEmpty)
     } finally {
@@ -276,7 +276,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .save()
 
       val rows = retryWhile[Array[Row]](
-        spark.sql(s"select id from destinationFiles where source = '$source'").collect,
+        spark.sql(s"select id from destinationFiles where source = '$source'").collect(),
         rows => rows.length < 1)
       assert(rows.length == 1)
 
@@ -294,7 +294,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         retryWhile[Array[Row]](
           spark
             .sql(s"select id from destinationFiles where source = '$source'")
-            .collect,
+            .collect(),
           df => df.length > 0)
       assert(idsAfterDelete.isEmpty)
     } finally {
@@ -317,7 +317,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
   it should "support pushdown filters on labels" taggedAs WriteTest in {
     val filesTestSource = s"files-relation-test-filter-labels-${shortRandomString()}"
     try {
-      val waitForCreate = spark
+      spark
         .sql(s"""select '${filesTestSource}-externalId' as externalId,
               |null as id,
               |null as directory,
@@ -333,7 +333,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
       val res1 = retryWhile[Array[Row]](
         spark.sql(s"""select * from destinationFiles
                    |where labels = array('scala-sdk-relationships-test-label2')
-                   |and source='${filesTestSource}'""".stripMargin).collect,
+                   |and source='${filesTestSource}'""".stripMargin).collect(),
         df => df.length != 1
       )
       res1.length shouldBe 1
@@ -341,7 +341,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
       val res2 = retryWhile[Array[Row]](
         spark.sql(s"""select * from destinationFiles
                    |where labels in(array('scala-sdk-relationships-test-label2'), NULL)
-                   |and source='${filesTestSource}'""".stripMargin).collect,
+                   |and source='${filesTestSource}'""".stripMargin).collect(),
         df => df.length != 1
       )
       res2.length shouldBe 1
@@ -349,7 +349,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
       val res3 = retryWhile[Array[Row]](
         spark.sql(s"""select * from destinationFiles
                    |where labels in(array('nonExistingLabel'), NULL)
-                   |and source='${filesTestSource}'""".stripMargin).collect,
+                   |and source='${filesTestSource}'""".stripMargin).collect(),
         df => df.length != 0
       )
       res3.length shouldBe 0

@@ -37,28 +37,35 @@ private[spark] object SparkSchemaHelperRuntime {
 
   // convert Map[Any, Any] to Map[String, String] by checking every key and value.
   def checkMetadataMap(mapAny: Map[Any, Any], row: Row): Map[String, String] = {
-    val map = mapAny.asInstanceOf[Map[Any, Any]]
-    val badKeys = map.keys
-      .filter(!_.isInstanceOf[String])
-      .map(k =>
-        s"Map with string keys was expected, but ${valueToString(k)} was found (on row ${rowIdentifier(row)}).")
-
-    val badValues = map
-      .filter { case (k, v) => !v.isInstanceOf[String] && v != null }
+    val mapStringString = mapAny.collect {
+      case (k: String, v: String) =>
+        (k, v)
+      case (k: String, null) => // scalastyle:ignore null
+        (k, null: String) // scalastyle:ignore null
+    }
+    val maybeError = mapAny.view
       .map {
-        case (k, v) =>
-          s"Map with string values was expected, but ${valueToString(v)} was found (under key '$k' on row ${rowIdentifier(row)})"
+        case (k: String, _) if mapStringString.contains(k) =>
+          None // No problem here.
+        case (k: String, v) =>
+          Some(
+            s"Map with string values was expected, but ${valueToString(v)} was found (under key '$k' on row ${rowIdentifier(row)})")
+        case (k, _) =>
+          Some(
+            s"Map with string keys was expected, but ${valueToString(k)} was found (on row ${rowIdentifier(row)}).")
       }
+      .find(_.isDefined)
+      .flatten
 
-    (badKeys ++ badValues).headOption match {
+    maybeError match {
       case Some(error) => throw new CdfSparkIllegalArgumentException(error)
-      case None => filterMetadata(map.asInstanceOf[Map[String, String]])
+      case None => filterMetadata(mapStringString)
     }
   }
 
   def badRowError(row: Row, name: String, typeName: String, rowType: String): Throwable =
     Try(row.getAs[Any](name)) match {
-      case Failure(error) =>
+      case Failure(_) =>
         new CdfSparkIllegalArgumentException(
           s"Required column '$name' is missing on row [${row.schema.fieldNames.mkString(", ")}].")
       case Success(value) =>

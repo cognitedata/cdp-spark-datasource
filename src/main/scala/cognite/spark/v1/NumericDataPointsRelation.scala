@@ -13,6 +13,7 @@ import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
 import fs2.Stream
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -101,6 +102,7 @@ object Granularity {
     longStringToUnit.keys.mkString("|")
   val granularityRegex: Regex = f"""([1-9][0-9]*)*($validUnits)""".r
 
+  @SuppressWarnings(Array("scalafix:DisableSyntax.noValPatterns"))
   def parse(s: String): Either[Throwable, Granularity] =
     Either
       .catchNonFatal {
@@ -147,7 +149,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     val fieldNamesInOrder = item.getClass.getDeclaredFields.map(_.getName)
     val indicesOfRequiredFields = requiredColumns.map(f => fieldNamesInOrder.indexOf(f))
     val rowOfAllFields = toRow(item)
-    Row.fromSeq(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
+    new GenericRow(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
   }
 
   def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
@@ -221,8 +223,8 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 }
 
 object NumericDataPointsRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[InsertDataPointsItem]
-  val readSchema: StructType = structType[DataPointsItem]
-  val insertSchema: StructType = structType[InsertDataPointsItem]
-  val deleteSchema: StructType = structType[DeleteDataPointsItem]
+  val upsertSchema: StructType = structType[InsertDataPointsItem]()
+  val readSchema: StructType = structType[DataPointsItem]()
+  val insertSchema: StructType = structType[InsertDataPointsItem]()
+  val deleteSchema: StructType = structType[DeleteDataPointsItem]()
 }

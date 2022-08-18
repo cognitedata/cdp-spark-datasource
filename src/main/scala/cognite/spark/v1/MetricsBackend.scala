@@ -9,8 +9,6 @@ import sttp.client3.{Request, Response, SttpBackend}
 import sttp.model.StatusCode
 import sttp.monad.MonadError
 
-import scala.language.higherKinds
-
 class MetricsBackend[F[_]: Sync, +S](
     delegate: SttpBackend[F, S],
     metric: Counter,

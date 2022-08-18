@@ -8,6 +8,9 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, LoneElement, Matchers, ParallelTestExecution}
 
+import java.lang.{Long => JavaLong}
+import scala.reflect.ClassTag
+
 class RawTableRelationTest
     extends FlatSpec
     with Matchers
@@ -18,33 +21,20 @@ class RawTableRelationTest
   import RawTableRelation._
   import spark.implicits._
 
-  import scala.collection.JavaConverters._
-
-  private def collectToSet[A](df: DataFrame): Set[A] =
-    df.collectAsList().asScala.map(_.getAs[A](0)).toSet
+  private def collectToSet[A: ClassTag](df: DataFrame): Set[A] =
+    df.collect().map(_.getAs[A](0)).toSet
 
   private def checkRange(leftLimit: Double, rightLimit: Double, number: Long): Boolean =
     (number >= leftLimit) && (number <= rightLimit)
 
-  private val dfWithoutKeySchema = StructType(
-    Seq(StructField("notKey", StringType, false), StructField("value", IntegerType, false)))
   private val dataWithoutKey = Seq(
     RawRow("key1", Map("notKey" -> Json.fromString("k1"), "value" -> Json.fromInt(1))),
     RawRow("key2", Map("notKey" -> Json.fromString("k2"), "value" -> Json.fromInt(2)))
   )
-  private val dfWithKeySchema = StructType(
-    Seq(StructField("key", StringType, false), StructField("value", IntegerType, false)))
   private val dataWithKey = Seq(
     RawRow("key3", Map("key" -> Json.fromString("k1"), "value" -> Json.fromInt(1))),
     RawRow("key4", Map("key" -> Json.fromString("k2"), "value" -> Json.fromInt(2)))
   )
-  private val dfWithManyKeysSchema = StructType(
-    Seq(
-      StructField("key", StringType, true),
-      StructField("__key", StringType, false),
-      StructField("___key", StringType, false),
-      StructField("value", IntegerType, false)
-    ))
   private val dataWithManyKeys = Seq(
     RawRow(
       "key5",
@@ -61,28 +51,28 @@ class RawTableRelationTest
         "key" -> Json.fromString("k2")))
   )
 
-  private val dfWithoutlastUpdatedTimeSchema = StructType(
-    Seq(StructField("notlastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
   private val dataWithoutlastUpdatedTime = Seq(
-    RawRow("key1", Map("notlastUpdatedTime" -> 1, "value" -> 1).mapValues(Json.fromInt).toMap),
-    RawRow("key2", Map("notlastUpdatedTime" -> 2, "value" -> 2).mapValues(Json.fromInt).toMap)
+    RawRow("key1", Map("notlastUpdatedTime" -> Json.fromInt(1), "value" -> Json.fromInt(1))),
+    RawRow("key2", Map("notlastUpdatedTime" -> Json.fromInt(2), "value" -> Json.fromInt(2)))
   )
-  private val dfWithlastUpdatedTimeSchema = StructType(
-    Seq(StructField("lastUpdatedTime", LongType, false), StructField("value", IntegerType, false)))
   private val dataWithlastUpdatedTime = Seq(
     RawRow("key3", Map("lastUpdatedTime" -> Json.fromInt(1), "value" -> Json.fromInt(1))),
     RawRow("key4", Map("lastUpdatedTime" -> Json.fromInt(2), "value" -> Json.fromInt(2)))
   )
-  private val dfWithManylastUpdatedTimeSchema = StructType(
-    Seq(
-      StructField("lastUpdatedTime", LongType, true),
-      StructField("__lastUpdatedTime", LongType, false),
-      StructField("___lastUpdatedTime", LongType, false),
-      StructField("value", IntegerType, false)
-    ))
   private val dataWithManylastUpdatedTime = Seq(
-    RawRow("key5", Map("___lastUpdatedTime" -> 111, "__lastUpdatedTime" -> 11, "value" -> 1).mapValues(Json.fromInt).toMap),
-    RawRow("key6", Map("___lastUpdatedTime" -> 222, "value" -> 2, "__lastUpdatedTime" -> 22, "lastUpdatedTime" -> 2).mapValues(Json.fromInt).toMap)
+    RawRow(
+      "key5",
+      Map(
+        "___lastUpdatedTime" -> Json.fromInt(111),
+        "__lastUpdatedTime" -> Json.fromInt(11),
+        "value" -> Json.fromInt(1))),
+    RawRow(
+      "key6",
+      Map(
+        "___lastUpdatedTime" -> Json.fromInt(222),
+        "value" -> Json.fromInt(2),
+        "__lastUpdatedTime" -> Json.fromInt(22),
+        "lastUpdatedTime" -> Json.fromInt(2)))
   )
 
   private val dataWithSimpleNestedStruct = Seq(
@@ -179,7 +169,7 @@ class RawTableRelationTest
     df.createTempView("raw")
     val res = spark.sqlContext
       .sql("select * from raw")
-    assert(res.count == limit * partitions)
+    assert(res.count() == limit * partitions)
   }
 
   def rawRead(
@@ -223,7 +213,7 @@ class RawTableRelationTest
     dfWithlastUpdatedTime.schema.fieldNames.toSet should equal(
       Set("key", "lastUpdatedTime", "_lastUpdatedTime", "value"))
     collectToSet[java.sql.Timestamp](dfWithlastUpdatedTime.select($"lastUpdatedTime"))
-    collectToSet[Long](dfWithlastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(1, 2))
+    collectToSet[JavaLong](dfWithlastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(1, 2))
 
     dfWithManylastUpdatedTime.schema.fieldNames.toSet should equal(
       Set(
@@ -235,9 +225,9 @@ class RawTableRelationTest
         "value"))
 
     collectToSet[java.sql.Timestamp](dfWithManylastUpdatedTime.select($"lastUpdatedTime"))
-    collectToSet[Long](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(null, 2))
-    collectToSet[Long](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(Set(11, 22))
-    collectToSet[Long](dfWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
+    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(null, 2))
+    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(Set(11, 22))
+    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
       Set(111, 222))
   }
 
@@ -259,14 +249,14 @@ class RawTableRelationTest
   it should "insert data with columns named _lastUpdatedTime, __lastUpdatedTime etc. as data columns lastUpdatedTime, _lastUpdatedTime, etc." in {
     val (columnNames1, unRenamed1) = prepareForInsert(dfWithlastUpdatedTime)
     columnNames1.toSet should equal(Set("lastUpdatedTime", "value"))
-    collectToSet[Long](unRenamed1.select("lastUpdatedTime")) should equal(Set(1, 2))
+    collectToSet[JavaLong](unRenamed1.select("lastUpdatedTime")) should equal(Set(1, 2))
 
     val (columnNames2, unRenamed2) = prepareForInsert(dfWithManylastUpdatedTime)
     columnNames2.toSet should equal(
       Set("lastUpdatedTime", "__lastUpdatedTime", "___lastUpdatedTime", "value"))
-    collectToSet[Long](unRenamed2.select($"lastUpdatedTime")) should equal(Set(null, 2))
-    collectToSet[Long](unRenamed2.select($"__lastUpdatedTime")) should equal(Set(11, 22))
-    collectToSet[Long](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
+    collectToSet[JavaLong](unRenamed2.select($"lastUpdatedTime")) should equal(Set(null, 2))
+    collectToSet[JavaLong](unRenamed2.select($"__lastUpdatedTime")) should equal(Set(11, 22))
+    collectToSet[JavaLong](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
   }
 
   it should "read nested StructType" in {
@@ -276,15 +266,15 @@ class RawTableRelationTest
     nestedSchema.fieldNames should (contain("field").and(contain("field2")))
 
     collectToSet[String](dfWithSimpleNestedStruct.selectExpr("nested.field")) should equal(Set("Ř"))
-    collectToSet[Int](dfWithSimpleNestedStruct.selectExpr("nested.field2")) should equal(Set(1))
+    collectToSet[JavaLong](dfWithSimpleNestedStruct.selectExpr("nested.field2")) should equal(Set(1))
 
   }
 
   "rowsToRawItems" should "return RawRows from Rows" in {
     val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
     val rawItems: Seq[RawRow] =
-      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq)
-    rawItems.map(_.key.toString).toSet should equal(Set("key3", "key4"))
+      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect().toSeq)
+    rawItems.map(_.key).toSet should equal(Set("key3", "key4"))
 
     val expectedResult: Seq[Map[String, Json]] = Seq[Map[String, Json]](
       Map(("key" -> Json.fromString("k1")), ("value" -> Json.fromInt(1))),
@@ -303,7 +293,7 @@ class RawTableRelationTest
     val dfWithKey = data.toDF("_key", "key", "value2")
     val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
     val toInsert =
-      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq).toVector
+      RawJsonConverter.rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect().toSeq).toVector
 
     toInsert.map(_.key) shouldBe Vector("key1", "key2")
     toInsert.map(_.columns.get("key")) shouldBe Vector(
@@ -320,7 +310,7 @@ class RawTableRelationTest
     val dfWithKey = dataWithNullKey.toDF("_key", "key", "value2")
     val (columnNames, unRenamed) = prepareForInsert(dfWithKey)
     an[CdfSparkIllegalArgumentException] should be thrownBy RawJsonConverter
-      .rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect.toSeq)
+      .rowsToRawItems(columnNames, temporaryKeyName, unRenamed.collect().toSeq)
       .toArray
   }
 
@@ -345,11 +335,11 @@ class RawTableRelationTest
       .load()
 
     // Trigger schema evaluation
-    val schema = df.schema
+    val _ = df.schema
 
-    val numRowsReadDuringSchemaInferance =
+    val numRowsReadDuringSchemaInference =
       getNumberOfRowsRead(metricsPrefix, s"raw.$database.$table.rows")
-    numRowsReadDuringSchemaInferance should be(inferSchemaLimit)
+    numRowsReadDuringSchemaInference should be(inferSchemaLimit)
   }
 
   "lastUpdatedTime" should "insert data without error" taggedAs (WriteTest) in {
@@ -369,7 +359,7 @@ class RawTableRelationTest
           |"foo" as columns,
           |null as lastUpdatedTime
       """.stripMargin)
-      .select(destinationDf.columns.map(col): _*)
+      .select(destinationDf.columns.map(col).toIndexedSeq: _*)
       .write
       .insertInto("destinationTable")
   }
@@ -488,7 +478,7 @@ class RawTableRelationTest
       .load()
     destination.createTempView(tempView)
     source
-      .select(destination.columns.map(c => col(c)): _*)
+      .select(destination.columns.map(c => col(c)).toIndexedSeq: _*)
       .write
       .insertInto(tempView)
 
@@ -537,14 +527,13 @@ class RawTableRelationTest
     try {
       writeClient.rawTables(database).deleteById(table)
     } catch {
-      case _: CdpApiException => ()// Ignore
+      case _: CdpApiException => () // Ignore
     }
 
     val key = shortRandomString()
 
     try {
-      val source = spark.sql(
-        s"""select
+      val source = spark.sql(s"""select
            |  '$key' as key,
            |  123 as something
            |""".stripMargin)
@@ -559,7 +548,7 @@ class RawTableRelationTest
         .load()
       destination.createTempView("ensureParent_test")
       source
-        .select(destination.columns.map(c => col(c)): _*)
+        .select(destination.columns.map(c => col(c)).toIndexedSeq: _*)
         .write
         .insertInto("ensureParent_test")
 
@@ -567,7 +556,7 @@ class RawTableRelationTest
       try {
         writeClient.rawTables(database).deleteById(table)
       } catch {
-        case _: CdpApiException => ()// Ignore
+        case _: CdpApiException => () // Ignore
       }
     }
   }
@@ -630,7 +619,7 @@ class RawTableRelationTest
     assert(allColumnNamesAsString.length > 200)
 
     source
-      .select(source.schema.fields.map(f => col(f.name)): _*)
+      .select(source.schema.fields.map(f => col(f.name)).toIndexedSeq: _*)
       .write
       .insertInto("megaColumnTableDuplicate2TempView")
 

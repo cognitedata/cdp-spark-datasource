@@ -55,6 +55,12 @@ object CogniteUdfs {
   @transient implicit lazy val backend: SttpBackend[IO, Any] =
     CdpConnector.retryingSttpBackend(DefaultMaxRetries, DefaultMaxRetryDelaySeconds)
 
+  // TODO: Rewrite this to use IO.sleep and recursion, instead of var and while.
+  @SuppressWarnings(
+    Array(
+      "scalafix:DisableSyntax.var",
+      "scalafix:DisableSyntax.while"
+    ))
   private def getFunctionResult(client: GenericClient[IO], functionId: Long, result: FunctionCall)(
       implicit ioRuntime: IORuntime): IO[Json] = {
     var res = result

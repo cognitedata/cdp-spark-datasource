@@ -1,30 +1,26 @@
 package cognite.spark.v1
 
-import java.io.IOException
-import java.util.UUID
-import java.util.concurrent.Executors
-
 import cats.Id
-import com.codahale.metrics.Counter
-import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
-import org.apache.spark.sql.{Encoder, SparkSession}
-import org.scalatest.prop.TableDrivenPropertyChecks.Table
-import org.scalatest.{Matchers, Tag}
-import org.apache.spark.datasource.MetricsSource
-
-import scala.concurrent.TimeoutException
-import scala.concurrent.duration._
-import scala.util.Random
 import cats.effect.IO
+import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.SparkException
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{Encoder, SparkSession}
 import org.scalactic.{Prettifier, source}
+import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
-import sttp.client3.{SttpBackend, UriContext}
+import org.scalatest.{Matchers, Tag}
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import sttp.client3.{SttpBackend, UriContext}
 
+import java.io.IOException
+import java.util.UUID
+import scala.concurrent.TimeoutException
+import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
+import scala.util.Random
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
@@ -69,7 +65,7 @@ trait SparkTest {
     // https://medium.com/@mrpowers/how-to-cut-the-run-time-of-a-spark-sbt-test-suite-by-40-52d71219773f
     .config("spark.sql.shuffle.partitions", "1")
     .config("spark.sql.storeAssignmentPolicy", "legacy")
-    .config("spark.app.id", this.getClass.getName + math.floor(math.random * 1000).toLong.toString)
+    .config("spark.app.id", this.getClass.getName + math.floor(math.random() * 1000).toLong.toString)
     .getOrCreate()
 
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
@@ -173,9 +169,9 @@ trait SparkTest {
 
   private def getCounter(metricName: String): Long =
     MetricsSource
-      .metricsMap(metricName)
+      .metricsMap
+      .get(metricName)
       .value
-      .asInstanceOf[Counter]
       .getCount
 
   def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
@@ -198,7 +194,7 @@ trait SparkTest {
 
   def getPartitionSize(metricsPrefix: String, resourceType: String, partitionIndex: Int): Long = {
     val metricName = s"$metricsPrefix.$resourceType.$partitionIndex.partitionSize"
-    if (MetricsSource.metricsMap.contains(metricName)) {
+    if (MetricsSource.metricsMap.containsKey(metricName)) {
       getCounter(metricName)
     } else {
       0

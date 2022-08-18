@@ -19,17 +19,22 @@ resolvers += "libs-release" at artifactory + "libs-release/"
 
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
+ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
+
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "2.0.14",
+  version := "2.1.0-SNAPSHOT",
   crossScalaVersions := supportedScalaVersions,
+  semanticdbEnabled := true,
+  semanticdbVersion := scalafixSemanticdb.revision,
   scalaVersion := scala212, // default to Scala 2.12
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
+  scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
   developers := List(
     Developer(
       id = "wjoel",

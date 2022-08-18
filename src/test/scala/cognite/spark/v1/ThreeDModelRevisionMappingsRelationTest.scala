@@ -13,6 +13,6 @@ class ThreeDModelRevisionMappingsRelationTest extends FlatSpec with ParallelTest
       .option("modelid", model.id)
       .option("revisionid", revision.id)
       .load()
-    assert(df.count == 1)
+    assert(df.count() == 1)
   }
 }

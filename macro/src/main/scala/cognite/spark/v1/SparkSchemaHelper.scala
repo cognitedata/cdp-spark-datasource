@@ -56,9 +56,7 @@ class SparkSchemaHelperImpl(val c: Context) {
     val optionNonNullableSetter = typeOf[Option[NonNullableSetter[_]]]
     val optionalFieldType = typeOf[OptionalField[_]]
     val seqAny = typeOf[Iterable[Any]]
-    val mapAny = typeOf[Map[Any, Any]]
     val mapString = typeOf[Map[String, String]]
-    val seqRow = typeOf[Iterable[Row]]
 
     def fromRowRecurse(structType: Type, r: c.Expr[Row]): c.Tree = {
       val constructor = structType.decl(termNames.CONSTRUCTOR).asMethod

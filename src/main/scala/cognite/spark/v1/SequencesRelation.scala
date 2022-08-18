@@ -4,7 +4,7 @@ import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.cognite.sdk.scala.common.{SetNull, SetValue, Setter, WithExternalId, WithId}
+import com.cognite.sdk.scala.common.{SetValue, Setter, WithExternalId, WithId}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.SequencesResource
 import fs2.Stream
@@ -206,7 +206,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
   // scalastyle:off method.length
 
-  override def schema: StructType = structType[SequenceReadSchema]
+  override def schema: StructType = structType[SequenceReadSchema]()
 
   override def toRow(a: SequenceReadSchema): Row = asRow(a)
 
@@ -214,9 +214,9 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object SequenceRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[SequenceUpsertSchema]
-  val insertSchema: StructType = structType[SequenceInsertSchema]
-  val readSchema: StructType = structType[SequenceReadSchema]
+  val upsertSchema: StructType = structType[SequenceUpsertSchema]()
+  val insertSchema: StructType = structType[SequenceInsertSchema]()
+  val readSchema: StructType = structType[SequenceReadSchema]()
 }
 
 final case class SequenceColumnUpsertSchema(

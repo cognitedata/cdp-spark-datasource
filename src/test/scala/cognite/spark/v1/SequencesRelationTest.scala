@@ -1,11 +1,12 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.v1.SequenceColumnCreate
+import cats.data.NonEmptyList
+import com.cognite.sdk.scala.v1.{SequenceColumnCreate, SequenceCreate}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
-import java.util.UUID
 
+import java.util.UUID
 import org.apache.spark.SparkException
 
 import scala.util.control.NonFatal
@@ -26,7 +27,6 @@ class SequencesRelationTest
   sequencesSourceDf.createOrReplaceTempView("sequences")
 
   it should "create and read sequence" in {
-    val key = shortRandomString()
     val id = UUID.randomUUID().toString
     val sequence = SequenceInsertSchema(
       externalId = Some(id),
@@ -45,7 +45,7 @@ class SequencesRelationTest
     ingests(Seq(sequence))
 
     val sequences = retryWhile[Array[Row]](
-      spark.sql(s"select * from sequences where externalId = '$id'").collect,
+      spark.sql(s"select * from sequences where externalId = '$id'").collect(),
       _.length != 1)
     sequences.length shouldBe 1
     sequences.head.getAs[String]("name") shouldBe "a"
@@ -53,7 +53,7 @@ class SequencesRelationTest
     val columns = retryWhile[Array[Row]](
       spark
         .sql(s"select c.* from (select explode(columns) as c from sequences where externalId = '$id')")
-        .collect,
+        .collect(),
       _.length != 1)
     columns.length shouldBe 1
     columns.head.getAs[String]("name") shouldBe "col1"
@@ -81,7 +81,7 @@ class SequencesRelationTest
       .option("apiKey", writeApiKey)
       .option("type", "sequences")
       .option("onconflict", "abort")
-      .save
+      .save()
 
     val sequence = writeClient.sequences.retrieveByExternalId(s"$id")
     sequence.name shouldBe Some("c seq")
@@ -118,7 +118,7 @@ class SequencesRelationTest
     ingests(Seq(sequence))
 
     retryWhile[Array[Row]](
-      spark.sql(s"select * from sequences where externalId = '$id'").collect,
+      spark.sql(s"select * from sequences where externalId = '$id'").collect(),
       rows => rows.length != 1)
 
     val sequenceUpdate = SequenceInsertSchema(
@@ -140,7 +140,7 @@ class SequencesRelationTest
     retryWhile[Array[Row]](
       spark
         .sql(s"select * from sequences where description = 'description abc' and externalId = '$id'")
-        .collect,
+        .collect(),
       rows => rows.length != 1)
 
     val colHead = writeClient.sequences.retrieveByExternalId(s"$id").columns.head
@@ -216,7 +216,7 @@ class SequencesRelationTest
       .option("apiKey", writeApiKey)
       .option("type", "sequences")
       .option("onconflict", "upsert")
-      .save
+      .save()
 
     val sequence1 = writeClient.sequences.retrieveByExternalId(id)
     val columns1 = sequence1.columns
@@ -275,7 +275,7 @@ class SequencesRelationTest
       .option("apiKey", writeApiKey)
       .option("type", "sequences")
       .option("onconflict", "update")
-      .save
+      .save()
 
     val sequence = writeClient.sequences.retrieveByExternalId(id)
     val columns = sequence.columns
@@ -329,7 +329,7 @@ class SequencesRelationTest
         .option("apiKey", writeApiKey)
         .option("type", "sequences")
         .option("onconflict", "update")
-        .save
+        .save()
     }
 
     cleanupSequences(Seq(id))
@@ -365,7 +365,7 @@ class SequencesRelationTest
         ingests(sequencesToInsert, conflictMode = mode)
 
         val sequences = retryWhile[Array[Row]](
-          spark.sql(s"select * from sequences where name = 'a|$key'").collect,
+          spark.sql(s"select * from sequences where name = 'a|$key'").collect(),
           _.length != 650)
         sequences.length shouldBe 650
         sequences.head.getAs[String]("name").startsWith("a|") shouldBe true
@@ -378,6 +378,38 @@ class SequencesRelationTest
         }
       }
     }
+  }
+
+  it should "delete sequence" in {
+    val key = UUID.randomUUID().toString
+    writeClient.sequences.createOne(
+      SequenceCreate(
+        Some(s"name-${key}"),
+        Some("description"),
+        None,
+        Some(s"externalId-$key"),
+        None,
+        NonEmptyList.fromListUnsafe(
+          List(SequenceColumnCreate(Some("col1"), "col1", None, "STRING", None)))
+      ))
+    val idsAfterDelete = retryWhile[Array[Row]](
+      {
+        spark
+          .sql(s"select id from sequences where externalId = 'externalId-$key'")
+          .write
+          .format("cognite.spark.v1")
+          .option("apiKey", writeApiKey)
+          .option("type", "sequences")
+          .option("onconflict", "delete")
+          .option("collectMetrics", "true")
+          .save()
+        spark
+          .sql(s"select id from sequences where externalId = 'externalId-$key'")
+          .collect
+      },
+      df => df.length > 0
+    )
+    idsAfterDelete.isEmpty shouldBe true
   }
 
   def ingests(
@@ -396,7 +428,7 @@ class SequencesRelationTest
       .option("onconflict", conflictMode)
       .option("collectMetrics", metricsPrefix.isDefined)
       .option("metricsPrefix", metricsPrefix.getOrElse(""))
-      .save
+      .save()
 
     val checkedAssets = processedTree.filter(_.externalId.isDefined)
     val storedCheckedAssets =

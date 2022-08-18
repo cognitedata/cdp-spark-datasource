@@ -133,14 +133,16 @@ object PushdownUtilities {
         PushdownFilter(colName + "Prefix", value)
       case In(colName, values) =>
         PushdownFilters(
-          values
           // X in (null, Y) will result in `NULL`, which is treated like false.
           // X AND NULL is NULL (like with false)
           // true OR NULL is true (like with false)
           // false OR NULL is NULL. Almost like with false, since null is like false
           // This is not true for negation, but we can't process negation in pushdown filters anyway
+          values
             .filter(_ != null)
-            .map(v => PushdownFilter(colName, toStr(v))))
+            .map(v => PushdownFilter(colName, toStr(v)))
+            .toIndexedSeq
+        )
       case And(f1, f2) => PushdownAnd(getFilter(f1), getFilter(f2))
       case Or(f1, f2) => PushdownFilters(Seq(getFilter(f1), getFilter(f2)))
       case _ => NoPushdown()
@@ -161,12 +163,12 @@ object PushdownUtilities {
       case NoPushdown() => false
     }
 
-  def externalIdsSeqFromStringifiedArray(wrappedArray: String): Array[String] =
+  def externalIdsSeqFromStringifiedArray(wrappedArray: String): Seq[String] =
     // we get a string separated by \0
-    wrappedArray.split(stringifiedArraySeparator).filter(_.nonEmpty)
+    wrappedArray.split(stringifiedArraySeparator).filter(_.nonEmpty).toIndexedSeq
 
-  def idsFromStringifiedArray(wrappedArray: String): Array[Long] =
-    wrappedArray.split(stringifiedArraySeparator).filter(_.nonEmpty).map(_.toLong)
+  def idsFromStringifiedArray(wrappedArray: String): Seq[Long] =
+    wrappedArray.split(stringifiedArraySeparator).filter(_.nonEmpty).map(_.toLong).toIndexedSeq
 
   def filtersToTimestampLimits(filters: Array[Filter], colName: String): (Instant, Instant) = {
     val timestampLimits = filters.flatMap(getTimestampLimit(_, colName))
@@ -177,10 +179,10 @@ object PushdownUtilities {
 
     Tuple2(
       // Note that this way of aggregating filters will not work with "Or" predicates.
-      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption
+      Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption // scalafix:ok
         .map(_.value)
         .getOrElse(Instant.ofEpochMilli(0)),
-      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption
+      Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption // scalafix:ok
         .map(_.value)
         .getOrElse(Instant.ofEpochMilli(Constants.millisSinceEpochIn2100)) // Year 2100 should be sufficient
     )
@@ -328,12 +330,12 @@ object PushdownUtilities {
       limit: Option[Int]
   ): Vector[Stream[F, R]] = {
     if (numPartitions == 1) {
-      return Vector(executeFilterOnePartition(resource, filters, ids, limit))
+      return Vector(executeFilterOnePartition(resource, filters, ids, limit)) // scalafix:ok
     }
 
     val streamsPerFilter: Vector[Seq[Stream[F, R]]] =
       filters.map(f => resource.filterPartitions(f, numPartitions, limit))
-    var partitionStreams =
+    var partitionStreams = // scalafix:ok
       streamsPerFilter.transpose
         .map(mergeStreams(_))
         .map(_.filter(checkDuplicateCogniteIds(ids)))

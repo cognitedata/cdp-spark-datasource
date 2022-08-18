@@ -1,3 +1,15 @@
+# 2.1.0
+
+## Enhancements
+
+* Allow updating metadata with empty Map rather than ignoring it.
+
+# 2.0.17
+
+## Enhancements
+
+* Rename `AsyncHttpClient` threads, to make it easier to tell them apart from other `AsyncHttpClient` threads.
+
 # 2.0.11
 
 ## Fixes

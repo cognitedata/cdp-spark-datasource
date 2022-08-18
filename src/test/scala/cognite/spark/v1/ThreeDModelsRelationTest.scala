@@ -9,6 +9,6 @@ class ThreeDModelsRelationTest extends FlatSpec with ParallelTestExecution with 
       .option("type", "3dmodels")
       .option("limitPerPartition", 5)
       .load()
-    assert(df.count == 5)
+    assert(df.count() == 5)
   }
 }

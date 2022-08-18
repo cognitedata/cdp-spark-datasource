@@ -14,7 +14,7 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with InsertableRelation
     with WritableRelation {
 
-  override def schema: StructType = structType[Label]
+  override def schema: StructType = structType[Label]()
 
   override def toRow(a: Label): Row = asRow(a)
 
@@ -48,9 +48,9 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object LabelsRelation {
-  var insertSchema: StructType = structType[LabelInsertSchema]
-  var readSchema: StructType = structType[LabelReadSchema]
-  var deleteSchema: StructType = structType[LabelDeleteSchema]
+  val insertSchema: StructType = structType[LabelInsertSchema]()
+  val readSchema: StructType = structType[LabelReadSchema]()
+  val deleteSchema: StructType = structType[LabelDeleteSchema]()
 }
 
 final case class LabelDeleteSchema(

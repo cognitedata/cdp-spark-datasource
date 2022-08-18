@@ -23,7 +23,7 @@ final case class StringDataPointsRdd(
   }
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
-    val split = _split.asInstanceOf[CdfPartition]
+    val split = _split.asInstanceOf[CdfPartition] // scalafix:ok
     val (id, io) = getIOs(client)(split.index)
 
     new InterruptibleIterator(
@@ -44,7 +44,7 @@ final case class StringDataPointsRdd(
               sdp.value
             ))
         }
-        .toIterator
+        .iterator
     )
   }
 }

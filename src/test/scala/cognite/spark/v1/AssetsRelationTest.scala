@@ -1,13 +1,14 @@
 package cognite.spark.v1
 
 import com.cognite.sdk.scala.common.CdpApiException
-import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
+import com.cognite.sdk.scala.v1.{AssetCreate, AssetUpdate, CogniteExternalId}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
+import java.util.UUID
 import scala.util.control.NonFatal
 
 class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
@@ -77,7 +78,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "support pushdown filters on labels" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     writeClient.assets.deleteByExternalId("asset_with_label_spark_datasource", ignoreUnknownIds = true)
-    val waitForCreate = spark
+    spark
       .sql(s"""select 'asset_with_label_spark_datasource' as externalId,
            |'asset_with_label_spark_datasource' as name,
            |'${assetsTestSource}' as source,
@@ -92,21 +93,21 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     retryWhile[Array[Row]](
       spark.sql(s"""select * from destinationAssets
                    |where labels = array('scala-sdk-relationships-test-label2')
-                   |and source='${assetsTestSource}'""".stripMargin).collect,
+                   |and source='${assetsTestSource}'""".stripMargin).collect(),
       df => df.length != 1
     )
 
     retryWhile[Array[Row]](
       spark.sql(s"""select * from destinationAssets
                     |where labels in(array('scala-sdk-relationships-test-label2'), NULL)
-                    |and source='${assetsTestSource}'""".stripMargin).collect,
+                    |and source='${assetsTestSource}'""".stripMargin).collect(),
       df => df.length != 1
     )
 
     retryWhile[Array[Row]](
       spark.sql(s"""select * from destinationAssets
                 |where labels in(array('nonExistingLabel'), NULL)
-                |and source='${assetsTestSource}'""".stripMargin).collect,
+                |and source='${assetsTestSource}'""".stripMargin).collect(),
       df => df.length != 0
     )
   }
@@ -223,7 +224,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .load()
       .where("id = 1150715783816357 and dataSetId = 1")
 
-    assert(df.count == 0)
+    assert(df.count() == 0)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "assets")
     assert(eventsRead == 1)
   }
@@ -241,7 +242,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .load()
       .where("name = 'PWST201' or externalId = 'houston.Pass 2.PWST202'")
 
-    assert(df.count == 2)
+    assert(df.count() == 2)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "assets")
     assert(eventsRead == 2)
   }
@@ -259,7 +260,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .load()
       .where("externalId LIKE 'houston.Pass%'")
 
-    assert(df.count == 3)
+    assert(df.count() == 3)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "assets")
     assert(eventsRead == 3)
   }
@@ -328,7 +329,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |array('scala-sdk-relationships-test-label1') as labels,
                 |$testDataSetId as dataSetId
       """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("createAssets")
 
@@ -336,7 +337,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(assetsCreated == 1)
 
       val Array(createdAsset) = retryWhile[Array[Row]](
-        spark.sql(s"select * from createAssets where source = '$assetsTestSource'").collect,
+        spark.sql(s"select * from createAssets where source = '$assetsTestSource'").collect(),
         rows => rows.length < 1)
 
       createdAsset.getAs[String]("name") shouldBe "asset name"
@@ -374,7 +375,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .option("onconflict", "abort")
         .option("collectMetrics", "true")
         .option("metricsPrefix", metricsPrefix)
-        .save
+        .save()
 
       val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
       assert(assetsCreated == 1)
@@ -416,11 +417,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceAssets
                 |limit 1
       """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("assets")
       retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationAssets where source = '$assetsTestSource'").collect,
+        spark.sql(s"select * from destinationAssets where source = '$assetsTestSource'").collect(),
         rows => rows.length < 1)
     } finally {
       try {
@@ -467,7 +468,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceAssets
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationAssetsUpsert")
 
@@ -478,14 +479,14 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val assetsFromTestDf = retryWhile[Array[Row]](
         spark
           .sql(s"select * from destinationAssetsUpsert where source = '$source' and description = 'foo'")
-          .collect,
+          .collect(),
         df => df.length != 100)
       assert(assetsFromTestDf.length == 100)
 
       // Upsert assets
       // To avoid issues with eventual consistency, we create a new view for the assets we just created an will update.
       spark
-        .createDataFrame(spark.sparkContext.parallelize(assetsFromTestDf), destinationDf.schema)
+        .createDataFrame(spark.sparkContext.parallelize(assetsFromTestDf.toIndexedSeq), destinationDf.schema)
         .createOrReplaceTempView("destinationAssetsUpsertCreated")
       val dfToUpdate = spark
         .sql(s"""
@@ -528,7 +529,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
       dfToUpdate
         .union(dfToInsert)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationAssetsUpsert")
 
@@ -542,7 +543,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         spark
           .sql(
             s"select description from destinationAssets where source = '$source' and description = 'bar'")
-          .collect,
+          .collect(),
         df => df.length < 200)
       assert(descriptionsAfterUpsert.length == 200)
 
@@ -572,7 +573,29 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("apiKey", writeApiKey)
       .option("type", "assets")
       .option("onconflict", "update")
-      .save
+      .save()
+  }
+
+  it should "allow empty metadata updates" taggedAs WriteTest in {
+    val externalId1 = UUID.randomUUID.toString
+
+    writeClient.assets.create(Seq(AssetCreate(name = externalId1, externalId = Some(externalId1), metadata = Some(Map("test1"-> "test1")))))
+
+    writeClient.assets.retrieveByExternalId(externalId1).metadata shouldBe Some(Map("test1" -> "test1"))
+    val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
+
+    wdf.write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "assets")
+      .option("onconflict", "update")
+      .save()
+
+    val updated = writeClient.assets.retrieveByExternalId(externalId1)
+
+    writeClient.assets.deleteByExternalId(externalId1)
+
+    updated.metadata shouldBe Some(Map())
   }
 
   it should "throw proper exception on invalid onconflict options" taggedAs WriteTest in {
@@ -629,13 +652,13 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceAssets
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationAssetsMorePartial")
 
       // Check if post worked
       val assetsFromTestDf = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationAssetsMorePartial where source = '$source'").collect,
+        spark.sql(s"select * from destinationAssetsMorePartial where source = '$source'").collect(),
         df => df.length < 100)
       assert(assetsFromTestDf.length == 100)
 
@@ -654,11 +677,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
             .option("apiKey", writeApiKey)
             .option("type", "assets")
             .option("onconflict", "update")
-            .save
+            .save()
           spark
             .sql(
               s"select * from destinationAssetsMorePartial where source = '$source' and description = '$description'")
-            .collect
+            .collect()
         },
         df => df.length < 100
       )
@@ -697,7 +720,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceAssets
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationAssets")
 
@@ -705,7 +728,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val assetsFromTestDf = retryWhile[Array[Row]](
         spark
           .sql(s"select * from destinationAssets where source = '$source' and description = 'foo'")
-          .collect,
+          .collect(),
         df => df.length < 100)
       assert(assetsFromTestDf.length == 100)
 
@@ -728,7 +751,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           spark
             .sql(
               s"select description from destinationAssets where source = '$source' and description = 'bar'")
-            .collect
+            .collect()
         },
         df => df.length != 100
       )
@@ -769,7 +792,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .option("apiKey", writeApiKey)
         .option("type", "assets")
         .option("onconflict", "upsert")
-        .save
+        .save()
 
       // Check if update worked
       val descriptionsAfterUpsert = retryWhile[Array[Row]](
@@ -788,7 +811,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           spark
             .sql(
               s"select description from destinationAssets where source = '$source' and description = 'bar'")
-            .collect
+            .collect()
         },
         df => df.length != 1
       )
@@ -848,7 +871,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           spark
             .sql(
               s"select name from destinationAssets where source = '$source' and name = 'updated-name'")
-            .collect
+            .collect()
         },
         df => df.length != 1
       )
@@ -913,7 +936,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           spark
             .sql(
               s"select name from destinationAssets where source = '$source' and name = 'updated-name' and externalId ='updated-$newExternalId'")
-            .collect
+            .collect()
         },
         df => df.length != 1
       )
@@ -963,7 +986,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceAssets
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationAssets")
 
@@ -972,7 +995,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         retryWhile[Array[Row]](
           spark
             .sql(s"select id from destinationAssets where source = '$source'")
-            .collect,
+            .collect(),
           df => df.length < 100)
       assert(idsAfterInsert.length == 100)
 
@@ -993,7 +1016,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .save()
             spark
               .sql(s"select id from destinationAssets where source = '$source'")
-              .collect
+              .collect()
           },
           df => df.length > 0
         )
@@ -1061,7 +1084,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |from sourceAssets
                 |limit 100
      """.stripMargin)
-        .select(destinationDf.columns.map(col): _*)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
         .insertInto("destinationAssets")
 
@@ -1070,7 +1093,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         retryWhile[Array[Row]](
           spark
             .sql(s"select externalId from destinationAssets where source = '$source'")
-            .collect,
+            .collect(),
           df => df.length < 100)
       assert(idsAfterInsert.length == 100)
 
@@ -1091,7 +1114,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .save()
             spark
               .sql(s"select externalId from destinationAssets where source = '$source'")
-              .collect
+              .collect()
           },
           df => df.length > 0
         )

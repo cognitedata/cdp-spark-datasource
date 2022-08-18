@@ -58,13 +58,13 @@ object RawJsonConverter {
 
   def rowToJson(r: Row): Json =
     if (r.schema != null) {
-      Json.obj(r.schema.fieldNames.map(f => f -> anyToRawJson(r.getAs[Any](f))): _*)
+      Json.obj(r.schema.fieldNames.map(f => f -> anyToRawJson(r.getAs[Any](f))).toIndexedSeq: _*)
     } else {
       Json.arr(r.toSeq.map(anyToRawJson): _*)
     }
 
   def rowsToRawItems(
-      nonKeyColumnNames: Seq[String],
+      nonKeyColumnNames: Array[String],
       keyColumnName: String,
       rows: Seq[Row]): Seq[RawRow] =
     rows.map { row =>
@@ -374,9 +374,7 @@ object RawJsonConverter {
       val valueConverter = makeConverter(mt.valueType)
       (j: Json) =>
         j.asObject
-          .map { o =>
-            o.toMap.mapValues(valueConverter.convertNullSafe)
-          }
+          .map(o => o.toMap.map { case (key, value) => key -> valueConverter.convertNullSafe(value) })
           .getOrElse(mappingError(dataType, j))
 
     case udt: UserDefinedType[_] =>

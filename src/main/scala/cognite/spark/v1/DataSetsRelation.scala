@@ -18,7 +18,7 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with InsertableRelation
     with WritableRelation {
 
-  override def schema: StructType = structType[DataSet]
+  override def schema: StructType = structType[DataSet]()
 
   override def toRow(a: DataSet): Row = asRow(a)
 
@@ -71,9 +71,9 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     throw new CdfSparkException("Delete is not supported for data sets.")
 }
 object DataSetsRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[DataSetsUpsertSchema]
-  val insertSchema: StructType = structType[DataSetsInsertSchema]
-  val readSchema: StructType = structType[DataSetsReadSchema]
+  val upsertSchema: StructType = structType[DataSetsUpsertSchema]()
+  val insertSchema: StructType = structType[DataSetsInsertSchema]()
+  val readSchema: StructType = structType[DataSetsReadSchema]()
 }
 
 case class DataSetsUpsertSchema(

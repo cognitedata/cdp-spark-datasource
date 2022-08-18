@@ -7,6 +7,7 @@ import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import io.circe.Json
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -75,7 +76,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         if (expectedColumns.isEmpty) {
           // when no columns are needed, the API does not like it, so we have to request something
           // prefer non-string columns since they can't contain too much data
-          Array(
+          Seq(
             sequenceInfo.columns
               .find(_.valueType != "STRING")
               .getOrElse(sequenceInfo.columns.head)
@@ -83,7 +84,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
               .get
           )
         } else {
-          expectedColumns
+          expectedColumns.toIndexedSeq
         }
       val projectedRows =
         client.sequenceRows
@@ -189,7 +190,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
           tryGetValue(columnType).applyOrElse(
             row.get(index),
             (_: Any) => throw SparkSchemaHelperRuntime.badRowError(row, name, columnType, ""))
-      }
+      }.toIndexedSeq
       SequenceRowWithId(id, SequenceRow(rowNumber, columnValues))
     }
 
@@ -213,6 +214,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       IO.unit
     } else {
       val (columns, fromRowFn) = fromRow(rows.head.schema)
+      val columnSeq = columns.toIndexedSeq
       val projectedRows = rows.map(fromRowFn)
 
       import cats.instances.list._
@@ -222,7 +224,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         .parTraverse {
           case (cogniteId, rows) =>
             client.sequenceRows
-              .insert(cogniteId, columns, rows.map(_.sequenceRow))
+              .insert(cogniteId, columnSeq, rows.map(_.sequenceRow))
               .flatTap(_ => incMetrics(itemsCreated, rows.length))
 
         } *> IO.unit
@@ -239,11 +241,11 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     SdkV1Rdd[ProjectedSequenceRow, Long](
       sqlContext.sparkContext,
       configWithLimit,
-      (item: ProjectedSequenceRow, None) => {
+      (item: ProjectedSequenceRow, _) => {
         if (config.collectMetrics) {
           itemsRead.inc()
         }
-        Row.fromSeq(if (rowNumberIndex < 0) {
+        new GenericRow(if (rowNumberIndex < 0) {
           // when the rowNumber column is not expected
           item.values
         } else {
@@ -273,24 +275,44 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
 
 object SequenceRowsRelation {
 
-  private def parseValue(value: Any, offset: Long = 0) = Some(value.asInstanceOf[Long] + offset)
+  private def parseValue(value: Long, offset: Long = 0) = Some(value + offset)
   def getSeqFilter(filter: Filter): Seq[SequenceRowFilter] = // scalastyle:off
     filter match {
-      case EqualTo("rowNumber", value) =>
+      case EqualTo("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(parseValue(value), parseValue(value, +1)))
-      case EqualNullSafe("rowNumber", value) =>
+      case EqualTo("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
+      case EqualNullSafe("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(parseValue(value), parseValue(value, +1)))
+      case EqualNullSafe("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
       case In("rowNumber", values) =>
+        // throw error if any are null, or not long?
         values
           .filter(_ != null)
-          .map(value => SequenceRowFilter(parseValue(value), parseValue(value, +1)))
-      case LessThan("rowNumber", value) => Seq(SequenceRowFilter(exclusiveEnd = parseValue(value)))
-      case LessThanOrEqual("rowNumber", value) =>
+          .collect { case value: Long => SequenceRowFilter(parseValue(value), parseValue(value, +1)) }
+          .toIndexedSeq
+      case LessThan("rowNumber", value: Long) => Seq(SequenceRowFilter(exclusiveEnd = parseValue(value)))
+      case LessThan("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
+      case LessThanOrEqual("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(exclusiveEnd = parseValue(value, +1)))
-      case GreaterThan("rowNumber", value) =>
+      case LessThanOrEqual("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
+      case GreaterThan("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(inclusiveStart = parseValue(value, +1)))
-      case GreaterThanOrEqual("rowNumber", value) =>
+      case GreaterThan("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
+      case GreaterThanOrEqual("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(inclusiveStart = parseValue(value)))
+      case GreaterThanOrEqual("rowNumber", value: Any) =>
+        // TODO: Throw error
+        Seq(SequenceRowFilter())
       case And(f1, f2) => filterIntersection(getSeqFilter(f1), getSeqFilter(f2))
       case Or(f1, f2) => normalizeFilterSet(getSeqFilter(f1) ++ getSeqFilter(f2))
       case Not(f) => filterComplement(getSeqFilter(f))
@@ -312,9 +334,9 @@ object SequenceRowsRelation {
   }
 
   private def toSegments(f: Vector[SequenceRowFilter]) = {
-    val (minusInfCount, plusInfCount, borders) = toBorders(f.toVector)
+    val (minusInfCount, plusInfCount, borders) = toBorders(f)
     // count number of overlapping intervals in each segment
-    val segmentCounts = borders.toIterator.scanLeft[Int](minusInfCount)((count, border) => {
+    val segmentCounts = borders.iterator.scanLeft[Int](minusInfCount)((count, border) => {
       if (border.start) {
         // entering new interval -> increment the count of overlaps
         count + 1

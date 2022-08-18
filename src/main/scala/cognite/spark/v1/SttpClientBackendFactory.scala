@@ -7,17 +7,18 @@ import sttp.client3.SttpBackendOptions
 
 object SttpClientBackendFactory {
   def create(): AsyncHttpClient = {
+    val prefix = "Cdf-Spark"
     // It's important that the threads made by the async http client is daemon threads,
     // so that we don't hang applications using our library during exit.
     // See for more info https://github.com/cognitedata/cdp-spark-datasource/pull/415/files#r396774391
     lazy val clientThreadFactory =
       new ThreadFactoryBuilder()
-        .setNameFormat("AsyncHttpClient-%d")
+        .setNameFormat(s"$prefix-AsyncHttpClient-%d")
         .setDaemon(true)
         .build()
     lazy val timerThreadFactory =
       new ThreadFactoryBuilder()
-        .setNameFormat("AsyncHttpClient-%d-timer")
+        .setNameFormat(s"$prefix-AsyncHttpClient-%d-timer")
         .setDaemon(true)
         .build()
     AsyncHttpClientBackend.clientWithModifiedOptions(

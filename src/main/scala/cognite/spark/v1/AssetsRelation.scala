@@ -19,8 +19,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
     with InsertableRelation
     with WritableRelation {
-  private val fieldNames =
-    Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
+  Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -71,6 +70,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def update(rows: Seq[Row]): IO[Unit] = {
     val assetUpdates = rows.map(r => fromRow[AssetsUpsertSchema](r))
+
     updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate, Assets[IO], Asset](
       assetUpdates,
       client.assets,
@@ -85,7 +85,6 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val assets = rows.map(fromRow[AssetsUpsertSchema](_))
-
     genericUpsert[Asset, AssetsUpsertSchema, AssetCreate, AssetUpdate, Assets[IO]](
       assets,
       isUpdateEmpty,
@@ -104,7 +103,7 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       doUpsert = true)
   }
 
-  override def schema: StructType = structType[AssetsReadSchema]
+  override def schema: StructType = structType[AssetsReadSchema]()
 
   override def toRow(a: AssetsReadSchema): Row = asRow(a)
 
@@ -112,9 +111,9 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object AssetsRelation extends UpsertSchema {
-  val upsertSchema: StructType = structType[AssetsUpsertSchema]
-  val insertSchema: StructType = structType[AssetsInsertSchema]
-  val readSchema: StructType = structType[AssetsReadSchema]
+  val upsertSchema: StructType = structType[AssetsUpsertSchema]()
+  val insertSchema: StructType = structType[AssetsInsertSchema]()
+  val readSchema: StructType = structType[AssetsReadSchema]()
 }
 
 final case class AssetsUpsertSchema(

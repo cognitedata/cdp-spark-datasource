@@ -190,7 +190,7 @@ final case class NumericDataPointsRdd(
       case granularity +: moreGranular =>
         // convert start to closest previous granularity unit
         // convert end to closest next granularity unit(?)
-        val granularityUnitMillis = granularity.unit.getDuration.toMillis
+        val granularityUnitMillis = granularity.unit.getDuration.toMillis.toDouble
 
         queryAggregates(
           id,
@@ -321,7 +321,8 @@ final case class NumericDataPointsRdd(
       granularity: Granularity,
       firstLatest: Stream[IO, (CogniteId, Option[Instant], Option[Instant])]
   ): IO[Vector[Bucket]] = {
-    val granularityMillis = granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis
+    val granularityMillis =
+      granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis.toDouble
     // TODO: make sure we have a test that covers more than 10000 units
     firstLatest
       .parEvalMapUnordered(50) {
@@ -367,7 +368,7 @@ final case class NumericDataPointsRdd(
       buckets(firstLatest)
     } else {
       granularities.toVector
-        .map(g => aggregationBuckets(aggregations, g, firstLatest))
+        .map(g => aggregationBuckets(aggregations.toIndexedSeq, g, firstLatest))
         .parFlatSequence
     }
     partitions
@@ -402,6 +403,11 @@ final case class NumericDataPointsRdd(
   // Those methods are made to go fast, not to look pretty.
   // Called for every data point received. Make sure to run benchmarks checking
   // total time taken, garbage collection time, and memory usage after changes.
+  @SuppressWarnings(
+    Array(
+      "scalafix:DisableSyntax.var",
+      "scalafix:DisableSyntax.while"
+    ))
   @inline
   // scalastyle:off cyclomatic.complexity
   private def dataPointToRow(id: CogniteId, dataPoint: SdkDataPoint): Row = {
@@ -428,6 +434,11 @@ final case class NumericDataPointsRdd(
     new GenericRow(array)
   }
 
+  @SuppressWarnings(
+    Array(
+      "scalafix:DisableSyntax.var",
+      "scalafix:DisableSyntax.while"
+    ))
   @inline
   private def aggregationDataPointToRow(r: AggregationRange, dataPoint: SdkDataPoint): Row = {
     val array = new Array[Any](rowIndicesLength)
@@ -460,6 +471,7 @@ final case class NumericDataPointsRdd(
       case None => stream
     }
 
+  @SuppressWarnings(Array("scalafix:DisableSyntax.asInstanceOf"))
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val bucket = _split.asInstanceOf[Bucket]
     val maxParallelism = scala.math.max(bucket.ranges.size, 500)
@@ -484,17 +496,17 @@ final case class NumericDataPointsRdd(
         case r: DataPointsRange => IO(maybeLimitStream(queryDataPointsRange(r)))
         case r: AggregationRange =>
           queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
-            .flatMap { queryResponse =>
+            .map { queryResponse =>
               val dataPointsAggregates =
-                queryResponse.mapValues(dataPointsResponse =>
-                  dataPointsResponse.flatMap(_.datapoints.map(aggregationDataPointToRow(r, _))))
+                queryResponse.map {
+                  case (key, dataPointsResponse) =>
+                    key -> dataPointsResponse.flatMap(_.datapoints.map(aggregationDataPointToRow(r, _)))
+                }
               dataPointsAggregates.get(r.aggregation) match {
                 case Some(dataPoints) =>
-                  IO {
-                    increaseReadMetrics(dataPoints.size)
-                    maybeLimitStream(Stream.chunk(Chunk.seq(dataPoints)).covary[IO])
-                  }
-                case None => IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
+                  increaseReadMetrics(dataPoints.size)
+                  maybeLimitStream(Stream.chunk(Chunk.seq(dataPoints)).covary[IO])
+                case None => Stream.chunk(Chunk.empty[Row]).covary[IO]
               }
             }
         case _ => IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
@@ -505,9 +517,9 @@ final case class NumericDataPointsRdd(
       maxParallelism,
       None
     )
-    Option(context) match {
-      case Some(ctx) => new InterruptibleIterator(ctx, it)
-      case None => it
-    }
+
+    Option(context)
+      .map(ctx => new InterruptibleIterator(ctx, it))
+      .getOrElse(it)
   }
 }

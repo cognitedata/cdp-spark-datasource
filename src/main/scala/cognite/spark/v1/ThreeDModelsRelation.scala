@@ -13,7 +13,7 @@ final case class ModelItem(id: Long, name: String, createdTime: Long)
 class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[ThreeDModel, Long](config, "threeDModels.read") {
 
-  override def schema: StructType = structType[ThreeDModel]
+  override def schema: StructType = structType[ThreeDModel]()
 
   override def toRow(t: ThreeDModel): Row = asRow(t)
 
