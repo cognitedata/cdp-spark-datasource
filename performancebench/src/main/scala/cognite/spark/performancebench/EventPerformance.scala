@@ -23,8 +23,8 @@ class EventPerformance extends PerformanceSuite {
           "test",
           s"$externalIdPrefix$id",
           s"This is a test row ($id)",
-          java.sql.Timestamp.from(Instant.now().minus(Math.min(id, 100), ChronoUnit.HOURS)),
-          java.sql.Timestamp.from(Instant.now().plus(Math.min(id, 100), ChronoUnit.HOURS))))
+          java.sql.Timestamp.from(Instant.now().minus(Math.min(id.toLong, 100), ChronoUnit.HOURS)),
+          java.sql.Timestamp.from(Instant.now().plus(Math.min(id.toLong, 100), ChronoUnit.HOURS))))
     .toVector
 
   private def writeEvents(): Unit =
@@ -46,7 +46,10 @@ class EventPerformance extends PerformanceSuite {
       .save()
 
   registerTest("writeEvents", writeEvents)
-  registerTest("readEvents", () => readEvents().collect())
+  registerTest("readEvents", () => {
+    readEvents().collect()
+    ()
+  })
   registerTest("upsertEvents", writeEvents)
   registerTest("deleteEvents", prepareForDelete, deleteEvents)
 }
