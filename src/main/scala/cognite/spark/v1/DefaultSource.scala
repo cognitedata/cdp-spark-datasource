@@ -40,7 +40,7 @@ final case class RelationConfig(
   def sparkPartitions: Int = Math.max(1, partitions / parallelismPerPartition)
 }
 
-sealed trait OnConflictOption
+sealed trait OnConflictOption extends Serializable
 object OnConflictOption {
   object Abort extends OnConflictOption
   object Update extends OnConflictOption
@@ -57,7 +57,7 @@ object OnConflictOption {
     fromString.get(s.toLowerCase)
 }
 
-sealed trait AssetSubtreeOption
+sealed trait AssetSubtreeOption extends Serializable
 object AssetSubtreeOption {
   object Ingest extends AssetSubtreeOption
   object Ignore extends AssetSubtreeOption
