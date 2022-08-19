@@ -5,7 +5,7 @@ import sbtassembly.MergeStrategy
 val scala212 = "2.12.15"
 val scala213 = "2.13.8"
 val supportedScalaVersions = List(scala212, scala213)
-val sparkVersion = "3.2.1"
+val sparkVersion = "3.3.0"
 val circeVersion = "0.14.1"
 val sttpVersion = "3.4.1"
 val Specs2Version = "4.6.0"
@@ -25,7 +25,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "2.1.1-SNAPSHOT",
+  version := "2.1.2-SNAPSHOT",
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
@@ -115,12 +115,7 @@ lazy val library = (project in file("."))
       "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion
         // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
         exclude("io.netty", "netty-buffer")
-        exclude("io.netty", "netty-codec-http")
-        exclude("io.netty", "netty-codec-http")
-        exclude("io.netty", "netty-codec-socks")
         exclude("io.netty", "netty-handler")
-        exclude("io.netty", "netty-handler-proxy")
-        exclude("io.netty", "netty-resolver-dns")
         exclude("io.netty", "netty-transport-native-epoll")
         exclude("com.softwaremill.sttp", "circe_2.12")
         exclude("com.softwaremill.sttp", "circe_2.13")
@@ -221,7 +216,7 @@ lazy val cdfdump = (project in file("cdf_dump"))
 
 lazy val fatJar = project.settings(
   commonSettings,
-  name := "cdf-spark-datasource-fat",
+  name := "cdf-spark-datasource",
   Compile / packageBin := (library / assembly).value
 )
 
