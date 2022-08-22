@@ -744,4 +744,25 @@ class RawTableRelationTest
     err.getMessage shouldBe "Error while loading RAW row [key='k'] in column 'value': java.lang.NumberFormatException: For input string: \"test\""
 
   }
+  
+  it should "support pushdown filters on key" taggedAs ReadTest in {
+    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", "spark-test-database")
+      .option("table", "with-key")
+      .option("inferSchema", true)
+      .option("partitions", "5")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where("key = 'some-invalid-key'")
+
+    assert(df.count() == 0)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "raw.testdb.future-event.rows")
+    assert(assetsRead == 0)
+  }
 }

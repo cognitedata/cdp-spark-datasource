@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
-import com.cognite.sdk.scala.common.Items
+import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
 import fs2.{Chunk, Pull, Stream}
 import org.apache.spark.datasource.MetricsSource
@@ -84,10 +84,17 @@ class RawTableRelation(
     keys match {
       case Nil => Pull.done
       case key :: tail =>
-        Pull.eval(get(key)).flatMap { row =>
-          Pull.output(Chunk.singleton(row)) >>
-            pullFromKeysSeq(tail, get)
-        }
+        Pull.attemptEval(get(key)).flatMap {
+          case Right(row) => Pull.output(Chunk.singleton(row))
+          case Left(err) =>
+            err match {
+              case CdpApiException(_, 404, _, _, _, _, _, _) =>
+                Pull.output(Chunk.empty)
+              case _ =>
+                Pull.raiseError[IO](err)
+            }
+        } >>
+          pullFromKeysSeq(tail, get)
     }
 
   def getStreamsByKeys(keys: Array[String])(
