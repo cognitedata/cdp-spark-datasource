@@ -758,11 +758,11 @@ class RawTableRelationTest
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where("key = 'some-invalid-key'")
+      .where("key in ('some-invalid-key','key3')")
 
-    assert(df.count() == 0)
+    assert(df.count() == 1)
 
-    val assetsRead = getNumberOfRowsRead(metricsPrefix, "raw.testdb.future-event.rows")
-    assert(assetsRead == 0)
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "raw.spark-test-database.with-key.rows")
+    assert(assetsRead == 1)
   }
 }
