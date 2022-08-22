@@ -663,6 +663,48 @@ class RawTableRelationTest
     assert(select1result.map(_.getInt(0)).toList == List(1))
   }
 
+  it should "support pushdown key filters with IN" taggedAs ReadTest in {
+    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", "spark-test-database")
+      .option("table", "with-key")
+      .option("inferSchema", true)
+      .option("partitions", "5")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where("key in ('some-invalid-key','key3')")
+
+    assert(df.count() == 1)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "raw.spark-test-database.with-key.rows")
+    assert(assetsRead == 1)
+  }
+
+  it should "support pushdown key filters with OR" taggedAs ReadTest in {
+    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "raw")
+      .option("database", "spark-test-database")
+      .option("table", "with-key")
+      .option("inferSchema", true)
+      .option("partitions", "5")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+      .where("key = 'some-invalid-key' or key = 'key3'")
+
+    assert(df.count() == 1)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "raw.spark-test-database.with-key.rows")
+    assert(assetsRead == 1)
+  }
+
   // It's a weird use case, but some customer complained when we broke this, so let's make sure we don't do that again :)
   "RawJsonConverter" should "handle empty string as null for Byte type" in {
     val schema = dfWithEmptyStringInByteField.schema
@@ -743,26 +785,5 @@ class RawTableRelationTest
 
     err.getMessage shouldBe "Error while loading RAW row [key='k'] in column 'value': java.lang.NumberFormatException: For input string: \"test\""
 
-  }
-  
-  it should "support pushdown filters on key" taggedAs ReadTest in {
-    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "raw")
-      .option("database", "spark-test-database")
-      .option("table", "with-key")
-      .option("inferSchema", true)
-      .option("partitions", "5")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
-      .where("key in ('some-invalid-key','key3')")
-
-    assert(df.count() == 1)
-
-    val assetsRead = getNumberOfRowsRead(metricsPrefix, "raw.spark-test-database.with-key.rows")
-    assert(assetsRead == 1)
   }
 }
