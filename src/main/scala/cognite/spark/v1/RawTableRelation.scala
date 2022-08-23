@@ -221,7 +221,8 @@ class RawTableRelation(
     //   so using .get here is ok.
     case And(left, right) =>
       Seq(left, right).collectFirst(filterToRequiredKeys).get
-    case Or(left, right) =>
+    case Or(left, right)
+        if (filterToRequiredKeys.isDefinedAt(left) && filterToRequiredKeys.isDefinedAt(right)) =>
       (filterToRequiredKeys(left) ++ filterToRequiredKeys(right)).toSet.toArray
   }
 

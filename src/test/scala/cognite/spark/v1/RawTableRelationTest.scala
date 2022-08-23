@@ -652,7 +652,7 @@ class RawTableRelationTest
   }
 
   it should "support pushdown key filters with OR" taggedAs ReadTest in {
-    val tableName = "with-boolean-empty-str"    
+    val tableName = "with-boolean-empty-str"
     val metricsPrefix1 = s"pushdown.raw.key.${shortRandomString()}"
     val df1 = rawRead(tableName, metricsPrefix = Some(metricsPrefix1))
       .where("key = 'some-invalid-key' or key = 'k1' or key = 'k2'")
@@ -662,11 +662,11 @@ class RawTableRelationTest
     val rowsRead1 = getNumberOfRowsRead(metricsPrefix1, f"raw.spark-test-database.${tableName}.rows")
     assert(rowsRead1 == 2)
 
-        
     // filter should not be pushed down if OR condition includes other fields
     val metricsPrefix2 = s"pushdown.raw.key.${shortRandomString()}"
     val df2 = rawRead(tableName, metricsPrefix = Some(metricsPrefix2))
-      .where("key = 'some-invalid-key' or key = 'k1' or key = 'k2' or lastUpdatedTime >= timestamp('2000-01-01 00:00:00.000Z')")
+      .where(
+        "key = 'some-invalid-key' or key = 'k1' or key = 'k2' or lastUpdatedTime >= timestamp('2000-01-01 00:00:00.000Z')")
 
     assert(df2.count() == 3)
 
@@ -675,7 +675,7 @@ class RawTableRelationTest
   }
 
   it should "support pushdown key filters with AND" taggedAs ReadTest in {
-    val tableName = "with-boolean-empty-str"    
+    val tableName = "with-boolean-empty-str"
     val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
     val df = rawRead(tableName, metricsPrefix = Some(metricsPrefix))
       .where("key = 'k2' and lastUpdatedTime >= timestamp('2000-01-01 00:00:00.000Z')")
