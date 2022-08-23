@@ -666,9 +666,9 @@ class RawTableRelationTest
     // filter should not be pushed down if OR condition includes other fields
     val metricsPrefix2 = s"pushdown.raw.key.${shortRandomString()}"
     val df2 = rawRead(tableName, metricsPrefix = Some(metricsPrefix2))
-      .where("key = 'some-invalid-key' or key = 'k1' or key = 'k2' or bool")
+      .where("key = 'some-invalid-key' or key = 'k1' or key = 'k2' or lastUpdatedTime >= timestamp('2000-01-01 00:00:00.000Z')")
 
-    assert(df2.count() == 1)
+    assert(df2.count() == 3)
 
     val rowsRead2 = getNumberOfRowsRead(metricsPrefix2, f"raw.spark-test-database.${tableName}.rows")
     assert(rowsRead2 == 3)
