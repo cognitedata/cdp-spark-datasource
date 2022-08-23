@@ -1,3 +1,9 @@
+# 2.1.2
+
+## Enhancements
+
+* Bump scala sdk to 2.3.0 to replace vault token with k8s service token
+
 # 2.1.1
 
 ## Enhancements
