@@ -2,7 +2,8 @@
 
 ## Enhancements
 
-* Bump scala sdk to 2.3.0 to replace vault token with k8s service token
+* Bump Cognite Scala SDK to 2.3.0 to replace vault token with Kubernetes service token,
+this is only a Cognite internal change and doesn't matter to normal users.
 
 # 2.1.1
 
