@@ -182,12 +182,11 @@ class RawTableRelation(
     val filteredSchemaFields = getJsonColumnNames(schema.fieldNames)
     val lengthOfRequiredColumnsAsString = requiredColumns.mkString(",").length
 
-    val keysFilter =
-      filters.flatMap {
-        case EqualTo("key", value) => Array(value.toString())
-        case In("key", values) => values.map(_.toString())
-        case _ => Array.empty[String]
-      }
+    // since filters act as an AND, only the first one including `key` constraints is important
+    val keysFilter: Array[String] =
+      filters
+        .collectFirst(filterToRequiredKeys)
+        .getOrElse(Array.empty)
 
     val rawRowFilter =
       if (lengthOfRequiredColumnsAsString > 200 ||
@@ -212,6 +211,16 @@ class RawTableRelation(
       val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
       new GenericRow(filteredCols)
     })
+  }
+
+  val filterToRequiredKeys: PartialFunction[Filter, Array[String]] = {
+    case EqualTo("key", value) => Array(value.toString())
+    case EqualNullSafe("key", value) => Array(value.toString())
+    case In("key", values) => values.map(_.toString())
+    case And(left, right) =>
+      Seq(left, right).collectFirst(filterToRequiredKeys).get
+    case Or(left, right) =>
+      (filterToRequiredKeys(left) ++ filterToRequiredKeys(right)).toSet.toArray
   }
 
   def filtersToTimestampLimits(
