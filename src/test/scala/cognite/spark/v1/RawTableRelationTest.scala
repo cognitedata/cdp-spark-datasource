@@ -175,8 +175,9 @@ class RawTableRelationTest
   def rawRead(
       table: String,
       database: String = "spark-test-database",
-      inferSchema: Boolean = true): DataFrame =
-    spark.read
+      inferSchema: Boolean = true,
+      metricsPrefix: Option[String] = None): DataFrame = {
+    val df = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "raw")
@@ -185,7 +186,17 @@ class RawTableRelationTest
       .option("table", table)
       .option("inferSchema", inferSchema)
       .option("inferSchemaLimit", "100")
-      .load()
+
+    metricsPrefix match {
+      case Some(prefix) =>
+        df.option("collectMetrics", "true")
+          .option("metricsPrefix", prefix)
+          .load()
+      case None =>
+        df.load()
+    }
+  }
+
   //.cache()
 
   "A RawTableRelation" should "allow data columns named key, _key etc. but rename them to _key, __key etc." in {
@@ -225,8 +236,10 @@ class RawTableRelationTest
         "value"))
 
     collectToSet[java.sql.Timestamp](dfWithManylastUpdatedTime.select($"lastUpdatedTime"))
-    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(Set(null, 2))
-    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(Set(11, 22))
+    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(
+      Set(null, 2))
+    collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(
+      Set(11, 22))
     collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
       Set(111, 222))
   }
@@ -626,6 +639,30 @@ class RawTableRelationTest
     assert(source.count() == dest.count())
   }
 
+  it should "support pushdown key filters with IN" taggedAs ReadTest in {
+    val tableName = "with-boolean-empty-str"
+    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
+    val df = rawRead(tableName, metricsPrefix = Some(metricsPrefix))
+      .where("key in ('some-invalid-key','k1','k3')")
+
+    assert(df.count() == 2)
+
+    val rowsRead = getNumberOfRowsRead(metricsPrefix, f"raw.spark-test-database.${tableName}.rows")
+    assert(rowsRead == 2)
+  }
+
+  it should "support pushdown key filters with OR" taggedAs ReadTest in {
+    val tableName = "with-boolean-empty-str"    
+    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
+    val df = rawRead(tableName, metricsPrefix = Some(metricsPrefix))
+      .where("key = 'some-invalid-key' or key = 'k1' or key = 'k2'")
+
+    assert(df.count() == 2)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, f"raw.spark-test-database.${tableName}.rows")
+    assert(assetsRead == 2)
+  }
+
   it should "fail reasonably when table does not exist" in {
     val source = spark.read
       .format("cognite.spark.v1")
@@ -661,48 +698,6 @@ class RawTableRelationTest
     // just test that Spark did not die in the process
     val select1result = spark.sql("select 1 as col").collect()
     assert(select1result.map(_.getInt(0)).toList == List(1))
-  }
-
-  it should "support pushdown key filters with IN" taggedAs ReadTest in {
-    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "raw")
-      .option("database", "spark-test-database")
-      .option("table", "with-key")
-      .option("inferSchema", true)
-      .option("partitions", "5")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
-      .where("key in ('some-invalid-key','key3')")
-
-    assert(df.count() == 1)
-
-    val assetsRead = getNumberOfRowsRead(metricsPrefix, "raw.spark-test-database.with-key.rows")
-    assert(assetsRead == 1)
-  }
-
-  it should "support pushdown key filters with OR" taggedAs ReadTest in {
-    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
-      .option("type", "raw")
-      .option("database", "spark-test-database")
-      .option("table", "with-key")
-      .option("inferSchema", true)
-      .option("partitions", "5")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
-      .where("key = 'some-invalid-key' or key = 'key3'")
-
-    assert(df.count() == 1)
-
-    val assetsRead = getNumberOfRowsRead(metricsPrefix, "raw.spark-test-database.with-key.rows")
-    assert(assetsRead == 1)
   }
 
   // It's a weird use case, but some customer complained when we broke this, so let's make sure we don't do that again :)
