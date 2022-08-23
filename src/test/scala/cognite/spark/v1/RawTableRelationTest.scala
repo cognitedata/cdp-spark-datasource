@@ -653,14 +653,25 @@ class RawTableRelationTest
 
   it should "support pushdown key filters with OR" taggedAs ReadTest in {
     val tableName = "with-boolean-empty-str"    
-    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
-    val df = rawRead(tableName, metricsPrefix = Some(metricsPrefix))
+    val metricsPrefix1 = s"pushdown.raw.key.${shortRandomString()}"
+    val df1 = rawRead(tableName, metricsPrefix = Some(metricsPrefix1))
       .where("key = 'some-invalid-key' or key = 'k1' or key = 'k2'")
 
-    assert(df.count() == 2)
+    assert(df1.count() == 2)
 
-    val assetsRead = getNumberOfRowsRead(metricsPrefix, f"raw.spark-test-database.${tableName}.rows")
-    assert(assetsRead == 2)
+    val assetsRead1 = getNumberOfRowsRead(metricsPrefix1, f"raw.spark-test-database.${tableName}.rows")
+    assert(assetsRead1 == 2)
+
+        
+    // filter should not be pushed down if OR condition includes other fields
+    val metricsPrefix2 = s"pushdown.raw.key.${shortRandomString()}"
+    val df2 = rawRead(tableName, metricsPrefix = Some(metricsPrefix2))
+      .where("key = 'some-invalid-key' or key = 'k1' or key = 'k2' or bool")
+
+    assert(df2.count() == 1)
+
+    val assetsRead2 = getNumberOfRowsRead(metricsPrefix2, f"raw.spark-test-database.${tableName}.rows")
+    assert(assetsRead2 == 3)
   }
 
   it should "fail reasonably when table does not exist" in {
