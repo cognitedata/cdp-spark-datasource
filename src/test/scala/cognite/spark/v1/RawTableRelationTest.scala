@@ -659,8 +659,8 @@ class RawTableRelationTest
 
     assert(df1.count() == 2)
 
-    val assetsRead1 = getNumberOfRowsRead(metricsPrefix1, f"raw.spark-test-database.${tableName}.rows")
-    assert(assetsRead1 == 2)
+    val rowsRead1 = getNumberOfRowsRead(metricsPrefix1, f"raw.spark-test-database.${tableName}.rows")
+    assert(rowsRead1 == 2)
 
         
     // filter should not be pushed down if OR condition includes other fields
@@ -670,8 +670,20 @@ class RawTableRelationTest
 
     assert(df2.count() == 1)
 
-    val assetsRead2 = getNumberOfRowsRead(metricsPrefix2, f"raw.spark-test-database.${tableName}.rows")
-    assert(assetsRead2 == 3)
+    val rowsRead2 = getNumberOfRowsRead(metricsPrefix2, f"raw.spark-test-database.${tableName}.rows")
+    assert(rowsRead2 == 3)
+  }
+
+  it should "support pushdown key filters with AND" taggedAs ReadTest in {
+    val tableName = "with-boolean-empty-str"    
+    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
+    val df = rawRead(tableName, metricsPrefix = Some(metricsPrefix))
+      .where("key = 'k2' and lastUpdatedTime >= timestamp('2000-01-01 00:00:00.000Z')")
+
+    assert(df.count() == 1)
+
+    val rowsRead = getNumberOfRowsRead(metricsPrefix, f"raw.spark-test-database.${tableName}.rows")
+    assert(rowsRead == 1)
   }
 
   it should "fail reasonably when table does not exist" in {
