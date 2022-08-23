@@ -486,7 +486,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       // Upsert assets
       // To avoid issues with eventual consistency, we create a new view for the assets we just created an will update.
       spark
-        .createDataFrame(spark.sparkContext.parallelize(assetsFromTestDf.toIndexedSeq), destinationDf.schema)
+        .createDataFrame(
+          spark.sparkContext.parallelize(assetsFromTestDf.toIndexedSeq),
+          destinationDf.schema)
         .createOrReplaceTempView("destinationAssetsUpsertCreated")
       val dfToUpdate = spark
         .sql(s"""
@@ -579,7 +581,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "allow empty metadata updates" taggedAs WriteTest in {
     val externalId1 = UUID.randomUUID.toString
 
-    writeClient.assets.create(Seq(AssetCreate(name = externalId1, externalId = Some(externalId1), metadata = Some(Map("test1"-> "test1")))))
+    writeClient.assets.create(
+      Seq(
+        AssetCreate(
+          name = externalId1,
+          externalId = Some(externalId1),
+          metadata = Some(Map("test1" -> "test1")))))
 
     writeClient.assets.retrieveByExternalId(externalId1).metadata shouldBe Some(Map("test1" -> "test1"))
     val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
