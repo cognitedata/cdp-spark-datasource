@@ -217,10 +217,10 @@ class RawTableRelation(
     case EqualTo("key", value) => Array(value.toString())
     case EqualNullSafe("key", value) => Array(value.toString())
     case In("key", values) => values.map(_.toString())
-    // If no `key` constraints are found on either side, we actually want the exception to be thrown
-    //   so using .get here is ok.
-    case And(left, right) =>
-      Seq(left, right).collectFirst(filterToRequiredKeys).get
+    case And(left, _) if filterToRequiredKeys.isDefinedAt(left) =>
+      filterToRequiredKeys(left)
+    case And(_, right) if filterToRequiredKeys.isDefinedAt(right) =>
+      filterToRequiredKeys(right)
     case Or(left, right)
         if (filterToRequiredKeys.isDefinedAt(left) && filterToRequiredKeys.isDefinedAt(right)) =>
       (filterToRequiredKeys(left) ++ filterToRequiredKeys(right)).toSet.toArray
