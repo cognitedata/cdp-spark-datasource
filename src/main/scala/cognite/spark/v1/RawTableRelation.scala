@@ -5,7 +5,7 @@ import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
 import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
-import fs2.{Chunk, Pull, Stream}
+import fs2.Stream
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
