@@ -85,8 +85,7 @@ class RawTableRelation(
     Seq(
       Stream
         .emits(keys)
-        .parEvalMap[IO, RawRow](numPartitions)(rawClient.retrieveByKey)
-        .attempt
+        .parEvalMap[IO, Either[Throwable, RawRow]](numPartitions)(rawClient.retrieveByKey(_).attempt)
         .evalMapFilter {
           case Right(row) => IO(Some(row))
           case Left(err) =>
