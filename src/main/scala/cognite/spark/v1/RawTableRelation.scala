@@ -15,6 +15,7 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 import java.time.Instant
 import scala.util.Try
+import scala.annotation.nowarn
 
 class RawTableRelation(
     config: RelationConfig,
@@ -50,7 +51,7 @@ class RawTableRelation(
           inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
           Some(1),
           RawRowFilter(),
-          Seq(),
+          Array.empty,
           None,
           collectSchemaInferenceMetrics,
           false)
@@ -79,7 +80,7 @@ class RawTableRelation(
 
   def getStreamsByKeys(keys: Array[String])(
       client: GenericClient[IO],
-      limit: Option[Int],
+      @nowarn limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, RawRow]] = {
     val rawClient = client.rawRows(database, table)
     Seq(
@@ -116,7 +117,7 @@ class RawTableRelation(
       limit: Option[Int],
       numPartitions: Option[Int],
       filter: RawRowFilter,
-      requestedKeys: Seq[String],
+      requestedKeys: Array[String],
       schema: Option[StructType],
       collectMetrics: Boolean = config.collectMetrics,
       collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
@@ -125,8 +126,8 @@ class RawTableRelation(
 
     @transient lazy val rowConverter = getRowConverter(schema)
 
-    val streams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, RawRow]] = requestedKeys match {
-      case Nil => {
+    val streams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, RawRow]] =
+      if (requestedKeys.length == 0 || requestedKeys.length > 100) {
         val partitionCursors =
           CdpConnector
             .clientFromConfig(config)
@@ -135,9 +136,9 @@ class RawTableRelation(
             .unsafeRunSync()
             .toVector
         getStreams(filter, partitionCursors)
+      } else {
+        getStreamsByKeys(requestedKeys)
       }
-      case keys => getStreamsByKeys(keys.toArray)
-    }
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
