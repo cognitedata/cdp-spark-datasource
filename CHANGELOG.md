@@ -1,3 +1,16 @@
+# 2.1.2
+
+## Enhancements
+
+* Bump Cognite Scala SDK to 2.3.0 to replace vault token with Kubernetes service token,
+this is only a Cognite internal change and doesn't matter to normal users.
+
+# 2.1.1
+
+## Enhancements
+
+* Remove "fat" jar from release and update to Spark version 3.3.0.
+
 # 2.1.0
 
 ## Enhancements

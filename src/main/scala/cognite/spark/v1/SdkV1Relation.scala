@@ -13,6 +13,8 @@ import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
 
+import scala.annotation.nowarn
+
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends CdfRelation(config, shortName)
     with Serializable
@@ -24,6 +26,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   def uniqueId(a: A): I
 
+  @nowarn
   def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] =
     sys.error(s"Resource type $shortName does not support writing.")
 
@@ -38,7 +41,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     SdkV1Rdd[A, I](
       sqlContext.sparkContext,
       config,
-      (a: A, None) => {
+      (a: A, _) => {
         if (config.collectMetrics) {
           itemsRead.inc()
         }
@@ -48,7 +51,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       getStreams(filters)
     )
 
-  def insert(data: DataFrame, overwrite: Boolean): Unit =
+  def insert(data: DataFrame, @nowarn overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
       import CdpConnector._
       val batches =
@@ -133,7 +136,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .create(resourcesToCreate.map(_.transformInto[C]))
         .flatMap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
         .recoverWith {
-          case CdpApiException(_, 409, _, _, Some(duplicated), _, requestId, _) if doUpsert =>
+          case CdpApiException(_, 409, _, _, Some(duplicated), _, _, _) if doUpsert =>
             val moreExistingExternalIds = duplicated.flatMap(j => j("externalId")).map(_.asString.get)
             createOrUpdateByExternalId[R, U, C, S, ExternalIdF, T](
               existingExternalIds ++ moreExistingExternalIds.toSet,

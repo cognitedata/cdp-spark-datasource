@@ -255,7 +255,7 @@ class RawTableRelation(
       .flatTap { _ =>
         IO {
           if (config.collectMetrics) {
-            rowsCreated.inc(rows.length)
+            rowsCreated.inc(rows.length.toLong)
           }
         }
       }
