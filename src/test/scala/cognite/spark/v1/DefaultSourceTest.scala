@@ -54,13 +54,8 @@ class DefaultSourceTest extends WordSpec with Matchers {
             case (key, _) => !Set("authTicket", "apiKey", "bearerToken").contains(key)
           }
         DefaultSource.parseAuth(params) shouldBe Some(
-          CdfSparkAuth.OAuth2Sessions(
-            OAuth2.Session(
-              "https://bluefield.cognitedata.com",
-              123,
-              "value-SessionKey",
-              "value-Project",
-              "value-TokenFromVault"))
+          CdfSparkAuth.OAuth2Sessions(OAuth2
+            .Session("https://bluefield.cognitedata.com", 123, "value-SessionKey", "value-Project"))
         )
       }
 
@@ -71,12 +66,8 @@ class DefaultSourceTest extends WordSpec with Matchers {
           }
         DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2Sessions(
-            OAuth2.Session(
-              Constants.DefaultBaseUrl,
-              123,
-              "value-SessionKey",
-              "value-Project",
-              "value-TokenFromVault"))
+            OAuth2.Session(Constants.DefaultBaseUrl, 123, "value-SessionKey", "value-Project")
+          )
         )
       }
 

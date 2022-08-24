@@ -3,9 +3,9 @@ package cognite.spark.v1
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.AssetCreate
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
 import java.util.UUID

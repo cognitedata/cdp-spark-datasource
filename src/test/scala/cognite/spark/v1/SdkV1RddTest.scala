@@ -17,26 +17,21 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
 
     val errorMessage = "Some exception"
 
-    def getStreams(
-        client: GenericClient[IO],
-        limit: Option[Int],
-        numPartitions: Int): Seq[Stream[IO, String]] =
-      Seq(
-        Stream.eval(
-          throw com.cognite.sdk.scala.common.CdpApiException(
-            uri"https://api.cognitedata.com/v1/",
-            400,
-            errorMessage,
-            None,
-            None,
-            None,
-            None)))
+    val getStreams = (_: GenericClient[IO], _: Option[Int], _: Int) =>
+      Seq(Stream.eval(IO.raiseError(com.cognite.sdk.scala.common.CdpApiException(
+        uri"https://api.cognitedata.com/v1/",
+        400,
+        errorMessage,
+        None,
+        None,
+        None,
+        None))))
 
-    def toRow(s: String, partitionIndex: Option[Int]): Row = Row.empty
-    def uniqueId(s: String): String = "1"
+    val toRow = (_: String, _: Option[Int]) => Row.empty
+    val uniqueId = (_: String) => "1"
 
     val sdkRdd =
-      SdkV1Rdd(
+      SdkV1Rdd[String, String](
         spark.sparkContext,
         getDefaultConfig(CdfSparkAuth.Static(readApiKeyAuth)),
         toRow,
@@ -44,11 +39,21 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         getStreams)
 
     val e = intercept[CdpApiException] {
-      sdkRdd.compute(CdfPartition(0), TaskContext.get())
+      sdkRdd.compute(CdfPartition(0), TaskContext.get()).size
     }
     assert(e.message == errorMessage)
     assert(e.code == 400)
   }
+
+  private def generateStreams(nStreams: Int, nItemsPerStream: Int) =
+    0.until(nStreams).map { i =>
+      Stream.evalUnChunk {
+        IO.sleep((scala.math.random() * 300).millis) *> IO(Chunk.seq(1.to(nItemsPerStream).map { j =>
+          val id = (i * nItemsPerStream + j).toLong
+          Event(id = id)
+        }))
+      }
+    }
 
   it should "convert multiple streams to one Iterator" in {
     val nStreams = 50
@@ -61,12 +66,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
       (_: GenericClient[IO], _: Option[Int], _: Int) => {
-        val allStreams = 0.until(nStreams).map { i =>
-          Stream.evalUnChunk {
-            IO.sleep((scala.math.random() * 300).millis) *> IO(
-              Chunk.seq(1.to(nItemsPerStream).map(j => Event(id = i * nItemsPerStream + j))))
-          }
-        }
+        val allStreams = generateStreams(nStreams, nItemsPerStream)
         // Duplicates should be filtered out, so appending streams shouldn't make any difference.
         allStreams ++ allStreams ++ allStreams
       }
@@ -87,12 +87,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
       (_: GenericClient[IO], _: Option[Int], _: Int) => {
-        val allStreams = 0.until(nStreams).map { i =>
-          Stream.evalUnChunk {
-            IO.sleep((scala.math.random() * 300).millis) *> IO(
-              Chunk.seq(1.to(nItemsPerStream).map(j => Event(id = i * nItemsPerStream + j))))
-          }
-        }
+        val allStreams = generateStreams(nStreams, nItemsPerStream)
         allStreams ++ allStreams ++ allStreams
       },
       deduplicateRows = false

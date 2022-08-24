@@ -27,7 +27,7 @@ class AssetHierarchyBuilderTest
       key: String,
       tree: Seq[AssetCreate],
       metricsPrefix: Option[String] = None,
-      batchSize: Int = 100,
+      batchSize: Long = 100L,
       subtrees: String = "ingest",
       deleteMissingAssets: Boolean = false): Unit = {
     def addKey(id: String) =

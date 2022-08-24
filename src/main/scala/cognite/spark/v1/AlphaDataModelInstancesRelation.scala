@@ -27,6 +27,8 @@ import java.time._
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 
+import scala.annotation.nowarn
+
 class AlphaDataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
@@ -222,9 +224,9 @@ class AlphaDataModelInstanceRelation(
   // scalastyle:on method.length cyclomatic.complexity
 
   def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[IO],
+      @nowarn client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
+      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
     val selectedPropsArray: Array[String] = if (selectedColumns.isEmpty) {
       schema.fields.map(_.name)
     } else {

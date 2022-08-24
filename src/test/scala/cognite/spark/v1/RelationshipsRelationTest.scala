@@ -32,7 +32,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
   val eventExtId1 = "scala-sdk-relationships-test-event2"
   val externalIdPrefix = s"sparktest-relationship-${shortRandomString()}"
 
-  def createResources(externalIdPrefix: String): Unit =
+  def createResources(externalIdPrefix: String): Unit = {
     writeClient.relationships.create(
       Seq(
         RelationshipCreate(
@@ -76,6 +76,8 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
         )
       )
     )
+    ()
+  }
 
   it should "be able to read a relationship" taggedAs ReadTest in {
     val externalId = s"sparktest-relationship-${shortRandomString()}"

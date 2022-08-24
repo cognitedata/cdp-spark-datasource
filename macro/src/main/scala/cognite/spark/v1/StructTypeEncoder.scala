@@ -2,8 +2,6 @@ package cognite.spark.v1
 
 import cats.Monad
 import io.scalaland.chimney.Transformer
-
-import scala.language.experimental.macros
 import org.apache.spark.sql.types.{StructField, StructType}
 
 import scala.annotation.tailrec
@@ -38,7 +36,7 @@ case object FieldNull extends OptionalField[Nothing] {
 }
 
 object OptionalField {
-  implicit def fieldToOption[T: Manifest]: Transformer[OptionalField[T], Option[T]] =
+  implicit def fieldToOption[T]: Transformer[OptionalField[T], Option[T]] =
     new Transformer[OptionalField[T], Option[T]] {
       override def transform(src: OptionalField[T]): Option[T] = src.toOption
     }

@@ -91,7 +91,7 @@ final case class NumericDataPointsRdd(
               .getOrElse(count.timestamp.plus(granularity.amount, granularity.unit)),
             Some(countSum)
           )
-          countsToRanges(id, counts, granularity, newRange +: ranges, 0, None)
+          countsToRanges(id, counts, granularity, newRange +: ranges)
         } else {
           countsToRanges(
             id,
@@ -133,7 +133,7 @@ final case class NumericDataPointsRdd(
   // This must not exceed the limits of CDF.
   private val maxPointsPerAggregationRange = 10000
 
-  private val granularitiesToTry = Seq(
+  private val granularitiesToTry = List(
     Granularity(Some(900), ChronoUnit.DAYS),
     Granularity(Some(300), ChronoUnit.DAYS),
     Granularity(Some(150), ChronoUnit.DAYS),
@@ -185,9 +185,12 @@ final case class NumericDataPointsRdd(
       id: CogniteId,
       start: Instant,
       end: Instant,
-      granularities: Seq[Granularity] = granularitiesToTry): IO[Option[Seq[Range]]] =
+      granularities: List[Granularity] = granularitiesToTry): IO[Option[Seq[Range]]] =
     granularities match {
-      case granularity +: moreGranular =>
+      case Nil =>
+        throw new RuntimeException(
+          "No granularities requested for data points aggregation. Please report this to support@cognite.com")
+      case granularity :: moreGranular =>
         // convert start to closest previous granularity unit
         // convert end to closest next granularity unit(?)
         val granularityUnitMillis = granularity.unit.getDuration.toMillis.toDouble
@@ -339,8 +342,10 @@ final case class NumericDataPointsRdd(
           val ranges = for {
             a <- aggregations
             i <- 0L until numRanges
-            rangeStart = aggStart.plus((maxPointsPerAggregationRange * i).max(0), granularity.unit)
-            rangeEnd = rangeStart.plus(maxPointsPerAggregationRange, granularity.unit).min(aggEnd)
+            rangeStart = aggStart.plus(
+              (maxPointsPerAggregationRange.toLong * i).max(0),
+              granularity.unit)
+            rangeEnd = rangeStart.plus(maxPointsPerAggregationRange.toLong, granularity.unit).min(aggEnd)
             nPoints = Duration
               .between(rangeStart, rangeEnd)
               .toMillis / granularity.unit.getDuration.toMillis
@@ -467,7 +472,7 @@ final case class NumericDataPointsRdd(
 
   private def maybeLimitStream[A](stream: Stream[IO, A]) =
     config.limitPerPartition match {
-      case Some(limit) => stream.take(limit)
+      case Some(limit) => stream.take(limit.toLong)
       case None => stream
     }
 

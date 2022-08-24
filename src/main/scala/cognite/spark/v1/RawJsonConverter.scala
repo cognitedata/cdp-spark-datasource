@@ -44,7 +44,7 @@ object RawJsonConverter {
       case v: java.time.LocalDate => Json.fromString(v.toString)
       case v: java.sql.Timestamp => Json.fromString(v.toString)
       case v: java.time.Instant => Json.fromString(v.toString)
-      case v: Array[Byte] =>
+      case _: Array[Byte] =>
         throw new CdfSparkIllegalArgumentException(
           "BinaryType is not supported when writing raw, please convert it to base64 string or array of numbers")
       case v: Map[Any @unchecked, Any @unchecked] =>
@@ -325,7 +325,7 @@ object RawJsonConverter {
       (j: Json) =>
         j.asString.map(Base64.getDecoder.decode).getOrElse(mappingError(dataType, j))
 
-    case dt: DecimalType =>
+    case _: DecimalType =>
       (j: Json) =>
         j.asNumber
           .flatMap(_.toBigDecimal)
@@ -381,7 +381,7 @@ object RawJsonConverter {
       makeConverter(udt.sqlType)
 
     case _: NullType =>
-      (j: Json) =>
+      (_: Json) =>
         null
 
     // We don't actually hit this exception though, we keep it for understandability

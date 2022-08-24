@@ -405,7 +405,7 @@ class SequencesRelationTest
           .save()
         spark
           .sql(s"select id from sequences where externalId = 'externalId-$key'")
-          .collect
+          .collect()
       },
       df => df.length > 0
     )
