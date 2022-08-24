@@ -77,37 +77,26 @@ class RawTableRelation(
     cursors.map(rawClient.filterOnePartition(filter, _, limit))
   }
 
-  def pullFromKeysSeq(
-      keys: List[String],
-      get: String => IO[RawRow]
-  ): Pull[IO, RawRow, Unit] =
-    keys match {
-      case Nil => Pull.done
-      case key :: tail =>
-        Pull.attemptEval(get(key)).flatMap {
-          case Right(row) => Pull.output(Chunk.singleton(row))
-          case Left(err) =>
-            err match {
-              case CdpApiException(_, 404, _, _, _, _, _, _) =>
-                Pull.output(Chunk.empty)
-              case _ =>
-                Pull.raiseError[IO](err)
-            }
-        } >>
-          pullFromKeysSeq(tail, get)
-    }
-
   def getStreamsByKeys(keys: Array[String])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, RawRow]] = {
     val rawClient = client.rawRows(database, table)
-    val keysPerPartition = (keys.length.doubleValue / numPartitions).ceil.intValue()
-    Range(0, numPartitions)
-      .map { i =>
-        keys.drop(i * keysPerPartition).take(keysPerPartition).toList
-      }
-      .map(partitionKeys => pullFromKeysSeq(partitionKeys, rawClient.retrieveByKey).stream)
+    Seq(
+      Stream
+        .emits(keys)
+        .parEvalMap[IO, RawRow](numPartitions)(rawClient.retrieveByKey)
+        .attempt
+        .evalMapFilter {
+          case Right(row) => IO(Some(row))
+          case Left(err) =>
+            err match {
+              case CdpApiException(_, 404, _, _, _, _, _, _) =>
+                IO(None)
+              case _ =>
+                IO.raiseError(err)
+            }
+        })
   }
 
   private def getRowConverter(schema: Option[StructType]): RawRow => Row =
