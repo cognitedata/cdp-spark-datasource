@@ -116,7 +116,7 @@ class RawTableRelation(
       limit: Option[Int],
       numPartitions: Option[Int],
       filter: RawRowFilter,
-      keysFilter: Seq[String],
+      requestedKeys: Seq[String],
       schema: Option[StructType],
       collectMetrics: Boolean = config.collectMetrics,
       collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
@@ -125,7 +125,7 @@ class RawTableRelation(
 
     @transient lazy val rowConverter = getRowConverter(schema)
 
-    val streams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, RawRow]] = keysFilter match {
+    val streams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, RawRow]] = requestedKeys match {
       case Nil => {
         val partitionCursors =
           CdpConnector
@@ -163,7 +163,6 @@ class RawTableRelation(
 
   override def buildScan(): RDD[Row] = buildScan(schema.fieldNames, Array.empty)
 
-  // scalastyle:off cyclomatic.complexity
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
     val filteredRequiredColumns = getJsonColumnNames(requiredColumns)
@@ -171,9 +170,9 @@ class RawTableRelation(
     val lengthOfRequiredColumnsAsString = requiredColumns.mkString(",").length
 
     // since filters act as an AND, only the first one including `key` constraints is important
-    val keysFilter: Array[String] =
+    val requestedKeys: Array[String] =
       filters
-        .collectFirst(filterToRequiredKeys)
+        .collectFirst(filterToRequestedKeys)
         .getOrElse(Array.empty)
 
     val rawRowFilter =
@@ -193,7 +192,7 @@ class RawTableRelation(
     }
 
     val rdd =
-      readRows(config.limitPerPartition, None, rawRowFilter, keysFilter, jsonSchema)
+      readRows(config.limitPerPartition, None, rawRowFilter, requestedKeys, jsonSchema)
 
     rdd.map(row => {
       val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
@@ -201,17 +200,17 @@ class RawTableRelation(
     })
   }
 
-  val filterToRequiredKeys: PartialFunction[Filter, Array[String]] = {
+  val filterToRequestedKeys: PartialFunction[Filter, Array[String]] = {
     case EqualTo("key", value) => Array(value.toString())
     case EqualNullSafe("key", value) => Array(value.toString())
     case In("key", values) => values.map(_.toString())
-    case And(left, _) if filterToRequiredKeys.isDefinedAt(left) =>
-      filterToRequiredKeys(left)
-    case And(_, right) if filterToRequiredKeys.isDefinedAt(right) =>
-      filterToRequiredKeys(right)
+    case And(left, _) if filterToRequestedKeys.isDefinedAt(left) =>
+      filterToRequestedKeys(left)
+    case And(_, right) if filterToRequestedKeys.isDefinedAt(right) =>
+      filterToRequestedKeys(right)
     case Or(left, right)
-        if (filterToRequiredKeys.isDefinedAt(left) && filterToRequiredKeys.isDefinedAt(right)) =>
-      (filterToRequiredKeys(left) ++ filterToRequiredKeys(right)).toSet.toArray
+        if (filterToRequestedKeys.isDefinedAt(left) && filterToRequestedKeys.isDefinedAt(right)) =>
+      (filterToRequestedKeys(left) ++ filterToRequestedKeys(right)).toSet.toArray
   }
 
   def filtersToTimestampLimits(
