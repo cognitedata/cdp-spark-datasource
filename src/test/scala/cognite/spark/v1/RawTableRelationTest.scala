@@ -659,19 +659,19 @@ class RawTableRelationTest
 
     assert(df1.count() == 2)
 
-    val rowsRead1 = getNumberOfRowsRead(metricsPrefix1, f"raw.spark-test-database.${tableName}.rows")
+    val rowsRead1 = getNumberOfRowsRead(metricsPrefix1, s"raw.spark-test-database.$tableName.rows")
     assert(rowsRead1 == 2)
 
     // filter should not be pushed down if OR condition includes other fields
     val metricsPrefix2 = s"pushdown.raw.key.${shortRandomString()}"
     val df2 = rawRead(tableName, metricsPrefix = Some(metricsPrefix2))
       .where(
-        "key = 'some-invalid-key' or key = 'k1' or key = 'k2' or lastUpdatedTime >= timestamp('2000-01-01 00:00:00.000Z')")
+        "key = 'some-invalid-key' or key = 'k1' or key = 'k2' or key = 'k1' or lastUpdatedTime >= timestamp('2000-01-01 00:00:00.000Z')")
 
-    assert(df2.count() == 3)
+    assert(df2.count() == 2)
 
-    val rowsRead2 = getNumberOfRowsRead(metricsPrefix2, f"raw.spark-test-database.${tableName}.rows")
-    assert(rowsRead2 == 3)
+    val rowsRead2 = getNumberOfRowsRead(metricsPrefix2, s"raw.spark-test-database.$tableName.rows")
+    assert(rowsRead2 == 2)
   }
 
   it should "support pushdown key filters with AND" taggedAs ReadTest in {
@@ -682,7 +682,31 @@ class RawTableRelationTest
 
     assert(df.count() == 1)
 
-    val rowsRead = getNumberOfRowsRead(metricsPrefix, f"raw.spark-test-database.${tableName}.rows")
+    val rowsRead = getNumberOfRowsRead(metricsPrefix, s"raw.spark-test-database.$tableName.rows")
+    assert(rowsRead == 1)
+  }
+
+  it should "support pushdown key filters with AND and IN resulting in an empty set of keys" taggedAs ReadTest in {
+    val tableName = "with-boolean-empty-str"
+    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
+    val df = rawRead(tableName, metricsPrefix = Some(metricsPrefix))
+      .where("key in ('k1') and key in ('k2')")
+
+    assert(df.count() == 0)
+
+    // No rows should have been read, so the metric should not exist.
+    a[NullPointerException] should be thrownBy getNumberOfRowsRead(metricsPrefix, s"raw.spark-test-database.$tableName.rows")
+  }
+
+  it should "support pushdown key filters with OR and IN" taggedAs ReadTest in {
+    val tableName = "with-boolean-empty-str"
+    val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
+    val df = rawRead(tableName, metricsPrefix = Some(metricsPrefix))
+      .where("bool = 'foo' OR key in ('k2')")
+
+    assert(df.count() == 1)
+
+    val rowsRead = getNumberOfRowsRead(metricsPrefix, s"raw.spark-test-database.$tableName.rows")
     assert(rowsRead == 1)
   }
 
