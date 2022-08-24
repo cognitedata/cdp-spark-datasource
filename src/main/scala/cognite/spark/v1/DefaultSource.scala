@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.effect.unsafe.IORuntime
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
@@ -341,10 +340,8 @@ object DefaultSource {
         s"`$onConflictName` not a valid subtrees option. Valid options are: $validOptions"))
   }
 
-  def parseAuth(parameters: Map[String, String])(
-      implicit ioRuntime: IORuntime,
-      backend: SttpBackend[IO, Any]): Option[CdfSparkAuth] = {
-
+  private[v1] def parseAuth(parameters: Map[String, String])(
+      implicit backend: SttpBackend[IO, Any]): Option[CdfSparkAuth] = {
     val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
     val apiKey = parameters.get("apiKey").map(apiKey => ApiKeyAuth(apiKey))
@@ -399,7 +396,6 @@ object DefaultSource {
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
 
-    import CdpConnector.ioRuntime
     implicit val backend: SttpBackend[IO, Any] =
       CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
 
@@ -477,8 +473,8 @@ object DefaultSource {
   }
 
   def getProjectFromAuth(auth: CdfSparkAuth, baseUrl: String)(
-      implicit ioRuntime: IORuntime,
-      backend: SttpBackend[IO, Any]): String = {
+      implicit backend: SttpBackend[IO, Any]): String = {
+    import CdpConnector.ioRuntime
     val getProject = for {
       authProvider <- auth.provider
       client <- GenericClient

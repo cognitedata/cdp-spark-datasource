@@ -1,3 +1,9 @@
+# 2.1.3
+
+## Enhancements
+
+* Bump Cognite Scala SDK to 2.3.1 to reduce number token requested for OAuth2
+
 # 2.1.2
 
 ## Enhancements

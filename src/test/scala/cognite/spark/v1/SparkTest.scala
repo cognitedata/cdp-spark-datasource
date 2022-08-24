@@ -144,7 +144,6 @@ trait SparkTest {
       Some("SparkDatasourceTestTag"),
       Some("SparkDatasourceTestApp"),
       DefaultSource.getProjectFromAuth(auth, Constants.DefaultBaseUrl)(
-        implicitly,
         CdpConnector
           .retryingSttpBackend(Constants.DefaultMaxRetries, Constants.DefaultMaxRetryDelaySeconds)),
       Some(Constants.DefaultBatchSize),

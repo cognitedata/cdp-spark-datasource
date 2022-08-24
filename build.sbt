@@ -10,7 +10,7 @@ val circeVersion = "0.14.1"
 val sttpVersion = "3.4.1"
 val Specs2Version = "4.6.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "2.2.3-SNAPSHOT"
+val cogniteSdkVersion = "2.3.1"
 
 val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
@@ -25,7 +25,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "2.1.2-SNAPSHOT",
+  version := "2.1.3",
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
@@ -152,7 +152,7 @@ lazy val library = (project in file("."))
         ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
         ShadeRule.rename("org.typelevel.jawn.**" -> s"$shadePackage.org.typelevel.jawn.@1").inAll,
         ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
-        ShadeRule.rename("sttp.client3.**" -> s"$shadePackage.sttp.client3.@1").inAll,
+        ShadeRule.rename("sttp.client3.**" -> s"$shadePackage.sttp.client3.@1").inAll
       )
     },
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),

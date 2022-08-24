@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import org.scalatest.{Matchers, WordSpec}
 import sttp.client3.{SttpBackend, UriContext}
