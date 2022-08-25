@@ -1,10 +1,13 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import org.scalatest.{Matchers, WordSpec}
-import sttp.client3.UriContext
+import sttp.client3.{SttpBackend, UriContext}
 
 class DefaultSourceTest extends WordSpec with Matchers {
+
+  implicit val backend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(3, 5)
 
   "DefaultSource" should {
     "parseAuth and fall back in order" should {

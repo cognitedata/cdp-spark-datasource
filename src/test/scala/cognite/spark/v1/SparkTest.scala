@@ -143,11 +143,9 @@ trait SparkTest {
       auth,
       Some("SparkDatasourceTestTag"),
       Some("SparkDatasourceTestApp"),
-      DefaultSource.getProjectFromAuth(
-        auth,
-        Constants.DefaultMaxRetries,
-        Constants.DefaultMaxRetryDelaySeconds,
-        Constants.DefaultBaseUrl),
+      DefaultSource.getProjectFromAuth(auth, Constants.DefaultBaseUrl)(
+        CdpConnector
+          .retryingSttpBackend(Constants.DefaultMaxRetries, Constants.DefaultMaxRetryDelaySeconds)),
       Some(Constants.DefaultBatchSize),
       None,
       Constants.DefaultPartitions,
@@ -168,8 +166,7 @@ trait SparkTest {
     )
 
   private def getCounter(metricName: String): Long =
-    MetricsSource
-      .metricsMap
+    MetricsSource.metricsMap
       .get(metricName)
       .value
       .getCount
