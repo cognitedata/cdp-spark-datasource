@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
-import com.cognite.sdk.scala.common.Items
+import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import org.apache.spark.datasource.MetricsSource
@@ -32,6 +32,8 @@ class RawTableRelation(
   import CdpConnector._
   import RawTableRelation._
 
+  private val MaxKeysAllowedForFiltering = 10000L
+
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
@@ -51,6 +53,7 @@ class RawTableRelation(
           Some(1),
           RawRowFilter(),
           None,
+          None,
           collectSchemaInferenceMetrics,
           false)
 
@@ -67,13 +70,29 @@ class RawTableRelation(
     }
   }
 
-  def getStreams(filter: RawRowFilter, cursors: Vector[String])(
+  private def getStreams(filter: RawRowFilter, cursors: Vector[String])(
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, RawRow]] = {
     assert(numPartitions == cursors.length)
     val rawClient = client.rawRows(database, table)
     cursors.map(rawClient.filterOnePartition(filter, _, limit))
+  }
+
+  private def getStreamByKeys(client: GenericClient[IO], keys: Set[String]): Stream[IO, RawRow] = {
+    val rawClient = client.rawRows(database, table)
+    Stream
+      .emits(keys.toSeq)
+      .parEvalMapUnbounded(
+        rawClient
+          .retrieveByKey(_)
+          .map(Option(_))
+          .recover {
+            // It's fine to request keys that don't exist, so we just ignore 404 responses.
+            case CdpApiException(_, 404, _, _, _, _, _, _) => None
+          }
+      )
+      .collect { case Some(v) => v }
   }
 
   private def getRowConverter(schema: Option[StructType]): RawRow => Row =
@@ -94,21 +113,30 @@ class RawTableRelation(
       limit: Option[Int],
       numPartitions: Option[Int],
       filter: RawRowFilter,
+      requestedKeys: Option[Set[String]],
       schema: Option[StructType],
       collectMetrics: Boolean = config.collectMetrics,
       collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
     val configWithLimit =
       config.copy(limitPerPartition = limit, partitions = numPartitions.getOrElse(config.partitions))
-
     @transient lazy val rowConverter = getRowConverter(schema)
-
-    val partitionCursors =
-      CdpConnector
-        .clientFromConfig(config)
-        .rawRows(database, table)
-        .getPartitionCursors(filter, configWithLimit.partitions)
-        .unsafeRunSync()
-        .toVector
+    val streams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, RawRow]] = {
+      requestedKeys match {
+        // Request individual keys from CDF, unless there are too many, as each key requires a request.
+        case Some(keys) if keys.size < MaxKeysAllowedForFiltering =>
+          (client: GenericClient[IO], _: Option[Int], _: Int) =>
+            Seq(getStreamByKeys(client, keys))
+        case _ =>
+          val partitionCursors =
+            CdpConnector
+              .clientFromConfig(config)
+              .rawRows(database, table)
+              .getPartitionCursors(filter, configWithLimit.partitions)
+              .unsafeRunSync()
+              .toVector
+          getStreams(filter, partitionCursors)
+      }
+    }
 
     SdkV1Rdd[RawRow, String](
       sqlContext.sparkContext,
@@ -127,7 +155,7 @@ class RawTableRelation(
         rowConverter(item)
       },
       (r: RawRow) => r.key,
-      getStreams(filter, partitionCursors),
+      streams,
       deduplicateRows = true // if false we might end up with 429 when trying to update assets with multiple same request
     )
   }
@@ -136,6 +164,7 @@ class RawTableRelation(
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val (minLastUpdatedTime, maxLastUpdatedTime) = filtersToTimestampLimits(filters, "lastUpdatedTime")
+    val requestedKeys: Option[Set[String]] = filtersToRequestedKeys(filters)
     val filteredRequiredColumns = getJsonColumnNames(requiredColumns)
     val filteredSchemaFields = getJsonColumnNames(schema.fieldNames)
     val lengthOfRequiredColumnsAsString = requiredColumns.mkString(",").length
@@ -157,13 +186,51 @@ class RawTableRelation(
     }
 
     val rdd =
-      readRows(config.limitPerPartition, None, rawRowFilter, jsonSchema)
+      readRows(config.limitPerPartition, None, rawRowFilter, requestedKeys, jsonSchema)
 
     rdd.map(row => {
       val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
       new GenericRow(filteredCols)
     })
   }
+
+  private def filterOr(or: Or): Option[Set[String]] =
+    (filterToRequestedKeys(or.left), filterToRequestedKeys(or.right)) match {
+      case (Some(leftRequestedKeys), Some(rightRequestedKeys)) =>
+        Some(leftRequestedKeys.union(rightRequestedKeys))
+      case _ => None
+    }
+
+  private def filterAnd(and: And): Option[Set[String]] =
+    (filterToRequestedKeys(and.left), filterToRequestedKeys(and.right)) match {
+      case (Some(leftRequestedKeys), Some(rightRequestedKeys)) =>
+        Some(leftRequestedKeys.intersect(rightRequestedKeys))
+      case (None, someRightRequestedKeys) => someRightRequestedKeys
+      case (someLeftRequestedKeys, None) => someLeftRequestedKeys
+    }
+
+  def filterToRequestedKeys(filter: Filter): Option[Set[String]] =
+    filter match {
+      case EqualTo("key", value) => Some(Set(value.toString))
+      case EqualNullSafe("key", value) => Some(Set(value.toString))
+      case In("key", values) => Some(values.map(_.toString).toSet)
+      case IsNull("key") => Some(Set.empty)
+      case or: Or => filterOr(or)
+      case and: And => filterAnd(and)
+      case _ => None
+    }
+
+  // A return value of None means no specific keys were requested.
+  // Some(Set.empty) would mean that the filters result in requesting zero keys,
+  // for example if filtering with "WHERE key = 'k1' AND key = 'k2'.
+  def filtersToRequestedKeys(filters: Array[Filter]): Option[Set[String]] =
+    filters
+      .map(filterToRequestedKeys)
+      .foldLeft(Option.empty[Set[String]]) {
+        case (None, maybeMoreKeys) => maybeMoreKeys
+        case (result, None) => result
+        case (Some(result), Some(moreKeys)) => Some(result.intersect(moreKeys))
+      }
 
   def filtersToTimestampLimits(
       filters: Array[Filter],

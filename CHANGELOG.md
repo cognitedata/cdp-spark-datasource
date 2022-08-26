@@ -1,3 +1,9 @@
+# 2.1.4
+
+## Enhancements
+
+* Filters over the `key` column on raw tables are now used to retrieve only relevant rows.
+
 # 2.1.3
 
 ## Enhancements
