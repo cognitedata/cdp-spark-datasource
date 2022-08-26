@@ -198,8 +198,7 @@ class RawTableRelation(
     (filterToRequestedKeys(or.left), filterToRequestedKeys(or.right)) match {
       case (Some(leftRequestedKeys), Some(rightRequestedKeys)) =>
         Some(leftRequestedKeys.union(rightRequestedKeys))
-      case (None, someRightRequestedKeys) => someRightRequestedKeys
-      case (someLeftRequestedKeys, None) => someLeftRequestedKeys
+      case _ => None
     }
 
   private def filterAnd(and: And): Option[Set[String]] =

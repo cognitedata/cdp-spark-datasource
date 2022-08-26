@@ -668,10 +668,10 @@ class RawTableRelationTest
       .where(
         "key = 'some-invalid-key' or key = 'k1' or key = 'k2' or key = 'k1' or lastUpdatedTime >= timestamp('2000-01-01 00:00:00.000Z')")
 
-    assert(df2.count() == 2)
+    assert(df2.count() == 3)
 
     val rowsRead2 = getNumberOfRowsRead(metricsPrefix2, s"raw.spark-test-database.$tableName.rows")
-    assert(rowsRead2 == 2)
+    assert(rowsRead2 == 3)
   }
 
   it should "support pushdown key filters with AND" taggedAs ReadTest in {
@@ -702,7 +702,7 @@ class RawTableRelationTest
     val tableName = "with-boolean-empty-str"
     val metricsPrefix = s"pushdown.raw.key.${shortRandomString()}"
     val df = rawRead(tableName, metricsPrefix = Some(metricsPrefix))
-      .where("bool = 'foo' OR key in ('k2')")
+      .where("key = 'some-invalid-key' OR key in ('k2')")
 
     assert(df.count() == 1)
 
