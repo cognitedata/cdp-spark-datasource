@@ -1,3 +1,9 @@
+# 2.1.5
+
+## Enhancements
+
+* Bump Cognite Scala SDK to 2.3.2 to use Clock.realTime instead of Clock.monotonic in OAuth2
+
 # 2.1.4
 
 ## Enhancements
