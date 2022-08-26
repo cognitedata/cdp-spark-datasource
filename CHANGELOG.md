@@ -1,3 +1,9 @@
+# 2.1.3
+
+## Enhancements
+
+* Filters over the `key` column on RawTableRelation are now used to retrieve only relevant rows.
+
 # 2.1.2
 
 ## Enhancements
