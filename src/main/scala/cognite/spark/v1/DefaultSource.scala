@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.effect.unsafe.IORuntime
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
@@ -341,7 +340,8 @@ object DefaultSource {
         s"`$onConflictName` not a valid subtrees option. Valid options are: $validOptions"))
   }
 
-  def parseAuth(parameters: Map[String, String]): Option[CdfSparkAuth] = {
+  private[v1] def parseAuth(parameters: Map[String, String])(
+      implicit backend: SttpBackend[IO, Any]): Option[CdfSparkAuth] = {
     val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
     val apiKey = parameters.get("apiKey").map(apiKey => ApiKeyAuth(apiKey))
@@ -396,6 +396,9 @@ object DefaultSource {
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
 
+    implicit val backend: SttpBackend[IO, Any] =
+      CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
+
     val auth = parseAuth(parameters) match {
       case Some(x) => x
       case None =>
@@ -403,11 +406,8 @@ object DefaultSource {
           s"Either apiKey, authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
             .mkString(", ")}")
     }
-    import CdpConnector.ioRuntime
     val projectName = parameters
-      .getOrElse(
-        "project",
-        DefaultSource.getProjectFromAuth(auth, maxRetries, maxRetryDelaySeconds, baseUrl))
+      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
@@ -472,15 +472,9 @@ object DefaultSource {
     )
   }
 
-  def getProjectFromAuth(
-      auth: CdfSparkAuth,
-      maxRetries: Int,
-      maxRetryDelaySeconds: Int,
-      baseUrl: String
-  )(implicit ioRuntime: IORuntime): String = {
-    implicit val backend: SttpBackend[IO, Any] =
-      CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
-
+  def getProjectFromAuth(auth: CdfSparkAuth, baseUrl: String)(
+      implicit backend: SttpBackend[IO, Any]): String = {
+    import CdpConnector.ioRuntime
     val getProject = for {
       authProvider <- auth.provider
       client <- GenericClient
