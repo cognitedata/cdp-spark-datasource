@@ -232,9 +232,13 @@ class AlphaDataModelInstanceRelation(
       if (andFilters.isEmpty) EmptyFilter else DSLAndFilter(andFilters)
     }
 
+    val instanceSpaceExternalIdFilter = filters.collectFirst {
+      case EqualTo("spaceExternalId", value) => value.toString()
+    }.getOrElse(spaceExternalId)
+
     val dmiQuery = DataModelInstanceQuery(
       model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
-      spaceExternalId = "", //TODO: get from the filter
+      spaceExternalId = instanceSpaceExternalIdFilter,
       filter = filter,
       sort = None,
       limit = limit,
