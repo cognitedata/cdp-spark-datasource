@@ -32,6 +32,7 @@ class AlphaDataModelInstancesRelationTest
       .query(
         DataModelInstanceQuery(
           model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
+          spaceExternalId = spaceExternalId,
           filter = filter,
           sort = None,
           limit = None)
@@ -51,11 +52,11 @@ class AlphaDataModelInstancesRelationTest
                               externalId: String): PropertyMap =
     if (isNode) {
       bluefieldAlphaClient.nodes.retrieveByExternalIds(model = DataModelIdentifier(space = Some(spaceExternalId),
-        model = modelExternalId), externalIds =  Seq(externalId)).unsafeRunSync().items.head
+        model = modelExternalId), spaceExternalId = spaceExternalId, externalIds =  Seq(externalId)).unsafeRunSync().items.head
     }
     else {
       bluefieldAlphaClient.edges.retrieveByExternalIds(model = DataModelIdentifier(space = Some(spaceExternalId),
-        model = modelExternalId), externalIds =  Seq(externalId)).unsafeRunSync().items.head
+        model = modelExternalId), spaceExternalId = spaceExternalId, externalIds =  Seq(externalId)).unsafeRunSync().items.head
     }
 
   private def byExternalId(isNode: Boolean, modelExternalId: String, externalId: String): String =
@@ -112,7 +113,7 @@ class AlphaDataModelInstancesRelationTest
   )
 
   val helperModelExtId = "helperModel3"
-  val helperNode = Node(externalId = "testNode1", properties = Some(Map("hjelp1" -> PropertyType.Int.Property(1))))
+  val helperNode = Node(spaceExternalId = Some(spaceExternalId), externalId = "testNode1", properties = Some(Map("hjelp1" -> PropertyType.Int.Property(1))))
 
   override def beforeAll(): Unit = {
     def createAndGetModels(): Seq[DataModel] = {
@@ -137,7 +138,6 @@ class AlphaDataModelInstancesRelationTest
           properties = Some(Map("hjelp1" -> DataModelPropertyDefinition(`type` = PropertyType.Int, nullable = false)))))).unsafeRunSync()
 
       bluefieldAlphaClient.nodes.createItems(
-        spaceExternalId = spaceExternalId,
         DataModelIdentifier(Some(spaceExternalId), helperModelExtId),
         items = Seq(helperNode, helperNode.copy(externalId="testNode2"), helperNode.copy(externalId="testNode3"))
       ).unsafeRunSync()
@@ -177,20 +177,20 @@ class AlphaDataModelInstancesRelationTest
   private def cleanUpNodes(): Unit =
     (allNodeModelExternalIds ++ Seq(helperModelExtId, nodeWithNDT)).foreach{ modelExtId =>
       val nodes: DataModelInstanceQueryResponse = bluefieldAlphaClient.nodes
-        .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
+        .query(DataModelInstanceQuery(spaceExternalId = spaceExternalId, model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
         .unsafeRunSync()
       nodes.items.map(_.externalId).grouped(500).foreach(ids =>
-        if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByExternalIds(ids).unsafeRunSync())
+        if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByIdentifiers(ids.map(DataModelInstanceIdentifier(Some(spaceExternalId), _))).unsafeRunSync())
     }
 
   // TODO remove this function and enable model deletion instead when available
   private def cleanUpEdges(): Unit =
     allEdgeModelExternalIds.foreach{ modelExtId =>
       val edges: DataModelInstanceQueryResponse = bluefieldAlphaClient.edges
-        .query(DataModelInstanceQuery(model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
+        .query(DataModelInstanceQuery(spaceExternalId = spaceExternalId, model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
         .unsafeRunSync()
       edges.items.map(_.externalId).grouped(500).foreach(ids =>
-        if (ids.nonEmpty) bluefieldAlphaClient.edges.deleteByExternalIds(ids).unsafeRunSync())
+        if (ids.nonEmpty) bluefieldAlphaClient.edges.deleteByIdentifiers(ids.map(DataModelInstanceIdentifier(Some(spaceExternalId), _))).unsafeRunSync())
     }
 
   private def collectExternalIds(df: DataFrame): List[String] =
@@ -238,7 +238,7 @@ class AlphaDataModelInstancesRelationTest
       testCode
     } finally {
       try {
-        bluefieldAlphaClient.nodes.deleteByExternalIds(externalIds).unsafeRunSync()
+        bluefieldAlphaClient.nodes.deleteByIdentifiers(externalIds.map(DataModelInstanceIdentifier(Some(spaceExternalId), _))).unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
