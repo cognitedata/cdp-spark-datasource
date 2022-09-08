@@ -32,8 +32,7 @@ import scala.annotation.nowarn
 class AlphaDataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
-    modelExternalId: String,
-    instanceSpaceExternalId: Option[String] = None)(val sqlContext: SQLContext)
+    modelExternalId: String)(val sqlContext: SQLContext)
     extends CdfRelation(config, "alphadatamodelinstances")
     with WritableRelation
     with PrunedFilteredScan {
@@ -84,15 +83,11 @@ class AlphaDataModelInstanceRelation(
     if (rows.isEmpty) {
       IO.unit
     } else {
-      val instanceSpace = instanceSpaceExternalId
-        .getOrElse(
-          throw new CdfSparkException(s"instanceSpaceExternalId must be specified when upserting data."))
       if (modelType == NodeType) {
         val fromRowFn = nodeFromRow(rows.head.schema)
         val dataModelNodes: Seq[Node] = rows.map(fromRowFn)
         alphaClient.nodes
           .createItems(
-            instanceSpace,
             DataModelIdentifier(Some(spaceExternalId), modelExternalId),
             true,
             dataModelNodes)
@@ -102,7 +97,6 @@ class AlphaDataModelInstanceRelation(
         val dataModelEdges: Seq[Edge] = rows.map(fromRowFn)
         alphaClient.edges
           .createItems(
-            spaceExternalId = instanceSpace,
             model = DataModelIdentifier(Some(spaceExternalId), modelExternalId),
             autoCreateStartNodes = false,
             autoCreateEndNodes = false,
@@ -240,6 +234,7 @@ class AlphaDataModelInstanceRelation(
 
     val dmiQuery = DataModelInstanceQuery(
       model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
+      spaceExternalId = "", //TODO: get from the filter
       filter = filter,
       sort = None,
       limit = limit,
@@ -271,11 +266,11 @@ class AlphaDataModelInstanceRelation(
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceDeleteSchema](r))
     if (modelType == DataModelType.NodeType) {
       alphaClient.nodes
-        .deleteByExternalIds(deletes.map(_.externalId))
+        .deleteByIdentifiers(deletes.map(row => DataModelInstanceIdentifier(row.spaceExternalId,row.externalId)))
         .flatTap(_ => incMetrics(itemsDeleted, rows.length))
     } else {
       alphaClient.edges
-        .deleteByExternalIds(deletes.map(_.externalId))
+        .deleteByIdentifiers(deletes.map(row => DataModelInstanceIdentifier(row.spaceExternalId, row.externalId)))
         .flatTap(_ => incMetrics(itemsDeleted, rows.length))
     }
   }
@@ -324,17 +319,21 @@ class AlphaDataModelInstanceRelation(
     def parseEdgeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Edge = {
       val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
-      val startNode = getStringValueForFixedProperty(row, "startNode", startNodeIndex)
-      val endNode = getStringValueForFixedProperty(row, "endNode", endNodeIndex)
+      val spaceExternalId = getStringValueForFixedProperty(row, "spaceExternalId", externalIdIndex)
+      val startNodeExternalId = getStringValueForFixedProperty(row, "startNodeExternalId", startNodeIndex)
+      val startNodeSpaceExternalId = getStringValueForFixedProperty(row, "startNodeSpaceExternalId", startNodeIndex)
+      val endNodeSpaceExternalId = getStringValueForFixedProperty(row, "endNodeSpaceExternalId", startNodeIndex)
+      val endNodeExternalId = getStringValueForFixedProperty(row, "endNode", endNodeIndex)
       val edgeType = getStringValueForFixedProperty(row, "type", typeIndex)
       val propertyValues: Map[String, DataModelProperty[_]] =
         getDataModelPropertyMap(indexedPropertyList, row)
 
       Edge(
+        spaceExternalId = Some(spaceExternalId),
         externalId = externalId,
         `type` = edgeType,
-        startNode = startNode,
-        endNode = endNode,
+        startNode = DataModelIdentifier(space = Some(startNodeSpaceExternalId), model = startNodeExternalId),
+        endNode = DataModelIdentifier(space = Some(endNodeSpaceExternalId), model = endNodeExternalId),
         properties = Some(propertyValues))
     }
 
@@ -349,10 +348,12 @@ class AlphaDataModelInstanceRelation(
     def parseNodeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Node = {
       val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
+      val spaceExternalId = getStringValueForFixedProperty(row, "spaceExternalId", externalIdIndex)
       val propertyValues: Map[String, DataModelProperty[_]] =
         getDataModelPropertyMap(indexedPropertyList, row)
 
       Node(
+        spaceExternalId = Some(spaceExternalId),
         externalId = externalId,
         properties = Some(propertyValues)
       )
@@ -363,4 +364,4 @@ class AlphaDataModelInstanceRelation(
 }
 
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
-final case class DataModelInstanceDeleteSchema(externalId: String)
+final case class DataModelInstanceDeleteSchema(spaceExternalId: Option[String], externalId: String)
