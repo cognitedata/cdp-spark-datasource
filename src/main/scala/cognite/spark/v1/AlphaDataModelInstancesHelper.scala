@@ -1,9 +1,13 @@
 package cognite.spark.v1
 
 import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId, ZonedDateTime}
-
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
-import com.cognite.sdk.scala.v1.{DataModelProperty, DataModelType, PropertyType}
+import com.cognite.sdk.scala.v1.{
+  DataModelProperty,
+  DataModelType,
+  DirectRelationIdentifier,
+  PropertyType
+}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{DataType, DataTypes, StructType}
 
@@ -344,6 +348,25 @@ object AlphaDataModelInstancesHelper {
   def getStringValueForFixedProperty(row: Row, keyString: String, index: Int): String =
     row.get(index) match {
       case x: String => x
+      case _ =>
+        throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
+    }
+
+  def getDirectRelationIdentifierProperty(
+      row: Row,
+      keyString: String,
+      index: Int): DirectRelationIdentifier =
+    row.get(index) match {
+      case identifier: String =>
+        // Colon character cannot be used for space but it can be used for the externalId, so we should consider only
+        // the first ":" to split between spaceExternalId and externalId
+        identifier.split(":", 2) match {
+          case Array(spaceExternalId, externalId) =>
+            DirectRelationIdentifier(Some(spaceExternalId), externalId)
+          case _ =>
+            throw new CdfSparkException(
+              s"Can't upsert data model because `$keyString` should be a DirectRelationIdentifier of format `spaceExternalId:externalId`")
+        }
       case _ =>
         throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
     }

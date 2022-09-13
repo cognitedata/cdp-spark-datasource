@@ -11,7 +11,7 @@ import scala.util.Try
 import scala.util.control.NonFatal
 
 class AlphaDataModelInstancesRelationTest
-  extends FlatSpec
+    extends FlatSpec
     with Matchers
     with SparkTest
     with BeforeAndAfterAll {
@@ -25,38 +25,50 @@ class AlphaDataModelInstancesRelationTest
   private val spaceExternalId = "test-space"
 
   private def listInstances(
-                             isNode: Boolean,
-                             modelExternalId: String,
-                             filter: DomainSpecificLanguageFilter = EmptyFilter): DataModelInstanceQueryResponse = if (isNode){
-    bluefieldAlphaClient.nodes
-      .query(
-        DataModelInstanceQuery(
+      isNode: Boolean,
+      modelExternalId: String,
+      filter: DomainSpecificLanguageFilter = EmptyFilter): DataModelInstanceQueryResponse =
+    if (isNode) {
+      bluefieldAlphaClient.nodes
+        .query(
+          DataModelInstanceQuery(
+            model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
+            spaceExternalId = spaceExternalId,
+            filter = filter,
+            sort = None,
+            limit = None)
+        )
+        .unsafeRunTimed(30.seconds)
+        .get
+    } else {
+      throw new CdfSparkException("Edges are not supported.")
+    }
+
+  private def getExternalIdList(isNode: Boolean, modelExternalId: String): Seq[String] =
+    listInstances(isNode = isNode, modelExternalId).items.map(_.externalId)
+
+  private def getByExternalId(
+      isNode: Boolean,
+      modelExternalId: String,
+      externalId: String): PropertyMap =
+    if (isNode) {
+      bluefieldAlphaClient.nodes
+        .retrieveByExternalIds(
           model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
           spaceExternalId = spaceExternalId,
-          filter = filter,
-          sort = None,
-          limit = None)
-      )
-      .unsafeRunTimed(30.seconds)
-      .get
-  } else  {
-    throw new CdfSparkException("Edges are not supported.")
-  }
-
-  private def getExternalIdList(
-                                 isNode: Boolean,
-                                 modelExternalId: String): Seq[String] = listInstances(isNode = isNode, modelExternalId).items.map(_.externalId)
-
-  private def getByExternalId(isNode: Boolean,
-                              modelExternalId: String,
-                              externalId: String): PropertyMap =
-    if (isNode) {
-      bluefieldAlphaClient.nodes.retrieveByExternalIds(model = DataModelIdentifier(space = Some(spaceExternalId),
-        model = modelExternalId), spaceExternalId = spaceExternalId, externalIds =  Seq(externalId)).unsafeRunSync().items.head
-    }
-    else {
-      bluefieldAlphaClient.edges.retrieveByExternalIds(model = DataModelIdentifier(space = Some(spaceExternalId),
-        model = modelExternalId), spaceExternalId = spaceExternalId, externalIds =  Seq(externalId)).unsafeRunSync().items.head
+          externalIds = Seq(externalId))
+        .unsafeRunSync()
+        .items
+        .head
+    } else {
+      bluefieldAlphaClient.edges
+        .retrieveByExternalIds(
+          model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
+          spaceExternalId = spaceExternalId,
+          externalIds = Seq(externalId))
+        .unsafeRunSync()
+        .items
+        .head
     }
 
   private def byExternalId(isNode: Boolean, modelExternalId: String, externalId: String): String =
@@ -72,7 +84,8 @@ class AlphaDataModelInstancesRelationTest
   private val specialEdge = "specialEdge" // + shortRandomString()
   private val nodeWithNDT = "no_deNDT" // + shortRandomString()
 
-  private val allNodeModelExternalIds = Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
+  private val allNodeModelExternalIds =
+    Set(multiValuedExtId, primitiveExtId, multiValuedExtId2, primitiveExtId2)
   private val allEdgeModelExternalIds = Set(edgeExtId, primEdgeExtId, specialEdge)
 
   private val props = Map(
@@ -101,7 +114,9 @@ class AlphaDataModelInstancesRelationTest
   )
 
   private val props4 = Map(
-    "prop_direct_relation" -> DataModelPropertyDefinition(`type` = PropertyType.DirectRelation, nullable = true),
+    "prop_direct_relation" -> DataModelPropertyDefinition(
+      `type` = PropertyType.DirectRelation,
+      nullable = true),
     "prop_timestamp" -> DataModelPropertyDefinition(`type` = PropertyType.Timestamp, nullable = true),
     "prop_date" -> DataModelPropertyDefinition(`type` = PropertyType.Date, nullable = true)
   )
@@ -113,7 +128,8 @@ class AlphaDataModelInstancesRelationTest
   )
 
   val helperModelExtId = "helperModel3"
-  val helperNode = Node(spaceExternalId = Some(spaceExternalId), externalId = "testNode1", properties = Some(Map("hjelp1" -> PropertyType.Int.Property(1))))
+  val helperNode =
+    Node(externalId = "testNode1", properties = Some(Map("hjelp1" -> PropertyType.Int.Property(1))))
 
   override def beforeAll(): Unit = {
     def createAndGetModels(): Seq[DataModel] = {
@@ -122,25 +138,47 @@ class AlphaDataModelInstancesRelationTest
           Seq(
             DataModel(externalId = multiValuedExtId, dataModelType = NodeType, properties = Some(props)),
             DataModel(externalId = primitiveExtId, dataModelType = NodeType, properties = Some(props2)),
-            DataModel(externalId = multiValuedExtId2, dataModelType = NodeType, properties = Some(props3)),
+            DataModel(
+              externalId = multiValuedExtId2,
+              dataModelType = NodeType,
+              properties = Some(props3)),
             DataModel(externalId = primitiveExtId2, dataModelType = NodeType, properties = Some(props4)),
             DataModel(externalId = nodeWithNDT, dataModelType = NodeType, properties = Some(props5))
-          ), spaceExternalId)
+          ),
+          spaceExternalId
+        )
         .unsafeRunSync()
-      bluefieldAlphaClient.dataModels.createItems(
-        Seq(
-          DataModel(externalId = edgeExtId, dataModelType = EdgeType, properties = Some(props)),
-          DataModel(externalId = primEdgeExtId, dataModelType = EdgeType, properties = Some(props2)),
-          DataModel(externalId = specialEdge, dataModelType = EdgeType, properties = Some(props4))
-        ), spaceExternalId).unsafeRunSync()
-      bluefieldAlphaClient.dataModels.createItems(spaceExternalId = spaceExternalId,
-        items = Seq(DataModel(externalId = helperModelExtId,
-          properties = Some(Map("hjelp1" -> DataModelPropertyDefinition(`type` = PropertyType.Int, nullable = false)))))).unsafeRunSync()
+      bluefieldAlphaClient.dataModels
+        .createItems(
+          Seq(
+            DataModel(externalId = edgeExtId, dataModelType = EdgeType, properties = Some(props)),
+            DataModel(externalId = primEdgeExtId, dataModelType = EdgeType, properties = Some(props2)),
+            DataModel(externalId = specialEdge, dataModelType = EdgeType, properties = Some(props4))
+          ),
+          spaceExternalId
+        )
+        .unsafeRunSync()
+      bluefieldAlphaClient.dataModels
+        .createItems(
+          spaceExternalId = spaceExternalId,
+          items = Seq(
+            DataModel(
+              externalId = helperModelExtId,
+              properties = Some(Map(
+                "hjelp1" -> DataModelPropertyDefinition(`type` = PropertyType.Int, nullable = false)))))
+        )
+        .unsafeRunSync()
 
-      bluefieldAlphaClient.nodes.createItems(
-        DataModelIdentifier(Some(spaceExternalId), helperModelExtId),
-        items = Seq(helperNode, helperNode.copy(externalId="testNode2"), helperNode.copy(externalId="testNode3"))
-      ).unsafeRunSync()
+      bluefieldAlphaClient.nodes
+        .createItems(
+          spaceExternalId,
+          DataModelIdentifier(Some(spaceExternalId), helperModelExtId),
+          items = Seq(
+            helperNode,
+            helperNode.copy(externalId = "testNode2"),
+            helperNode.copy(externalId = "testNode3"))
+        )
+        .unsafeRunSync()
       bluefieldAlphaClient.dataModels.list(spaceExternalId).unsafeRunSync()
     }
     retryWhile[scala.Seq[DataModel]](
@@ -175,22 +213,42 @@ class AlphaDataModelInstancesRelationTest
 
   // TODO remove this function and enable model deletion instead when available
   private def cleanUpNodes(): Unit =
-    (allNodeModelExternalIds ++ Seq(helperModelExtId, nodeWithNDT)).foreach{ modelExtId =>
+    (allNodeModelExternalIds ++ Seq(helperModelExtId, nodeWithNDT)).foreach { modelExtId =>
       val nodes: DataModelInstanceQueryResponse = bluefieldAlphaClient.nodes
-        .query(DataModelInstanceQuery(spaceExternalId = spaceExternalId, model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
+        .query(
+          DataModelInstanceQuery(
+            spaceExternalId = spaceExternalId,
+            model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
         .unsafeRunSync()
-      nodes.items.map(_.externalId).grouped(500).foreach(ids =>
-        if (ids.nonEmpty) bluefieldAlphaClient.nodes.deleteByIdentifiers(ids.map(DataModelInstanceIdentifier(Some(spaceExternalId), _))).unsafeRunSync())
+      nodes.items
+        .map(_.externalId)
+        .grouped(500)
+        .foreach(ids =>
+          if (ids.nonEmpty) {
+            bluefieldAlphaClient.nodes
+              .deleteItems(ids, spaceExternalId)
+              .unsafeRunSync()
+        })
     }
 
   // TODO remove this function and enable model deletion instead when available
   private def cleanUpEdges(): Unit =
-    allEdgeModelExternalIds.foreach{ modelExtId =>
+    allEdgeModelExternalIds.foreach { modelExtId =>
       val edges: DataModelInstanceQueryResponse = bluefieldAlphaClient.edges
-        .query(DataModelInstanceQuery(spaceExternalId = spaceExternalId, model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
+        .query(
+          DataModelInstanceQuery(
+            spaceExternalId = spaceExternalId,
+            model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExtId)))
         .unsafeRunSync()
-      edges.items.map(_.externalId).grouped(500).foreach(ids =>
-        if (ids.nonEmpty) bluefieldAlphaClient.edges.deleteByIdentifiers(ids.map(DataModelInstanceIdentifier(Some(spaceExternalId), _))).unsafeRunSync())
+      edges.items
+        .map(_.externalId)
+        .grouped(500)
+        .foreach(ids =>
+          if (ids.nonEmpty) {
+            bluefieldAlphaClient.edges
+              .deleteItems(ids, spaceExternalId)
+              .unsafeRunSync()
+        })
     }
 
   private def collectExternalIds(df: DataFrame): List[String] =
@@ -238,7 +296,9 @@ class AlphaDataModelInstancesRelationTest
       testCode
     } finally {
       try {
-        bluefieldAlphaClient.nodes.deleteByIdentifiers(externalIds.map(DataModelInstanceIdentifier(Some(spaceExternalId), _))).unsafeRunSync()
+        bluefieldAlphaClient.nodes
+          .deleteItems(externalIds, spaceExternalId)
+          .unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -335,8 +395,6 @@ class AlphaDataModelInstancesRelationTest
       "Try to cast the value to double. For example, ‘double(col_name) as prop_name’ or ‘cast(col_name as double) as prop_name’."
   }
 
-
-
   it should "return an informative error when schema inference fails" in {
     val ex = sparkIntercept {
       insertRows(
@@ -356,7 +414,6 @@ class AlphaDataModelInstancesRelationTest
     ex.getMessage shouldBe "Could not resolve schema of data model non-existing-model. Please check if the model exists."
     ex shouldBe an[CdfSparkException]
   }
-
 
   it should "cast correctly using float() and ingest data " in {
     val randomId = "prim_test_" + shortRandomString()
@@ -378,8 +435,8 @@ class AlphaDataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(true, primitiveExtId, randomId)
-          .allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(2.0))
+        getByExternalId(true, primitiveExtId, randomId).allProperties.get("prop_float") shouldBe Some(
+          PropertyType.Float64.Property(2.0))
       }
     )
   }
@@ -404,8 +461,8 @@ class AlphaDataModelInstancesRelationTest
           },
           failure => failure
         )
-        getByExternalId(true, primitiveExtId, randomId)
-          .allProperties.get("prop_float") shouldBe Some(PropertyType.Float64.Property(3.0))
+        getByExternalId(true, primitiveExtId, randomId).allProperties.get("prop_float") shouldBe Some(
+          PropertyType.Float64.Property(3.0))
       }
     )
   }
@@ -444,7 +501,6 @@ class AlphaDataModelInstancesRelationTest
       }
     )
   }
-
 
   it should "read nodes" in {
     val randomId = "prim_test2_" + shortRandomString()
@@ -804,8 +860,7 @@ class AlphaDataModelInstancesRelationTest
               insertRows(
                 primitiveExtId2,
                 spark
-                  .sql(
-                    s"""
+                  .sql(s"""
                        |select 'asset' as prop_direct_relation,
                        |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
                        |date('2022-01-20') as prop_date,
@@ -843,9 +898,9 @@ class AlphaDataModelInstancesRelationTest
                 spark
                   .sql(s"""
                           |select array(2) as arr_int_fix,
-                          |'testNode1' as startNode,
-                          |'testNode2' as endNode,
-                          |'test' as type,
+                          |'$spaceExternalId:testNode1' as startNode,
+                          |'$spaceExternalId:testNode2' as endNode,
+                          |'$spaceExternalId:test' as type,
                           |array(false,true) as arr_boolean,
                           |array('x', 'abc') as arr_str,
                           |'abc' as str_prop,
@@ -874,9 +929,9 @@ class AlphaDataModelInstancesRelationTest
                 spark
                   .sql(s"""
                           |select float(2.1) as prop_float,
-                          |'testNode1' as startNode,
-                          |'testNode2' as endNode,
-                          |'test2' as type,
+                          |'$spaceExternalId:testNode1' as startNode,
+                          |'$spaceExternalId:testNode2' as endNode,
+                          |'$spaceExternalId:test2' as type,
                           |false as prop_bool,
                           |'abc' as prop_string,
                           |'$randomId' as externalId""".stripMargin)
@@ -910,11 +965,10 @@ class AlphaDataModelInstancesRelationTest
               insertRows(
                 specialEdge,
                 spark
-                  .sql(
-                    s"""
-                       |select 'testNode1' as startNode,
-                       |'testNode3' as endNode,
-                       |'test1' as type,
+                  .sql(s"""
+                       |select '$spaceExternalId:testNode1' as startNode,
+                       |'$spaceExternalId:testNode3' as endNode,
+                       |'$spaceExternalId:test1' as type,
                        |'asset' as prop_direct_relation,
                        |timestamp('2022-01-01 13:34:56.789') as prop_timestamp,
                        |date('2022-01-20') as prop_date,
@@ -922,9 +976,9 @@ class AlphaDataModelInstancesRelationTest
                        |
                        |union all
                        |
-                       |select 'testNode1' as startNode,
-                       |'testNode2' as endNode,
-                       |'test2' as type,
+                       |select '$spaceExternalId:testNode1' as startNode,
+                       |'$spaceExternalId:testNode2' as endNode,
+                       |'$spaceExternalId:test2' as type,
                        |'asset2' as prop_direct_relation,
                        |timestamp('2022-01-10 13:34:56.789') as prop_timestamp,
                        |date('2022-01-01') as prop_date,
@@ -941,16 +995,19 @@ class AlphaDataModelInstancesRelationTest
 
         val metricPrefix2 = shortRandomString()
         val data = readRows(specialEdge, metricPrefix2)
-          .where("timestamp('2022-01-01 13:34:56.789') = prop_timestamp and prop_date > date('2022-01-02')")
+          .where(
+            "timestamp('2022-01-01 13:34:56.789') = prop_timestamp and prop_date > date('2022-01-02')")
           .collect()
         getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 1
         data.length shouldBe 1
         data.headOption.map(_.getAs[String]("prop_direct_relation")) shouldBe Some("asset")
-        data.headOption.map(_.getAs[String]("startNode")) shouldBe Some("testNode1")
-        data.headOption.map(_.getAs[String]("endNode")) shouldBe Some("testNode3")
+        data.headOption.map(_.getAs[String]("startNode")) shouldBe Some(s"$spaceExternalId:testNode1")
+        data.headOption.map(_.getAs[String]("endNode")) shouldBe Some(s"$spaceExternalId:testNode3")
         data.headOption.map(_.getAs[String]("type")) shouldBe Some("test1")
-        data.headOption.map(_.getAs[java.sql.Timestamp]("prop_timestamp")) shouldBe Some(java.sql.Timestamp.valueOf("2022-01-01 13:34:56.789"))
-        data.headOption.map(_.getAs[java.sql.Date]("prop_date")) shouldBe Some(java.sql.Date.valueOf("2022-01-20"))
+        data.headOption.map(_.getAs[java.sql.Timestamp]("prop_timestamp")) shouldBe Some(
+          java.sql.Timestamp.valueOf("2022-01-01 13:34:56.789"))
+        data.headOption.map(_.getAs[java.sql.Date]("prop_date")) shouldBe Some(
+          java.sql.Date.valueOf("2022-01-20"))
       }
     )
   }
