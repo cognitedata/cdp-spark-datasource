@@ -1,10 +1,3 @@
-# 2.1.6
-
-## Enhancements
-
-* Data model instances relation has a new `SpaceExternalId` column, to filter and specify the instance space per row, rather than per relation.
-* `instanceSpaceExternalId` option in Data model instances relation has been dropped.
-
 # 2.1.5
 
 ## Enhancements

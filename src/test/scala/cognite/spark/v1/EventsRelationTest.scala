@@ -446,11 +446,11 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     }
   }
 
+
   it should "allow empty metadata updates" taggedAs WriteTest in {
     val externalId1 = UUID.randomUUID.toString
 
-    writeClient.events.create(
-      Seq(EventCreate(externalId = Some(externalId1), metadata = Some(Map("test1" -> "test1")))))
+    writeClient.events.create(Seq(EventCreate(externalId = Some(externalId1), metadata = Some(Map("test1"-> "test1")))))
     writeClient.events.retrieveByExternalId(externalId1).metadata shouldBe Some(Map("test1" -> "test1"))
 
     val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
@@ -926,8 +926,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val descriptionsAfterInsert =
         retryWhile[Array[Row]](
           spark
-            .sql(s"select description from destinationEventsUpsertPartial " +
-              s"where source = '$source' and description = 'foo'")
+            .sql(
+              s"select description from destinationEventsUpsertPartial " +
+                s"where source = '$source' and description = 'foo'")
             .collect(),
           df => df.length < 100)
       assert(descriptionsAfterInsert.length == 100)
@@ -956,8 +957,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .option("metricsPrefix", metricsPrefix)
               .save()
             spark
-              .sql(s"select description from destinationEventsUpsertPartial " +
-                s"where source = '$source' and description = 'bar'")
+              .sql(
+                s"select description from destinationEventsUpsertPartial " +
+                  s"where source = '$source' and description = 'bar'")
               .collect()
           },
           df => df.length < 100
@@ -1047,8 +1049,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           .sql(
             s"select * from destinationEvent where source = '$source' and description = 'foo' and dataSetId = $testDataSetId")
           .collect(),
-        df => df.length < 5
-      )
+        df => df.length < 5)
       assert(eventsFromTestDf.length == 5)
 
       // Upsert events
@@ -1106,6 +1107,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     }
     assert(error.getMessage.contains("Column 'assetIds' was expected to have type Seq[Long], but"))
   }
+
 
   it should "allow deletes in savemode" taggedAs WriteTest in {
     val source = s"spark-events-delete-save-${shortRandomString()}"
@@ -1316,61 +1318,6 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     val eventUpsert = EventsUpsertSchema()
     eventUpsert.into[EventsReadSchema].withFieldComputed(_.id, eu => eu.id.getOrElse(0L))
-  }
-
-  it should "read all assets from extractor bluefield" in {
-    val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-    val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-    val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-    val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
-
-    val assetReadDf = spark.read
-      .format("cognite.spark.v1")
-      .option("baseUrl", "https://bluefield.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", "extractor-bluefield-testing")
-      .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("collectMetrics", true)
-      .option("metricsPrefix", "vh_read_assets")
-      .option("type", "assets")
-      .option("partitions", "50")
-      .option("parallelismPerPartition", 2)
-      .load()
-
-    assetReadDf.createTempView("assets")
-
-    println(s"Coucou total assets are = ${assetReadDf.collect().length}")
-
-    val eventWriteDf = spark.sql(
-      """
-        |select description from assets
-        |""".stripMargin
-    )
-
-    println(s"Coucou Start to write")
-    val metricPrefix = "vh_created_events"
-    eventWriteDf.write
-      .format("cognite.spark.v1")
-      .option("type", "events")
-      .option("baseUrl", "https://bluefield.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", "extractor-bluefield-testing")
-      .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("collectMetrics", true)
-      .option("metricsPrefix", metricPrefix)
-      .option("onconflict", "upsert")
-      // these 2 parameters below don't make any different for writing
-      .option("partitions", "100")
-      .option("parallelismPerPartition", 1)
-      .save
-
-    val eventsCreated = getNumberOfRowsCreated(metricPrefix, "events")
-    println(s"eventsCreated = ${eventsCreated}")
-
   }
 
   def eventDescriptions(source: String): Array[Row] =

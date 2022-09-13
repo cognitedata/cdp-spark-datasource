@@ -133,8 +133,8 @@ trait SparkTest {
         actionValue
       },
       1.second,
-      1
-    ).unsafeRunTimed(1.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
+      20
+    ).unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
 
   val updateAndUpsert: TableFor1[String] = Table(heading = "mode", "upsert", "update")
 
