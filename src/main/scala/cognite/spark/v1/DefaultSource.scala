@@ -109,10 +109,13 @@ class DefaultSource
       parameters.getOrElse("spaceExternalId", sys.error("spaceExternalId must be specified"))
     val modelExternalId =
       parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
+    val instanceSpaceExternalId =
+      parameters.get("instanceSpaceExternalId")
     new AlphaDataModelInstanceRelation(
       config,
       spaceExternalId,
-      modelExternalId
+      modelExternalId,
+      instanceSpaceExternalId
     )(sqlContext)
   }
 

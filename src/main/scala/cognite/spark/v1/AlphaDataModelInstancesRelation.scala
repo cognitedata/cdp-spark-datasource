@@ -32,7 +32,8 @@ import scala.annotation.nowarn
 class AlphaDataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
-    modelExternalId: String)(val sqlContext: SQLContext)
+    modelExternalId: String,
+    instanceSpaceExternalId: Option[String] = None)(val sqlContext: SQLContext)
     extends CdfRelation(config, "alphadatamodelinstances")
     with WritableRelation
     with PrunedFilteredScan {
@@ -83,12 +84,15 @@ class AlphaDataModelInstanceRelation(
     if (rows.isEmpty) {
       IO.unit
     } else {
+      val instanceSpace = instanceSpaceExternalId
+        .getOrElse(
+          throw new CdfSparkException(s"instanceSpaceExternalId must be specified when upserting data."))
       if (modelType == NodeType) {
         val fromRowFn = nodeFromRow(rows.head.schema)
         val dataModelNodes: Seq[Node] = rows.map(fromRowFn)
         alphaClient.nodes
           .createItems(
-            spaceExternalId,
+            instanceSpace,
             DataModelIdentifier(Some(spaceExternalId), modelExternalId),
             true,
             dataModelNodes)
@@ -98,7 +102,7 @@ class AlphaDataModelInstanceRelation(
         val dataModelEdges: Seq[Edge] = rows.map(fromRowFn)
         alphaClient.edges
           .createItems(
-            spaceExternalId,
+            instanceSpace,
             model = DataModelIdentifier(Some(spaceExternalId), modelExternalId),
             autoCreateStartNodes = false,
             autoCreateEndNodes = false,
