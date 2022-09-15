@@ -353,6 +353,7 @@ object AlphaDataModelInstancesHelper {
     }
 
   def getDirectRelationIdentifierProperty(
+      externalId: String,
       row: Row,
       keyString: String,
       index: Int): DirectRelationIdentifier =
@@ -364,8 +365,14 @@ object AlphaDataModelInstancesHelper {
           case Array(spaceExternalId, externalId) =>
             DirectRelationIdentifier(Some(spaceExternalId), externalId)
           case _ =>
+            val errorHint = if (identifier.isBlank) {
+              ""
+            } else {
+              s", but was: $identifier"
+            }
             throw new CdfSparkException(
-              s"Can't upsert data model because `$keyString` should be a DirectRelationIdentifier of format `spaceExternalId:externalId`")
+              s"Invalid data model instance row with external id '$externalId'. The values " +
+                s"in the $keyString column should have the format `spaceExternalId:nodeExternalId`$errorHint")
         }
       case _ =>
         throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")

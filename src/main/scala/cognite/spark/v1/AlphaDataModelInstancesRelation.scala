@@ -238,6 +238,8 @@ class AlphaDataModelInstanceRelation(
       if (andFilters.isEmpty) EmptyFilter else DSLAndFilter(andFilters)
     }
 
+    // only take the first spaceExternalId and ignore the rest, maybe we can throw an error instead in case there are
+    // more than one
     val instanceSpaceExternalIdFilter = filters
       .collectFirst {
         case EqualTo("spaceExternalId", value) => value.toString()
@@ -333,9 +335,9 @@ class AlphaDataModelInstanceRelation(
         row: Row): Edge = {
       val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
 
-      val edgeType = getDirectRelationIdentifierProperty(row, "type", typeIndex)
-      val startNode = getDirectRelationIdentifierProperty(row, "startNode", startNodeIndex)
-      val endNode = getDirectRelationIdentifierProperty(row, "endNode", endNodeIndex)
+      val edgeType = getDirectRelationIdentifierProperty(externalId, row, "type", typeIndex)
+      val startNode = getDirectRelationIdentifierProperty(externalId, row, "startNode", startNodeIndex)
+      val endNode = getDirectRelationIdentifierProperty(externalId, row, "endNode", endNodeIndex)
 
       val propertyValues: Map[String, DataModelProperty[_]] =
         getDataModelPropertyMap(indexedPropertyList, row)
