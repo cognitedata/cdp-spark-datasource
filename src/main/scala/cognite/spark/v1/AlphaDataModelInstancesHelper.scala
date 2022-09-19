@@ -34,8 +34,8 @@ object AlphaDataModelInstancesHelper {
   // scalastyle:off method.length
   def parsePropertyValue(propName: String, value: Any): DataModelProperty[_] = value match {
     case x: String if Seq("startNode", "endNode", "type") contains propName =>
-      val identifier = x.split(":").toSeq
-      PropertyType.DirectRelation.Property(identifier)
+      val identifier = x.split(":")
+      PropertyType.DirectRelation.Property(identifier.toIndexedSeq)
     case x: Double => PropertyType.Float64.Property(x)
     case x: Int => PropertyType.Int32.Property(x)
     case x: Float => PropertyType.Float32.Property(x)
@@ -139,14 +139,6 @@ object AlphaDataModelInstancesHelper {
   }
 
   private def toDirectRelationProperty: Any => DataModelProperty[_] = {
-//    case x: Iterable[_] => //PropertyType.DirectRelation.Property(x)
-//      x.headOption match {
-//        case None => PropertyType.DirectRelation.Property(Vector.empty)
-//        case Some(_: String) =>
-//          PropertyType.DirectRelation.Property(x.collect { case s: String => s }.toVector)
-//        case _ =>
-//          throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Text.code))
-//      }
     case x: String =>
       PropertyType.DirectRelation.Property(x.split(":").toSeq)
     case a =>
@@ -367,6 +359,7 @@ object AlphaDataModelInstancesHelper {
         throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
     }
 
+  // scalastyle:off line.size.limit
   def getDirectRelationIdentifierProperty(
       externalId: String,
       row: Row,
@@ -380,7 +373,7 @@ object AlphaDataModelInstancesHelper {
           case Array(spaceExternalId, externalId) =>
             DirectRelationIdentifier(Some(spaceExternalId), externalId)
           case _ =>
-            val errorHint = if (identifier.isBlank) {
+            val errorHint = if (identifier.isEmpty) {
               ""
             } else {
               s", but was: $identifier"
@@ -392,5 +385,6 @@ object AlphaDataModelInstancesHelper {
       case _ =>
         throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
     }
+  // scalastyle:on line.size.limit
 }
 // scalastyle:on cyclomatic.complexity

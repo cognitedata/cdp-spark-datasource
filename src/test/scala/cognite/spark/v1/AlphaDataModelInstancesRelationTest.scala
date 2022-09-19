@@ -861,7 +861,7 @@ class AlphaDataModelInstancesRelationTest
                 primitiveExtId2,
                 spark
                   .sql(s"""
-                       |select '$spaceExternalId"asset' as prop_direct_relation,
+                       |select '$spaceExternalId:asset' as prop_direct_relation,
                        |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
                        |date('2022-01-20') as prop_date,
                        |'${randomId}' as externalId
