@@ -133,36 +133,37 @@ class AlphaDataModelInstanceRelation(
         identifier.mkString(":")
       case _ => ""
     }
-    if (directRelVal.nonEmpty){
+    if (directRelVal.nonEmpty) {
       directRelVal
     } else {
-    prop.value match {
-      case x: Iterable[_] if (x.size == 2) && (Seq("startNode", "endNode", "type") contains propName) =>
-        x.mkString(":")
-      case x: java.math.BigDecimal =>
-        x.doubleValue
-      case x: java.math.BigInteger => x.longValue
-      case x: Array[java.math.BigDecimal] =>
-        x.toVector.map(i => i.doubleValue)
-      case x: Array[java.math.BigInteger] =>
-        x.toVector.map(i => i.longValue)
-      case x: BigDecimal =>
-        x.doubleValue
-      case x: BigInt => x.longValue
-      case x: Array[BigDecimal] =>
-        x.toVector.map(i => i.doubleValue)
-      case x: Array[BigInt] =>
-        x.toVector.map(i => i.longValue)
-      case x: Array[LocalDate] =>
-        x.toVector.map(i => java.sql.Date.valueOf(i))
-      case x: java.time.LocalDate =>
-        java.sql.Date.valueOf(x)
-      case x: java.time.ZonedDateTime =>
-        java.sql.Timestamp.from(x.toInstant)
-      case x: Array[java.time.ZonedDateTime] =>
-        x.toVector.map(i => java.sql.Timestamp.from(i.toInstant))
-      case _ => prop.value
-    }
+      prop.value match {
+        case x: Iterable[_]
+            if (x.size == 2) && (Seq("startNode", "endNode", "type") contains propName) =>
+          x.mkString(":")
+        case x: java.math.BigDecimal =>
+          x.doubleValue
+        case x: java.math.BigInteger => x.longValue
+        case x: Array[java.math.BigDecimal] =>
+          x.toVector.map(i => i.doubleValue)
+        case x: Array[java.math.BigInteger] =>
+          x.toVector.map(i => i.longValue)
+        case x: BigDecimal =>
+          x.doubleValue
+        case x: BigInt => x.longValue
+        case x: Array[BigDecimal] =>
+          x.toVector.map(i => i.doubleValue)
+        case x: Array[BigInt] =>
+          x.toVector.map(i => i.longValue)
+        case x: Array[LocalDate] =>
+          x.toVector.map(i => java.sql.Date.valueOf(i))
+        case x: java.time.LocalDate =>
+          java.sql.Date.valueOf(x)
+        case x: java.time.ZonedDateTime =>
+          java.sql.Timestamp.from(x.toInstant)
+        case x: Array[java.time.ZonedDateTime] =>
+          x.toVector.map(i => java.sql.Timestamp.from(i.toInstant))
+        case _ => prop.value
+      }
     }
   }
   // scalastyle:on cyclomatic.complexity
