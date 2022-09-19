@@ -363,7 +363,7 @@ object AlphaDataModelInstancesHelper {
         throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
     }
 
-  // scalastyle:off line.length
+  // scalastyle:off line.size.limit
   def getDirectRelationIdentifierProperty(
       externalId: String,
       row: Row,
@@ -388,6 +388,6 @@ object AlphaDataModelInstancesHelper {
       case _ =>
         throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
     }
-  // scalastyle:on line.length
+  // scalastyle:on line.size.limit
 }
 // scalastyle:on cyclomatic.complexity
