@@ -946,12 +946,6 @@ class AlphaDataModelInstancesRelationTest
         val df = readRows(primEdgeExtId, metricPrefix)
         df.limit(1).count() shouldBe 1
         getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
-        val res = bluefieldAlphaClient.edges
-          .query(
-            DataModelInstanceQuery(
-              DataModelIdentifier(Some(spaceExternalId), primEdgeExtId),
-              spaceExternalId))
-          .unsafeRunSync()
         val data = df.collect()
         data.headOption.map(_.getAs[String]("type")) shouldBe Some(s"$spaceExternalId:test2")
         data.headOption.map(_.getAs[Boolean]("prop_bool")) shouldBe Some(false)
