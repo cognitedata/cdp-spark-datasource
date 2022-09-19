@@ -20,10 +20,8 @@ object AlphaDataModelInstancesHelper {
       propertyType: String,
       sparkSqlType: Option[String] = None) = {
     val sparkSqlTypeMessage = sparkSqlType
-      .map(
-        tname =>
-          s" Try to cast the value to $tname. " +
-            s"For example, ‘$tname(col_name) as prop_name’ or ‘cast(col_name as $tname) as prop_name’.")
+      .map(tname =>
+        s" Try to cast the value to $tname. For example, ‘$tname(col_name) as prop_name’ or ‘cast(col_name as $tname) as prop_name’.")
       .getOrElse("")
 
     s"$a of type ${a.getClass} is not a valid $propertyType.$sparkSqlTypeMessage"
@@ -35,7 +33,7 @@ object AlphaDataModelInstancesHelper {
   def parsePropertyValue(propName: String, value: Any): DataModelProperty[_] = value match {
     case x: String if Seq("startNode", "endNode", "type") contains propName =>
       val identifier = x.split(":")
-      PropertyType.DirectRelation.Property(identifier)
+      PropertyType.DirectRelation.Property(identifier.toIndexedSeq)
     case x: Double => PropertyType.Float64.Property(x)
     case x: Int => PropertyType.Int32.Property(x)
     case x: Float => PropertyType.Float32.Property(x)
@@ -384,8 +382,7 @@ object AlphaDataModelInstancesHelper {
               s", but was: $identifier"
             }
             throw new CdfSparkException(
-              s"Invalid data model instance row with external id '$externalId'. The values " +
-                s"in the $keyString column should have the format `spaceExternalId:nodeExternalId`$errorHint")
+              s"Invalid data model instance row with external id '$externalId'. The values in the $keyString column should have the format `spaceExternalId:nodeExternalId`$errorHint")
         }
       case _ =>
         throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")

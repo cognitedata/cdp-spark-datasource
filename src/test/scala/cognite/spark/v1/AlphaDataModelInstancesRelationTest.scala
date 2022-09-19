@@ -1001,8 +1001,7 @@ class AlphaDataModelInstancesRelationTest
           .collect()
         getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 1
         data.length shouldBe 1
-        data.headOption.map(_.getAs[Seq[String]]("prop_direct_relation")) shouldBe Some(
-          Seq(spaceExternalId, "asset"))
+        data.headOption.map(_.getSeq[String](1)) shouldBe Some(Seq(spaceExternalId, "asset"))
         data.headOption.map(_.getAs[String]("startNode")) shouldBe Some(s"$spaceExternalId:testNode1")
         data.headOption.map(_.getAs[String]("endNode")) shouldBe Some(s"$spaceExternalId:testNode3")
         data.headOption.map(_.getAs[String]("type")) shouldBe Some(s"$spaceExternalId:test1")
