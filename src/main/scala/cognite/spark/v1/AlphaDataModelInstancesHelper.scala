@@ -378,7 +378,7 @@ object AlphaDataModelInstancesHelper {
           case Array(spaceExternalId, externalId) =>
             DirectRelationIdentifier(Some(spaceExternalId), externalId)
           case _ =>
-            val errorHint = if (identifier.isBlank) {
+            val errorHint = if (identifier.isEmpty) {
               ""
             } else {
               s", but was: $identifier"
