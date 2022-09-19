@@ -1,9 +1,13 @@
 package cognite.spark.v1
 
 import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId, ZonedDateTime}
-
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
-import com.cognite.sdk.scala.v1.{DataModelProperty, DataModelType, PropertyType}
+import com.cognite.sdk.scala.v1.{
+  DataModelProperty,
+  DataModelType,
+  DirectRelationIdentifier,
+  PropertyType
+}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{DataType, DataTypes, StructType}
 
@@ -16,10 +20,8 @@ object AlphaDataModelInstancesHelper {
       propertyType: String,
       sparkSqlType: Option[String] = None) = {
     val sparkSqlTypeMessage = sparkSqlType
-      .map(
-        tname =>
-          s" Try to cast the value to $tname. " +
-            s"For example, ‘$tname(col_name) as prop_name’ or ‘cast(col_name as $tname) as prop_name’.")
+      .map(tname =>
+        s" Try to cast the value to $tname. For example, ‘$tname(col_name) as prop_name’ or ‘cast(col_name as $tname) as prop_name’.")
       .getOrElse("")
 
     s"$a of type ${a.getClass} is not a valid $propertyType.$sparkSqlTypeMessage"
@@ -27,7 +29,11 @@ object AlphaDataModelInstancesHelper {
   def propertyNotNullableMessage(propertyType: PropertyType[_]): String =
     s"Property of ${propertyType.code} type is not nullable."
 
-  def parsePropertyValue(value: Any): DataModelProperty[_] = value match {
+  // scalastyle:off method.length
+  def parsePropertyValue(propName: String, value: Any): DataModelProperty[_] = value match {
+    case x: String if Seq("startNode", "endNode", "type") contains propName =>
+      val identifier = x.split(":")
+      PropertyType.DirectRelation.Property(identifier.toIndexedSeq)
     case x: Double => PropertyType.Float64.Property(x)
     case x: Int => PropertyType.Int32.Property(x)
     case x: Float => PropertyType.Float32.Property(x)
@@ -78,6 +84,7 @@ object AlphaDataModelInstancesHelper {
     case x =>
       throw new CdfSparkException(s"Unsupported value ${x.toString} of type ${x.getClass.getName}")
   }
+  // scalastyle:on method.length
 
   def propertyTypeToSparkType(propertyType: PropertyType[_]): DataType =
     propertyType match {
@@ -92,7 +99,7 @@ object AlphaDataModelInstancesHelper {
       case PropertyType.Bigint => DataTypes.LongType
       case PropertyType.Date => DataTypes.DateType
       case PropertyType.Timestamp => DataTypes.TimestampType
-      case PropertyType.DirectRelation => DataTypes.StringType
+      case PropertyType.DirectRelation => DataTypes.createArrayType(DataTypes.StringType)
       case PropertyType.Geometry => DataTypes.StringType
       case PropertyType.Geography => DataTypes.StringType
       case PropertyType.Array.Text => DataTypes.createArrayType(DataTypes.StringType)
@@ -130,7 +137,14 @@ object AlphaDataModelInstancesHelper {
   }
 
   private def toDirectRelationProperty: Any => DataModelProperty[_] = {
-    case x: String => PropertyType.DirectRelation.Property(x)
+    case x: Iterable[_] => //PropertyType.DirectRelation.Property(x)
+      x.headOption match {
+        case None => PropertyType.DirectRelation.Property(Vector.empty)
+        case Some(_: String) =>
+          PropertyType.DirectRelation.Property(x.collect { case s: String => s }.toVector)
+        case _ =>
+          throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Text.code))
+      }
     case a =>
       throw new CdfSparkException(
         notValidPropertyTypeMessage(a, PropertyType.DirectRelation.code, Some("string")))
@@ -314,7 +328,8 @@ object AlphaDataModelInstancesHelper {
       case PropertyType.Text => toStringProperty
       case PropertyType.Date => toDateProperty
       case PropertyType.Timestamp => toTimestampProperty
-      case PropertyType.DirectRelation => toDirectRelationProperty
+      case PropertyType.DirectRelation =>
+        toDirectRelationProperty
       case PropertyType.Geometry => toGeometryProperty
       case PropertyType.Geography => toGeographyProperty
       case PropertyType.Array.Text => toStringArrayProperty
@@ -347,5 +362,32 @@ object AlphaDataModelInstancesHelper {
       case _ =>
         throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
     }
+
+  // scalastyle:off line.size.limit
+  def getDirectRelationIdentifierProperty(
+      externalId: String,
+      row: Row,
+      keyString: String,
+      index: Int): DirectRelationIdentifier =
+    row.get(index) match {
+      case identifier: String =>
+        // Colon character cannot be used for space but it can be used for the externalId, so we should consider only
+        // the first ":" to split between spaceExternalId and externalId
+        identifier.split(":", 2) match {
+          case Array(spaceExternalId, externalId) =>
+            DirectRelationIdentifier(Some(spaceExternalId), externalId)
+          case _ =>
+            val errorHint = if (identifier.isEmpty) {
+              ""
+            } else {
+              s", but was: $identifier"
+            }
+            throw new CdfSparkException(
+              s"Invalid data model instance row with external id '$externalId'. The values in the $keyString column should have the format `spaceExternalId:nodeExternalId`$errorHint")
+        }
+      case _ =>
+        throw SparkSchemaHelperRuntime.badRowError(row, keyString, "String", "")
+    }
+  // scalastyle:on line.size.limit
 }
 // scalastyle:on cyclomatic.complexity

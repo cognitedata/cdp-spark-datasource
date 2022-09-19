@@ -102,7 +102,7 @@ class AlphaDataModelInstanceRelation(
         val dataModelEdges: Seq[Edge] = rows.map(fromRowFn)
         alphaClient.edges
           .createItems(
-            spaceExternalId = instanceSpace,
+            instanceSpace,
             model = DataModelIdentifier(Some(spaceExternalId), modelExternalId),
             autoCreateStartNodes = false,
             autoCreateEndNodes = false,
@@ -127,8 +127,10 @@ class AlphaDataModelInstanceRelation(
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 
   // scalastyle:off cyclomatic.complexity
-  private def getValue(prop: DataModelProperty[_]): Any =
+  private def getValue(propName: String, prop: DataModelProperty[_]): Any =
     prop.value match {
+      case x: Iterable[_] if (x.size == 2) && (Seq("startNode", "endNode", "type") contains propName) =>
+        x.mkString(":")
       case x: java.math.BigDecimal =>
         x.doubleValue
       case x: java.math.BigInteger => x.longValue
@@ -162,7 +164,7 @@ class AlphaDataModelInstanceRelation(
     ProjectedDataModelInstance(
       externalId = pmap.externalId,
       properties = requiredPropsArray.map { name: String =>
-        dmiProperties.get(name).map(getValue).orNull
+        dmiProperties.get(name).map(getValue(name, _)).orNull
       }
     )
   }
@@ -171,7 +173,8 @@ class AlphaDataModelInstanceRelation(
   def getInstanceFilter(sparkFilter: Filter): Option[DomainSpecificLanguageFilter] =
     sparkFilter match {
       case EqualTo(left, right) =>
-        Some(DSLEqualsFilter(Seq(spaceExternalId, modelExternalId, left), parsePropertyValue(right)))
+        Some(
+          DSLEqualsFilter(Seq(spaceExternalId, modelExternalId, left), parsePropertyValue(left, right)))
       case In(attribute, values) =>
         if (modelInfo(attribute).`type`.code.endsWith("[]")) {
           None
@@ -180,31 +183,33 @@ class AlphaDataModelInstanceRelation(
           Some(
             DSLInFilter(
               Seq(spaceExternalId, modelExternalId, attribute),
-              setValues.map(parsePropertyValue).toIndexedSeq))
+              setValues.map(parsePropertyValue(attribute, _)).toIndexedSeq))
         }
       case StringStartsWith(attribute, value) =>
         Some(
-          DSLPrefixFilter(Seq(spaceExternalId, modelExternalId, attribute), parsePropertyValue(value)))
+          DSLPrefixFilter(
+            Seq(spaceExternalId, modelExternalId, attribute),
+            parsePropertyValue(attribute, value)))
       case GreaterThanOrEqual(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            gte = Some(parsePropertyValue(value))))
+            gte = Some(parsePropertyValue(attribute, value))))
       case GreaterThan(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            gt = Some(parsePropertyValue(value))))
+            gt = Some(parsePropertyValue(attribute, value))))
       case LessThanOrEqual(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            lte = Some(parsePropertyValue(value))))
+            lte = Some(parsePropertyValue(attribute, value))))
       case LessThan(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            lt = Some(parsePropertyValue(value))))
+            lt = Some(parsePropertyValue(attribute, value))))
       case And(f1, f2) =>
         (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
           DSLAndFilter(Seq(sf1, sf2)))
@@ -238,12 +243,22 @@ class AlphaDataModelInstanceRelation(
       if (andFilters.isEmpty) EmptyFilter else DSLAndFilter(andFilters)
     }
 
+    // only take the first spaceExternalId and ignore the rest, maybe we can throw an error instead in case there are
+    // more than one
+    val instanceSpaceExternalIdFilter = filters
+      .collectFirst {
+        case EqualTo("spaceExternalId", value) => value.toString()
+      }
+      .getOrElse(spaceExternalId)
+
     val dmiQuery = DataModelInstanceQuery(
       model = DataModelIdentifier(space = Some(spaceExternalId), model = modelExternalId),
+      spaceExternalId = instanceSpaceExternalIdFilter,
       filter = filter,
       sort = None,
       limit = limit,
-      cursor = None)
+      cursor = None
+    )
 
     if (modelType == NodeType) {
       Seq(
@@ -271,11 +286,11 @@ class AlphaDataModelInstanceRelation(
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceDeleteSchema](r))
     if (modelType == DataModelType.NodeType) {
       alphaClient.nodes
-        .deleteByExternalIds(deletes.map(_.externalId))
+        .deleteItems(deletes.map(_.externalId), spaceExternalId)
         .flatTap(_ => incMetrics(itemsDeleted, rows.length))
     } else {
       alphaClient.edges
-        .deleteByExternalIds(deletes.map(_.externalId))
+        .deleteItems(deletes.map(_.externalId), spaceExternalId)
         .flatTap(_ => incMetrics(itemsDeleted, rows.length))
     }
   }
@@ -324,18 +339,15 @@ class AlphaDataModelInstanceRelation(
     def parseEdgeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Edge = {
       val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
-      val startNode = getStringValueForFixedProperty(row, "startNode", startNodeIndex)
-      val endNode = getStringValueForFixedProperty(row, "endNode", endNodeIndex)
-      val edgeType = getStringValueForFixedProperty(row, "type", typeIndex)
+
+      val edgeType = getDirectRelationIdentifierProperty(externalId, row, "type", typeIndex)
+      val startNode = getDirectRelationIdentifierProperty(externalId, row, "startNode", startNodeIndex)
+      val endNode = getDirectRelationIdentifierProperty(externalId, row, "endNode", endNodeIndex)
+
       val propertyValues: Map[String, DataModelProperty[_]] =
         getDataModelPropertyMap(indexedPropertyList, row)
 
-      Edge(
-        externalId = externalId,
-        `type` = edgeType,
-        startNode = startNode,
-        endNode = endNode,
-        properties = Some(propertyValues))
+      Edge(externalId, edgeType, startNode, endNode, Some(propertyValues))
     }
 
     parseEdgeRow(indexedPropertyList)
@@ -352,10 +364,7 @@ class AlphaDataModelInstanceRelation(
       val propertyValues: Map[String, DataModelProperty[_]] =
         getDataModelPropertyMap(indexedPropertyList, row)
 
-      Node(
-        externalId = externalId,
-        properties = Some(propertyValues)
-      )
+      Node(externalId, Some(propertyValues))
     }
 
     parseNodeRow(indexedPropertyList)
@@ -363,4 +372,4 @@ class AlphaDataModelInstanceRelation(
 }
 
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
-final case class DataModelInstanceDeleteSchema(externalId: String)
+final case class DataModelInstanceDeleteSchema(spaceExternalId: Option[String], externalId: String)
