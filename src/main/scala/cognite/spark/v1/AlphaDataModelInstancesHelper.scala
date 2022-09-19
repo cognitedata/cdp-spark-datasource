@@ -96,7 +96,7 @@ object AlphaDataModelInstancesHelper {
       case PropertyType.Bigint => DataTypes.LongType
       case PropertyType.Date => DataTypes.DateType
       case PropertyType.Timestamp => DataTypes.TimestampType
-      case PropertyType.DirectRelation => DataTypes.StringType
+      case PropertyType.DirectRelation => DataTypes.createArrayType(DataTypes.StringType)
       case PropertyType.Geometry => DataTypes.StringType
       case PropertyType.Geography => DataTypes.StringType
       case PropertyType.Array.Text => DataTypes.createArrayType(DataTypes.StringType)
@@ -134,7 +134,14 @@ object AlphaDataModelInstancesHelper {
   }
 
   private def toDirectRelationProperty: Any => DataModelProperty[_] = {
-    case x: String => PropertyType.DirectRelation.Property(x)
+    case x: Iterable[_] => //PropertyType.DirectRelation.Property(x)
+      x.headOption match {
+        case None => PropertyType.DirectRelation.Property(Vector.empty)
+        case Some(_: String) =>
+          PropertyType.DirectRelation.Property(x.collect { case s: String => s }.toVector)
+        case _ =>
+          throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Text.code))
+      }
     case a =>
       throw new CdfSparkException(
         notValidPropertyTypeMessage(a, PropertyType.DirectRelation.code, Some("string")))
@@ -318,7 +325,8 @@ object AlphaDataModelInstancesHelper {
       case PropertyType.Text => toStringProperty
       case PropertyType.Date => toDateProperty
       case PropertyType.Timestamp => toTimestampProperty
-      case PropertyType.DirectRelation => toDirectRelationProperty
+      case PropertyType.DirectRelation =>
+        toDirectRelationProperty
       case PropertyType.Geometry => toGeometryProperty
       case PropertyType.Geography => toGeographyProperty
       case PropertyType.Array.Text => toStringArrayProperty
