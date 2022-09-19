@@ -952,13 +952,10 @@ class AlphaDataModelInstancesRelationTest
               DataModelIdentifier(Some(spaceExternalId), primEdgeExtId),
               spaceExternalId))
           .unsafeRunSync()
-        println(s"res = ${res}")
-        println(s"res.prop = ${res.items.toList.map(_.allProperties)}")
         val data = df.collect()
-        println(s"data = ${data}")
-        /*data.headOption.map(_.getAs[Seq[String]]("type")) shouldBe Some(Seq(spaceExternalId, "test2"))
+        data.headOption.map(_.getAs[String]("type")) shouldBe Some(s"$spaceExternalId:test2")
         data.headOption.map(_.getAs[Boolean]("prop_bool")) shouldBe Some(false)
-        data.headOption.map(_.getAs[String]("prop_string")) shouldBe Some("abc")*/
+        data.headOption.map(_.getAs[String]("prop_string")) shouldBe Some("abc")
         1 shouldBe 1
       }
     )
@@ -1000,7 +997,7 @@ class AlphaDataModelInstancesRelationTest
         )
         val metricPrefix = shortRandomString()
         val df = readRows(specialEdge, metricPrefix)
-        df.where("endNode = 'testNode3'").count() shouldBe 1
+        df.where(s"endNode = '$spaceExternalId:testNode3'").count() shouldBe 1
         getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
 
         val metricPrefix2 = shortRandomString()
@@ -1014,7 +1011,7 @@ class AlphaDataModelInstancesRelationTest
           Seq(spaceExternalId, "asset"))
         data.headOption.map(_.getAs[String]("startNode")) shouldBe Some(s"$spaceExternalId:testNode1")
         data.headOption.map(_.getAs[String]("endNode")) shouldBe Some(s"$spaceExternalId:testNode3")
-        data.headOption.map(_.getAs[Seq[String]]("type")) shouldBe Some("test1")
+        data.headOption.map(_.getAs[String]("type")) shouldBe Some(s"$spaceExternalId:test1")
         data.headOption.map(_.getAs[java.sql.Timestamp]("prop_timestamp")) shouldBe Some(
           java.sql.Timestamp.valueOf("2022-01-01 13:34:56.789"))
         data.headOption.map(_.getAs[java.sql.Date]("prop_date")) shouldBe Some(

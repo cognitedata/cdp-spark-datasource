@@ -127,8 +127,10 @@ class AlphaDataModelInstanceRelation(
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 
   // scalastyle:off cyclomatic.complexity
-  private def getValue(prop: DataModelProperty[_]): Any =
+  private def getValue(propName: String, prop: DataModelProperty[_]): Any =
     prop.value match {
+      case x: Iterable[_] if (x.size == 2) && (Seq("startNode", "endNode", "type") contains propName) =>
+        x.mkString(":")
       case x: java.math.BigDecimal =>
         x.doubleValue
       case x: java.math.BigInteger => x.longValue
@@ -162,7 +164,7 @@ class AlphaDataModelInstanceRelation(
     ProjectedDataModelInstance(
       externalId = pmap.externalId,
       properties = requiredPropsArray.map { name: String =>
-        dmiProperties.get(name).map(getValue).orNull
+        dmiProperties.get(name).map(getValue(name, _)).orNull
       }
     )
   }
@@ -171,7 +173,8 @@ class AlphaDataModelInstanceRelation(
   def getInstanceFilter(sparkFilter: Filter): Option[DomainSpecificLanguageFilter] =
     sparkFilter match {
       case EqualTo(left, right) =>
-        Some(DSLEqualsFilter(Seq(spaceExternalId, modelExternalId, left), parsePropertyValue(right)))
+        Some(
+          DSLEqualsFilter(Seq(spaceExternalId, modelExternalId, left), parsePropertyValue(left, right)))
       case In(attribute, values) =>
         if (modelInfo(attribute).`type`.code.endsWith("[]")) {
           None
@@ -180,31 +183,33 @@ class AlphaDataModelInstanceRelation(
           Some(
             DSLInFilter(
               Seq(spaceExternalId, modelExternalId, attribute),
-              setValues.map(parsePropertyValue).toIndexedSeq))
+              setValues.map(parsePropertyValue(attribute, _)).toIndexedSeq))
         }
       case StringStartsWith(attribute, value) =>
         Some(
-          DSLPrefixFilter(Seq(spaceExternalId, modelExternalId, attribute), parsePropertyValue(value)))
+          DSLPrefixFilter(
+            Seq(spaceExternalId, modelExternalId, attribute),
+            parsePropertyValue(attribute, value)))
       case GreaterThanOrEqual(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            gte = Some(parsePropertyValue(value))))
+            gte = Some(parsePropertyValue(attribute, value))))
       case GreaterThan(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            gt = Some(parsePropertyValue(value))))
+            gt = Some(parsePropertyValue(attribute, value))))
       case LessThanOrEqual(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            lte = Some(parsePropertyValue(value))))
+            lte = Some(parsePropertyValue(attribute, value))))
       case LessThan(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            lt = Some(parsePropertyValue(value))))
+            lt = Some(parsePropertyValue(attribute, value))))
       case And(f1, f2) =>
         (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
           DSLAndFilter(Seq(sf1, sf2)))

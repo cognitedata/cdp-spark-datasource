@@ -31,7 +31,11 @@ object AlphaDataModelInstancesHelper {
   def propertyNotNullableMessage(propertyType: PropertyType[_]): String =
     s"Property of ${propertyType.code} type is not nullable."
 
-  def parsePropertyValue(value: Any): DataModelProperty[_] = value match {
+  // scalastyle:off method.length
+  def parsePropertyValue(propName: String, value: Any): DataModelProperty[_] = value match {
+    case x: String if Seq("startNode", "endNode", "type") contains propName =>
+      val identifier = x.split(":")
+      PropertyType.DirectRelation.Property(identifier)
     case x: Double => PropertyType.Float64.Property(x)
     case x: Int => PropertyType.Int32.Property(x)
     case x: Float => PropertyType.Float32.Property(x)
@@ -82,6 +86,7 @@ object AlphaDataModelInstancesHelper {
     case x =>
       throw new CdfSparkException(s"Unsupported value ${x.toString} of type ${x.getClass.getName}")
   }
+  // scalastyle:on method.length
 
   def propertyTypeToSparkType(propertyType: PropertyType[_]): DataType =
     propertyType match {
