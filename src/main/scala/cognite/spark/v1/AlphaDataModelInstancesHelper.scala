@@ -34,7 +34,7 @@ object AlphaDataModelInstancesHelper {
   // scalastyle:off method.length
   def parsePropertyValue(propName: String, value: Any): DataModelProperty[_] = value match {
     case x: String if Seq("startNode", "endNode", "type") contains propName =>
-      val identifier = x.split(":")
+      val identifier = x.split(":").toSeq
       PropertyType.DirectRelation.Property(identifier)
     case x: Double => PropertyType.Float64.Property(x)
     case x: Int => PropertyType.Int32.Property(x)
@@ -101,7 +101,7 @@ object AlphaDataModelInstancesHelper {
       case PropertyType.Bigint => DataTypes.LongType
       case PropertyType.Date => DataTypes.DateType
       case PropertyType.Timestamp => DataTypes.TimestampType
-      case PropertyType.DirectRelation => DataTypes.createArrayType(DataTypes.StringType)
+      case PropertyType.DirectRelation => DataTypes.StringType
       case PropertyType.Geometry => DataTypes.StringType
       case PropertyType.Geography => DataTypes.StringType
       case PropertyType.Array.Text => DataTypes.createArrayType(DataTypes.StringType)
@@ -139,14 +139,16 @@ object AlphaDataModelInstancesHelper {
   }
 
   private def toDirectRelationProperty: Any => DataModelProperty[_] = {
-    case x: Iterable[_] => //PropertyType.DirectRelation.Property(x)
-      x.headOption match {
-        case None => PropertyType.DirectRelation.Property(Vector.empty)
-        case Some(_: String) =>
-          PropertyType.DirectRelation.Property(x.collect { case s: String => s }.toVector)
-        case _ =>
-          throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Text.code))
-      }
+//    case x: Iterable[_] => //PropertyType.DirectRelation.Property(x)
+//      x.headOption match {
+//        case None => PropertyType.DirectRelation.Property(Vector.empty)
+//        case Some(_: String) =>
+//          PropertyType.DirectRelation.Property(x.collect { case s: String => s }.toVector)
+//        case _ =>
+//          throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Text.code))
+//      }
+    case x: String =>
+      PropertyType.DirectRelation.Property(x.split(":").toSeq)
     case a =>
       throw new CdfSparkException(
         notValidPropertyTypeMessage(a, PropertyType.DirectRelation.code, Some("string")))

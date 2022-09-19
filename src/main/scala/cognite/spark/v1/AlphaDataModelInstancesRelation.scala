@@ -127,7 +127,15 @@ class AlphaDataModelInstanceRelation(
   def uniqueId(a: ProjectedDataModelInstance): String = a.externalId
 
   // scalastyle:off cyclomatic.complexity
-  private def getValue(propName: String, prop: DataModelProperty[_]): Any =
+  private def getValue(propName: String, prop: DataModelProperty[_]): Any = {
+    val directRelVal = prop match {
+      case PropertyType.DirectRelation.Property(identifier) =>
+        identifier.mkString(":")
+      case _ => ""
+    }
+    if (directRelVal.nonEmpty){
+      directRelVal
+    } else {
     prop.value match {
       case x: Iterable[_] if (x.size == 2) && (Seq("startNode", "endNode", "type") contains propName) =>
         x.mkString(":")
@@ -155,6 +163,8 @@ class AlphaDataModelInstanceRelation(
         x.toVector.map(i => java.sql.Timestamp.from(i.toInstant))
       case _ => prop.value
     }
+    }
+  }
   // scalastyle:on cyclomatic.complexity
 
   def toProjectedInstance(

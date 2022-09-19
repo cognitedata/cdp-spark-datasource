@@ -831,7 +831,7 @@ class AlphaDataModelInstancesRelationTest
                 primitiveExtId2,
                 spark
                   .sql(s"""
-                          |select array('$spaceExternalId', 'asset') as prop_direct_relation,
+                          |select '$spaceExternalId:asset' as prop_direct_relation,
                           |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
                           |date('2022-01-01') as prop_date,
                           |'${randomId}' as externalId""".stripMargin)
@@ -861,14 +861,14 @@ class AlphaDataModelInstancesRelationTest
                 primitiveExtId2,
                 spark
                   .sql(s"""
-                       |select array('$spaceExternalId', 'asset') as prop_direct_relation,
+                       |select '$spaceExternalId"asset' as prop_direct_relation,
                        |timestamp('2022-01-01T12:34:56.789+00:00') as prop_timestamp,
                        |date('2022-01-20') as prop_date,
                        |'${randomId}' as externalId
                        |
                        |union all
                        |
-                       |select array('$spaceExternalId', 'asset2') as prop_direct_relation,
+                       |select '$spaceExternalId:asset2' as prop_direct_relation,
                        |timestamp('2022-01-10T12:34:56.789+00:00') as prop_timestamp,
                        |date('2022-01-01') as prop_date,
                        |'${randomId2}' as externalId""".stripMargin)
@@ -970,7 +970,7 @@ class AlphaDataModelInstancesRelationTest
                        |select '$spaceExternalId:testNode1' as startNode,
                        |'$spaceExternalId:testNode3' as endNode,
                        |'$spaceExternalId:test1' as type,
-                       |array('$spaceExternalId', 'asset') as prop_direct_relation,
+                       |'$spaceExternalId:asset' as prop_direct_relation,
                        |timestamp('2022-01-01 13:34:56.789') as prop_timestamp,
                        |date('2022-01-20') as prop_date,
                        |'${randomId}' as externalId
@@ -980,7 +980,7 @@ class AlphaDataModelInstancesRelationTest
                        |select '$spaceExternalId:testNode1' as startNode,
                        |'$spaceExternalId:testNode2' as endNode,
                        |'$spaceExternalId:test2' as type,
-                       |array('$spaceExternalId', 'asset2') as prop_direct_relation,
+                       |'$spaceExternalId:asset2' as prop_direct_relation,
                        |timestamp('2022-01-10 13:34:56.789') as prop_timestamp,
                        |date('2022-01-01') as prop_date,
                        |'${randomId2}' as externalId""".stripMargin)
@@ -1001,8 +1001,8 @@ class AlphaDataModelInstancesRelationTest
           .collect()
         getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 1
         data.length shouldBe 1
-        data.headOption.map(_.getAs[Seq[String]]("prop_direct_relation")) shouldBe Some(
-          Seq(spaceExternalId, "asset"))
+        data.headOption.map(_.getAs[String]("prop_direct_relation")) shouldBe Some(
+          s"$spaceExternalId:asset")
         data.headOption.map(_.getAs[String]("startNode")) shouldBe Some(s"$spaceExternalId:testNode1")
         data.headOption.map(_.getAs[String]("endNode")) shouldBe Some(s"$spaceExternalId:testNode3")
         data.headOption.map(_.getAs[String]("type")) shouldBe Some(s"$spaceExternalId:test1")
