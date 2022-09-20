@@ -111,7 +111,7 @@ class DefaultSource
       parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
     val instanceSpaceExternalId =
       parameters.get("instanceSpaceExternalId")
-    new AlphaDataModelInstanceRelation(
+    new DataModelInstanceRelation(
       config,
       spaceExternalId,
       modelExternalId,
@@ -190,7 +190,7 @@ class DefaultSource
         new RelationshipsRelation(config)(sqlContext)
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
-      case "alphadatamodelinstances" =>
+      case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
@@ -252,7 +252,7 @@ class DefaultSource
           new RelationshipsRelation(config)(sqlContext)
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
-        case "alphadatamodelinstances" =>
+        case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
