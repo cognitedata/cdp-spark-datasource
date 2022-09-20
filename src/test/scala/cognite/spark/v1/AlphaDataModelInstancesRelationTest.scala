@@ -1012,4 +1012,32 @@ class AlphaDataModelInstancesRelationTest
       }
     )
   }
+
+  it should "ingest data when direct relation external id is empty" in {
+    val randomId = "prim_test_" + shortRandomString()
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId2,
+                spark
+                  .sql(s"""
+                          |select array('$spaceExternalId', null) as prop_direct_relation,
+                          |timestamp('2022-01-02T12:34:56.789+00:00') as prop_timestamp,
+                          |date('2022-01-02') as prop_date,
+                          |'${randomId}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        byExternalId(true, primitiveExtId2, randomId) shouldBe randomId
+        val props = getByExternalId(true, primitiveExtId2, randomId).allProperties
+        props.get("prop_timestamp").map(_.value.toString) shouldBe Some("2022-01-02T12:34:56.789Z")
+        props.get("prop_direct_relation").map(_.value) shouldBe None
+      }
+    )
+  }
 }
