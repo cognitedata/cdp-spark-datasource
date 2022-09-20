@@ -114,110 +114,119 @@ object DataModelInstancesHelper {
       case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
 
-  private def toDateProperty: Any => DataModelProperty[_] = {
-    case x: LocalDate => PropertyType.Date.Property(x)
-    case x: java.sql.Date => PropertyType.Date.Property(x.toLocalDate)
-    case x: LocalDateTime => PropertyType.Date.Property(x.toLocalDate)
+  private def toDateProperty: Any => Option[DataModelProperty[_]] = {
+    case x: LocalDate => Some(PropertyType.Date.Property(x))
+    case x: java.sql.Date => Some(PropertyType.Date.Property(x.toLocalDate))
+    case x: LocalDateTime => Some(PropertyType.Date.Property(x.toLocalDate))
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, "date", Some("date")))
   }
 
-  private def toTimestampProperty: Any => DataModelProperty[_] = {
+  private def toTimestampProperty: Any => Option[DataModelProperty[_]] = {
     case x: Instant =>
-      PropertyType.Timestamp.Property(OffsetDateTime.ofInstant(x, ZoneId.of("UTC")).toZonedDateTime)
+      Some(
+        PropertyType.Timestamp.Property(OffsetDateTime.ofInstant(x, ZoneId.of("UTC")).toZonedDateTime))
     case x: java.sql.Timestamp =>
       // Using ZonedDateTime directly without OffSetDateTime, adds ZoneId to the end of encoded string
       // 2019-10-02T07:00+09:00[Asia/Seoul] instead of 2019-10-02T07:00+09:00, API does not like it.
-      PropertyType.Timestamp.Property(
-        OffsetDateTime.ofInstant(x.toInstant, ZoneId.of("UTC")).toZonedDateTime)
+      Some(
+        PropertyType.Timestamp.Property(
+          OffsetDateTime.ofInstant(x.toInstant, ZoneId.of("UTC")).toZonedDateTime))
     case x: ZonedDateTime =>
-      PropertyType.Timestamp.Property(x)
+      Some(PropertyType.Timestamp.Property(x))
     case a =>
       throw new CdfSparkException(
         notValidPropertyTypeMessage(a, PropertyType.Timestamp.code, Some("timestamp")))
   }
 
-  private def toDirectRelationProperty: Any => DataModelProperty[_] = {
+  private val directRelationErr =
+    "Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`)"
+  private def toDirectRelationProperty: Any => Option[DataModelProperty[_]] = {
     case x: Iterable[_] => //PropertyType.DirectRelation.Property(x)
       x.headOption match {
-        case None => PropertyType.DirectRelation.Property(Vector.empty)
-        case Some(_: String) =>
-          PropertyType.DirectRelation.Property(x.collect { case s: String => s }.toVector)
+        case Some(_: String) if x.size == 2 =>
+          if (x.toList(1) == null) {
+            None
+          } else {
+            Some(PropertyType.DirectRelation.Property(x.collect { case s: String => s }.toVector))
+          }
+        case Some(_: String) | None =>
+          throw new CdfSparkException(s"$directRelationErr but the size was ${x.size}.")
         case _ =>
-          throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Text.code))
+          val lstStr = x.mkString(", ")
+          throw new CdfSparkException(s"$directRelationErr but got array($lstStr) as the value.")
       }
     case a =>
-      throw new CdfSparkException(
-        notValidPropertyTypeMessage(a, PropertyType.DirectRelation.code, Some("string")))
+      throw new CdfSparkException(s"$directRelationErr but got $a as the value.")
   }
 
-  private def toGeographyProperty: Any => DataModelProperty[_] = {
-    case x: String => PropertyType.Geography.Property(x)
+  private def toGeographyProperty: Any => Option[DataModelProperty[_]] = {
+    case x: String => Some(PropertyType.Geography.Property(x))
     case a =>
       throw new CdfSparkException(
         notValidPropertyTypeMessage(a, PropertyType.Geography.code, Some("string")))
   }
 
-  private def toGeometryProperty: Any => DataModelProperty[_] = {
-    case x: String => PropertyType.Geometry.Property(x)
+  private def toGeometryProperty: Any => Option[DataModelProperty[_]] = {
+    case x: String => Some(PropertyType.Geometry.Property(x))
     case a =>
       throw new CdfSparkException(
         notValidPropertyTypeMessage(a, PropertyType.Geometry.code, Some("string")))
   }
 
-  private def toFloat32Property: Any => DataModelProperty[_] = {
-    case x: Float => PropertyType.Float32.Property(x)
-    case x: Int => PropertyType.Float32.Property(x.toFloat)
-    case x: java.math.BigDecimal => PropertyType.Float32.Property(x.floatValue())
-    case x: java.math.BigInteger => PropertyType.Float32.Property(x.floatValue())
+  private def toFloat32Property: Any => Option[DataModelProperty[_]] = {
+    case x: Float => Some(PropertyType.Float32.Property(x))
+    case x: Int => Some(PropertyType.Float32.Property(x.toFloat))
+    case x: java.math.BigDecimal => Some(PropertyType.Float32.Property(x.floatValue()))
+    case x: java.math.BigInteger => Some((PropertyType.Float32.Property(x.floatValue())))
     case a =>
       throw new CdfSparkException(
         notValidPropertyTypeMessage(a, PropertyType.Float32.code, Some("float")))
   }
 
-  private def toFloat64Property(propAlias: PropertyType[_]): Any => DataModelProperty[_] = {
-    case x: Double => PropertyType.Float64.Property(x)
-    case x: Float => PropertyType.Float64.Property(x.toDouble)
-    case x: Int => PropertyType.Float64.Property(x.toDouble)
-    case x: Long => PropertyType.Float64.Property(x.toDouble)
-    case x: java.math.BigDecimal => PropertyType.Float64.Property(x.doubleValue)
-    case x: java.math.BigInteger => PropertyType.Float64.Property(x.doubleValue)
+  private def toFloat64Property(propAlias: PropertyType[_]): Any => Option[DataModelProperty[_]] = {
+    case x: Double => Some(PropertyType.Float64.Property(x))
+    case x: Float => Some(PropertyType.Float64.Property(x.toDouble))
+    case x: Int => Some(PropertyType.Float64.Property(x.toDouble))
+    case x: Long => Some(PropertyType.Float64.Property(x.toDouble))
+    case x: java.math.BigDecimal => Some(PropertyType.Float64.Property(x.doubleValue))
+    case x: java.math.BigInteger => Some(PropertyType.Float64.Property(x.doubleValue))
     case a => throw new CdfSparkException(notValidPropertyTypeMessage(a, propAlias.code, Some("double")))
   }
 
-  private def toBooleanProperty: Any => DataModelProperty[_] = {
-    case x: Boolean => PropertyType.Boolean.Property(x)
+  private def toBooleanProperty: Any => Option[DataModelProperty[_]] = {
+    case x: Boolean => Some(PropertyType.Boolean.Property(x))
     case a =>
       throw new CdfSparkException(
         notValidPropertyTypeMessage(a, PropertyType.Boolean.code, Some("boolean")))
   }
 
-  private def toInt32Property(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
-    case x: Int => PropertyType.Int.Property(x)
-    case x: java.math.BigInteger => PropertyType.Int.Property(x.intValue())
+  private def toInt32Property(propertyAlias: PropertyType[_]): Any => Option[DataModelProperty[_]] = {
+    case x: Int => Some(PropertyType.Int.Property(x))
+    case x: java.math.BigInteger => Some(PropertyType.Int.Property(x.intValue()))
     case a =>
       throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias.code, Some("int")))
   }
 
-  private def toInt64Property(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
-    case x: Int => PropertyType.Bigint.Property(x.toLong)
-    case x: Long => PropertyType.Bigint.Property(x)
-    case x: java.math.BigInteger => PropertyType.Bigint.Property(x.longValue)
+  private def toInt64Property(propertyAlias: PropertyType[_]): Any => Option[DataModelProperty[_]] = {
+    case x: Int => Some(PropertyType.Bigint.Property(x.toLong))
+    case x: Long => Some(PropertyType.Bigint.Property(x))
+    case x: java.math.BigInteger => Some(PropertyType.Bigint.Property(x.longValue))
     case a =>
       throw new CdfSparkException(notValidPropertyTypeMessage(a, propertyAlias.code, Some("bigint")))
   }
 
-  private def toStringProperty: Any => DataModelProperty[_] = {
-    case x: String => PropertyType.Text.Property(x)
+  private def toStringProperty: Any => Option[DataModelProperty[_]] = {
+    case x: String => Some(PropertyType.Text.Property(x))
     case a =>
       throw new CdfSparkException(notValidPropertyTypeMessage(a, PropertyType.Text.code, Some("string")))
   }
 
-  private def toStringArrayProperty: Any => DataModelProperty[_] = {
+  private def toStringArrayProperty: Any => Option[DataModelProperty[_]] = {
     case x: Iterable[_] =>
       x.headOption match {
-        case None => PropertyType.Array.Boolean.Property(Vector.empty)
+        case None => Some(PropertyType.Array.Boolean.Property(Vector.empty))
         case Some(_: String) =>
-          PropertyType.Array.Text.Property(x.collect { case s: String => s }.toVector)
+          Some(PropertyType.Array.Text.Property(x.collect { case s: String => s }.toVector))
         case _ =>
           throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Text.code))
       }
@@ -225,22 +234,22 @@ object DataModelInstancesHelper {
       throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Text.code))
   }
 
-  private def toFloat32ArrayProperty: Any => DataModelProperty[_] = {
+  private def toFloat32ArrayProperty: Any => Option[DataModelProperty[_]] = {
     case x: Iterable[_] =>
       x.headOption match {
-        case None => PropertyType.Array.Float32.Property(Vector.empty)
+        case None => Some(PropertyType.Array.Float32.Property(Vector.empty))
         case Some(_: Float) =>
-          PropertyType.Array.Float32.Property(x.collect { case f: Float => f }.toVector)
+          Some(PropertyType.Array.Float32.Property(x.collect { case f: Float => f }.toVector))
         case Some(_: Int) =>
-          PropertyType.Array.Float32.Property(x.collect { case i: Int => i.toFloat }.toVector)
+          Some(PropertyType.Array.Float32.Property(x.collect { case i: Int => i.toFloat }.toVector))
         case Some(_: java.math.BigDecimal) =>
-          PropertyType.Array.Float32.Property(x.collect {
+          Some(PropertyType.Array.Float32.Property(x.collect {
             case bigDecimal: java.math.BigDecimal => bigDecimal.floatValue()
-          }.toVector)
+          }.toVector))
         case Some(_: java.math.BigInteger) =>
-          PropertyType.Array.Float32.Property(x.collect {
+          Some(PropertyType.Array.Float32.Property(x.collect {
             case bigInteger: java.math.BigInteger => bigInteger.floatValue()
-          }.toVector)
+          }.toVector))
         case x =>
           throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Float32.code))
       }
@@ -248,37 +257,38 @@ object DataModelInstancesHelper {
       throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Float32.code))
   }
 
-  private def toFloat64ArrayProperty(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
+  private def toFloat64ArrayProperty(
+      propertyAlias: PropertyType[_]): Any => Option[DataModelProperty[_]] = {
     case x: Iterable[_] =>
       x.headOption match {
-        case None => PropertyType.Array.Float64.Property(Vector.empty)
+        case None => Some(PropertyType.Array.Float64.Property(Vector.empty))
         case Some(_: Double) =>
-          PropertyType.Array.Float64.Property(x.collect { case d: Double => d }.toVector)
+          Some(PropertyType.Array.Float64.Property(x.collect { case d: Double => d }.toVector))
         case Some(_: Float) =>
-          PropertyType.Array.Float64.Property(x.collect { case f: Float => f.toDouble }.toVector)
+          Some(PropertyType.Array.Float64.Property(x.collect { case f: Float => f.toDouble }.toVector))
         case Some(_: Long) =>
-          PropertyType.Array.Float64.Property(x.collect { case l: Long => l.toDouble }.toVector)
+          Some(PropertyType.Array.Float64.Property(x.collect { case l: Long => l.toDouble }.toVector))
         case Some(_: Int) =>
-          PropertyType.Array.Float64.Property(x.collect { case i: Int => i.toDouble }.toVector)
+          Some(PropertyType.Array.Float64.Property(x.collect { case i: Int => i.toDouble }.toVector))
         case Some(_: java.math.BigDecimal) =>
-          PropertyType.Array.Float64.Property(x.collect {
+          Some(PropertyType.Array.Float64.Property(x.collect {
             case bigDecimal: java.math.BigDecimal => bigDecimal.doubleValue()
-          }.toVector)
+          }.toVector))
         case Some(_: java.math.BigInteger) =>
-          PropertyType.Array.Float64.Property(x.collect {
+          Some(PropertyType.Array.Float64.Property(x.collect {
             case bigInteger: java.math.BigInteger => bigInteger.doubleValue()
-          }.toVector)
+          }.toVector))
         case _ => throw new CdfSparkException(notValidPropertyTypeMessage(x, propertyAlias.code))
       }
     case x => throw new CdfSparkException(notValidPropertyTypeMessage(x, propertyAlias.code))
   }
 
-  private def toBooleanArrayProperty: Any => DataModelProperty[_] = {
+  private def toBooleanArrayProperty: Any => Option[DataModelProperty[_]] = {
     case x: Iterable[_] =>
       x.headOption match {
-        case None => PropertyType.Array.Boolean.Property(Vector.empty)
+        case None => Some(PropertyType.Array.Boolean.Property(Vector.empty))
         case Some(_: Boolean) =>
-          PropertyType.Array.Boolean.Property(x.collect { case bool: Boolean => bool }.toVector)
+          Some(PropertyType.Array.Boolean.Property(x.collect { case bool: Boolean => bool }.toVector))
         case _ =>
           throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Boolean.code))
       }
@@ -286,39 +296,39 @@ object DataModelInstancesHelper {
       throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Boolean.code))
   }
 
-  private def toInt32ArrayProperty(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
+  private def toInt32ArrayProperty(propertyAlias: PropertyType[_]): Any => Option[DataModelProperty[_]] = {
     case x: Iterable[_] =>
       x.headOption match {
-        case None => PropertyType.Array.Int32.Property(Vector.empty)
+        case None => Some(PropertyType.Array.Int32.Property(Vector.empty))
         case Some(_: Int) =>
-          PropertyType.Array.Int32.Property(x.collect { case i: Int => i }.toVector)
+          Some(PropertyType.Array.Int32.Property(x.collect { case i: Int => i }.toVector))
         case Some(_: java.math.BigInteger) =>
-          PropertyType.Array.Int32.Property(x.collect {
+          Some(PropertyType.Array.Int32.Property(x.collect {
             case bigInteger: java.math.BigInteger => bigInteger.intValue()
-          }.toVector)
+          }.toVector))
         case _ => throw new CdfSparkException(notValidPropertyTypeMessage(x, propertyAlias.code))
       }
     case x => throw new CdfSparkException(notValidPropertyTypeMessage(x, propertyAlias.code))
   }
 
-  def toInt64ArrayProperty(propertyAlias: PropertyType[_]): Any => DataModelProperty[_] = {
+  def toInt64ArrayProperty(propertyAlias: PropertyType[_]): Any => Option[DataModelProperty[_]] = {
     case x: Iterable[_] =>
       x.headOption match {
-        case None => PropertyType.Array.Bigint.Property(Vector.empty)
+        case None => Some(PropertyType.Array.Bigint.Property(Vector.empty))
         case Some(_: Int) =>
-          PropertyType.Array.Bigint.Property(x.collect { case i: Int => i.toLong }.toVector)
+          Some(PropertyType.Array.Bigint.Property(x.collect { case i: Int => i.toLong }.toVector))
         case Some(_: Long) =>
-          PropertyType.Array.Bigint.Property(x.collect { case l: Long => l }.toVector)
+          Some(PropertyType.Array.Bigint.Property(x.collect { case l: Long => l }.toVector))
         case Some(_: java.math.BigInteger) =>
-          PropertyType.Array.Bigint.Property(x.collect {
+          Some(PropertyType.Array.Bigint.Property(x.collect {
             case bigInteger: java.math.BigInteger => bigInteger.longValue()
-          }.toVector)
+          }.toVector))
         case _ => throw new CdfSparkException(notValidPropertyTypeMessage(x, propertyAlias.code))
       }
     case x => throw new CdfSparkException(notValidPropertyTypeMessage(x, propertyAlias.code))
   }
 
-  def toPropertyType(propertyType: PropertyType[_]): Any => DataModelProperty[_] =
+  def toPropertyType(propertyType: PropertyType[_]): Any => Option[DataModelProperty[_]] =
     propertyType match {
       case PropertyType.Float32 => toFloat32Property
       case PropertyType.Float64 | PropertyType.Numeric => toFloat64Property(propertyType)
