@@ -34,7 +34,7 @@ class DataModelInstanceRelation(
     spaceExternalId: String,
     modelExternalId: String,
     instanceSpaceExternalId: Option[String] = None)(val sqlContext: SQLContext)
-    extends CdfRelation(config, "alphadatamodelinstances")
+    extends CdfRelation(config, "datamodelinstances")
     with WritableRelation
     with PrunedFilteredScan {
   import CdpConnector._
