@@ -322,7 +322,7 @@ class AlphaDataModelInstanceRelation(
             case null => // scalastyle:off null
               None
             case _ =>
-              Some(toPropertyType(propT.`type`)(row.get(index)))
+              toPropertyType(propT.`type`)(row.get(index))
           })
       }
       .collect { case (a, Some(value)) => a -> value }
