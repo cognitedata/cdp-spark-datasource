@@ -138,6 +138,8 @@ object AlphaDataModelInstancesHelper {
         notValidPropertyTypeMessage(a, PropertyType.Timestamp.code, Some("timestamp")))
   }
 
+  private val directRelationErr =
+    "Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`)"
   private def toDirectRelationProperty: Any => Option[DataModelProperty[_]] = {
     case x: Iterable[_] => //PropertyType.DirectRelation.Property(x)
       x.headOption match {
@@ -147,12 +149,13 @@ object AlphaDataModelInstancesHelper {
           } else {
             Some(PropertyType.DirectRelation.Property(x.collect { case s: String => s }.toVector))
           }
+        case Some(_: String) | None =>
+          throw new CdfSparkException(s"$directRelationErr but the size was ${x.size}.")
         case _ =>
-          throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Text.code))
+          throw new CdfSparkException(s"$directRelationErr but got $x as the value.")
       }
     case a =>
-      throw new CdfSparkException(
-        notValidPropertyTypeMessage(a, PropertyType.DirectRelation.code, Some("string")))
+      throw new CdfSparkException(s"$directRelationErr but got $a as the value.")
   }
 
   private def toGeographyProperty: Any => Option[DataModelProperty[_]] = {

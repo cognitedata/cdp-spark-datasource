@@ -1040,4 +1040,51 @@ class AlphaDataModelInstancesRelationTest
       }
     )
   }
+
+  it should "fail when invalid direct relation values are being ingested" in {
+    val ex = sparkIntercept {
+      insertRows(
+        primitiveExtId2,
+        spark
+          .sql(s"""
+                  |select array() as prop_direct_relation,
+                  |timestamp('2022-01-02T12:34:56.789+00:00') as prop_timestamp,
+                  |date('2022-01-02') as prop_date,
+                  |'hello_my_name_is_emel' as externalId""".stripMargin)
+      )
+    }
+    ex shouldBe an[CdfSparkException]
+    ex.getMessage shouldBe
+      s"Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`) but the size was 0."
+
+    val ex2 = sparkIntercept {
+      insertRows(
+        primitiveExtId2,
+        spark
+          .sql(s"""
+                  |select array("vu", "hai", "nguyen") as prop_direct_relation,
+                  |timestamp('2022-01-02T12:34:56.789+00:00') as prop_timestamp,
+                  |date('2022-01-02') as prop_date,
+                  |'hello_my_name_is_emel' as externalId""".stripMargin)
+      )
+    }
+    ex2 shouldBe an[CdfSparkException]
+    ex2.getMessage shouldBe
+      s"Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`) but the size was 3."
+
+    val ex3 = sparkIntercept {
+      insertRows(
+        primitiveExtId2,
+        spark
+          .sql(s"""
+                  |select array(1,2) as prop_direct_relation,
+                  |timestamp('2022-01-02T12:34:56.789+00:00') as prop_timestamp,
+                  |date('2022-01-02') as prop_date,
+                  |'hello_my_name_is_emel' as externalId""".stripMargin)
+      )
+    }
+    ex3 shouldBe an[CdfSparkException]
+    ex3.getMessage shouldBe
+      s"Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`) but got WrappedArray(1, 2) as the value."
+  }
 }
