@@ -152,7 +152,8 @@ object AlphaDataModelInstancesHelper {
         case Some(_: String) | None =>
           throw new CdfSparkException(s"$directRelationErr but the size was ${x.size}.")
         case _ =>
-          throw new CdfSparkException(s"$directRelationErr but got $x as the value.")
+          val lstStr = x.mkString(", ")
+          throw new CdfSparkException(s"$directRelationErr but got array($lstStr) as the value.")
       }
     case a =>
       throw new CdfSparkException(s"$directRelationErr but got $a as the value.")

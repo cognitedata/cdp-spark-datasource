@@ -1085,6 +1085,6 @@ class AlphaDataModelInstancesRelationTest
     }
     ex3 shouldBe an[CdfSparkException]
     ex3.getMessage shouldBe
-      s"Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`) but got WrappedArray(1, 2) as the value."
+      s"Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`) but got array(1, 2) as the value."
   }
 }
