@@ -1,9 +1,3 @@
-# 2.1.7
-
-## Enhancements
-
-* Data model storage support is moved from alpha to beta. All relevant `alpha` prefixes where removed
-
 # 2.1.5
 
 ## Enhancements
