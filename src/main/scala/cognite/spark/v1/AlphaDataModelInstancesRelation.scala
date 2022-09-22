@@ -94,7 +94,7 @@ class AlphaDataModelInstanceRelation(
           .createItems(
             instanceSpace,
             DataModelIdentifier(Some(spaceExternalId), modelExternalId),
-            true,
+            overwrite = false,
             dataModelNodes)
           .flatTap(_ => incMetrics(itemsUpserted, dataModelNodes.length)) *> IO.unit
       } else {
@@ -106,7 +106,7 @@ class AlphaDataModelInstanceRelation(
             model = DataModelIdentifier(Some(spaceExternalId), modelExternalId),
             autoCreateStartNodes = false,
             autoCreateEndNodes = false,
-            overwrite = true,
+            overwrite = false,
             dataModelEdges
           )
           .flatTap(_ => incMetrics(itemsUpserted, dataModelEdges.length)) *> IO.unit
