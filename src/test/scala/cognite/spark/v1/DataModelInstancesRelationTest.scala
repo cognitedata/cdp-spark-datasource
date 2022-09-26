@@ -344,7 +344,7 @@ class DataModelInstancesRelationTest
           },
           failure => failure
         )
-        getNumberOfRowsUpserted(primitiveExtId, "alphadatamodelinstances") shouldBe 2
+        getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 2
         val result = getByExternalId(true, primitiveExtId, randomId).allProperties
 
         //new value of prop_float
