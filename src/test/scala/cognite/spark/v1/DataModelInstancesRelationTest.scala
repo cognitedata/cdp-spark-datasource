@@ -329,6 +329,29 @@ class DataModelInstancesRelationTest
         byExternalId(true, primitiveExtId, randomId) shouldBe randomId
         getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
 
+        // ingest the 2nd time and only overwrite prop_float
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""
+                          |select 5.0 as prop_float,
+                          |'$randomId' as externalId""".stripMargin),
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        getNumberOfRowsUpserted(primitiveExtId, "alphadatamodelinstances") shouldBe 2
+        val result = getByExternalId(true, primitiveExtId, randomId).allProperties
+
+        //new value of prop_float
+        result.get("prop_float") shouldBe Some(PropertyType.Float64.Property(5.0))
+        //prop_bool and prop_string still have old values
+        result.get("prop_bool") shouldBe Some(PropertyType.Boolean.Property(true))
+        result.get("prop_string") shouldBe Some(PropertyType.Text.Property("abc"))
       }
     )
   }
