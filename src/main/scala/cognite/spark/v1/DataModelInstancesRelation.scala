@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.AlphaDataModelInstancesHelper._
+import cognite.spark.v1.DataModelInstancesHelper._
 import com.cognite.sdk.scala.common.{
   CdpApiException,
   DSLAndFilter,
@@ -29,12 +29,12 @@ import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import scala.annotation.nowarn
 
-class AlphaDataModelInstanceRelation(
+class DataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
     modelExternalId: String,
     instanceSpaceExternalId: Option[String] = None)(val sqlContext: SQLContext)
-    extends CdfRelation(config, "alphadatamodelinstances")
+    extends CdfRelation(config, "datamodelinstances")
     with WritableRelation
     with PrunedFilteredScan {
   import CdpConnector._
