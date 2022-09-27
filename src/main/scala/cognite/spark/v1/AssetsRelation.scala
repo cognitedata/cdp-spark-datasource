@@ -26,7 +26,10 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[String]] = 
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, AssetsReadSchema]] = {
-    val (ids, filters) = pushdownToFilters(sparkFilters, assetsFilterFromMap, AssetsFilter())
+    val (ids, filters) = pushdownToFilters(
+      sparkFilters,
+      assetsFilterFromMap,
+      AssetsFilter(assetSubtreeIds = subtreeCogniteIds))
     executeFilter(client.assets, filters, ids, numPartitions, limit)
       .map(
         _.map(
