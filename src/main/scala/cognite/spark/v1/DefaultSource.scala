@@ -126,6 +126,7 @@ class DefaultSource
       schema: StructType): BaseRelation = {
 
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
+    val assetSubtreeIds = parameters.get("assetSubtreeIds").map(_.split(",").toList)
     val config = parseRelationConfig(parameters, sqlContext)
 
     resourceType match {
@@ -159,7 +160,7 @@ class DefaultSource
       case "sequencerows" =>
         createSequenceRows(parameters, config, sqlContext)
       case "assets" =>
-        new AssetsRelation(config)(sqlContext)
+        new AssetsRelation(config, assetSubtreeIds)(sqlContext)
       case "events" =>
         new EventsRelation(config)(sqlContext)
       case "files" =>

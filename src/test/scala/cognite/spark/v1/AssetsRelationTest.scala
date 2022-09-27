@@ -298,6 +298,52 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(assetsRead == 1)
   }
 
+  it should "support option filter assetSubtreeIds" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .option("assetSubtreeIds", "602956316540811")
+      .load()
+
+    assert(df.count() == 3)
+  }
+
+  it should "support option filter assetSubtreeIds with externalId" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .option("assetSubtreeIds", "22c79cdb-recursive-root,b8e85186-recursive-root")
+      .load()
+
+    assert(df.count() == 6)
+  }
+
+  it should "support option filter assetSubtreeIds with pushdown filters" taggedAs ReadTest in {
+    val metricsPrefix = s"pushdown.assets.name.${shortRandomString()}"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .option("assetSubtreeIds", "22c79cdb-recursive-root,b8e85186-recursive-root")
+      .load()
+      .where("name = 'grandchild'")
+
+    assert(df.count() == 2)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
+    assert(assetsRead == 2)
+  }
+
   it should "be possible to create assets" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     val externalId = s"assets-test-create-${shortRandomString()}"

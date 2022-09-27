@@ -14,8 +14,10 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
+import scala.util.Try
 
-class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
+class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[String]] = None)(
+    val sqlContext: SQLContext)
     extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
     with InsertableRelation
     with WritableRelation {
@@ -44,6 +46,14 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
             .transform))
   }
 
+  private val subtreeCogniteIds: Option[List[CogniteId]] =
+    subtreeIds.map(
+      _.map(
+        id =>
+          Try(id.toLong)
+            .map(internalId => CogniteInternalId(internalId))
+            .getOrElse(CogniteExternalId(id))))
+
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
     AssetsFilter(
       name = m.get("name"),
@@ -52,7 +62,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       labels = m.get("labels").flatMap(externalIdsToContainsAny),
       lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
       createdTime = timeRange(m, "createdTime"),
-      externalIdPrefix = m.get("externalIdPrefix")
+      externalIdPrefix = m.get("externalIdPrefix"),
+      assetSubtreeIds = subtreeCogniteIds
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
