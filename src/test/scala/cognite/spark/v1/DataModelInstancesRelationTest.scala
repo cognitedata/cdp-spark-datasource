@@ -10,7 +10,7 @@ import scala.concurrent.duration.DurationInt
 import scala.util.Try
 import scala.util.control.NonFatal
 
-class AlphaDataModelInstancesRelationTest
+class DataModelInstancesRelationTest
     extends FlatSpec
     with Matchers
     with SparkTest
@@ -270,13 +270,13 @@ class AlphaDataModelInstancesRelationTest
       .option("spaceExternalId", spaceExternalId)
       .option("collectMetrics", true)
       .option("metricsPrefix", metricPrefix)
-      .option("type", "alphadatamodelinstances")
+      .option("type", "datamodelinstances")
       .load()
 
   def insertRows(modelExternalId: String, df: DataFrame, onconflict: String = "upsert"): Unit =
     df.write
       .format("cognite.spark.v1")
-      .option("type", "alphadatamodelinstances")
+      .option("type", "datamodelinstances")
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)
@@ -327,8 +327,31 @@ class AlphaDataModelInstancesRelationTest
           failure => failure
         )
         byExternalId(true, primitiveExtId, randomId) shouldBe randomId
-        getNumberOfRowsUpserted(primitiveExtId, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 1
 
+        // ingest the 2nd time and only overwrite prop_float
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId,
+                spark
+                  .sql(s"""
+                          |select 5.0 as prop_float,
+                          |'$randomId' as externalId""".stripMargin),
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        getNumberOfRowsUpserted(primitiveExtId, "datamodelinstances") shouldBe 2
+        val result = getByExternalId(true, primitiveExtId, randomId).allProperties
+
+        //new value of prop_float
+        result.get("prop_float") shouldBe Some(PropertyType.Float64.Property(5.0))
+        //prop_bool and prop_string still have old values
+        result.get("prop_bool") shouldBe Some(PropertyType.Boolean.Property(true))
+        result.get("prop_string") shouldBe Some(PropertyType.Text.Property("abc"))
       }
     )
   }
@@ -357,7 +380,7 @@ class AlphaDataModelInstancesRelationTest
           failure => failure
         )
         byExternalId(true, nodeWithNDT, randomId) shouldBe randomId
-        getNumberOfRowsUpserted(nodeWithNDT, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsUpserted(nodeWithNDT, "datamodelinstances") shouldBe 1
 
       }
     )
@@ -497,7 +520,7 @@ class AlphaDataModelInstancesRelationTest
           failure => failure
         )
         (getExternalIdList(true, multiValuedExtId) should contain).allOf(randomId1, randomId2)
-        getNumberOfRowsUpserted(multiValuedExtId, "alphadatamodelinstances") shouldBe 2
+        getNumberOfRowsUpserted(multiValuedExtId, "datamodelinstances") shouldBe 2
       }
     )
   }
@@ -526,7 +549,7 @@ class AlphaDataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId, metricPrefix)
         df.limit(1).count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
       }
     )
   }
@@ -579,13 +602,13 @@ class AlphaDataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(multiValuedExtId2, metricPrefix)
         df.limit(1).count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
         (df
           .select("externalId")
           .collect()
           .map(_.getAs[String]("externalId"))
           .toList should contain).allOf(randomId1, randomId2)
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 3
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
       }
     )
   }
@@ -629,7 +652,7 @@ class AlphaDataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId, metricPrefix)
         df.where(s"externalId = '$randomId1'").count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
       }
     )
   }
@@ -683,20 +706,20 @@ class AlphaDataModelInstancesRelationTest
         val df = readRows(multiValuedExtId2, metricPrefix)
         val andDf = df.where("prop_numeric > 1.5 and prop_float64 = 0.8")
         andDf.count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
         (collectExternalIds(andDf) should contain).only(randomId1)
 
         val metricPrefix2 = shortRandomString()
         val df2 = readRows(multiValuedExtId2, metricPrefix2)
           .where("not (prop_numeric > 1.5 and prop_float64 >= 0.7)")
         df2.count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 1
         (collectExternalIds(df2) should contain).only(randomId2)
 
         val metricPrefix3 = shortRandomString()
         val df3 = readRows(multiValuedExtId2, metricPrefix3).where("prop_float32 is not null")
         df3.count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix3, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
         (collectExternalIds(df3) should contain).only(randomId1)
       }
     )
@@ -750,20 +773,20 @@ class AlphaDataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId, metricPrefix).where("prop_string = 'abc' or prop_bool = false")
         df.count() shouldBe 3
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 3
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
         (collectExternalIds(df) should contain).only(randomId1, randomId3, randomId4)
 
         val metricPrefix2 = shortRandomString()
         val df2 = readRows(primitiveExtId, metricPrefix2)
           .where("prop_string in('abc', 'yyyy') or prop_float < 6.8")
         df2.count() shouldBe 3
-        getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 3
+        getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 3
 
         val metricPrefix3 = shortRandomString()
         val df3 = readRows(primitiveExtId, metricPrefix3)
           .where("prop_string LIKE 'xx%'")
         df3.count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix3, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix3, "datamodelinstances") shouldBe 1
 
         (collectExternalIds(df3) should contain).only(randomId3)
       }
@@ -812,7 +835,7 @@ class AlphaDataModelInstancesRelationTest
                     |select '$randomId2' as externalId""".stripMargin),
           "delete"
         )
-        getNumberOfRowsDeleted(primitiveExtId, "alphadatamodelinstances") shouldBe 2
+        getNumberOfRowsDeleted(primitiveExtId, "datamodelinstances") shouldBe 2
         val df2 =
           readRows(primitiveExtId, metricPrefix).where(s"externalId in('$randomId1', '$randomId2')")
         df2.count() shouldBe 0
@@ -841,7 +864,7 @@ class AlphaDataModelInstancesRelationTest
           failure => failure
         )
         byExternalId(true, primitiveExtId2, randomId) shouldBe randomId
-        getNumberOfRowsUpserted(primitiveExtId2, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsUpserted(primitiveExtId2, "datamodelinstances") shouldBe 1
         val props = getByExternalId(true, primitiveExtId2, randomId).allProperties
         props.get("prop_timestamp").map(_.value.toString) shouldBe Some("2022-01-01T12:34:56.789Z")
         props.get("prop_direct_relation").map(_.value) shouldBe Some(Seq(spaceExternalId, "asset"))
@@ -880,7 +903,7 @@ class AlphaDataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId2, metricPrefix)
         df.count() shouldBe 2
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 2
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 2
       }
     )
   }
@@ -912,7 +935,7 @@ class AlphaDataModelInstancesRelationTest
           failure => failure
         )
         byExternalId(false, edgeExtId, randomId) shouldBe randomId
-        getNumberOfRowsUpserted(edgeExtId, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsUpserted(edgeExtId, "datamodelinstances") shouldBe 1
       }
     )
   }
@@ -945,7 +968,7 @@ class AlphaDataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(primEdgeExtId, metricPrefix)
         df.limit(1).count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
         val data = df.collect()
         data.headOption.map(_.getAs[String]("type")) shouldBe Some(s"$spaceExternalId:test2")
         data.headOption.map(_.getAs[Boolean]("prop_bool")) shouldBe Some(false)
@@ -992,14 +1015,14 @@ class AlphaDataModelInstancesRelationTest
         val metricPrefix = shortRandomString()
         val df = readRows(specialEdge, metricPrefix)
         df.where(s"endNode = '$spaceExternalId:testNode3'").count() shouldBe 1
-        getNumberOfRowsRead(metricPrefix, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 1
 
         val metricPrefix2 = shortRandomString()
         val data = readRows(specialEdge, metricPrefix2)
           .where(
             "timestamp('2022-01-01 13:34:56.789') = prop_timestamp and prop_date > date('2022-01-02')")
           .collect()
-        getNumberOfRowsRead(metricPrefix2, "alphadatamodelinstances") shouldBe 1
+        getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 1
         data.length shouldBe 1
         data.headOption.map(_.getSeq[String](1)) shouldBe Some(Seq(spaceExternalId, "asset"))
         data.headOption.map(_.getAs[String]("startNode")) shouldBe Some(s"$spaceExternalId:testNode1")
