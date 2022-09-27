@@ -104,8 +104,8 @@ class DataModelInstanceRelation(
           .createItems(
             instanceSpace,
             model = DataModelIdentifier(Some(spaceExternalId), modelExternalId),
-            autoCreateStartNodes = false,
-            autoCreateEndNodes = false,
+            autoCreateStartNodes = true,
+            autoCreateEndNodes = true,
             overwrite = false,
             dataModelEdges
           )
