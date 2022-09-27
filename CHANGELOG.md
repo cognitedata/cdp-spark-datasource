@@ -1,3 +1,9 @@
+# 2.2.0
+
+## Enhancements
+
+* Add a new option on AssetsRelation to retrieve asset subtrees by root id/externalId
+
 # 2.1.5
 
 ## Enhancements
