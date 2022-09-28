@@ -305,7 +305,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("type", "assets")
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
-      .option("assetSubtreeIds", "602956316540811")
+      .option("assetSubtreeIds", "2161493773812721")
       .load()
 
     assert(df.count() == 3)
@@ -318,7 +318,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("type", "assets")
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
-      .option("assetSubtreeIds", "22c79cdb-recursive-root,b8e85186-recursive-root")
+      .option("assetSubtreeIds", "WMT:23-YT-96105-01,WMT:23-TE-96137-02")
       .load()
 
     assert(df.count() == 6)
@@ -334,14 +334,14 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("metricsPrefix", metricsPrefix)
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
-      .option("assetSubtreeIds", "22c79cdb-recursive-root,b8e85186-recursive-root")
+      .option("assetSubtreeIds", "WMT:23-YT-96105-01,WMT:23-TE-96137-02")
       .load()
-      .where("name = 'grandchild'")
+      .where("name = '23-YAHH-96105-01'")
 
-    assert(df.count() == 2)
+    assert(df.count() == 1)
 
     val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
-    assert(assetsRead == 2)
+    assert(assetsRead == 1)
   }
 
   it should "be possible to create assets" taggedAs WriteTest in {
