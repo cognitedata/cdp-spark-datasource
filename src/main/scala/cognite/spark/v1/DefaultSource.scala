@@ -129,18 +129,6 @@ class DefaultSource
 
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
 
-    val idsDecoder: Decoder[List[CogniteId]] =
-      List[Decoder[List[CogniteId]]](
-        Decoder.decodeLong.map(internalId => List(CogniteInternalId(internalId))).widen,
-        Decoder.decodeString.map(externalId => List(CogniteExternalId(externalId))).widen,
-        Decoder.decodeArray[Long].map(_.map(CogniteInternalId(_)).toList).widen,
-        Decoder.decodeArray[String].map(_.map(CogniteExternalId(_)).toList).widen
-      ).reduceLeft(_.or(_))
-    val assetSubtreeIds =
-      parameters
-        .get("assetSubtreeIds")
-        .map(id => parse(id).flatMap(_.as(idsDecoder)).getOrElse(List(CogniteExternalId(id))))
-
     val config = parseRelationConfig(parameters, sqlContext)
 
     resourceType match {
@@ -174,7 +162,7 @@ class DefaultSource
       case "sequencerows" =>
         createSequenceRows(parameters, config, sqlContext)
       case "assets" =>
-        new AssetsRelation(config, assetSubtreeIds)(sqlContext)
+        new AssetsRelation(config, parseCogniteIds("assetSubtreeIds")(parameters))(sqlContext)
       case "events" =>
         new EventsRelation(config)(sqlContext)
       case "files" =>
@@ -485,6 +473,33 @@ object DefaultSource {
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
       rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true)
     )
+  }
+
+  private[v1] def parseCogniteIds(paramName: String)(
+      parameters: Map[String, String]): Option[List[CogniteId]] = {
+
+    implicit val singleIdDecoder: Decoder[CogniteId] =
+      List[Decoder[CogniteId]](
+        Decoder.decodeLong
+          .validate(_.value.isNumber, "strict int decoder") // to distinguish 123 from "123"
+          .map(internalId => CogniteInternalId(internalId))
+          .widen,
+        Decoder.decodeString.map(externalId => CogniteExternalId(externalId)).widen
+      ).reduceLeft(_.or(_))
+    implicit val multipleIdsDecoder: Decoder[List[CogniteId]] =
+      List(
+        singleIdDecoder.map(List(_)),
+        Decoder.decodeArray[CogniteId].map(_.toList)
+      ).reduceLeft(_.or(_))
+
+    parameters
+      .get(paramName)
+      .map(
+        id =>
+          parse(id)
+            .flatMap(_.as[List[CogniteId]])
+            .getOrElse(List(CogniteExternalId(id))))
+
   }
 
   def getProjectFromAuth(auth: CdfSparkAuth, baseUrl: String)(

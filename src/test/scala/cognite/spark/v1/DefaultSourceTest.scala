@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
+import com.cognite.sdk.scala.v1.{CogniteInternalId, CogniteExternalId}
 import org.scalatest.{Matchers, WordSpec}
 import sttp.client3.{SttpBackend, UriContext}
 
@@ -87,6 +88,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
         )
       }
     }
+
     "parseAuth and return None" should {
       "work when input is empty" in {
         DefaultSource.parseAuth(Map()) shouldBe None
@@ -95,5 +97,29 @@ class DefaultSourceTest extends WordSpec with Matchers {
         DefaultSource.parseAuth(Map("toto" -> "1", "tata" -> "2")) shouldBe None
       }
     }
+
+    "parseCogniteIds distinguishing internal from external ones" should {
+      "work when input is empty" in {
+        DefaultSource.parseCogniteIds("param")(Map.empty) shouldBe None
+      }
+      "parse integers as internalIds" in {
+        DefaultSource.parseCogniteIds("param")(Map("param" -> "123")) shouldBe Some(List(CogniteInternalId(123)))
+      }
+      "parse strings as externalIds" in {
+        DefaultSource.parseCogniteIds("param")(Map("param" -> "\"123\"")) shouldBe Some(List(CogniteExternalId("123")))
+        DefaultSource.parseCogniteIds("param")(Map("param" -> """ "\"123\"" """)) shouldBe Some(List(CogniteExternalId("\"123\"")))
+        DefaultSource.parseCogniteIds("param")(Map("param" -> "abc")) shouldBe Some(List(CogniteExternalId("abc")))
+        DefaultSource.parseCogniteIds("param")(Map("param" -> "{invalid json")) shouldBe Some(List(CogniteExternalId("{invalid json")))
+        DefaultSource.parseCogniteIds("param")(Map("param" -> "\"[123,456]\"")) shouldBe Some(List(CogniteExternalId("[123,456]")))
+      }
+      "parse arrays according to their contents" in {
+        DefaultSource.parseCogniteIds("param")(Map("param" -> """[123, "123"]""")) shouldBe Some(List(CogniteInternalId(123), CogniteExternalId("123")))
+      }
+      "parse other valid json as externalId" in {
+        DefaultSource.parseCogniteIds("param")(Map("param" -> """{"key": 123}""")) shouldBe Some(List(CogniteExternalId("""{"key": 123}""")))
+        DefaultSource.parseCogniteIds("param")(Map("param" -> """[123, "123", {"abc": 0} ]""")) shouldBe Some(List(CogniteExternalId("""[123, "123", {"abc": 0} ]""")))
+      }
+    }
   }
 }
+
