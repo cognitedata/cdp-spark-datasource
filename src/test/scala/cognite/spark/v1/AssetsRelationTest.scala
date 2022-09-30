@@ -318,7 +318,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("type", "assets")
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
-      .option("assetSubtreeIds", "WMT:23-YT-96105-01,WMT:23-TE-96137-02")
+      .option("assetSubtreeIds", """["WMT:23-YT-96105-01","WMT:23-TE-96137-02"]""")
       .load()
 
     assert(df.count() == 6)
@@ -334,7 +334,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("metricsPrefix", metricsPrefix)
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
-      .option("assetSubtreeIds", "WMT:23-YT-96105-01,WMT:23-TE-96137-02")
+      .option("assetSubtreeIds", """["WMT:23-YT-96105-01","WMT:23-TE-96137-02"]""")
       .load()
       .where("name = '23-YAHH-96105-01'")
 

@@ -14,9 +14,8 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
-import scala.util.Try
 
-class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[String]] = None)(
+class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]] = None)(
     val sqlContext: SQLContext)
     extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
     with InsertableRelation
@@ -26,10 +25,8 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[String]] = 
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, AssetsReadSchema]] = {
-    val (ids, filters) = pushdownToFilters(
-      sparkFilters,
-      assetsFilterFromMap,
-      AssetsFilter(assetSubtreeIds = subtreeCogniteIds))
+    val (ids, filters) =
+      pushdownToFilters(sparkFilters, assetsFilterFromMap, AssetsFilter(assetSubtreeIds = subtreeIds))
     executeFilter(client.assets, filters, ids, numPartitions, limit)
       .map(
         _.map(
@@ -49,14 +46,6 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[String]] = 
             .transform))
   }
 
-  private val subtreeCogniteIds: Option[List[CogniteId]] =
-    subtreeIds.map(
-      _.map(
-        id =>
-          Try(id.toLong)
-            .map(internalId => CogniteInternalId(internalId))
-            .getOrElse(CogniteExternalId(id))))
-
   private def assetsFilterFromMap(m: Map[String, String]): AssetsFilter =
     AssetsFilter(
       name = m.get("name"),
@@ -66,7 +55,7 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[String]] = 
       lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
       createdTime = timeRange(m, "createdTime"),
       externalIdPrefix = m.get("externalIdPrefix"),
-      assetSubtreeIds = subtreeCogniteIds
+      assetSubtreeIds = subtreeIds
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

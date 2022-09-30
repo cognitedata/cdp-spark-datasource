@@ -3,8 +3,10 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId, GenericClient}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
+import io.circe.parser.parse
+import io.circe.Decoder
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
@@ -126,7 +128,19 @@ class DefaultSource
       schema: StructType): BaseRelation = {
 
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
-    val assetSubtreeIds = parameters.get("assetSubtreeIds").map(_.split(",").toList)
+
+    val idsDecoder: Decoder[List[CogniteId]] =
+      List[Decoder[List[CogniteId]]](
+        Decoder.decodeLong.map(internalId => List(CogniteInternalId(internalId))).widen,
+        Decoder.decodeString.map(externalId => List(CogniteExternalId(externalId))).widen,
+        Decoder.decodeArray[Long].map(_.map(CogniteInternalId(_)).toList).widen,
+        Decoder.decodeArray[String].map(_.map(CogniteExternalId(_)).toList).widen
+      ).reduceLeft(_.or(_))
+    val assetSubtreeIds =
+      parameters
+        .get("assetSubtreeIds")
+        .map(id => parse(id).flatMap(_.as(idsDecoder)).getOrElse(List(CogniteExternalId(id))))
+
     val config = parseRelationConfig(parameters, sqlContext)
 
     resourceType match {
