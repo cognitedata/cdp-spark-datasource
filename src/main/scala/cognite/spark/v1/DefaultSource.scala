@@ -162,7 +162,8 @@ class DefaultSource
       case "sequencerows" =>
         createSequenceRows(parameters, config, sqlContext)
       case "assets" =>
-        new AssetsRelation(config, parseCogniteIds("assetSubtreeIds")(parameters))(sqlContext)
+        val subtreeIds = parameters.get("assetSubtreeIds").map(parseCogniteIds)
+        new AssetsRelation(config, subtreeIds)(sqlContext)
       case "events" =>
         new EventsRelation(config)(sqlContext)
       case "files" =>
@@ -475,16 +476,14 @@ object DefaultSource {
     )
   }
 
-  private[v1] def parseCogniteIds(paramName: String)(
-      parameters: Map[String, String]): Option[List[CogniteId]] = {
+  private[v1] def parseCogniteIds(jsonIds: String): List[CogniteId] = {
 
     implicit val singleIdDecoder: Decoder[CogniteId] =
       List[Decoder[CogniteId]](
         Decoder.decodeLong
           .validate(_.value.isNumber, "strict int decoder") // to distinguish 123 from "123"
-          .map(internalId => CogniteInternalId(internalId))
-          .widen,
-        Decoder.decodeString.map(externalId => CogniteExternalId(externalId)).widen
+          .map(internalId => CogniteInternalId(internalId)),
+        Decoder.decodeString.map(externalId => CogniteExternalId(externalId))
       ).reduceLeft(_.or(_))
     implicit val multipleIdsDecoder: Decoder[List[CogniteId]] =
       List(
@@ -492,13 +491,9 @@ object DefaultSource {
         Decoder.decodeArray[CogniteId].map(_.toList)
       ).reduceLeft(_.or(_))
 
-    parameters
-      .get(paramName)
-      .map(
-        id =>
-          parse(id)
-            .flatMap(_.as[List[CogniteId]])
-            .getOrElse(List(CogniteExternalId(id))))
+    parse(jsonIds)
+      .flatMap(_.as[List[CogniteId]])
+      .getOrElse(List(CogniteExternalId(jsonIds)))
 
   }
 

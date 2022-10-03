@@ -98,26 +98,23 @@ class DefaultSourceTest extends WordSpec with Matchers {
       }
     }
 
-    "parseCogniteIds distinguishing internal from external ones" should {
-      "work when input is empty" in {
-        DefaultSource.parseCogniteIds("param")(Map.empty) shouldBe None
-      }
+    "parseCogniteIds" should {
       "parse integers as internalIds" in {
-        DefaultSource.parseCogniteIds("param")(Map("param" -> "123")) shouldBe Some(List(CogniteInternalId(123)))
+        DefaultSource.parseCogniteIds("123") shouldBe List(CogniteInternalId(123))
       }
       "parse strings as externalIds" in {
-        DefaultSource.parseCogniteIds("param")(Map("param" -> "\"123\"")) shouldBe Some(List(CogniteExternalId("123")))
-        DefaultSource.parseCogniteIds("param")(Map("param" -> """ "\"123\"" """)) shouldBe Some(List(CogniteExternalId("\"123\"")))
-        DefaultSource.parseCogniteIds("param")(Map("param" -> "abc")) shouldBe Some(List(CogniteExternalId("abc")))
-        DefaultSource.parseCogniteIds("param")(Map("param" -> "{invalid json")) shouldBe Some(List(CogniteExternalId("{invalid json")))
-        DefaultSource.parseCogniteIds("param")(Map("param" -> "\"[123,456]\"")) shouldBe Some(List(CogniteExternalId("[123,456]")))
+        DefaultSource.parseCogniteIds("\"123\"") shouldBe List(CogniteExternalId("123"))
+        DefaultSource.parseCogniteIds(""" "\"123\"" """) shouldBe List(CogniteExternalId("\"123\""))
+        DefaultSource.parseCogniteIds("abc") shouldBe List(CogniteExternalId("abc"))
+        DefaultSource.parseCogniteIds("{invalid json") shouldBe List(CogniteExternalId("{invalid json"))
+        DefaultSource.parseCogniteIds("\"[123,456]\"") shouldBe List(CogniteExternalId("[123,456]"))
       }
       "parse arrays according to their contents" in {
-        DefaultSource.parseCogniteIds("param")(Map("param" -> """[123, "123"]""")) shouldBe Some(List(CogniteInternalId(123), CogniteExternalId("123")))
+        DefaultSource.parseCogniteIds("""[123, "123"]""") shouldBe List(CogniteInternalId(123), CogniteExternalId("123"))
       }
       "parse other valid json as externalId" in {
-        DefaultSource.parseCogniteIds("param")(Map("param" -> """{"key": 123}""")) shouldBe Some(List(CogniteExternalId("""{"key": 123}""")))
-        DefaultSource.parseCogniteIds("param")(Map("param" -> """[123, "123", {"abc": 0} ]""")) shouldBe Some(List(CogniteExternalId("""[123, "123", {"abc": 0} ]""")))
+        DefaultSource.parseCogniteIds("""{"key": 123}""") shouldBe List(CogniteExternalId("""{"key": 123}"""))
+        DefaultSource.parseCogniteIds("""[123, "123", {"abc": 0} ]""") shouldBe List(CogniteExternalId("""[123, "123", {"abc": 0} ]"""))
       }
     }
   }
