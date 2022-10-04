@@ -1,3 +1,9 @@
+# 2.1.10
+
+## Enhancements
+
+* Deserialize the `429 - Too many requests` responses without body from CDF API correctly.
+
 # 2.1.5
 
 ## Enhancements
