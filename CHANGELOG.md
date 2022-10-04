@@ -3,6 +3,11 @@
 ## Enhancements
 
 * Add a new option on AssetsRelation to retrieve asset subtrees by root id/externalId
+# 2.1.10
+
+## Enhancements
+
+* Deserialize the `429 - Too many requests` responses without body from CDF API correctly.
 
 # 2.1.5
 
