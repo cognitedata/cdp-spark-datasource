@@ -298,6 +298,65 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(assetsRead == 1)
   }
 
+  it should "support option filter assetSubtreeIds" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .option("assetSubtreeIds", "2161493773812721")
+      .load()
+
+    assert(df.count() == 3)
+  }
+
+  it should "support option filter assetSubtreeIds with externalId" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .option("assetSubtreeIds", """["WMT:23-YT-96105-01","WMT:23-TE-96137-02"]""")
+      .load()
+
+    assert(df.count() == 6)
+  }
+
+  it should "support option filter assetSubtreeIds with internal and externalId" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .option("assetSubtreeIds", """[2161493773812721,"WMT:23-YT-96105-01"]""")
+      .load()
+
+    assert(df.count() == 6)
+  }
+
+  it should "support option filter assetSubtreeIds with pushdown filters" taggedAs ReadTest in {
+    val metricsPrefix = s"pushdown.assets.name.${shortRandomString()}"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .option("assetSubtreeIds", """["WMT:23-YT-96105-01","WMT:23-TE-96137-02"]""")
+      .load()
+      .where("name = '23-YAHH-96105-01'")
+
+    assert(df.count() == 1)
+
+    val assetsRead = getNumberOfRowsRead(metricsPrefix, "assets")
+    assert(assetsRead == 1)
+  }
+
   it should "be possible to create assets" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     val externalId = s"assets-test-create-${shortRandomString()}"

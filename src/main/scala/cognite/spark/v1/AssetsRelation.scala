@@ -15,7 +15,8 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
 
-class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
+class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]] = None)(
+    val sqlContext: SQLContext)
     extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
     with InsertableRelation
     with WritableRelation {
@@ -24,7 +25,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client: GenericClient[IO],
       limit: Option[Int],
       numPartitions: Int): Seq[Stream[IO, AssetsReadSchema]] = {
-    val (ids, filters) = pushdownToFilters(sparkFilters, assetsFilterFromMap, AssetsFilter())
+    val (ids, filters) =
+      pushdownToFilters(sparkFilters, assetsFilterFromMap, AssetsFilter(assetSubtreeIds = subtreeIds))
     executeFilter(client.assets, filters, ids, numPartitions, limit)
       .map(
         _.map(
@@ -52,7 +54,8 @@ class AssetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       labels = m.get("labels").flatMap(externalIdsToContainsAny),
       lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
       createdTime = timeRange(m, "createdTime"),
-      externalIdPrefix = m.get("externalIdPrefix")
+      externalIdPrefix = m.get("externalIdPrefix"),
+      assetSubtreeIds = subtreeIds
     )
 
   override def insert(rows: Seq[Row]): IO[Unit] = {
