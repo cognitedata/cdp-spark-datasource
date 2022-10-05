@@ -324,6 +324,19 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(df.count() == 6)
   }
 
+  it should "support option filter assetSubtreeIds with internal and externalId" taggedAs ReadTest in {
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", readApiKey)
+      .option("type", "assets")
+      .option("limitPerPartition", "1000")
+      .option("partitions", "1")
+      .option("assetSubtreeIds", """[2161493773812721,"WMT:23-YT-96105-01"]""")
+      .load()
+
+    assert(df.count() == 6)
+  }
+
   it should "support option filter assetSubtreeIds with pushdown filters" taggedAs ReadTest in {
     val metricsPrefix = s"pushdown.assets.name.${shortRandomString()}"
     val df = spark.read
