@@ -34,7 +34,8 @@ final case class RelationConfig(
     deleteMissingAssets: Boolean,
     subtrees: AssetSubtreeOption,
     ignoreNullFields: Boolean,
-    rawEnsureParent: Boolean
+    rawEnsureParent: Boolean,
+    partitionShrinkPercentage: Double
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */
@@ -274,9 +275,13 @@ class DefaultSource
       // If the number of partitions is reasonable, we avoid the data shuffling
       val (dataRepartitioned, numberOfPartitions) =
         if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-          (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
+          val partitionsAfterShrink =
+            (idealNumberOfPartitions * (100 - config.partitionShrinkPercentage) / 100).toInt
+          (data.repartition(partitionsAfterShrink), partitionsAfterShrink)
         } else {
-          (data, originalNumberOfPartitions)
+          val partitionsAfterShrink =
+            (originalNumberOfPartitions * (100 - config.partitionShrinkPercentage) / 100).toInt
+          (data.repartition(partitionsAfterShrink), partitionsAfterShrink)
         }
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector.ioRuntime
@@ -451,6 +456,9 @@ object DefaultSource {
             s"Can not specify both ignoreDisconnectedAssets=$ignoreDisconnectedAssets and subtree=$subtree")
       }
 
+    val partitionShrinkPercentage =
+      parameters.get("partitionShrinkPercentage").map(_.toDouble).getOrElse(0.0)
+
     RelationConfig(
       auth,
       clientTag,
@@ -472,7 +480,8 @@ object DefaultSource {
       deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
       subtrees = subtreesOption,
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
-      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true)
+      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
+      partitionShrinkPercentage
     )
   }
 
