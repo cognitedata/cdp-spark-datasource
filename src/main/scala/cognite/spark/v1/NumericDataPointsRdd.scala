@@ -260,7 +260,17 @@ final case class NumericDataPointsRdd(
     } yield
       firsts.map {
         case (id, first) =>
-          (id, first.map(_.timestamp), latest.getOrElse(id, None).map(_.timestamp.min(end)))
+          val shouldUseMinEnd = (first.map(_.timestamp), latest.get(id).flatten.map(_.timestamp)) match {
+            case (Some(inst1), Some(inst2)) =>
+              inst1 < inst2
+            case _ => true
+          }
+          val endLimit = if (shouldUseMinEnd) {
+            latest.getOrElse(id, None).map(_.timestamp.min(end))
+          } else {
+            Some(end)
+          }
+          (id, first.map(_.timestamp), endLimit)
       }
 
   private def rangesToBuckets(ranges: Seq[Range]): Vector[Bucket] = {
