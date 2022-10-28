@@ -185,6 +185,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     val timestampLimits = filtersToTimestampLimits(filters, "timestamp")
     val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
     val ids = filtersAsMaps.flatMap(getIdFromMap).distinct
+    println(s"timestampLimits = ${timestampLimits}")
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
     if (ids.isEmpty) {

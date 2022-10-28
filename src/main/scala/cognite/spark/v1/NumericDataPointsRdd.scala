@@ -248,19 +248,29 @@ final case class NumericDataPointsRdd(
     for {
       // fetch firsts before lasts since that can correctly handle when accidentally reading
       // stringdatapoints with a reasonable error message
+      _ <- IO.println(s"start $start, end = $end, last = ${end.max(start.plusMillis(1))}")
       firsts <- ids.map { id =>
         queryDatapointsById(id, start, end.max(start.plusMillis(1)), 1)
           .map(datapoints => id -> datapoints.headOption)
       }.parSequence
+      _ <- IO.println(s"firsts = ${firsts}")
       latest <- client.dataPoints.getLatestDataPoints(
         ids,
         ignoreUnknownIds = true,
         end.toEpochMilli.toString // use end instant as upper bound so we can read dataPoints in the future
       )
+      _ <- IO.println(s"latest = ${latest}")
+
     } yield
       firsts.map {
         case (id, first) =>
-          (id, first.map(_.timestamp), latest.getOrElse(id, None).map(_.timestamp.min(end)))
+          val endLimit = latest.get(id).flatten.map(_.timestamp).getOrElse(Instant.MIN)
+          val endLimit2 = if (endLimit > first.map(_.timestamp).getOrElse(Instant.MIN)) {latest.getOrElse(id, None).map(_.timestamp.min(end))}
+            else {Some(end)}
+
+          val asd = (id, first.map(_.timestamp), endLimit2)
+          println(s"asd = ${asd}")
+          asd
       }
 
   private def rangesToBuckets(ranges: Seq[Range]): Vector[Bucket] = {
@@ -306,9 +316,12 @@ final case class NumericDataPointsRdd(
       .parEvalMapUnordered(50) {
         case (id, Some(first), Some(latest)) =>
           if (latest >= first) {
+            IO.println(s"============++++++++ bucket $first, ${latest}")
+
             smallEnoughRanges(id, first, latest).map(
               _.getOrElse(sys.error(s"Too many datapoints even for the highest granularity.")))
           } else {
+            IO.println(s"=========== bucket $first, ${latest.plusMillis(1)}")
             IO.pure(Seq(DataPointsRange(id, first, latest.plusMillis(1), Some(1))))
           }
         case _ => IO.pure(Seq.empty)
@@ -366,19 +379,18 @@ final case class NumericDataPointsRdd(
       .covary[IO]
       .chunkLimit(100)
       .parEvalMapUnordered(50) { chunk =>
+        IO.println(s"lower bound $lowerTimeLimit, upper $upperTimeLimit") *>
         getFirstAndLastConcurrentlyById(chunk.toVector, lowerTimeLimit, upperTimeLimit)
       }
       .flatMap(Stream.emits)
     val partitions = if (granularities.isEmpty) {
-      buckets(firstLatest)
+     IO.println("buckets") *> buckets(firstLatest)
     } else {
-      granularities.toVector
+      IO.println("aggreation buckets ===>") *> granularities.toVector
         .map(g => aggregationBuckets(aggregations.toIndexedSeq, g, firstLatest))
         .parFlatSequence
     }
-    partitions
-      .map(_.toArray[Partition])
-      .unsafeRunSync()
+    (partitions.map(a => println (s"a = ${a}")) *> partitions.map(_.toArray[Partition])).unsafeRunSync()
   }
 
   private def queryDoubles(id: CogniteId, lowerLimit: Instant, upperLimit: Instant, limit: Int) =

@@ -1,6 +1,8 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.common.CdpApiException
+import cats.effect.unsafe.implicits.global
+import com.cognite.sdk.scala.common.{CdpApiException, DataPoint}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, TimeSeriesCreate}
 import org.apache.spark.sql.functions.{col, expr}
 import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField, TimestampType}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
@@ -24,6 +26,55 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     .option("type", "datapoints")
     .load()
   destinationDf.createOrReplaceTempView("destinationDatapoints")
+
+  val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+  val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+  val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+  val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+
+  val destinationDf2 = spark.read
+    .format("cognite.spark.v1")
+    .option("baseUrl", "https://bluefield.cognitedata.com")
+    .option("tokenUri", tokenUri)
+    .option("clientId", clientId)
+    .option("clientSecret", clientSecret)
+    .option("project", "extractor-bluefield-testing")
+    .option("scopes", "https://bluefield.cognitedata.com/.default")
+    .option("type", "datapoints")
+    .load()
+  destinationDf2.createOrReplaceTempView("destinationDatapoints2")
+
+  it should "list datapoints in a day succesfully" taggedAs (ReadTest) in {
+    val client = getBlufieldClient(Some("alpha"))
+    client.timeSeries.deleteByExternalId("emel", true).unsafeRunSync()
+    client.timeSeries.createOne(TimeSeriesCreate(externalId = Some("emel"), name = Some("emel"), isString = false, isStep = false)).unsafeRunSync()
+    client.dataPoints.insert(id = CogniteExternalId("emel"), Seq(
+      DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L), value = 0.989768648147583),
+      DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L), value = 0.9894994020462036),
+      DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L), value = 0.9896670413017273),
+      DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L).minusMillis(1), value = 0.9893951213359833))
+    ).unsafeRunSync()
+
+    println(s"${Seq(
+      DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L),value = 0.989768648147583),
+      DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L), value = 0.9894994020462036))}")
+    println(s"${Seq(
+      DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L), value = 0.9896670413017273),
+      DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L), value = 0.9893951213359833))}")
+
+    //    val kedo = client.dataPoints.queryByExternalId(
+    //      externalId = "emel", inclusiveStart = Instant.ofEpochMilli(1661990300000L), exclusiveEnd = Instant.ofEpochMilli(1672076900000L)).unsafeRunSync()
+    //    println(s"kedo.datapoints = ${kedo.datapoints.map( a => (a.timestamp, a.value))}")
+//    val res2 = spark.sql("select TO_TIMESTAMP('2022-09-01T00:00:00Z'), TO_TIMESTAMP('2022-09-02T00:00:00Z')").collect()
+//    println(s" = ${res2.mkString("Array(", ", ", ")")}")
+    val res = spark.sql(
+      """SELECT dp.externalId, dp.timestamp, dp.value FROM destinationDatapoints2 dp
+        |WHERE dp.externalId IN ('emel') AND
+        |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
+        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+
+    println(s"res = ${res.mkString("Array(", ", ", ")")}")
+  }
 
   "DataPointsRelation" should "use our own schema for data points" taggedAs (ReadTest) in {
     val df = spark.read

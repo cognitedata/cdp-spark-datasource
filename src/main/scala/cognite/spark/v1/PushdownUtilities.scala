@@ -1,15 +1,11 @@
 package cognite.spark.v1
 
 import cats.effect.Concurrent
-import com.cognite.sdk.scala.common.{
-  PartitionedFilter,
-  RetrieveByExternalIdsWithIgnoreUnknownIds,
-  RetrieveByIdsWithIgnoreUnknownIds,
-  WithGetExternalId,
-  WithId
-}
+import com.cognite.sdk.scala.common.{PartitionedFilter, RetrieveByExternalIdsWithIgnoreUnknownIds, RetrieveByIdsWithIgnoreUnknownIds, WithGetExternalId, WithId}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, ContainsAny, TimeRange}
 import fs2.Stream
+import io.circe.syntax.EncoderOps
+import io.circe.Encoder
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 
@@ -226,11 +222,24 @@ object PushdownUtilities {
       case _ => Seq.empty
     }
 
-  def timeStampStringToMin(value: Any, adjustment: Long): Min =
-    Min(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
+  def timeStampStringToMin(value: Any, adjustment: Long): Min = {
+    val min = java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment)
+    implicit val instantEncoder: Encoder[Instant] = Encoder.encodeLong.contramap(_.toEpochMilli)
+//    implicit val instantDecoder: Decoder[Instant] = Decoder.decodeLong.map(Instant.ofEpochMilli)
+    println(s"min = ${min}")
+    println(s"min asdafa ${min.asJson(instantEncoder)}")
 
-  def timeStampStringToMax(value: Any, adjustment: Long): Max =
-    Max(java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
+    Min(min)
+  }
+
+  def timeStampStringToMax(value: Any, adjustment: Long): Max = {
+    val max = (java.sql.Timestamp.valueOf(value.toString).toInstant.plusMillis(adjustment))
+    implicit val instantEncoder: Encoder[Instant] = Encoder.encodeLong.contramap(_.toEpochMilli)
+//    implicit val instantDecoder: Decoder[Instant] = Decoder.decodeLong.map(Instant.ofEpochMilli)
+    println(s"asdafa ${max.asJson(instantEncoder)}")
+    println(s"max = ${max}")
+    Max(max)
+  }
 
   def cogniteExternalIdSeqToStringSeq(
       cogniteExternalIds: Option[Seq[CogniteExternalId]]): Option[Seq[String]] =
