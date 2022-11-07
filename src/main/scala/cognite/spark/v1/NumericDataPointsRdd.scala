@@ -244,18 +244,19 @@ final case class NumericDataPointsRdd(
   private def getFirstAndLastConcurrentlyById(
       ids: Vector[CogniteId],
       start: Instant,
-      end: Instant): IO[Vector[(CogniteId, Option[Instant], Option[Instant])]] =
+      end: Instant): IO[Vector[(CogniteId, Option[Instant], Option[Instant])]] = {
+    val exclusiveEnd = end.plusMillis(1)
     for {
       // fetch firsts before lasts since that can correctly handle when accidentally reading
       // stringdatapoints with a reasonable error message
       firsts <- ids.map { id =>
-        queryDatapointsById(id, start, end.max(start.plusMillis(1)), 1)
+        queryDatapointsById(id, start, exclusiveEnd.max(start.plusMillis(1)), 1)
           .map(datapoints => id -> datapoints.headOption)
       }.parSequence
       latest <- client.dataPoints.getLatestDataPoints(
         ids,
         ignoreUnknownIds = true,
-        end.toEpochMilli.toString // use end instant as upper bound so we can read dataPoints in the future
+        exclusiveEnd.toEpochMilli.toString // use end instant as upper bound so we can read dataPoints in the future
       )
     } yield
       firsts.map {
@@ -266,12 +267,13 @@ final case class NumericDataPointsRdd(
             case _ => true
           }
           val endLimit = if (shouldUseMinEnd) {
-            latest.getOrElse(id, None).map(_.timestamp.min(end))
+            latest.getOrElse(id, None).map(_.timestamp.min(exclusiveEnd))
           } else {
-            Some(end)
+            Some(exclusiveEnd)
           }
           (id, first.map(_.timestamp), endLimit)
       }
+  }
 
   private def rangesToBuckets(ranges: Seq[Range]): Vector[Bucket] = {
     // Fold into a sequence of buckets, where each bucket has some ranges with a
