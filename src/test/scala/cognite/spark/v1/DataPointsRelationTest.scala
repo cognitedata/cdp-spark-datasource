@@ -5,14 +5,15 @@ import com.cognite.sdk.scala.common.{CdpApiException, DataPoint}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, TimeSeriesCreate}
 import org.apache.spark.sql.functions.{col, expr}
 import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField, TimestampType}
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, ParallelTestExecution}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest with BeforeAndAfterAll {
+
   val valhallTimeSeries = "'pi:195975'"
 
   val valhallTimeSeriesId = 3278479880462408L
@@ -26,6 +27,51 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     .option("type", "datapoints")
     .load()
   destinationDf.createOrReplaceTempView("destinationDatapoints")
+
+  override def beforeAll(): Unit = {
+    val bluefieldClient = getBlufieldClient()
+    bluefieldClient.timeSeries.createOne(TimeSeriesCreate(externalId = Some("emel"), name = Some("emel"), isString = false, isStep = false)).unsafeRunSync()
+    bluefieldClient.dataPoints.insert(id = CogniteExternalId("emel"), Seq(
+      DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L).minusMillis(1), value =0.1),
+      DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L), value = 0.2),
+      DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L).plusMillis(1), value = 0.3),
+      DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L).minusMillis(1), value = 0.4),
+      DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L), value = 0.5),
+      DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L).plusMillis(1), value = 0.6))
+    ).unsafeRunSync()
+
+    bluefieldClient.timeSeries.createOne(TimeSeriesCreate(externalId = Some("emel2"), name = Some("emel2"), isString = false, isStep = false)).unsafeRunSync()
+    bluefieldClient.dataPoints.insert(id = CogniteExternalId("emel2"), Seq(
+      DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L).minusMillis(1), value =0.7),
+      DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L), value = 0.8),
+      DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L), value = 0.9),
+      DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L).plusMillis(1), value = 1.0))
+    ).unsafeRunSync()
+  }
+
+  override def afterAll(): Unit = {
+    val bluefieldClient = getBlufieldClient()
+    bluefieldClient.timeSeries.deleteByExternalId("emel", true).unsafeRunSync()
+    bluefieldClient.timeSeries.deleteByExternalId("emel2", true).unsafeRunSync()
+    ()
+  }
+
+  private val bluefieldClientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+  private val bluefieldClientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+  private val bluefieldAADTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+  private val bluefieldTokenUri = s"https://login.microsoftonline.com/$bluefieldAADTenant/oauth2/v2.0/token"
+
+  private val bluefieldDestinationDf = spark.read
+    .format("cognite.spark.v1")
+    .option("baseUrl", "https://bluefield.cognitedata.com")
+    .option("tokenUri", bluefieldTokenUri)
+    .option("clientId", bluefieldClientId)
+    .option("clientSecret", bluefieldClientSecret)
+    .option("project", "extractor-bluefield-testing")
+    .option("scopes", "https://bluefield.cognitedata.com/.default")
+    .option("type", "datapoints")
+    .load()
+  bluefieldDestinationDf.createOrReplaceTempView("destinationDatapointsBluefield")
 
   "DataPointsRelation" should "use our own schema for data points" taggedAs (ReadTest) in {
     val df = spark.read
@@ -1062,46 +1108,7 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     assert(loadedCount == getNumberOfRowsRead(metricsPrefix, "datapoints") - 1)
   }
 
-  private val bluefieldClientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-  private val bluefieldClientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-  private val bluefieldAADTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-  private val bluefieldTokenUri = s"https://login.microsoftonline.com/$bluefieldAADTenant/oauth2/v2.0/token"
-
-  private val bluefieldDestinationDf = spark.read
-    .format("cognite.spark.v1")
-    .option("baseUrl", "https://bluefield.cognitedata.com")
-    .option("tokenUri", bluefieldTokenUri)
-    .option("clientId", bluefieldClientId)
-    .option("clientSecret", bluefieldClientSecret)
-    .option("project", "extractor-bluefield-testing")
-    .option("scopes", "https://bluefield.cognitedata.com/.default")
-    .option("type", "datapoints")
-    .load()
-  bluefieldDestinationDf.createOrReplaceTempView("destinationDatapointsBluefield")
-
-  private val bluefieldClient = getBlufieldClient()
-  bluefieldClient.timeSeries.deleteByExternalId("emel", true).unsafeRunSync()
-  bluefieldClient.timeSeries.deleteByExternalId("emel2", true).unsafeRunSync()
-
-  bluefieldClient.timeSeries.createOne(TimeSeriesCreate(externalId = Some("emel"), name = Some("emel"), isString = false, isStep = false)).unsafeRunSync()
-  bluefieldClient.dataPoints.insert(id = CogniteExternalId("emel"), Seq(
-    DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L).minusMillis(1), value =0.1),
-    DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L), value = 0.2),
-    DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L).plusMillis(1), value = 0.3),
-    DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L).minusMillis(1), value = 0.4),
-    DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L), value = 0.5),
-    DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L).plusMillis(1), value = 0.6))
-  ).unsafeRunSync()
-
-  bluefieldClient.timeSeries.createOne(TimeSeriesCreate(externalId = Some("emel2"), name = Some("emel2"), isString = false, isStep = false)).unsafeRunSync()
-  bluefieldClient.dataPoints.insert(id = CogniteExternalId("emel2"), Seq(
-    DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L).minusMillis(1), value =0.7),
-    DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L), value = 0.8),
-    DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L), value = 0.9),
-    DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L).plusMillis(1), value = 1.0))
-  ).unsafeRunSync()
-
-  it should "list datapoints in a day succesfully" taggedAs (ReadTest) in {
+  it should "list datapoints in a day with inclusive start and exclusive end limits" taggedAs (ReadTest) in {
     val res = spark.sql(
       """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
@@ -1117,6 +1124,9 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
         |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res2.length shouldBe 1
     res2.map(row => row.getDouble(1)).toSet shouldBe Set(0.8)
+  }
+
+  it should "list datapoints in a day with exclusive start and inclusive end limits" taggedAs (ReadTest) in {
 
     val res3 = spark.sql(
       """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
@@ -1133,7 +1143,9 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
         |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res4.length shouldBe 1
     res4.map(row => row.getDouble(1)).toSet shouldBe Set(0.9)
+  }
 
+  it should "list datapoints in a day with exclusive start and exclusive end limits" taggedAs (ReadTest) in {
     val res5 = spark.sql(
       """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
