@@ -30,6 +30,8 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
 
   override def beforeAll(): Unit = {
     val bluefieldClient = getBlufieldClient()
+    bluefieldClient.timeSeries.deleteByExternalId("emel", true).unsafeRunSync()
+    bluefieldClient.timeSeries.deleteByExternalId("emel2", true).unsafeRunSync()
     bluefieldClient.timeSeries.createOne(TimeSeriesCreate(externalId = Some("emel"), name = Some("emel"), isString = false, isStep = false)).unsafeRunSync()
     bluefieldClient.dataPoints.insert(id = CogniteExternalId("emel"), Seq(
       DataPoint(timestamp = Instant.ofEpochMilli(1661990400000L).minusMillis(1), value =0.1),
@@ -47,13 +49,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
       DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L), value = 0.9),
       DataPoint(timestamp = Instant.ofEpochMilli(1662076800000L).plusMillis(1), value = 1.0))
     ).unsafeRunSync()
-  }
-
-  override def afterAll(): Unit = {
-    val bluefieldClient = getBlufieldClient()
-    bluefieldClient.timeSeries.deleteByExternalId("emel", true).unsafeRunSync()
-    bluefieldClient.timeSeries.deleteByExternalId("emel2", true).unsafeRunSync()
-    ()
   }
 
   private val bluefieldClientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
@@ -1127,7 +1122,6 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
   }
 
   it should "list datapoints in a day with exclusive start and inclusive end limits" taggedAs (ReadTest) in {
-
     val res3 = spark.sql(
       """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
@@ -1160,5 +1154,61 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
         |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res6.length shouldBe 0
+  }
+
+  it should "list datapoints only with start limit" taggedAs (ReadTest) in {
+    val res7 = spark.sql(
+      """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+        |WHERE dp.externalId == 'emel' AND
+        |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
+    res7.length shouldBe 4
+    res7.map(row => row.getDouble(1)).toSet shouldBe Set(0.3, 0.4, 0.5, 0.6)
+
+    val res8 = spark.sql(
+      """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+        |WHERE dp.externalId == 'emel2' AND
+        |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
+    res8.length shouldBe 2
+
+    val res9 = spark.sql(
+      """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+        |WHERE dp.externalId == 'emel' AND
+        |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
+    res9.length shouldBe 5
+    res9.map(row => row.getDouble(1)).toSet shouldBe Set(0.2, 0.3, 0.4, 0.5, 0.6)
+
+    val res10 = spark.sql(
+      """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+        |WHERE dp.externalId == 'emel2' AND
+        |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
+    res10.length shouldBe 3
+  }
+
+  it should "list datapoints only with end limit" taggedAs (ReadTest) in {
+    val res11 = spark.sql(
+      """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+        |WHERE dp.externalId == 'emel' AND
+        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+    res11.length shouldBe 4
+    res11.map(row => row.getDouble(1)).toSet shouldBe Set(0.1, 0.2, 0.3, 0.4)
+
+    val res12 = spark.sql(
+      """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+        |WHERE dp.externalId == 'emel2' AND
+        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+    res12.length shouldBe 2
+
+    val res13 = spark.sql(
+      """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+        |WHERE dp.externalId == 'emel' AND
+        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+    res13.length shouldBe 5
+    res13.map(row => row.getDouble(1)).toSet shouldBe Set(0.1, 0.2, 0.3, 0.4, 0.5)
+
+    val res14 = spark.sql(
+      """SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+        |WHERE dp.externalId == 'emel2' AND
+        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+    res14.length shouldBe 3
   }
 }
