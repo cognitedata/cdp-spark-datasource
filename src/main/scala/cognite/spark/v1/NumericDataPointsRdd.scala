@@ -245,8 +245,8 @@ final case class NumericDataPointsRdd(
       ids: Vector[CogniteId],
       start: Instant,
       end: Instant): IO[Vector[(CogniteId, Option[Instant], Option[Instant])]] = {
-    // Filter conversions before this function assumes end limit is inclusive in data points, we add 1 milliseconds
-    // since it is exclusive in the API
+    // Filter conversions before this function assume the end limit is inclusive, we add 1 milliseconds
+    // since it is in fact exclusive in the data points API.
     val exclusiveEnd = end.plusMillis(1)
     for {
       // fetch firsts before lasts since that can correctly handle when accidentally reading
@@ -263,8 +263,8 @@ final case class NumericDataPointsRdd(
     } yield
       firsts.map {
         case (id, first) =>
-          // In the case latest endpoint timestamp is smaller than the calculated start limit,
-          // we should use the end limit provided by the user
+          // In the case that the latest timestamp is smaller than the calculated start limit,
+          // we should use the end limit provided by the user.
           val shouldUseLatestTimestamp =
             (first.map(_.timestamp), latest.get(id).flatten.map(_.timestamp)) match {
               case (Some(inst1), Some(inst2)) =>
