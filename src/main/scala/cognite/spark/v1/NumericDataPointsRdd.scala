@@ -244,24 +244,41 @@ final case class NumericDataPointsRdd(
   private def getFirstAndLastConcurrentlyById(
       ids: Vector[CogniteId],
       start: Instant,
-      end: Instant): IO[Vector[(CogniteId, Option[Instant], Option[Instant])]] =
+      end: Instant): IO[Vector[(CogniteId, Option[Instant], Option[Instant])]] = {
+    // Filter conversions before this function assume the end limit is inclusive, we add 1 milliseconds
+    // since it is in fact exclusive in the data points API.
+    val exclusiveEnd = end.plusMillis(1)
     for {
       // fetch firsts before lasts since that can correctly handle when accidentally reading
       // stringdatapoints with a reasonable error message
       firsts <- ids.map { id =>
-        queryDatapointsById(id, start, end.max(start.plusMillis(1)), 1)
+        queryDatapointsById(id, start, exclusiveEnd.max(start.plusMillis(1)), 1)
           .map(datapoints => id -> datapoints.headOption)
       }.parSequence
       latest <- client.dataPoints.getLatestDataPoints(
         ids,
         ignoreUnknownIds = true,
-        end.toEpochMilli.toString // use end instant as upper bound so we can read dataPoints in the future
+        exclusiveEnd.toEpochMilli.toString // use end instant as upper bound so we can read dataPoints in the future
       )
     } yield
       firsts.map {
         case (id, first) =>
-          (id, first.map(_.timestamp), latest.getOrElse(id, None).map(_.timestamp.min(end)))
+          // In the case that the latest timestamp is smaller than the calculated start limit,
+          // we should use the end limit provided by the user.
+          val shouldUseLatestTimestamp =
+            (first.map(_.timestamp), latest.get(id).flatten.map(_.timestamp)) match {
+              case (Some(inst1), Some(inst2)) =>
+                inst1 < inst2
+              case _ => true
+            }
+          val endLimit = if (shouldUseLatestTimestamp) {
+            latest.getOrElse(id, None).map(_.timestamp.min(exclusiveEnd))
+          } else {
+            Some(exclusiveEnd)
+          }
+          (id, first.map(_.timestamp), endLimit)
       }
+  }
 
   private def rangesToBuckets(ranges: Seq[Range]): Vector[Bucket] = {
     // Fold into a sequence of buckets, where each bucket has some ranges with a
