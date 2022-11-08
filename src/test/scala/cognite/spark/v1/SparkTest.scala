@@ -71,15 +71,18 @@ trait SparkTest {
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
   spark.sparkContext.setLogLevel("OFF")
 
+  val bluefieldClientId: String = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+  val bluefieldClientSecret: String = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+  val bluefieldAADTenant: String = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+  val bluefieldTokenUriStr = s"https://login.microsoftonline.com/$bluefieldAADTenant/oauth2/v2.0/token"
+  val bluefieldTokenUri = uri"https://login.microsoftonline.com/$bluefieldAADTenant/oauth2/v2.0/token"
+
   def getBlufieldClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
     implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
-    val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-    val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-    val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
     val credentials = OAuth2.ClientCredentials(
-      tokenUri = uri"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token",
-      clientId = clientId,
-      clientSecret = clientSecret,
+      tokenUri = bluefieldTokenUri,
+      clientId = bluefieldClientId,
+      clientSecret = bluefieldClientSecret,
       scopes = List("https://bluefield.cognitedata.com/.default"),
       cdfProjectName = "extractor-bluefield-testing"
     )

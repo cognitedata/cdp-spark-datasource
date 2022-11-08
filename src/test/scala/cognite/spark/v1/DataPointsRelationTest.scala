@@ -51,15 +51,10 @@ class DataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExe
     ).unsafeRunSync()
   }
 
-  private val bluefieldClientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-  private val bluefieldClientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-  private val bluefieldAADTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-  private val bluefieldTokenUri = s"https://login.microsoftonline.com/$bluefieldAADTenant/oauth2/v2.0/token"
-
   private val bluefieldDestinationDf = spark.read
     .format("cognite.spark.v1")
     .option("baseUrl", "https://bluefield.cognitedata.com")
-    .option("tokenUri", bluefieldTokenUri)
+    .option("tokenUri", bluefieldTokenUriStr)
     .option("clientId", bluefieldClientId)
     .option("clientSecret", bluefieldClientSecret)
     .option("project", "extractor-bluefield-testing")
