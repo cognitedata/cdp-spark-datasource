@@ -60,12 +60,14 @@ final case class LabelDeleteSchema(
 final case class LabelInsertSchema(
     externalId: String,
     name: String,
-    description: Option[String]
+    description: Option[String],
+    dataSetId: Option[Long]
 )
 
 final case class LabelReadSchema(
     externalId: Option[String],
     name: Option[String],
     description: Option[String],
-    createdTime: Option[Instant]
+    createdTime: Option[Instant],
+    dataSetId: Option[Long]
 )
