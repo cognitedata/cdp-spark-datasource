@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cognite.spark.v1.SparkSchemaHelper.fromRow
-import com.cognite.sdk.scala.v1.{Label, LabelCreate, LabelsFilter}
+import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, Label, LabelCreate, LabelsFilter}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}
 
@@ -11,7 +11,7 @@ class LabelsRelationTest
     with ParallelTestExecution
     with SparkTest
     with Inspectors {
-
+  val datasetLabels: String = "spark-ds-labels-test"
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
     .option("apiKey", writeApiKey)
@@ -19,12 +19,20 @@ class LabelsRelationTest
     .load()
   destinationDf.createOrReplaceTempView("destinationLabel")
 
+  val ds: Seq[DataSet] = writeClient.dataSets.retrieveByExternalIds(Seq(datasetLabels), ignoreUnknownIds = true)
+  val dsId: Long = if (ds.isEmpty) {
+    writeClient
+      .dataSets.createOne(DataSetCreate(externalId = Some(datasetLabels), name = Some(datasetLabels))).id
+  } else {
+    ds.head.id
+  }
+
   it should "be able to read a label" taggedAs (ReadTest) in {
     val externalId = s"sparktest-${shortRandomString()}"
     val name = "test-read"
     val description = "Created by test for spark data source"
 
-    writeClient.labels.create(Seq(LabelCreate(externalId, name, Some(description))))
+    writeClient.labels.create(Seq(LabelCreate(externalId, name, Some(description), dataSetId = Some(dsId))))
 
     val rows = spark.read
       .format("cognite.spark.v1")
@@ -39,6 +47,7 @@ class LabelsRelationTest
     assert(label.name == name)
     assert(label.externalId == externalId)
     assert(label.description.contains(description))
+    assert(label.dataSetId.contains(dsId))
 
     writeClient.labels.deleteByExternalId(externalId)
   }
@@ -49,7 +58,10 @@ class LabelsRelationTest
     val description = "Created by test for spark data source"
 
     spark
-      .sql(s"select '$externalId' as externalId, '$name' as name, '$description' as description")
+      .sql(
+        s"""select '$externalId' as externalId,
+           |'$name' as name, '$description' as description,
+           |$dsId as dataSetId""".stripMargin)
       .write
       .format("cognite.spark.v1")
       .option("type", "labels")
@@ -68,6 +80,7 @@ class LabelsRelationTest
     assert(label.name == name)
     assert(label.externalId == externalId)
     assert(label.description.contains(description))
+    assert(label.dataSetId.contains(dsId))
 
     writeClient.labels.deleteByExternalId(externalId)
   }
