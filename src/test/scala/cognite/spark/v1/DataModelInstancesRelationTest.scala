@@ -98,7 +98,8 @@ class DataModelInstancesRelationTest
   private val props2 = Map(
     "prop_float" -> DataModelPropertyDefinition(`type` = PropertyType.Float64, nullable = true),
     "prop_bool" -> DataModelPropertyDefinition(`type` = PropertyType.Boolean, nullable = true),
-    "prop_string" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true)
+    "prop_string" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true),
+    "prop_json" -> DataModelPropertyDefinition(`type` = PropertyType.Json, nullable = true)
   )
   private val props3 = Map(
     "prop_int32" -> DataModelPropertyDefinition(`type` = PropertyType.Int32, nullable = false),
@@ -319,6 +320,7 @@ class DataModelInstancesRelationTest
                           |select 2.0 as prop_float,
                           |true as prop_bool,
                           |'abc' as prop_string,
+                          |to_json(named_struct("string_val", "toto", "int_val", 1)) as prop_json,
                           |'$randomId' as externalId""".stripMargin),
               )
             }.isFailure
@@ -352,6 +354,8 @@ class DataModelInstancesRelationTest
         //prop_bool and prop_string still have old values
         result.get("prop_bool") shouldBe Some(PropertyType.Boolean.Property(true))
         result.get("prop_string") shouldBe Some(PropertyType.Text.Property("abc"))
+        result.get("prop_json") shouldBe Some(
+          PropertyType.Json.Property("""{"string_val":"toto","int_val":1}"""))
       }
     )
   }
@@ -539,6 +543,7 @@ class DataModelInstancesRelationTest
                           |select 2.1 as prop_float,
                           |false as prop_bool,
                           |'abc' as prop_string,
+                          |to_json(named_struct("string_val", "toto", "int_val", 1)) as prop_json,
                           |'$randomId' as externalId""".stripMargin)
               )
             }.isFailure
