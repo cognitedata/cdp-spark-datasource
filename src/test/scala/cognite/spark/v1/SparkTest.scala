@@ -7,7 +7,7 @@ import com.cognite.sdk.scala.v1._
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{Encoder, SparkSession}
+import org.apache.spark.sql.{DataFrameReader, Encoder, SparkSession}
 import org.scalactic.{Prettifier, source}
 import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
@@ -45,13 +45,39 @@ trait SparkTest {
   val writeClient: GenericClient[Id] =
     GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
 
-  val readApiKey = System.getenv("TEST_API_KEY_READ")
+  private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
+  // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211
+  private val readClientSecret = System.getenv("TEST_OIDC_READ_CLIENT_SECRET")
+  private val readAadTenant = System.getenv("TEST_OIDC_READ_TENANT")
+
   assert(
-    readApiKey != null && !readApiKey.isEmpty,
-    "Environment variable \"TEST_API_KEY_READ\" was not set")
-  implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
-  val readClient: GenericClient[Id] =
-    GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
+    readClientId != null && !readClientId.isEmpty,
+    "Environment variable \"TEST_OIDC_READ_CLIENT_ID\" was not set")
+  assert(
+    readClientSecret != null && !readClientSecret.isEmpty,
+    "Environment variable \"TEST_OIDC_READ_CLIENT_SECRET\" was not set")
+  assert(
+    readAadTenant != null && !readAadTenant.isEmpty,
+    "Environment variable \"TEST_OIDC_READ_TENANT\" was not set")
+
+  private val readTokenUri = s"https://login.microsoftonline.com/$readAadTenant/oauth2/v2.0/token"
+
+  val readOidcCredentials = OAuth2.ClientCredentials(
+    tokenUri = uri"$readTokenUri",
+    clientId = readClientId,
+    clientSecret = readClientSecret,
+    scopes = List("https://api.cognitedata.com/.default"),
+    cdfProjectName = "publicdata"
+  )
+
+  def dataFrameReaderUsingOidc: DataFrameReader =
+    spark.read
+      .format("cognite.spark.v1")
+      .option("tokenUri", readTokenUri)
+      .option("clientId", readClientId)
+      .option("clientSecret", readClientSecret)
+      .option("project", "publicdata")
+      .option("scopes", "https://api.cognitedata.com/.default")
 
   // not needed to run tests, only for replicating some problems specific to this tenant
   lazy val jetfiretest2ApiKey = System.getenv("TEST_APU_KEY_JETFIRETEST2")

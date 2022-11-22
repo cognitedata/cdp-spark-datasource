@@ -30,10 +30,12 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val toRow = (_: String, _: Option[Int]) => Row.empty
     val uniqueId = (_: String) => "1"
 
+    implicit val backend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(3, 5)
+
     val sdkRdd =
       SdkV1Rdd[String, String](
         spark.sparkContext,
-        getDefaultConfig(CdfSparkAuth.Static(readApiKeyAuth)),
+        getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials)),
         toRow,
         uniqueId,
         getStreams)

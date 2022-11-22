@@ -7,14 +7,16 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{LongType, StringType, StructField, TimestampType}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
-class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+class StringDataPointsRelationTest
+    extends FlatSpec
+    with Matchers
+    with ParallelTestExecution
+    with SparkTest {
   val valhallTimeSeries = "'pi:160671'"
   val valhallTimeSeriesId = 1470524308850282L
   val valhallNumericTimeSeriesId = 3278479880462408L
 
-  val sourceTimeSeriesDf = spark.read
-    .format("cognite.spark.v1")
-    .option("apiKey", readApiKey)
+  val sourceTimeSeriesDf = dataFrameReaderUsingOidc
     .option("type", "timeseries")
     .load()
   sourceTimeSeriesDf.createOrReplaceTempView("sourceTimeSeries")
@@ -35,34 +37,34 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
   destinationStringDataPointsDf.createOrReplaceTempView("destinationStringDatapoints")
 
   "StringDataPointsRelation" should "use our own schema for data points" taggedAs ReadTest in {
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .load()
       .where(s"id = $valhallTimeSeriesId")
 
-    assert(df.schema.fields.sameElements(Array(
-      StructField("id", LongType, nullable = true),
-      StructField("externalId", StringType, nullable = true),
-      StructField("timestamp", TimestampType, nullable = false),
-      StructField("value", StringType, nullable = false))))
+    assert(
+      df.schema.fields.sameElements(Array(
+        StructField("id", LongType, nullable = true),
+        StructField("externalId", StringType, nullable = true),
+        StructField("timestamp", TimestampType, nullable = false),
+        StructField("value", StringType, nullable = false)
+      )))
   }
 
   it should "fetch all data we expect" taggedAs ReadTest in {
     val metricsPrefix = "fetch.with.limit"
 
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("limitPerPartition", "100")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"timestamp >= to_timestamp(1395666380) and timestamp <= to_timestamp(1552604342) and id = $valhallTimeSeriesId")
+      .where(
+        s"timestamp >= to_timestamp(1395666380) and timestamp <= to_timestamp(1552604342) and id = $valhallTimeSeriesId")
     assert(df.count() == 100)
 
-    val df2 = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df2 = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("limitPerPartition", "100")
       .option("collectMetrics", "true")
@@ -76,20 +78,19 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
   }
 
   it should "iterate over period longer than limit" taggedAs ReadTest in {
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("batchSize", "40")
       .option("limitPerPartition", "100")
       .option("partitions", "1")
       .load()
-      .where(s"timestamp > to_timestamp(0) and timestamp < to_timestamp(1790902000) and id = $valhallTimeSeriesId")
+      .where(
+        s"timestamp > to_timestamp(0) and timestamp < to_timestamp(1790902000) and id = $valhallTimeSeriesId")
     assert(df.count() == 100)
   }
 
   it should "handle initial data set below batch size" taggedAs ReadTest in {
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("batchSize", "2000")
       .option("limitPerPartition", "100")
@@ -100,9 +101,8 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
   }
 
   // Ignored as we currently attempt to read all string data points in a single partition.
-  it should "apply limit to each partition" taggedAs ReadTest ignore {
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+  (it should "apply limit to each partition" taggedAs ReadTest).ignore {
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("batchSize", "2000")
       .option("limitPerPartition", "100")
@@ -111,79 +111,80 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
       .where(s"timestamp >= to_timestamp(1395666380) and id = $valhallTimeSeriesId")
     assert(df.count() == 200)
 
-    val df2 = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df2 = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("batchSize", "2000")
       .option("limitPerPartition", "100")
       .option("partitions", "3")
       .load()
-      .where(s"timestamp >= to_timestamp(1395666380) and timestamp <= to_timestamp(1425187835) and id = $valhallTimeSeriesId")
+      .where(
+        s"timestamp >= to_timestamp(1395666380) and timestamp <= to_timestamp(1425187835) and id = $valhallTimeSeriesId")
     assert(df2.count() == 300)
   }
 
   it should "handle initial data set with the same size as the batch size" taggedAs ReadTest in {
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("batchSize", "100")
       .option("limitPerPartition", "100")
       .option("partitions", "1")
       .load()
-      .where(s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1790902000) and id = $valhallTimeSeriesId")
+      .where(
+        s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1790902000) and id = $valhallTimeSeriesId")
     assert(df.count() == 100)
   }
 
   it should "test that start/stop time are handled correctly for data points" taggedAs ReadTest in {
     val metricsPrefix = "string.start.stop"
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("partitions", "1")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"timestamp >= to_timestamp(1395666380) and timestamp <= to_timestamp(1395892205) and id = $valhallTimeSeriesId")
+      .where(
+        s"timestamp >= to_timestamp(1395666380) and timestamp <= to_timestamp(1395892205) and id = $valhallTimeSeriesId")
     assert(df.count() == 9)
     val pointsRead = getNumberOfRowsRead(metricsPrefix, "stringdatapoints")
     assert(pointsRead == 9)
   }
 
   it should "handle start/stop time without duplicates when using multiple partitions" taggedAs ReadTest in {
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("partitions", "7")
       .load()
-      .where(s"timestamp >= to_timestamp(1395666380) and timestamp <= to_timestamp(1395892205) and id = $valhallTimeSeriesId")
+      .where(
+        s"timestamp >= to_timestamp(1395666380) and timestamp <= to_timestamp(1395892205) and id = $valhallTimeSeriesId")
     assert(df.count() == 9)
   }
 
   it should "fetch all string data points from a time series using paging" taggedAs ReadTest in {
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("batchSize", "100")
       .load()
-      .where(s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1573081192) and id = $valhallTimeSeriesId")
+      .where(
+        s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1573081192) and id = $valhallTimeSeriesId")
     assert(df.count() == 2368)
   }
 
   it should "fetch all string data points from a time series using paging and respect limitPerPartition" taggedAs ReadTest in {
-    val df = spark.read.format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .option("batchSize", "10000")
       .option("limitPerPartition", "100")
       .option("partitions", "1")
       .load()
-      .where(s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1573081192) and id = $valhallTimeSeriesId")
+      .where(
+        s"timestamp >= to_timestamp(0) and timestamp <= to_timestamp(1573081192) and id = $valhallTimeSeriesId")
     assert(df.count() == 100)
   }
 
   it should "be an error to specify an invalid (time series) name" taggedAs WriteTest in {
     val e = intercept[Exception] {
-      spark.sql(s"""
+      spark
+        .sql(s"""
                    |select 9999 as id,
                    |null as externalId,
                    |true as isString,
@@ -287,7 +288,8 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
     // Check if post worked
     val dataPointsAfterPostByExternalId = retryWhile[Array[Row]](
       spark
-        .sql(s"""select * from destinationStringDatapointsInsert where externalId = 'string-test${randomSuffix}'""")
+        .sql(
+          s"""select * from destinationStringDatapointsInsert where externalId = 'string-test${randomSuffix}'""")
         .collect(),
       df => df.length < 2)
     assert(dataPointsAfterPostByExternalId.length == 2)
@@ -331,8 +333,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
 
     spark
-      .sql(
-        s"""
+      .sql(s"""
            |select '$tsName' as name,
            |'$tsName' as externalId,
            |false as isStep,
@@ -353,8 +354,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
     val tsId = tsIdRow.getAs[Long]("id")
 
     spark
-      .sql(
-        s"""
+      .sql(s"""
            |select $tsId as id,
            |to_timestamp(1509500001) as timestamp,
            |'a' as value
@@ -386,8 +386,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
       df => { println(df.mkString(",")); df.length < 3 })
 
     spark
-      .sql(
-        s"""
+      .sql(s"""
            |select
            |$tsId as id,
            |NULL as externalId,
@@ -421,9 +420,7 @@ class StringDataPointsRelationTest extends FlatSpec with Matchers with ParallelT
   }
 
   it should "fail reasonably when TS is numeric" in {
-    val destinationDf = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val destinationDf = dataFrameReaderUsingOidc
       .option("type", "stringdatapoints")
       .load()
     destinationDf.createOrReplaceTempView("destinationNumericDatapoints")
