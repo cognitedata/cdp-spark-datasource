@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
 import fs2.Stream
 import io.circe.parser.parse
 import io.circe.Decoder
@@ -411,7 +411,7 @@ object DefaultSource {
             .mkString(", ")}")
     }
     val projectName = parameters
-      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, baseUrl))
+      .getOrElse("project", DefaultSource.getProjectFromAuth(auth))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
@@ -497,14 +497,12 @@ object DefaultSource {
 
   }
 
-  def getProjectFromAuth(auth: CdfSparkAuth, baseUrl: String)(
-      implicit backend: SttpBackend[IO, Any]): String = {
+  def getProjectFromAuth(auth: CdfSparkAuth)(implicit backend: SttpBackend[IO, Any]): String = {
     import CdpConnector.ioRuntime
     val getProject = for {
       authProvider <- auth.provider
-      client <- GenericClient
-        .forAuthProvider[IO](Constants.SparkDatasourceVersion, authProvider, baseUrl)
-    } yield client.projectName
+      project <- authProvider.getAuth.map(_.project)
+    } yield project.getOrElse("")
     getProject.unsafeRunSync()
   }
 }
