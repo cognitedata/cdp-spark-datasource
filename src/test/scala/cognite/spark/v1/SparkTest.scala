@@ -51,7 +51,7 @@ trait SparkTest {
     "Environment variable \"TEST_API_KEY_READ\" was not set")
   implicit val readApiKeyAuth: ApiKeyAuth = ApiKeyAuth(readApiKey)
   val readClient: GenericClient[Id] =
-    GenericClient.forAuth[Id]("cdp-spark-datasource-test", readApiKeyAuth)
+    GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
 
   // not needed to run tests, only for replicating some problems specific to this tenant
   lazy val jetfiretest2ApiKey = System.getenv("TEST_APU_KEY_JETFIRETEST2")
