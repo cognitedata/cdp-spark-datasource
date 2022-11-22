@@ -502,9 +502,14 @@ object DefaultSource {
     import CdpConnector.ioRuntime
     val getProject = for {
       authProvider <- auth.provider
-      client <- GenericClient
-        .forAuthProvider[IO](Constants.SparkDatasourceVersion, authProvider, baseUrl)
-    } yield client.projectName
+      project <- auth match {
+        case CdfSparkAuth.Static(_) =>
+          GenericClient
+            .forAuthProvider[IO](Constants.SparkDatasourceVersion, authProvider, baseUrl)
+            .map(_.projectName)
+        case _ => authProvider.getAuth.map(_.project).map(_.getOrElse(""))
+      }
+    } yield project
     getProject.unsafeRunSync()
   }
 }

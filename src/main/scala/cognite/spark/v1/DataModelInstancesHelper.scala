@@ -88,8 +88,7 @@ object DataModelInstancesHelper {
 
   def propertyTypeToSparkType(propertyType: PropertyType[_]): DataType =
     propertyType match {
-      case PropertyType.Text =>
-        DataTypes.StringType
+      case PropertyType.Text => DataTypes.StringType
       case PropertyType.Boolean => DataTypes.BooleanType
       case PropertyType.Numeric | PropertyType.Float64 => DataTypes.DoubleType
       case PropertyType.Float32 => DataTypes.FloatType
@@ -97,6 +96,7 @@ object DataModelInstancesHelper {
       case PropertyType.Int32 => DataTypes.IntegerType
       case PropertyType.Int64 => DataTypes.LongType
       case PropertyType.Bigint => DataTypes.LongType
+      case PropertyType.Json => DataTypes.StringType
       case PropertyType.Date => DataTypes.DateType
       case PropertyType.Timestamp => DataTypes.TimestampType
       case PropertyType.DirectRelation => DataTypes.createArrayType(DataTypes.StringType)
@@ -157,6 +157,12 @@ object DataModelInstancesHelper {
       }
     case a =>
       throw new CdfSparkException(s"$directRelationErr but got $a as the value.")
+  }
+
+  private def toJsonProperty: Any => Option[DataModelProperty[_]] = {
+    case x: String => Some(PropertyType.Json.Property(x))
+    case a =>
+      throw new CdfSparkException(notValidPropertyTypeMessage(a, PropertyType.Json.code, Some("string")))
   }
 
   private def toGeographyProperty: Any => Option[DataModelProperty[_]] = {
@@ -338,10 +344,10 @@ object DataModelInstancesHelper {
       case PropertyType.Text => toStringProperty
       case PropertyType.Date => toDateProperty
       case PropertyType.Timestamp => toTimestampProperty
-      case PropertyType.DirectRelation =>
-        toDirectRelationProperty
+      case PropertyType.DirectRelation => toDirectRelationProperty
       case PropertyType.Geometry => toGeometryProperty
       case PropertyType.Geography => toGeographyProperty
+      case PropertyType.Json => toJsonProperty
       case PropertyType.Array.Text => toStringArrayProperty
       case PropertyType.Array.Float32 => toFloat32ArrayProperty
       case PropertyType.Array.Float64 | PropertyType.Array.Numeric =>

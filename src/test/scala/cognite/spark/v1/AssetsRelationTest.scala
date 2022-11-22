@@ -13,11 +13,11 @@ import scala.util.control.NonFatal
 
 class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
 
-  val sourceDf = spark.read
-    .format("cognite.spark.v1")
-    .option("apiKey", readApiKey)
+  val sourceDf = dataFrameReaderUsingOidc
+    .option("project", "publicdata")
     .option("type", "assets")
     .load()
+
   sourceDf.createOrReplaceTempView("sourceAssets")
 
   val destinationDf = spark.read
@@ -28,9 +28,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   destinationDf.createOrReplaceTempView("destinationAssets")
 
   "AssetsRelation" should "read assets" taggedAs ReadTest in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
@@ -44,9 +42,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "read assets with a small batchSize" taggedAs ReadTest in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("batchSize", "1")
       .option("limitPerPartition", "10")
@@ -58,9 +54,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "support pushdown filters on name" taggedAs ReadTest in {
     val metricsPrefix = s"pushdown.assets.name.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -114,9 +108,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "support pushdown filters with nulls" taggedAs ReadTest in {
     val metricsPrefix = s"pushdown.assets.name.null.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -132,41 +124,31 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     // these just should not fail:
 
-    spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    dataFrameReaderUsingOidc
       .option("type", "assets")
       .load()
       .where("name = NULL")
       .collect() shouldBe empty
 
-    spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    dataFrameReaderUsingOidc
       .option("type", "assets")
       .load()
       .where("name = '23-TT-92604B' and name <> NULL")
       .collect() shouldBe empty
 
-    spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    dataFrameReaderUsingOidc
       .option("type", "assets")
       .load()
       .where("createdTime > NULL")
       .collect() shouldBe empty
 
-    spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    dataFrameReaderUsingOidc
       .option("type", "assets")
       .load()
       .where("name in (NULL)")
       .collect() shouldBe empty
 
-    spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    dataFrameReaderUsingOidc
       .option("type", "assets")
       .load()
       .where("name = '23-TT-92604B' or name <> NULL")
@@ -194,9 +176,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "support pushdown filters on dataSetId" taggedAs ReadTest in {
     val metricsPrefix = s"pushdown.assets.dataSetId.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -213,9 +193,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "not fetch all items if filter on id" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.assets.id"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -231,9 +209,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "not fetch all items if filter on externalId" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.assets.externalId"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -249,9 +225,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "not fetch all items if filter on externalIdPrefix" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.assets.externalIdPrefix"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -266,9 +240,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support filtering on null" taggedAs ReadTest in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
@@ -299,9 +271,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support option filter assetSubtreeIds" taggedAs ReadTest in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
@@ -312,9 +282,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support option filter assetSubtreeIds with externalId" taggedAs ReadTest in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
@@ -325,9 +293,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "support option filter assetSubtreeIds with internal and externalId" taggedAs ReadTest in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
@@ -339,9 +305,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "support option filter assetSubtreeIds with pushdown filters" taggedAs ReadTest in {
     val metricsPrefix = s"pushdown.assets.name.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)

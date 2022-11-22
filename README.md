@@ -1279,7 +1279,8 @@ show how to backup assets to a RAW table](docs/assets-raw-backup.py)
 ## Build the project with sbt
 
 The project runs read-only integration tests against the Open Industrial Data project. Navigate to
-https://openindustrialdata.com/ to get an API key and store it in the `TEST_API_KEY_READ` environment variable.
+https://hub.cognite.com/open-industrial-data-211 to get a Client Secret and store it in the `TEST_OIDC_READ_CLIENT_SECRET` environment variable along with
+`TEST_OIDC_READ_CLIENT_ID` and `TEST_OIDC_READ_TENANT`. The value of Client ID and Tenant ID can be found [here](https://hub.cognite.com/open-industrial-data-211/openid-connect-on-open-industrial-data-993)
 
 To run the write integration tests, you'll also need to set the `TEST_API_KEY_WRITE` environment variable to an API key for a project where you have write access.
 

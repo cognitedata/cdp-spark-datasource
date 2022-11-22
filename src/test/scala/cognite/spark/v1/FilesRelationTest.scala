@@ -8,9 +8,7 @@ import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import scala.util.control.NonFatal
 
 class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
-  val sourceDf = spark.read
-    .format("cognite.spark.v1")
-    .option("apiKey", readApiKey)
+  val sourceDf = dataFrameReaderUsingOidc
     .option("type", "files")
     .load()
 
@@ -32,9 +30,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
   }
 
   it should "respect the limit option" taggedAs ReadTest in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "files")
       .option("limitPerPartition", "5")
       .option("partitions", "1")
@@ -44,9 +40,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
   }
 
   it should "use cursors when necessary" taggedAs ReadTest in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "files")
       .option("batchSize", "2")
       .load()

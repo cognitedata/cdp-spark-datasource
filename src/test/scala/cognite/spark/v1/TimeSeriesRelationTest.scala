@@ -18,9 +18,7 @@ class TimeSeriesRelationTest
     with OptionValues {
   import spark.implicits._
 
-  val sourceDf = spark.read
-    .format("cognite.spark.v1")
-    .option("apiKey", readApiKey)
+  val sourceDf = dataFrameReaderUsingOidc
     .option("type", "timeseries")
     .load()
   sourceDf.createOrReplaceTempView("sourceTimeSeries")
@@ -33,9 +31,7 @@ class TimeSeriesRelationTest
   destinationDf.createOrReplaceTempView("destinationTimeSeries")
 
   "TimeSeriesRelation" should "read all data regardless of the number of partitions" taggedAs ReadTest in {
-    val dfreader = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val dfreader = dataFrameReaderUsingOidc
       .option("type", "timeseries")
     val singlePartitionCount = dfreader.option("partitions", 1).load().count()
     assert(singlePartitionCount > 0)
@@ -47,9 +43,7 @@ class TimeSeriesRelationTest
 
   it should "handle pushdown filters on assetId with multiple assetIds" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.assetIds"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "timeseries")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -64,9 +58,7 @@ class TimeSeriesRelationTest
 
   it should "handle pushdown filters on assetId, dataSetId" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filters.dataSetId"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "timeseries")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -82,9 +74,7 @@ class TimeSeriesRelationTest
 
   it should "handle pushdown filters on assetId on nonexisting assetId" taggedAs ReadTest in {
     val metricsPrefix = "pushdown.filters.assetIds.nonexisting"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "timeseries")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -98,9 +88,7 @@ class TimeSeriesRelationTest
 
   it should "not fetch all items if filter on id" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.timeSeries.id"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "timeseries")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -116,9 +104,7 @@ class TimeSeriesRelationTest
 
   it should "not fetch all items if filter on externalId" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.timeSeries.externalId"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .option("apiKey", readApiKey)
+    val df = dataFrameReaderUsingOidc
       .option("type", "timeseries")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)

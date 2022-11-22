@@ -66,21 +66,21 @@ object CogniteUdfs {
       implicit ioRuntime: IORuntime): IO[Json] = {
     var res = result
     var i = 0
-    while (res.status.isDefined && res.status.get == "Running" && i < 30) {
+    while (res.status == "Running" && i < 30) {
       Thread.sleep(500)
       i += 1
       res = client
         .functionCalls(functionId)
-        .retrieveById(res.id.get)
+        .retrieveById(res.id)
         .unsafeRunSync()
     }
 
-    if (res.status.isDefined && res.status.get == "Completed") {
+    if (res.status == "Completed") {
       for {
         functionCallResponse <- client
           .functionCalls(functionId)
-          .retrieveResponse(res.id.getOrElse(0L))
-      } yield functionCallResponse.response.getOrElse(Json.fromJsonObject(JsonObject.empty))
+          .retrieveResponse(res.id)
+      } yield functionCallResponse.response
     } else {
       throw new CdfSparkException("CDF function call failed. Call = " + res.toString + ".")
     }
