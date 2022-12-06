@@ -1,15 +1,12 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.v1.SparkSchemaHelper._
 import cognite.spark.v1.wdl.{WellIngestionInsertSchema, WellsReadSchema}
-import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
-import io.scalaland.chimney.dsl._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.sources.{Filter, TableScan}
+import org.apache.spark.sql.sources.TableScan
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -28,10 +25,10 @@ class WellsRelation(
     if (rows.nonEmpty) {
         val insertions = rows.map(fromRow[WellIngestionInsertSchema](_))
 
-        val newWells = insertions.map(
-          _.into[WellsReadSchema]
-            .withFieldComputed(_.name, u => u.name)
-            .transform)
+//        val newWells = insertions.map(
+//          _.into[WellsReadSchema]
+//            .withFieldComputed(_.name, u => u.name)
+//            .transform)
       }
   }
 
@@ -48,14 +45,22 @@ class WellsRelation(
 
   private def uniqueId(a: WellsReadSchema): String = a.matchingId
 
-  override def getStreams(filters: Array[Filter])(
+  override def buildScan(): RDD[Row] =
+    SdkV1Rdd[WellsReadSchema, String](
+      sqlContext.sparkContext,
+      config,
+      (a: WellsReadSchema, _) => toRow(a),
+      uniqueId,
+      getStreams()
+    )
+
+
+  private def getStreams()(
     client: GenericClient[IO],
     limit: Option[Int],
     numPartitions: Int): Seq[Stream[IO, WellsReadSchema]] = {
       Seq(
-        wells
-          .toStream
-          .map(r =>(IO.unit, r))
+        Stream[IO, WellsReadSchema]()
       )
   }
 

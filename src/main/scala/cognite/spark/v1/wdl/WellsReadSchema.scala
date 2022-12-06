@@ -25,7 +25,8 @@ final case class WellsReadSchema(
     /* Operator that owns the well. */
     operator: Option[String] = None,
     /* The date a new well was spudded or the date of first actual penetration of the earth with a drilling bit. */
-    spudDate: Option[java.time.LocalDate] = None,
+    // TODO: Find a proper way to express it in Scala
+    //spudDate: Option[java.time.LocalDate] = None,
     /* Exploration or development. */
     wellType: Option[String] = None,
     /* Well licence. */
