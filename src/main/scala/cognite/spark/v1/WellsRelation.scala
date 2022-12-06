@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.SparkSchemaHelper._
-import cognite.spark.v1.wdl.{AssetSource, WellIngestionInsertSchema, Wellheads, WellsReadSchema}
+import cognite.spark.v1.wdl.{AssetSource, WellIngestion, Wellheads, Well}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import io.scalaland.chimney.dsl.TransformerOps
@@ -17,20 +17,20 @@ import scala.annotation.nowarn
 // Simplest relation based on TableScan
 class WellsRelation(
     config: RelationConfig)(override val sqlContext: SQLContext)
-  extends CdfRelation(config, "wdl")
+  extends CdfRelation(config, "wells")
     with WritableRelation
     with TableScan {
 
-  private var wells = Vector[WellsReadSchema]()
+  private var wells = Vector[Well]()
 
-  override def schema: StructType = structType[WellsReadSchema]()
+  override def schema: StructType = structType[Well]()
 
   override def upsert(rows: Seq[Row]): IO[Unit] = IO {
     if (rows.nonEmpty) {
-        val insertions = rows.map(fromRow[WellIngestionInsertSchema](_))
+        val insertions = rows.map(fromRow[WellIngestion](_))
 
         val newWells = insertions.map(
-          _.into[WellsReadSchema]
+          _.into[Well]
             .withFieldComputed(_.matchingId, u => u.matchingId.getOrElse(UUID.randomUUID().toString))
             .withFieldComputed(_.wellhead, u => u.wellhead.getOrElse(Wellheads(0.0, 0.0, "CRS")))
             .withFieldComputed(_.sources, u => Seq(u.source))
@@ -52,15 +52,15 @@ class WellsRelation(
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for WDL. Use upsert instead.")
 
-  private def toRow(a: WellsReadSchema): Row = asRow(a)
+  private def toRow(a: Well): Row = asRow(a)
 
-  private def uniqueId(a: WellsReadSchema): String = a.matchingId
+  private def uniqueId(a: Well): String = a.matchingId
 
   override def buildScan(): RDD[Row] =
-    SdkV1Rdd[WellsReadSchema, String](
+    SdkV1Rdd[Well, String](
       sqlContext.sparkContext,
       config,
-      (a: WellsReadSchema, _) => toRow(a),
+      (a: Well, _) => toRow(a),
       uniqueId,
       getStreams()
     )
@@ -69,9 +69,9 @@ class WellsRelation(
   private def getStreams()(
     @nowarn client: GenericClient[IO],
     @nowarn limit: Option[Int],
-    @nowarn numPartitions: Int): Seq[Stream[IO, WellsReadSchema]] = {
+    @nowarn numPartitions: Int): Seq[Stream[IO, Well]] = {
       Seq(
-        Stream[IO, WellsReadSchema]()
+        Stream[IO, Well]()
       )
   }
 
