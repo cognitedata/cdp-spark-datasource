@@ -2,13 +2,17 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.SparkSchemaHelper._
-import cognite.spark.v1.wdl.{WellIngestionInsertSchema, WellsReadSchema}
+import cognite.spark.v1.wdl.{AssetSource, WellIngestionInsertSchema, Wellheads, WellsReadSchema}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
+import io.scalaland.chimney.dsl.TransformerOps
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.TableScan
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
+
+import java.util.UUID
+import scala.annotation.nowarn
 
 // Simplest relation based on TableScan
 class WellsRelation(
@@ -25,17 +29,24 @@ class WellsRelation(
     if (rows.nonEmpty) {
         val insertions = rows.map(fromRow[WellIngestionInsertSchema](_))
 
-//        val newWells = insertions.map(
-//          _.into[WellsReadSchema]
-//            .withFieldComputed(_.name, u => u.name)
-//            .transform)
+        val newWells = insertions.map(
+          _.into[WellsReadSchema]
+            .withFieldComputed(_.matchingId, u => u.matchingId.getOrElse(UUID.randomUUID().toString))
+            .withFieldComputed(_.wellhead, u => u.wellhead.getOrElse(Wellheads(0.0, 0.0, "CRS")))
+            .withFieldComputed(_.sources, u => Seq(u.source))
+            .transform)
+
+        wells = wells ++ newWells
       }
   }
 
   override def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
 
   override def delete(rows: Seq[Row]): IO[Unit] = IO {
-    val deletes = rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceDeleteSchema](r))
+    val deletes = rows.map(r => SparkSchemaHelper.fromRow[AssetSource](r))
+    wells = wells.filter(w =>
+      w.sources.forall(s => !deletes.contains(s))
+    )
   }
 
   override def update(rows: Seq[Row]): IO[Unit] =
@@ -56,9 +67,9 @@ class WellsRelation(
 
 
   private def getStreams()(
-    client: GenericClient[IO],
-    limit: Option[Int],
-    numPartitions: Int): Seq[Stream[IO, WellsReadSchema]] = {
+    @nowarn client: GenericClient[IO],
+    @nowarn limit: Option[Int],
+    @nowarn numPartitions: Int): Seq[Stream[IO, WellsReadSchema]] = {
       Seq(
         Stream[IO, WellsReadSchema]()
       )

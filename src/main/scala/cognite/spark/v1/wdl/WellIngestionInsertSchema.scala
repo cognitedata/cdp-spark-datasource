@@ -18,7 +18,7 @@ final case class WellIngestionInsertSchema(
     /* Region of the well. */
     region: Option[String] = None,
     /* The date a new well was spudded or the date of first actual penetration of the earth with a drilling bit. */
-    spudDate: Option[java.time.LocalDate] = None,
+    //spudDate: Option[java.time.LocalDate] = None,
     /* The block of the well. This is the second part of the unique well identifer used on the norwegian continental shelf. The wellbore `15/9-19-RS` in the VOLVE fild is in block `15/9`. */
     block: Option[String] = None,
     /* Field of the well. */
