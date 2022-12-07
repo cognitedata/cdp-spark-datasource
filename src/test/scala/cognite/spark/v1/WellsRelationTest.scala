@@ -1,8 +1,8 @@
 package cognite.spark.v1
 
 import cognite.spark.v1.SparkSchemaHelper.fromRow
-import cognite.spark.v1.wdl.{AssetSource, Well}
-import org.apache.spark.sql.{DataFrame}
+import cognite.spark.v1.wdl.{AssetSource, Well, Wellhead}
+import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}
 
 class WellsRelationTest
@@ -18,6 +18,15 @@ class WellsRelationTest
     .option("type", "wells")
     .load()
   destinationDf.createOrReplaceTempView("destinationWells")
+
+  private val testWells = Vector[Well](
+    Well(
+      matchingId = "my matching id",
+      name = "my name",
+      wellhead = Wellhead(0.1, 10.1, "CRS"),
+      sources = Seq(AssetSource("EDM:well-1", "EDM")),
+    ),
+  )
 
   ignore should "be able to write a well" taggedAs (WriteTest) in {
     val externalId = s"sparktest-${shortRandomString()}"
@@ -36,10 +45,6 @@ class WellsRelationTest
   }
 
   it should "be able to read a well" taggedAs (ReadTest) in {
-    val name = "my name"
-    val description = None
-    val matchingId = "my matching id"
-
     val rows = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -48,12 +53,8 @@ class WellsRelationTest
 //      .where(s"externalId = '$externalId'")
       .collect()
 
-    assert(rows.length == 1)
-    val well = fromRow[Well](rows.head)
-    assert(well.name == name)
-    assert(well.sources == Seq(AssetSource("EDM:well-1", "EDM")))
-    assert(well.description == description)
-    assert(well.matchingId == matchingId)
+    val wells = rows.map(r => fromRow[Well](r))
+    wells should contain theSameElementsAs testWells
   }
 
   it should "be able to delete a well" taggedAs (WriteTest) in {
