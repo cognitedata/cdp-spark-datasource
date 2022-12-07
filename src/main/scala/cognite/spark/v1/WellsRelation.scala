@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.SparkSchemaHelper._
-import cognite.spark.v1.wdl.{AssetSource, WellIngestion, Wellheads, Well}
+import cognite.spark.v1.wdl.{AssetSource, Well, WellIngestion, Wellhead}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
 import io.scalaland.chimney.dsl.TransformerOps
@@ -21,7 +21,14 @@ class WellsRelation(
     with WritableRelation
     with TableScan {
 
-  private var wells = Vector[Well]()
+  private var wells = Vector[Well](
+    Well(
+      matchingId = "matchingId",
+      name = "name",
+      wellhead = Wellhead(0.1, 10.1, "CRS"),
+      sources = Seq(AssetSource("assetExternalId", "sourceName")),
+    ),
+  )
 
   override def schema: StructType = structType[Well]()
 
@@ -32,7 +39,7 @@ class WellsRelation(
         val newWells = insertions.map(
           _.into[Well]
             .withFieldComputed(_.matchingId, u => u.matchingId.getOrElse(UUID.randomUUID().toString))
-            .withFieldComputed(_.wellhead, u => u.wellhead.getOrElse(Wellheads(0.0, 0.0, "CRS")))
+            .withFieldComputed(_.wellhead, u => u.wellhead.getOrElse(Wellhead(0.0, 0.0, "CRS")))
             .withFieldComputed(_.sources, u => Seq(u.source))
             .transform)
 
@@ -71,7 +78,7 @@ class WellsRelation(
     @nowarn limit: Option[Int],
     @nowarn numPartitions: Int): Seq[Stream[IO, Well]] = {
       Seq(
-        Stream[IO, Well]()
+        Stream[IO, Well]().cons1(wells.head)
       )
   }
 
