@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import cognite.spark.v1.wdl.{AssetSource, Well}
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.{DataFrame}
 import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}
 
 class WellsRelationTest
@@ -36,9 +36,9 @@ class WellsRelationTest
   }
 
   it should "be able to read a well" taggedAs (ReadTest) in {
-    val externalId = s"sparktest-${shortRandomString()}"
-    val name = "test-read"
-    val description = "Created by test for spark data source"
+    val name = "my name"
+    val description = None
+    val matchingId = "my matching id"
 
     val rows = spark.read
       .format("cognite.spark.v1")
@@ -48,19 +48,19 @@ class WellsRelationTest
 //      .where(s"externalId = '$externalId'")
       .collect()
 
-    assert(rows == Array[Row]())
     assert(rows.length == 1)
     val well = fromRow[Well](rows.head)
     assert(well.name == name)
-    assert(well.sources == Seq(AssetSource(externalId, "SRC")))
-    assert(well.description.contains(description))
+    assert(well.sources == Seq(AssetSource("EDM:well-1", "EDM")))
+    assert(well.description == description)
+    assert(well.matchingId == matchingId)
   }
 
   it should "be able to delete a well" taggedAs (WriteTest) in {
     val externalId = s"sparktest-${shortRandomString()}"
 
     spark
-      .sql(s"select externalId from destinationWells where externalId = '$externalId'")
+      .sql(s"select matchingId from destinationWells where matchingId = '$externalId'")
       .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)

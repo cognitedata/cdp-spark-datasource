@@ -23,10 +23,10 @@ class WellsRelation(
 
   private var wells = Vector[Well](
     Well(
-      matchingId = "matchingId",
-      name = "name",
+      matchingId = "my matching id",
+      name = "my name",
       wellhead = Wellhead(0.1, 10.1, "CRS"),
-      sources = Seq(AssetSource("assetExternalId", "sourceName")),
+      sources = Seq(AssetSource("EDM:well-1", "EDM")),
     ),
   )
 
