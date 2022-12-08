@@ -44,29 +44,79 @@ class WellsRelationTest
       .save()
   }
 
-  it should "be able to read a well" taggedAs (ReadTest) in {
+  it should "be able to read all wells" taggedAs (ReadTest) in {
     val rows = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "wells")
       .load()
-//      .where(s"externalId = '$externalId'")
       .collect()
 
     val wells = rows.map(r => fromRow[Well](r))
     wells should contain theSameElementsAs testWells
   }
 
+  it should "be able to query well by matchingId" taggedAs (ReadTest) in {
+    val rows = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "wells")
+      .load()
+      .where(s"matchingId = '${testWells.head.matchingId}'")
+      .collect()
+
+    val wells = rows.map(r => fromRow[Well](r))
+    wells should contain theSameElementsAs testWells
+  }
+
+  it should "be able to query non-existent well by matchingId" taggedAs (ReadTest) in {
+    val rows = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "wells")
+      .load()
+      .where(s"matchingId = '123'")
+      .collect()
+
+    rows shouldBe empty
+  }
+
+  it should "be able to query columns from all wells" taggedAs (ReadTest) in {
+    spark
+      .sql(s"select inline(sources) from destinationWells")
+      .show
+
+//    val rows = spark
+//      .sql(s"select explode(sources) from destinationWells")
+//      .collect()
+//
+//    val sources = rows.map(r => fromRow[AssetSource](r))
+//    sources should contain theSameElementsAs testWells
+  }
+
   it should "be able to delete a well" taggedAs (WriteTest) in {
-    val externalId = s"sparktest-${shortRandomString()}"
+//    val externalId = s"sparktest-${shortRandomString()}"
 
     spark
-      .sql(s"select matchingId from destinationWells where matchingId = '$externalId'")
+      .sql(s"select inline(sources) from destinationWells")
       .write
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
       .option("type", "wells")
       .option("onconflict", "delete")
       .save()
+
+    spark
+      .sql(s"select * from destinationWells")
+      .show
+
+    val rows = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "wells")
+      .load()
+      .collect()
+
+    rows shouldBe empty
   }
 }

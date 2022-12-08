@@ -54,6 +54,7 @@ class WellsRelation(
     wells = wells.filter(w =>
       w.sources.forall(s => !deletes.contains(s))
     )
+    wells = Vector[Well]()
   }
 
   override def update(rows: Seq[Row]): IO[Unit] =
@@ -78,7 +79,7 @@ class WellsRelation(
     @nowarn limit: Option[Int],
     @nowarn numPartitions: Int): Seq[Stream[IO, Well]] = {
       Seq(
-        Stream[IO, Well]().cons1(wells.head)
+        Stream.emits(wells)
       )
   }
 
