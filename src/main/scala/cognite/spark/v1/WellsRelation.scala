@@ -30,9 +30,13 @@ class WellsRelation(
     ),
   )
 
+  @nowarn
+  private val debugInit = { println(s"WellsRelation::debugInit"); 1 }
+
   override def schema: StructType = structType[Well]()
 
   override def upsert(rows: Seq[Row]): IO[Unit] = IO {
+    println(s"WellsRelation::upsert")
     if (rows.nonEmpty) {
         val insertions = rows.map(fromRow[WellIngestion](_))
 
@@ -50,6 +54,7 @@ class WellsRelation(
   override def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
 
   override def delete(rows: Seq[Row]): IO[Unit] = IO {
+    println(s"WellsRelation::delete")
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[AssetSource](r))
     wells = wells.filter(w =>
       w.sources.forall(s => !deletes.contains(s))
@@ -64,7 +69,9 @@ class WellsRelation(
 
   private def uniqueId(a: Well): String = a.matchingId
 
-  override def buildScan(): RDD[Row] =
+  override def buildScan(): RDD[Row] = {
+    println(s"WellsRelation::buildScan")
+
     SdkV1Rdd[Well, String](
       sqlContext.sparkContext,
       config,
@@ -72,12 +79,14 @@ class WellsRelation(
       uniqueId,
       getStreams()
     )
+  }
 
 
   private def getStreams()(
     @nowarn client: GenericClient[IO],
     @nowarn limit: Option[Int],
     @nowarn numPartitions: Int): Seq[Stream[IO, Well]] = {
+      println(s"WellsRelation::getStreams")
       Seq(
         Stream.emits(wells)
       )

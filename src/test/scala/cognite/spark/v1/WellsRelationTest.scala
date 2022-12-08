@@ -45,6 +45,7 @@ class WellsRelationTest
   }
 
   it should "be able to read all wells" taggedAs (ReadTest) in {
+    println(s"be able to read all wells")
     val rows = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -57,6 +58,7 @@ class WellsRelationTest
   }
 
   it should "be able to query well by matchingId" taggedAs (ReadTest) in {
+    println(s"be able to query well by matchingId")
     val rows = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -70,6 +72,7 @@ class WellsRelationTest
   }
 
   it should "be able to query non-existent well by matchingId" taggedAs (ReadTest) in {
+    println(s"be able to query non-existent well by matchingId")
     val rows = spark.read
       .format("cognite.spark.v1")
       .option("apiKey", writeApiKey)
@@ -82,6 +85,7 @@ class WellsRelationTest
   }
 
   it should "be able to query columns from all wells" taggedAs (ReadTest) in {
+    println(s"be able to query columns from all wells")
     spark
       .sql(s"select inline(sources) from destinationWells")
       .show
@@ -95,7 +99,7 @@ class WellsRelationTest
   }
 
   it should "be able to delete a well" taggedAs (WriteTest) in {
-//    val externalId = s"sparktest-${shortRandomString()}"
+    println(s"be able to delete a well 1x")
 
     spark
       .sql(s"select inline(sources) from destinationWells")
@@ -106,9 +110,13 @@ class WellsRelationTest
       .option("onconflict", "delete")
       .save()
 
+    println(s"be able to delete a well 2x")
+
     spark
       .sql(s"select * from destinationWells")
       .show
+
+    println(s"be able to delete a well 3x")
 
     val rows = spark.read
       .format("cognite.spark.v1")
