@@ -400,8 +400,9 @@ object DefaultSource {
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
 
-    implicit val backend: SttpBackend[IO, Any] =
-      CdpConnector.retryingSttpBackend(maxRetries, maxRetryDelaySeconds)
+    //This backend is used only for auth, so we should not retry as much as maxRetries config
+    implicit val authBackend: SttpBackend[IO, Any] =
+      CdpConnector.retryingSttpBackend(5, maxRetryDelaySeconds)
 
     val auth = parseAuth(parameters) match {
       case Some(x) => x

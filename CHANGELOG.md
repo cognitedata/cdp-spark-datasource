@@ -1,3 +1,9 @@
+# 2.3.2
+
+## Fix
+
+* Give up after 5 retry instead of using the maxRetries parsing in the config when auth failure
+
 # 2.3.0
 
 ## Enhancements
