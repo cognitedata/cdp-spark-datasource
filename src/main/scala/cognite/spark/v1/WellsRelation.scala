@@ -21,22 +21,9 @@ class WellsRelation(
     with WritableRelation
     with TableScan {
 
-  private var wells = Vector[Well](
-    Well(
-      matchingId = "my matching id",
-      name = "my name",
-      wellhead = Wellhead(0.1, 10.1, "CRS"),
-      sources = Seq(AssetSource("EDM:well-1", "EDM")),
-    ),
-  )
-
-  @nowarn
-  private val debugInit = { println(s"WellsRelation::debugInit"); 1 }
-
   override def schema: StructType = structType[Well]()
 
   override def upsert(rows: Seq[Row]): IO[Unit] = IO {
-    println(s"WellsRelation::upsert")
     if (rows.nonEmpty) {
         val insertions = rows.map(fromRow[WellIngestion](_))
 
@@ -47,19 +34,17 @@ class WellsRelation(
             .withFieldComputed(_.sources, u => Seq(u.source))
             .transform)
 
-        wells = wells ++ newWells
+      WellsRelation.wells = WellsRelation.wells ++ newWells
       }
   }
 
   override def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
 
   override def delete(rows: Seq[Row]): IO[Unit] = IO {
-    println(s"WellsRelation::delete")
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[AssetSource](r))
-    wells = wells.filter(w =>
+    WellsRelation.wells = WellsRelation.wells.filter(w =>
       w.sources.forall(s => !deletes.contains(s))
     )
-    wells = Vector[Well]()
   }
 
   override def update(rows: Seq[Row]): IO[Unit] =
@@ -70,8 +55,6 @@ class WellsRelation(
   private def uniqueId(a: Well): String = a.matchingId
 
   override def buildScan(): RDD[Row] = {
-    println(s"WellsRelation::buildScan")
-
     SdkV1Rdd[Well, String](
       sqlContext.sparkContext,
       config,
@@ -86,9 +69,8 @@ class WellsRelation(
     @nowarn client: GenericClient[IO],
     @nowarn limit: Option[Int],
     @nowarn numPartitions: Int): Seq[Stream[IO, Well]] = {
-      println(s"WellsRelation::getStreams")
       Seq(
-        Stream.emits(wells)
+        Stream.emits(WellsRelation.wells)
       )
   }
 
@@ -111,4 +93,15 @@ class WellsRelation(
       )
   }
 
+}
+
+object WellsRelation {
+  private var wells = Vector[Well](
+    Well(
+      matchingId = "my matching id",
+      name = "my name",
+      wellhead = Wellhead(0.1, 10.1, "CRS"),
+      sources = Seq(AssetSource("EDM:well-1", "EDM")),
+    ),
+  )
 }
