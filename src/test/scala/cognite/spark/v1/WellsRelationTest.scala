@@ -11,6 +11,9 @@ class WellsRelationTest
     with ParallelTestExecution
     with SparkTest
     with Inspectors {
+
+  import spark.implicits._
+
   val datasetWells: String = "spark-ds-wells-test"
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
@@ -82,16 +85,13 @@ class WellsRelationTest
   }
 
   it should "be able to query columns from all wells" taggedAs (ReadTest) in {
-    spark
+    val sources = spark
       .sql(s"select inline(sources) from destinationWells")
-      .show
+      .as[AssetSource]
+      .collect()
 
-//    val rows = spark
-//      .sql(s"select explode(sources) from destinationWells")
-//      .collect()
-//
-//    val sources = rows.map(r => fromRow[AssetSource](r))
-//    sources should contain theSameElementsAs testWells
+    val testSources = testWells.flatMap(well => well.sources)
+    sources should contain theSameElementsAs testSources
   }
 
   it should "be able to delete a well" taggedAs (WriteTest) in {
