@@ -1067,9 +1067,36 @@ class DataModelInstancesRelationTest
         props.get("prop_direct_relation").map(_.value) shouldBe None
       }
     )
+
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId2,
+                spark
+                  .sql(s"""
+                          |select named_struct("spaceExternalId", "vu", "externalId", null) as prop_direct_relation,
+                          |timestamp('2022-01-03T12:34:56.012+00:00') as prop_timestamp,
+                          |date('2022-01-02') as prop_date,
+                          |'${randomId}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        byExternalId(true, primitiveExtId2, randomId) shouldBe randomId
+        val props = getByExternalId(true, primitiveExtId2, randomId).allProperties
+        props
+          .get("prop_timestamp")
+          .map(_.value.toString) shouldBe Some("2022-01-03T12:34:56.012Z") // new value of timestamp
+        props.get("prop_direct_relation").map(_.value) shouldBe None
+      }
+    )
   }
 
-  it should "fail when invalid direct relation values are being ingested" in {
+  it should "fail when invalid direct relation values using array" in {
     val ex = sparkIntercept {
       insertRows(
         primitiveExtId2,
@@ -1115,4 +1142,93 @@ class DataModelInstancesRelationTest
     ex3.getMessage shouldBe
       s"Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`) but got array(1, 2) as the value."
   }
+
+  it should "ingest direct relation using named_struct" in {
+    val randomId = "prim_test_" + shortRandomString()
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId2,
+                spark
+                  .sql(s"""
+                          |select named_struct("externalId", "dummyNode") as prop_direct_relation,
+                          |'${randomId}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        byExternalId(true, primitiveExtId2, randomId) shouldBe randomId
+        val props = getByExternalId(true, primitiveExtId2, randomId).allProperties
+        props.get("prop_direct_relation").map(_.value) shouldBe Some(Seq(spaceExternalId, "dummyNode"))
+      }
+    )
+
+    tryTestAndCleanUp(
+      Seq(randomId), {
+        retryWhile[Boolean](
+          {
+            Try {
+              insertRows(
+                primitiveExtId2,
+                spark
+                  .sql(s"""
+                          |select named_struct("spaceExternalId", "$spaceExternalId","externalId", "dummyNode2") as prop_direct_relation,
+                          |'${randomId}' as externalId""".stripMargin)
+              )
+            }.isFailure
+          },
+          failure => failure
+        )
+        byExternalId(true, primitiveExtId2, randomId) shouldBe randomId
+        val props = getByExternalId(true, primitiveExtId2, randomId).allProperties
+        props.get("prop_direct_relation").map(_.value) shouldBe Some(Seq(spaceExternalId, "dummyNode2"))
+      }
+    )
+  }
+
+  it should "fail with invalid direct relation values using named_struct" in {
+    val ex = sparkIntercept {
+      insertRows(
+        primitiveExtId2,
+        spark
+          .sql(s"""
+                  |select named_struct("notExternalId", "hai") as prop_direct_relation,
+                  |'hello_my_name_is_emel' as externalId""".stripMargin)
+      )
+    }
+    ex shouldBe an[CdfSparkException]
+    ex.getMessage shouldBe "Direct relation identifier should be named_struct(\"spaceExternalId\", yourSpace, \"externalId\", yourExternalId) or " +
+      "named_struct(\"externalId\", yourExternalId) but got notExternalId as the schema."
+
+    val ex1 = sparkIntercept {
+      insertRows(
+        primitiveExtId2,
+        spark
+          .sql(s"""
+                  |select named_struct("spaceExternalId", "vu", "notExternalId", "hai") as prop_direct_relation,
+                  |'hello_my_name_is_emel' as externalId""".stripMargin)
+      )
+    }
+    ex1 shouldBe an[CdfSparkException]
+    ex1.getMessage shouldBe "Direct relation identifier should be named_struct(\"spaceExternalId\", yourSpace, \"externalId\", yourExternalId) or " +
+      "named_struct(\"externalId\", yourExternalId) but got spaceExternalId,notExternalId as the schema."
+
+    val ex2 = sparkIntercept {
+      insertRows(
+        primitiveExtId2,
+        spark
+          .sql(s"""
+                  |select named_struct("notSpaceExternalId", "vu", "externalId", "hai") as prop_direct_relation,
+                  |'hello_my_name_is_emel' as externalId""".stripMargin)
+      )
+    }
+    ex2 shouldBe an[CdfSparkException]
+    ex2.getMessage shouldBe "Direct relation identifier should be named_struct(\"spaceExternalId\", yourSpace, \"externalId\", yourExternalId) or " +
+      "named_struct(\"externalId\", yourExternalId) but got notSpaceExternalId,externalId as the schema."
+  }
+
 }
