@@ -101,7 +101,7 @@ object WellsRelation {
       matchingId = "my matching id",
       name = "my name",
       wellhead = Wellhead(0.1, 10.1, "CRS"),
-      sources = Seq(AssetSource("EDM:well-1", "EDM")),
-    ),
+      sources = Seq(AssetSource("EDM:well-1", "EDM"))
+    )
   )
 }
