@@ -145,8 +145,8 @@ object DataModelInstancesHelper {
   private val directRelationErr =
     "Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`)"
 
-  private val directRelationUsingStructErr =
-    "Direct relation identifier should be named_struct(\"spaceExternalId\", yourSpace, \"externalId\", yourExternalId) or named_struct(\"externalId\", yourExternalId)"
+  private val directRelationUsingStructErr = "Direct relation identifier should be " +
+    "named_struct(\"spaceExternalId\", yourSpace, \"externalId\", yourExternalId) or named_struct(\"externalId\", yourExternalId)"
 
   private def toDirectRelationProperty(defaultSpace: String): Any => Option[DataModelProperty[_]] = {
     case x: Iterable[_] =>

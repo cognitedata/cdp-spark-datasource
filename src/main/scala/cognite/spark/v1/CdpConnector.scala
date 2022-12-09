@@ -112,6 +112,11 @@ object CdpConnector {
     } else {
       None
     }
+
+    val authSttpBackend =
+      retryingSttpBackend(3, config.maxRetryDelaySeconds, config.parallelismPerPartition, metricsPrefix)
+    val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunSync()
+
     implicit val sttpBackend: SttpBackend[IO, Any] =
       retryingSttpBackend(
         config.maxRetries,
@@ -121,7 +126,7 @@ object CdpConnector {
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,
-      authProvider = config.auth.provider.unsafeRunSync(),
+      authProvider = authProvider,
       baseUrl = config.baseUrl,
       apiVersion = None,
       clientTag = config.clientTag,
