@@ -1,14 +1,13 @@
 package cognite.spark.v1
 
 import cognite.spark.v1.SparkSchemaHelper.fromRow
-import cognite.spark.v1.wdl.{AssetSource, Well, Wellhead}
+import cognite.spark.v1.wdl.{AssetSource, Well, WellIngestion, Wellhead}
 import org.apache.spark.sql.DataFrame
-import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}
+import org.scalatest.{FlatSpec, Inspectors, Matchers}
 
 class WellsRelationTest
     extends FlatSpec
     with Matchers
-    with ParallelTestExecution
     with SparkTest
     with Inspectors {
 
@@ -22,7 +21,7 @@ class WellsRelationTest
     .load()
   destinationDf.createOrReplaceTempView("destinationWells")
 
-  private val testWells = Vector[Well](
+  private var testWells = Vector[Well](
     Well(
       matchingId = "my matching id",
       name = "my name",
@@ -31,20 +30,29 @@ class WellsRelationTest
     ),
   )
 
-  ignore should "be able to write a well" taggedAs (WriteTest) in {
-    val externalId = s"sparktest-${shortRandomString()}"
-    val name = "test-insert"
-    val description = "Created by test for spark data source"
+  it should "be able to insert a well" taggedAs (WriteTest) in {
+    val oldWell = testWells.head
+    val newWell = oldWell.copy(
+      matchingId = "new matchingId",
+      sources = Seq(AssetSource("Petrel:well-2", "Petrel")),
+    )
+    val newWellIngestion = WellIngestion(
+      matchingId = Some(newWell.matchingId),
+      name = newWell.name,
+      wellhead = Some(newWell.wellhead),
+      source = newWell.sources.head,
+    )
+    val newWellsDF = Seq(newWellIngestion).toDF()
 
-    spark
-      .sql(
-        s"""select '$externalId' as externalId,
-           |'$name' as name, '$description' as description""".stripMargin)
+    newWellsDF
       .write
       .format("cognite.spark.v1")
-      .option("type", "wells")
       .option("apiKey", writeApiKey)
+      .option("type", "wells")
+      .option("onconflict", "upsert")
       .save()
+
+    testWells = testWells ++ Seq(newWell)
   }
 
   it should "be able to read all wells" taggedAs (ReadTest) in {
@@ -69,7 +77,7 @@ class WellsRelationTest
       .collect()
 
     val wells = rows.map(r => fromRow[Well](r))
-    wells should contain theSameElementsAs testWells
+    wells should contain theSameElementsAs testWells.take(1)
   }
 
   it should "be able to query non-existent well by matchingId" taggedAs (ReadTest) in {
