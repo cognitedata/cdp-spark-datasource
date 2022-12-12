@@ -1210,7 +1210,7 @@ class DataModelInstancesRelationTest
         spark
           .sql(s"""
                   |select named_struct("spaceExternalId", "vu", "notExternalId", "hai") as prop_direct_relation,
-                  |'hello_my_name_is_emel' as externalId""".stripMargin)
+                  |'hello_my_name_is_håkon' as externalId""".stripMargin)
       )
     }
     ex1 shouldBe an[CdfSparkException]
