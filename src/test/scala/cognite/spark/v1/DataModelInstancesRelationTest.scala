@@ -297,10 +297,9 @@ class DataModelInstancesRelationTest
       testCode
     } finally {
       try {
-//        bluefieldAlphaClient.nodes
-//          .deleteItems(externalIds, spaceExternalId)
-//          .unsafeRunSync()
-        println(s"Do not clean up ${externalIds.toString}")
+        bluefieldAlphaClient.nodes
+          .deleteItems(externalIds, spaceExternalId)
+          .unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
