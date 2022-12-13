@@ -52,10 +52,10 @@ class WellsRelation(
 
   private def toRow(a: Well): Row = asRow(a)
 
-  private def uniqueId(a: Well): String = a.matchingId
+  private def uniqueId(a: Well) = (a.sources.head.sourceName, a.sources.head.assetExternalId)
 
   override def buildScan(): RDD[Row] = {
-    SdkV1Rdd[Well, String](
+    SdkV1Rdd(
       sqlContext.sparkContext,
       config,
       (a: Well, _) => toRow(a),
@@ -73,26 +73,6 @@ class WellsRelation(
         Stream.emits(WellsRelation.wells)
       )
   }
-
-  def getOptionalIndex(
-    rSchema: StructType,
-    keyString: String): Option[Int] = {
-      val index = rSchema.fieldNames.indexOf(keyString)
-      if (index < 0) {
-        None
-      } else {
-        Some(index)
-      }
-  }
-
-  def getRequiredIndex(
-    rSchema: StructType,
-    keyString: String): Int = {
-      getOptionalIndex(rSchema, keyString).getOrElse(
-        throw new CdfSparkException(s"Can't row convert to Well, `$keyString` is missing.")
-      )
-  }
-
 }
 
 object WellsRelation {

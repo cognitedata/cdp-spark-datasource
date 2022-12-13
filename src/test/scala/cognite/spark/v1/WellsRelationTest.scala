@@ -67,6 +67,46 @@ class WellsRelationTest
     wells should contain theSameElementsAs testWells
   }
 
+  it should "be able to upsert a well" taggedAs (WriteTest) in {
+    val oldWell = testWells.head
+    val newWell = oldWell.copy(
+      matchingId = "new matchingId",
+      sources = Seq(AssetSource("Petrel2:well-2", "Petrel2")),
+    )
+    val newWellIngestion = WellIngestion(
+      matchingId = Some(newWell.matchingId),
+      name = newWell.name,
+      wellhead = Some(newWell.wellhead),
+      source = newWell.sources.head,
+    )
+    val newWellsDF = Seq(newWellIngestion).toDF()
+
+    newWellsDF
+      .write
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "wells")
+      .option("onconflict", "upsert")
+      .save()
+
+    testWells = testWells ++ Seq(newWell)
+  }
+
+  it should "be able to read all wells again" taggedAs (ReadTest) in {
+    val rowsDF = spark.read
+      .format("cognite.spark.v1")
+      .option("apiKey", writeApiKey)
+      .option("type", "wells")
+      .load()
+
+    rowsDF.show()
+
+    val rows = rowsDF.collect()
+
+    val wells = rows.map(r => fromRow[Well](r))
+    wells should contain theSameElementsAs testWells
+  }
+
   it should "be able to query well by matchingId" taggedAs (ReadTest) in {
     val rows = spark.read
       .format("cognite.spark.v1")
