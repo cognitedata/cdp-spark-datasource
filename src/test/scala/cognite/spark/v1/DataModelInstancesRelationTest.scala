@@ -355,9 +355,33 @@ class DataModelInstancesRelationTest
         result.get("prop_bool") shouldBe Some(PropertyType.Boolean.Property(true))
         result.get("prop_string") shouldBe Some(PropertyType.Text.Property("abc"))
         result.get("prop_json") shouldBe Some(
-          PropertyType.Json.Property("""{"string_val":"toto","int_val":1}"""))
+          PropertyType.Json.Property(
+            io.circe.parser.parse("""{"string_val":"toto","int_val":1}""").toOption.get))
       }
     )
+  }
+
+  it should "fail to ingest data for Json property if it has invalid format" in {
+    val randomId = "prim_test_" + shortRandomString()
+
+    val ex = sparkIntercept {
+      insertRows(
+        primitiveExtId,
+        spark
+          .sql(s"""
+              |select 2.0 as prop_float,
+              |'{
+              |    "int_val": 2,
+              |    "string_val":
+              |}' as prop_json,
+              |'$randomId' as externalId""".stripMargin),
+      )
+    }
+    ex shouldBe an[CdfSparkException]
+    ex.getMessage shouldBe s"""Failed to encode property json because {
+                              |    "int_val": 2,
+                              |    "string_val":
+                              |} is not a Json""".stripMargin
   }
 
   // This test is added to a bug with the models having these keys in property map.
