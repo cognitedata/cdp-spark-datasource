@@ -3,10 +3,6 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.DataModelInstancesHelper._
-import com.cognite.sdk.scala.common._
-import com.cognite.sdk.scala.v1
-import com.cognite.sdk.scala.v1.DataModelType.NodeType
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.ComparableFilterValue
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
@@ -26,17 +22,8 @@ import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition, ViewReference}
-import com.cognite.sdk.scala.v1.{
-  DataModel,
-  DataModelIdentifier,
-  DataModelInstanceQuery,
-  DataModelProperty,
-  DataModelPropertyDefinition,
-  DataModelType,
-  GenericClient,
-  PropertyMap
-}
-import fs2.Stream
+import com.cognite.sdk.scala.v1.resources.fdm.instances.Instances.instanceCreateEncoder
+import io.circe.syntax.EncoderOps
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -46,9 +33,8 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time._
 import java.time.format.DateTimeFormatter
-import scala.annotation.nowarn
-import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
+import scala.util.{Failure, Success, Try}
 
 // scalastyle:off number.of.methods
 class DataModelInstancesRelationV3(
@@ -56,7 +42,7 @@ class DataModelInstancesRelationV3(
     space: String,
     viewExternalIdAndVersion: Option[(String, String)],
     containerExternalId: Option[String])(val sqlContext: SQLContext)
-    extends CdfRelation(config, "datamodelinstancesV3")
+    extends CdfRelation(config, DataModelInstancesRelationV3.ResourceType)
     with WritableRelation
     with PrunedFilteredScan {
   import CdpConnector._
@@ -100,42 +86,6 @@ class DataModelInstancesRelationV3(
       }
       .unsafeRunSync()
 
-  val modelExternalId = ""
-  private val model: DataModel = alphaClient.dataModels
-    .retrieveByExternalIds(Seq(modelExternalId), spaceExternalId = space)
-    .adaptError {
-      case e: CdpApiException =>
-        new CdfSparkException(
-          s"Could not resolve schema of data model $modelExternalId. " +
-            s"Got an exception from the CDF API: ${e.message} (code: ${e.code})",
-          e)
-    }
-    .unsafeRunSync()
-    .headOption
-    // TODO Missing model externalId used to result in CdpApiException, now it returns empty list
-    //  Check with dms team
-    .getOrElse(throw new CdfSparkException(
-      s"Could not resolve schema of data model $modelExternalId. Please check if the model exists."))
-
-  private val modelType = model.dataModelType
-
-  val modelInfo: Map[String, DataModelPropertyDefinition] = {
-    val modelProps = model.properties.getOrElse(Map())
-
-    if (modelType == DataModelType.EdgeType) {
-      modelProps ++ Map(
-        "externalId" -> DataModelPropertyDefinition(v1.PropertyType.Text, false),
-        "type" -> DataModelPropertyDefinition(v1.PropertyType.Text, false),
-        "startNode" -> DataModelPropertyDefinition(v1.PropertyType.Text, false),
-        "endNode" -> DataModelPropertyDefinition(v1.PropertyType.Text, false)
-      )
-    } else {
-      modelProps ++ Map(
-        "externalId" -> DataModelPropertyDefinition(v1.PropertyType.Text, false)
-      )
-    }
-  }
-
   override def schema: StructType = {
     val fields = viewDefinitionAndProperties
       .map {
@@ -144,7 +94,7 @@ class DataModelInstancesRelationV3(
             case (identifier, propType) =>
               DataTypes.createStructField(
                 identifier,
-                convertToSparkDataType(propType.`type`),
+                convertToSparkDataType(propType.`type`, propType.nullable.getOrElse(true)),
                 propType.nullable.getOrElse(true))
           }
       }
@@ -153,7 +103,7 @@ class DataModelInstancesRelationV3(
           case (identifier, propType) =>
             DataTypes.createStructField(
               identifier,
-              convertToSparkDataType(propType.`type`),
+              convertToSparkDataType(propType.`type`, propType.nullable.getOrElse(true)),
               propType.nullable.getOrElse(true))
         }
       })
@@ -175,6 +125,8 @@ class DataModelInstancesRelationV3(
     val containerDefWithFirstRow = Apply[Option]
       .map2(rows.headOption, containerDefinition)(Tuple2.apply)
 
+    println(rows.length)
+    println(rows.map(_.prettyJson).mkString(System.lineSeparator()))
     (containerDefWithFirstRow, viewDefAndPropsWithFirstRow) match {
       case (Some((firstRow, containerDef)), None) =>
         createNodesOrEdges(
@@ -265,6 +217,8 @@ class DataModelInstancesRelationV3(
               autoCreateEndNodes = Some(true),
               replace = Some(false) // TODO: verify this
             )
+
+            println(instanceCreate.asJson.noSpaces)
             alphaClient.instances.createItems(instanceCreate)
         }
       case Failure(err) =>
@@ -290,6 +244,7 @@ class DataModelInstancesRelationV3(
               autoCreateEndNodes = Some(true),
               replace = Some(false) // TODO: verify this
             )
+            println(instanceCreate.asJson.noSpaces)
             alphaClient.instances.createItems(instanceCreate)
         }
       case Failure(err) =>
@@ -498,16 +453,21 @@ class DataModelInstancesRelationV3(
           Try(InstancePropertyValue.StringList(row.getSeq[String](schema.fieldIndex(field.name)))).toEither
         case PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
           Try(InstancePropertyValue.BooleanList(row.getSeq[Boolean](schema.fieldIndex(field.name)))).toEither
-        case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
-          Try(InstancePropertyValue.DoubleList(row.getSeq[Double](schema.fieldIndex(field.name)))).toEither
-        case PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
-          Try(InstancePropertyValue.DoubleList(row.getSeq[Double](schema.fieldIndex(field.name)))).toEither
-        case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
-          Try(InstancePropertyValue.IntegerList(row.getSeq[Long](schema.fieldIndex(field.name)))).toEither
-        case PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
-          Try(InstancePropertyValue.IntegerList(row.getSeq[Long](schema.fieldIndex(field.name)))).toEither
-        case PrimitiveProperty(PrimitivePropType.Numeric, Some(true)) =>
-          Try(InstancePropertyValue.DoubleList(row.getSeq[Double](schema.fieldIndex(field.name)))).toEither
+        case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) |
+            PrimitiveProperty(PrimitivePropType.Float64, Some(true)) |
+            PrimitiveProperty(PrimitivePropType.Numeric, Some(true)) =>
+          Try(
+            InstancePropertyValue.DoubleList(
+              row
+                .getSeq[Any](schema.fieldIndex(field.name))
+                .map(_.asInstanceOf[java.lang.Number].doubleValue()))).toEither
+        case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) |
+            PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
+          Try(
+            InstancePropertyValue.IntegerList(
+              row
+                .getSeq[Any](schema.fieldIndex(field.name))
+                .map(_.asInstanceOf[java.lang.Number].longValue()))).toEither
         case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
           Try(
             InstancePropertyValue.TimestampList(
@@ -566,16 +526,17 @@ class DataModelInstancesRelationV3(
           Try(InstancePropertyValue.String(row.getString(fieldIndex))).toEither
         case PrimitiveProperty(PrimitivePropType.Boolean, None | Some(false)) =>
           Try(InstancePropertyValue.Boolean(row.getBoolean(fieldIndex))).toEither
-        case PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) =>
-          Try(InstancePropertyValue.Double(row.getDouble(fieldIndex))).toEither
-        case PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) =>
-          Try(InstancePropertyValue.Double(row.getDouble(fieldIndex))).toEither
-        case PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) =>
-          Try(InstancePropertyValue.Integer(row.getLong(fieldIndex))).toEither
-        case PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
-          Try(InstancePropertyValue.Integer(row.getLong(fieldIndex))).toEither
-        case PrimitiveProperty(PrimitivePropType.Numeric, None | Some(false)) =>
-          Try(InstancePropertyValue.Double(row.getDouble(fieldIndex))).toEither
+        case PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) |
+            PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) |
+            PrimitiveProperty(PrimitivePropType.Numeric, None | Some(false)) =>
+          Try(
+            InstancePropertyValue.Double(
+              row.get(fieldIndex).asInstanceOf[java.lang.Number].doubleValue())).toEither
+        case PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) |
+            PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
+          Try(
+            InstancePropertyValue.Integer(
+              row.get(fieldIndex).asInstanceOf[java.lang.Number].longValue())).toEither
         case PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
           Try(
             InstancePropertyValue.Timestamp(ZonedDateTime
@@ -608,7 +569,7 @@ class DataModelInstancesRelationV3(
   }
   // scalastyle:on cyclomatic.complexity method.length
 
-  private def convertToSparkDataType(propType: PropertyType): DataType = {
+  private def convertToSparkDataType(propType: PropertyType, nullable: Boolean): DataType = {
     def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
       case PrimitivePropType.Timestamp => DataTypes.TimestampType
       case PrimitivePropType.Date => DataTypes.DateType
@@ -622,13 +583,13 @@ class DataModelInstancesRelationV3(
     }
 
     propType match {
-      case TextProperty(Some(true), _) => DataTypes.createArrayType(DataTypes.StringType)
+      case TextProperty(Some(true), _) => DataTypes.createArrayType(DataTypes.StringType, nullable)
       case TextProperty(_, _) => DataTypes.StringType
       case PrimitiveProperty(ppt, Some(true)) =>
-        DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt))
+        DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable)
       case PrimitiveProperty(ppt, _) => primitivePropTypeToSparkDataType(ppt)
       case DirectNodeRelationProperty(_) =>
-        DataTypes.createArrayType(DataTypes.StringType) // TODO: Verify this
+        DataTypes.createArrayType(DataTypes.StringType, nullable) // TODO: Verify this
     }
   }
 
@@ -642,51 +603,6 @@ class DataModelInstancesRelationV3(
       itemsRead.inc()
     }
     new GenericRow(a.properties)
-  }
-
-  def uniqueId(a: ProjectedDataModelInstanceV3): String = a.externalId
-
-  // scalastyle:off cyclomatic.complexity
-  private def getValue(propName: String, prop: DataModelProperty[_]): Any =
-    prop.value match {
-      case x: Iterable[_] if (x.size == 2) && (Seq("startNode", "endNode", "type") contains propName) =>
-        x.mkString(":")
-      case x: java.math.BigDecimal =>
-        x.doubleValue
-      case x: java.math.BigInteger => x.longValue
-      case x: Array[java.math.BigDecimal] =>
-        x.toVector.map(i => i.doubleValue)
-      case x: Array[java.math.BigInteger] =>
-        x.toVector.map(i => i.longValue)
-      case x: BigDecimal =>
-        x.doubleValue
-      case x: BigInt => x.longValue
-      case x: Array[BigDecimal] =>
-        x.toVector.map(i => i.doubleValue)
-      case x: Array[BigInt] =>
-        x.toVector.map(i => i.longValue)
-      case x: Array[LocalDate] =>
-        x.toVector.map(i => java.sql.Date.valueOf(i))
-      case x: java.time.LocalDate =>
-        java.sql.Date.valueOf(x)
-      case x: java.time.ZonedDateTime =>
-        java.sql.Timestamp.from(x.toInstant)
-      case x: Array[java.time.ZonedDateTime] =>
-        x.toVector.map(i => java.sql.Timestamp.from(i.toInstant))
-      case _ => prop.value
-    }
-  // scalastyle:on cyclomatic.complexity
-
-  def toProjectedInstance(
-      pmap: PropertyMap,
-      requiredPropsArray: Array[String]): ProjectedDataModelInstanceV3 = {
-    val dmiProperties = pmap.allProperties
-    ProjectedDataModelInstanceV3(
-      externalId = pmap.externalId,
-      properties = requiredPropsArray.map { name: String =>
-        dmiProperties.get(name).map(getValue(name, _)).orNull
-      }
-    )
   }
 
   def valueToFilterValueDef(
@@ -750,7 +666,7 @@ class DataModelInstancesRelationV3(
         )
     }
 
-  // scalastyle:off method.length cyclomatic.complexity
+  // scalastyle:off cyclomatic.complexity
   def getInstanceFilter(sparkFilter: sql.sources.Filter): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, value) =>
@@ -779,46 +695,46 @@ class DataModelInstancesRelationV3(
       case Not(f) => getInstanceFilter(f).map(FilterDefinition.Not.apply)
       case f => Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.toString}'"))
     }
-  // scalastyle:on method.length cyclomatic.complexity
+  // scalastyle:on cyclomatic.complexity
 
-  def getStreams(filters: Array[sql.sources.Filter], selectedColumns: Array[String])(
-      @nowarn client: GenericClient[IO],
-      limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstanceV3]] = {
-    val selectedPropsArray = if (selectedColumns.isEmpty) {
-      schema.fieldNames
-    } else {
-      selectedColumns
-    }
-
-    val filter = filters.toList.traverse(getInstanceFilter)
-
-    val spaceFilters = (filters.map {
-      case EqualTo("space", value) => value.toString
-    } ++ Array(space)).distinct
-
-    val dmiQuery = InstanceFilterRequest(
-      model = DataModelIdentifier(space = Some(space), model = modelExternalId),
-      spaces = Some(spaceFilters),
-      filter = filter,
-      sort = None,
-      limit = limit,
-      cursor = None,
-      instanceType = None
-    )
-
-    if (modelType == NodeType) {
-      Seq(
-        client.nodes
-          .queryStream(dmiQuery, limit)
-          .map(r => toProjectedInstance(r, selectedPropsArray)))
-    } else {
-      Seq(
-        client.edges
-          .queryStream(dmiQuery, limit)
-          .map(r => toProjectedInstance(r, selectedPropsArray)))
-    }
-  }
+//  def getStreams(filters: Array[sql.sources.Filter], selectedColumns: Array[String])(
+//      @nowarn client: GenericClient[IO],
+//      limit: Option[Int],
+//      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstanceV3]] = {
+//    val selectedPropsArray = if (selectedColumns.isEmpty) {
+//      schema.fieldNames
+//    } else {
+//      selectedColumns
+//    }
+//
+//    val filter = filters.toList.traverse(getInstanceFilter)
+//
+//    val spaceFilters = (filters.map {
+//      case EqualTo("space", value) => value.toString
+//    } ++ Array(space)).distinct
+//
+//    val dmiQuery = InstanceFilterRequest(
+//      model = DataModelIdentifier(space = Some(space), model = modelExternalId),
+//      spaces = Some(spaceFilters),
+//      filter = filter,
+//      sort = None,
+//      limit = limit,
+//      cursor = None,
+//      instanceType = None
+//    )
+//
+//    if (modelType == NodeType) {
+//      Seq(
+//        client.nodes
+//          .queryStream(dmiQuery, limit)
+//          .map(r => toProjectedInstance(r, selectedPropsArray)))
+//    } else {
+//      Seq(
+//        client.edges
+//          .queryStream(dmiQuery, limit)
+//          .map(r => toProjectedInstance(r, selectedPropsArray)))
+//    }
+//  }
 
   override def buildScan(selectedColumns: Array[String], filters: Array[sql.sources.Filter]): RDD[Row] =
     SdkV1Rdd[ProjectedDataModelInstanceV3, String](
@@ -925,6 +841,10 @@ class DataModelInstancesRelationV3(
     IO.raiseError[Unit](
       new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
 
+}
+
+object DataModelInstancesRelationV3 {
+  val ResourceType = "datamodelinstancesV3"
 }
 
 final case class ProjectedDataModelInstanceV3(externalId: String, properties: Array[Any])

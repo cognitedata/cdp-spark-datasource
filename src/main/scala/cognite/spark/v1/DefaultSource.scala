@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.Apply
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
@@ -121,6 +122,31 @@ class DefaultSource
     )(sqlContext)
   }
 
+  private def createDataModelInstancesV3(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext): DataModelInstancesRelationV3 = {
+    val space =
+      parameters.getOrElse("space", sys.error("external id of the 'space' must be specified"))
+    val containerExternalId = parameters.get("containerExternalId")
+    val viewExternalId = parameters.get("viewExternalId")
+    val viewVersion = parameters.get("viewVersion")
+
+    val viewExternalIdAndVersion = Apply[Option].map2(viewExternalId, viewVersion)(Tuple2.apply)
+
+    if (containerExternalId.isEmpty && viewExternalIdAndVersion.isEmpty) {
+      throw new CdfSparkException(
+        "View external id with View version or a container external id should be specified")
+    } else {
+      new DataModelInstancesRelationV3(
+        config,
+        space,
+        viewExternalIdAndVersion,
+        containerExternalId,
+      )(sqlContext)
+    }
+  }
+
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
       sqlContext: SQLContext,
@@ -196,6 +222,8 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
+      case DataModelInstancesRelationV3.ResourceType =>
+        createDataModelInstancesV3(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -258,6 +286,8 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
+        case DataModelInstancesRelationV3.ResourceType =>
+          createDataModelInstancesV3(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {
