@@ -4,6 +4,8 @@ import com.cognite.sdk.scala.common.{DomainSpecificLanguageFilter, EmptyFilter}
 import com.cognite.sdk.scala.v1.DataModelType.{EdgeType, NodeType}
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
+import org.apache.spark.sql.types.{DataTypes, IntegerType, StringType}
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt

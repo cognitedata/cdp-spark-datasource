@@ -7,6 +7,9 @@ import cognite.spark.v1.DataModelInstancesHelper._
 import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
+import com.cognite.sdk.scala.v1.fdm.common.Usage
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.ComparableFilterValue
+import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
 import com.cognite.sdk.scala.v1.fdm.common.properties.{
@@ -16,6 +19,10 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.{
 }
 import com.cognite.sdk.scala.v1.fdm.common.refs.SourceReference
 import com.cognite.sdk.scala.v1.fdm.containers._
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
+  EdgeDeletionRequest,
+  NodeDeletionRequest
+}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition, ViewReference}
@@ -41,7 +48,9 @@ import java.time._
 import java.time.format.DateTimeFormatter
 import scala.annotation.nowarn
 import scala.util.{Failure, Success, Try}
+import scala.util.control.NonFatal
 
+// scalastyle:off number.of.methods
 class DataModelInstancesRelationV3(
     config: RelationConfig,
     space: String,
@@ -133,14 +142,14 @@ class DataModelInstancesRelationV3(
         case (_, fieldsMap) =>
           fieldsMap.map {
             case (identifier, propType) =>
-              StructField(
+              DataTypes.createStructField(
                 identifier,
                 convertToSparkDataType(propType.`type`),
-                nullable = propType.nullable.getOrElse(true))
+                propType.nullable.getOrElse(true))
           }
       }
-      .orElse(containerDefinition.map { container =>
-        container.properties.map {
+      .orElse(containerDefinition.map { containerDef =>
+        containerDef.properties.map {
           case (identifier, propType) =>
             DataTypes.createStructField(
               identifier,
@@ -167,13 +176,13 @@ class DataModelInstancesRelationV3(
       .map2(rows.headOption, containerDefinition)(Tuple2.apply)
 
     (containerDefWithFirstRow, viewDefAndPropsWithFirstRow) match {
-      case (Some((firstRow, container)), None) =>
+      case (Some((firstRow, containerDef)), None) =>
         createNodesOrEdges(
           rows,
           firstRow.schema,
-          ContainerReference(space, container.externalId),
-          container.properties,
-          container.usedFor).flatMap(results => incMetrics(itemsUpserted, results.length))
+          containerDef.toContainerReference,
+          containerDef.properties,
+          containerDef.usedFor).flatMap(results => incMetrics(itemsUpserted, results.length))
       case (None, Some((firstRow, viewDef, viewProps))) =>
         createNodesOrEdges(
           rows,
@@ -186,7 +195,7 @@ class DataModelInstancesRelationV3(
           new CdfSparkException(
             s"Either a correct (view external id, view version) pair or a container external id should be specified, not both"
           ))
-      case (None, None) if rows.isEmpty => IO.unit
+      case (None, None) if rows.isEmpty => incMetrics(itemsUpserted, 0)
       case (None, None) if containerExternalId.nonEmpty =>
         IO.raiseError[Unit](
           new CdfSparkException(
@@ -215,10 +224,10 @@ class DataModelInstancesRelationV3(
       schema: StructType,
       sourceReference: SourceReference,
       propDefMap: Map[String, PropertyDefinition],
-      usedFor: ContainerUsage): IO[Seq[SlimNodeOrEdge]] = usedFor match {
-    case ContainerUsage.Node => createNodes(rows, schema, propDefMap, sourceReference)
-    case ContainerUsage.Edge => createEdges(rows, schema, propDefMap, sourceReference)
-    case ContainerUsage.All =>
+      usedFor: Usage): IO[Seq[SlimNodeOrEdge]] = usedFor match {
+    case Usage.Node => createNodes(rows, schema, propDefMap, sourceReference)
+    case Usage.Edge => createEdges(rows, schema, propDefMap, sourceReference)
+    case Usage.All =>
       verifyPrerequisitesForEdges(schema) match {
         case Failure(errForEdge) =>
           verifyPrerequisitesForNodes(schema) match {
@@ -443,7 +452,7 @@ class DataModelInstancesRelationV3(
           .getSeq[String](schema.fieldIndex(field.name))
           .toList
           .traverse(io.circe.parser.parse)
-          .map(l => Some(InstancePropertyValue.ObjectsList(l)))
+          .map(l => Some(InstancePropertyValue.ObjectList(l)))
           .leftMap(e =>
             new CdfSparkException(
               s"Error parsing value of field '${field.name}' as a list of json objects: ${e.getMessage}"))
@@ -524,7 +533,7 @@ class DataModelInstancesRelationV3(
             .getSeq[String](schema.fieldIndex(field.name))
             .toList
             .traverse(io.circe.parser.parse)
-            .map(InstancePropertyValue.ObjectsList.apply)
+            .map(InstancePropertyValue.ObjectList.apply)
             .leftMap(e =>
               new CdfSparkException(
                 s"Error parsing value of field '${field.name}' as a list of json objects: ${e.getMessage}"))
@@ -613,8 +622,8 @@ class DataModelInstancesRelationV3(
     }
 
     propType match {
-      case TextProperty(Some(true), _) => DataTypes.StringType
-      case TextProperty(_, _) => DataTypes.createArrayType(DataTypes.StringType)
+      case TextProperty(Some(true), _) => DataTypes.createArrayType(DataTypes.StringType)
+      case TextProperty(_, _) => DataTypes.StringType
       case PrimitiveProperty(ppt, Some(true)) =>
         DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt))
       case PrimitiveProperty(ppt, _) => primitivePropTypeToSparkDataType(ppt)
@@ -624,17 +633,18 @@ class DataModelInstancesRelationV3(
   }
 
   def insert(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException(
-      "Create (abort) is not supported for data model instances. Use upsert instead.")
+    IO.raiseError[Unit](
+      new CdfSparkException(
+        "Create (abort) is not supported for data model instances. Use upsert instead."))
 
-  def toRow(a: ProjectedDataModelInstance2): Row = {
+  def toRow(a: ProjectedDataModelInstanceV3): Row = {
     if (config.collectMetrics) {
       itemsRead.inc()
     }
     new GenericRow(a.properties)
   }
 
-  def uniqueId(a: ProjectedDataModelInstance2): String = a.externalId
+  def uniqueId(a: ProjectedDataModelInstanceV3): String = a.externalId
 
   // scalastyle:off cyclomatic.complexity
   private def getValue(propName: String, prop: DataModelProperty[_]): Any =
@@ -669,9 +679,9 @@ class DataModelInstancesRelationV3(
 
   def toProjectedInstance(
       pmap: PropertyMap,
-      requiredPropsArray: Array[String]): ProjectedDataModelInstance2 = {
+      requiredPropsArray: Array[String]): ProjectedDataModelInstanceV3 = {
     val dmiProperties = pmap.allProperties
-    ProjectedDataModelInstance2(
+    ProjectedDataModelInstanceV3(
       externalId = pmap.externalId,
       properties = requiredPropsArray.map { name: String =>
         dmiProperties.get(name).map(getValue(name, _)).orNull
@@ -679,133 +689,243 @@ class DataModelInstancesRelationV3(
     )
   }
 
+  def valueToFilterValueDef(
+      attribute: String,
+      value: Any): Either[CdfSparkException, FilterValueDefinition] =
+    value match {
+//      case v: String =>
+//        io.circe.parser.parse(v) match {
+//          case Right(json) if json.isObject => Some(FilterValueDefinition.Object(json))
+//          case _ => Some(FilterValueDefinition.String(v))
+//        }
+      case v: String => Right(FilterValueDefinition.String(v))
+      case v: scala.Double => Right(FilterValueDefinition.Number(v))
+      case v: scala.Int => Right(FilterValueDefinition.Integer(v.toLong))
+      case v: scala.Long => Right(FilterValueDefinition.Integer(v))
+      case v: scala.Boolean => Right(FilterValueDefinition.Boolean(v))
+      case v =>
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"Expecting a String, Number, Boolean or Object for '$attribute', but found ${v.toString}"
+          )
+        )
+    }
+
+  def valueToComparableFilterValueDef(
+      attribute: String,
+      value: Any): Either[CdfSparkException, ComparableFilterValue] =
+    value match {
+      case v: String => Right(FilterValueDefinition.String(v))
+      case v: scala.Double => Right(FilterValueDefinition.Number(v))
+      case v: scala.Int => Right(FilterValueDefinition.Integer(v.toLong))
+      case v: scala.Long => Right(FilterValueDefinition.Integer(v))
+      case v =>
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"Expecting a comparable value(Number or String) for '$attribute', but found ${v.toString}"
+          )
+        )
+    }
+
+  def valueToFilterValueDefSeq(
+      attribute: String,
+      value: Any): Either[CdfSparkException, Seq[FilterValueDefinition]] =
+    value match {
+      //      case v: Array[String] =>
+      //        v.headOption.flatMap(s => io.circe.parser.parse(s).toOption) match {
+      //          case Some(_) => Some(v.map(FilterValueDefinition.Object.apply))
+      //          case None => Some(v.map(FilterValueDefinition.String.apply))
+      //        }
+      case v: Array[Double] => Right(v.map(FilterValueDefinition.Number.apply))
+      case v: Array[Float] => Right(v.map(f => FilterValueDefinition.Number(f.toDouble)))
+      case v: Array[Int] => Right(v.map(i => FilterValueDefinition.Integer.apply(i.toLong)))
+      case v: Array[Long] => Right(v.map(FilterValueDefinition.Integer.apply))
+      case v: Array[String] => Right(v.map(FilterValueDefinition.String.apply))
+      case v: Array[Boolean] => Right(v.map(FilterValueDefinition.Boolean.apply))
+      case v =>
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"Expecting an Array of String, Number, Boolean or Object for '$attribute', but found ${v.toString}"
+          )
+        )
+    }
+
   // scalastyle:off method.length cyclomatic.complexity
-  def getInstanceFilter(sparkFilter: sql.sources.Filter): Option[DomainSpecificLanguageFilter] =
+  def getInstanceFilter(sparkFilter: sql.sources.Filter): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
-      case EqualTo(left, right) =>
-        Some(DSLEqualsFilter(Seq(space, modelExternalId, left), parsePropertyValue(left, right)))
+      case EqualTo(attribute, value) =>
+        valueToFilterValueDef(attribute, value).map(FilterDefinition.Equals(Seq(attribute), _))
       case In(attribute, values) =>
-        if (modelInfo(attribute).`type`.code.endsWith("[]")) {
-          None
-        } else {
-          val setValues = values.filter(_ != null)
-          Some(
-            DSLInFilter(
-              Seq(space, modelExternalId, attribute),
-              setValues.map(parsePropertyValue(attribute, _)).toIndexedSeq))
-        }
+        valueToFilterValueDefSeq(attribute, values).map(FilterDefinition.In(Seq(attribute), _))
       case StringStartsWith(attribute, value) =>
-        Some(
-          DSLPrefixFilter(Seq(space, modelExternalId, attribute), parsePropertyValue(attribute, value)))
+        Right(FilterDefinition.Prefix(Seq(attribute), FilterValueDefinition.String(value)))
       case GreaterThanOrEqual(attribute, value) =>
-        Some(
-          DSLRangeFilter(
-            Seq(space, modelExternalId, attribute),
-            gte = Some(parsePropertyValue(attribute, value))))
+        valueToComparableFilterValueDef(attribute, value).map(f =>
+          FilterDefinition.Range(property = Seq(attribute), gte = Some(f)))
       case GreaterThan(attribute, value) =>
-        Some(
-          DSLRangeFilter(
-            Seq(space, modelExternalId, attribute),
-            gt = Some(parsePropertyValue(attribute, value))))
+        valueToComparableFilterValueDef(attribute, value).map(f =>
+          FilterDefinition.Range(property = Seq(attribute), gt = Some(f)))
       case LessThanOrEqual(attribute, value) =>
-        Some(
-          DSLRangeFilter(
-            Seq(space, modelExternalId, attribute),
-            lte = Some(parsePropertyValue(attribute, value))))
+        valueToComparableFilterValueDef(attribute, value).map(f =>
+          FilterDefinition.Range(property = Seq(attribute), lte = Some(f)))
       case LessThan(attribute, value) =>
-        Some(
-          DSLRangeFilter(
-            Seq(space, modelExternalId, attribute),
-            lt = Some(parsePropertyValue(attribute, value))))
+        valueToComparableFilterValueDef(attribute, value).map(f =>
+          FilterDefinition.Range(property = Seq(attribute), lt = Some(f)))
       case And(f1, f2) =>
-        (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
-          DSLAndFilter(Seq(sf1, sf2)))
+        List(f1, f2).traverse(getInstanceFilter).map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
-        (getInstanceFilter(f1), getInstanceFilter(f2)) match {
-          case (Some(sf1), Some(sf2)) =>
-            Some(DSLOrFilter(Seq(sf1, sf2)))
-          case _ =>
-            None
-        }
-      case IsNotNull(attribute) =>
-        Some(DSLExistsFilter(Seq(space, modelExternalId, attribute)))
-      case Not(f) =>
-        getInstanceFilter(f).map(DSLNotFilter)
-      case _ => None
+        List(f1, f2).traverse(getInstanceFilter).map(FilterDefinition.Or.apply)
+      case IsNotNull(attribute) => Right(FilterDefinition.Exists(Seq(attribute)))
+      case Not(f) => getInstanceFilter(f).map(FilterDefinition.Not.apply)
+      case f => Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.toString}'"))
     }
   // scalastyle:on method.length cyclomatic.complexity
 
   def getStreams(filters: Array[sql.sources.Filter], selectedColumns: Array[String])(
       @nowarn client: GenericClient[IO],
       limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance2]] = {
-    val selectedPropsArray: Array[String] = if (selectedColumns.isEmpty) {
-      schema.fields.map(_.name)
+      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstanceV3]] = {
+    val selectedPropsArray = if (selectedColumns.isEmpty) {
+      schema.fieldNames
     } else {
       selectedColumns
     }
 
-    val filter: DomainSpecificLanguageFilter = {
-      val andFilters = filters.toVector.flatMap(getInstanceFilter)
-      if (andFilters.isEmpty) EmptyFilter else DSLAndFilter(andFilters)
-    }
+    val filter = filters.toList.traverse(getInstanceFilter)
 
-    // only take the first spaceExternalId and ignore the rest, maybe we can throw an error instead in case there are
-    // more than one
-    val instanceSpaceExternalIdFilter = filters
-      .collectFirst {
-        case EqualTo("spaceExternalId", value) => value.toString()
-      }
-      .getOrElse(space)
+    val spaceFilters = (filters.map {
+      case EqualTo("space", value) => value.toString
+    } ++ Array(space)).distinct
 
-    val dmiQuery = DataModelInstanceQuery(
+    val dmiQuery = InstanceFilterRequest(
       model = DataModelIdentifier(space = Some(space), model = modelExternalId),
-      spaceExternalId = instanceSpaceExternalIdFilter,
+      spaces = Some(spaceFilters),
       filter = filter,
       sort = None,
       limit = limit,
-      cursor = None
+      cursor = None,
+      instanceType = None
     )
 
     if (modelType == NodeType) {
       Seq(
-        alphaClient.nodes
+        client.nodes
           .queryStream(dmiQuery, limit)
           .map(r => toProjectedInstance(r, selectedPropsArray)))
     } else {
       Seq(
-        alphaClient.edges
+        client.edges
           .queryStream(dmiQuery, limit)
           .map(r => toProjectedInstance(r, selectedPropsArray)))
     }
   }
 
   override def buildScan(selectedColumns: Array[String], filters: Array[sql.sources.Filter]): RDD[Row] =
-    SdkV1Rdd[ProjectedDataModelInstance2, String](
+    SdkV1Rdd[ProjectedDataModelInstanceV3, String](
       sqlContext.sparkContext,
       config,
-      (item: ProjectedDataModelInstance2, _) => toRow(item),
-      uniqueId,
-      getStreams(filters, selectedColumns)
+      (item: ProjectedDataModelInstanceV3, _) => toRow(item),
+      _.externalId,
+      (_, _, _) => Seq.empty //getStreams(filters, selectedColumns)
     )
 
-  override def delete(rows: Seq[Row]): IO[Unit] = {
-    val deletes = rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceDeleteSchema](r))
-    if (modelType == DataModelType.NodeType) {
-      alphaClient.nodes
-        .deleteItems(deletes.map(_.externalId), space)
-        .flatTap(_ => incMetrics(itemsDeleted, rows.length))
-    } else {
-      alphaClient.edges
-        .deleteItems(deletes.map(_.externalId), space)
-        .flatTap(_ => incMetrics(itemsDeleted, rows.length))
+  // scalastyle:off cyclomatic.complexity
+  override def delete(rows: Seq[Row]): IO[Unit] =
+    (containerDefinition, viewDefinitionAndProperties) match {
+      case (Some(containerDef), None) if containerDef.usedFor == Usage.Edge =>
+        deleteEdgesWithMetrics(rows)
+
+      case (Some(containerDef), None) if containerDef.usedFor == Usage.Node =>
+        deleteNodesWithMetrics(rows)
+
+      case (Some(containerDef), None) if containerDef.usedFor == Usage.All =>
+        deleteNodesOrEdgesWithMetrics(rows, s"Container with externalId: ${containerDef.externalId}")
+
+      case (None, Some((viewDef, _))) if viewDef.usedFor == Usage.Edge => deleteEdgesWithMetrics(rows)
+
+      case (None, Some((viewDef, _))) if viewDef.usedFor == Usage.Node => deleteNodesWithMetrics(rows)
+
+      case (None, Some((viewDef, _))) if viewDef.usedFor == Usage.All =>
+        deleteNodesOrEdgesWithMetrics(
+          rows,
+          s"View with externalId: ${viewDef.externalId} & version: ${viewDef.version}")
+
+      case (Some(_), Some(_)) =>
+        IO.raiseError[Unit](
+          new CdfSparkException(
+            s"Either a correct (view external id, view version) pair or a container external id should be specified, not both"
+          ))
+      case (None, None) if rows.isEmpty => incMetrics(itemsDeleted, 0)
+      case (None, None) if containerExternalId.nonEmpty =>
+        IO.raiseError[Unit](
+          new CdfSparkException(
+            s"""|Either a correct (view external id, view version) pair or a container external id should be specified.
+                |Could not resolve container external id: $containerExternalId
+                |""".stripMargin
+          ))
+      case (None, None) if viewExternalIdAndVersion.nonEmpty =>
+        IO.raiseError[Unit](
+          new CdfSparkException(
+            s"""|Either a correct (view external id, view version) pair or a container external id should be specified.
+                |Could not resolve (view external id, view version) : $viewExternalIdAndVersion
+                |""".stripMargin
+          ))
+      case (None, None) =>
+        IO.raiseError[Unit](
+          new CdfSparkException(
+            s"Either a correct (view external id, view version) pair or a container external id should be specified"
+          ))
     }
+  // scalastyle:on cyclomatic.complexity
+
+  private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
+    val deleteCandidates =
+      rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceV3DeleteModel](r))
+    alphaClient.instances
+      .delete(deleteCandidates.map(i => NodeDeletionRequest(i.space.getOrElse(space), i.externalId)))
+      .flatMap(results => incMetrics(itemsDeleted, results.length))
+  }
+
+  private def deleteEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
+    val deleteCandidates =
+      rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceV3DeleteModel](r))
+    alphaClient.instances
+      .delete(deleteCandidates.map(i => EdgeDeletionRequest(i.space.getOrElse(space), i.externalId)))
+      .flatMap(results => incMetrics(itemsDeleted, results.length))
+  }
+
+  private def deleteNodesOrEdgesWithMetrics(rows: Seq[Row], errorMsgPrefix: String): IO[Unit] = {
+    val deleteCandidates =
+      rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceV3DeleteModel](r))
+    alphaClient.instances
+      .delete(deleteCandidates.map(i => NodeDeletionRequest(i.space.getOrElse(space), i.externalId)))
+      .recoverWith {
+        case NonFatal(nodeDeletionErr) =>
+          alphaClient.instances
+            .delete(deleteCandidates.map(i =>
+              EdgeDeletionRequest(i.space.getOrElse(space), i.externalId)))
+            .handleErrorWith {
+              case NonFatal(edgeDeletionErr) =>
+                IO.raiseError(
+                  new CdfSparkException(
+                    s"""
+                       |$errorMsgPrefix supports both Nodes & Edges
+                       |Tried deleting as nodes and failed: ${nodeDeletionErr.getMessage}
+                       |Tried deleting as edges and failed: ${edgeDeletionErr.getMessage}
+                       |Please verify your data
+                       |""".stripMargin
+                  )
+                )
+            }
+      }
+      .flatMap(results => incMetrics(itemsDeleted, results.length))
   }
 
   def update(rows: Seq[Row]): IO[Unit] =
-    throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
+    IO.raiseError[Unit](
+      new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
 
 }
 
-final case class ProjectedDataModelInstance2(externalId: String, properties: Array[Any])
-final case class DataModelInstanceDeleteSchema2(spaceExternalId: Option[String], externalId: String)
+final case class ProjectedDataModelInstanceV3(externalId: String, properties: Array[Any])
+final case class DataModelInstanceV3DeleteModel(space: Option[String], externalId: String)
