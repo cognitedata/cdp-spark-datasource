@@ -159,15 +159,8 @@ object DataModelInstancesHelper {
       throw new CdfSparkException(s"$directRelationErr but got $a as the value.")
   }
 
-  import io.circe.parser._
   private def toJsonProperty: Any => Option[DataModelProperty[_]] = {
-    case rawJson: String =>
-      parse(rawJson) match {
-        case Right(json) => Some(PropertyType.Json.Property(json))
-        case Left(_) =>
-          throw new CdfSparkException(
-            s"Failed to encode property ${PropertyType.Json.code} because ${rawJson} is not a Json")
-      }
+    case x: String => Some(PropertyType.Json.Property(x))
     case a =>
       throw new CdfSparkException(notValidPropertyTypeMessage(a, PropertyType.Json.code, Some("string")))
   }
