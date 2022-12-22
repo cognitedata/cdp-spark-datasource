@@ -111,6 +111,7 @@ object DataModelInstancesHelper {
       case PropertyType.Array.Int32 => DataTypes.createArrayType(DataTypes.IntegerType)
       case PropertyType.Array.Int64 => DataTypes.createArrayType(DataTypes.LongType)
       case PropertyType.Array.Bigint => DataTypes.createArrayType(DataTypes.LongType)
+      case PropertyType.Array.Json => DataTypes.createArrayType(DataTypes.StringType)
       case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
 
