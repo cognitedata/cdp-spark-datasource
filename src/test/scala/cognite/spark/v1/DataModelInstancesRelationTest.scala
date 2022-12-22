@@ -99,7 +99,8 @@ class DataModelInstancesRelationTest
     "prop_float" -> DataModelPropertyDefinition(`type` = PropertyType.Float64, nullable = true),
     "prop_bool" -> DataModelPropertyDefinition(`type` = PropertyType.Boolean, nullable = true),
     "prop_string" -> DataModelPropertyDefinition(`type` = PropertyType.Text, nullable = true),
-    "prop_json" -> DataModelPropertyDefinition(`type` = PropertyType.Json, nullable = true)
+    "prop_json" -> DataModelPropertyDefinition(`type` = PropertyType.Json, nullable = true),
+    "arr_json" -> DataModelPropertyDefinition(`type` = PropertyType.Array.Json, nullable = true)
   )
   private val props3 = Map(
     "prop_int32" -> DataModelPropertyDefinition(`type` = PropertyType.Int32, nullable = false),
@@ -305,7 +306,7 @@ class DataModelInstancesRelationTest
       }
     }
 
-  it should "ingest data" in {
+  it should "ingest data prim" in {
     val randomId = "prim_test_" + shortRandomString()
 
     tryTestAndCleanUp(
@@ -321,6 +322,7 @@ class DataModelInstancesRelationTest
                           |true as prop_bool,
                           |'abc' as prop_string,
                           |to_json(named_struct("string_val", "toto", "int_val", 1)) as prop_json,
+                          |array(to_json(named_struct("string_val", "tata")), to_json(named_struct("int_val", 2))) as arr_json,
                           |'$randomId' as externalId""".stripMargin),
               )
             }.isFailure
@@ -358,6 +360,12 @@ class DataModelInstancesRelationTest
                                                                            |  "int_val" : 1,
                                                                            |  "string_val" : "toto"
                                                                            |}""".stripMargin))
+        result.get("arr_json") shouldBe Some(
+          PropertyType.Array.Json.Property(
+            List(
+              """{"string_val":"tata"}""",
+              """{"int_val":2}"""
+            )))
       }
     )
   }

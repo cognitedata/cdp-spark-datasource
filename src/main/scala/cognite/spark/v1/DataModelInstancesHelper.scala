@@ -111,6 +111,7 @@ object DataModelInstancesHelper {
       case PropertyType.Array.Int32 => DataTypes.createArrayType(DataTypes.IntegerType)
       case PropertyType.Array.Int64 => DataTypes.createArrayType(DataTypes.LongType)
       case PropertyType.Array.Bigint => DataTypes.createArrayType(DataTypes.LongType)
+      case PropertyType.Array.Json => DataTypes.createArrayType(DataTypes.StringType)
       case a => throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
 
@@ -163,6 +164,19 @@ object DataModelInstancesHelper {
     case x: String => Some(PropertyType.Json.Property(x))
     case a =>
       throw new CdfSparkException(notValidPropertyTypeMessage(a, PropertyType.Json.code, Some("string")))
+  }
+
+  private def toJsonArrayProperty: Any => Option[DataModelProperty[_]] = {
+    case x: Iterable[_] =>
+      x.headOption match {
+        case None => Some(PropertyType.Array.Json.Property(Vector.empty))
+        case Some(_: String) =>
+          Some(PropertyType.Array.Json.Property(x.collect { case s: String => s }.toVector))
+        case _ =>
+          throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Json.code))
+      }
+    case x =>
+      throw new CdfSparkException(notValidPropertyTypeMessage(x, PropertyType.Array.Json.code))
   }
 
   private def toGeographyProperty: Any => Option[DataModelProperty[_]] = {
@@ -355,6 +369,7 @@ object DataModelInstancesHelper {
       case PropertyType.Array.Boolean => toBooleanArrayProperty
       case PropertyType.Array.Int | PropertyType.Array.Int32 => toInt32ArrayProperty(propertyType)
       case PropertyType.Array.Int64 | PropertyType.Array.Bigint => toInt64ArrayProperty(propertyType)
+      case PropertyType.Array.Json => toJsonArrayProperty
       case a =>
         throw new CdfSparkException(unknownPropertyTypeMessage(a))
     }
