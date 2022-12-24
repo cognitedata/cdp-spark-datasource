@@ -361,11 +361,14 @@ class DataModelInstancesRelationTest
                                                                            |  "string_val" : "toto"
                                                                            |}""".stripMargin))
         result.get("arr_json") shouldBe Some(
-          PropertyType.Array.Json.Property(
-            List(
-              """{"string_val":"tata"}""",
-              """{"int_val":2}"""
-            )))
+          PropertyType.Array.Json.Property(List(
+            """{
+                 |  "string_val" : "tata"
+                 |}""".stripMargin,
+            """{
+                 |  "int_val" : 2
+                 |}""".stripMargin
+          )))
       }
     )
   }
@@ -787,6 +790,7 @@ class DataModelInstancesRelationTest
 
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId, metricPrefix).where("prop_string = 'abc' or prop_bool = false")
+        //df.show(false)
         df.count() shouldBe 3
         getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
         (collectExternalIds(df) should contain).only(randomId1, randomId3, randomId4)
