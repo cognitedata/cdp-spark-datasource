@@ -790,7 +790,6 @@ class DataModelInstancesRelationTest
 
         val metricPrefix = shortRandomString()
         val df = readRows(primitiveExtId, metricPrefix).where("prop_string = 'abc' or prop_bool = false")
-        //df.show(false)
         df.count() shouldBe 3
         getNumberOfRowsRead(metricPrefix, "datamodelinstances") shouldBe 3
         (collectExternalIds(df) should contain).only(randomId1, randomId3, randomId4)
