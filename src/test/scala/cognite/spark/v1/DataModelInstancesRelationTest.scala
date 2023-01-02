@@ -361,11 +361,14 @@ class DataModelInstancesRelationTest
                                                                            |  "string_val" : "toto"
                                                                            |}""".stripMargin))
         result.get("arr_json") shouldBe Some(
-          PropertyType.Array.Json.Property(
-            List(
-              """{"string_val":"tata"}""",
-              """{"int_val":2}"""
-            )))
+          PropertyType.Array.Json.Property(List(
+            """{
+                 |  "string_val" : "tata"
+                 |}""".stripMargin,
+            """{
+                 |  "int_val" : 2
+                 |}""".stripMargin
+          )))
       }
     )
   }
