@@ -9,52 +9,6 @@ import io.circe.syntax.EncoderOps
 import org.scalatest.{FlatSpec, Inspectors, Matchers}
 import sttp.client3.UriContext
 
-case class Source(
-    name: String,
-    description: Option[String] = None
-)
-
-case class DeleteSources(
-    items: Seq[Source],
-    recursive: Option[Boolean] = None
-)
-
-case class SourceItems(
-    items: Seq[Source]
-)
-
-case class WellboreIngestionSource(
-    assetExternalId: String,
-    sourceName: String
-)
-
-case class WellboreIngestion(
-    matchingId: Option[String] = None,
-    name: String,
-    description: Option[String] = None,
-    wellAssetExternalId: String,
-    parentWellboreAssetExternalId: Option[String] = None,
-    uniqueWellboreIdentifier: Option[String] = None,
-    source: WellboreIngestionSource,
-    datum: Option[Datum] = None,
-    totalDrillingDays: Option[Double] = None,
-    kickoffMeasuredDepth: Option[Distance] = None
-)
-case class WellboreIngestionItems(
-    items: Seq[WellboreIngestion]
-)
-
-case class WellIngestionItems(
-    items: Seq[WellIngestion]
-)
-
-case class WellItems(
-    items: Seq[Well],
-    wellsCount: Option[Int] = None,
-    wellboresCount: Option[Int] = None,
-    nextCursor: Option[String] = None
-)
-
 class WDLTestUtilsTest extends FlatSpec with Matchers with SparkTest with Inspectors {
 
   private class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
