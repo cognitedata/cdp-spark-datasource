@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
@@ -121,6 +122,15 @@ class DefaultSource
     )(sqlContext)
   }
 
+  private def createWellDataLayer(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext
+  ): WellDataLayerRelation = {
+    val model = parameters.getOrElse("wdlDataType", sys.error("wdlDataType must be specified"))
+    new WellDataLayerRelation(config, model)(sqlContext)
+  }
+
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
       sqlContext: SQLContext,
@@ -196,6 +206,8 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
+      case "wdl" =>
+        createWellDataLayer(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -258,6 +270,10 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
+        case "wells" =>
+          new WellsRelation(config)(sqlContext)
+        case "wdl" =>
+          createWellDataLayer(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {
