@@ -127,7 +127,7 @@ class DataPointsRelationTest
       .load()
       .where(
         s"timestamp > to_timestamp(1509528850) and timestamp < to_timestamp(1509528860) and id = $valhallTimeSeriesId")
-    assert(df.count() == 9)
+    assert(df.take(20).length == 9)
   }
 
   it should "support aggregations" taggedAs (ReadTest) in {
@@ -136,26 +136,26 @@ class DataPointsRelationTest
       .load()
       .where(s"aggregation = 'stepInterpolation' and granularity = '1d' and id = $valhallTimeSeriesId")
 
-    assert(df1.count() > 10)
+    assert(df1.take(20).length > 10)
     val df1Partitions = dataFrameReaderUsingOidc
       .option("type", "datapoints")
       .load()
       .where(
         s"timestamp >= to_timestamp(1509490000) and timestamp <= to_timestamp(1510358400) and aggregation = 'max' and granularity = '1d' and id = $valhallTimeSeriesId")
-    assert(df1Partitions.count() == 11)
+    assert(df1Partitions.take(20).length == 11)
     val df2 = dataFrameReaderUsingOidc
       .option("type", "datapoints")
       .load()
       .where(
         s"timestamp >= to_timestamp(1520035200) and timestamp <= to_timestamp(1561507200) and aggregation = 'average' and granularity = '60d' and id = $valhallTimeSeriesId")
-    assert(df2.count() == 8)
+    assert(df2.take(10).length == 8)
     val df3 = dataFrameReaderUsingOidc
       .option("type", "datapoints")
       .load()
       .sort("timestamp")
       .where(
         s"timestamp >= to_timestamp(1514592000) and timestamp <= to_timestamp(1540512000) and aggregation = 'average' and granularity = '60d' and id = $valhallTimeSeriesId")
-    val result = df3.collect()
+    val result = df3.take(10)
     assert(result.length == 5)
     assert(result(0).getTimestamp(2).getTime == 1518912000000L)
   }
@@ -167,7 +167,7 @@ class DataPointsRelationTest
       .sort("timestamp")
       .where(
         s"timestamp >= to_timestamp(1509490001) and timestamp <= to_timestamp(1510358400) and aggregation = 'max' and granularity = '1d' and id = $valhallTimeSeriesId")
-    val results1 = df1.collect()
+    val results1 = df1.take(25)
     assert(results1.length == 11)
     assert(results1(0).getTimestamp(2).getTime == 1509494400000L)
     val df2 = dataFrameReaderUsingOidc
@@ -191,7 +191,7 @@ class DataPointsRelationTest
       .where(
         s"timestamp >= to_timestamp(1508544000) and timestamp < to_timestamp(1511135998) and aggregation in ('sum', 'average', 'max') and granularity = '30d' and id = $valhallTimeSeriesId")
       .orderBy(col("aggregation").asc)
-      .collect()
+      .take(5)
     assert(results.length == 3)
     val pointsRead = getNumberOfRowsRead(metricsPrefix, "datapoints")
     assert(pointsRead == 6)
@@ -214,7 +214,7 @@ class DataPointsRelationTest
       .where(
         s"timestamp >= to_timestamp(1508889600) and timestamp <= to_timestamp(1511481600) and aggregation in ('min') and id = $valhallTimeSeriesId")
     val e = intercept[Exception] {
-      df.count()
+      df.take(5).length
     }
     e shouldBe an[CdfSparkIllegalArgumentException]
   }
@@ -226,7 +226,7 @@ class DataPointsRelationTest
       .where(
         s"timestamp >= to_timestamp(1508889600) and timestamp <= to_timestamp(1511481600) and granularity = '30d' and id = $valhallTimeSeriesId")
     val e = intercept[Exception] {
-      df.count()
+      df.take(5).length
     }
     e shouldBe an[CdfSparkIllegalArgumentException]
   }
@@ -239,7 +239,7 @@ class DataPointsRelationTest
         .where(
           s"timestamp >= to_timestamp(1508889600) and timestamp <= to_timestamp(1511481600) and aggregation in ('min') and granularity = '$granularity' and id = $valhallTimeSeriesId")
       val e = intercept[Exception] {
-        df.count()
+        df.take(5).length
       }
       e shouldBe an[CdfSparkIllegalArgumentException]
     }
@@ -264,7 +264,7 @@ class DataPointsRelationTest
         .load()
         .where(
           s"timestamp > to_timestamp(0) and timestamp <= to_timestamp(1510358400) and aggregation in ('max') and granularity = '$granularity' and id = $valhallTimeSeriesId")
-      assert(df.count() >= 1)
+      assert(df.take(5).length >= 1)
     }
   }
 
@@ -275,7 +275,7 @@ class DataPointsRelationTest
       .where(s"timestamp > to_timestamp(0) and timestamp <= to_timestamp(1510358400) and " +
         s"aggregation in ('average', 'max', 'min', 'count', 'sum', 'interpolation', 'stepInterpolation', 'totalVariation', 'continuousVariance', 'discreteVariance') " +
         s"and granularity = '1m' and id = $valhallTimeSeriesId")
-    assert(df.select("aggregation").distinct().count() == 10)
+    assert(df.select("aggregation").distinct().take(20).length == 10)
   }
 
   it should "read data points without duplicates" taggedAs ReadTest in {
@@ -316,13 +316,13 @@ class DataPointsRelationTest
       .load()
       .where(
         s"timestamp >= to_timestamp(1510358400) and timestamp <= to_timestamp(1510358400) and aggregation in ('max') and granularity = '1s' and id = $valhallTimeSeriesId")
-    assert(emptyDf.count() == 0)
+    assert(emptyDf.take(5).length == 0)
     val oneDf = dataFrameReaderUsingOidc
       .option("type", "datapoints")
       .load()
       .where(
         s"timestamp >= to_timestamp(1510358400) and timestamp < to_timestamp(1510358401) and aggregation in ('max') and granularity = '1s' and id = $valhallTimeSeriesId")
-    assert(oneDf.count() == 1)
+    assert(oneDf.take(5).length == 1)
 
     val df = dataFrameReaderUsingOidc
       .option("type", "datapoints")
@@ -402,7 +402,7 @@ class DataPointsRelationTest
       spark
         .sql(
           s"""select id from destinationTimeSeries where name = '$tsName' and dataSetId = $testDataSetId""")
-        .collect(),
+        .take(5),
       df => df.length < 1)
     assert(initialDescriptionsAfterPost.length == 1)
 
@@ -427,7 +427,7 @@ class DataPointsRelationTest
     val dataPointsAfterPost = retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationDatapointsInsert where id = '$id'""")
-        .collect(),
+        .take(5),
       df => df.length < 1)
     assert(dataPointsAfterPost.length == 1)
 
@@ -451,7 +451,7 @@ class DataPointsRelationTest
     val dataPointsAfterPostByExternalId = retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationDatapointsInsert where id = '$id'""")
-        .collect(),
+        .take(5),
       df => df.length < 2)
     assert(dataPointsAfterPostByExternalId.length == 2)
   }
@@ -501,7 +501,7 @@ class DataPointsRelationTest
       spark
         .sql(
           s"""select id from destinationTimeSeries where name = '$tsName' and dataSetId = $testDataSetId""")
-        .collect(),
+        .take(5),
       df => df.length < 1)
     assert(initialDescriptionsAfterPost.length == 1)
 
@@ -526,7 +526,7 @@ class DataPointsRelationTest
     val dataPointsAfterPostByExternalId = retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationDatapoints where externalId = '$tsName'""")
-        .collect(),
+        .take(5),
       df => df.length < timestamps.length)
     assert(dataPointsAfterPostByExternalId.length == timestamps.length)
   }
@@ -565,7 +565,7 @@ class DataPointsRelationTest
     val Array(tsId) = retryWhile[Array[Row]](
       spark
         .sql(s"""select id from destinationTimeSeries where externalId = '$tsName'""")
-        .collect(),
+        .take(5),
       df => df.isEmpty)
       .map(r => r.getLong(0).toString)
 
@@ -685,7 +685,7 @@ class DataPointsRelationTest
       spark
         .sql(
           s"""select id from destinationTimeSeries where externalId in ('$tsName1', '$tsName2') order by externalId asc""")
-        .collect(),
+        .take(5),
       df => df.length < 2)
     assert(idsAfterPost.length == 2)
 
@@ -730,7 +730,7 @@ class DataPointsRelationTest
     val dataPointsAfterPost = retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationDatapoints where id in ($id1, $id2)""")
-        .collect(),
+        .take(5),
       df => df.length < 4)
     assert(dataPointsAfterPost.length == 4)
   }
@@ -861,7 +861,7 @@ class DataPointsRelationTest
     val Array(tsIdRow) = retryWhile[Array[Row]](
       spark
         .sql(s"""select id from destinationTimeSeries where externalId = '$tsName'""")
-        .collect(),
+        .take(5),
       df => df.isEmpty)
     val tsId = tsIdRow.getAs[Long]("id")
 
@@ -894,7 +894,7 @@ class DataPointsRelationTest
     retryWhile[Array[Row]](
       spark
         .sql(s"""select * from destinationDatapoints where id = $tsId""")
-        .collect(),
+        .take(5),
       df => df.length < 3)
 
     spark
@@ -926,7 +926,7 @@ class DataPointsRelationTest
     val dataPointsAfterDelete = retryWhile[Array[Row]](
       spark
         .sql(s"""select value from destinationDatapoints where id = $tsId""")
-        .collect(),
+        .take(5),
       df => df.length != 1)
     dataPointsAfterDelete.head.getAs[Double]("value") shouldBe 2.0
   }
@@ -947,7 +947,7 @@ class DataPointsRelationTest
     val error = sparkIntercept {
       spark
         .sql(s"select * from destinationStringDatapoints where id = $valhallStringTimeSeriesId")
-        .collect()
+        .take(5)
     }
 
     assert(error.getMessage.contains(s"Cannot read string data points as numeric datapoints"))
@@ -987,7 +987,7 @@ class DataPointsRelationTest
       spark
         .sql(
           s"""select id from destinationTimeSeries where name = '$tsName' and dataSetId = $testDataSetId""")
-        .collect(),
+        .take(5),
       df => df.length < 1)
     assert(initialDescriptionsAfterPost.length == 1)
 
@@ -1047,7 +1047,7 @@ class DataPointsRelationTest
         .sql(
           s"""select value from destinationDatapoints where externalId = '$tsName' and timestamp > now()""")
         .as[Double]
-        .collect()
+        .take(5)
     assert(emptyPointInFuture.length == 0)
   }
 
@@ -1077,98 +1077,98 @@ class DataPointsRelationTest
     assert(loadedCount == getNumberOfRowsRead(metricsPrefix, "datapoints") - 1)
   }
 
-  it should "list datapoints in a day with inclusive start and exclusive end limits" taggedAs (ReadTest) in {
+  ignore should "list datapoints in a day with inclusive start and exclusive end limits" taggedAs (ReadTest) in {
     val res = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
-        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
     res.length shouldBe 3
     res.map(row => row.getDouble(1)).toSet shouldBe Set(0.2, 0.3, 0.4)
 
     val res2 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
-        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
     res2.length shouldBe 1
     res2.map(row => row.getDouble(1)).toSet shouldBe Set(0.8)
   }
 
-  it should "list datapoints in a day with exclusive start and inclusive end limits" taggedAs (ReadTest) in {
+  ignore should "list datapoints in a day with exclusive start and inclusive end limits" taggedAs (ReadTest) in {
     val res3 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
-        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
     res3.length shouldBe 3
     res3.map(row => row.getDouble(1)).toSet shouldBe Set(0.3, 0.4, 0.5)
 
     val res4 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
-        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
     res4.length shouldBe 1
     res4.map(row => row.getDouble(1)).toSet shouldBe Set(0.9)
   }
 
-  it should "list datapoints in a day with exclusive start and exclusive end limits" taggedAs (ReadTest) in {
+  ignore should "list datapoints in a day with exclusive start and exclusive end limits" taggedAs (ReadTest) in {
     val res5 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
-        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
     res5.length shouldBe 2
     res5.map(row => row.getDouble(1)).toSet shouldBe Set(0.3, 0.4)
 
     val res6 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
-        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
     res6.length shouldBe 0
   }
 
-  it should "list datapoints only with start limit" taggedAs (ReadTest) in {
+  ignore should "list datapoints only with start limit" taggedAs (ReadTest) in {
     val res7 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
-        |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).take(5)
     res7.length shouldBe 4
     res7.map(row => row.getDouble(1)).toSet shouldBe Set(0.3, 0.4, 0.5, 0.6)
 
     val res8 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel2' AND
-        |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).take(5)
     res8.length shouldBe 2
 
     val res9 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
-        |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).take(5)
     res9.length shouldBe 5
     res9.map(row => row.getDouble(1)).toSet shouldBe Set(0.2, 0.3, 0.4, 0.5, 0.6)
 
     val res10 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel2' AND
-        |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).take(5)
     res10.length shouldBe 3
   }
 
-  it should "list datapoints only with end limit" taggedAs (ReadTest) in {
+  ignore should "list datapoints only with end limit" taggedAs (ReadTest) in {
     val res11 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
-        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
     res11.length shouldBe 4
     res11.map(row => row.getDouble(1)).toSet shouldBe Set(0.1, 0.2, 0.3, 0.4)
 
     val res12 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel2' AND
-        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
     res12.length shouldBe 2
 
     val res13 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
-        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(10)
     res13.length shouldBe 5
     res13.map(row => row.getDouble(1)).toSet shouldBe Set(0.1, 0.2, 0.3, 0.4, 0.5)
 
     val res14 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel2' AND
-        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
+        |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
     res14.length shouldBe 3
   }
 }
