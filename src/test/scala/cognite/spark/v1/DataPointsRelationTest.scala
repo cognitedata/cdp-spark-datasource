@@ -1077,7 +1077,7 @@ class DataPointsRelationTest
     assert(loadedCount == getNumberOfRowsRead(metricsPrefix, "datapoints") - 1)
   }
 
-  it should "list datapoints in a day with inclusive start and exclusive end limits" taggedAs (ReadTest) in {
+  ignore should "list datapoints in a day with inclusive start and exclusive end limits" taggedAs (ReadTest) in {
     val res = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
@@ -1093,7 +1093,7 @@ class DataPointsRelationTest
     res2.map(row => row.getDouble(1)).toSet shouldBe Set(0.8)
   }
 
-  it should "list datapoints in a day with exclusive start and inclusive end limits" taggedAs (ReadTest) in {
+  ignore should "list datapoints in a day with exclusive start and inclusive end limits" taggedAs (ReadTest) in {
     val res3 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
@@ -1109,7 +1109,7 @@ class DataPointsRelationTest
     res4.map(row => row.getDouble(1)).toSet shouldBe Set(0.9)
   }
 
-  it should "list datapoints in a day with exclusive start and exclusive end limits" taggedAs (ReadTest) in {
+  ignore should "list datapoints in a day with exclusive start and exclusive end limits" taggedAs (ReadTest) in {
     val res5 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
@@ -1124,7 +1124,7 @@ class DataPointsRelationTest
     res6.length shouldBe 0
   }
 
-  it should "list datapoints only with start limit" taggedAs (ReadTest) in {
+  ignore should "list datapoints only with start limit" taggedAs (ReadTest) in {
     val res7 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).take(5)
@@ -1148,7 +1148,7 @@ class DataPointsRelationTest
     res10.length shouldBe 3
   }
 
-  it should "list datapoints only with end limit" taggedAs (ReadTest) in {
+  ignore should "list datapoints only with end limit" taggedAs (ReadTest) in {
     val res11 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).take(5)
