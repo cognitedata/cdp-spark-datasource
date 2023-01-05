@@ -8,7 +8,8 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder, JsonObject}
 import org.apache.spark.sql.types.{DataType, StructType}
 import sttp.client3.circe._
-import sttp.client3.{ResponseException, SttpBackend, UriContext, basicRequest}
+import sttp.client3.{Empty, RequestT, ResponseException, SttpBackend, UriContext, basicRequest}
+
 
 import scala.concurrent.duration.DurationInt
 
@@ -36,7 +37,7 @@ class WdlClient(
     )
   }
 
-  protected val sttpRequest = basicRequest
+  protected val sttpRequest: RequestT[Empty, Either[String, String], Any] = basicRequest
     .followRedirects(false)
     .header("x-cdp-sdk", s"CogniteWellsInSpark:${BuildInfo.BuildInfo.version}")
     .header("x-cdp-app", "cdp-spark-datasource")
