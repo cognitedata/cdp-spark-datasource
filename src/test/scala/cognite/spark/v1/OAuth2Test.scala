@@ -22,7 +22,7 @@ class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with 
         .load()
       )
 
-    assert(df.take(5).length > 0)
+    assert(df.take(1).length > 0)
   }
   //TODO enable when we get a new set of Aize credentials
   ignore should "authenticate using client credentials in Aize" in {
@@ -42,7 +42,7 @@ class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with 
         .option("limitPerPartition", "100")
         .load()
       )
-    assert(df.take(5).length > 0)
+    assert(df.take(1).length > 0)
   }
 
   it should "throw InvalidAuthentication when project is not provided" in {
@@ -59,7 +59,7 @@ class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with 
           .option("limitPerPartition", "100")
           .load()
         )
-      df.take(5).length
+      df.take(1).length
     }
   }
 
@@ -78,7 +78,7 @@ class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with 
         .load()
       )
     sparkIntercept {
-      df.take(5).length
+      df.take(1).length
     }
   }
 
