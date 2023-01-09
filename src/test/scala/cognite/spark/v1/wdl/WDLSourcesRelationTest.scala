@@ -27,7 +27,7 @@ class WDLSourcesRelationTest extends FlatSpec with Matchers with WDLSparkTest wi
     assert(rows.length > -1)
   }
 
-  it should "work with JSON" in {
+  it should "read JSONL and write as DataFrame" in {
     val testSourcesJSONL = Seq(
       """{"name": "EDM", "description": null}""",
       """{"name": "VOLVE", "description": "VOLVE SOURCE"}""",
@@ -38,5 +38,13 @@ class WDLSourcesRelationTest extends FlatSpec with Matchers with WDLSparkTest wi
     val testSourcesDF = spark.read.json(testSourcesDS)
     testSourcesDF.show()
     testSourcesDF.printSchema()
+
+    testSourcesDF.write
+      .format("cognite.spark.v1")
+      .option("project", "jetfiretest2")
+      .option("type", "wdl")
+      .option("wdlDataType", "Source")
+      .option("apiKey", writeApiKey)
+      .save()
   }
 }

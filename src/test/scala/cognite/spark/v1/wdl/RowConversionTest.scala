@@ -99,4 +99,67 @@ class RowConversionTest extends FlatSpec with Matchers with ParallelTestExecutio
     assert(actual == expected)
   }
 
+  it should "convert a Row with nullable types into a JsonObject" in {
+    val schema = new StructType()
+      .add("double", DoubleType)
+      .add("float", FloatType)
+      .add("big decimal", DecimalType(10, 10))
+      .add("int", IntegerType)
+      .add("long", LongType)
+      .add("string", StringType)
+
+    val input: Row = new GenericRowWithSchema(
+      Array(
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ),
+      schema
+    )
+
+    val json = Json.fromJsonObject(RowConversion.toJsonObject(input, schema))
+    val actual = json.printWith(Printer.spaces2.withSortedKeys)
+    val expected =
+      """{
+        |  "big decimal" : null,
+        |  "double" : null,
+        |  "float" : null,
+        |  "int" : null,
+        |  "long" : null,
+        |  "string" : null
+        |}""".stripMargin
+    assert(actual == expected)
+  }
+
+  it should "fail to convert a Row with non-nullable types into a JsonObject" in {
+    val schema = new StructType()
+      .add("double", DoubleType, nullable = false)
+      .add("float", FloatType, nullable = false)
+      .add("big decimal", DecimalType(10, 10), nullable = false)
+      .add("int", IntegerType, nullable = false)
+      .add("long", LongType, nullable = false)
+      .add("string", StringType, nullable = false)
+
+    val input: Row = new GenericRowWithSchema(
+      Array(
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ),
+      schema
+    )
+
+    val expectedException = intercept[RuntimeException]{
+      Json.fromJsonObject(RowConversion.toJsonObject(input, schema))
+    }
+
+    assert(expectedException.getMessage startsWith  "Failed to parse non-nullable ")
+    assert(expectedException.getMessage endsWith   " from NULL")
+  }
 }

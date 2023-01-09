@@ -58,16 +58,8 @@ class WdlClient(
   }
 
   def getItems(modelType: String): ItemsWithCursor[JsonObject] = {
-    val urlParts = modelType match {
-      case "Well" => Seq("wells", "list")
-      case "Npt" => Seq("npt", "list")
-      case "Nds" => Seq("npt", "list")
-      case "CasingSchematic" => Seq("casings", "list")
-      case "Source" => Seq("sources")
-      case _ => sys.error(s"Unknown model type: $modelType")
-    }
     implicit val decoder: Decoder[ItemsWithCursor[JsonObject]] = deriveDecoder
-    val url = uri"$baseUrl/".addPath(urlParts)
+    val url = uri"$baseUrl/${getReadUrlPart(modelType)}"
 
     val request = {
       val req = sttpRequest
@@ -93,18 +85,29 @@ class WdlClient(
     handleResponse(response)
   }
 
-  private def getUrlPart(modelType: String): String =
+  private def getReadUrlPart(modelType: String): Seq[String] =
+    modelType match {
+      case "Well" => Seq("wells", "list")
+      case "Npt" => Seq("npt", "list")
+      case "Nds" => Seq("npt", "list")
+      case "CasingSchematic" => Seq("casings", "list")
+      case "Source" => Seq("sources")
+      case _ => sys.error(s"Unknown model type: $modelType")
+    }
+
+  private def getWriteUrlPart(modelType: String): String =
     modelType match {
       case "Well" => "wells"
       case "WellIngestion" => "wells"
       case "Npt" => "npt"
       case "Nds" => "npt"
       case "CasingSchematic" => "casings"
+      case "Source" => "sources"
       case _ => sys.error(s"Unknown model type: $modelType")
     }
 
   def setItems(modelType: String, items: Items[JsonObject]): ItemsWithCursor[JsonObject] = {
-    val url = uri"$baseUrl/${getUrlPart(modelType)}"
+    val url = uri"$baseUrl/${getWriteUrlPart(modelType)}"
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")

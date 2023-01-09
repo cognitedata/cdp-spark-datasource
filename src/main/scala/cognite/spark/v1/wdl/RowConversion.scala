@@ -1,7 +1,7 @@
 package cognite.spark.v1.wdl
 
-import io.circe.{Json, JsonObject}
 import io.circe.parser.decode
+import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
@@ -36,14 +36,23 @@ object RowConversion {
         fieldIndex match {
           case None => null
           case Some(i) =>
-            val jsonValue: Json = field.dataType match {
-              case _: NullType => Json.Null
-              case s: StructType => parseStructType(row.get(i), field, s)
-              case StringType => Json.fromString(row.getString(i))
-              case DoubleType | DecimalType() | FloatType => parseDouble(row.get(i), field)
-              case IntegerType => Json.fromInt(row.getInt(i))
-              case LongType => Json.fromLong(row.getLong(i))
-              case _ => sys.error(s"Unknown type: ${field.dataType} with name ${field.name}")
+            val jsonValue: Json = row.isNullAt(i) match {
+              case true =>
+                field.nullable match {
+                  case true => Json.Null
+                  case false =>
+                    sys.error(s"Failed to parse non-nullable ${field} from NULL")
+                }
+              case false =>
+                field.dataType match {
+                  case _: NullType => Json.Null
+                  case s: StructType => parseStructType(row.get(i), field, s)
+                  case StringType => Json.fromString(row.getString(i))
+                  case DoubleType | DecimalType() | FloatType => parseDouble(row.get(i), field)
+                  case IntegerType => Json.fromInt(row.getInt(i))
+                  case LongType => Json.fromLong(row.getLong(i))
+                  case _ => sys.error(s"Unknown type: ${field.dataType} with name ${field.name}")
+                }
             }
             (field.name, jsonValue)
         }
