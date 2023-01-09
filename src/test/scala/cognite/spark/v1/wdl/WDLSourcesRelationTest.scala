@@ -1,13 +1,16 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.SparkTest
+import cognite.spark.v1.WDLSparkTest
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Inspectors, Matchers}
 
-class WDLSourcesRelationTest extends FlatSpec with Matchers with SparkTest with Inspectors {
+class WDLSourcesRelationTest extends FlatSpec with Matchers with WDLSparkTest with Inspectors {
+
+  import spark.implicits._
 
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
+    .option("project", "jetfiretest2")
     .option("apiKey", writeApiKey)
     .option("type", "wdl")
     .option("wdlDataType", "Source")
@@ -22,5 +25,18 @@ class WDLSourcesRelationTest extends FlatSpec with Matchers with SparkTest with 
     sparkSql.show(50, false)
     val rows = sparkSql.collect()
     assert(rows.length > -1)
+  }
+
+  it should "work with JSON" in {
+    val testSourcesJSONL = Seq(
+      """{"name": "EDM", "description": null}""",
+      """{"name": "VOLVE", "description": "VOLVE SOURCE"}""",
+      """{"name": "test_source", "description": "For testing merging with 3 sources"}""",
+    )
+
+    val testSourcesDS = spark.createDataset(testSourcesJSONL)
+    val testSourcesDF = spark.read.json(testSourcesDS)
+    testSourcesDF.show()
+    testSourcesDF.printSchema()
   }
 }

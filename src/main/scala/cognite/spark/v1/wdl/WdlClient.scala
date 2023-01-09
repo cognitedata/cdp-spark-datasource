@@ -3,15 +3,13 @@ package cognite.spark.v1.wdl
 import cats.effect.IO
 import cognite.spark.v1.{CdfSparkException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.common.{Items, ItemsWithCursor}
-import com.cognite.sdk.scala.v1.{AuthSttpBackend, GenericClient}
-import io.circe.generic.semiauto.deriveDecoder
-import io.circe.{Decoder, JsonObject}
+import com.cognite.sdk.scala.v1.AuthSttpBackend
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+import io.circe.{Decoder, Encoder, JsonObject}
 import org.apache.spark.sql.types.{DataType, StructType}
 import sttp.client3.circe._
-import sttp.client3.circe.asJson
 import sttp.client3.{ResponseException, SttpBackend, UriContext, basicRequest}
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Decoder, Encoder}
+
 import scala.concurrent.duration.DurationInt
 
 class WdlClient(
@@ -20,8 +18,6 @@ class WdlClient(
   import CdpConnector._
   implicit val decoder: Decoder[ItemsWithCursor[JsonObject]] = deriveDecoder
   implicit val encoder: Encoder[Items[JsonObject]] = deriveEncoder
-
-  lazy val client: GenericClient[IO] = clientFromConfig(config)
 
   protected val baseUrl =
     uri"http://localhost:8080/api/playground/projects/${config.projectName}/wdl"

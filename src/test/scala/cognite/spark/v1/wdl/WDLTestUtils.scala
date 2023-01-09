@@ -1,7 +1,7 @@
 package cognite.spark.v1.wdl
 
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.{CdfSparkAuth, RelationConfig, SparkTest}
+import cognite.spark.v1.{CdfSparkAuth, RelationConfig, WDLSparkTest}
 import com.cognite.sdk.scala.common.ApiKeyAuth
 import io.circe.generic.auto._
 import io.circe.parser._
@@ -9,7 +9,7 @@ import io.circe.syntax.EncoderOps
 import org.scalatest.{FlatSpec, Inspectors, Matchers}
 import sttp.client3.UriContext
 
-class WDLTestUtilsTest extends FlatSpec with Matchers with SparkTest with Inspectors {
+class WDLTestUtilsTest extends FlatSpec with Matchers with WDLSparkTest with Inspectors {
 
   private class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
     def getSources(): String = {

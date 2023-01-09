@@ -1,13 +1,14 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{SparkTest, WriteTest}
+import cognite.spark.v1.{WDLSparkTest, WriteTest}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Inspectors, Matchers}
 
-class WellDataLayerRelationTest extends FlatSpec with Matchers with SparkTest with Inspectors {
+class WellDataLayerRelationTest extends FlatSpec with Matchers with WDLSparkTest with Inspectors {
 
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
+    .option("project", "jetfiretest2")
     .option("apiKey", writeApiKey)
     .option("type", "wdl")
     .option("wdlDataType", "Well")
@@ -22,6 +23,7 @@ class WellDataLayerRelationTest extends FlatSpec with Matchers with SparkTest wi
            |""".stripMargin)
       .write
       .format("cognite.spark.v1")
+      .option("project", "jetfiretest2")
       .option("type", "wdl")
       .option("wdlDataType", "WellIngestion")
       .option("apiKey", writeApiKey)
