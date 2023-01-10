@@ -453,21 +453,30 @@ class DataModelInstancesRelationV3(
           Try(InstancePropertyValue.StringList(row.getSeq[String](schema.fieldIndex(field.name)))).toEither
         case PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
           Try(InstancePropertyValue.BooleanList(row.getSeq[Boolean](schema.fieldIndex(field.name)))).toEither
-        case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) |
-            PrimitiveProperty(PrimitivePropType.Float64, Some(true)) |
-            PrimitiveProperty(PrimitivePropType.Numeric, Some(true)) =>
+        case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
           Try(
-            InstancePropertyValue.DoubleList(
+            InstancePropertyValue.Float32List(
               row
                 .getSeq[Any](schema.fieldIndex(field.name))
-                .map(_.asInstanceOf[java.lang.Number].doubleValue()))).toEither
-        case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) |
-            PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
+                .map(_.asInstanceOf[java.lang.Number].floatValue))).toEither
+        case PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
           Try(
-            InstancePropertyValue.IntegerList(
+            InstancePropertyValue.Float64List(
               row
                 .getSeq[Any](schema.fieldIndex(field.name))
-                .map(_.asInstanceOf[java.lang.Number].longValue()))).toEither
+                .map(_.asInstanceOf[java.lang.Number].doubleValue))).toEither
+        case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
+          Try(
+            InstancePropertyValue.Int32List(
+              row
+                .getSeq[Any](schema.fieldIndex(field.name))
+                .map(_.asInstanceOf[java.lang.Number].intValue))).toEither
+        case PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
+          Try(
+            InstancePropertyValue.Int64List(
+              row
+                .getSeq[Any](schema.fieldIndex(field.name))
+                .map(_.asInstanceOf[java.lang.Number].longValue))).toEither
         case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
           Try(
             InstancePropertyValue.TimestampList(
@@ -526,17 +535,19 @@ class DataModelInstancesRelationV3(
           Try(InstancePropertyValue.String(row.getString(fieldIndex))).toEither
         case PrimitiveProperty(PrimitivePropType.Boolean, None | Some(false)) =>
           Try(InstancePropertyValue.Boolean(row.getBoolean(fieldIndex))).toEither
-        case PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) |
-            PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) |
-            PrimitiveProperty(PrimitivePropType.Numeric, None | Some(false)) =>
+        case PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) =>
           Try(
-            InstancePropertyValue.Double(
-              row.get(fieldIndex).asInstanceOf[java.lang.Number].doubleValue())).toEither
+            InstancePropertyValue
+              .Float32(row.get(fieldIndex).asInstanceOf[java.lang.Number].floatValue)).toEither
+        case PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) =>
+          Try(
+            InstancePropertyValue.Float64(
+              row.get(fieldIndex).asInstanceOf[java.lang.Number].doubleValue)).toEither
         case PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) |
             PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
           Try(
-            InstancePropertyValue.Integer(
-              row.get(fieldIndex).asInstanceOf[java.lang.Number].longValue())).toEither
+            InstancePropertyValue
+              .Int64(row.get(fieldIndex).asInstanceOf[java.lang.Number].longValue())).toEither
         case PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
           Try(
             InstancePropertyValue.Timestamp(ZonedDateTime
@@ -578,7 +589,6 @@ class DataModelInstancesRelationV3(
       case PrimitivePropType.Float64 => DataTypes.DoubleType
       case PrimitivePropType.Int32 => DataTypes.IntegerType
       case PrimitivePropType.Int64 => DataTypes.LongType
-      case PrimitivePropType.Numeric => DataTypes.DoubleType
       case PrimitivePropType.Json => DataTypes.StringType
     }
 
