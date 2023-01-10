@@ -155,11 +155,11 @@ class RowConversionTest extends FlatSpec with Matchers with ParallelTestExecutio
       schema
     )
 
-    val expectedException = intercept[RuntimeException]{
+    val expectedException = intercept[RuntimeException] {
       Json.fromJsonObject(RowConversion.toJsonObject(input, schema))
     }
 
-    assert(expectedException.getMessage startsWith  "Failed to parse non-nullable ")
-    assert(expectedException.getMessage endsWith   " from NULL")
+    assert(expectedException.getMessage.startsWith("Failed to parse non-nullable "))
+    assert(expectedException.getMessage.endsWith(" from NULL"))
   }
 }

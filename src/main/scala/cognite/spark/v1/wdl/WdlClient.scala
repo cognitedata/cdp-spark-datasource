@@ -10,7 +10,6 @@ import org.apache.spark.sql.types.{DataType, StructType}
 import sttp.client3.circe._
 import sttp.client3.{Empty, RequestT, ResponseException, SttpBackend, UriContext, basicRequest}
 
-
 import scala.concurrent.duration.DurationInt
 
 class WdlClient(
