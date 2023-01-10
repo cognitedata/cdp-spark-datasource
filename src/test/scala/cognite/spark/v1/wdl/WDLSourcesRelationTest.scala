@@ -46,5 +46,14 @@ class WDLSourcesRelationTest extends FlatSpec with Matchers with WDLSparkTest wi
       .option("wdlDataType", "Source")
       .option("apiKey", writeApiKey)
       .save()
+
+    testSourcesDF.schema.fields sameElements destinationDf.schema.fields
+    testSourcesDF.collect() sameElements destinationDf.collect()
+
+    val readbackDF = spark
+      .sql("select * from wdl_test")
+
+    testSourcesDF.schema.fields sameElements  readbackDF.schema.fields
+    testSourcesDF.collect() sameElements  readbackDF.collect()
   }
 }
