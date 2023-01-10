@@ -17,16 +17,6 @@ class WDLSourcesRelationTest extends FlatSpec with Matchers with WDLSparkTest wi
     .load()
   destinationDf.createOrReplaceTempView("wdl_test")
 
-  it should "be able to read sources" in {
-    val sparkSql = spark
-      .sql("select * from wdl_test")
-
-    sparkSql.printSchema()
-    sparkSql.show(50, false)
-    val rows = sparkSql.collect()
-    assert(rows.length > -1)
-  }
-
   it should "read JSONL and write as DataFrame" in {
     val testSourcesJSONL = Seq(
       """{"name": "EDM", "description": null}""",

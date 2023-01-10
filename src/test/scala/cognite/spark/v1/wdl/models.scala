@@ -9,10 +9,71 @@ case class SourceItems(
     items: Seq[Source]
 )
 
+/// Dummy class that everything can deserialize to if we don't care about the
+/// output, or if we want serialize `{}`.
+case class EmptyObj()
+
+case class WellboreMergeRules(
+    name: Seq[String],
+    description: Seq[String],
+    datum: Seq[String],
+    parents: Seq[String],
+    wellTops: Seq[String],
+)
+object WellboreMergeRules {
+  def apply(source: Seq[String]): WellboreMergeRules =
+    new WellboreMergeRules(
+      source,
+      source,
+      source,
+      source,
+      source
+    )
+}
+
+case class WellMergeRules(
+    name: Seq[String],
+    description: Seq[String],
+    country: Seq[String],
+    quadrant: Seq[String],
+    region: Seq[String],
+    block: Seq[String],
+    field: Seq[String],
+    operator: Seq[String],
+    spudDate: Seq[String],
+    license: Seq[String],
+    wellType: Seq[String],
+    waterDepth: Seq[String],
+    wellhead: Seq[String],
+)
+object WellMergeRules {
+  def apply(sources: Seq[String]): WellMergeRules =
+    new WellMergeRules(
+      sources,
+      sources,
+      sources,
+      sources,
+      sources,
+      sources,
+      sources,
+      sources,
+      sources,
+      sources,
+      sources,
+      sources,
+      sources)
+}
+
+case class DeleteSources(
+    items: Seq[Source],
+)
+
 case class AssetSource(
     assetExternalId: String,
     sourceName: String
 )
+
+case class DeleteWells(items: Seq[AssetSource], recursive: Boolean = false)
 
 case class Datum(
     value: Double,
@@ -57,6 +118,8 @@ case class Wellbore(
     kickoffMeasuredDepth: Option[Distance] = None
 )
 
+case class WellboreItems(items: Seq[Wellbore])
+
 case class Wellhead(
     x: Double,
     y: Double,
@@ -80,11 +143,6 @@ case class WellIngestion(
     waterDepth: Option[Distance] = None,
     wellhead: Option[Wellhead] = None,
     source: AssetSource
-)
-
-case class DeleteSources(
-    items: Seq[Source],
-    recursive: Option[Boolean] = None
 )
 
 case class WellboreIngestion(
