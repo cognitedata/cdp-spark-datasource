@@ -1,10 +1,14 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.WDLSparkTest
+import cognite.spark.v1.{DataFrameMatcher, WDLSparkTest}
 import org.apache.spark.sql.DataFrame
-import org.scalatest.{FlatSpec, Inspectors, Matchers}
+import org.scalatest.{FlatSpec, Inspectors}
 
-class WDLSourcesRelationTest extends FlatSpec with Matchers with WDLSparkTest with Inspectors {
+class WDLSourcesRelationTest
+    extends FlatSpec
+    with WDLSparkTest
+    with Inspectors
+    with DataFrameMatcher {
 
   import spark.implicits._
 
@@ -37,13 +41,6 @@ class WDLSourcesRelationTest extends FlatSpec with Matchers with WDLSparkTest wi
       .option("apiKey", writeApiKey)
       .save()
 
-    testSourcesDF.schema.fields sameElements destinationDf.schema.fields
-    testSourcesDF.collect() sameElements destinationDf.collect()
-
-    val readbackDF = spark
-      .sql("select * from wdl_test")
-
-    testSourcesDF.schema.fields sameElements  readbackDF.schema.fields
-    testSourcesDF.collect() sameElements  readbackDF.collect()
+    testSourcesDF should containTheSameRowsAs(destinationDf)
   }
 }
