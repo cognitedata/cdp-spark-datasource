@@ -3,8 +3,14 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
+import com.cognite.sdk.scala.v1.DataModelType.NodeType
+import com.cognite.sdk.scala.v1.{DataModelIdentifier, GenericClient}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.ComparableFilterValue
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
+  ComparableFilterValue,
+  LogicalFilterValue,
+  SeqFilterValue
+}
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
@@ -23,6 +29,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeW
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition, ViewReference}
 import com.cognite.sdk.scala.v1.resources.fdm.instances.Instances.instanceCreateEncoder
+import io.circe.Json
 import io.circe.syntax.EncoderOps
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql
@@ -33,6 +40,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time._
 import java.time.format.DateTimeFormatter
+import scala.annotation.nowarn
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
@@ -615,136 +623,162 @@ class DataModelInstancesRelationV3(
     new GenericRow(a.properties)
   }
 
-  def valueToFilterValueDef(
-      attribute: String,
-      value: Any): Either[CdfSparkException, FilterValueDefinition] =
-    value match {
-//      case v: String =>
-//        io.circe.parser.parse(v) match {
-//          case Right(json) if json.isObject => Some(FilterValueDefinition.Object(json))
-//          case _ => Some(FilterValueDefinition.String(v))
-//        }
-      case v: String => Right(FilterValueDefinition.String(v))
-      case v: scala.Double => Right(FilterValueDefinition.Number(v))
-      case v: scala.Int => Right(FilterValueDefinition.Integer(v.toLong))
-      case v: scala.Long => Right(FilterValueDefinition.Integer(v))
-      case v: scala.Boolean => Right(FilterValueDefinition.Boolean(v))
-      case v =>
-        Left(
-          new CdfSparkIllegalArgumentException(
-            s"Expecting a String, Number, Boolean or Object for '$attribute', but found ${v.toString}"
-          )
-        )
-    }
-
-  def valueToComparableFilterValueDef(
+  def toComparableFilterValueDefinition(
       attribute: String,
       value: Any): Either[CdfSparkException, ComparableFilterValue] =
-    value match {
-      case v: String => Right(FilterValueDefinition.String(v))
-      case v: scala.Double => Right(FilterValueDefinition.Number(v))
-      case v: scala.Int => Right(FilterValueDefinition.Integer(v.toLong))
-      case v: scala.Long => Right(FilterValueDefinition.Integer(v))
-      case v =>
+    toFilterValueDefinition(attribute, value) match {
+      case Right(v: ComparableFilterValue) => Right(v)
+      case Right(v) =>
         Left(
           new CdfSparkIllegalArgumentException(
-            s"Expecting a comparable value(Number or String) for '$attribute', but found ${v.toString}"
+            s"""
+               |Expecting a value of type number, string, boolean, json,
+               |array[number], array[string], array[boolean], array[json] for '$attribute',
+               |but found ${v.getClass.getSimpleName} in ${value.toString}
+               |""".stripMargin
           )
         )
+      case Left(err) => Left(err)
     }
 
-  def valueToFilterValueDefSeq(
+  def toLogicalFilterValueDefinition(
       attribute: String,
-      value: Any): Either[CdfSparkException, Seq[FilterValueDefinition]] =
-    value match {
-      //      case v: Array[String] =>
-      //        v.headOption.flatMap(s => io.circe.parser.parse(s).toOption) match {
-      //          case Some(_) => Some(v.map(FilterValueDefinition.Object.apply))
-      //          case None => Some(v.map(FilterValueDefinition.String.apply))
-      //        }
-      case v: Array[Double] => Right(v.map(FilterValueDefinition.Number.apply))
-      case v: Array[Float] => Right(v.map(f => FilterValueDefinition.Number(f.toDouble)))
-      case v: Array[Int] => Right(v.map(i => FilterValueDefinition.Integer.apply(i.toLong)))
-      case v: Array[Long] => Right(v.map(FilterValueDefinition.Integer.apply))
-      case v: Array[String] => Right(v.map(FilterValueDefinition.String.apply))
-      case v: Array[Boolean] => Right(v.map(FilterValueDefinition.Boolean.apply))
-      case v =>
+      value: Any): Either[CdfSparkException, LogicalFilterValue] =
+    toFilterValueDefinition(attribute, value) match {
+      case Right(v: LogicalFilterValue) => Right(v)
+      case Right(v) =>
         Left(
           new CdfSparkIllegalArgumentException(
-            s"Expecting an Array of String, Number, Boolean or Object for '$attribute', but found ${v.toString}"
+            s"Expecting a boolean value for '$attribute', but found ${v.getClass.getSimpleName} in ${value.toString}"
           )
         )
+      case Left(err) => Left(err)
     }
 
   // scalastyle:off cyclomatic.complexity
-  def getInstanceFilter(sparkFilter: sql.sources.Filter): Either[CdfSparkException, FilterDefinition] =
-    sparkFilter match {
-      case EqualTo(attribute, value) =>
-        valueToFilterValueDef(attribute, value).map(FilterDefinition.Equals(Seq(attribute), _))
-      case In(attribute, values) =>
-        valueToFilterValueDefSeq(attribute, values).map(FilterDefinition.In(Seq(attribute), _))
-      case StringStartsWith(attribute, value) =>
-        Right(FilterDefinition.Prefix(Seq(attribute), FilterValueDefinition.String(value)))
-      case GreaterThanOrEqual(attribute, value) =>
-        valueToComparableFilterValueDef(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(attribute), gte = Some(f)))
-      case GreaterThan(attribute, value) =>
-        valueToComparableFilterValueDef(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(attribute), gt = Some(f)))
-      case LessThanOrEqual(attribute, value) =>
-        valueToComparableFilterValueDef(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(attribute), lte = Some(f)))
-      case LessThan(attribute, value) =>
-        valueToComparableFilterValueDef(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(attribute), lt = Some(f)))
-      case And(f1, f2) =>
-        List(f1, f2).traverse(getInstanceFilter).map(FilterDefinition.And.apply)
-      case Or(f1, f2) =>
-        List(f1, f2).traverse(getInstanceFilter).map(FilterDefinition.Or.apply)
-      case IsNotNull(attribute) => Right(FilterDefinition.Exists(Seq(attribute)))
-      case Not(f) => getInstanceFilter(f).map(FilterDefinition.Not.apply)
-      case f => Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.toString}'"))
+  def toFilterValueDefinition(
+      attribute: String,
+      value: Any): Either[CdfSparkException, FilterValueDefinition] =
+    value match {
+      case v: String =>
+        io.circe.parser.parse(v) match {
+          case Right(json) if json.isObject => Right(FilterValueDefinition.Object(json))
+          case _ => Right(FilterValueDefinition.String(v))
+        }
+      case v: scala.Float => Right(FilterValueDefinition.Double(v.toDouble))
+      case v: scala.Double => Right(FilterValueDefinition.Double(v))
+      case v: scala.Int => Right(FilterValueDefinition.Integer(v.toLong))
+      case v: scala.Long => Right(FilterValueDefinition.Integer(v))
+      case v: scala.Boolean => Right(FilterValueDefinition.Boolean(v))
+
+      case v: Seq[String] =>
+        v.headOption.flatMap(io.circe.parser.parse(_).toOption) match {
+          case Some(_) =>
+            Right(FilterValueDefinition.ObjectList(v.flatMap(io.circe.parser.parse(_).toOption)))
+          case None => Right(FilterValueDefinition.StringList(v))
+        }
+      case v: Seq[scala.Float] => Right(FilterValueDefinition.DoubleList(v.map(_.toDouble)))
+      case v: Seq[scala.Double] => Right(FilterValueDefinition.DoubleList(v))
+      case v: Seq[scala.Int] => Right(FilterValueDefinition.IntegerList(v.map(_.toLong)))
+      case v: Seq[scala.Long] => Right(FilterValueDefinition.IntegerList(v))
+      case v: Seq[scala.Boolean] => Right(FilterValueDefinition.BooleanList(v))
+      case v =>
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"Expecting a value of type number, string, boolean or an array of them for '$attribute', but found ${v.toString}"
+          )
+        )
     }
   // scalastyle:on cyclomatic.complexity
 
-//  def getStreams(filters: Array[sql.sources.Filter], selectedColumns: Array[String])(
-//      @nowarn client: GenericClient[IO],
-//      limit: Option[Int],
-//      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstanceV3]] = {
-//    val selectedPropsArray = if (selectedColumns.isEmpty) {
-//      schema.fieldNames
-//    } else {
-//      selectedColumns
-//    }
-//
-//    val filter = filters.toList.traverse(getInstanceFilter)
-//
-//    val spaceFilters = (filters.map {
-//      case EqualTo("space", value) => value.toString
-//    } ++ Array(space)).distinct
-//
-//    val dmiQuery = InstanceFilterRequest(
-//      model = DataModelIdentifier(space = Some(space), model = modelExternalId),
-//      spaces = Some(spaceFilters),
-//      filter = filter,
-//      sort = None,
-//      limit = limit,
-//      cursor = None,
-//      instanceType = None
-//    )
-//
-//    if (modelType == NodeType) {
-//      Seq(
-//        client.nodes
-//          .queryStream(dmiQuery, limit)
-//          .map(r => toProjectedInstance(r, selectedPropsArray)))
-//    } else {
-//      Seq(
-//        client.edges
-//          .queryStream(dmiQuery, limit)
-//          .map(r => toProjectedInstance(r, selectedPropsArray)))
-//    }
-//  }
+  def toSeqFilterValueDefinition(
+      attribute: String,
+      value: Any): Either[CdfSparkException, SeqFilterValue] =
+    toFilterValueDefinition(attribute, value) match {
+      case Right(FilterValueDefinition.Double(v)) => Right(FilterValueDefinition.DoubleList(Seq(v)))
+      case Right(FilterValueDefinition.Integer(v)) => Right(FilterValueDefinition.IntegerList(Seq(v)))
+      case Right(FilterValueDefinition.String(v)) => Right(FilterValueDefinition.StringList(Seq(v)))
+      case Right(FilterValueDefinition.Boolean(v)) => Right(FilterValueDefinition.BooleanList(Seq(v)))
+      case Right(FilterValueDefinition.Object(v)) => Right(FilterValueDefinition.ObjectList(Seq(v)))
+      case Right(v: SeqFilterValue) => Right(v)
+      case Right(v) =>
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"Expecting a SeqFilterValue for '$attribute', but found ${v.getClass.getSimpleName} as ${value.toString}"
+          )
+        )
+      case Left(err) => Left(err)
+    }
+
+  // scalastyle:off cyclomatic.complexity
+  def toInstanceFilter(sparkFilter: sql.sources.Filter): Either[CdfSparkException, FilterDefinition] =
+    sparkFilter match {
+      case EqualTo(attribute, value) =>
+        toFilterValueDefinition(attribute, value).map(FilterDefinition.Equals(Seq(attribute), _))
+      case In(attribute, values) =>
+        toSeqFilterValueDefinition(attribute, values).map(FilterDefinition.In(Seq(attribute), _))
+      case GreaterThanOrEqual(attribute, value) =>
+        toComparableFilterValueDefinition(attribute, value).map(f =>
+          FilterDefinition.Range(property = Seq(attribute), gte = Some(f)))
+      case GreaterThan(attribute, value) =>
+        toComparableFilterValueDefinition(attribute, value).map(f =>
+          FilterDefinition.Range(property = Seq(attribute), gt = Some(f)))
+      case LessThanOrEqual(attribute, value) =>
+        toComparableFilterValueDefinition(attribute, value).map(f =>
+          FilterDefinition.Range(property = Seq(attribute), lte = Some(f)))
+      case LessThan(attribute, value) =>
+        toComparableFilterValueDefinition(attribute, value).map(f =>
+          FilterDefinition.Range(property = Seq(attribute), lt = Some(f)))
+      case And(f1, f2) =>
+        List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.And.apply)
+      case Or(f1, f2) =>
+        List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.Or.apply)
+      case IsNotNull(attribute) => Right(FilterDefinition.Exists(Seq(attribute)))
+      case IsNull(attribute) => Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(attribute))))
+      case Not(f) => toInstanceFilter(f).map(FilterDefinition.Not.apply)
+      case f =>
+        Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.getClass.getSimpleName}'"))
+    }
+  // scalastyle:on cyclomatic.complexity
+
+  def getStreams(filters: Array[sql.sources.Filter], selectedColumns: Array[String])(
+      @nowarn client: GenericClient[IO],
+      limit: Option[Int],
+      @nowarn numPartitions: Int): Seq[Stream[IO[ProjectedDataModelInstanceV3]]] = {
+    val selectedPropsArray = if (selectedColumns.isEmpty) {
+      schema.fieldNames
+    } else {
+      selectedColumns
+    }
+
+    val filter = filters.toList.traverse(toInstanceFilter)
+
+    val spaceFilters = (filters.map {
+      case EqualTo("space", value) => value.toString
+    } ++ Array(space)).distinct
+
+    val dmiQuery = InstanceFilterRequest(
+      model = DataModelIdentifier(space = Some(space), model = modelExternalId),
+      spaces = Some(spaceFilters),
+      filter = filter,
+      sort = None,
+      limit = limit,
+      cursor = None,
+      instanceType = None
+    )
+
+    if (modelType == NodeType) {
+      Seq(
+        client.nodes
+          .queryStream(dmiQuery, limit)
+          .map(r => toProjectedInstance(r, selectedPropsArray)))
+    } else {
+      Seq(
+        client.edges
+          .queryStream(dmiQuery, limit)
+          .map(r => toProjectedInstance(r, selectedPropsArray)))
+    }
+  }
 
   override def buildScan(selectedColumns: Array[String], filters: Array[sql.sources.Filter]): RDD[Row] =
     SdkV1Rdd[ProjectedDataModelInstanceV3, String](
