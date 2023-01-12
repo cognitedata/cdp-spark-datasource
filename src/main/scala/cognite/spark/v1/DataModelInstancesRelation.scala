@@ -338,7 +338,7 @@ class DataModelInstanceRelation(
 
     def parseEdgeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Edge = {
-      val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
+      val externalId = String.valueOf(row.get(externalIdIndex))
 
       val edgeType = getDirectRelationIdentifierProperty(externalId, row, "type", typeIndex)
       val startNode = getDirectRelationIdentifierProperty(externalId, row, "startNode", startNodeIndex)
@@ -360,7 +360,7 @@ class DataModelInstanceRelation(
 
     def parseNodeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Node = {
-      val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
+      val externalId = String.valueOf(row.get(externalIdIndex))
       val propertyValues: Map[String, DataModelProperty[_]] =
         getDataModelPropertyMap(indexedPropertyList, row)
 

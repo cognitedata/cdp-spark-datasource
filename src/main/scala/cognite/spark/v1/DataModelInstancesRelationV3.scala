@@ -4,7 +4,7 @@ import cats.Apply
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
-import com.cognite.sdk.scala.v1.{DataModelIdentifier, GenericClient}
+import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
   ComparableFilterValue,
@@ -29,8 +29,8 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeW
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition, ViewReference}
 import com.cognite.sdk.scala.v1.resources.fdm.instances.Instances.instanceCreateEncoder
-import io.circe.Json
 import io.circe.syntax.EncoderOps
+import io.circe.{Decoder, Json}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -695,12 +695,12 @@ class DataModelInstancesRelationV3(
       attribute: String,
       value: Any): Either[CdfSparkException, SeqFilterValue] =
     toFilterValueDefinition(attribute, value) match {
+      case Right(v: SeqFilterValue) => Right(v)
       case Right(FilterValueDefinition.Double(v)) => Right(FilterValueDefinition.DoubleList(Seq(v)))
       case Right(FilterValueDefinition.Integer(v)) => Right(FilterValueDefinition.IntegerList(Seq(v)))
       case Right(FilterValueDefinition.String(v)) => Right(FilterValueDefinition.StringList(Seq(v)))
       case Right(FilterValueDefinition.Boolean(v)) => Right(FilterValueDefinition.BooleanList(Seq(v)))
       case Right(FilterValueDefinition.Object(v)) => Right(FilterValueDefinition.ObjectList(Seq(v)))
-      case Right(v: SeqFilterValue) => Right(v)
       case Right(v) =>
         Left(
           new CdfSparkIllegalArgumentException(
@@ -741,44 +741,58 @@ class DataModelInstancesRelationV3(
     }
   // scalastyle:on cyclomatic.complexity
 
+  // scalastyle:off
   def getStreams(filters: Array[sql.sources.Filter], selectedColumns: Array[String])(
       @nowarn client: GenericClient[IO],
       limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO[ProjectedDataModelInstanceV3]]] = {
-    val selectedPropsArray = if (selectedColumns.isEmpty) {
+      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstanceV3]] = {
+    val selectedInstanceProps = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
       selectedColumns
     }
 
-    val filter = filters.toList.traverse(toInstanceFilter)
+    val instanceType = viewDefinitionAndProperties
+      .map { case (viewDef, _) => viewDef.usedFor }
+      .flatMap {
+        case Usage.Node => Some(InstanceType.Node)
+        case Usage.Edge => Some(InstanceType.Edge)
+        case _ => None
+      }
+      .orElse {
+        filters.collectFirst {
+          case EqualTo("instanceType", value) =>
+            Decoder[InstanceType].decodeJson(Json.fromString(String.valueOf(value))).toOption
+        }.flatten
+      }
 
-    val spaceFilters = (filters.map {
-      case EqualTo("space", value) => value.toString
-    } ++ Array(space)).distinct
+    val instanceFilter = filters.toVector.traverse(toInstanceFilter) match {
+      case Right(fs) if fs.isEmpty => None
+      case Right(fs) => Some(FilterDefinition.And(fs))
+      case Left(err) => throw err
+    }
 
-    val dmiQuery = InstanceFilterRequest(
-      model = DataModelIdentifier(space = Some(space), model = modelExternalId),
-      spaces = Some(spaceFilters),
-      filter = filter,
-      sort = None,
+    val sources = sourceViewReferences(filters)
+
+    val filterRequest = InstanceFilterRequest(
+      instanceType = instanceType,
+      filter = instanceFilter,
+      sort = None, // Some(Seq(PropertyFilterV3))
       limit = limit,
       cursor = None,
-      instanceType = None
+      sources = Some(sources)
     )
 
-    if (modelType == NodeType) {
-      Seq(
-        client.nodes
-          .queryStream(dmiQuery, limit)
-          .map(r => toProjectedInstance(r, selectedPropsArray)))
-    } else {
-      Seq(
-        client.edges
-          .queryStream(dmiQuery, limit)
-          .map(r => toProjectedInstance(r, selectedPropsArray)))
+    alphaClient.instances.filterStream(filterRequest, limit).map {
+      case n: InstanceDefinition.NodeDefinition =>
+        ProjectedDataModelInstanceV3(
+          externalId = n.externalId,
+          properties = n.properties.map(_.get(space).flatMap(_.get("extId").flatMap(_.get("prop"))))
+        )
+      case e: InstanceDefinition.EdgeDefinition => ???
     }
   }
+  // scalastyle:on
 
   override def buildScan(selectedColumns: Array[String], filters: Array[sql.sources.Filter]): RDD[Row] =
     SdkV1Rdd[ProjectedDataModelInstanceV3, String](
@@ -786,7 +800,7 @@ class DataModelInstancesRelationV3(
       config,
       (item: ProjectedDataModelInstanceV3, _) => toRow(item),
       _.externalId,
-      (_, _, _) => Seq.empty //getStreams(filters, selectedColumns)
+      getStreams(filters, selectedColumns)
     )
 
   // scalastyle:off cyclomatic.complexity
@@ -794,22 +808,16 @@ class DataModelInstancesRelationV3(
     (containerDefinition, viewDefinitionAndProperties) match {
       case (Some(containerDef), None) if containerDef.usedFor == Usage.Edge =>
         deleteEdgesWithMetrics(rows)
-
       case (Some(containerDef), None) if containerDef.usedFor == Usage.Node =>
         deleteNodesWithMetrics(rows)
-
       case (Some(containerDef), None) if containerDef.usedFor == Usage.All =>
         deleteNodesOrEdgesWithMetrics(rows, s"Container with externalId: ${containerDef.externalId}")
-
       case (None, Some((viewDef, _))) if viewDef.usedFor == Usage.Edge => deleteEdgesWithMetrics(rows)
-
       case (None, Some((viewDef, _))) if viewDef.usedFor == Usage.Node => deleteNodesWithMetrics(rows)
-
       case (None, Some((viewDef, _))) if viewDef.usedFor == Usage.All =>
         deleteNodesOrEdgesWithMetrics(
           rows,
           s"View with externalId: ${viewDef.externalId} & version: ${viewDef.version}")
-
       case (Some(_), Some(_)) =>
         IO.raiseError[Unit](
           new CdfSparkException(
@@ -837,6 +845,10 @@ class DataModelInstancesRelationV3(
           ))
     }
   // scalastyle:on cyclomatic.complexity
+
+  override def update(rows: Seq[Row]): IO[Unit] =
+    IO.raiseError[Unit](
+      new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
 
   private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
@@ -881,10 +893,49 @@ class DataModelInstancesRelationV3(
       .flatMap(results => incMetrics(itemsDeleted, results.length))
   }
 
-  def update(rows: Seq[Row]): IO[Unit] =
-    IO.raiseError[Unit](
-      new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
+  // scalastyle:off cyclomatic.complexity
+  private def sourceViewReferences(filters: Array[Filter]) = {
+    val rootViewDef = viewDefinitionAndProperties.map { case (viewDef, _) => viewDef }.toArray
 
+    val spaces = (filters.flatMap {
+      case EqualTo("space", value) => Array(value.toString)
+      case In("space", values) => values.map(_.toString)
+    } ++ Array(space)).distinct
+
+    val externalIds = (filters.flatMap {
+      case EqualTo("externalId", value) => Array(value.toString)
+      case In("externalId", values) => values.map(_.toString)
+    } ++ rootViewDef.map(_.externalId)).distinct
+
+    val versions = (filters.flatMap {
+      case EqualTo("version", value) => Array(value.toString)
+      case In("version", values) => values.map(_.toString)
+    } ++ rootViewDef.map(_.externalId)).distinct
+
+    val sources = if (spaces.length === externalIds.length && spaces.length === versions.length) {
+      spaces.zip(externalIds).zip(versions).map {
+        case ((space, extId), version) =>
+          ViewReference(space, extId, version)
+      }
+    } else {
+      spaces.flatMap { space =>
+        if (externalIds.length === versions.length) {
+          externalIds.zip(versions).map {
+            case (extId, version) =>
+              ViewReference(space, extId, version)
+          }
+        } else {
+          externalIds.flatMap { extId =>
+            versions.map { version =>
+              ViewReference(space, extId, version)
+            }
+          }
+        }
+      }
+    }
+    sources
+  }
+  // scalastyle:on cyclomatic.complexity
 }
 
 object DataModelInstancesRelationV3 {
