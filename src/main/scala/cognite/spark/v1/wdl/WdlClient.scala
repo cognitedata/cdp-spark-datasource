@@ -98,6 +98,7 @@ class WdlClient(
   private def getWriteUrlPart(modelType: String): String =
     modelType match {
       case "Well" => "wells"
+      case "Wellbore" => "wellbores"
       case "WellIngestion" => "wells"
       case "Npt" => "npt"
       case "Nds" => "npt"

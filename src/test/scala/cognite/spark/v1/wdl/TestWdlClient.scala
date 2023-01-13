@@ -117,16 +117,16 @@ class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
     setMergeRules(Seq("A"))
     val wellIngestion = WellIngestion(
       matchingId = Some("w1"),
-      source = AssetSource("A:w1", "A"),
+      source = AssetSource(assetExternalId = "A:w1", sourceName = "A"),
       name = "w1",
-      wellhead = Some(Wellhead(0.0, 60.0, "EPSG:4326"))
+      wellhead = Some(Wellhead(x = 0.0, y = 60.0, crs = "EPSG:4326"))
     )
     val well = ingestWells(Seq(wellIngestion)).head
     val wellboreIngestion = WellboreIngestion(
       matchingId = Some("wb1"),
       name = "wb1",
-      source = AssetSource("A:wb1", "A"),
-      datum = Some(Datum(50.0, "meter", "KB")),
+      source = AssetSource(assetExternalId = "A:wb1", sourceName = "A"),
+      datum = Some(Datum(value = 50.0, unit = "meter", reference = "KB")),
       wellAssetExternalId = "A:w1",
     )
     val wellbore = ingestWellbores(Seq(wellboreIngestion)).head
@@ -152,14 +152,14 @@ class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
       WellIngestion(
         name = "34/10-8",
         uniqueWellIdentifier = Some("34/10-8"),
-        waterDepth = Some(Distance(100.0, "meter")),
+        waterDepth = Some(Distance(value = 100.0, unit = "meter")),
         wellhead = Some(
           Wellhead(
             x = 457008.04,
             y = 6781760.88,
             crs = "EPSG:23031"
           )),
-        source = AssetSource("asset:34/10-8", "EDM"),
+        source = AssetSource(assetExternalId = "asset:34/10-8", sourceName = "EDM"),
         description = Some("this is a test well ingestion"),
         country = Some("Norway"),
         quadrant = Some("8"),

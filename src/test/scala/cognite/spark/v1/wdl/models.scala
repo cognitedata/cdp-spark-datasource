@@ -19,10 +19,20 @@ case class WellboreMergeRules(
     datum: Seq[String],
     parents: Seq[String],
     wellTops: Seq[String],
+    holeSections: Seq[String],
+    trajectories: Seq[String],
+    casings: Seq[String],
+    totalDrillingDays: Seq[String],
+    kickoffMeasuredDepth: Seq[String],
 )
 object WellboreMergeRules {
   def apply(source: Seq[String]): WellboreMergeRules =
     new WellboreMergeRules(
+      source,
+      source,
+      source,
+      source,
+      source,
       source,
       source,
       source,
@@ -89,6 +99,8 @@ case class Distance(
 case class Well(
     matchingId: String,
     name: String,
+    wellhead: Wellhead,
+    sources: Seq[AssetSource],
     description: Option[String] = None,
     uniqueWellIdentifier: Option[String] = None,
     country: Option[String] = None,
@@ -100,20 +112,19 @@ case class Well(
     spudDate: Option[String] = None,
     wellType: Option[String] = None,
     license: Option[String] = None,
-    wellhead: Wellhead,
     waterDepth: Option[Distance] = None,
-    sources: Seq[AssetSource],
     wellbores: Option[Seq[Wellbore]] = None
 )
 
 case class Wellbore(
     matchingId: String,
     name: String,
-    description: Option[String] = None,
     wellMatchingId: String,
+    sources: Seq[AssetSource],
+    description: Option[String] = None,
     parentWellboreMatchingId: Option[String] = None,
     uniqueWellboreIdentifier: Option[String] = None,
-    sources: Seq[AssetSource],
+    datum: Option[Datum] = None,
     totalDrillingDays: Option[Double] = None,
     kickoffMeasuredDepth: Option[Distance] = None
 )
@@ -127,8 +138,9 @@ case class Wellhead(
 )
 
 case class WellIngestion(
-    matchingId: Option[String] = None,
     name: String,
+    source: AssetSource,
+    matchingId: Option[String] = None,
     description: Option[String] = None,
     uniqueWellIdentifier: Option[String] = None,
     country: Option[String] = None,
@@ -142,17 +154,16 @@ case class WellIngestion(
     license: Option[String] = None,
     waterDepth: Option[Distance] = None,
     wellhead: Option[Wellhead] = None,
-    source: AssetSource
 )
 
 case class WellboreIngestion(
-    matchingId: Option[String] = None,
     name: String,
-    description: Option[String] = None,
     wellAssetExternalId: String,
+    source: AssetSource,
+    matchingId: Option[String] = None,
+    description: Option[String] = None,
     parentWellboreAssetExternalId: Option[String] = None,
     uniqueWellboreIdentifier: Option[String] = None,
-    source: AssetSource,
     datum: Option[Datum] = None,
     totalDrillingDays: Option[Double] = None,
     kickoffMeasuredDepth: Option[Distance] = None
