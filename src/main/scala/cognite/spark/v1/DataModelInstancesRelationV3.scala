@@ -3,7 +3,6 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
-import com.cognite.sdk.scala.v1.DataModelType.NodeType
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
@@ -20,7 +19,6 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.{
   PropertyType
 }
 import com.cognite.sdk.scala.v1.fdm.common.refs.SourceReference
-import com.cognite.sdk.scala.v1.fdm.containers._
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
   EdgeDeletionRequest,
   NodeDeletionRequest
@@ -29,6 +27,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeW
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition, ViewReference}
 import com.cognite.sdk.scala.v1.resources.fdm.instances.Instances.instanceCreateEncoder
+import fs2.Stream
 import io.circe.syntax.EncoderOps
 import io.circe.{Decoder, Json}
 import org.apache.spark.rdd.RDD
@@ -48,8 +47,7 @@ import scala.util.{Failure, Success, Try}
 class DataModelInstancesRelationV3(
     config: RelationConfig,
     space: String,
-    viewExternalIdAndVersion: Option[(String, String)],
-    containerExternalId: Option[String])(val sqlContext: SQLContext)
+    viewExternalIdAndVersion: Option[(String, String)])(val sqlContext: SQLContext)
     extends CdfRelation(config, DataModelInstancesRelationV3.ResourceType)
     with WritableRelation
     with PrunedFilteredScan {
@@ -85,15 +83,6 @@ class DataModelInstancesRelationV3(
       }
       .unsafeRunSync()
 
-  private val containerDefinition: Option[ContainerDefinition] =
-    containerExternalId
-      .flatTraverse { extId =>
-        alphaClient.containers
-          .retrieveByExternalIds(Seq(ContainerId(space, extId)))
-          .map(_.headOption)
-      }
-      .unsafeRunSync()
-
   override def schema: StructType = {
     val fields = viewDefinitionAndProperties
       .map {
@@ -106,19 +95,10 @@ class DataModelInstancesRelationV3(
                 propType.nullable.getOrElse(true))
           }
       }
-      .orElse(containerDefinition.map { containerDef =>
-        containerDef.properties.map {
-          case (identifier, propType) =>
-            DataTypes.createStructField(
-              identifier,
-              convertToSparkDataType(propType.`type`, propType.nullable.getOrElse(true)),
-              propType.nullable.getOrElse(true))
-        }
-      })
       .getOrElse {
         throw new CdfSparkException(s"""
-                                       |Correct (view external id, view version) pair or container external id should be specified.
-                                       |Could not resolve schema from view external id: $viewExternalIdAndVersion or container external id: $containerExternalId
+                                       |Correct view external id & view version should be specified.
+                                       |Could not resolve schema from view (externalId, version): $viewExternalIdAndVersion
                                        |""".stripMargin)
       }
     DataTypes.createStructType(fields.toArray)
@@ -130,50 +110,29 @@ class DataModelInstancesRelationV3(
       .map2(rows.headOption, viewDefinitionAndProperties) {
         case (firstRow, (viewDef, viewProps)) => Tuple3(firstRow, viewDef, viewProps)
       }
-    val containerDefWithFirstRow = Apply[Option]
-      .map2(rows.headOption, containerDefinition)(Tuple2.apply)
 
     println(rows.length)
     println(rows.map(_.prettyJson).mkString(System.lineSeparator()))
-    (containerDefWithFirstRow, viewDefAndPropsWithFirstRow) match {
-      case (Some((firstRow, containerDef)), None) =>
-        createNodesOrEdges(
-          rows,
-          firstRow.schema,
-          containerDef.toContainerReference,
-          containerDef.properties,
-          containerDef.usedFor).flatMap(results => incMetrics(itemsUpserted, results.length))
-      case (None, Some((firstRow, viewDef, viewProps))) =>
+    viewDefAndPropsWithFirstRow match {
+      case Some((firstRow, viewDef, viewProps)) =>
         createNodesOrEdges(
           rows,
           firstRow.schema,
           ViewReference(space, viewDef.externalId, viewDef.version),
           viewProps,
           viewDef.usedFor).flatMap(results => incMetrics(itemsUpserted, results.length))
-      case (Some(_), Some(_)) =>
+      case None if rows.isEmpty => incMetrics(itemsUpserted, 0)
+      case None if viewExternalIdAndVersion.nonEmpty =>
         IO.raiseError[Unit](
           new CdfSparkException(
-            s"Either a correct (view external id, view version) pair or a container external id should be specified, not both"
-          ))
-      case (None, None) if rows.isEmpty => incMetrics(itemsUpserted, 0)
-      case (None, None) if containerExternalId.nonEmpty =>
-        IO.raiseError[Unit](
-          new CdfSparkException(
-            s"""|Either a correct (view external id, view version) pair or a container external id should be specified.
-                |Could not resolve container external id: $containerExternalId
-                |""".stripMargin
-          ))
-      case (None, None) if viewExternalIdAndVersion.nonEmpty =>
-        IO.raiseError[Unit](
-          new CdfSparkException(
-            s"""|Either a correct (view external id, view version) pair or a container external id should be specified.
+            s"""|Correct view external id and view version should be specified.
                 |Could not resolve (view external id, view version) : $viewExternalIdAndVersion
                 |""".stripMargin
           ))
-      case (None, None) =>
+      case None =>
         IO.raiseError[Unit](
           new CdfSparkException(
-            s"Either a correct (view external id, view version) pair or a container external id should be specified"
+            s"Correct view external id and view version should be specified."
           ))
     }
   }
@@ -783,14 +742,25 @@ class DataModelInstancesRelationV3(
       sources = Some(sources)
     )
 
-    alphaClient.instances.filterStream(filterRequest, limit).map {
-      case n: InstanceDefinition.NodeDefinition =>
-        ProjectedDataModelInstanceV3(
-          externalId = n.externalId,
-          properties = n.properties.map(_.get(space).flatMap(_.get("extId").flatMap(_.get("prop"))))
-        )
-      case e: InstanceDefinition.EdgeDefinition => ???
-    }
+    val filterStream = alphaClient.instances
+      .filterStream(filterRequest, limit)
+      .map {
+        case n: InstanceDefinition.NodeDefinition => (n.externalId, n.properties)
+        case e: InstanceDefinition.EdgeDefinition => (e.externalId, e.properties)
+      }
+      .map {
+        case (externalId, properties) =>
+          val allAvailablePropValues =
+            properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+
+          ProjectedDataModelInstanceV3(
+            externalId = externalId,
+            properties = selectedInstanceProps.map { col =>
+              allAvailablePropValues.get(col).map(extractInstancePropertyValue).orNull
+            }
+          )
+      }
+    Seq(filterStream)
   }
   // scalastyle:on
 
@@ -805,43 +775,25 @@ class DataModelInstancesRelationV3(
 
   // scalastyle:off cyclomatic.complexity
   override def delete(rows: Seq[Row]): IO[Unit] =
-    (containerDefinition, viewDefinitionAndProperties) match {
-      case (Some(containerDef), None) if containerDef.usedFor == Usage.Edge =>
-        deleteEdgesWithMetrics(rows)
-      case (Some(containerDef), None) if containerDef.usedFor == Usage.Node =>
-        deleteNodesWithMetrics(rows)
-      case (Some(containerDef), None) if containerDef.usedFor == Usage.All =>
-        deleteNodesOrEdgesWithMetrics(rows, s"Container with externalId: ${containerDef.externalId}")
-      case (None, Some((viewDef, _))) if viewDef.usedFor == Usage.Edge => deleteEdgesWithMetrics(rows)
-      case (None, Some((viewDef, _))) if viewDef.usedFor == Usage.Node => deleteNodesWithMetrics(rows)
-      case (None, Some((viewDef, _))) if viewDef.usedFor == Usage.All =>
+    viewDefinitionAndProperties match {
+      case Some((viewDef, _)) if viewDef.usedFor == Usage.Edge => deleteEdgesWithMetrics(rows)
+      case Some((viewDef, _)) if viewDef.usedFor == Usage.Node => deleteNodesWithMetrics(rows)
+      case Some((viewDef, _)) if viewDef.usedFor == Usage.All =>
         deleteNodesOrEdgesWithMetrics(
           rows,
           s"View with externalId: ${viewDef.externalId} & version: ${viewDef.version}")
-      case (Some(_), Some(_)) =>
+      case None if rows.isEmpty => incMetrics(itemsDeleted, 0)
+      case None if viewExternalIdAndVersion.nonEmpty =>
         IO.raiseError[Unit](
           new CdfSparkException(
-            s"Either a correct (view external id, view version) pair or a container external id should be specified, not both"
-          ))
-      case (None, None) if rows.isEmpty => incMetrics(itemsDeleted, 0)
-      case (None, None) if containerExternalId.nonEmpty =>
-        IO.raiseError[Unit](
-          new CdfSparkException(
-            s"""|Either a correct (view external id, view version) pair or a container external id should be specified.
-                |Could not resolve container external id: $containerExternalId
-                |""".stripMargin
-          ))
-      case (None, None) if viewExternalIdAndVersion.nonEmpty =>
-        IO.raiseError[Unit](
-          new CdfSparkException(
-            s"""|Either a correct (view external id, view version) pair or a container external id should be specified.
+            s"""|Correct (view external id, view version) pair should be specified
                 |Could not resolve (view external id, view version) : $viewExternalIdAndVersion
                 |""".stripMargin
           ))
-      case (None, None) =>
+      case None =>
         IO.raiseError[Unit](
           new CdfSparkException(
-            s"Either a correct (view external id, view version) pair or a container external id should be specified"
+            s"Correct (view external id, view version) pair should be specified"
           ))
     }
   // scalastyle:on cyclomatic.complexity
@@ -934,6 +886,30 @@ class DataModelInstancesRelationV3(
       }
     }
     sources
+  }
+  // scalastyle:on cyclomatic.complexity
+
+  // scalastyle:off cyclomatic.complexity
+  private def extractInstancePropertyValue: InstancePropertyValue => Any = {
+    case InstancePropertyValue.String(value) => value
+    case InstancePropertyValue.Int32(value) => value
+    case InstancePropertyValue.Int64(value) => value
+    case InstancePropertyValue.Float32(value) => value
+    case InstancePropertyValue.Float64(value) => value
+    case InstancePropertyValue.Boolean(value) => value
+    case InstancePropertyValue.Date(value) => java.sql.Date.valueOf(value)
+    case InstancePropertyValue.Timestamp(value) => java.sql.Timestamp.from(value.toInstant)
+    case InstancePropertyValue.Object(value) => value.noSpaces
+    case InstancePropertyValue.StringList(value) => value
+    case InstancePropertyValue.BooleanList(value) => value
+    case InstancePropertyValue.Int32List(value) => value
+    case InstancePropertyValue.Int64List(value) => value
+    case InstancePropertyValue.Float32List(value) => value
+    case InstancePropertyValue.Float64List(value) => value
+    case InstancePropertyValue.DateList(value) => value.map(v => java.sql.Date.valueOf(v))
+    case InstancePropertyValue.TimestampList(value) =>
+      value.map(v => java.sql.Timestamp.from(v.toInstant))
+    case InstancePropertyValue.ObjectList(value) => value.map(_.noSpaces)
   }
   // scalastyle:on cyclomatic.complexity
 }
