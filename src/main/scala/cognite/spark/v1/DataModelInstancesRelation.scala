@@ -174,7 +174,9 @@ class DataModelInstanceRelation(
     sparkFilter match {
       case EqualTo(left, right) =>
         Some(
-          DSLEqualsFilter(Seq(spaceExternalId, modelExternalId, left), parsePropertyValue(left, right)))
+          DSLEqualsFilter(
+            Seq(spaceExternalId, modelExternalId, left),
+            parsePropertyValueV2(left, right)))
       case In(attribute, values) =>
         if (modelInfo(attribute).`type`.code.endsWith("[]")) {
           None
@@ -183,33 +185,33 @@ class DataModelInstanceRelation(
           Some(
             DSLInFilter(
               Seq(spaceExternalId, modelExternalId, attribute),
-              setValues.map(parsePropertyValue(attribute, _)).toIndexedSeq))
+              setValues.map(parsePropertyValueV2(attribute, _)).toIndexedSeq))
         }
       case StringStartsWith(attribute, value) =>
         Some(
           DSLPrefixFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            parsePropertyValue(attribute, value)))
+            parsePropertyValueV2(attribute, value)))
       case GreaterThanOrEqual(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            gte = Some(parsePropertyValue(attribute, value))))
+            gte = Some(parsePropertyValueV2(attribute, value))))
       case GreaterThan(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            gt = Some(parsePropertyValue(attribute, value))))
+            gt = Some(parsePropertyValueV2(attribute, value))))
       case LessThanOrEqual(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            lte = Some(parsePropertyValue(attribute, value))))
+            lte = Some(parsePropertyValueV2(attribute, value))))
       case LessThan(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            lt = Some(parsePropertyValue(attribute, value))))
+            lt = Some(parsePropertyValueV2(attribute, value))))
       case And(f1, f2) =>
         (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
           DSLAndFilter(Seq(sf1, sf2)))

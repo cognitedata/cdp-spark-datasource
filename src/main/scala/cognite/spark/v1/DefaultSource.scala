@@ -1,13 +1,12 @@
 package cognite.spark.v1
 
-import cats.Apply
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
-import io.circe.parser.parse
 import io.circe.Decoder
+import io.circe.parser.parse
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
@@ -126,25 +125,27 @@ class DefaultSource
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): DataModelInstancesRelationV3 = {
-    val space =
-      parameters.getOrElse("space", sys.error("external id of the 'space' must be specified"))
-    val containerExternalId = parameters.get("containerExternalId")
-    val viewExternalId = parameters.get("viewExternalId")
-    val viewVersion = parameters.get("viewVersion")
+    val viewSpaceExternalId =
+      parameters.getOrElse(
+        "viewSpaceExternalId",
+        throw new CdfSparkException("'viewSpaceExternalId' id of the 'space' must be specified"))
+    val viewExternalId = parameters.getOrElse(
+      "viewExternalId",
+      throw new CdfSparkException("'viewExternalId' should be specified"))
+    val viewVersion = parameters.getOrElse(
+      "viewVersion",
+      throw new CdfSparkException("'viewVersion' should be specified"))
+    val instanceExternalId = parameters.getOrElse(
+      "instanceExternalId",
+      throw new CdfSparkException("'instanceExternalId' should be specified"))
 
-    val viewExternalIdAndVersion = Apply[Option].map2(viewExternalId, viewVersion)(Tuple2.apply)
-
-    if (containerExternalId.isEmpty && viewExternalIdAndVersion.isEmpty) {
-      throw new CdfSparkException(
-        "View external id with View version or a container external id should be specified")
-    } else {
-      new DataModelInstancesRelationV3(
-        config,
-        space,
-        viewExternalIdAndVersion,
-        containerExternalId,
-      )(sqlContext)
-    }
+    new DataModelInstancesRelationV3(
+      config,
+      viewSpaceExternalId = viewSpaceExternalId,
+      viewExternalId = viewExternalId,
+      viewVersion = viewVersion,
+      instanceSpaceExternalId = instanceExternalId
+    )(sqlContext)
   }
 
   // scalastyle:off cyclomatic.complexity method.length

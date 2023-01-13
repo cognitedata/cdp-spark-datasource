@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.DataModelInstancesRelationV3._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
@@ -31,521 +32,120 @@ import fs2.Stream
 import io.circe.syntax.EncoderOps
 import io.circe.{Decoder, Json}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
+import java.math.BigInteger
+import java.sql.{Date, Timestamp}
 import java.time._
 import java.time.format.DateTimeFormatter
 import scala.annotation.nowarn
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
-// scalastyle:off number.of.methods
 class DataModelInstancesRelationV3(
     config: RelationConfig,
-    space: String,
-    viewExternalIdAndVersion: Option[(String, String)])(val sqlContext: SQLContext)
+    viewSpaceExternalId: String,
+    viewExternalId: String,
+    viewVersion: String,
+    instanceSpaceExternalId: String)(val sqlContext: SQLContext)
     extends CdfRelation(config, DataModelInstancesRelationV3.ResourceType)
     with WritableRelation
     with PrunedFilteredScan {
   import CdpConnector._
 
-  private val viewDefinitionAndProperties
-    : Option[(ViewDefinition, Map[String, ViewPropertyDefinition])] =
-    viewExternalIdAndVersion
-      .flatTraverse {
-        case (viewExtId, viewVersion) =>
-          val allProperties = alphaClient.views
-            .retrieveItems(
-              Seq(DataModelReference(space, viewExtId, viewVersion)),
-              includeInheritedProperties = Some(true))
-            .map(_.headOption)
-            .flatMap {
-              case Some(viewDef) =>
-                viewDef.implements.traverse { v =>
-                  alphaClient.views
-                    .retrieveItems(v.map(vRef =>
-                      DataModelReference(vRef.space, vRef.externalId, vRef.version)))
-                    .map { inheritingViews =>
-                      val inheritingProperties = inheritingViews
-                        .map(_.properties)
-                        .reduce((propMap1, propMap2) => propMap1 ++ propMap2)
+  private val (viewDefinition, allViewProperties): (ViewDefinition, Map[String, ViewPropertyDefinition]) = {
+    val allProperties = alphaClient.views
+      .retrieveItems(
+        Seq(DataModelReference(viewSpaceExternalId, viewExternalId, viewVersion)),
+        includeInheritedProperties = Some(true))
+      .map(_.headOption)
+      .flatMap {
+        case Some(viewDef) =>
+          viewDef.implements.traverse { v =>
+            alphaClient.views
+              .retrieveItems(v.map(vRef =>
+                DataModelReference(vRef.space, vRef.externalId, vRef.version)))
+              .map { inheritingViews =>
+                val inheritingProperties = inheritingViews
+                  .map(_.properties)
+                  .reduce((propMap1, propMap2) => propMap1 ++ propMap2)
 
-                      (viewDef, inheritingProperties ++ viewDef.properties)
-                    }
-                }
-              case None => IO.pure(None)
-            }
-          allProperties
+                (viewDef, inheritingProperties ++ viewDef.properties)
+              }
+          }
+        case None => IO.pure(None)
       }
-      .unsafeRunSync()
+    allProperties
+  }.unsafeRunSync()
+    .getOrElse {
+      throw new CdfSparkException(s"""
+                                       |Correct view external id & view version should be specified.
+                                       |Could not resolve schema from view externalId: $viewExternalId & view version: $viewVersion
+                                       |""".stripMargin)
+    }
 
   override def schema: StructType = {
-    val fields = viewDefinitionAndProperties
-      .map {
-        case (_, fieldsMap) =>
-          fieldsMap.map {
-            case (identifier, propType) =>
-              DataTypes.createStructField(
-                identifier,
-                convertToSparkDataType(propType.`type`, propType.nullable.getOrElse(true)),
-                propType.nullable.getOrElse(true))
-          }
-      }
-      .getOrElse {
-        throw new CdfSparkException(s"""
-                                       |Correct view external id & view version should be specified.
-                                       |Could not resolve schema from view (externalId, version): $viewExternalIdAndVersion
-                                       |""".stripMargin)
-      }
+    val fields = allViewProperties.map {
+      case (identifier, propType) =>
+        DataTypes.createStructField(
+          identifier,
+          convertToSparkDataType(propType.`type`, propType.nullable.getOrElse(true)),
+          propType.nullable.getOrElse(true))
+    }
     DataTypes.createStructType(fields.toArray)
   }
 
   // scalastyle:off cyclomatic.complexity
   override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val viewDefAndPropsWithFirstRow = Apply[Option]
-      .map2(rows.headOption, viewDefinitionAndProperties) {
-        case (firstRow, (viewDef, viewProps)) => Tuple3(firstRow, viewDef, viewProps)
-      }
-
+    val firstRow = rows.headOption
     println(rows.length)
     println(rows.map(_.prettyJson).mkString(System.lineSeparator()))
-    viewDefAndPropsWithFirstRow match {
-      case Some((firstRow, viewDef, viewProps)) =>
-        createNodesOrEdges(
+    firstRow match {
+      case Some(firstRow) =>
+        upsertNodesOrEdges(
+          instanceSpaceExternalId,
           rows,
           firstRow.schema,
-          ViewReference(space, viewDef.externalId, viewDef.version),
-          viewProps,
-          viewDef.usedFor).flatMap(results => incMetrics(itemsUpserted, results.length))
+          ViewReference(viewSpaceExternalId, viewDefinition.externalId, viewDefinition.version),
+          allViewProperties,
+          viewDefinition.usedFor
+        ).flatMap(results => incMetrics(itemsUpserted, results.length))
       case None if rows.isEmpty => incMetrics(itemsUpserted, 0)
-      case None if viewExternalIdAndVersion.nonEmpty =>
-        IO.raiseError[Unit](
-          new CdfSparkException(
-            s"""|Correct view external id and view version should be specified.
-                |Could not resolve (view external id, view version) : $viewExternalIdAndVersion
-                |""".stripMargin
-          ))
-      case None =>
-        IO.raiseError[Unit](
-          new CdfSparkException(
-            s"Correct view external id and view version should be specified."
-          ))
     }
   }
   // scalastyle:on cyclomatic.complexity
 
-  private def createNodesOrEdges(
+  private def upsertNodesOrEdges(
+      instanceSpaceExternalId: String,
       rows: Seq[Row],
       schema: StructType,
-      sourceReference: SourceReference,
+      destinationRef: SourceReference,
       propDefMap: Map[String, PropertyDefinition],
-      usedFor: Usage): IO[Seq[SlimNodeOrEdge]] = usedFor match {
-    case Usage.Node => createNodes(rows, schema, propDefMap, sourceReference)
-    case Usage.Edge => createEdges(rows, schema, propDefMap, sourceReference)
-    case Usage.All =>
-      verifyPrerequisitesForEdges(schema) match {
-        case Failure(errForEdge) =>
-          verifyPrerequisitesForNodes(schema) match {
-            case Failure(errForNode) =>
-              IO.raiseError[Seq[SlimNodeOrEdge]](
-                new CdfSparkException(s"""|Cannot be considered as Edges or Nodes.
-                                          |Fields 'type', 'externalId', 'startNode' & 'endNode' fields must be present to create an Edge: ${errForEdge.getMessage}"
-                                          |Field 'externalId' is required to create a Node: ${errForNode.getMessage}
-                                          |""".stripMargin)
-              )
-            case Success(_) =>
-              createNodes(rows, schema, propDefMap, sourceReference)
-          }
-        case Success(_) =>
-          createEdges(rows, schema, propDefMap, sourceReference)
-      }
-      createNodes(rows, schema, propDefMap, sourceReference)
-  }
-
-  private def createNodes(
-      rows: Seq[Row],
-      schema: StructType,
-      propertyDefMap: Map[String, PropertyDefinition],
-      destinationRef: SourceReference): IO[Seq[SlimNodeOrEdge]] =
-    verifyPrerequisitesForNodes(schema) *> validateRowFieldsWithPropertyDefinitions(
-      schema,
-      propertyDefMap) match {
-      case Success(_) =>
-        createNodeWriteData(schema, destinationRef, propertyDefMap, rows) match {
-          case Left(err) => IO.raiseError(err)
-          case Right(items) =>
-            val instanceCreate = InstanceCreate(
-              items = items,
-              autoCreateStartNodes = Some(true),
-              autoCreateEndNodes = Some(true),
-              replace = Some(false) // TODO: verify this
-            )
-
-            println(instanceCreate.asJson.noSpaces)
-            alphaClient.instances.createItems(instanceCreate)
-        }
-      case Failure(err) =>
-        IO.raiseError[Seq[SlimNodeOrEdge]](
-          new CdfSparkException(s"Field 'externalId' is required to create a Node: ${err.getMessage}"))
+      usedFor: Usage): IO[Seq[SlimNodeOrEdge]] = {
+    val nodesOrEdges = usedFor match {
+      case Usage.Node => createNodes(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
+      case Usage.Edge => createEdges(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
+      case Usage.All =>
+        createNodesOrEdges(instanceSpaceExternalId, rows, schema, destinationRef, propDefMap)
     }
 
-  private def createEdges(
-      rows: Seq[Row],
-      schema: StructType,
-      propertyDefMap: Map[String, PropertyDefinition],
-      destinationRef: SourceReference): IO[Seq[SlimNodeOrEdge]] =
-    verifyPrerequisitesForEdges(schema) *> validateRowFieldsWithPropertyDefinitions(
-      schema,
-      propertyDefMap) match {
-      case Success(_) =>
-        createEdgeWriteData(schema, destinationRef, propertyDefMap, rows) match {
-          case Left(err) => IO.raiseError(err)
-          case Right(items) =>
-            val instanceCreate = InstanceCreate(
-              items = items,
-              autoCreateStartNodes = Some(true),
-              autoCreateEndNodes = Some(true),
-              replace = Some(false) // TODO: verify this
-            )
-            println(instanceCreate.asJson.noSpaces)
-            alphaClient.instances.createItems(instanceCreate)
-        }
-      case Failure(err) =>
-        IO.raiseError[Seq[SlimNodeOrEdge]](new CdfSparkException(
-          s"Fields 'type', 'externalId', 'startNode' & 'endNode' fields must be present to create an Edge: ${err.getMessage}"))
-    }
-
-  private def verifyPrerequisitesForEdges(schema: StructType): Try[Boolean] =
-    Try {
-      (
-        schema.fieldIndex("type"),
-        schema.fieldIndex("externalId"),
-        schema.fieldIndex("startNode"),
-        schema.fieldIndex("endNode")
-      )
-    } *> Success(true)
-
-  private def verifyPrerequisitesForNodes(schema: StructType): Try[Boolean] =
-    Try(schema.fieldIndex("externalId")) *> Success(true)
-
-  private def validateRowFieldsWithPropertyDefinitions(
-      schema: StructType,
-      propertyDefMap: Map[String, PropertyDefinition]): Try[Boolean] = {
-
-    val (existsInPropDef @ _, missingInPropDef) = schema.fields.partition { field =>
-      propertyDefMap.contains(field.name)
-    }
-
-    val (nonNullableMissingFields, nullableMissingFields @ _) = missingInPropDef.partition { field =>
-      propertyDefMap.get(field.name).flatMap(_.nullable).contains(false)
-    }
-
-    if (nonNullableMissingFields.nonEmpty) {
-      Failure(
-        new CdfSparkException(
-          s"""Can't find required properties: ${nonNullableMissingFields
-               .map(_.name)
-               .mkString(", ")}""".stripMargin
+    nodesOrEdges match {
+      case Left(err) => IO.raiseError(err)
+      case Right(items) =>
+        val instanceCreate = InstanceCreate(
+          items = items,
+          autoCreateStartNodes = Some(true),
+          autoCreateEndNodes = Some(true),
+          replace = Some(false) // TODO: verify this
         )
-      )
-    } else {
-      Success(true)
+
+        println(instanceCreate.asJson.noSpaces)
+        alphaClient.instances.createItems(instanceCreate)
     }
   }
-
-  private def createNodeWriteData(
-      schema: StructType,
-      destinationRef: SourceReference,
-      propertyDefMap: Map[String, PropertyDefinition],
-      rows: Seq[Row]): Either[CdfSparkException, List[NodeWrite]] =
-    rows.toList.traverse { row =>
-      val properties = schema.fields.toList.flatTraverse { field =>
-        propertyDefMap.get(field.name).toList.flatTraverse { propDef =>
-          propertyDefinitionToInstancePropertyValue(row, field, schema, propDef).map {
-            case Some(t) => List(field.name -> t)
-            case None => List.empty
-          }
-        }
-      }
-      properties.map { props =>
-        NodeWrite(
-          space = space,
-          externalId = row.getString(schema.fieldIndex("externalId")),
-          sources = Seq(
-            EdgeOrNodeData(
-              source = destinationRef,
-              properties = Some(props.toMap)
-            )
-          )
-        )
-      }
-    }
-
-  private def createEdgeWriteData(
-      schema: StructType,
-      destinationRef: SourceReference,
-      propertyDefMap: Map[String, PropertyDefinition],
-      rows: Seq[Row]): Either[CdfSparkException, List[EdgeWrite]] =
-    rows.toList.traverse { row =>
-      val edgeNodeTypeRelation = extractEdgeTypeDirectRelation(row)
-      val startNodeRelation = extractEdgeStartNodeDirectRelation(row)
-      val endNodeRelation = extractEdgeEndNodeDirectRelation(row)
-      val properties = schema.fields.toList.flatTraverse { field =>
-        propertyDefMap.get(field.name).toList.flatTraverse { propDef =>
-          propertyDefinitionToInstancePropertyValue(row, field, schema, propDef).map {
-            case Some(t) => List(field.name -> t)
-            case None => List.empty
-          }
-        }
-      }
-
-      for {
-        edgeType <- edgeNodeTypeRelation
-        startNode <- startNodeRelation
-        endNode <- endNodeRelation
-        props <- properties
-      } yield
-        EdgeWrite(
-          `type` = edgeType,
-          space = space,
-          externalId = row.getString(schema.fieldIndex("externalId")),
-          startNode = startNode,
-          endNode = endNode,
-          sources = Seq(
-            EdgeOrNodeData(
-              source = destinationRef,
-              properties = Some(props.toMap)
-            )
-          )
-        )
-    }
-
-  private def extractEdgeTypeDirectRelation(
-      row: Row): Either[CdfSparkException, DirectRelationReference] =
-    extractDirectRelation("type", "Edge type", row)
-
-  private def extractEdgeStartNodeDirectRelation(
-      row: Row): Either[CdfSparkException, DirectRelationReference] =
-    extractDirectRelation("startNode", "Edge start node", row)
-
-  private def extractEdgeEndNodeDirectRelation(
-      row: Row): Either[CdfSparkException, DirectRelationReference] =
-    extractDirectRelation("endNode", "Edge end node", row)
-
-  private def extractDirectRelation(
-      propertyName: String,
-      descriptiveName: String,
-      row: Row): Either[CdfSparkException, DirectRelationReference] =
-    Try {
-      val edgeTypeRow = row.getStruct(schema.fieldIndex(propertyName))
-      val space = Option(edgeTypeRow.getAs[String]("space"))
-      val externalId = Option(edgeTypeRow.getAs[String]("externalId"))
-      Apply[Option].map2(space, externalId)(DirectRelationReference.apply)
-    } match {
-      case Success(Some(relation)) => Right(relation)
-      case Success(None) =>
-        Left(
-          new CdfSparkException(
-            s"""
-             |'$propertyName' ($descriptiveName) shouldn't contain null values.
-             |Please verify that 'space' & 'externalId' values are not null for '$propertyName'
-             |data row: ${row.json}
-             |""".stripMargin
-          ))
-      case Failure(err) =>
-        Left(new CdfSparkException(s"""
-             |Couldn't find '$propertyName'. '$propertyName' ($descriptiveName) should be a 'StructType' which consists 'space' & 'externalId' : ${err.getMessage}
-             |data row: ${row.json}
-             |""".stripMargin))
-    }
-
-  private def propertyDefinitionToInstancePropertyValue(
-      row: Row,
-      field: StructField,
-      schema: StructType,
-      propDef: PropertyDefinition): Either[CdfSparkException, Option[InstancePropertyValue]] = {
-    val instancePropertyValueResult = propDef.`type` match {
-      case DirectNodeRelationProperty(_) => // TODO: Verify this
-        row
-          .getSeq[String](schema.fieldIndex(field.name))
-          .toList
-          .traverse(io.circe.parser.parse)
-          .map(l => Some(InstancePropertyValue.ObjectList(l)))
-          .leftMap(e =>
-            new CdfSparkException(
-              s"Error parsing value of field '${field.name}' as a list of json objects: ${e.getMessage}"))
-      case t if t.isList => toInstantPropertyValueOfList(row, field, schema, propDef)
-      case _ => toInstantPropertyValueOfNonList(row, field, schema, propDef)
-    }
-
-    instancePropertyValueResult.leftMap {
-      case e: CdfSparkException =>
-        new CdfSparkException(
-          s"""
-             |${e.getMessage}
-             |table row: ${row.json}
-             |""".stripMargin
-        )
-      case e: Throwable =>
-        new CdfSparkException(
-          s"""
-             |Error parsing value of field '${field.name}': ${e.getMessage}
-             |table row: ${row.json}
-             |""".stripMargin
-        )
-    }
-  }
-
-  // scalastyle:off cyclomatic.complexity method.length
-  private def toInstantPropertyValueOfList(
-      row: Row,
-      field: StructField,
-      schema: StructType,
-      propDef: PropertyDefinition): Either[Throwable, Option[InstancePropertyValue]] = {
-    val nullable = propDef.nullable.getOrElse(true)
-    val fieldIndex = schema.fieldIndex(field.name)
-    if (nullable && row.isNullAt(fieldIndex)) {
-      Right(None)
-    } else if (!nullable && row.isNullAt(fieldIndex)) {
-      Left(
-        new CdfSparkException(
-          s"'${field.name}' cannot be null. Consider replacing null with a default value"))
-    } else {
-      val propVal = propDef.`type` match {
-        case TextProperty(Some(true), _) =>
-          Try(InstancePropertyValue.StringList(row.getSeq[String](schema.fieldIndex(field.name)))).toEither
-        case PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
-          Try(InstancePropertyValue.BooleanList(row.getSeq[Boolean](schema.fieldIndex(field.name)))).toEither
-        case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
-          Try(
-            InstancePropertyValue.Float32List(
-              row
-                .getSeq[Any](schema.fieldIndex(field.name))
-                .map(_.asInstanceOf[java.lang.Number].floatValue))).toEither
-        case PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
-          Try(
-            InstancePropertyValue.Float64List(
-              row
-                .getSeq[Any](schema.fieldIndex(field.name))
-                .map(_.asInstanceOf[java.lang.Number].doubleValue))).toEither
-        case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
-          Try(
-            InstancePropertyValue.Int32List(
-              row
-                .getSeq[Any](schema.fieldIndex(field.name))
-                .map(_.asInstanceOf[java.lang.Number].intValue))).toEither
-        case PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
-          Try(
-            InstancePropertyValue.Int64List(
-              row
-                .getSeq[Any](schema.fieldIndex(field.name))
-                .map(_.asInstanceOf[java.lang.Number].longValue))).toEither
-        case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
-          Try(
-            InstancePropertyValue.TimestampList(
-              row
-                .getSeq[String](schema.fieldIndex(field.name))
-                .map(ZonedDateTime.parse(_, DateTimeFormatter.ISO_ZONED_DATE_TIME)))).toEither
-            .leftMap(e => new CdfSparkException(s"""
-                                                   |Error parsing value of field '${field.name}' as a list of ISO formatted zoned timestamps: ${e.getMessage}
-                                                   |Expected timestamp format is: ${DateTimeFormatter.ISO_ZONED_DATE_TIME.toString}
-                                                   |""".stripMargin))
-        case PrimitiveProperty(PrimitivePropType.Date, Some(true)) =>
-          Try(
-            InstancePropertyValue.DateList(
-              row
-                .getSeq[String](schema.fieldIndex(field.name))
-                .map(LocalDate.parse(_, DateTimeFormatter.ISO_LOCAL_DATE)))).toEither
-            .leftMap(e => new CdfSparkException(s"""
-                                                   |Error parsing value of field '${field.name}' as a list of ISO formatted dates: ${e.getMessage}
-                                                   |Expected date format is: ${DateTimeFormatter.ISO_LOCAL_DATE.toString}
-                                                   |""".stripMargin))
-        case PrimitiveProperty(PrimitivePropType.Json, Some(true)) | DirectNodeRelationProperty(_) =>
-          row
-            .getSeq[String](schema.fieldIndex(field.name))
-            .toList
-            .traverse(io.circe.parser.parse)
-            .map(InstancePropertyValue.ObjectList.apply)
-            .leftMap(e =>
-              new CdfSparkException(
-                s"Error parsing value of field '${field.name}' as a list of json objects: ${e.getMessage}"))
-
-        case t => Left(new CdfSparkException(s"Unhandled list type: ${t.toString}"))
-      }
-      propVal.map(Some(_))
-    }
-  }
-  // scalastyle:on cyclomatic.complexity method.length
-
-  // scalastyle:off cyclomatic.complexity method.length
-  private def toInstantPropertyValueOfNonList(
-      row: Row,
-      field: StructField,
-      schema: StructType,
-      propDef: PropertyDefinition): Either[Throwable, Option[InstancePropertyValue]] = {
-    val nullable = propDef.nullable.getOrElse(true)
-    val fieldIndex = schema.fieldIndex(field.name)
-    if (nullable && row.isNullAt(fieldIndex)) {
-      Right[CdfSparkException, Option[InstancePropertyValue]](None)
-    } else if (!nullable && row.isNullAt(fieldIndex)) {
-      Left[CdfSparkException, Option[InstancePropertyValue]](
-        new CdfSparkException(
-          s"'${field.name}' cannot be null. Consider replacing null with a default value")
-      )
-    } else {
-      val propVal = propDef.`type` match {
-        case TextProperty(None | Some(false), _) =>
-          Try(InstancePropertyValue.String(row.getString(fieldIndex))).toEither
-        case PrimitiveProperty(PrimitivePropType.Boolean, None | Some(false)) =>
-          Try(InstancePropertyValue.Boolean(row.getBoolean(fieldIndex))).toEither
-        case PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) =>
-          Try(
-            InstancePropertyValue
-              .Float32(row.get(fieldIndex).asInstanceOf[java.lang.Number].floatValue)).toEither
-        case PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) =>
-          Try(
-            InstancePropertyValue.Float64(
-              row.get(fieldIndex).asInstanceOf[java.lang.Number].doubleValue)).toEither
-        case PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) |
-            PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
-          Try(
-            InstancePropertyValue
-              .Int64(row.get(fieldIndex).asInstanceOf[java.lang.Number].longValue())).toEither
-        case PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
-          Try(
-            InstancePropertyValue.Timestamp(ZonedDateTime
-              .parse(row.getString(fieldIndex), DateTimeFormatter.ISO_ZONED_DATE_TIME))).toEither
-            .leftMap(e => new CdfSparkException(s"""
-                                                   |Error parsing value of field '${field.name}' as a list of ISO formatted zoned timestamps: ${e.getMessage}
-                                                   |Expected timestamp format is: ${DateTimeFormatter.ISO_ZONED_DATE_TIME.toString}
-                                                   |""".stripMargin))
-        case PrimitiveProperty(PrimitivePropType.Date, None | Some(false)) =>
-          Try(
-            InstancePropertyValue.Date(
-              LocalDate.parse(row.getString(fieldIndex), DateTimeFormatter.ISO_LOCAL_DATE))).toEither
-            .leftMap(e => new CdfSparkException(s"""
-                                                   |Error parsing value of field '${field.name}' as a list of ISO formatted dates: ${e.getMessage}
-                                                   |Expected date format is: ${DateTimeFormatter.ISO_LOCAL_DATE.toString}
-                                                   |""".stripMargin))
-        case PrimitiveProperty(PrimitivePropType.Json, None | Some(false)) =>
-          io.circe.parser
-            .parse(row
-              .getString(fieldIndex))
-            .map(InstancePropertyValue.Object.apply)
-            .leftMap(e =>
-              new CdfSparkException(
-                s"Error parsing value of field '${field.name}' as a list of json objects: ${e.getMessage}"))
-
-        case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
-      }
-      propVal.map(Some(_))
-    }
-  }
-  // scalastyle:on cyclomatic.complexity method.length
 
   private def convertToSparkDataType(propType: PropertyType, nullable: Boolean): DataType = {
     def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
@@ -624,23 +224,36 @@ class DataModelInstancesRelationV3(
           case Right(json) if json.isObject => Right(FilterValueDefinition.Object(json))
           case _ => Right(FilterValueDefinition.String(v))
         }
-      case v: scala.Float => Right(FilterValueDefinition.Double(v.toDouble))
-      case v: scala.Double => Right(FilterValueDefinition.Double(v))
-      case v: scala.Int => Right(FilterValueDefinition.Integer(v.toLong))
-      case v: scala.Long => Right(FilterValueDefinition.Integer(v))
-      case v: scala.Boolean => Right(FilterValueDefinition.Boolean(v))
-
-      case v: Seq[String] =>
-        v.headOption.flatMap(io.circe.parser.parse(_).toOption) match {
-          case Some(_) =>
-            Right(FilterValueDefinition.ObjectList(v.flatMap(io.circe.parser.parse(_).toOption)))
-          case None => Right(FilterValueDefinition.StringList(v))
-        }
-      case v: Seq[scala.Float] => Right(FilterValueDefinition.DoubleList(v.map(_.toDouble)))
-      case v: Seq[scala.Double] => Right(FilterValueDefinition.DoubleList(v))
-      case v: Seq[scala.Int] => Right(FilterValueDefinition.IntegerList(v.map(_.toLong)))
-      case v: Seq[scala.Long] => Right(FilterValueDefinition.IntegerList(v))
-      case v: Seq[scala.Boolean] => Right(FilterValueDefinition.BooleanList(v))
+      case v: Float => Right(FilterValueDefinition.Double(v.toDouble))
+      case v: Double => Right(FilterValueDefinition.Double(v))
+      case v: Int => Right(FilterValueDefinition.Integer(v.toLong))
+      case v: Long => Right(FilterValueDefinition.Integer(v))
+      case v: Boolean => Right(FilterValueDefinition.Boolean(v))
+      case v: java.math.BigDecimal => Right(FilterValueDefinition.Double(v.doubleValue))
+      case v: BigInteger => Right(FilterValueDefinition.Integer(v.longValue))
+      case v: LocalDate =>
+        Right(FilterValueDefinition.String(v.format(InstancePropertyValue.Date.formatter)))
+      case v: LocalDateTime =>
+        Right(FilterValueDefinition.String(v.format(InstancePropertyValue.Timestamp.formatter)))
+      case v: Instant =>
+        Right(
+          FilterValueDefinition.String(
+            OffsetDateTime
+              .ofInstant(v, ZoneId.of("UTC"))
+              .toZonedDateTime
+              .format(InstancePropertyValue.Timestamp.formatter)))
+      case v: ZonedDateTime =>
+        Right(FilterValueDefinition.String(v.format(InstancePropertyValue.Timestamp.formatter)))
+      case v: Date =>
+        Right(FilterValueDefinition.String(v.toLocalDate.format(InstancePropertyValue.Date.formatter)))
+      case v: Timestamp =>
+        Right(
+          FilterValueDefinition.String(
+            OffsetDateTime
+              .ofInstant(v.toInstant, ZoneId.of("UTC"))
+              .toZonedDateTime
+              .format(InstancePropertyValue.Timestamp.formatter)))
+      case v: Array[_] => toFilterValueListDefinition(attribute, v)
       case v =>
         Left(
           new CdfSparkIllegalArgumentException(
@@ -649,6 +262,63 @@ class DataModelInstancesRelationV3(
         )
     }
   // scalastyle:on cyclomatic.complexity
+
+  // scalastyle:off cyclomatic.complexity method.length
+  def toFilterValueListDefinition(
+      attribute: String,
+      value: Any): Either[CdfSparkException, FilterValueDefinition] =
+    value match {
+      case v: Array[String] =>
+        v.headOption.flatMap(io.circe.parser.parse(_).toOption) match {
+          case Some(_) =>
+            Right(FilterValueDefinition.ObjectList(v.flatMap(io.circe.parser.parse(_).toOption)))
+          case None => Right(FilterValueDefinition.StringList(v))
+        }
+      case v: Array[Float] => Right(FilterValueDefinition.DoubleList(v.map(_.toDouble)))
+      case v: Array[Double] => Right(FilterValueDefinition.DoubleList(v))
+      case v: Array[Int] => Right(FilterValueDefinition.IntegerList(v.map(_.toLong)))
+      case v: Array[Long] => Right(FilterValueDefinition.IntegerList(v))
+      case v: Array[Boolean] => Right(FilterValueDefinition.BooleanList(v))
+      case v: Array[java.math.BigDecimal] =>
+        Right(FilterValueDefinition.DoubleList(v.map(_.doubleValue)))
+      case v: Array[BigInteger] => Right(FilterValueDefinition.IntegerList(v.map(_.longValue)))
+      case v: Array[LocalDate] =>
+        Right(FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Date.formatter))))
+      case v: Array[LocalDateTime] =>
+        Right(
+          FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Timestamp.formatter))))
+      case v: Array[Instant] =>
+        Right(
+          FilterValueDefinition.StringList(
+            v.map(
+              OffsetDateTime
+                .ofInstant(_, ZoneId.of("UTC"))
+                .toZonedDateTime
+                .format(InstancePropertyValue.Timestamp.formatter))))
+      case v: Array[ZonedDateTime] =>
+        Right(
+          FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Timestamp.formatter))))
+      case v: Array[Date] =>
+        Right(
+          FilterValueDefinition.StringList(
+            v.map(_.toLocalDate.format(InstancePropertyValue.Date.formatter))))
+      case v: Array[Timestamp] =>
+        Right(
+          FilterValueDefinition.StringList(
+            v.map(
+              ts =>
+                OffsetDateTime
+                  .ofInstant(ts.toInstant, ZoneId.of("UTC"))
+                  .toZonedDateTime
+                  .format(InstancePropertyValue.Timestamp.formatter))))
+      case v =>
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"Expecting a value of type number, string, boolean or an array of them for '$attribute', but found ${v.toString}"
+          )
+        )
+    }
+  // scalastyle:on cyclomatic.complexity method.length
 
   def toSeqFilterValueDefinition(
       attribute: String,
@@ -670,7 +340,7 @@ class DataModelInstancesRelationV3(
     }
 
   // scalastyle:off cyclomatic.complexity
-  def toInstanceFilter(sparkFilter: sql.sources.Filter): Either[CdfSparkException, FilterDefinition] =
+  def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(FilterDefinition.Equals(Seq(attribute), _))
@@ -700,8 +370,7 @@ class DataModelInstancesRelationV3(
     }
   // scalastyle:on cyclomatic.complexity
 
-  // scalastyle:off
-  def getStreams(filters: Array[sql.sources.Filter], selectedColumns: Array[String])(
+  private def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       @nowarn client: GenericClient[IO],
       limit: Option[Int],
       @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstanceV3]] = {
@@ -711,19 +380,18 @@ class DataModelInstancesRelationV3(
       selectedColumns
     }
 
-    val instanceType = viewDefinitionAndProperties
-      .map { case (viewDef, _) => viewDef.usedFor }
-      .flatMap {
+    val instanceType = {
+      (viewDefinition.usedFor match {
         case Usage.Node => Some(InstanceType.Node)
         case Usage.Edge => Some(InstanceType.Edge)
-        case _ => None
-      }
-      .orElse {
+        case Usage.All => None
+      }).orElse {
         filters.collectFirst {
           case EqualTo("instanceType", value) =>
             Decoder[InstanceType].decodeJson(Json.fromString(String.valueOf(value))).toOption
         }.flatten
       }
+    }
 
     val instanceFilter = filters.toVector.traverse(toInstanceFilter) match {
       case Right(fs) if fs.isEmpty => None
@@ -731,40 +399,23 @@ class DataModelInstancesRelationV3(
       case Left(err) => throw err
     }
 
-    val sources = sourceViewReferences(filters)
-
     val filterRequest = InstanceFilterRequest(
       instanceType = instanceType,
       filter = instanceFilter,
       sort = None, // Some(Seq(PropertyFilterV3))
       limit = limit,
       cursor = None,
-      sources = Some(sources)
+      sources =
+        Some(Seq(ViewReference(viewSpaceExternalId, viewDefinition.externalId, viewDefinition.version)))
     )
 
-    val filterStream = alphaClient.instances
-      .filterStream(filterRequest, limit)
-      .map {
-        case n: InstanceDefinition.NodeDefinition => (n.externalId, n.properties)
-        case e: InstanceDefinition.EdgeDefinition => (e.externalId, e.properties)
-      }
-      .map {
-        case (externalId, properties) =>
-          val allAvailablePropValues =
-            properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
-
-          ProjectedDataModelInstanceV3(
-            externalId = externalId,
-            properties = selectedInstanceProps.map { col =>
-              allAvailablePropValues.get(col).map(extractInstancePropertyValue).orNull
-            }
-          )
-      }
-    Seq(filterStream)
+    Seq(
+      alphaClient.instances
+        .filterStream(filterRequest, limit)
+        .map(toProjectedInstance(_, selectedInstanceProps)))
   }
-  // scalastyle:on
 
-  override def buildScan(selectedColumns: Array[String], filters: Array[sql.sources.Filter]): RDD[Row] =
+  override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
     SdkV1Rdd[ProjectedDataModelInstanceV3, String](
       sqlContext.sparkContext,
       config,
@@ -775,26 +426,10 @@ class DataModelInstancesRelationV3(
 
   // scalastyle:off cyclomatic.complexity
   override def delete(rows: Seq[Row]): IO[Unit] =
-    viewDefinitionAndProperties match {
-      case Some((viewDef, _)) if viewDef.usedFor == Usage.Edge => deleteEdgesWithMetrics(rows)
-      case Some((viewDef, _)) if viewDef.usedFor == Usage.Node => deleteNodesWithMetrics(rows)
-      case Some((viewDef, _)) if viewDef.usedFor == Usage.All =>
-        deleteNodesOrEdgesWithMetrics(
-          rows,
-          s"View with externalId: ${viewDef.externalId} & version: ${viewDef.version}")
-      case None if rows.isEmpty => incMetrics(itemsDeleted, 0)
-      case None if viewExternalIdAndVersion.nonEmpty =>
-        IO.raiseError[Unit](
-          new CdfSparkException(
-            s"""|Correct (view external id, view version) pair should be specified
-                |Could not resolve (view external id, view version) : $viewExternalIdAndVersion
-                |""".stripMargin
-          ))
-      case None =>
-        IO.raiseError[Unit](
-          new CdfSparkException(
-            s"Correct (view external id, view version) pair should be specified"
-          ))
+    viewDefinition.usedFor match {
+      case Usage.Node => deleteNodesWithMetrics(rows)
+      case Usage.Edge => deleteEdgesWithMetrics(rows)
+      case Usage.All => deleteNodesOrEdgesWithMetrics(rows)
     }
   // scalastyle:on cyclomatic.complexity
 
@@ -806,7 +441,8 @@ class DataModelInstancesRelationV3(
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceV3DeleteModel](r))
     alphaClient.instances
-      .delete(deleteCandidates.map(i => NodeDeletionRequest(i.space.getOrElse(space), i.externalId)))
+      .delete(deleteCandidates.map(i =>
+        NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
   }
 
@@ -814,26 +450,28 @@ class DataModelInstancesRelationV3(
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceV3DeleteModel](r))
     alphaClient.instances
-      .delete(deleteCandidates.map(i => EdgeDeletionRequest(i.space.getOrElse(space), i.externalId)))
+      .delete(deleteCandidates.map(i =>
+        EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
   }
 
-  private def deleteNodesOrEdgesWithMetrics(rows: Seq[Row], errorMsgPrefix: String): IO[Unit] = {
+  private def deleteNodesOrEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[DataModelInstanceV3DeleteModel](r))
     alphaClient.instances
-      .delete(deleteCandidates.map(i => NodeDeletionRequest(i.space.getOrElse(space), i.externalId)))
+      .delete(deleteCandidates.map(i =>
+        NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .recoverWith {
         case NonFatal(nodeDeletionErr) =>
           alphaClient.instances
             .delete(deleteCandidates.map(i =>
-              EdgeDeletionRequest(i.space.getOrElse(space), i.externalId)))
+              EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
             .handleErrorWith {
               case NonFatal(edgeDeletionErr) =>
                 IO.raiseError(
                   new CdfSparkException(
                     s"""
-                       |$errorMsgPrefix supports both Nodes & Edges
+                       |View with externalId: ${viewDefinition.externalId} & version: ${viewDefinition.version}" supports both Nodes & Edges.
                        |Tried deleting as nodes and failed: ${nodeDeletionErr.getMessage}
                        |Tried deleting as edges and failed: ${edgeDeletionErr.getMessage}
                        |Please verify your data
@@ -844,50 +482,6 @@ class DataModelInstancesRelationV3(
       }
       .flatMap(results => incMetrics(itemsDeleted, results.length))
   }
-
-  // scalastyle:off cyclomatic.complexity
-  private def sourceViewReferences(filters: Array[Filter]) = {
-    val rootViewDef = viewDefinitionAndProperties.map { case (viewDef, _) => viewDef }.toArray
-
-    val spaces = (filters.flatMap {
-      case EqualTo("space", value) => Array(value.toString)
-      case In("space", values) => values.map(_.toString)
-    } ++ Array(space)).distinct
-
-    val externalIds = (filters.flatMap {
-      case EqualTo("externalId", value) => Array(value.toString)
-      case In("externalId", values) => values.map(_.toString)
-    } ++ rootViewDef.map(_.externalId)).distinct
-
-    val versions = (filters.flatMap {
-      case EqualTo("version", value) => Array(value.toString)
-      case In("version", values) => values.map(_.toString)
-    } ++ rootViewDef.map(_.externalId)).distinct
-
-    val sources = if (spaces.length === externalIds.length && spaces.length === versions.length) {
-      spaces.zip(externalIds).zip(versions).map {
-        case ((space, extId), version) =>
-          ViewReference(space, extId, version)
-      }
-    } else {
-      spaces.flatMap { space =>
-        if (externalIds.length === versions.length) {
-          externalIds.zip(versions).map {
-            case (extId, version) =>
-              ViewReference(space, extId, version)
-          }
-        } else {
-          externalIds.flatMap { extId =>
-            versions.map { version =>
-              ViewReference(space, extId, version)
-            }
-          }
-        }
-      }
-    }
-    sources
-  }
-  // scalastyle:on cyclomatic.complexity
 
   // scalastyle:off cyclomatic.complexity
   private def extractInstancePropertyValue: InstancePropertyValue => Any = {
@@ -912,10 +506,498 @@ class DataModelInstancesRelationV3(
     case InstancePropertyValue.ObjectList(value) => value.map(_.noSpaces)
   }
   // scalastyle:on cyclomatic.complexity
+
+  private def toProjectedInstance(
+      i: InstanceDefinition,
+      selectedInstanceProps: Array[String]): ProjectedDataModelInstanceV3 = {
+    val (externalId, properties) = i match {
+      case n: InstanceDefinition.NodeDefinition => (n.externalId, n.properties)
+      case e: InstanceDefinition.EdgeDefinition => (e.externalId, e.properties)
+    }
+
+    val allAvailablePropValues =
+      properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+
+    ProjectedDataModelInstanceV3(
+      externalId = externalId,
+      properties = selectedInstanceProps.map { prop =>
+        allAvailablePropValues.get(prop).map(extractInstancePropertyValue).orNull
+      }
+    )
+  }
 }
 
 object DataModelInstancesRelationV3 {
   val ResourceType = "datamodelinstancesV3"
+
+  def createNodes(
+      instanceSpaceExternalId: String,
+      rows: Seq[Row],
+      schema: StructType,
+      propertyDefMap: Map[String, PropertyDefinition],
+      destinationRef: SourceReference): Either[CdfSparkException, Vector[NodeWrite]] =
+    verifyPrerequisitesForNodes(schema) *> validateRowFieldsWithPropertyDefinitions(
+      schema,
+      propertyDefMap) match {
+      case Success(_) =>
+        createNodeWriteData(instanceSpaceExternalId, schema, destinationRef, propertyDefMap, rows)
+      case Failure(err) =>
+        Left[CdfSparkException, Vector[NodeWrite]](
+          new CdfSparkException(s"Field 'externalId' is required to create a Node: ${err.getMessage}"))
+    }
+
+  def createEdges(
+      instanceSpaceExternalId: String,
+      rows: Seq[Row],
+      schema: StructType,
+      propertyDefMap: Map[String, PropertyDefinition],
+      destinationRef: SourceReference): Either[CdfSparkException, Vector[EdgeWrite]] =
+    verifyPrerequisitesForEdges(schema) *> validateRowFieldsWithPropertyDefinitions(
+      schema,
+      propertyDefMap) match {
+      case Success(_) =>
+        createEdgeWriteData(instanceSpaceExternalId, schema, destinationRef, propertyDefMap, rows)
+      case Failure(err) =>
+        Left(new CdfSparkException(
+          s"Fields 'type', 'externalId', 'startNode' & 'endNode' fields must be present to create an Edge: ${err.getMessage}"))
+    }
+
+  def createNodesOrEdges(
+      instanceSpaceExternalId: String,
+      rows: Seq[Row],
+      schema: StructType,
+      destinationRef: SourceReference,
+      propertyDefMap: Map[String, PropertyDefinition],
+  ): Either[CdfSparkException, Vector[NodeOrEdgeCreate]] =
+    rows.toVector.traverse { row =>
+      val edgeNodeTypeRelation = extractEdgeTypeDirectRelation(schema, row).toOption
+      val startNodeRelation = extractEdgeStartNodeDirectRelation(schema, row).toOption
+      val endNodeRelation = extractEdgeEndNodeDirectRelation(schema, row).toOption
+      val properties = schema.fields.toVector.flatTraverse { field =>
+        propertyDefMap.get(field.name).toVector.flatTraverse { propDef =>
+          propertyDefinitionToInstancePropertyValue(row, field, schema, propDef).map {
+            case Some(t) => Vector(field.name -> t)
+            case None => Vector.empty
+          }
+        }
+      }
+
+      for {
+        externalId <- extractExternalId(schema, row)
+        props <- properties
+        writeData <- createNodeOrEdgeWriteData(
+          externalId = externalId,
+          instanceSpaceExternalId = instanceSpaceExternalId,
+          destinationRef,
+          edgeNodeTypeRelation,
+          startNodeRelation,
+          endNodeRelation,
+          props,
+          row)
+      } yield writeData
+    }
+
+  private def createEdgeWriteData(
+      instanceSpaceExternalId: String,
+      schema: StructType,
+      destinationRef: SourceReference,
+      propertyDefMap: Map[String, PropertyDefinition],
+      rows: Seq[Row]): Either[CdfSparkException, Vector[EdgeWrite]] =
+    rows.toVector.traverse { row =>
+      val edgeNodeTypeRelation = extractEdgeTypeDirectRelation(schema, row)
+      val startNodeRelation = extractEdgeStartNodeDirectRelation(schema, row)
+      val endNodeRelation = extractEdgeEndNodeDirectRelation(schema, row)
+      val properties = schema.fields.toVector.flatTraverse { field =>
+        propertyDefMap.get(field.name).toVector.flatTraverse { propDef =>
+          propertyDefinitionToInstancePropertyValue(row, field, schema, propDef).map {
+            case Some(t) => Vector(field.name -> t)
+            case None => Vector.empty
+          }
+        }
+      }
+
+      for {
+        edgeType <- edgeNodeTypeRelation
+        startNode <- startNodeRelation
+        endNode <- endNodeRelation
+        props <- properties
+      } yield
+        EdgeWrite(
+          `type` = edgeType,
+          space = instanceSpaceExternalId,
+          externalId = row.getString(schema.fieldIndex("externalId")),
+          startNode = startNode,
+          endNode = endNode,
+          sources = Seq(
+            EdgeOrNodeData(
+              source = destinationRef,
+              properties = Some(props.toMap)
+            )
+          )
+        )
+    }
+
+  private def createNodeOrEdgeWriteData(
+      externalId: String,
+      instanceSpaceExternalId: String,
+      destinationRef: SourceReference,
+      edgeNodeTypeRelation: Option[DirectRelationReference],
+      startNodeRelation: Option[DirectRelationReference],
+      endNodeRelation: Option[DirectRelationReference],
+      props: Vector[(String, InstancePropertyValue)],
+      row: Row): Either[CdfSparkException, NodeOrEdgeCreate] =
+    (edgeNodeTypeRelation, startNodeRelation, endNodeRelation) match {
+      case (Some(edgeType), Some(startNode), Some(endNode)) =>
+        Right(
+          EdgeWrite(
+            `type` = edgeType,
+            space = instanceSpaceExternalId,
+            externalId = externalId,
+            startNode = startNode,
+            endNode = endNode,
+            sources = Seq(
+              EdgeOrNodeData(
+                source = destinationRef,
+                properties = Some(props.toMap)
+              )
+            )
+          ))
+      case (None, None, None) =>
+        Right(
+          NodeWrite(
+            space = instanceSpaceExternalId,
+            externalId = externalId,
+            sources = Seq(
+              EdgeOrNodeData(
+                source = destinationRef,
+                properties = Some(props.toMap)
+              )
+            )
+          ))
+      case _ =>
+        Left(new CdfSparkException(s"""
+                                      |Fields 'type', 'externalId', 'startNode' & 'endNode' fields must be present to create an Edge.
+                                      |Field 'externalId' is required to create a Node
+                                      |Only found: 'externalId', ${Vector(
+                                        edgeNodeTypeRelation.map(_ => "'type'"),
+                                        startNodeRelation.map(_ => "'startNode'"),
+                                        endNodeRelation.map(_ => "'endNode'")).flatten.mkString(", ")}
+                                      |data row: ${row.json}
+                                      |""".stripMargin))
+    }
+
+  private def createNodeWriteData(
+      instanceSpaceExternalId: String,
+      schema: StructType,
+      destinationRef: SourceReference,
+      propertyDefMap: Map[String, PropertyDefinition],
+      rows: Seq[Row]): Either[CdfSparkException, Vector[NodeWrite]] =
+    rows.toVector.traverse { row =>
+      val properties = schema.fields.toVector.flatTraverse { field =>
+        propertyDefMap.get(field.name).toVector.flatTraverse { propDef =>
+          propertyDefinitionToInstancePropertyValue(row, field, schema, propDef).map {
+            case Some(t) => Vector(field.name -> t)
+            case None => Vector.empty
+          }
+        }
+      }
+      properties.map { props =>
+        NodeWrite(
+          space = instanceSpaceExternalId,
+          externalId = row.getString(schema.fieldIndex("externalId")),
+          sources = Seq(
+            EdgeOrNodeData(
+              source = destinationRef,
+              properties = Some(props.toMap)
+            )
+          )
+        )
+      }
+    }
+
+  private def extractExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
+    Try {
+      Option(row.getString(schema.fieldIndex("externalId")))
+    } match {
+      case Success(Some(relation)) => Right(relation)
+      case Success(None) =>
+        Left(
+          new CdfSparkException(
+            s"""
+               |'externalId' shouldn't be null
+               |data row: ${row.json}
+               |""".stripMargin
+          ))
+      case Failure(err) =>
+        Left(new CdfSparkException(s"""
+                                      |Couldn't find string property 'externalId': ${err.getMessage}
+                                      |data row: ${row.json}
+                                      |""".stripMargin))
+    }
+
+  private def extractEdgeTypeDirectRelation(
+      schema: StructType,
+      row: Row): Either[CdfSparkException, DirectRelationReference] =
+    extractDirectRelation("type", "Edge type", schema, row)
+
+  private def extractEdgeStartNodeDirectRelation(
+      schema: StructType,
+      row: Row): Either[CdfSparkException, DirectRelationReference] =
+    extractDirectRelation("startNode", "Edge start node", schema, row)
+
+  private def extractEdgeEndNodeDirectRelation(
+      schema: StructType,
+      row: Row): Either[CdfSparkException, DirectRelationReference] =
+    extractDirectRelation("endNode", "Edge end node", schema, row)
+
+  private def extractDirectRelation(
+      propertyName: String,
+      descriptiveName: String,
+      schema: StructType,
+      row: Row): Either[CdfSparkException, DirectRelationReference] =
+    Try {
+      val edgeTypeRow = row.getStruct(schema.fieldIndex(propertyName))
+      val space = Option(edgeTypeRow.getAs[String]("space"))
+      val externalId = Option(edgeTypeRow.getAs[String]("externalId"))
+      Apply[Option].map2(space, externalId)(DirectRelationReference.apply)
+    } match {
+      case Success(Some(relation)) => Right(relation)
+      case Success(None) =>
+        Left(
+          new CdfSparkException(
+            s"""
+               |'$propertyName' ($descriptiveName) shouldn't contain null values.
+               |Please verify that 'space' & 'externalId' values are not null for '$propertyName'
+               |data row: ${row.json}
+               |""".stripMargin
+          ))
+      case Failure(err) =>
+        Left(new CdfSparkException(s"""
+                                      |Couldn't find '$propertyName'. '$propertyName' ($descriptiveName) should be a 'StructType' which consists 'space' & 'externalId' : ${err.getMessage}
+                                      |data row: ${row.json}
+                                      |""".stripMargin))
+    }
+
+  private def verifyPrerequisitesForEdges(schema: StructType): Try[Boolean] =
+    Try {
+      (
+        schema.fieldIndex("type"),
+        schema.fieldIndex("externalId"),
+        schema.fieldIndex("startNode"),
+        schema.fieldIndex("endNode")
+      )
+    } *> Success(true)
+
+  private def verifyPrerequisitesForNodes(schema: StructType): Try[Boolean] =
+    Try(schema.fieldIndex("externalId")) *> Success(true)
+
+  private def validateRowFieldsWithPropertyDefinitions(
+      schema: StructType,
+      propertyDefMap: Map[String, PropertyDefinition]): Try[Boolean] = {
+
+    val (existsInPropDef @ _, missingInPropDef) = schema.fields.partition { field =>
+      propertyDefMap.contains(field.name)
+    }
+
+    val (nonNullableMissingFields, nullableMissingFields @ _) = missingInPropDef.partition { field =>
+      propertyDefMap.get(field.name).flatMap(_.nullable).contains(false)
+    }
+
+    if (nonNullableMissingFields.nonEmpty) {
+      Failure(
+        new CdfSparkException(
+          s"""Can't find required properties: ${nonNullableMissingFields
+               .map(_.name)
+               .mkString(", ")}""".stripMargin
+        )
+      )
+    } else {
+      Success(true)
+    }
+  }
+
+  private def propertyDefinitionToInstancePropertyValue(
+      row: Row,
+      field: StructField,
+      schema: StructType,
+      propDef: PropertyDefinition): Either[CdfSparkException, Option[InstancePropertyValue]] = {
+    val instancePropertyValueResult = propDef.`type` match {
+      case DirectNodeRelationProperty(_) => // TODO: Verify this
+        row
+          .getSeq[String](schema.fieldIndex(field.name))
+          .toVector
+          .traverse(io.circe.parser.parse)
+          .map(l => Some(InstancePropertyValue.ObjectList(l)))
+          .leftMap(e =>
+            new CdfSparkException(
+              s"Error parsing value of field '${field.name}' as a list of json objects: ${e.getMessage}"))
+      case t if t.isList => toInstantPropertyValueOfList(row, field, schema, propDef)
+      case _ => toInstantPropertyValueOfNonList(row, field, schema, propDef)
+    }
+
+    instancePropertyValueResult.leftMap {
+      case e: CdfSparkException =>
+        new CdfSparkException(
+          s"""
+             |${e.getMessage}
+             |table row: ${row.json}
+             |""".stripMargin
+        )
+      case e: Throwable =>
+        new CdfSparkException(
+          s"""
+             |Error parsing value of field '${field.name}': ${e.getMessage}
+             |table row: ${row.json}
+             |""".stripMargin
+        )
+    }
+  }
+
+  // scalastyle:off cyclomatic.complexity method.length
+  private def toInstantPropertyValueOfList(
+      row: Row,
+      field: StructField,
+      schema: StructType,
+      propDef: PropertyDefinition): Either[Throwable, Option[InstancePropertyValue]] = {
+    val nullable = propDef.nullable.getOrElse(true)
+    val fieldIndex = schema.fieldIndex(field.name)
+    if (nullable && row.isNullAt(fieldIndex)) {
+      Right(None)
+    } else if (!nullable && row.isNullAt(fieldIndex)) {
+      Left(
+        new CdfSparkException(
+          s"'${field.name}' cannot be null. Consider replacing null with a default value"))
+    } else {
+      val propVal = propDef.`type` match {
+        case TextProperty(Some(true), _) =>
+          Try(InstancePropertyValue.StringList(row.getSeq[String](schema.fieldIndex(field.name)))).toEither
+        case PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
+          Try(InstancePropertyValue.BooleanList(row.getSeq[Boolean](schema.fieldIndex(field.name)))).toEither
+        case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
+          Try(
+            InstancePropertyValue.Float32List(
+              row
+                .getSeq[Any](schema.fieldIndex(field.name))
+                .map(_.asInstanceOf[Number].floatValue))).toEither
+        case PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
+          Try(
+            InstancePropertyValue.Float64List(
+              row
+                .getSeq[Any](schema.fieldIndex(field.name))
+                .map(_.asInstanceOf[Number].doubleValue))).toEither
+        case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
+          Try(
+            InstancePropertyValue.Int32List(
+              row
+                .getSeq[Any](schema.fieldIndex(field.name))
+                .map(_.asInstanceOf[Number].intValue))).toEither
+        case PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
+          Try(
+            InstancePropertyValue.Int64List(
+              row
+                .getSeq[Any](schema.fieldIndex(field.name))
+                .map(_.asInstanceOf[Number].longValue))).toEither
+        case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
+          Try(
+            InstancePropertyValue.TimestampList(
+              row
+                .getSeq[String](schema.fieldIndex(field.name))
+                .map(ZonedDateTime.parse(_, DateTimeFormatter.ISO_ZONED_DATE_TIME)))).toEither
+            .leftMap(e => new CdfSparkException(s"""
+                                                   |Error parsing value of field '${field.name}' as a list of ISO formatted zoned timestamps: ${e.getMessage}
+                                                   |Expected timestamp format is: ${DateTimeFormatter.ISO_ZONED_DATE_TIME.toString}
+                                                   |""".stripMargin))
+        case PrimitiveProperty(PrimitivePropType.Date, Some(true)) =>
+          Try(
+            InstancePropertyValue.DateList(
+              row
+                .getSeq[String](schema.fieldIndex(field.name))
+                .map(LocalDate.parse(_, DateTimeFormatter.ISO_LOCAL_DATE)))).toEither
+            .leftMap(e => new CdfSparkException(s"""
+                                                   |Error parsing value of field '${field.name}' as a list of ISO formatted dates: ${e.getMessage}
+                                                   |Expected date format is: ${DateTimeFormatter.ISO_LOCAL_DATE.toString}
+                                                   |""".stripMargin))
+        case PrimitiveProperty(PrimitivePropType.Json, Some(true)) | DirectNodeRelationProperty(_) =>
+          row
+            .getSeq[String](schema.fieldIndex(field.name))
+            .toVector
+            .traverse(io.circe.parser.parse)
+            .map(InstancePropertyValue.ObjectList.apply)
+            .leftMap(e =>
+              new CdfSparkException(
+                s"Error parsing value of field '${field.name}' as a list of json objects: ${e.getMessage}"))
+
+        case t => Left(new CdfSparkException(s"Unhandled list type: ${t.toString}"))
+      }
+      propVal.map(Some(_))
+    }
+  }
+  // scalastyle:on cyclomatic.complexity method.length
+
+  // scalastyle:off cyclomatic.complexity method.length
+  private def toInstantPropertyValueOfNonList(
+      row: Row,
+      field: StructField,
+      schema: StructType,
+      propDef: PropertyDefinition): Either[Throwable, Option[InstancePropertyValue]] = {
+    val nullable = propDef.nullable.getOrElse(true)
+    val fieldIndex = schema.fieldIndex(field.name)
+    if (nullable && row.isNullAt(fieldIndex)) {
+      Right[CdfSparkException, Option[InstancePropertyValue]](None)
+    } else if (!nullable && row.isNullAt(fieldIndex)) {
+      Left[CdfSparkException, Option[InstancePropertyValue]](
+        new CdfSparkException(
+          s"'${field.name}' cannot be null. Consider replacing null with a default value")
+      )
+    } else {
+      val propVal = propDef.`type` match {
+        case TextProperty(None | Some(false), _) =>
+          Try(InstancePropertyValue.String(row.getString(fieldIndex))).toEither
+        case PrimitiveProperty(PrimitivePropType.Boolean, None | Some(false)) =>
+          Try(InstancePropertyValue.Boolean(row.getBoolean(fieldIndex))).toEither
+        case PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) =>
+          Try(
+            InstancePropertyValue
+              .Float32(row.get(fieldIndex).asInstanceOf[Number].floatValue)).toEither
+        case PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) =>
+          Try(InstancePropertyValue.Float64(row.get(fieldIndex).asInstanceOf[Number].doubleValue)).toEither
+        case PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) |
+            PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
+          Try(
+            InstancePropertyValue
+              .Int64(row.get(fieldIndex).asInstanceOf[Number].longValue())).toEither
+        case PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
+          Try(
+            InstancePropertyValue.Timestamp(ZonedDateTime
+              .parse(row.getString(fieldIndex), DateTimeFormatter.ISO_ZONED_DATE_TIME))).toEither
+            .leftMap(e => new CdfSparkException(s"""
+                                                   |Error parsing value of field '${field.name}' as a list of ISO formatted zoned timestamps: ${e.getMessage}
+                                                   |Expected timestamp format is: ${DateTimeFormatter.ISO_ZONED_DATE_TIME.toString}
+                                                   |""".stripMargin))
+        case PrimitiveProperty(PrimitivePropType.Date, None | Some(false)) =>
+          Try(
+            InstancePropertyValue.Date(
+              LocalDate.parse(row.getString(fieldIndex), DateTimeFormatter.ISO_LOCAL_DATE))).toEither
+            .leftMap(e => new CdfSparkException(s"""
+                                                   |Error parsing value of field '${field.name}' as a list of ISO formatted dates: ${e.getMessage}
+                                                   |Expected date format is: ${DateTimeFormatter.ISO_LOCAL_DATE.toString}
+                                                   |""".stripMargin))
+        case PrimitiveProperty(PrimitivePropType.Json, None | Some(false)) =>
+          io.circe.parser
+            .parse(row
+              .getString(fieldIndex))
+            .map(InstancePropertyValue.Object.apply)
+            .leftMap(e =>
+              new CdfSparkException(
+                s"Error parsing value of field '${field.name}' as a list of json objects: ${e.getMessage}"))
+
+        case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
+      }
+      propVal.map(Some(_))
+    }
+  }
+  // scalastyle:on cyclomatic.complexity method.length
+
 }
 
 final case class ProjectedDataModelInstanceV3(externalId: String, properties: Array[Any])
