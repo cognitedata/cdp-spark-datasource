@@ -4,26 +4,8 @@ import cognite.spark.v1.{CdfSparkAuth, DataFrameMatcher, WDLSparkTest}
 import com.cognite.sdk.scala.common.ApiKeyAuth
 import io.circe.generic.auto._
 import io.circe.syntax.EncoderOps
-import org.apache.spark.sql.Row
-import org.scalactic.Equality
+import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
-
-private[wdl] object rowEquality { // scalastyle:ignore object.name
-  implicit val rowEq: Equality[Row] =
-    new Equality[Row] {
-      def areEqual(a: Row, b: Any): Boolean =
-        b match {
-          case p: Row =>
-            val fieldNames = a.schema.fieldNames
-            if (fieldNames.toSet == p.schema.fieldNames.toSet) {
-              a.getValuesMap(fieldNames) == p.getValuesMap(fieldNames)
-            } else {
-              false
-            }
-          case _ => false
-        }
-    }
-}
 
 class WDLSourcesRelationTest
     extends FlatSpec
@@ -32,7 +14,7 @@ class WDLSourcesRelationTest
     with DataFrameMatcher
       with BeforeAndAfter {
 
-  import rowEquality._
+  import RowEquality._
   import spark.implicits._
 
   val sparkReader = spark.read
@@ -50,6 +32,7 @@ class WDLSourcesRelationTest
   private val client = new TestWdlClient(config)
 
   before {
+    SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
     client.deleteAll()
   }
 
@@ -61,9 +44,11 @@ class WDLSourcesRelationTest
     val testWellDS = spark.createDataset(Seq(wellJsonString))
     val testWellDF = spark
       .read
-      .option("multiline", "true")
+      .option("multiline", value = true)
       .schema(client.getSchema("Well"))
       .json(testWellDS)
+
+    client.getSchema("Well").printTreeString()
 
     testWellDF.printSchema()
     testWellDF.show(truncate = false)

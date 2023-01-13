@@ -43,6 +43,7 @@ trait WDLSparkTest {
     .config("spark.sql.shuffle.partitions", "1")
     .config("spark.sql.storeAssignmentPolicy", "legacy")
     .config("spark.app.id", this.getClass.getName + math.floor(math.random() * 1000).toLong.toString)
+//    .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", value = true)
     .getOrCreate()
 
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
