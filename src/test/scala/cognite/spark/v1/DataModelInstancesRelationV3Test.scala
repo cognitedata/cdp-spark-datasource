@@ -1,36 +1,24 @@
 package cognite.spark.v1
 
-import cats.implicits.toTraverseOps
-import cognite.spark.v1.SparkSchemaHelper.structType
-import com.cognite.sdk.scala.common.{DomainSpecificLanguageFilter, EmptyFilter}
-import com.cognite.sdk.scala.v1.DataModelType.{EdgeType, NodeType}
-import com.cognite.sdk.scala.v1._
-import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
-import com.cognite.sdk.scala.v1.fdm.containers.{
-  ContainerCreateDefinition,
-  ContainerDefinition,
-  ContainerReference
+import cognite.spark.v1.DataModelInstancesRelationV3.{createEdges, createNodes}
+import cognite.spark.v1.FDMTestUtils.createAllPossibleViewPropCombinations
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
+  ContainerPropertyDefinition,
+  ViewPropertyDefinition
 }
-import com.cognite.sdk.scala.v1.fdm.instances
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDefinition.NodeDefinition
-import com.cognite.sdk.scala.v1.fdm.instances._
-import com.cognite.sdk.scala.v1.fdm.views.{CreatePropertyReference, ViewCreateDefinition, ViewDefinition}
-import org.apache.spark.sql.DataFrame
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.TextProperty
+import com.cognite.sdk.scala.v1.fdm.views.ViewReference
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
-import org.apache.spark.sql.types.{DataTypes, IntegerType, StringType}
-import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
-
-import scala.concurrent.duration.DurationInt
-import scala.util.{Random, Try}
-import scala.util.control.NonFatal
+import org.apache.spark.sql.types._
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
 class DataModelInstancesRelationV3Test
     extends FlatSpec
     with Matchers
     with SparkTest
     with BeforeAndAfterAll {
-  import CdpConnector.ioRuntime
 
   private val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
   private val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
@@ -40,279 +28,686 @@ class DataModelInstancesRelationV3Test
   private val space = "test-space-scala-sdk"
   private val metricPrefix = "sparkDataSourceTestsFDMV3"
 
-//  it should "ingest data" in {
-//    val vehicleContainerExtId = vehicleRentalServiceModel.vehicleContainer.externalId
-//    val personContainerExtId = vehicleRentalServiceModel.personContainer.externalId
-//    val rentableContainerExtId = vehicleRentalServiceModel.personContainer.externalId
-//
-////    val vehicleContainerExtId = "vehicle_container_422"
-////    val personContainerExtId = "person_container_776"
-////    val rentableContainerExtId = "rental_records_container_847"
-//
-//    val vehiclesDataSqlResult = Try {
-//      insertRows(
-//        vehicleContainerExtId,
-//        spark
-//          .sql(vehicleDataAsSql(vehicleContainerExtId)),
-//      )
-//    }
-//
-//    val personDataSqlResult = Try {
-//      insertRows(
-//        personContainerExtId,
-//        spark
-//          .sql(personDataAsSql(personContainerExtId)),
-//      )
-//    }
-//
-//    val rentableDataSqlResult = Try {
-//      insertRows(
-//        rentableContainerExtId,
-//        spark
-//          .sql(rentableDataAsSql(rentableContainerExtId)),
-//      )
-//    }
-//
-//    val vehicleInstanceExtIds = vehicleInstanceData(ContainerReference(space, vehicleContainerExtId))
-//      .flatMap(v => v.properties.flatMap(_.get("id").asInstanceOf[Option[InstancePropertyValue.String]]))
-//      .map(p => s"vehicle_ext_id_${p.value}")
-//      .toList
-//
-//    val vehicleInstances = vehicleInstanceExtIds
-//      .flatMap(id =>
-//        fetchInstancesByExternalId(space, vehicleContainerExtId, InstanceType.Node, id).items.toList)
-//      .asInstanceOf[List[NodeDefinition]]
-//
-//    val personInstanceExtIds = personInstanceData(ContainerReference(space, personContainerExtId))
-//      .flatMap(v =>
-//        v.properties.flatMap(_.get("nationalId").asInstanceOf[Option[InstancePropertyValue.String]]))
-//      .map(p => s"person_ext_id_${p.value}")
-//      .toList
-//
-//    val personInstances = personInstanceExtIds
-//      .flatMap(id =>
-//        fetchInstancesByExternalId(space, personContainerExtId, InstanceType.Node, id).items.toList)
-//      .asInstanceOf[List[NodeDefinition]]
-//
-//    val rentableInstanceExtIds = rentableInstanceData(ContainerReference(space, rentableContainerExtId))
-//      .flatMap(v =>
-//        v.properties.flatMap(_.get("itemId").asInstanceOf[Option[InstancePropertyValue.String]]))
-//      .map(p => s"rentable_ext_id_${p.value}")
-//      .toList
-//
-//    val rentableInstances = rentableInstanceExtIds
-//      .flatMap(id =>
-//        fetchInstancesByExternalId(space, rentableContainerExtId, InstanceType.Node, id).items.toList)
-//      .asInstanceOf[List[NodeDefinition]]
-//
-//    // TODO: Assert on data once API is fixed
-//
-//    1 shouldBe 1
-//  }
-//
-//  ignore should "pass" in {
-//
-//    println(io.circe.parser.parse("1"))
-//
-//    case class TestObj(externalId: String, id: Int, other: Option[String])
-//    val row1 = new GenericRowWithSchema(
-//      Array[Any]("ext-1", 1),
-//      structType[TestObj]
-//    )
-//    val row2 = new GenericRowWithSchema(
-//      Array[Any]("ext-2", 2),
-//      structType[TestObj]
-//    )
-//
-//    val x = Seq(row1, row2).map(SparkSchemaHelper.fromRow[TestObj](_))
-//    println(x)
-//    1 shouldBe 1
-//  }
+  private val destRef = ViewReference("space", "viewExtId1", "viewV1")
 
-  // scalastyle:off method.length
-//  private def rentableDataAsSql(rentableContainerExtId: String): String =
-//    rentableInstanceData(ContainerReference(space, rentableContainerExtId))
-//      .map { e =>
-//        val propsMap = e.properties.getOrElse(Map.empty)
-//        val itemId = propsMap("itemId").asInstanceOf[InstancePropertyValue.String].value
-//        s"""
-//           |(
-//           |  select
-//           |    '$itemId' as itemId,
-//           |    ${propsMap
-//             .get("renterId")
-//             .map(p => s"'${p.asInstanceOf[InstancePropertyValue.String].value}'")
-//             .orNull} as renterId,
-//           |    ${propsMap
-//             .get("from")
-//             .map(p =>
-//               s"'${p
-//                 .asInstanceOf[InstancePropertyValue.Timestamp]
-//                 .value
-//                 .format(InstancePropertyValue.Timestamp.formatter)}'")
-//             .orNull} as from,
-//           |    ${propsMap
-//             .get("to")
-//             .map(p =>
-//               s"'${p
-//                 .asInstanceOf[InstancePropertyValue.Timestamp]
-//                 .value
-//                 .format(InstancePropertyValue.Timestamp.formatter)}'")
-//             .orNull} as to,
-//           |    ${propsMap
-//             .get("invoiceId")
-//             .map(p => s"'${p.asInstanceOf[InstancePropertyValue.String].value}'")
-//             .orNull} as invoiceId,
-//           |    ${propsMap
-//             .get("rating")
-//             .map(p => p.asInstanceOf[InstancePropertyValue.Double].value)
-//             .orNull} as rating,
-//           |    'rentable_ext_id_$itemId' as externalId
-//           |)
-//           |""".stripMargin
-//      }
-//      .mkString(" union all ")
-  // scalastyle:on method.length
-
-//  private def personDataAsSql(personContainerExtId: String): String =
-//    personInstanceData(ContainerReference(space, personContainerExtId))
-//      .map { e =>
-//        val propsMap = e.properties.getOrElse(Map.empty)
-//        val nationalId = propsMap("nationalId").asInstanceOf[InstancePropertyValue.String].value
-//        s"""
-//           |(
-//           |  select
-//           |    '$nationalId' as nationalId,
-//           |    ${propsMap
-//             .get("firstname")
-//             .map(p => s"'${p.asInstanceOf[InstancePropertyValue.String].value}'")
-//             .orNull} as firstname,
-//           |    ${propsMap
-//             .get("lastname")
-//             .map(p => s"'${p.asInstanceOf[InstancePropertyValue.String].value}'")
-//             .orNull} as lastname,
-//           |    ${propsMap
-//             .get("dob")
-//             .map(p =>
-//               s"'${p
-//                 .asInstanceOf[InstancePropertyValue.Date]
-//                 .value
-//                 .format(InstancePropertyValue.Date.formatter)}'")
-//             .orNull} as dob,
-//           |    ${propsMap
-//             .get("nationality")
-//             .map(p => s"'${p.asInstanceOf[InstancePropertyValue.String].value}'")
-//             .orNull} as nationality,
-//           |    'person_ext_id_$nationalId' as externalId
-//           |)
-//           |""".stripMargin
-//      }
-//      .mkString(" union all ")
-
-  // scalastyle:off method.length
-//  private def vehicleDataAsSql(vehicleContainerExtId: String): String =
-//    vehicleInstanceData(ContainerReference(space, vehicleContainerExtId))
-//      .map { e =>
-//        val propsMap = e.properties.getOrElse(Map.empty)
-//        val vehicleId = propsMap("id").asInstanceOf[InstancePropertyValue.String].value
-//        s"""
-//           |(
-//           |  select
-//           |    '$vehicleId' as id,
-//           |    ${propsMap
-//             .get("manufacturer")
-//             .map(p => s"'${p.asInstanceOf[InstancePropertyValue.String].value}'")
-//             .orNull} as manufacturer,
-//           |    ${propsMap
-//             .get("model")
-//             .map(p => s"'${p.asInstanceOf[InstancePropertyValue.String].value}'")
-//             .orNull} as model,
-//           |    ${propsMap
-//             .get("year")
-//             .map(p => p.asInstanceOf[InstancePropertyValue.Integer].value)
-//             .orNull} as year,
-//           |    ${propsMap
-//             .get("displacement")
-//             .map(p => p.asInstanceOf[InstancePropertyValue.Integer].value)
-//             .orNull} as displacement,
-//           |    ${propsMap
-//             .get("weight")
-//             .map(p => p.asInstanceOf[InstancePropertyValue.Integer].value)
-//             .orNull} as weight,
-//           |    ${propsMap
-//             .get("compressionRatio")
-//             .map(p => s"'${p.asInstanceOf[InstancePropertyValue.String].value}'")
-//             .orNull} as compressionRatio,
-//           |    ${propsMap
-//             .get("turbocharger")
-//             .map(p => p.asInstanceOf[InstancePropertyValue.Boolean].value)
-//             .orNull} as turbocharger,
-//           |    'vehicle_ext_id_$vehicleId' as externalId
-//           |)
-//           |""".stripMargin
-//      }
-//      .mkString(" union all ")
-  // scalastyle:on method.length
-
-  private def fetchInstancesByExternalId(
-      space: String,
-      containerExternalId: String,
-      instanceType: InstanceType,
-      instanceExternalId: String): InstanceFilterResponse =
-    bluefieldAlphaClient.instances
-      .retrieveByExternalIds(
-        items = Seq(
-          InstanceRetrieve(
-            sources = Some(Seq(ContainerReference(space, containerExternalId))),
-            instanceType = instanceType,
-            externalId = instanceExternalId,
-            space = space
-          )
+  it should "fail to create nodes when externalId is not present" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
         ),
-        includeTyping = true
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val schema = StructType(
+      Array(
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true)
       )
-      .unsafeRunSync()
+    )
 
-  private def readRows(containerExternalId: String, metricPrefix: String) =
-    spark.read
-      .format("cognite.spark.v1")
-      .option("baseUrl", "https://bluefield.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", "extractor-bluefield-testing")
-      .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("vehicleContainerExternalId", containerExternalId)
-      .option("space", space)
-      .option("collectMetrics", true)
-      .option("metricsPrefix", metricPrefix)
-      .option("type", DataModelInstancesRelationV3.ResourceType)
-      .load()
+    val values = Array[Array[Any]](Array("str1"), Array("str2"))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-  private def insertRows(
-      containerExternalId: String,
-      df: DataFrame,
-      onConflict: String = "upsert"): Unit =
-    df.write
-      .format("cognite.spark.v1")
-      .option("type", DataModelInstancesRelationV3.ResourceType)
-      .option("baseUrl", "https://bluefield.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", "extractor-bluefield-testing")
-      .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("containerExternalId", containerExternalId)
-      .option("space", space)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", true)
-      .option("metricsPrefix", containerExternalId)
-      .save()
+    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage
+      .contains("Couldn't find required string property 'externalId'") shouldBe true
+  }
 
-  case class VehicleRentalServiceModel(
-      vehicleContainer: ContainerDefinition,
-      personContainer: ContainerDefinition,
-      rentalRecordsContainer: ContainerDefinition,
-      norwegianVehicleRentalServiceView: ViewDefinition,
-  )
+  it should "fail to create nodes when externalId is null" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "externalId" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test externalId"),
+          name = Some(s"ext-id"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", IntegerType, nullable = true)
+        )
+      )
+
+    val values = Array[Array[Any]](
+      Array("stringProp1", "extId1", null),
+      Array(null, null, 5)
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage.contains("'externalId' shouldn't be null") shouldBe true
+  }
+
+  it should "fail to create nodes when required a property is null" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "externalId" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test externalId"),
+          name = Some(s"ext-id"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", IntegerType, nullable = true)
+        )
+      )
+
+    val values = Array[Array[Any]](Array("stringProp1", "extId1", 1), Array(null, "extId1", null))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage.contains("cannot be null") shouldBe true
+  }
+
+  it should "fail to create nodes when required a property is missing" in {
+    val propertyMap = Map(
+      "externalId" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test externalId"),
+          name = Some(s"ext-id"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", IntegerType, nullable = true)
+        )
+      )
+
+    val values = Array[Array[Any]](Array("extId1", 1), Array("extId2", null))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage.contains("Can't find required properties") shouldBe true
+  }
+
+  it should "fail to create nodes when required a property is nullable" in {
+    val propertyMap = Map(
+      "externalId" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test externalId"),
+          name = Some(s"ext-id"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("externalId", StringType, nullable = false),
+          StructField("stringProp", StringType, nullable = true),
+          StructField("intProp", IntegerType, nullable = true)
+        )
+      )
+
+    val values =
+      Array[Array[Any]](Array("extId1", "stringProp1", 1), Array("extId2", "stringProp2", null))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage.contains("cannot be nullable") shouldBe true
+  }
+
+  it should "successfully create nodes with all nullable/non-nullable properties" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "externalId" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test externalId"),
+          name = Some(s"ext-id"),
+          `type` = PropertyType.TextProperty()
+        )
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false))
+      )
+
+    val values = Array[Array[Any]](Array("stringProp1", "extId1"), Array("stringProp2", "extId2"))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe true
+
+    val nodes = result.right.get
+    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    nodes.map(_.externalId).distinct.sorted shouldBe Vector("extId1", "extId2")
+  }
+
+  it should "successfully create nodes with only required properties" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "externalId" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test externalId"),
+          name = Some(s"ext-id"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false))
+      )
+
+    val values = Array[Array[Any]](Array("stringProp1", "extId1"), Array("stringProp2", "extId2"))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe true
+
+    val nodes = result.right.get
+    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    nodes.map(_.externalId).distinct.sorted shouldBe Vector("extId1", "extId2")
+  }
+
+  it should "successfully create nodes when there are unrelated properties in Rows" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "externalId" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test externalId"),
+          name = Some(s"ext-id"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", IntegerType, nullable = true),
+          StructField("unrelatedProp", StringType, nullable = false)
+        )
+      )
+
+    val values =
+      Array[Array[Any]](
+        Array("stringProp1", "extId1", 1, "unrelatedProp1"),
+        Array("stringProp2", "extId2", null, "unrelatedProp2"))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe true
+
+    val nodes = result.right.get
+    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    nodes.map(_.externalId).distinct.sorted shouldBe Vector("extId1", "extId2")
+  }
+
+  it should "fail to create edges when externalId is not present" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val schema = StructType(
+      Array(
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true)
+      )
+    )
+
+    val values = Array[Array[Any]](Array("str1", 1), Array("str2", null))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage
+      .contains("Couldn't find required string property 'externalId'") shouldBe true
+  }
+
+  it should "fail to create edges when type is not present" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val schema = StructType(
+      Array(
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false)
+      )
+    )
+
+    val values = Array[Array[Any]](Array("str1", null, "externalId1"), Array("str2", 2, "externalId2"))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage
+      .contains("Couldn't find required property 'type'") shouldBe true
+  }
+
+  it should "fail to create edges when startNode is not present" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val relationRefSchema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("externalId", StringType, nullable = false)
+      )
+    )
+    val schema = StructType(
+      Array(
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("type", relationRefSchema, nullable = false)
+      )
+    )
+
+    val values = Array[Array[Any]](
+      Array(
+        "str1",
+        null,
+        "externalId1",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema)),
+      Array(
+        "str2",
+        2,
+        "externalId2",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema))
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage
+      .contains("Couldn't find required property 'startNode'") shouldBe true
+  }
+
+  it should "fail to create edges when endNode is not present" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val relationRefSchema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("externalId", StringType, nullable = false)
+      )
+    )
+    val schema = StructType(
+      Array(
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("type", relationRefSchema, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false)
+      )
+    )
+
+    val values = Array[Array[Any]](
+      Array(
+        "str1",
+        null,
+        "externalId1",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema)
+      ),
+      Array(
+        "str2",
+        2,
+        "externalId2",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId2"), relationRefSchema)
+      )
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage
+      .contains("Couldn't find required property 'endNode'") shouldBe true
+  }
+
+  it should "fail to create edges when type.space is null" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(false),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Str Description"),
+          name = Some(s"Test-Str-Name"),
+          `type` = PropertyType.TextProperty()
+        ),
+      "intProp" ->
+        ViewPropertyDefinition(
+          nullable = Some(true),
+          autoIncrement = None,
+          defaultValue = None,
+          description = Some(s"Test Int Description"),
+          name = Some(s"Test-Int-Name"),
+          `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32)
+        )
+    )
+    val relationRefSchema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("externalId", StringType, nullable = false)
+      )
+    )
+    val schema = StructType(
+      Array(
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("type", relationRefSchema, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false)
+      )
+    )
+
+    val values = Array[Array[Any]](
+      Array(
+        "str1",
+        null,
+        "externalId1",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema)
+      ),
+      Array(
+        "str2",
+        2,
+        "externalId2",
+        new GenericRowWithSchema(Array(null, "typeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema)
+      )
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe false
+    result.left.get.getMessage
+      .contains("(Edge type) shouldn't contain null values") shouldBe true
+  }
+
+  //  private def fetchInstancesByExternalId(
+//      space: String,
+//      containerExternalId: String,
+//      instanceType: InstanceType,
+//      instanceExternalId: String): InstanceFilterResponse =
+//    bluefieldAlphaClient.instances
+//      .retrieveByExternalIds(
+//        items = Seq(
+//          InstanceRetrieve(
+//            sources = Some(Seq(ContainerReference(space, containerExternalId))),
+//            instanceType = instanceType,
+//            externalId = instanceExternalId,
+//            space = space
+//          )
+//        ),
+//        includeTyping = true
+//      )
+//      .unsafeRunSync()
+//
+//  private def readRows(containerExternalId: String, metricPrefix: String) =
+//    spark.read
+//      .format("cognite.spark.v1")
+//      .option("baseUrl", "https://bluefield.cognitedata.com")
+//      .option("tokenUri", tokenUri)
+//      .option("clientId", clientId)
+//      .option("clientSecret", clientSecret)
+//      .option("project", "extractor-bluefield-testing")
+//      .option("scopes", "https://bluefield.cognitedata.com/.default")
+//      .option("vehicleContainerExternalId", containerExternalId)
+//      .option("space", space)
+//      .option("collectMetrics", true)
+//      .option("metricsPrefix", metricPrefix)
+//      .option("type", DataModelInstancesRelationV3.ResourceType)
+//      .load()
+//
+//  private def insertRows(
+//      containerExternalId: String,
+//      df: DataFrame,
+//      onConflict: String = "upsert"): Unit =
+//    df.write
+//      .format("cognite.spark.v1")
+//      .option("type", DataModelInstancesRelationV3.ResourceType)
+//      .option("baseUrl", "https://bluefield.cognitedata.com")
+//      .option("tokenUri", tokenUri)
+//      .option("clientId", clientId)
+//      .option("clientSecret", clientSecret)
+//      .option("project", "extractor-bluefield-testing")
+//      .option("scopes", "https://bluefield.cognitedata.com/.default")
+//      .option("containerExternalId", containerExternalId)
+//      .option("space", space)
+//      .option("onconflict", onConflict)
+//      .option("collectMetrics", true)
+//      .option("metricsPrefix", containerExternalId)
+//      .save()
+//
 }
