@@ -124,7 +124,7 @@ class DefaultSource
   private def createDataModelInstancesV3(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext): DataModelInstancesRelationV3 = {
+      sqlContext: SQLContext): FlexibleDataModelsRelation = {
     val viewSpaceExternalId =
       parameters.getOrElse(
         "viewSpaceExternalId",
@@ -139,7 +139,7 @@ class DefaultSource
       "instanceExternalId",
       throw new CdfSparkException("'instanceExternalId' should be specified"))
 
-    new DataModelInstancesRelationV3(
+    new FlexibleDataModelsRelation(
       config,
       viewSpaceExternalId = viewSpaceExternalId,
       viewExternalId = viewExternalId,
@@ -223,7 +223,7 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
-      case DataModelInstancesRelationV3.ResourceType =>
+      case FlexibleDataModelsRelation.ResourceType =>
         createDataModelInstancesV3(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
@@ -287,7 +287,7 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
-        case DataModelInstancesRelationV3.ResourceType =>
+        case FlexibleDataModelsRelation.ResourceType =>
           createDataModelInstancesV3(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }

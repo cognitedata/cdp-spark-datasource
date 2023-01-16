@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cognite.spark.v1.DataModelInstancesRelationV3.{createEdges, createNodes}
+import cognite.spark.v1.FlexibleDataModelsRelation.{createEdges, createNodes}
 import cognite.spark.v1.FDMTestUtils.createAllPossibleViewPropCombinations
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
   ContainerPropertyDefinition,
@@ -14,7 +14,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
-class DataModelInstancesRelationV3Test
+class FlexibleDataModelsRelationTest
     extends FlatSpec
     with Matchers
     with SparkTest
