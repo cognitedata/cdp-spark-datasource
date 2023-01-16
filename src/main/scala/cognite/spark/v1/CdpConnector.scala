@@ -112,6 +112,12 @@ object CdpConnector {
     } else {
       None
     }
+
+    //Use separate backend for auth, so we should not retry as much as maxRetries config
+    val authSttpBackend =
+      retryingSttpBackend(5, config.maxRetryDelaySeconds, config.parallelismPerPartition, metricsPrefix)
+    val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunSync()
+
     implicit val sttpBackend: SttpBackend[IO, Any] =
       retryingSttpBackend(
         config.maxRetries,
@@ -121,7 +127,7 @@ object CdpConnector {
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,
-      authProvider = config.auth.provider.unsafeRunSync(),
+      authProvider = authProvider,
       baseUrl = config.baseUrl,
       apiVersion = None,
       clientTag = config.clientTag,
