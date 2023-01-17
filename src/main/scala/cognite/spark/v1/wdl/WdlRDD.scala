@@ -11,13 +11,15 @@ private object implicits { // scalastyle:ignore object.name
   implicit class RequiredOption[T](optionValue: Option[T]) {
     def orThrow(structFieldName: String, nullable: Boolean): T =
       optionValue match {
-        case Some(value) => value
-        case None | null => // scalastyle:ignore null
+        case Some(Some(_)) =>
+          throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $optionValue")
+        case None | Some(null) => // scalastyle:ignore null
           if (nullable) {
             null.asInstanceOf[T] // scalastyle:ignore null
           } else {
             throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $optionValue")
           }
+        case Some(value) => value
       }
   }
 }
@@ -61,8 +63,8 @@ class WdlRDD(
         convertToValue(jsonValue.asObject.orThrow(structFieldName, nullable), structType)
       case StringType => jsonValue.asString
       case DoubleType => jsonValue.asNumber.map(value => value.toDouble)
-      case IntegerType => jsonValue.asNumber.map(value => value.toInt)
-      case LongType => jsonValue.asNumber.map(value => value.toLong)
+      case IntegerType => jsonValue.asNumber.flatMap(value => value.toInt)
+      case LongType => jsonValue.asNumber.flatMap(value => value.toLong)
       case _ =>
         throw new CdfSparkException(
           s"Conversion to type ${dataType.typeName} is not supported for WDL, element $structFieldName.")

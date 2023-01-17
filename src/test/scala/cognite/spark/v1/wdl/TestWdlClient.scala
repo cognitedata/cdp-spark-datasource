@@ -1,18 +1,18 @@
 package cognite.spark.v1.wdl
 
 import cognite.spark.v1.{CdfSparkException, CdpConnector, RelationConfig}
-import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
+import io.circe.{Decoder, Encoder}
 import sttp.client3.UriContext
 
 class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
   import CdpConnector.ioRuntime
 
   def post[Input, Output](url: String, body: Input)(
-    implicit encoder: Encoder[Input],
-    decoder: Decoder[Output],
+      implicit encoder: Encoder[Input],
+      decoder: Decoder[Output],
   ): Output = {
     val bodyAsJson = body.asJson.noSpaces
     val urlParts = url.split("/")
@@ -37,7 +37,7 @@ class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
   }
 
   def get[Output](url: String)(
-    implicit decoder: Decoder[Output],
+      implicit decoder: Decoder[Output],
   ): Output = {
     val urlParts = url.split("/")
     val fullUrl = uri"$baseUrl/$urlParts"
@@ -108,8 +108,8 @@ class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
       source: Source,
       well: Well,
       wellIngesiton: WellIngestion,
-      wellbore: Wellbore,
-      wellboreIngestion: WellboreIngestion
+      wellbores: Seq[Wellbore],
+      wellboreIngestions: Seq[WellboreIngestion],
   )
 
   def miniSetup(): MiniSetup = {
@@ -122,20 +122,29 @@ class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
       wellhead = Some(Wellhead(x = 0.0, y = 60.0, crs = "EPSG:4326"))
     )
     val well = ingestWells(Seq(wellIngestion)).head
-    val wellboreIngestion = WellboreIngestion(
-      matchingId = Some("wb1"),
-      name = "wb1",
-      source = AssetSource(assetExternalId = "A:wb1", sourceName = "A"),
-      datum = Some(Datum(value = 50.0, unit = "meter", reference = "KB")),
-      wellAssetExternalId = "A:w1",
+    val wellboreIngestions = Seq(
+      WellboreIngestion(
+        matchingId = Some("wb1"),
+        name = "wb1",
+        source = AssetSource(assetExternalId = "A:wb1", sourceName = "A"),
+        datum = Some(Datum(value = 50.0, unit = "meter", reference = "KB")),
+        wellAssetExternalId = "A:w1",
+      ),
+      WellboreIngestion(
+        matchingId = Some("wb2"),
+        name = "wb1",
+        source = AssetSource(assetExternalId = "A:wb2", sourceName = "A"),
+        datum = Some(Datum(value = 50.0, unit = "meter", reference = "KB")),
+        wellAssetExternalId = "A:w1",
+      ),
     )
-    val wellbore = ingestWellbores(Seq(wellboreIngestion)).head
+    val wellbores = ingestWellbores(wellboreIngestions)
     MiniSetup(
       source = source,
       well = well,
       wellIngesiton = wellIngestion,
-      wellbore = wellbore,
-      wellboreIngestion = wellboreIngestion
+      wellbores = wellbores,
+      wellboreIngestions = wellboreIngestions
     )
   }
 

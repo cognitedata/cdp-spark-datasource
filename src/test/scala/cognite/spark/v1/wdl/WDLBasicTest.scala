@@ -1,10 +1,21 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{WDLSparkTest, WriteTest}
+import cognite.spark.v1.{CdfSparkAuth, WDLSparkTest, WriteTest}
+import com.cognite.sdk.scala.common.ApiKeyAuth
 import org.apache.spark.sql.DataFrame
-import org.scalatest.{FlatSpec, Inspectors, Matchers}
+import org.apache.spark.sql.internal.SQLConf
+import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors, Matchers}
 
-class WellDataLayerRelationTest extends FlatSpec with Matchers with WDLSparkTest with Inspectors {
+class WDLBasicTest extends FlatSpec with Matchers with WDLSparkTest with Inspectors with BeforeAndAfter {
+
+  private val config = getDefaultConfig(CdfSparkAuth.Static(ApiKeyAuth(writeApiKey)))
+  private val client = new TestWdlClient(config)
+
+  before {
+    SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
+    client.deleteAll()
+    client.miniSetup()
+  }
 
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
@@ -19,7 +30,7 @@ class WellDataLayerRelationTest extends FlatSpec with Matchers with WDLSparkTest
     spark
       .sql(s"""select 'hello' as name,
            |       named_struct('x', 20.0, 'y', 30.0, 'crs', 'EPSG:4326') as wellhead,
-           |       named_struct('sourceName', 'EDM', 'assetExternalId', 'EDM:well1') as source
+           |       named_struct('sourceName', 'A', 'assetExternalId', 'A:well1') as source
            |""".stripMargin)
       .write
       .format("cognite.spark.v1")
@@ -34,19 +45,15 @@ class WellDataLayerRelationTest extends FlatSpec with Matchers with WDLSparkTest
     val sparkSql = spark
       .sql("select * from wdl_test")
 
-    sparkSql.printSchema()
-    sparkSql.show(50, false)
     val rows = sparkSql.collect()
-    assert(rows.length > -1)
+    rows.length shouldEqual 1
   }
 
   it should "be able to read subset of fields from a well" in {
     val sparkSql = spark
       .sql("select matchingId, name, description, uniqueWellIdentifier, waterDepth from wdl_test")
 
-    sparkSql.printSchema()
-    sparkSql.show(50, false)
     val rows = sparkSql.collect()
-    assert(rows.length > -1)
+    rows.length shouldEqual 1
   }
 }

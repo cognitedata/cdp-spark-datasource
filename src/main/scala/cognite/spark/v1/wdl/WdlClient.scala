@@ -102,6 +102,7 @@ class WdlClient(
       case "Wellbore" => "wellbores"
       case "WellIngestion" => "wells"
       case "Npt" => "npt"
+      case "NptIngestion" => "npt"
       case "Nds" => "npt"
       case "CasingSchematic" => "casings"
       case "Source" => "sources"
