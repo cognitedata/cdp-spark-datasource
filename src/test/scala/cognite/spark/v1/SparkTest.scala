@@ -1,8 +1,7 @@
 package cognite.spark.v1
 
-import cats.Id
 import cats.effect.IO
-import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
+import com.cognite.sdk.scala.common.OAuth2
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
@@ -37,13 +36,43 @@ trait SparkTest {
       override def clsTag: ClassTag[OptionalField[A]] = c
     }
 
-  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-  assert(
-    writeApiKey != null && !writeApiKey.isEmpty,
-    "Environment variable \"TEST_API_KEY_WRITE\" was not set")
-  implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
-  val writeClient: GenericClient[Id] =
-    GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
+  object OIDCWrite {
+    val clientId = "0e457315-6830-4b80-8334-e6e5fd5c7b4e"
+    val clientSecret = "SbKD1e-S6aparA.~By5F4O3O6_V5UWQFwF"
+    private val aadTenant = "b86328db-09aa-4f0e-9a03-0136f604d20a"
+    val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+    val project = "jetfiretest2"
+    val scopes = "https://api.cognitedata.com/.default"
+  }
+
+//  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
+//  assert(
+//    writeApiKey != null && !writeApiKey.isEmpty,
+//    "Environment variable \"TEST_API_KEY_WRITE\" was not set")
+//  implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
+//  val writeClient: GenericClient[Id] =
+//    GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
+
+  val writeCredentials = OAuth2.ClientCredentials(
+    tokenUri = sttp.model.Uri.unsafeParse(OIDCWrite.tokenUri),
+    clientId = OIDCWrite.clientId,
+    clientSecret = OIDCWrite.clientSecret,
+    scopes = List(OIDCWrite.scopes),
+    OIDCWrite.project
+  )
+  implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
+
+  val writeAuthProvider =
+    OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
+  val writeClient: GenericClient[IO] = new GenericClient(
+    applicationName = "jetfire-test",
+    projectName = writeCredentials.cdfProjectName,
+    baseUrl = s"https://api.cognitedata.com",
+    authProvider = writeAuthProvider,
+    apiVersion = None,
+    clientTag = None,
+    cdfVersion = None
+  )
 
   private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
   // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211

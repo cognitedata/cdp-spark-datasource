@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{RawDatabase, RawRow, RawTable}
 import io.circe.Json
@@ -122,16 +123,16 @@ class RawTableRelationTest
       ("with-number-empty-str", dataWithEmptyStringInDoubleField),
       ("with-boolean-empty-str", dataWithEmptyStringInBooleanField)
     )
-    if (!writeClient.rawDatabases.list().compile.toVector.exists(_.name == db)) {
-      writeClient.rawDatabases.createOne(RawDatabase(db))
+    if (!writeClient.rawDatabases.list().compile.toVector.unsafeRunSync().exists(_.name == db)) {
+      writeClient.rawDatabases.createOne(RawDatabase(db)).unsafeRunSync()
     }
-    writeClient.rawTables(db).list().compile.toVector.map(_.name).foreach {
-      writeClient.rawTables(db).deleteById(_)
+    writeClient.rawTables(db).list().compile.toVector.unsafeRunSync().map(_.name).foreach {
+      writeClient.rawTables(db).deleteById(_).unsafeRunSync()
     }
-    writeClient.rawTables(db).create(tables.map(t => RawTable(t._1)))
+    writeClient.rawTables(db).create(tables.map(t => RawTable(t._1))).unsafeRunSync()
 
     for ((n, data) <- tables) {
-      writeClient.rawRows(db, n).create(data)
+      writeClient.rawRows(db, n).create(data).unsafeRunSync()
     }
   }
 
@@ -157,7 +158,11 @@ class RawTableRelationTest
     val partitions = 10L
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("limitPerPartition", limit)
       .option("partitions", partitions)
@@ -179,7 +184,11 @@ class RawTableRelationTest
       metricsPrefix: Option[String] = None): DataFrame = {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("partitions", 1)
       .option("database", database)
@@ -335,7 +344,11 @@ class RawTableRelationTest
     val partitions = 10L
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", database)
       .option("table", table)
@@ -358,7 +371,11 @@ class RawTableRelationTest
   "lastUpdatedTime" should "insert data without error" taggedAs (WriteTest) in {
     val destinationDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "raw-write-test")
@@ -380,7 +397,11 @@ class RawTableRelationTest
   it should "test that lastUpdatedTime filters are handled correctly" taggedAs (ReadTest) in {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "future-event")
@@ -400,7 +421,11 @@ class RawTableRelationTest
 
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("metricsPrefix", metricsPrefix)
       .option("partitions", partitions)
@@ -427,7 +452,11 @@ class RawTableRelationTest
     for (partitions <- Seq("1", "5", "10", "20")) {
       val df = spark.read
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
         .option("type", "raw")
         .option("database", "testdb")
         .option("table", "future-event")
@@ -442,7 +471,11 @@ class RawTableRelationTest
   it should "read individual columns successfully" taggedAs (ReadTest) in {
     val dfArray = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "future-event")
@@ -462,7 +495,7 @@ class RawTableRelationTest
     val table = "struct-test"
 
     try {
-      writeClient.rawTables(database).createOne(RawTable(table))
+      writeClient.rawTables(database).createOne(RawTable(table)).unsafeRunSync()
     } catch {
       case e: CdpApiException if e.code == 400 => // Ignore if already exists
     }
@@ -484,7 +517,11 @@ class RawTableRelationTest
     val destination = spark.read
       .format("cognite.spark.v1")
       .schema(source.schema)
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", database)
       .option("table", table)
@@ -498,7 +535,11 @@ class RawTableRelationTest
     try {
       val df = spark.read
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
         .option("type", "raw")
         .option("database", database)
         .option("table", table)
@@ -528,7 +569,7 @@ class RawTableRelationTest
       structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
       structInArray.toSeq.loneElement shouldBe 123L
     } finally {
-      writeClient.rawRows(database, table).deleteById(key)
+      writeClient.rawRows(database, table).deleteById(key).unsafeRunSync()
     }
   }
 
@@ -538,7 +579,7 @@ class RawTableRelationTest
 
     // remove the DB to be sure
     try {
-      writeClient.rawTables(database).deleteById(table)
+      writeClient.rawTables(database).deleteById(table).unsafeRunSync()
     } catch {
       case _: CdpApiException => () // Ignore
     }
@@ -553,7 +594,11 @@ class RawTableRelationTest
       val destination = spark.read
         .format("cognite.spark.v1")
         .schema(source.schema)
-        .option("apiKey", writeApiKey)
+        .option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
         .option("type", "raw")
         .option("database", database)
         .option("table", table)
@@ -567,7 +612,7 @@ class RawTableRelationTest
 
     } finally {
       try {
-        writeClient.rawTables(database).deleteById(table)
+        writeClient.rawTables(database).deleteById(table).unsafeRunSync()
       } catch {
         case _: CdpApiException => () // Ignore
       }
@@ -577,7 +622,11 @@ class RawTableRelationTest
   it should "be able to duplicate a table with a large number of columns(384)" taggedAs WriteTest in {
     val source = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "MegaColumnTable")
@@ -588,7 +637,11 @@ class RawTableRelationTest
     val dest = spark.read
       .format("cognite.spark.v1")
       .schema(source.schema)
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "MegaColumnTableDuplicate")
@@ -608,7 +661,11 @@ class RawTableRelationTest
   it should "be treated as a 'select *' when the column names combined, exceeds the character limit of 200" taggedAs WriteTest in {
     val source = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "MegaColumnTable")
@@ -619,7 +676,11 @@ class RawTableRelationTest
     val dest = spark.read
       .format("cognite.spark.v1")
       .schema(source.schema)
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "MegaColumnTableDuplicate2")
@@ -695,7 +756,9 @@ class RawTableRelationTest
     assert(df.count() == 0)
 
     // No rows should have been read, so the metric should not exist.
-    a[NullPointerException] should be thrownBy getNumberOfRowsRead(metricsPrefix, s"raw.spark-test-database.$tableName.rows")
+    a[NullPointerException] should be thrownBy getNumberOfRowsRead(
+      metricsPrefix,
+      s"raw.spark-test-database.$tableName.rows")
   }
 
   it should "support pushdown key filters with OR and IN" taggedAs ReadTest in {
@@ -713,7 +776,11 @@ class RawTableRelationTest
   it should "fail reasonably when table does not exist" in {
     val source = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "raw")
       .option("database", "datybasy")
       .option("table", "assets")

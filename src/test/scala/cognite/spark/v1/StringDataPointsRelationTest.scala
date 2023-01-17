@@ -23,14 +23,22 @@ class StringDataPointsRelationTest
 
   val destinationTimeSeriesDf = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey)
+    .option("tokenUri", OIDCWrite.tokenUri)
+    .option("clientId", OIDCWrite.clientId)
+    .option("clientSecret", OIDCWrite.clientSecret)
+    .option("project", OIDCWrite.project)
+    .option("scopes", OIDCWrite.scopes)
     .option("type", "timeseries")
     .load()
   destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
 
   val destinationStringDataPointsDf = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey)
+    .option("tokenUri", OIDCWrite.tokenUri)
+    .option("clientId", OIDCWrite.clientId)
+    .option("clientSecret", OIDCWrite.clientSecret)
+    .option("project", OIDCWrite.project)
+    .option("scopes", OIDCWrite.scopes)
     .option("type", "stringdatapoints")
     .option("collectMetrics", "true")
     .load()
@@ -210,7 +218,11 @@ class StringDataPointsRelationTest
 
     val stringDataPointsInsertDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "stringdatapoints")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -318,7 +330,11 @@ class StringDataPointsRelationTest
   it should "be possible to delete string data points" taggedAs WriteTest in {
     val destinationDataPointsDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "stringdatapoints")
       .load()
     destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
@@ -327,7 +343,11 @@ class StringDataPointsRelationTest
 
     val destinationTimeSeriesDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "timeseries")
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
@@ -341,7 +361,11 @@ class StringDataPointsRelationTest
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "timeseries")
       .option("onconflict", "upsert")
       .save()
@@ -373,7 +397,11 @@ class StringDataPointsRelationTest
         """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "stringdatapoints")
       .option("onconflict", "upsert")
       .save()
@@ -406,7 +434,11 @@ class StringDataPointsRelationTest
          """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "stringdatapoints")
       .option("onconflict", "delete")
       .save()

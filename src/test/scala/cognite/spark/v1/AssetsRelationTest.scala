@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.AssetCreate
 import io.scalaland.chimney.dsl._
@@ -22,7 +23,16 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   val destinationDf = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey)
+    //    .option("tokenUri", OIDCWrite.tokenUri)
+    .option("clientId", OIDCWrite.clientId)
+    .option("clientSecret", OIDCWrite.clientSecret)
+    .option("project", OIDCWrite.project)
+    .option("scopes", OIDCWrite.scopes)
+    .option("tokenUri", OIDCWrite.tokenUri)
+    .option("clientId", OIDCWrite.clientId)
+    .option("clientSecret", OIDCWrite.clientSecret)
+    .option("project", OIDCWrite.project)
+    .option("scopes", OIDCWrite.scopes)
     .option("type", "assets")
     .load()
   destinationDf.createOrReplaceTempView("destinationAssets")
@@ -71,7 +81,9 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "support pushdown filters on labels" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
-    writeClient.assets.deleteByExternalId("asset_with_label_spark_datasource", ignoreUnknownIds = true)
+    writeClient.assets
+      .deleteByExternalId("asset_with_label_spark_datasource", ignoreUnknownIds = true)
+      .unsafeRunSync()
     spark
       .sql(s"""select 'asset_with_label_spark_datasource' as externalId,
            |'asset_with_label_spark_datasource' as name,
@@ -81,7 +93,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .write
       .format("cognite.spark.v1")
       .option("type", "assets")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .save()
 
     retryWhile[Array[Row]](
@@ -159,7 +175,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = s"pushdown.assets.source.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -255,7 +275,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = s"pushdown.assets.duplicates.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -327,7 +351,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = s"assets.test.create.${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -368,7 +396,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       createdAsset.getAs[String]("externalId") shouldBe externalId
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId)
+        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -393,7 +421,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
         .option("type", "assets")
         .option("onconflict", "abort")
         .option("collectMetrics", "true")
@@ -404,7 +436,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(assetsCreated == 1)
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId)
+        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -416,7 +448,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val assetsTestSource = s"assets-relation-test-copy-${shortRandomString()}"
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .load()
     df.createOrReplaceTempView("assets")
@@ -462,7 +498,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     val destinationDf: DataFrame = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -584,7 +624,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "allow partial updates" taggedAs WriteTest in {
     val sourceDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .load()
       .where("name = 'upsertTestThree'")
@@ -595,7 +639,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     wdf.write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .option("onconflict", "update")
       .save()
@@ -604,26 +652,33 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "allow empty metadata updates" taggedAs WriteTest in {
     val externalId1 = UUID.randomUUID.toString
 
-    writeClient.assets.create(
-      Seq(
-        AssetCreate(
-          name = externalId1,
-          externalId = Some(externalId1),
-          metadata = Some(Map("test1" -> "test1")))))
+    writeClient.assets
+      .create(
+        Seq(
+          AssetCreate(
+            name = externalId1,
+            externalId = Some(externalId1),
+            metadata = Some(Map("test1" -> "test1")))))
+      .unsafeRunSync()
 
-    writeClient.assets.retrieveByExternalId(externalId1).metadata shouldBe Some(Map("test1" -> "test1"))
+    writeClient.assets.retrieveByExternalId(externalId1).unsafeRunSync().metadata shouldBe Some(
+      Map("test1" -> "test1"))
     val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
 
     wdf.write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .option("onconflict", "update")
       .save()
 
-    val updated = writeClient.assets.retrieveByExternalId(externalId1)
+    val updated = writeClient.assets.retrieveByExternalId(externalId1).unsafeRunSync()
 
-    writeClient.assets.deleteByExternalId(externalId1)
+    writeClient.assets.deleteByExternalId(externalId1).unsafeRunSync()
 
     updated.metadata shouldBe Some(Map())
   }
@@ -631,7 +686,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "throw proper exception on invalid onconflict options" taggedAs WriteTest in {
     val sourceDf = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .load()
       .where("name = 'upsertTestThree'")
@@ -643,7 +702,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assertThrows[CdfSparkIllegalArgumentException] {
       wdf.write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
         .option("type", "assets")
         .option("onconflict", "does-not-exists")
         .save()
@@ -654,7 +717,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val source = s"spark-assets-test-partial-${shortRandomString()}"
     val destinationDf: DataFrame = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .option("collectMetrics", "false")
       .load()
@@ -704,7 +771,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
             .write
             .format("cognite.spark.v1")
-            .option("apiKey", writeApiKey)
+            .option("tokenUri", OIDCWrite.tokenUri)
+            .option("clientId", OIDCWrite.clientId)
+            .option("clientSecret", OIDCWrite.clientSecret)
+            .option("project", OIDCWrite.project)
+            .option("scopes", OIDCWrite.scopes)
             .option("type", "assets")
             .option("onconflict", "update")
             .save()
@@ -774,7 +845,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
             .write
             .format("cognite.spark.v1")
-            .option("apiKey", writeApiKey)
+            .option("tokenUri", OIDCWrite.tokenUri)
+            .option("clientId", OIDCWrite.clientId)
+            .option("clientSecret", OIDCWrite.clientSecret)
+            .option("project", OIDCWrite.project)
+            .option("scopes", OIDCWrite.scopes)
             .option("type", "assets")
             .option("onconflict", "update")
             .save()
@@ -819,7 +894,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
         .option("type", "assets")
         .option("onconflict", "upsert")
         .save()
@@ -834,7 +913,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
             .write
             .format("cognite.spark.v1")
-            .option("apiKey", writeApiKey)
+            .option("tokenUri", OIDCWrite.tokenUri)
+            .option("clientId", OIDCWrite.clientId)
+            .option("clientSecret", OIDCWrite.clientSecret)
+            .option("project", OIDCWrite.project)
+            .option("scopes", OIDCWrite.scopes)
             .option("type", "assets")
             .option("onconflict", "upsert")
             .save()
@@ -848,7 +931,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId)
+        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -879,7 +962,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
         .option("type", "assets")
         .option("onconflict", "upsert")
         .save()
@@ -894,7 +981,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
             .write
             .format("cognite.spark.v1")
-            .option("apiKey", writeApiKey)
+            .option("tokenUri", OIDCWrite.tokenUri)
+            .option("clientId", OIDCWrite.clientId)
+            .option("clientSecret", OIDCWrite.clientSecret)
+            .option("project", OIDCWrite.project)
+            .option("scopes", OIDCWrite.scopes)
             .option("type", "assets")
             .option("onconflict", "upsert")
             .save()
@@ -908,7 +999,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId)
+        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -941,12 +1032,16 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
         .option("type", "assets")
         .option("onconflict", "upsert")
         .save()
 
-      val id = writeClient.assets.retrieveByExternalId(externalId).id
+      val id = writeClient.assets.retrieveByExternalId(externalId).unsafeRunSync().id
 
       // Check if update worked
       val descriptionsAfterUpsert = retryWhile[Array[Row]](
@@ -959,7 +1054,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
             .write
             .format("cognite.spark.v1")
-            .option("apiKey", writeApiKey)
+            .option("tokenUri", OIDCWrite.tokenUri)
+            .option("clientId", OIDCWrite.clientId)
+            .option("clientSecret", OIDCWrite.clientSecret)
+            .option("project", OIDCWrite.project)
+            .option("scopes", OIDCWrite.scopes)
             .option("type", "assets")
             .option("onconflict", "upsert")
             .save()
@@ -973,7 +1072,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId)
+        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -1038,7 +1137,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .sql(s"select id from destinationAssets where source = '$source'")
               .write
               .format("cognite.spark.v1")
-              .option("apiKey", writeApiKey)
+              .option("tokenUri", OIDCWrite.tokenUri)
+              .option("clientId", OIDCWrite.clientId)
+              .option("clientSecret", OIDCWrite.clientSecret)
+              .option("project", OIDCWrite.project)
+              .option("scopes", OIDCWrite.scopes)
               .option("type", "assets")
               .option("onconflict", "delete")
               .option("collectMetrics", "true")
@@ -1067,7 +1170,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .sql("select 1234 as id")
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .option("onconflict", "delete")
       .option("ignoreUnknownIds", "true")
@@ -1079,7 +1186,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .sql("select 1234 as id")
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
         .option("type", "assets")
         .option("onconflict", "delete")
         .option("ignoreUnknownIds", "false")
@@ -1136,7 +1247,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .sql(s"select externalId from destinationAssets where source = '$source'")
               .write
               .format("cognite.spark.v1")
-              .option("apiKey", writeApiKey)
+              .option("tokenUri", OIDCWrite.tokenUri)
+              .option("clientId", OIDCWrite.clientId)
+              .option("clientSecret", OIDCWrite.clientSecret)
+              .option("project", OIDCWrite.project)
+              .option("scopes", OIDCWrite.scopes)
               .option("type", "assets")
               .option("onconflict", "delete")
               .option("collectMetrics", "true")
@@ -1165,7 +1280,11 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .sql(s"""select id from destinationAssets where source = '$source'""")
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
       .option("type", "assets")
       .option("onconflict", "delete")
       .save()

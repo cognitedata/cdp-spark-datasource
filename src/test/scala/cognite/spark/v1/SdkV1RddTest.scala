@@ -30,12 +30,12 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val toRow = (_: String, _: Option[Int]) => Row.empty
     val uniqueId = (_: String) => "1"
 
-    implicit val backend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(3, 5)
+    implicit val implicitBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(3, 5)
 
     val sdkRdd =
       SdkV1Rdd[String, String](
         spark.sparkContext,
-        getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials)),
+        getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials)(implicitBackend)),
         toRow,
         uniqueId,
         getStreams)
@@ -63,7 +63,13 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val rdd = new SdkV1Rdd[Event, Long](
       spark.sparkContext,
       DefaultSource
-        .parseRelationConfig(Map("apiKey" -> writeApiKey), spark.sqlContext)
+        .parseRelationConfig(Map(
+          "tokenUri" -> OIDCWrite.tokenUri,
+          "clientId" -> OIDCWrite.clientId,
+          "clientSecret" -> OIDCWrite.clientSecret,
+          "project" -> OIDCWrite.project,
+          "scopes" -> OIDCWrite.scopes
+        ), spark.sqlContext)
         .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
@@ -84,7 +90,13 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val rdd = new SdkV1Rdd[Event, Long](
       spark.sparkContext,
       DefaultSource
-        .parseRelationConfig(Map("apiKey" -> writeApiKey), spark.sqlContext)
+        .parseRelationConfig(Map(
+          "tokenUri" -> OIDCWrite.tokenUri,
+          "clientId" -> OIDCWrite.clientId,
+          "clientSecret" -> OIDCWrite.clientSecret,
+          "project" -> OIDCWrite.project,
+          "scopes" -> OIDCWrite.scopes
+        ), spark.sqlContext)
         .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
