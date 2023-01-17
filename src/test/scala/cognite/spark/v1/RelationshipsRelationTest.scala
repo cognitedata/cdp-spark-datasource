@@ -129,7 +129,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     assert(relationship.targetType == "asset")
     assert(relationship.labels.isDefined && relationship.labels.get.head == labelList.head.externalId)
 
-    writeClient.relationships.deleteByExternalId(externalId)
+    writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to write a relationship" taggedAs WriteTest in {

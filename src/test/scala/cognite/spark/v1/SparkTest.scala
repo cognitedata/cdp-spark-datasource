@@ -43,30 +43,22 @@ trait SparkTest {
     val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
     val project = "jetfiretest2"
     val scopes = "https://api.cognitedata.com/.default"
+
+    val writeCredentials = OAuth2.ClientCredentials(
+      tokenUri = sttp.model.Uri.unsafeParse(OIDCWrite.tokenUri),
+      clientId = OIDCWrite.clientId,
+      clientSecret = OIDCWrite.clientSecret,
+      scopes = List(OIDCWrite.scopes),
+      OIDCWrite.project
+    )
   }
-
-//  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-//  assert(
-//    writeApiKey != null && !writeApiKey.isEmpty,
-//    "Environment variable \"TEST_API_KEY_WRITE\" was not set")
-//  implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
-//  val writeClient: GenericClient[Id] =
-//    GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
-
-  val writeCredentials = OAuth2.ClientCredentials(
-    tokenUri = sttp.model.Uri.unsafeParse(OIDCWrite.tokenUri),
-    clientId = OIDCWrite.clientId,
-    clientSecret = OIDCWrite.clientSecret,
-    scopes = List(OIDCWrite.scopes),
-    OIDCWrite.project
-  )
   implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
 
-  val writeAuthProvider =
-    OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
+  private val writeAuthProvider =
+    OAuth2.ClientCredentialsProvider[IO](OIDCWrite.writeCredentials).unsafeRunTimed(1.second).get
   val writeClient: GenericClient[IO] = new GenericClient(
     applicationName = "jetfire-test",
-    projectName = writeCredentials.cdfProjectName,
+    projectName = OIDCWrite.writeCredentials.cdfProjectName,
     baseUrl = s"https://api.cognitedata.com",
     authProvider = writeAuthProvider,
     apiVersion = None,
