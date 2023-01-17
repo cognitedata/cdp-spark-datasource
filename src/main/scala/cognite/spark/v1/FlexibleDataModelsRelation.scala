@@ -32,7 +32,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.{Row, SQLContext, types}
 
 import java.math.BigInteger
 import java.sql.{Date, Timestamp}
@@ -50,7 +50,6 @@ class FlexibleDataModelsRelation(
     with PrunedFilteredScan {
   import CdpConnector._
 
-  private val genericClient = alphaClient
   private val (viewDefinition, allViewProperties, viewSchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
     .getOrElse {
@@ -82,7 +81,7 @@ class FlexibleDataModelsRelation(
 
   private def retrieveViewDefWithAllPropsAndSchema
     : IO[Option[(ViewDefinition, Map[String, ViewPropertyDefinition], StructType)]] =
-    genericClient.views
+    alphaClient.views
       .retrieveItems(
         Seq(DataModelReference(viewSpaceExternalId, viewExternalId, viewVersion)),
         includeInheritedProperties = Some(true))
@@ -90,20 +89,30 @@ class FlexibleDataModelsRelation(
       .flatMap {
         case Some(viewDef) =>
           viewDef.implements.traverse { v =>
-            genericClient.views
-              .retrieveItems(v.map(vRef =>
-                DataModelReference(vRef.space, vRef.externalId, vRef.version)))
-              .map { inheritingViews =>
-                val inheritingProperties = inheritingViews
-                  .map(_.properties)
-                  .reduce((propMap1, propMap2) => propMap1 ++ propMap2)
+            if (v.isEmpty) {
+              IO.pure(
+                (
+                  viewDef,
+                  viewDef.properties,
+                  deriveViewSchemaWithUsage(viewDef.usedFor, viewDef.properties)
+                )
+              )
+            } else {
+              alphaClient.views
+                .retrieveItems(v.map(vRef =>
+                  DataModelReference(vRef.space, vRef.externalId, vRef.version)))
+                .map { inheritingViews =>
+                  val inheritingProperties = inheritingViews
+                    .map(_.properties)
+                    .reduce((propMap1, propMap2) => propMap1 ++ propMap2)
 
-                (viewDef, inheritingProperties ++ viewDef.properties)
-              }
-              .map {
-                case (viewDef, viewProps) =>
-                  (viewDef, viewProps, deriveViewSchemaWithUsage(viewDef.usedFor, viewProps))
-              }
+                  (viewDef, inheritingProperties ++ viewDef.properties)
+                }
+                .map {
+                  case (viewDef, viewProps) =>
+                    (viewDef, viewProps, deriveViewSchemaWithUsage(viewDef.usedFor, viewProps))
+                }
+            }
           }
         case None => IO.pure(None)
       }
@@ -115,6 +124,8 @@ class FlexibleDataModelsRelation(
       destinationRef: SourceReference,
       propDefMap: Map[String, PropertyDefinition],
       usedFor: Usage): IO[Seq[SlimNodeOrEdge]] = {
+    println(rows.map(_.mkString(", ")).mkString(System.lineSeparator()))
+    println(rows.map(_.schema.mkString(", ")).mkString(System.lineSeparator()))
     val nodesOrEdges = usedFor match {
       case Usage.Node => createNodes(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
       case Usage.Edge => createEdges(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
@@ -129,7 +140,8 @@ class FlexibleDataModelsRelation(
           items = items,
           replace = Some(true)
         )
-        genericClient.instances.createItems(instanceCreate)
+        println(instanceCreate)
+        alphaClient.instances.createItems(instanceCreate)
     }
   }
 
@@ -391,7 +403,7 @@ class FlexibleDataModelsRelation(
       sort = None, // Some(Seq(PropertyFilterV3))
       limit = limit,
       cursor = None,
-      sources = Some(Seq(viewDefinition.toViewReference))
+      sources = Some(Seq(InstanceSource(viewDefinition.toViewReference)))
     )
 
     Seq(
@@ -425,7 +437,7 @@ class FlexibleDataModelsRelation(
   private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    genericClient.instances
+    alphaClient.instances
       .delete(deleteCandidates.map(i =>
         NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
@@ -434,7 +446,7 @@ class FlexibleDataModelsRelation(
   private def deleteEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    genericClient.instances
+    alphaClient.instances
       .delete(deleteCandidates.map(i =>
         EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
@@ -443,12 +455,12 @@ class FlexibleDataModelsRelation(
   private def deleteNodesOrEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    genericClient.instances
+    alphaClient.instances
       .delete(deleteCandidates.map(i =>
         NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .recoverWith {
         case NonFatal(nodeDeletionErr) =>
-          genericClient.instances
+          alphaClient.instances
             .delete(deleteCandidates.map(i =>
               EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
             .handleErrorWith {
@@ -558,7 +570,7 @@ class FlexibleDataModelsRelation(
 }
 
 object FlexibleDataModelsRelation {
-  val ResourceType = "datamodelinstancesV3"
+  val ResourceType = "flexibledatamodels"
 
   final case class ProjectedFlexibleDataModelInstance(externalId: String, properties: Array[Any])
   final case class FlexibleDataModelInstanceDeleteModel(space: Option[String], externalId: String)

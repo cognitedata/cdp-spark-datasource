@@ -23,10 +23,10 @@ abstract class CdfRelation(config: RelationConfig, shortName: String)
   @transient lazy protected val itemsUpserted: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.upserted")
 
-  @transient val client: GenericClient[IO] =
+  @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
-  @transient val alphaClient: GenericClient[IO] =
+  @transient lazy val alphaClient: GenericClient[IO] =
     CdpConnector.clientFromConfig(config, Some("alpha"))
 
   def incMetrics(counter: Counter, count: Int): IO[Unit] =

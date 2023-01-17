@@ -121,7 +121,7 @@ class DefaultSource
     )(sqlContext)
   }
 
-  private def createDataModelInstancesV3(
+  private def createFlexibleDataModelInstances(
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelsRelation = {
@@ -135,16 +135,16 @@ class DefaultSource
     val viewVersion = parameters.getOrElse(
       "viewVersion",
       throw new CdfSparkException("'viewVersion' should be specified"))
-    val instanceExternalId = parameters.getOrElse(
-      "instanceExternalId",
-      throw new CdfSparkException("'instanceExternalId' should be specified"))
+    val instanceSpaceExternalId = parameters.getOrElse(
+      "instanceSpaceExternalId",
+      throw new CdfSparkException("'instanceSpaceExternalId' should be specified"))
 
     new FlexibleDataModelsRelation(
       config,
       viewSpaceExternalId = viewSpaceExternalId,
       viewExternalId = viewExternalId,
       viewVersion = viewVersion,
-      instanceSpaceExternalId = instanceExternalId
+      instanceSpaceExternalId = instanceSpaceExternalId
     )(sqlContext)
   }
 
@@ -224,7 +224,7 @@ class DefaultSource
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
       case FlexibleDataModelsRelation.ResourceType =>
-        createDataModelInstancesV3(parameters, config, sqlContext)
+        createFlexibleDataModelInstances(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -288,7 +288,7 @@ class DefaultSource
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
         case FlexibleDataModelsRelation.ResourceType =>
-          createDataModelInstancesV3(parameters, config, sqlContext)
+          createFlexibleDataModelInstances(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {
