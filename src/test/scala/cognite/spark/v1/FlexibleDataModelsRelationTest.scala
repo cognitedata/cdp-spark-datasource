@@ -53,7 +53,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   private val viewVersion = "v1"
 
   val containerProps: Map[String, ContainerPropertyDefinition] = Map(
-    "stringProp" -> FDMContainerPropertyTypes.TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+    "stringProp" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
     "longProp" -> FDMContainerPropertyTypes.Int64NonListWithoutAutoIncrementWithDefaultValueNullable,
   )
 
@@ -197,7 +197,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     instances.size shouldBe 1
   }
 
-  it should "fail when property has a wrong type" in {
+  it should "fail when numeric property cannot be safely casted" in {
     val nodeExtId1 = s"${generateNodeExternalId}1"
     val nodeExtId2 = s"${generateNodeExternalId}2"
 
@@ -225,6 +225,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     }
 
     result.isSuccess shouldBe false
+    result.toEither.left.get.getMessage.contains("Expecting a Long but found") shouldBe true
   }
 
   private def insertRows(

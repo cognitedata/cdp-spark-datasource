@@ -87,7 +87,7 @@ object FDMTestUtils {
       containerPropertyIdentifier = containerPropertyIdentifier
     )
 
-  // scalastyle:off cyclomatic.complexity
+  // scalastyle:off cyclomatic.complexity method.length
   def createAllPossibleContainerPropCombinations: Map[String, ContainerPropertyDefinition] = {
     val boolOptions = List(
       true,
@@ -98,35 +98,35 @@ object FDMTestUtils {
       p <- AllContainerPropertyTypes
       nullable <- boolOptions
       withDefault <- boolOptions
-      withAutoIncrement <- boolOptions
     } yield {
       val defaultValue = propertyDefaultValueForPropertyType(p, withDefault)
 
-      val autoIncrement = if (withAutoIncrement) {
-        defaultValue match {
-          case Some(PropertyDefaultValue.Int32(_) | PropertyDefaultValue.Int64(_)) => true
-          case Some(PropertyDefaultValue.Float32(_) | PropertyDefaultValue.Float64(_)) => true
-          case _ => false
-        }
-      } else {
-        false
+      val autoIncrementApplicableProp = p match {
+        case PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) => true
+        case PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) => true
+        case _ => false
       }
 
-      val nullability = p match {
+      val autoIncrement = autoIncrementApplicableProp && !nullable && !withDefault
+
+      val alwaysNullable = p match {
         case DirectNodeRelationProperty(_) => true
-        case _ => nullable
+        case _ => false
       }
+      val nullability = alwaysNullable || nullable
 
-      val nameComponents = List(
+      val nameComponents = Vector(
         p match {
           case p: PrimitiveProperty => p.`type`.productPrefix
           case _ => p.getClass.getSimpleName
         },
         if (p.isList) "List" else "NonList",
-        if (autoIncrement) "WithAutoIncrement" else "WithoutAutoIncrement",
+        if (autoIncrementApplicableProp) {
+          if (autoIncrement) "WithAutoIncrement" else "WithoutAutoIncrement"
+        } else { "" },
         if (defaultValue.nonEmpty) "WithDefaultValue" else "WithoutDefaultValue",
         if (nullability) "Nullable" else "NonNullable"
-      ).filter(_.nonEmpty)
+      )
 
       s"${nameComponents.mkString("")}" -> ContainerPropertyDefinition(
         nullable = Some(nullability),
@@ -136,38 +136,39 @@ object FDMTestUtils {
         name = Some(s"Test-${nameComponents.mkString("-")}-Name"),
         `type` = p
       )
-    }).distinct.toMap
+    }).toMap
   }
-  // scalastyle:on cyclomatic.complexity
+  // scalastyle:on cyclomatic.complexity method.length
 
   def createAllPossibleViewPropCombinations: Map[String, ViewPropertyDefinition] =
     createAllPossibleContainerPropCombinations.map {
       case (key, prop) => key -> toViewPropertyDefinition(prop, None, None)
     }
 
-  def viewPropStr: immutable.Iterable[String] = createAllPossibleViewPropCombinations.map {
-    case (propName, prop) =>
-      val propTypeStr = prop.`type` match {
-        case t: TextProperty =>
-          val collation = t.collation.map(s => s""""$s"""")
-          s"""PropertyType.TextProperty(${t.list}, $collation)"""
-        case p: PrimitiveProperty =>
-          s"PropertyType.PrimitiveProperty(PrimitivePropType.${p.`type`},${p.list})"
-        case d: DirectNodeRelationProperty => d.toString
-      }
+  def viewPropStr: Vector[String] =
+    createAllPossibleViewPropCombinations.map {
+      case (propName, prop) =>
+        val propTypeStr = prop.`type` match {
+          case t: TextProperty =>
+            val collation = t.collation.map(s => s""""$s"""")
+            s"""PropertyType.TextProperty(${t.list}, $collation)"""
+          case p: PrimitiveProperty =>
+            s"PropertyType.PrimitiveProperty(PrimitivePropType.${p.`type`},${p.list})"
+          case d: DirectNodeRelationProperty => d.toString
+        }
 
-      val defaultValueStr = prop.defaultValue.map {
-        case PropertyDefaultValue.String(value) =>
-          s"""Some(PropertyDefaultValue.String("$value"))""".stripMargin
-        case PropertyDefaultValue.Float32(value) =>
-          s"""Some(PropertyDefaultValue.Float32(${value}F))""".stripMargin
-        case PropertyDefaultValue.Object(value) =>
-          val jsonStr = s"""${value.noSpaces}""".stripMargin
-          s"""io.circe.parser.parse("$jsonStr"").toOption.map(PropertyDefaultValue.Object)""".stripMargin
-        case p => s"Some(PropertyDefaultValue.$p)"
-      }
+        val defaultValueStr = prop.defaultValue.map {
+          case PropertyDefaultValue.String(value) =>
+            s"""Some(PropertyDefaultValue.String("$value"))""".stripMargin
+          case PropertyDefaultValue.Float32(value) =>
+            s"""Some(PropertyDefaultValue.Float32(${value}F))""".stripMargin
+          case PropertyDefaultValue.Object(value) =>
+            val jsonStr = s"""${value.noSpaces}""".stripMargin
+            s"""io.circe.parser.parse("$jsonStr"").toOption.map(PropertyDefaultValue.Object)""".stripMargin
+          case p => s"Some(PropertyDefaultValue.$p)"
+        }
 
-      s"""
+        s"""
        | val $propName: ViewPropertyDefinition = ViewPropertyDefinition(
        |      nullable = ${prop.nullable},
        |      autoIncrement = ${prop.autoIncrement},
@@ -179,7 +180,8 @@ object FDMTestUtils {
        |      containerPropertyIdentifier = None
        |    )
        |""".stripMargin
-  }
+    }.toVector
+
   def createTestContainer(
       space: String,
       containerExternalId: String,

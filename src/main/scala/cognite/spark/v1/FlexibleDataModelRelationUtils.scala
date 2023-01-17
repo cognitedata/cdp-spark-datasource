@@ -350,13 +350,18 @@ object FlexibleDataModelRelationUtils {
           case PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
             Try(InstancePropertyValue.BooleanList(row.getSeq[Boolean](i))).toEither
           case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
-            tryAsFloatSeq(row.getSeq[Decimal](i), propertyName).map(InstancePropertyValue.Float32List)
+            Try(InstancePropertyValue.Float32List(row.getSeq[Float](i))).toEither.orElse(
+              tryAsFloatSeq(row.getSeq[Decimal](i), propertyName).map(InstancePropertyValue.Float32List))
           case PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
-            tryAsDoubleSeq(row.getSeq[Decimal](i), propertyName).map(InstancePropertyValue.Float64List)
+            Try(InstancePropertyValue.Float64List(row.getSeq[Double](i))).toEither.orElse(
+              tryAsDoubleSeq(row.getSeq[Decimal](i), propertyName)
+                .map(InstancePropertyValue.Float64List))
           case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
-            tryAsIntSeq(row.getSeq[Decimal](i), propertyName).map(InstancePropertyValue.Int32List)
+            Try(InstancePropertyValue.Int32List(row.getSeq[Int](i))).toEither.orElse(
+              tryAsIntSeq(row.getSeq[Decimal](i), propertyName).map(InstancePropertyValue.Int32List))
           case PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
-            tryAsLongSeq(row.getSeq[Decimal](i), propertyName).map(InstancePropertyValue.Int64List)
+            Try(InstancePropertyValue.Int64List(row.getSeq[Long](i))).toEither.orElse(
+              tryAsLongSeq(row.getSeq[Decimal](i), propertyName).map(InstancePropertyValue.Int64List))
           case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
             Try(
               InstancePropertyValue.TimestampList(
@@ -418,13 +423,17 @@ object FlexibleDataModelRelationUtils {
           case PrimitiveProperty(PrimitivePropType.Boolean, None | Some(false)) =>
             Try(InstancePropertyValue.Boolean(row.getBoolean(i))).toEither
           case PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) =>
-            tryAsFloat(row.getDecimal(i), propertyName).map(InstancePropertyValue.Float32)
+            Try(InstancePropertyValue.Float32(row.getFloat(i))).toEither
+              .orElse(tryAsFloat(row.getDecimal(i), propertyName).map(InstancePropertyValue.Float32))
           case PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) =>
-            tryAsDouble(row.getDecimal(i), propertyName).map(InstancePropertyValue.Float64)
+            Try(InstancePropertyValue.Float64(row.getDouble(i))).toEither
+              .orElse(tryAsDouble(row.getDecimal(i), propertyName).map(InstancePropertyValue.Float64))
           case PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) =>
-            tryAsInt(row.getDecimal(i), propertyName).map(InstancePropertyValue.Int32)
+            Try(InstancePropertyValue.Int32(row.getInt(i))).toEither
+              .orElse(tryAsInt(row.getDecimal(i), propertyName).map(InstancePropertyValue.Int32))
           case PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
-            tryAsLong(row.getDecimal(i), propertyName).map(InstancePropertyValue.Int64)
+            Try(InstancePropertyValue.Int64(row.getInt(i))).toEither
+              .orElse(tryAsLong(row.getDecimal(i), propertyName).map(InstancePropertyValue.Int64))
           case PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
             Try(
               InstancePropertyValue.Timestamp(ZonedDateTime

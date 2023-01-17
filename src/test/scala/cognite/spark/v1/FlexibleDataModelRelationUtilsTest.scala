@@ -2,10 +2,9 @@ package cognite.spark.v1
 
 import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes.{
-  Int32NonListWithAutoIncrementWithDefaultValueNullable,
   Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
-  TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
-  TextPropertyNonListWithoutAutoIncrementWithoutDefaultValueNonNullable
+  TextPropertyNonListWithDefaultValueNonNullable,
+  TextPropertyNonListWithoutDefaultValueNonNullable
 }
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
@@ -14,11 +13,7 @@ import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
 // scalastyle:off null
-class FlexibleDataModelRelationUtilsTest
-    extends FlatSpec
-    with Matchers
-    with SparkTest
-    with BeforeAndAfterAll {
+class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   private val destRef = ViewReference("space", "viewExtId1", "viewV1")
 
@@ -32,9 +27,9 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create nodes when externalId is not present" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
+        TextPropertyNonListWithoutDefaultValueNonNullable,
       "intProp" ->
-        Int32NonListWithAutoIncrementWithDefaultValueNullable
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
     val schema = StructType(
       Array(
@@ -55,9 +50,9 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create nodes when externalId is null" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
-        Int32NonListWithAutoIncrementWithDefaultValueNullable
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
     val schema =
       StructType(
@@ -82,9 +77,9 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create nodes when required a property is null" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
-        Int32NonListWithAutoIncrementWithDefaultValueNullable
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
     val schema =
       StructType(
@@ -106,9 +101,9 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create nodes when required a property is missing" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
-        Int32NonListWithAutoIncrementWithDefaultValueNullable
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
     val schema =
       StructType(
@@ -129,7 +124,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create nodes when required a property is nullable" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -154,7 +149,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create nodes with all nullable/non-nullable properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -182,7 +177,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create nodes with only required properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -207,7 +202,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create nodes when there are unrelated properties in Rows" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -238,7 +233,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create edges when externalId is not present" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -261,7 +256,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create edges when type is not present" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -285,7 +280,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create edges when startNode is not present" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -321,7 +316,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create edges when endNode is not present" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -362,7 +357,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create edges when type.space is null" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -406,7 +401,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create edges with all nullable/non-nullable properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -451,7 +446,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create edges with only required properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -494,7 +489,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create edges when there are unrelated properties in Rows" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -543,9 +538,9 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create nodesOrEdges or edges when externalId is not present" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
+        TextPropertyNonListWithoutDefaultValueNonNullable,
       "intProp" ->
-        Int32NonListWithAutoIncrementWithDefaultValueNullable
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
     val schema = StructType(
       Array(
@@ -566,9 +561,9 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create nodesOrEdges or edges when externalId is null" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
-        Int32NonListWithAutoIncrementWithDefaultValueNullable
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
     val schema =
       StructType(
@@ -593,9 +588,9 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail to create nodesOrEdges or edges when required a property is null" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
-        Int32NonListWithAutoIncrementWithDefaultValueNullable
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
     val schema =
       StructType(
@@ -617,7 +612,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create nodesOrEdges in createNodesOrEdges with all nullable/non-nullable properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -645,7 +640,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create nodesOrEdges in createNodesOrEdges with only required properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -670,7 +665,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create nodesOrEdges in createNodesOrEdges when there are unrelated properties in Rows" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -701,7 +696,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create edges in createNodesOrEdges with all nullable/non-nullable properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -746,7 +741,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create edges in createNodesOrEdges with only required properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -790,7 +785,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create edges in createNodesOrEdges when there are unrelated properties in Rows" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -840,7 +835,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail create nodes Or edges in createNodesOrEdges when a type is missing" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -887,7 +882,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail create nodes Or edges in createNodesOrEdges when a startNode is missing" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -934,7 +929,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "fail create nodes Or edges in createNodesOrEdges when a endNode is missing" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -981,7 +976,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create both nodesOrEdges & edges in createNodesOrEdges with all nullable/non-nullable properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -1042,7 +1037,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create both nodesOrEdges & edges in createNodesOrEdges with only required properties" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -1099,7 +1094,7 @@ class FlexibleDataModelRelationUtilsTest
   it should "successfully create both nodesOrEdges & edges in createNodesOrEdges when there are unrelated properties in Rows" in {
     val propertyMap = Map(
       "stringProp" ->
-        TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+        TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
         Int32NonListWithoutAutoIncrementWithDefaultValueNullable
     )
@@ -1159,5 +1154,11 @@ class FlexibleDataModelRelationUtilsTest
       .head shouldBe "instanceSpaceExternalId1"
     nodesOrEdges.collect { case e: NodeWrite => e.externalId }.distinct.sorted shouldBe Vector("extId3")
   }
+
+//  it should "pass" in {
+//    println(FDMTestUtils.viewPropStr.distinct.mkString(System.lineSeparator()))
+//    println(FDMTestUtils.createAllPossibleContainerPropCombinations.keys.toVector.distinct.mkString(","))
+//    1 shouldBe 1
+//  }
 }
 // scalastyle:on null

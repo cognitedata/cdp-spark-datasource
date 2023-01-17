@@ -10,101 +10,92 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.{
 
 object FDMContainerPropertyTypes {
 
-  val Float64ListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
+  val DateNonListWithDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(false),
+    autoIncrement = Some(false),
+    defaultValue = Some(PropertyDefaultValue.String("2023-01-17")),
+    description = Some("Test Date NonList WithDefaultValue NonNullable Description"),
+    name = Some("Test-Date-NonList-WithDefaultValue-NonNullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(false)),
+  )
+
+  val JsonNonListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Json NonList WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Json-NonList-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(false)),
+  )
+
+  val DateNonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
-      nullable = Some(true),
+      nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Float64 List WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Float64-List-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(true)),
+      description = Some("Test Date NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Date-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(false)),
     )
 
-  val BooleanNonListWithoutAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
+  val Float32NonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.Boolean(false)),
-      description =
-        Some("Test Boolean NonList WithoutAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Boolean-NonList-WithoutAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
-    )
-
-  val TimestampNonListWithoutAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.String("2023-01-16T22:27:39.035773Z[UTC]")),
-      description =
-        Some("Test Timestamp NonList WithoutAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Timestamp-NonList-WithoutAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
-    )
-
-  val Float32NonListWithAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(true),
-      defaultValue = Some(PropertyDefaultValue.Float32(1.2F)),
-      description = Some("Test Float32 NonList WithAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Float32-NonList-WithAutoIncrement-WithDefaultValue-Nullable-Name"),
+      defaultValue = None,
+      description = Some("Test Float32 NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Float32-NonList-WithoutDefaultValue-NonNullable-Name"),
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
     )
 
-  val Int64ListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
+  val BooleanListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Boolean List WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Boolean-List-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(true)),
+  )
+
+  val TextPropertyNonListWithoutDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
       defaultValue = None,
-      description = Some("Test Int64 List WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Int64-List-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(true)),
-    )
-
-  val TextPropertyNonListWithoutAutoIncrementWithoutDefaultValueNonNullable
-    : ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description = Some(
-        "Test TextProperty NonList WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-TextProperty-NonList-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
+      description = Some("Test TextProperty NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Test-TextProperty-NonList-WithoutDefaultValue-Nullable-Name"),
       `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
     )
 
-  val Int64ListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val JsonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(false),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Json List WithoutDefaultValue NonNullable Description"),
+    name = Some("Test-Json-List-WithoutDefaultValue-NonNullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(true)),
+  )
+
+  val Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
-      autoIncrement = Some(false),
+      autoIncrement = Some(true),
       defaultValue = None,
       description =
-        Some("Test Int64 List WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Int64-List-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(true)),
+        Some("Test Int32 NonList WithAutoIncrement WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Int32-NonList-WithAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
     )
 
-  val Float32NonListWithoutAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.Float32(1.2F)),
-      description =
-        Some("Test Float32 NonList WithoutAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Float32-NonList-WithoutAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
-    )
-
-  val DateListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
+  val Int32NonListWithAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(true),
-      autoIncrement = Some(false),
+      autoIncrement = Some(true),
       defaultValue = None,
-      description = Some("Test Date List WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Date-List-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(true)),
+      description =
+        Some("Test Int32 NonList WithAutoIncrement WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Int32-NonList-WithAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
     )
 
   val Int32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
@@ -118,14 +109,25 @@ object FDMContainerPropertyTypes {
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
     )
 
-  val Int32NonListWithAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
+  val DirectNodeRelationPropertyNonListWithoutDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(true),
-      autoIncrement = Some(true),
-      defaultValue = Some(PropertyDefaultValue.Int32(1)),
-      description = Some("Test Int32 NonList WithAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Int32-NonList-WithAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description =
+        Some("Test DirectNodeRelationProperty NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Test-DirectNodeRelationProperty-NonList-WithoutDefaultValue-Nullable-Name"),
+      `type` = DirectNodeRelationProperty(None),
+    )
+
+  val Float64NonListWithoutDefaultValueNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Float64 NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Test-Float64-NonList-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
     )
 
   val Int64NonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
@@ -139,70 +141,33 @@ object FDMContainerPropertyTypes {
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
     )
 
-  val TimestampListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val Float64NonListWithDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = Some(PropertyDefaultValue.Float64(1.21)),
+    description = Some("Test Float64 NonList WithDefaultValue Nullable Description"),
+    name = Some("Test-Float64-NonList-WithDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
+  )
+
+  val Float64NonListWithDefaultValueNonNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.Float64(1.21)),
+      description = Some("Test Float64 NonList WithDefaultValue NonNullable Description"),
+      name = Some("Test-Float64-NonList-WithDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
+    )
+
+  val JsonNonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Timestamp List WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Timestamp-List-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)),
-    )
-
-  val TimestampNonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Timestamp NonList WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Timestamp-NonList-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
-    )
-
-  val DateNonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Date NonList WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Date-NonList-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(false)),
-    )
-
-  val Float32NonListWithAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(true),
-      defaultValue = Some(PropertyDefaultValue.Float32(1.2F)),
-      description =
-        Some("Test Float32 NonList WithAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Float32-NonList-WithAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
-    )
-
-  val BooleanNonListWithoutAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.Boolean(false)),
-      description =
-        Some("Test Boolean NonList WithoutAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Boolean-NonList-WithoutAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
-    )
-
-  val DateNonListWithoutAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.String("2023-01-16")),
-      description =
-        Some("Test Date NonList WithoutAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Date-NonList-WithoutAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(false)),
+      description = Some("Test Json NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Json-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(false)),
     )
 
   val Int32NonListWithoutAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
@@ -213,49 +178,6 @@ object FDMContainerPropertyTypes {
       description = Some("Test Int32 NonList WithoutAutoIncrement WithDefaultValue Nullable Description"),
       name = Some("Test-Int32-NonList-WithoutAutoIncrement-WithDefaultValue-Nullable-Name"),
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
-    )
-
-  val Int32ListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Int32 List WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Int32-List-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(true)),
-    )
-
-  val Float64NonListWithAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(true),
-      defaultValue = Some(PropertyDefaultValue.Float64(1.21)),
-      description = Some("Test Float64 NonList WithAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Float64-NonList-WithAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
-    )
-
-  val Float64ListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Float64 List WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Float64-List-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(true)),
-    )
-
-  val Float64NonListWithoutAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.Float64(1.21)),
-      description =
-        Some("Test Float64 NonList WithoutAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Float64-NonList-WithoutAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
     )
 
   val Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
@@ -269,125 +191,118 @@ object FDMContainerPropertyTypes {
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
     )
 
-  val BooleanNonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Boolean NonList WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Boolean-NonList-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
-    )
-
-  val JsonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val Float64NonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Json List WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Json-List-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(true)),
+      description = Some("Test Float64 NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Float64-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
     )
 
-  val TextPropertyListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val JsonListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Json List WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Json-List-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(true)),
+  )
+
+  val DateNonListWithDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = Some(PropertyDefaultValue.String("2023-01-17")),
+    description = Some("Test Date NonList WithDefaultValue Nullable Description"),
+    name = Some("Test-Date-NonList-WithDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(false)),
+  )
+
+  val Float32NonListWithDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = Some(PropertyDefaultValue.Float32(1.2F)),
+    description = Some("Test Float32 NonList WithDefaultValue Nullable Description"),
+    name = Some("Test-Float32-NonList-WithDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
+  )
+
+  val Int64ListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Int64 List WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Int64-List-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(true)),
+  )
+
+  val TextPropertyListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test TextProperty List WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-TextProperty-List-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
+      description = Some("Test TextProperty List WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-TextProperty-List-WithoutDefaultValue-NonNullable-Name"),
       `type` = PropertyType.TextProperty(Some(true), Some("ucs_basic")),
     )
 
-  val JsonNonListWithoutAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue =
-        io.circe.parser.parse("""{"a":"a","b":1}""").toOption.map(PropertyDefaultValue.Object),
-      description =
-        Some("Test Json NonList WithoutAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Json-NonList-WithoutAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(false)),
-    )
-
-  val DateNonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Date NonList WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Date-NonList-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(false)),
-    )
-
-  val Int32NonListWithAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(true),
-      defaultValue = Some(PropertyDefaultValue.Int32(1)),
-      description = Some("Test Int32 NonList WithAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Int32-NonList-WithAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
-    )
-
-  val DateNonListWithoutAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.String("2023-01-16")),
-      description = Some("Test Date NonList WithoutAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Date-NonList-WithoutAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(false)),
-    )
-
-  val BooleanNonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val TextPropertyNonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Boolean NonList WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Boolean-NonList-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
+      description = Some("Test TextProperty NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-TextProperty-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
     )
 
-  val Float64NonListWithoutAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
+  val TimestampListWithoutDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.Float64(1.21)),
-      description =
-        Some("Test Float64 NonList WithoutAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Float64-NonList-WithoutAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
+      defaultValue = None,
+      description = Some("Test Timestamp List WithoutDefaultValue Nullable Description"),
+      name = Some("Test-Timestamp-List-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)),
     )
 
-  val DateListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val JsonNonListWithDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(false),
+    autoIncrement = Some(false),
+    defaultValue = io.circe.parser.parse("""{"a":"a","b":1}""").toOption.map(PropertyDefaultValue.Object),
+    description = Some("Test Json NonList WithDefaultValue NonNullable Description"),
+    name = Some("Test-Json-NonList-WithDefaultValue-NonNullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(false)),
+  )
+
+  val DateListWithoutDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(false),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Date List WithoutDefaultValue NonNullable Description"),
+    name = Some("Test-Date-List-WithoutDefaultValue-NonNullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(true)),
+  )
+
+  val TimestampNonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Date List WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Date-List-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(true)),
+      description = Some("Test Timestamp NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Timestamp-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
     )
 
-  val Float64NonListWithAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(true),
-      defaultValue = Some(PropertyDefaultValue.Float64(1.21)),
-      description =
-        Some("Test Float64 NonList WithAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Float64-NonList-WithAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
-    )
+  val DateNonListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Date NonList WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Date-NonList-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(false)),
+  )
 
   val Int64NonListWithoutAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
@@ -398,39 +313,6 @@ object FDMContainerPropertyTypes {
       name = Some("Test-Int64-NonList-WithoutAutoIncrement-WithDefaultValue-Nullable-Name"),
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
     )
-
-  val JsonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description = Some("Test Json List WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Json-List-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(true)),
-    )
-
-  val Float32ListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Float32 List WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Float32-List-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(true)),
-    )
-
-  val DirectNodeRelationPropertyNonListWithoutAutoIncrementWithoutDefaultValueNullable
-    : ContainerPropertyDefinition = ContainerPropertyDefinition(
-    nullable = Some(true),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some(
-      "Test DirectNodeRelationProperty NonList WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-    name = Some(
-      "Test-DirectNodeRelationProperty-NonList-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-    `type` = DirectNodeRelationProperty(None),
-  )
 
   val Int64NonListWithoutAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
@@ -443,102 +325,82 @@ object FDMContainerPropertyTypes {
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
     )
 
-  val Int64NonListWithAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(true),
-      defaultValue = Some(PropertyDefaultValue.Int64(12)),
-      description = Some("Test Int64 NonList WithAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-Int64-NonList-WithAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
-    )
-
-  val TextPropertyNonListWithoutAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
-      description =
-        Some("Test TextProperty NonList WithoutAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-TextProperty-NonList-WithoutAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
-    )
-
-  val TimestampListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Timestamp List WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Timestamp-List-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)),
-    )
-
-  val Int32ListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description = Some("Test Int32 List WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Int32-List-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(true)),
-    )
-
-  val TimestampNonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val Float32ListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Timestamp NonList WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Timestamp-NonList-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
+      description = Some("Test Float32 List WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Float32-List-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(true)),
     )
 
-  val Float64NonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Float64 NonList WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Float64-NonList-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
-    )
+  val DateListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Date List WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Date-List-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(true)),
+  )
 
-  val TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(false),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
-      description =
-        Some("Test TextProperty NonList WithoutAutoIncrement WithDefaultValue NonNullable Description"),
-      name = Some("Test-TextProperty-NonList-WithoutAutoIncrement-WithDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
-    )
-
-  val Float32NonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
+  val Float32NonListWithoutDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Float32 NonList WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Float32-NonList-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
+      description = Some("Test Float32 NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Test-Float32-NonList-WithoutDefaultValue-Nullable-Name"),
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
     )
 
-  val JsonNonListWithoutAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
+  val BooleanListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Boolean List WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Boolean-List-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(true)),
+    )
+
+  val TextPropertyNonListWithDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
-      defaultValue =
-        io.circe.parser.parse("""{"a":"a","b":1}""").toOption.map(PropertyDefaultValue.Object),
-      description = Some("Test Json NonList WithoutAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Json-NonList-WithoutAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(false)),
+      defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
+      description = Some("Test TextProperty NonList WithDefaultValue Nullable Description"),
+      name = Some("Test-TextProperty-NonList-WithDefaultValue-Nullable-Name"),
+      `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
     )
+
+  val BooleanNonListWithDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = Some(PropertyDefaultValue.Boolean(false)),
+    description = Some("Test Boolean NonList WithDefaultValue Nullable Description"),
+    name = Some("Test-Boolean-NonList-WithDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
+  )
+
+  val TimestampNonListWithoutDefaultValueNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Timestamp NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Test-Timestamp-NonList-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
+    )
+
+  val Int32ListWithoutDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(false),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Int32 List WithoutDefaultValue NonNullable Description"),
+    name = Some("Test-Int32-List-WithoutDefaultValue-NonNullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(true)),
+  )
 
   val Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
@@ -551,37 +413,32 @@ object FDMContainerPropertyTypes {
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
     )
 
-  val TextPropertyListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test TextProperty List WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-TextProperty-List-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.TextProperty(Some(true), Some("ucs_basic")),
-    )
+  val Int64ListWithoutDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(false),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Int64 List WithoutDefaultValue NonNullable Description"),
+    name = Some("Test-Int64-List-WithoutDefaultValue-NonNullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(true)),
+  )
 
-  val Float32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val JsonNonListWithDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = io.circe.parser.parse("""{"a":"a","b":1}""").toOption.map(PropertyDefaultValue.Object),
+    description = Some("Test Json NonList WithDefaultValue Nullable Description"),
+    name = Some("Test-Json-NonList-WithDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(false)),
+  )
+
+  val TimestampListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Float32 NonList WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Float32-NonList-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
-    )
-
-  val TimestampNonListWithoutAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.String("2023-01-16T22:27:39.035532Z[UTC]")),
-      description =
-        Some("Test Timestamp NonList WithoutAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Timestamp-NonList-WithoutAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
+      description = Some("Test Timestamp List WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Timestamp-List-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)),
     )
 
   val Int32NonListWithoutAutoIncrementWithDefaultValueNonNullable: ContainerPropertyDefinition =
@@ -595,167 +452,204 @@ object FDMContainerPropertyTypes {
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
     )
 
-  val BooleanListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Boolean List WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Boolean-List-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(true)),
-    )
-
-  val Float32ListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Float32 List WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Float32-List-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(true)),
-    )
-
-  val BooleanListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val Float64ListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Boolean List WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Boolean-List-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(true)),
+      description = Some("Test Float64 List WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Float64-List-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(true)),
     )
 
-  val Float64NonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
+  val TextPropertyNonListWithDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
-      nullable = Some(true),
+      nullable = Some(false),
       autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test Float64 NonList WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Float64-NonList-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
-    )
-
-  val Float32NonListWithoutAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.Float32(1.2F)),
-      description =
-        Some("Test Float32 NonList WithoutAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Float32-NonList-WithoutAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
-    )
-
-  val TextPropertyNonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(false),
-      defaultValue = None,
-      description =
-        Some("Test TextProperty NonList WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-TextProperty-NonList-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
+      defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
+      description = Some("Test TextProperty NonList WithDefaultValue NonNullable Description"),
+      name = Some("Test-TextProperty-NonList-WithDefaultValue-NonNullable-Name"),
       `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
     )
 
-  val JsonNonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+  val Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(true),
+      defaultValue = None,
+      description =
+        Some("Test Int64 NonList WithAutoIncrement WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Int64-NonList-WithAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
+    )
+
+  val Int64NonListWithAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(true),
+      defaultValue = None,
+      description =
+        Some("Test Int64 NonList WithAutoIncrement WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Int64-NonList-WithAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
+    )
+
+  val TimestampNonListWithDefaultValueNonNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845609Z[UTC]")),
+      description = Some("Test Timestamp NonList WithDefaultValue NonNullable Description"),
+      name = Some("Test-Timestamp-NonList-WithDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
+    )
+
+  val BooleanNonListWithoutDefaultValueNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Boolean NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Test-Boolean-NonList-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
+    )
+
+  val BooleanNonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Json NonList WithoutAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Json-NonList-WithoutAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(false)),
+      description = Some("Test Boolean NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Boolean-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
     )
 
-  val JsonNonListWithoutAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
+  val TimestampNonListWithDefaultValueNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845367Z[UTC]")),
+      description = Some("Test Timestamp NonList WithDefaultValue Nullable Description"),
+      name = Some("Test-Timestamp-NonList-WithDefaultValue-Nullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
+    )
+
+  val TextPropertyListWithoutDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test Json NonList WithoutAutoIncrement WithoutDefaultValue Nullable Description"),
-      name = Some("Test-Json-NonList-WithoutAutoIncrement-WithoutDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(false)),
+      description = Some("Test TextProperty List WithoutDefaultValue Nullable Description"),
+      name = Some("Test-TextProperty-List-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.TextProperty(Some(true), Some("ucs_basic")),
     )
 
-  val Int64NonListWithAutoIncrementWithDefaultValueNullable: ContainerPropertyDefinition =
+  val Int32ListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Int32 List WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Int32-List-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(true)),
+  )
+
+  val Float32ListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Float32 List WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Float32-List-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(true)),
+  )
+
+  val BooleanNonListWithDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(true),
-      defaultValue = Some(PropertyDefaultValue.Int64(12)),
-      description = Some("Test Int64 NonList WithAutoIncrement WithDefaultValue Nullable Description"),
-      name = Some("Test-Int64-NonList-WithAutoIncrement-WithDefaultValue-Nullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.Boolean(false)),
+      description = Some("Test Boolean NonList WithDefaultValue NonNullable Description"),
+      name = Some("Test-Boolean-NonList-WithDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
     )
 
-  val AllPossibleViewPropertyDefs: Vector[ContainerPropertyDefinition] = Vector(
-    Float64ListWithoutAutoIncrementWithoutDefaultValueNullable,
-    BooleanNonListWithoutAutoIncrementWithDefaultValueNonNullable,
-    TimestampNonListWithoutAutoIncrementWithDefaultValueNonNullable,
-    Float32NonListWithAutoIncrementWithDefaultValueNullable,
-    Int64ListWithoutAutoIncrementWithoutDefaultValueNullable,
-    TextPropertyNonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Int64ListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Float32NonListWithoutAutoIncrementWithDefaultValueNonNullable,
-    DateListWithoutAutoIncrementWithoutDefaultValueNullable,
+  val Float64ListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Float64 List WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Float64-List-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(true)),
+  )
+
+  val Float32NonListWithDefaultValueNonNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.Float32(1.2F)),
+      description = Some("Test Float32 NonList WithDefaultValue NonNullable Description"),
+      name = Some("Test-Float32-NonList-WithDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
+    )
+
+  val AllPossibleContainerPropertyDefs: Vector[ContainerPropertyDefinition] = Vector(
+    DateNonListWithDefaultValueNonNullable,
+    JsonNonListWithoutDefaultValueNullable,
+    DateNonListWithoutDefaultValueNonNullable,
+    Float32NonListWithoutDefaultValueNonNullable,
+    BooleanListWithoutDefaultValueNullable,
+    TextPropertyNonListWithoutDefaultValueNullable,
+    JsonListWithoutDefaultValueNonNullable,
+    Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
+    Int32NonListWithAutoIncrementWithoutDefaultValueNullable,
     Int32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Int32NonListWithAutoIncrementWithDefaultValueNullable,
+    DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+    Float64NonListWithoutDefaultValueNullable,
     Int64NonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    TimestampListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    TimestampNonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    DateNonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Float32NonListWithAutoIncrementWithDefaultValueNonNullable,
-    BooleanNonListWithoutAutoIncrementWithDefaultValueNullable,
-    DateNonListWithoutAutoIncrementWithDefaultValueNonNullable,
+    Float64NonListWithDefaultValueNullable,
+    Float64NonListWithDefaultValueNonNullable,
+    JsonNonListWithoutDefaultValueNonNullable,
     Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
-    Int32ListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Float64NonListWithAutoIncrementWithDefaultValueNullable,
-    Float64ListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Float64NonListWithoutAutoIncrementWithDefaultValueNonNullable,
     Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    BooleanNonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    JsonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    TextPropertyListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    JsonNonListWithoutAutoIncrementWithDefaultValueNonNullable,
-    DateNonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    Int32NonListWithAutoIncrementWithDefaultValueNonNullable,
-    DateNonListWithoutAutoIncrementWithDefaultValueNullable,
-    BooleanNonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Float64NonListWithoutAutoIncrementWithDefaultValueNullable,
-    DateListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Float64NonListWithAutoIncrementWithDefaultValueNonNullable,
+    Float64NonListWithoutDefaultValueNonNullable,
+    JsonListWithoutDefaultValueNullable,
+    DateNonListWithDefaultValueNullable,
+    Float32NonListWithDefaultValueNullable,
+    Int64ListWithoutDefaultValueNullable,
+    TextPropertyListWithoutDefaultValueNonNullable,
+    TextPropertyNonListWithoutDefaultValueNonNullable,
+    TimestampListWithoutDefaultValueNullable,
+    JsonNonListWithDefaultValueNonNullable,
+    DateListWithoutDefaultValueNonNullable,
+    TimestampNonListWithoutDefaultValueNonNullable,
+    DateNonListWithoutDefaultValueNullable,
     Int64NonListWithoutAutoIncrementWithDefaultValueNullable,
-    JsonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    Float32ListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    DirectNodeRelationPropertyNonListWithoutAutoIncrementWithoutDefaultValueNullable,
     Int64NonListWithoutAutoIncrementWithDefaultValueNonNullable,
-    Int64NonListWithAutoIncrementWithDefaultValueNonNullable,
-    TextPropertyNonListWithoutAutoIncrementWithDefaultValueNullable,
-    TimestampListWithoutAutoIncrementWithoutDefaultValueNullable,
-    Int32ListWithoutAutoIncrementWithoutDefaultValueNullable,
-    TimestampNonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Float64NonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    TextPropertyNonListWithoutAutoIncrementWithDefaultValueNonNullable,
-    Float32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    JsonNonListWithoutAutoIncrementWithDefaultValueNullable,
+    Float32ListWithoutDefaultValueNonNullable,
+    DateListWithoutDefaultValueNullable,
+    Float32NonListWithoutDefaultValueNullable,
+    BooleanListWithoutDefaultValueNonNullable,
+    TextPropertyNonListWithDefaultValueNullable,
+    BooleanNonListWithDefaultValueNullable,
+    TimestampNonListWithoutDefaultValueNullable,
+    Int32ListWithoutDefaultValueNonNullable,
     Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    TextPropertyListWithoutAutoIncrementWithoutDefaultValueNullable,
-    Float32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    TimestampNonListWithoutAutoIncrementWithDefaultValueNullable,
+    Int64ListWithoutDefaultValueNonNullable,
+    JsonNonListWithDefaultValueNullable,
+    TimestampListWithoutDefaultValueNonNullable,
     Int32NonListWithoutAutoIncrementWithDefaultValueNonNullable,
-    BooleanListWithoutAutoIncrementWithoutDefaultValueNullable,
-    Float32ListWithoutAutoIncrementWithoutDefaultValueNullable,
-    BooleanListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Float64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    Float32NonListWithoutAutoIncrementWithDefaultValueNullable,
-    TextPropertyNonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    JsonNonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    JsonNonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    Int64NonListWithAutoIncrementWithDefaultValueNullable
+    Float64ListWithoutDefaultValueNonNullable,
+    TextPropertyNonListWithDefaultValueNonNullable,
+    Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable,
+    Int64NonListWithAutoIncrementWithoutDefaultValueNullable,
+    TimestampNonListWithDefaultValueNonNullable,
+    BooleanNonListWithoutDefaultValueNullable,
+    BooleanNonListWithoutDefaultValueNonNullable,
+    TimestampNonListWithDefaultValueNullable,
+    TextPropertyListWithoutDefaultValueNullable,
+    Int32ListWithoutDefaultValueNullable,
+    Float32ListWithoutDefaultValueNullable,
+    BooleanNonListWithDefaultValueNonNullable,
+    Float64ListWithoutDefaultValueNullable,
+    Float32NonListWithDefaultValueNonNullable
   )
 }
