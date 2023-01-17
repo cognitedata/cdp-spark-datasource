@@ -1,4 +1,4 @@
-package cognite.spark.v1
+package cognite.spark.v1.utils.fdm
 
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
@@ -25,6 +25,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
 import io.circe.{Json, JsonObject}
 
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
+import scala.collection.immutable
 import scala.util.Random
 
 object FDMTestUtils {
@@ -86,11 +87,6 @@ object FDMTestUtils {
       containerPropertyIdentifier = containerPropertyIdentifier
     )
 
-  def createAllPossibleViewPropCombinations: Map[String, ViewPropertyDefinition] =
-    createAllPossibleContainerPropCombinations.map {
-      case (key, prop) => key -> toViewPropertyDefinition(prop, None, None)
-    }
-
   // scalastyle:off cyclomatic.complexity
   def createAllPossibleContainerPropCombinations: Map[String, ContainerPropertyDefinition] = {
     val boolOptions = List(
@@ -144,6 +140,46 @@ object FDMTestUtils {
   }
   // scalastyle:on cyclomatic.complexity
 
+  def createAllPossibleViewPropCombinations: Map[String, ViewPropertyDefinition] =
+    createAllPossibleContainerPropCombinations.map {
+      case (key, prop) => key -> toViewPropertyDefinition(prop, None, None)
+    }
+
+  def viewPropStr: immutable.Iterable[String] = createAllPossibleViewPropCombinations.map {
+    case (propName, prop) =>
+      val propTypeStr = prop.`type` match {
+        case t: TextProperty =>
+          val collation = t.collation.map(s => s""""$s"""")
+          s"""PropertyType.TextProperty(${t.list}, $collation)"""
+        case p: PrimitiveProperty =>
+          s"PropertyType.PrimitiveProperty(PrimitivePropType.${p.`type`},${p.list})"
+        case d: DirectNodeRelationProperty => d.toString
+      }
+
+      val defaultValueStr = prop.defaultValue.map {
+        case PropertyDefaultValue.String(value) =>
+          s"""Some(PropertyDefaultValue.String("$value"))""".stripMargin
+        case PropertyDefaultValue.Float32(value) =>
+          s"""Some(PropertyDefaultValue.Float32(${value}F))""".stripMargin
+        case PropertyDefaultValue.Object(value) =>
+          val jsonStr = s"""${value.noSpaces}""".stripMargin
+          s"""io.circe.parser.parse("$jsonStr"").toOption.map(PropertyDefaultValue.Object)""".stripMargin
+        case p => s"Some(PropertyDefaultValue.$p)"
+      }
+
+      s"""
+       | val $propName: ViewPropertyDefinition = ViewPropertyDefinition(
+       |      nullable = ${prop.nullable},
+       |      autoIncrement = ${prop.autoIncrement},
+       |      defaultValue = ${defaultValueStr.getOrElse("None")},
+       |      description = Some("${prop.description.get}"),
+       |      name = Some("${prop.name.get}"),
+       |      `type` = $propTypeStr,
+       |      container = None,
+       |      containerPropertyIdentifier = None
+       |    )
+       |""".stripMargin
+  }
   def createTestContainer(
       space: String,
       containerExternalId: String,

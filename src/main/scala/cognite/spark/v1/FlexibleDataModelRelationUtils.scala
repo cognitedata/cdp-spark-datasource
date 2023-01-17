@@ -54,8 +54,8 @@ object FlexibleDataModelRelationUtils {
       instanceSpaceExternalId: String,
       rows: Seq[Row],
       schema: StructType,
-      destinationRef: SourceReference,
       propertyDefMap: Map[String, PropertyDefinition],
+      destinationRef: SourceReference
   ): Either[CdfSparkException, Vector[NodeOrEdgeCreate]] =
     rows.toVector.traverse { row =>
       for {
@@ -103,6 +103,7 @@ object FlexibleDataModelRelationUtils {
         )
     }
 
+  // scalastyle:off method.length
   private def createNodeOrEdgeWriteData(
       externalId: String,
       instanceSpaceExternalId: String,
@@ -269,6 +270,7 @@ object FlexibleDataModelRelationUtils {
       propsExistsInSchema.partition {
         case (propName, prop) => (prop.nullable contains false) && schema(propName).nullable
       }
+// TODO: Verify this
 
     if (nonNullablePropsMissingInSchema.nonEmpty) {
       val propsAsStr = nonNullablePropsMissingInSchema.keys.mkString(", ")

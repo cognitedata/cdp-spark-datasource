@@ -26,9 +26,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
 }
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition}
-import com.cognite.sdk.scala.v1.resources.fdm.instances.Instances.instanceCreateEncoder
 import fs2.Stream
-import io.circe.syntax.EncoderOps
 import io.circe.{Decoder, Json}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -39,7 +37,6 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.math.BigInteger
 import java.sql.{Date, Timestamp}
 import java.time._
-import scala.annotation.nowarn
 import scala.util.control.NonFatal
 
 class FlexibleDataModelsRelation(
@@ -53,7 +50,7 @@ class FlexibleDataModelsRelation(
     with PrunedFilteredScan {
   import CdpConnector._
 
-  private val client = alphaClient
+  private val genericClient = alphaClient
   private val (viewDefinition, allViewProperties, viewSchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
     .getOrElse {
@@ -85,7 +82,7 @@ class FlexibleDataModelsRelation(
 
   private def retrieveViewDefWithAllPropsAndSchema
     : IO[Option[(ViewDefinition, Map[String, ViewPropertyDefinition], StructType)]] =
-    client.views
+    genericClient.views
       .retrieveItems(
         Seq(DataModelReference(viewSpaceExternalId, viewExternalId, viewVersion)),
         includeInheritedProperties = Some(true))
@@ -93,7 +90,7 @@ class FlexibleDataModelsRelation(
       .flatMap {
         case Some(viewDef) =>
           viewDef.implements.traverse { v =>
-            client.views
+            genericClient.views
               .retrieveItems(v.map(vRef =>
                 DataModelReference(vRef.space, vRef.externalId, vRef.version)))
               .map { inheritingViews =>
@@ -122,7 +119,7 @@ class FlexibleDataModelsRelation(
       case Usage.Node => createNodes(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
       case Usage.Edge => createEdges(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
       case Usage.All =>
-        createNodesOrEdges(instanceSpaceExternalId, rows, schema, destinationRef, propDefMap)
+        createNodesOrEdges(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
     }
 
     nodesOrEdges match {
@@ -132,7 +129,7 @@ class FlexibleDataModelsRelation(
           items = items,
           replace = Some(true)
         )
-        client.instances.createItems(instanceCreate)
+        genericClient.instances.createItems(instanceCreate)
     }
   }
 
@@ -360,9 +357,9 @@ class FlexibleDataModelsRelation(
   // scalastyle:on cyclomatic.complexity
 
   private def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      @nowarn client: GenericClient[IO],
+      client: GenericClient[IO],
       limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+      numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
@@ -428,7 +425,7 @@ class FlexibleDataModelsRelation(
   private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    client.instances
+    genericClient.instances
       .delete(deleteCandidates.map(i =>
         NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
@@ -437,7 +434,7 @@ class FlexibleDataModelsRelation(
   private def deleteEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    client.instances
+    genericClient.instances
       .delete(deleteCandidates.map(i =>
         EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
@@ -446,12 +443,12 @@ class FlexibleDataModelsRelation(
   private def deleteNodesOrEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    client.instances
+    genericClient.instances
       .delete(deleteCandidates.map(i =>
         NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .recoverWith {
         case NonFatal(nodeDeletionErr) =>
-          client.instances
+          genericClient.instances
             .delete(deleteCandidates.map(i =>
               EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
             .handleErrorWith {
