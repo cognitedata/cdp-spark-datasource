@@ -1,6 +1,7 @@
 package cognite.spark.v1.wdl
 
 import cats.effect.IO
+import cognite.spark.v1.udf.CogniteUdfs.backend
 import cognite.spark.v1.{CdfSparkException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.common.{Items, ItemsWithCursor}
 import com.cognite.sdk.scala.v1.AuthSttpBackend
@@ -29,7 +30,7 @@ class WdlClient(
       config.maxRetryDelaySeconds,
       config.parallelismPerPartition,
     )
-    val authProvider = config.auth.provider.unsafeRunSync()
+    val authProvider = config.auth.provider(implicitly, backend).unsafeRunSync()
     new AuthSttpBackend[IO, Any](
       retryingBackend,
       authProvider

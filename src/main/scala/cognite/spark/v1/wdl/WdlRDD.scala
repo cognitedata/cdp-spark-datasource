@@ -37,7 +37,7 @@ class WdlRDD(
 
     val rows = response.items.map(jsonObject => convertToValue(jsonObject, schema).orNull)
 
-    rows.toIterator
+    rows.iterator
   }
 
   // scalastyle:off cyclomatic.complexity
