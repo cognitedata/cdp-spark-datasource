@@ -11,11 +11,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
   private val sequencesSourceDf = spark.read
     .format("cognite.spark.v1")
-    .option("tokenUri", OIDCWrite.tokenUri)
-    .option("clientId", OIDCWrite.clientId)
-    .option("clientSecret", OIDCWrite.clientSecret)
-    .option("project", OIDCWrite.project)
-    .option("scopes", OIDCWrite.scopes)
+    .useOIDCWrite
     .option("type", "sequences")
     .load()
   sequencesSourceDf.createOrReplaceTempView("sequences")
@@ -95,11 +91,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
     val sparkReadResult = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "sequencerows")
       .option("externalId", sequenceId)
       .option("metricsPrefix", sequenceId)
@@ -163,11 +155,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
     val sparkReadResult = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "sequencerows")
       .option("externalId", sequenceId)
       .option("metricsPrefix", sequenceId)
@@ -363,11 +351,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     val prefix = shortRandomString()
     val sparkReadResult = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "sequencerows")
       .option("externalId", sequenceId)
       .option("metricsPrefix", prefix)
@@ -471,11 +455,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
   def createRowsRelation(externalId: String): DataFrame =
     spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "sequencerows")
       .option("externalId", externalId)
       .load()
@@ -484,11 +464,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     df.write
       .format("cognite.spark.v1")
       .option("type", "sequencerows")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("externalId", seqId)
       .option("onconflict", onconflict)
       .option("collectMetrics", true)
@@ -511,11 +487,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       .toDF()
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", conflictMode)
       .option("collectMetrics", metricsPrefix.isDefined)

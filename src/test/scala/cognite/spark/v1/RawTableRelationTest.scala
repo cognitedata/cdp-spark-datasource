@@ -158,11 +158,7 @@ class RawTableRelationTest
     val partitions = 10L
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("limitPerPartition", limit)
       .option("partitions", partitions)
@@ -184,11 +180,7 @@ class RawTableRelationTest
       metricsPrefix: Option[String] = None): DataFrame = {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("partitions", 1)
       .option("database", database)
@@ -344,11 +336,7 @@ class RawTableRelationTest
     val partitions = 10L
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", database)
       .option("table", table)
@@ -371,11 +359,7 @@ class RawTableRelationTest
   "lastUpdatedTime" should "insert data without error" taggedAs (WriteTest) in {
     val destinationDf = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "raw-write-test")
@@ -397,11 +381,7 @@ class RawTableRelationTest
   it should "test that lastUpdatedTime filters are handled correctly" taggedAs (ReadTest) in {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "future-event")
@@ -421,11 +401,7 @@ class RawTableRelationTest
 
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("metricsPrefix", metricsPrefix)
       .option("partitions", partitions)
@@ -452,11 +428,7 @@ class RawTableRelationTest
     for (partitions <- Seq("1", "5", "10", "20")) {
       val df = spark.read
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "raw")
         .option("database", "testdb")
         .option("table", "future-event")
@@ -471,11 +443,7 @@ class RawTableRelationTest
   it should "read individual columns successfully" taggedAs (ReadTest) in {
     val dfArray = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "future-event")
@@ -517,11 +485,7 @@ class RawTableRelationTest
     val destination = spark.read
       .format("cognite.spark.v1")
       .schema(source.schema)
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", database)
       .option("table", table)
@@ -535,11 +499,7 @@ class RawTableRelationTest
     try {
       val df = spark.read
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "raw")
         .option("database", database)
         .option("table", table)
@@ -594,11 +554,7 @@ class RawTableRelationTest
       val destination = spark.read
         .format("cognite.spark.v1")
         .schema(source.schema)
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "raw")
         .option("database", database)
         .option("table", table)
@@ -622,11 +578,7 @@ class RawTableRelationTest
   it should "be able to duplicate a table with a large number of columns(384)" taggedAs WriteTest in {
     val source = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "MegaColumnTable")
@@ -637,11 +589,7 @@ class RawTableRelationTest
     val dest = spark.read
       .format("cognite.spark.v1")
       .schema(source.schema)
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "MegaColumnTableDuplicate")
@@ -661,11 +609,7 @@ class RawTableRelationTest
   it should "be treated as a 'select *' when the column names combined, exceeds the character limit of 200" taggedAs WriteTest in {
     val source = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "MegaColumnTable")
@@ -676,11 +620,7 @@ class RawTableRelationTest
     val dest = spark.read
       .format("cognite.spark.v1")
       .schema(source.schema)
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
       .option("table", "MegaColumnTableDuplicate2")
@@ -776,11 +716,7 @@ class RawTableRelationTest
   it should "fail reasonably when table does not exist" in {
     val source = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "raw")
       .option("database", "datybasy")
       .option("table", "assets")

@@ -17,11 +17,7 @@ class AssetHierarchyBuilderTest
 
   private val assetsSourceDf = spark.read
     .format("cognite.spark.v1")
-    .option("tokenUri", OIDCWrite.tokenUri)
-    .option("clientId", OIDCWrite.clientId)
-    .option("clientSecret", OIDCWrite.clientSecret)
-    .option("project", OIDCWrite.project)
-    .option("scopes", OIDCWrite.scopes)
+    .useOIDCWrite
     .option("type", "assets")
     .load()
   assetsSourceDf.createOrReplaceTempView("assets")
@@ -53,11 +49,7 @@ class AssetHierarchyBuilderTest
       .toDF()
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "assethierarchy")
       .option("collectMetrics", metricsPrefix.isDefined)
       .option("subtrees", subtrees)
@@ -300,11 +292,7 @@ class AssetHierarchyBuilderTest
           |""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
     }
@@ -324,11 +312,7 @@ class AssetHierarchyBuilderTest
           |""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
     }
@@ -348,11 +332,7 @@ class AssetHierarchyBuilderTest
           |""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
     }
@@ -371,11 +351,7 @@ class AssetHierarchyBuilderTest
           |""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
     }
@@ -832,11 +808,7 @@ class AssetHierarchyBuilderTest
       .sql(s"select id from assets where externalId = 'dad$key'")
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "assethierarchy")
       .option("onconflict", "delete")
       .option("collectMetrics", "true")

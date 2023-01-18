@@ -15,11 +15,7 @@ class LabelsRelationTest
   val datasetLabels: String = "spark-ds-labels-test"
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
-    .option("tokenUri", OIDCWrite.tokenUri)
-    .option("clientId", OIDCWrite.clientId)
-    .option("clientSecret", OIDCWrite.clientSecret)
-    .option("project", OIDCWrite.project)
-    .option("scopes", OIDCWrite.scopes)
+    .useOIDCWrite
     .option("type", "labels")
     .load()
   destinationDf.createOrReplaceTempView("destinationLabel")
@@ -48,11 +44,7 @@ class LabelsRelationTest
 
     val rows = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "labels")
       .load()
       .where(s"externalId = '$externalId'")
@@ -80,11 +72,7 @@ class LabelsRelationTest
       .write
       .format("cognite.spark.v1")
       .option("type", "labels")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .save()
 
     val labels = writeClient.labels
@@ -116,11 +104,7 @@ class LabelsRelationTest
       .sql(s"select externalId from destinationLabel where externalId = '$externalId'")
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "labels")
       .option("onconflict", "delete")
       .save()

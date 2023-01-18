@@ -17,11 +17,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
 
   val destinationDf = spark.read
     .format("cognite.spark.v1")
-    .option("tokenUri", OIDCWrite.tokenUri)
-    .option("clientId", OIDCWrite.clientId)
-    .option("clientSecret", OIDCWrite.clientSecret)
-    .option("project", OIDCWrite.project)
-    .option("scopes", OIDCWrite.scopes)
+    .useOIDCWrite
     .option("type", "files")
     .load()
 
@@ -109,11 +105,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "files")
         .option("collectMetrics", "true")
         .option("metricsPrefix", metricsPrefix)
@@ -137,11 +129,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "update")
         .option("collectMetrics", "true")
@@ -167,11 +155,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "update")
         .option("collectMetrics", "true")
@@ -213,11 +197,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "upsert")
         .save()
@@ -241,11 +221,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "upsert")
         .save()
@@ -290,11 +266,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "files")
         .save()
 
@@ -308,11 +280,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .sql(s"select ${rows.head.getLong(0)} as id")
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "delete")
         .save()
@@ -354,11 +322,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .write
         .format("cognite.spark.v1")
         .option("type", "files")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .save()
 
       val res1 = retryWhile[Array[Row]](
@@ -398,11 +362,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
       .sql(s"""select id from files where source = '$source'""")
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "files")
       .option("onconflict", "delete")
       .save()

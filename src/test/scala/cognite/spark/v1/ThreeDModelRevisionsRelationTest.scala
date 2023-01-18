@@ -9,11 +9,7 @@ class ThreeDModelRevisionsRelationTest extends FlatSpec with ParallelTestExecuti
 
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "3dmodelrevisions")
       .option("modelid", model.id)
       .load()

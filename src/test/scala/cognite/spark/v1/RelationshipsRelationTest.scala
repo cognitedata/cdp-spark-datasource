@@ -13,11 +13,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
 
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
-    .option("tokenUri", OIDCWrite.tokenUri)
-    .option("clientId", OIDCWrite.clientId)
-    .option("clientSecret", OIDCWrite.clientSecret)
-    .option("project", OIDCWrite.project)
-    .option("scopes", OIDCWrite.scopes)
+    .useOIDCWrite
     .option("type", "relationships")
     .load()
   destinationDf.createOrReplaceTempView("destinationRelationship")
@@ -26,11 +22,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     spark.read
       .format("cognite.spark.v1")
       .option("type", "relationships")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("collectMetrics", true)
       .option("metricsPrefix", metricsPrefix)
       .load()
@@ -110,11 +102,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
 
     val rows = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "relationships")
       .load()
       .where(s"externalId = '$externalId'")
@@ -148,20 +136,12 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .write
       .format("cognite.spark.v1")
       .option("type", "relationships")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .save()
 
     val rows = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "relationships")
       .load()
       .where(s"externalId = '$externalId'")
@@ -205,11 +185,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
         .write
         .format("cognite.spark.v1")
         .option("type", "relationships")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("onconflict", updateMode)
         .option("collectMetrics", "true")
         .save()
@@ -245,11 +221,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .write
       .format("cognite.spark.v1")
       .option("type", "relationships")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("onconflict", "upsert")
       .option("collectMetrics", "true")
       .save()
@@ -429,22 +401,14 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
         s"select externalId from destinationRelationship where externalId in('${externalIdPrefix}-1','${externalIdPrefix}-2','${externalIdPrefix}-3', '${externalIdPrefix}-4')")
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "relationships")
       .option("onconflict", "delete")
       .save()
 
     val rows = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "relationships")
       .load()
       .where(

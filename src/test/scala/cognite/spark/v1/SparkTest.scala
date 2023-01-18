@@ -6,7 +6,7 @@ import com.cognite.sdk.scala.v1._
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrameReader, Encoder, SparkSession}
+import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Encoder, SparkSession}
 import org.scalactic.{Prettifier, source}
 import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
@@ -65,6 +65,24 @@ trait SparkTest {
     clientTag = None,
     cdfVersion = None
   )
+
+  implicit class DataFrameWriterHelper[T](df: DataFrameWriter[T]) {
+    def useOIDCWrite: DataFrameWriter[T] =
+      df.option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
+  }
+
+  implicit class DataFrameReaderHelper(df: DataFrameReader) {
+    def useOIDCWrite: DataFrameReader =
+      df.option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
+  }
 
   private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
   // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211

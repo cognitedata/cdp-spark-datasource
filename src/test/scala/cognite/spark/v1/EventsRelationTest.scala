@@ -16,22 +16,14 @@ import scala.util.control.NonFatal
 class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
-    .option("tokenUri", OIDCWrite.tokenUri)
-    .option("clientId", OIDCWrite.clientId)
-    .option("clientSecret", OIDCWrite.clientSecret)
-    .option("project", OIDCWrite.project)
-    .option("scopes", OIDCWrite.scopes)
+    .useOIDCWrite
     .option("type", "events")
     .load()
   destinationDf.createOrReplaceTempView("destinationEvent")
 
   val sourceDf: DataFrame = spark.read
     .format("cognite.spark.v1")
-    .option("tokenUri", OIDCWrite.tokenUri)
-    .option("clientId", OIDCWrite.clientId)
-    .option("clientSecret", OIDCWrite.clientSecret)
-    .option("project", OIDCWrite.project)
-    .option("scopes", OIDCWrite.scopes)
+    .useOIDCWrite
     .option("type", "events")
     .option("limitPerPartition", "1000")
     .option("partitions", "1")
@@ -43,11 +35,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     spark.read
       .format("cognite.spark.v1")
       .option("type", "events")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("collectMetrics", true)
       .option("metricsPrefix", metricsPrefix)
       .load()
@@ -55,11 +43,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   "EventsRelation" should "allow simple reads" taggedAs WriteTest in {
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "events")
       .option("limitPerPartition", "100")
       .option("partitions", "10")
@@ -296,19 +280,16 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     val df = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "events")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
       .load()
-      .where(s"((type = 'maintenance' or type = 'upgrade') " +
-        s"and subtype in('manual', 'automatic')) " +
-        s"or (type = 'maintenance' and subtype = 'manual') " +
-        s"or (type = 'upgrade') and source = 'something'")
+      .where(
+        s"((type = 'maintenance' or type = 'upgrade') " +
+          s"and subtype in('manual', 'automatic')) " +
+          s"or (type = 'maintenance' and subtype = 'manual') " +
+          s"or (type = 'upgrade') and source = 'something'")
     assert(df.count() == 4)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
     assert(eventsRead == 4)
@@ -369,11 +350,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     try {
       val destinationDf: DataFrame = spark.read
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "events")
         .option("collectMetrics", "true")
         .option("metricsPrefix", metricsPrefix)
@@ -483,11 +460,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     wdf.write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "events")
       .option("onconflict", "upsert")
       .save()
@@ -525,11 +498,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
       df.write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "events")
         .option("collectMetrics", "true")
         .option("metricsPrefix", metricsPrefix)
@@ -548,11 +517,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val e = intercept[SparkException] {
         df.write
           .format("cognite.spark.v1")
-          .option("tokenUri", OIDCWrite.tokenUri)
-          .option("clientId", OIDCWrite.clientId)
-          .option("clientSecret", OIDCWrite.clientSecret)
-          .option("project", OIDCWrite.project)
-          .option("scopes", OIDCWrite.scopes)
+          .useOIDCWrite
           .option("type", "events")
           .save()
       }
@@ -591,11 +556,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
         df.write
           .format("cognite.spark.v1")
-          .option("tokenUri", OIDCWrite.tokenUri)
-          .option("clientId", OIDCWrite.clientId)
-          .option("clientSecret", OIDCWrite.clientSecret)
-          .option("project", OIDCWrite.project)
-          .option("scopes", OIDCWrite.scopes)
+          .useOIDCWrite
           .option("type", "events")
           .option("collectMetrics", "true")
           .option("metricsPrefix", metricsPrefix)
@@ -618,11 +579,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
           .write
           .format("cognite.spark.v1")
-          .option("tokenUri", OIDCWrite.tokenUri)
-          .option("clientId", OIDCWrite.clientId)
-          .option("clientSecret", OIDCWrite.clientSecret)
-          .option("project", OIDCWrite.project)
-          .option("scopes", OIDCWrite.scopes)
+          .useOIDCWrite
           .option("type", "events")
           .option("collectMetrics", "true")
           .option("metricsPrefix", metricsPrefix)
@@ -680,11 +637,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .repartition(1)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "upsert")
         .option("collectMetrics", "true")
@@ -715,11 +668,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .repartition(1)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "upsert")
         .option("collectMetrics", "true")
@@ -763,11 +712,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .repartition(1)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "upsert")
         .option("collectMetrics", "true")
@@ -822,11 +767,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "upsert")
         .option("collectMetrics", "true")
@@ -866,11 +807,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         """.stripMargin)
       updateEventsByIdDf.write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("onconflict", "upsert")
         .option("type", "events")
         .option("collectMetrics", "true")
@@ -903,11 +840,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         """.stripMargin)
       updateEventsByExternalIdDf.write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("onconflict", "upsert")
         .option("type", "events")
         .option("collectMetrics", "true")
@@ -962,11 +895,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
       val destinationDf: DataFrame = spark.read
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "events")
         .option("collectMetrics", "true")
         .option("metricsPrefix", metricsPrefix)
@@ -1023,11 +952,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       """.stripMargin)
               .write
               .format("cognite.spark.v1")
-              .option("tokenUri", OIDCWrite.tokenUri)
-              .option("clientId", OIDCWrite.clientId)
-              .option("clientSecret", OIDCWrite.clientSecret)
-              .option("project", OIDCWrite.project)
-              .option("scopes", OIDCWrite.scopes)
+              .useOIDCWrite
               .option("type", "events")
               .option("onconflict", "update")
               .option("collectMetrics", "true")
@@ -1071,11 +996,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         """.stripMargin)
           .write
           .format("cognite.spark.v1")
-          .option("tokenUri", OIDCWrite.tokenUri)
-          .option("clientId", OIDCWrite.clientId)
-          .option("clientSecret", OIDCWrite.clientSecret)
-          .option("project", OIDCWrite.project)
-          .option("scopes", OIDCWrite.scopes)
+          .useOIDCWrite
           .option("type", "events")
           .option("onconflict", "update")
           .save()
@@ -1145,11 +1066,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
        """.stripMargin)
             .write
             .format("cognite.spark.v1")
-            .option("tokenUri", OIDCWrite.tokenUri)
-            .option("clientId", OIDCWrite.clientId)
-            .option("clientSecret", OIDCWrite.clientSecret)
-            .option("project", OIDCWrite.project)
-            .option("scopes", OIDCWrite.scopes)
+            .useOIDCWrite
             .option("type", "events")
             .option("onconflict", "update")
             .save()
@@ -1185,11 +1102,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "events")
         .save()
 
@@ -1241,11 +1154,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .sql(s"select id from destinationEvent where source = '$source'")
               .write
               .format("cognite.spark.v1")
-              .option("tokenUri", OIDCWrite.tokenUri)
-              .option("clientId", OIDCWrite.clientId)
-              .option("clientSecret", OIDCWrite.clientSecret)
-              .option("project", OIDCWrite.project)
-              .option("scopes", OIDCWrite.scopes)
+              .useOIDCWrite
               .option("type", "events")
               .option("onconflict", "delete")
               .save()
@@ -1305,11 +1214,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .sql("select 123 as id".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "delete")
         .option("ignoreUnknownIds", "true")
@@ -1321,11 +1226,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           .sql("select 123 as id")
           .write
           .format("cognite.spark.v1")
-          .option("tokenUri", OIDCWrite.tokenUri)
-          .option("clientId", OIDCWrite.clientId)
-          .option("clientSecret", OIDCWrite.clientSecret)
-          .option("project", OIDCWrite.project)
-          .option("scopes", OIDCWrite.scopes)
+          .useOIDCWrite
           .option("type", "events")
           .option("onconflict", "delete")
           .option("ignoreUnknownIds", "false")
@@ -1389,11 +1290,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .sql(s"select externalId from destinationEvent where source = '$source'")
               .write
               .format("cognite.spark.v1")
-              .option("tokenUri", OIDCWrite.tokenUri)
-              .option("clientId", OIDCWrite.clientId)
-              .option("clientSecret", OIDCWrite.clientSecret)
-              .option("project", OIDCWrite.project)
-              .option("scopes", OIDCWrite.scopes)
+              .useOIDCWrite
               .option("type", "events")
               .option("onconflict", "delete")
               .option("collectMetrics", "true")
@@ -1434,11 +1331,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .sql(s"""select * from destinationEvent where source = '$source'""")
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "events")
       .option("onconflict", "delete")
       .save()

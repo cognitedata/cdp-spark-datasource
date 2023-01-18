@@ -22,11 +22,7 @@ class SequencesRelationTest
 
   private val sequencesSourceDf = spark.read
     .format("cognite.spark.v1")
-    .option("tokenUri", OIDCWrite.tokenUri)
-    .option("clientId", OIDCWrite.clientId)
-    .option("clientSecret", OIDCWrite.clientSecret)
-    .option("project", OIDCWrite.project)
-    .option("scopes", OIDCWrite.scopes)
+    .useOIDCWrite
     .option("type", "sequences")
     .load()
   sequencesSourceDf.createOrReplaceTempView("sequences")
@@ -83,11 +79,7 @@ class SequencesRelationTest
          |""".stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", "abort")
       .save()
@@ -222,11 +214,7 @@ class SequencesRelationTest
               |""".stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", "upsert")
       .save()
@@ -285,11 +273,7 @@ class SequencesRelationTest
               |'lol' as description""".stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", "update")
       .save()
@@ -343,11 +327,7 @@ class SequencesRelationTest
              |) as columns""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "sequences")
         .option("onconflict", "update")
         .save()
@@ -420,11 +400,7 @@ class SequencesRelationTest
           .sql(s"select id from sequences where externalId = 'externalId-$key'")
           .write
           .format("cognite.spark.v1")
-          .option("tokenUri", OIDCWrite.tokenUri)
-          .option("clientId", OIDCWrite.clientId)
-          .option("clientSecret", OIDCWrite.clientSecret)
-          .option("project", OIDCWrite.project)
-          .option("scopes", OIDCWrite.scopes)
+          .useOIDCWrite
           .option("type", "sequences")
           .option("onconflict", "delete")
           .option("collectMetrics", "true")
@@ -444,16 +420,13 @@ class SequencesRelationTest
       conflictMode: String = "abort"
   ): Unit = {
     val processedTree = tree
+
     spark.sparkContext
       .parallelize(processedTree)
       .toDF()
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", conflictMode)
       .option("collectMetrics", metricsPrefix.isDefined)

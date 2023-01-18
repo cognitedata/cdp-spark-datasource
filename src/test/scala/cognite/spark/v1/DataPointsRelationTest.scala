@@ -28,11 +28,7 @@ class DataPointsRelationTest
 
   val destinationDf = spark.read
     .format("cognite.spark.v1")
-    .option("tokenUri", OIDCWrite.tokenUri)
-    .option("clientId", OIDCWrite.clientId)
-    .option("clientSecret", OIDCWrite.clientSecret)
-    .option("project", OIDCWrite.project)
-    .option("scopes", OIDCWrite.scopes)
+    .useOIDCWrite
     .option("type", "datapoints")
     .load()
   destinationDf.createOrReplaceTempView("destinationDatapoints")
@@ -364,22 +360,14 @@ class DataPointsRelationTest
 
     val destinationTimeSeriesDf = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
 
     val destinationDataPointsDf = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "datapoints")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
@@ -480,11 +468,7 @@ class DataPointsRelationTest
 
     val destinationTimeSeriesDf = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
@@ -552,22 +536,14 @@ class DataPointsRelationTest
 
     val destinationTimeSeriesDf = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
 
     val destinationDataPointsDf = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "datapoints")
       .load()
     destinationDataPointsDf.createOrReplaceTempView("destinationDatapoints")
@@ -581,11 +557,7 @@ class DataPointsRelationTest
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "upsert")
       .save()
@@ -626,11 +598,7 @@ class DataPointsRelationTest
         """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "upsert")
         .save()
@@ -651,11 +619,7 @@ class DataPointsRelationTest
       """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "upsert")
         .save()
@@ -676,11 +640,7 @@ class DataPointsRelationTest
       """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "upsert")
         .save()
@@ -695,11 +655,7 @@ class DataPointsRelationTest
 
     val destinationTimeSeriesDf = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
@@ -720,11 +676,7 @@ class DataPointsRelationTest
      """.stripMargin))
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "upsert")
       .save()
@@ -814,11 +766,7 @@ class DataPointsRelationTest
       """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "delete")
         .save()
@@ -838,11 +786,7 @@ class DataPointsRelationTest
       """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "delete")
         .save()
@@ -861,11 +805,7 @@ class DataPointsRelationTest
       """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "delete")
         .save()
@@ -884,11 +824,7 @@ class DataPointsRelationTest
       """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+        .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "delete")
         .save()
@@ -903,11 +839,7 @@ class DataPointsRelationTest
 
     val destinationTimeSeriesDf = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
@@ -921,11 +853,7 @@ class DataPointsRelationTest
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "upsert")
       .save()
@@ -957,11 +885,7 @@ class DataPointsRelationTest
         """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "datapoints")
       .option("onconflict", "upsert")
       .save()
@@ -994,11 +918,7 @@ class DataPointsRelationTest
          """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "datapoints")
       .option("onconflict", "delete")
       .save()
@@ -1040,11 +960,7 @@ class DataPointsRelationTest
 
     val destinationTimeSeriesDf = spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
@@ -1062,11 +978,7 @@ class DataPointsRelationTest
      """.stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .save()
 
@@ -1096,11 +1008,7 @@ class DataPointsRelationTest
       .toDF("externalId", "timestamp", "value")
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "datapoints")
       .option("onconflict", "upsert")
       .save()
@@ -1129,11 +1037,7 @@ class DataPointsRelationTest
       .sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""")
       .write
       .format("cognite.spark.v1")
-      .option("tokenUri", OIDCWrite.tokenUri)
-      .option("clientId", OIDCWrite.clientId)
-      .option("clientSecret", OIDCWrite.clientSecret)
-      .option("project", OIDCWrite.project)
-      .option("scopes", OIDCWrite.scopes)
+      .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "delete")
       .save()
