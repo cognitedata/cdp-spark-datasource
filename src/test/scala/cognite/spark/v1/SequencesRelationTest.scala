@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
 import cats.data.NonEmptyList
+import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.v1.{SequenceColumnCreate, SequenceCreate}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
@@ -21,7 +22,7 @@ class SequencesRelationTest
 
   private val sequencesSourceDf = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey)
+    .useOIDCWrite
     .option("type", "sequences")
     .load()
   sequencesSourceDf.createOrReplaceTempView("sequences")
@@ -78,12 +79,12 @@ class SequencesRelationTest
          |""".stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", "abort")
       .save()
 
-    val sequence = writeClient.sequences.retrieveByExternalId(s"$id")
+    val sequence = writeClient.sequences.retrieveByExternalId(s"$id").unsafeRunSync()
     sequence.name shouldBe Some("c seq")
     sequence.description shouldBe Some("Sequence C detailed description")
     sequence.assetId shouldBe None
@@ -143,7 +144,7 @@ class SequencesRelationTest
         .collect(),
       rows => rows.length != 1)
 
-    val colHead = writeClient.sequences.retrieveByExternalId(s"$id").columns.head
+    val colHead = writeClient.sequences.retrieveByExternalId(s"$id").unsafeRunSync().columns.head
     colHead.name shouldBe Some("col2")
     colHead.description shouldBe Some("col2 description")
     colHead.metadata shouldBe Some(Map("foo2" -> "bar2"))
@@ -213,14 +214,14 @@ class SequencesRelationTest
               |""".stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", "upsert")
       .save()
 
-    val sequence1 = writeClient.sequences.retrieveByExternalId(id)
+    val sequence1 = writeClient.sequences.retrieveByExternalId(id).unsafeRunSync()
     val columns1 = sequence1.columns
-    val sequence2 = writeClient.sequences.retrieveByExternalId(s"$id-2")
+    val sequence2 = writeClient.sequences.retrieveByExternalId(s"$id-2").unsafeRunSync()
     val columns2 = sequence2.columns
 
     sequence1.name shouldBe Some("seq name1")
@@ -272,12 +273,12 @@ class SequencesRelationTest
               |'lol' as description""".stripMargin)
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", "update")
       .save()
 
-    val sequence = writeClient.sequences.retrieveByExternalId(id)
+    val sequence = writeClient.sequences.retrieveByExternalId(id).unsafeRunSync()
     val columns = sequence.columns
 
     sequence.name shouldBe Some("xD")
@@ -326,7 +327,7 @@ class SequencesRelationTest
              |) as columns""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "sequences")
         .option("onconflict", "update")
         .save()
@@ -382,8 +383,8 @@ class SequencesRelationTest
 
   it should "delete sequence" in {
     val key = UUID.randomUUID().toString
-    writeClient.sequences.createOne(
-      SequenceCreate(
+    writeClient.sequences
+      .createOne(SequenceCreate(
         Some(s"name-${key}"),
         Some("description"),
         None,
@@ -392,13 +393,14 @@ class SequencesRelationTest
         NonEmptyList.fromListUnsafe(
           List(SequenceColumnCreate(Some("col1"), "col1", None, "STRING", None)))
       ))
+      .unsafeRunSync()
     val idsAfterDelete = retryWhile[Array[Row]](
       {
         spark
           .sql(s"select id from sequences where externalId = 'externalId-$key'")
           .write
           .format("cognite.spark.v1")
-          .option("apiKey", writeApiKey)
+          .useOIDCWrite
           .option("type", "sequences")
           .option("onconflict", "delete")
           .option("collectMetrics", "true")
@@ -418,12 +420,13 @@ class SequencesRelationTest
       conflictMode: String = "abort"
   ): Unit = {
     val processedTree = tree
+
     spark.sparkContext
       .parallelize(processedTree)
       .toDF()
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", conflictMode)
       .option("collectMetrics", metricsPrefix.isDefined)
@@ -432,7 +435,7 @@ class SequencesRelationTest
 
     val checkedAssets = processedTree.filter(_.externalId.isDefined)
     val storedCheckedAssets =
-      writeClient.sequences.retrieveByExternalIds(checkedAssets.map(_.externalId.get))
+      writeClient.sequences.retrieveByExternalIds(checkedAssets.map(_.externalId.get)).unsafeRunSync()
 
     // check that the sequences are inserted correctly, before failing on long retries
     for ((inserted, stored) <- checkedAssets.zip(storedCheckedAssets)) {
@@ -450,6 +453,6 @@ class SequencesRelationTest
   }
 
   def cleanupSequences(ids: Seq[String]): Unit =
-    writeClient.sequences.deleteByExternalIds(ids)
+    writeClient.sequences.deleteByExternalIds(ids).unsafeRunSync()
 
 }

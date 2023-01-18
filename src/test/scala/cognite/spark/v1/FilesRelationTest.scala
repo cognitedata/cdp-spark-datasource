@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cognite.spark.v1.CdpConnector.ioRuntime
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
@@ -16,7 +17,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
 
   val destinationDf = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey)
+    .useOIDCWrite
     .option("type", "files")
     .load()
 
@@ -104,7 +105,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "files")
         .option("collectMetrics", "true")
         .option("metricsPrefix", metricsPrefix)
@@ -117,7 +118,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
 
       assert(getNumberOfRowsCreated(metricsPrefix, "files") == 1)
 
-      val id = writeClient.files.retrieveByExternalId(s"externalId-$source").id
+      val id = writeClient.files.retrieveByExternalId(s"externalId-$source").unsafeRunSync().id
 
       //Update using id
       spark
@@ -128,7 +129,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "update")
         .option("collectMetrics", "true")
@@ -154,7 +155,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "update")
         .option("collectMetrics", "true")
@@ -196,12 +197,12 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "upsert")
         .save()
 
-      val id = writeClient.files.retrieveByExternalId(s"externalId-$source").id
+      val id = writeClient.files.retrieveByExternalId(s"externalId-$source").unsafeRunSync().id
 
       val insertWithUpsertIds =
         retryWhile[Array[Row]](
@@ -220,7 +221,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "upsert")
         .save()
@@ -265,7 +266,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
      """.stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "files")
         .save()
 
@@ -279,7 +280,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .sql(s"select ${rows.head.getLong(0)} as id")
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "delete")
         .save()
@@ -321,7 +322,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .write
         .format("cognite.spark.v1")
         .option("type", "files")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .save()
 
       val res1 = retryWhile[Array[Row]](
@@ -361,7 +362,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
       .sql(s"""select id from files where source = '$source'""")
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "files")
       .option("onconflict", "delete")
       .save()

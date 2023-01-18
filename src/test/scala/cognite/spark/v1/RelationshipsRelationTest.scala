@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import cognite.spark.v1.CdpConnector.ioRuntime
+
 import java.time.Instant
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.{CogniteExternalId, RelationshipCreate}
@@ -11,7 +13,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
 
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey)
+    .useOIDCWrite
     .option("type", "relationships")
     .load()
   destinationDf.createOrReplaceTempView("destinationRelationship")
@@ -20,7 +22,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     spark.read
       .format("cognite.spark.v1")
       .option("type", "relationships")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("collectMetrics", true)
       .option("metricsPrefix", metricsPrefix)
       .load()
@@ -33,70 +35,74 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
   val externalIdPrefix = s"sparktest-relationship-${shortRandomString()}"
 
   def createResources(externalIdPrefix: String): Unit = {
-    writeClient.relationships.create(
-      Seq(
-        RelationshipCreate(
-          externalId = s"${externalIdPrefix}-1",
-          sourceExternalId = assetExtId1,
-          sourceType = "asset",
-          targetExternalId = assetExtId2,
-          targetType = "asset",
-          confidence = Some(0.3),
-          startTime = Some(Instant.ofEpochMilli(1601565769000L)),
-          endTime = Some(Instant.ofEpochMilli(1603207369000L)),
-          dataSetId = Some(dataSetId)
-        ),
-        RelationshipCreate(
-          externalId = s"${externalIdPrefix}-2",
-          sourceExternalId = assetExtId2,
-          sourceType = "asset",
-          targetExternalId = assetExtId1,
-          targetType = "asset",
-          confidence = Some(0.7),
-          dataSetId = Some(dataSetId)
-        ),
-        RelationshipCreate(
-          externalId = s"${externalIdPrefix}-3",
-          sourceExternalId = assetExtId1,
-          sourceType = "asset",
-          targetExternalId = assetExtId2,
-          targetType = "asset",
-          labels = Some(labelList),
-          dataSetId = Some(dataSetId)
-        ),
-        RelationshipCreate(
-          externalId = s"${externalIdPrefix}-4",
-          sourceExternalId = eventExtId1,
-          sourceType = "event",
-          targetExternalId = assetExtId2,
-          targetType = "asset",
-          startTime = Some(Instant.ofEpochMilli(1604244169000L)),
-          labels = Some(labelList),
-          dataSetId = Some(dataSetId)
+    writeClient.relationships
+      .create(
+        Seq(
+          RelationshipCreate(
+            externalId = s"${externalIdPrefix}-1",
+            sourceExternalId = assetExtId1,
+            sourceType = "asset",
+            targetExternalId = assetExtId2,
+            targetType = "asset",
+            confidence = Some(0.3),
+            startTime = Some(Instant.ofEpochMilli(1601565769000L)),
+            endTime = Some(Instant.ofEpochMilli(1603207369000L)),
+            dataSetId = Some(dataSetId)
+          ),
+          RelationshipCreate(
+            externalId = s"${externalIdPrefix}-2",
+            sourceExternalId = assetExtId2,
+            sourceType = "asset",
+            targetExternalId = assetExtId1,
+            targetType = "asset",
+            confidence = Some(0.7),
+            dataSetId = Some(dataSetId)
+          ),
+          RelationshipCreate(
+            externalId = s"${externalIdPrefix}-3",
+            sourceExternalId = assetExtId1,
+            sourceType = "asset",
+            targetExternalId = assetExtId2,
+            targetType = "asset",
+            labels = Some(labelList),
+            dataSetId = Some(dataSetId)
+          ),
+          RelationshipCreate(
+            externalId = s"${externalIdPrefix}-4",
+            sourceExternalId = eventExtId1,
+            sourceType = "event",
+            targetExternalId = assetExtId2,
+            targetType = "asset",
+            startTime = Some(Instant.ofEpochMilli(1604244169000L)),
+            labels = Some(labelList),
+            dataSetId = Some(dataSetId)
+          )
         )
       )
-    )
+      .unsafeRunSync()
     ()
   }
 
   it should "be able to read a relationship" taggedAs ReadTest in {
     val externalId = s"sparktest-relationship-${shortRandomString()}"
-    writeClient.relationships.create(
-      Seq(
-        RelationshipCreate(
-          externalId = externalId,
-          sourceExternalId = assetExtId1,
-          sourceType = "asset",
-          targetExternalId = assetExtId2,
-          targetType = "asset",
-          labels = Some(labelList),
-          dataSetId = Some(dataSetId)
-        ))
-    )
+    writeClient.relationships
+      .create(
+        Seq(
+          RelationshipCreate(
+            externalId = externalId,
+            sourceExternalId = assetExtId1,
+            sourceType = "asset",
+            targetExternalId = assetExtId2,
+            targetType = "asset",
+            labels = Some(labelList),
+            dataSetId = Some(dataSetId)
+          ))
+      )
+      .unsafeRunSync()
 
     val rows = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "relationships")
       .load()
       .where(s"externalId = '$externalId'")
@@ -111,7 +117,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     assert(relationship.targetType == "asset")
     assert(relationship.labels.isDefined && relationship.labels.get.head == labelList.head.externalId)
 
-    writeClient.relationships.deleteByExternalId(externalId)
+    writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to write a relationship" taggedAs WriteTest in {
@@ -130,42 +136,44 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .write
       .format("cognite.spark.v1")
       .option("type", "relationships")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .save()
 
     val rows = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "relationships")
       .load()
       .where(s"externalId = '$externalId'")
       .collect()
 
     assert(rows.length == 1)
-    writeClient.relationships.deleteByExternalId(externalId)
+    writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "create some relationships up before filter tests" taggedAs ReadTest in {
     createResources(externalIdPrefix)
   }
 
-  it should "be able to update a relationship" taggedAs ReadTest in forAll(updateAndUpsert) { updateMode =>
-    val externalId = s"relationship-update-${shortRandomString()}"
-    writeClient.relationships.create(
-      Seq(
-        RelationshipCreate(
-          externalId = externalId,
-          sourceExternalId = assetExtId1,
-          sourceType = "asset",
-          targetExternalId = assetExtId2,
-          targetType = "asset",
-          labels = Some(labelList),
-          dataSetId = Some(dataSetId)
-        ))
-    )
+  it should "be able to update a relationship" taggedAs ReadTest in forAll(updateAndUpsert) {
+    updateMode =>
+      val externalId = s"relationship-update-${shortRandomString()}"
+      writeClient.relationships
+        .create(
+          Seq(RelationshipCreate(
+            externalId = externalId,
+            sourceExternalId = assetExtId1,
+            sourceType = "asset",
+            targetExternalId = assetExtId2,
+            targetType = "asset",
+            labels = Some(labelList),
+            dataSetId = Some(dataSetId)
+          ))
+        )
+        .unsafeRunSync()
 
-    spark
-      .sql(s"""select '$externalId' as externalId,
+      spark
+        .sql(s"""select '$externalId' as externalId,
            |'$assetExtId1' as sourceExternalId,
            |'asset' as sourceType,
            |'$eventExtId1' as targetExternalId,
@@ -174,28 +182,28 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
            | 0.35 as confidence,
            | cast(from_unixtime(0) as timestamp) as startTime,
            | cast(from_unixtime(1) as timestamp) as endTime""".stripMargin)
-      .write
-      .format("cognite.spark.v1")
-      .option("type", "relationships")
-      .option("apiKey", writeApiKey)
-      .option("onconflict", updateMode)
-      .option("collectMetrics", "true")
-      .save()
+        .write
+        .format("cognite.spark.v1")
+        .option("type", "relationships")
+        .useOIDCWrite
+        .option("onconflict", updateMode)
+        .option("collectMetrics", "true")
+        .save()
 
-    val rows = retryWhile[Array[Row]](
-      spark.sql(s"select * from destinationRelationship where externalId = '$externalId'").collect(),
-      rows => rows.length < 1
-    )
+      val rows = retryWhile[Array[Row]](
+        spark.sql(s"select * from destinationRelationship where externalId = '$externalId'").collect(),
+        rows => rows.length < 1
+      )
 
-    assert(rows.length == 1)
-    val relationship = fromRow[RelationshipsReadSchema](rows.head)
-    assert(relationship.sourceExternalId == s"$assetExtId1")
-    assert(relationship.targetExternalId == s"$eventExtId1")
-    assert(relationship.confidence.get == 0.35)
-    assert(relationship.sourceType == "asset")
-    assert(relationship.targetType == "event")
+      assert(rows.length == 1)
+      val relationship = fromRow[RelationshipsReadSchema](rows.head)
+      assert(relationship.sourceExternalId == s"$assetExtId1")
+      assert(relationship.targetExternalId == s"$eventExtId1")
+      assert(relationship.confidence.get == 0.35)
+      assert(relationship.sourceType == "asset")
+      assert(relationship.targetType == "event")
 
-    writeClient.relationships.deleteByExternalId(externalId)
+      writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to upsert a relationship" taggedAs ReadTest in {
@@ -213,7 +221,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .write
       .format("cognite.spark.v1")
       .option("type", "relationships")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("onconflict", "upsert")
       .option("collectMetrics", "true")
       .save()
@@ -231,7 +239,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     assert(relationship.confidence.get == 0.6)
     assert(relationship.targetType == "asset")
 
-    writeClient.relationships.deleteByExternalId(externalId)
+    writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "support pushdown filters with nulls" taggedAs ReadTest in {
@@ -393,14 +401,14 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
         s"select externalId from destinationRelationship where externalId in('${externalIdPrefix}-1','${externalIdPrefix}-2','${externalIdPrefix}-3', '${externalIdPrefix}-4')")
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "relationships")
       .option("onconflict", "delete")
       .save()
 
     val rows = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "relationships")
       .load()
       .where(
