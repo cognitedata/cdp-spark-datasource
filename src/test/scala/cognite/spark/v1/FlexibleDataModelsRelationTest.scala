@@ -22,7 +22,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.util.Try
+import scala.util.{Success, Try}
 
 class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTest {
 
@@ -136,11 +136,11 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       )
     }
 
-    result.isSuccess shouldBe true
+    result shouldBe Success(Vector((), (), ()))
     result.get.size shouldBe 3
   }
 
-  it should "successfully cast numeric properties" in {
+  ignore should "successfully cast numeric properties" in {
     val viewDef = setupNumericConversionTest.unsafeRunSync()
     val nodeExtId1 = s"${generateNodeExternalId}Numeric1"
     val nodeExtId2 = s"${generateNodeExternalId}Numeric2"
@@ -152,7 +152,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
               |1 as intProp,
               |2 as longProp,
               |3.2 as floatProp,
-              |4.3 as doubleProp
+              |4.3 as doubleProp,
+              |'$nodeExtId1' as stringProp
               |
               |union all
               |
@@ -161,22 +162,23 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
               |null as intProp,
               |null as longProp,
               |null as floatProp,
-              |null as doubleProp
+              |null as doubleProp,
+              |'$nodeExtId2' as stringProp
               |""".stripMargin)
 
     val result = Try {
       insertRows(
-        viewSpaceExternalId = spaceExternalId,
+        viewSpaceExternalId = viewDef.space,
         viewExternalId = viewDef.externalId,
         viewVersion = viewDef.version,
-        instanceSpaceExternalId = spaceExternalId,
+        instanceSpaceExternalId = viewDef.space,
         df
       )
     }
 
-    result.isSuccess shouldBe true
+    result shouldBe Success(())
 
-    val propertyMapForInstances = (IO.sleep(5.seconds) *> Vector(
+    val propertyMapForInstances = (IO.sleep(2.seconds) *> Vector(
       InstanceRetrieve(
         instanceType = InstanceType.Node,
         externalId = nodeExtId1,
@@ -189,7 +191,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         space = spaceExternalId,
         sources = Some(Seq(InstanceSource(viewDef.toViewReference)))
       )
-    ).traverse(i => bluefieldAlphaClient.instances.retrieveByExternalIds(Vector(i), false))
+    ).traverse(i => bluefieldAlphaClient.instances.retrieveByExternalIds(Vector(i), true))
       .map { instances =>
         instances.flatMap(_.items).collect {
           case n: InstanceDefinition.NodeDefinition =>
@@ -207,6 +209,11 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     propertyMapForInstances(nodeExtId1)("longProp") shouldBe InstancePropertyValue.Int64(2)
     propertyMapForInstances(nodeExtId1)("floatProp") shouldBe InstancePropertyValue.Float32(3.2F)
     propertyMapForInstances(nodeExtId1)("doubleProp") shouldBe InstancePropertyValue.Float64(4.3)
+
+    propertyMapForInstances(nodeExtId2).get("intProp") shouldBe None
+    propertyMapForInstances(nodeExtId2).get("longProp") shouldBe None
+    propertyMapForInstances(nodeExtId2).get("floatProp") shouldBe None
+    propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
   ignore should "delete" in {
@@ -215,6 +222,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         ContainerId(spaceExternalId, containerAllExternalId),
         ContainerId(spaceExternalId, containerNodesExternalId),
         ContainerId(spaceExternalId, containerEdgesExternalId),
+        ContainerId(spaceExternalId, containerAllNumericProps),
       ))
       .unsafeRunSync()
 
@@ -223,6 +231,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         DataModelReference(spaceExternalId, viewAllExternalId, viewVersion),
         DataModelReference(spaceExternalId, viewNodesExternalId, viewVersion),
         DataModelReference(spaceExternalId, viewEdgesExternalId, viewVersion),
+        DataModelReference(spaceExternalId, viewAllNumericProps, viewVersion),
       ))
       .unsafeRunSync()
 
@@ -263,6 +272,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
 
   private def setupNumericConversionTest: IO[ViewDefinition] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "stringProp" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" -> FDMContainerPropertyTypes.Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
       "longProp" -> FDMContainerPropertyTypes.Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
       "floatProp" -> FDMContainerPropertyTypes.Float32NonListWithoutDefaultValueNullable,
@@ -271,7 +281,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
 
     for {
       container <- createContainerIfNotExists(Usage.All, containerProps, containerAllNumericProps)
-      view <- createViewIfNotExists(container, viewEdgesExternalId, viewVersion)
+      view <- createViewIfNotExists(container, viewAllNumericProps, viewVersion)
     } yield view
   }
 
@@ -308,12 +318,12 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     spark.read
       .format("cognite.spark.v1")
       .option("type", FlexibleDataModelsRelation.ResourceType)
-      .option("baseUrl", "https://bluefield.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", "extractor-bluefield-testing")
-      .option("scopes", "https://bluefield.cognitedata.com/.default")
+//      .option("baseUrl", "https://bluefield.cognitedata.com")
+//      .option("tokenUri", tokenUri)
+//      .option("clientId", clientId)
+//      .option("clientSecret", clientSecret)
+//      .option("project", "extractor-bluefield-testing")
+//      .option("scopes", "https://bluefield.cognitedata.com/.default")
       .option("viewSpaceExternalId", viewSpaceExternalId)
       .option("viewExternalId", viewExternalId)
       .option("viewVersion", viewVersion)

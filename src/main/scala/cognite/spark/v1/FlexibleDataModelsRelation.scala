@@ -135,7 +135,7 @@ class FlexibleDataModelsRelation(
 
     nodesOrEdges match {
       case Left(err) => IO.raiseError(err)
-      case Right(items) =>
+      case Right(items) => // TODO: error when empty or skip calling api?
         val instanceCreate = InstanceCreate(
           items = items,
           replace = Some(true)
