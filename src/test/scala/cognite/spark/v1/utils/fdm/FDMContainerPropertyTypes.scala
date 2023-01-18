@@ -87,17 +87,6 @@ object FDMContainerPropertyTypes {
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
     )
 
-  val Int32NonListWithAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(true),
-      defaultValue = None,
-      description =
-        Some("Test Int32 NonList WithAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Int32-NonList-WithAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(false)),
-    )
-
   val Int32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
@@ -483,17 +472,6 @@ object FDMContainerPropertyTypes {
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
     )
 
-  val Int64NonListWithAutoIncrementWithoutDefaultValueNullable: ContainerPropertyDefinition =
-    ContainerPropertyDefinition(
-      nullable = Some(true),
-      autoIncrement = Some(true),
-      defaultValue = None,
-      description =
-        Some("Test Int64 NonList WithAutoIncrement WithoutDefaultValue NonNullable Description"),
-      name = Some("Test-Int64-NonList-WithAutoIncrement-WithoutDefaultValue-NonNullable-Name"),
-      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(false)),
-    )
-
   val TimestampNonListWithDefaultValueNonNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(false),
@@ -600,7 +578,6 @@ object FDMContainerPropertyTypes {
     TextPropertyNonListWithoutDefaultValueNullable,
     JsonListWithoutDefaultValueNonNullable,
     Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-    Int32NonListWithAutoIncrementWithoutDefaultValueNullable,
     Int32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
     DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
     Float64NonListWithoutDefaultValueNullable,
@@ -640,7 +617,6 @@ object FDMContainerPropertyTypes {
     Float64ListWithoutDefaultValueNonNullable,
     TextPropertyNonListWithDefaultValueNonNullable,
     Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-    Int64NonListWithAutoIncrementWithoutDefaultValueNullable,
     TimestampNonListWithDefaultValueNonNullable,
     BooleanNonListWithoutDefaultValueNullable,
     BooleanNonListWithoutDefaultValueNonNullable,
