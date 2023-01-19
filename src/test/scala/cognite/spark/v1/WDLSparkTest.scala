@@ -1,14 +1,18 @@
 package cognite.spark.v1
 
 import cats.effect.IO
+import cognite.spark.v1.wdl.{TestWdlClient, WdlClient}
+import com.cognite.sdk.scala.common.OAuth2
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{Encoder, SparkSession}
+import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Encoder, SparkSession}
 import org.scalactic.{Prettifier, source}
 import org.scalatest.Matchers
 import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
+import sttp.client3.SttpBackend
+import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import java.io.IOException
 import java.util.UUID
@@ -30,10 +34,6 @@ trait WDLSparkTest {
       override def clsTag: ClassTag[OptionalField[A]] = c
     }
 
-  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-  assert(
-    writeApiKey != null && !writeApiKey.isEmpty,
-    "Environment variable \"TEST_API_KEY_WRITE\" was not set")
 
   val spark: SparkSession = SparkSession
     .builder()
@@ -43,11 +43,53 @@ trait WDLSparkTest {
     .config("spark.sql.shuffle.partitions", "1")
     .config("spark.sql.storeAssignmentPolicy", "legacy")
     .config("spark.app.id", this.getClass.getName + math.floor(math.random() * 1000).toLong.toString)
-//    .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", value = true)
+    //    .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", value = true)
     .getOrCreate()
 
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
   spark.sparkContext.setLogLevel("OFF")
+
+  object OIDCWrite {
+    val clientId: String = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+    val clientSecret: String = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+    private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+    val project = "jetfiretest2"
+    val scopes = "https://api.cognitedata.com/.default"
+  }
+
+  val writeCredentials: OAuth2.ClientCredentials = OAuth2.ClientCredentials(
+    tokenUri = sttp.model.Uri.unsafeParse(OIDCWrite.tokenUri),
+    clientId = OIDCWrite.clientId,
+    clientSecret = OIDCWrite.clientSecret,
+    scopes = List(OIDCWrite.scopes),
+    OIDCWrite.project
+  )
+
+  implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
+
+  protected val config: RelationConfig = getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(writeCredentials))
+  protected val wdlClient: WdlClient = WdlClient.fromConfig(config)
+  protected val client = new TestWdlClient(wdlClient)
+
+  implicit class DataFrameWriterHelper[T](df: DataFrameWriter[T]) {
+    def useOIDCWrite: DataFrameWriter[T] =
+      df.option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
+  }
+
+  implicit class DataFrameReaderHelper(df: DataFrameReader) {
+    def useOIDCWrite: DataFrameReader =
+      df.option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
+  }
+
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 

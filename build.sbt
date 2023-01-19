@@ -35,6 +35,7 @@ lazy val commonSettings = Seq(
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
+  scalacOptions --= Seq("-Xfatal-warnings"),
   developers := List(
     Developer(
       id = "wjoel",

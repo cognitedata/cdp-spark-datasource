@@ -36,15 +36,14 @@ object WdlClient {
 case class LimitRequest(limit: Option[Int])
 
 class WdlClient(
-  baseUrl: String,
-  val projectName: String,
-  maxRetries: Int,
-  maxRetryDelaySeconds: Int,
-  parallelismPerPartition: Int,
-  authProvider: AuthProvider[IO],
+    baseUrl: String,
+    val projectName: String,
+    maxRetries: Int,
+    maxRetryDelaySeconds: Int,
+    parallelismPerPartition: Int,
+    authProvider: AuthProvider[IO],
 ) {
   import CdpConnector._
-
 
   private val logger = getLogger
 
@@ -52,8 +51,8 @@ class WdlClient(
   implicit val encoder: Encoder[Items[JsonObject]] = deriveEncoder
 
   println(s"base url: $baseUrl") // So that the warning isn't fatal.
-  private val basePath = uri"http://localhost:8080/api/playground/projects/${projectName}/wdl"
-  // private val basePath =uri"$baseUrl/api/playground/projects/$projectName/wdl"
+//  private val basePath = uri"http://localhost:8080/api/playground/projects/${projectName}/wdl"
+  private val basePath = uri"$baseUrl/api/playground/projects/$projectName/wdl"
 
   implicit val sttpBackend: SttpBackend[IO, Any] = {
     val retryingBackend = retryingSttpBackend(
@@ -67,7 +66,7 @@ class WdlClient(
     )
   }
 
-   private val sttpRequest: RequestT[Empty, Either[String, String], Any] = basicRequest
+  private val sttpRequest: RequestT[Empty, Either[String, String], Any] = basicRequest
     .followRedirects(false)
     .header("x-cdp-sdk", s"CogniteWellsInSpark:${BuildInfo.BuildInfo.version}")
     .header("x-cdp-app", "cdp-spark-datasource")
@@ -75,8 +74,8 @@ class WdlClient(
     .readTimeout(3.seconds)
 
   def post[Input, Output](url: String, body: Input)(
-    implicit encoder: Encoder[Input],
-    decoder: Decoder[Output],
+      implicit encoder: Encoder[Input],
+      decoder: Decoder[Output],
   ): Output = {
     logger.info(s"POST $url")
     val bodyAsJson = body.asJson.noSpaces
@@ -102,7 +101,7 @@ class WdlClient(
   }
 
   def get[Output](url: String)(
-    implicit decoder: Decoder[Output],
+      implicit decoder: Decoder[Output],
   ): Output = {
     logger.info(s"GET $url")
     val urlParts = url.split("/")

@@ -1,7 +1,6 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{CdfSparkAuth, WDLSparkTest}
-import com.cognite.sdk.scala.common.ApiKeyAuth
+import cognite.spark.v1.{WDLSparkTest}
 import io.circe.generic.auto._
 import io.circe.syntax.EncoderOps
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors, Matchers}
@@ -19,11 +18,8 @@ class WDLTestUtilsTest
   private val sparkReader = spark.read
     .format("cognite.spark.v1")
     .option("project", "jetfiretest2")
-    .option("apiKey", writeApiKey)
     .option("type", "welldatalayer")
-
-  private val config = getDefaultConfig(CdfSparkAuth.Static(ApiKeyAuth(writeApiKey)))
-  private val client = new TestWdlClient(WdlClient.fromConfig(config))
+    .useOIDCWrite
 
   before {
     client.deleteAll()

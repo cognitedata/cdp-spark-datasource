@@ -1,7 +1,6 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{CdfSparkAuth, DataFrameMatcher, WDLSparkTest}
-import com.cognite.sdk.scala.common.ApiKeyAuth
+import cognite.spark.v1.{DataFrameMatcher, WDLSparkTest}
 import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
 
@@ -17,11 +16,8 @@ class WDLNptsTest
   private val sparkReader = spark.read
     .format("cognite.spark.v1")
     .option("project", "jetfiretest2")
-    .option("apiKey", writeApiKey)
     .option("type", "welldatalayer")
-
-  private val config = getDefaultConfig(CdfSparkAuth.Static(ApiKeyAuth(writeApiKey)))
-  private val client = new TestWdlClient(WdlClient.fromConfig(config))
+    .useOIDCWrite
 
   before {
     SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
@@ -39,7 +35,7 @@ class WDLNptsTest
       .option("project", "jetfiretest2")
       .option("type", "welldatalayer")
       .option("wdlDataType", "NptIngestion")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .save()
 
     val testNptsDF = spark.read

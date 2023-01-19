@@ -1,15 +1,11 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{CdfSparkAuth, WDLSparkTest, WriteTest}
-import com.cognite.sdk.scala.common.ApiKeyAuth
-import org.apache.spark.sql.DataFrame
+import cognite.spark.v1.{WDLSparkTest, WriteTest}
+import org.apache.spark.sql.{DataFrame}
 import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors, Matchers}
 
 class WDLBasicTest extends FlatSpec with Matchers with WDLSparkTest with Inspectors with BeforeAndAfter {
-
-  private val config = getDefaultConfig(CdfSparkAuth.Static(ApiKeyAuth(writeApiKey)))
-  private val client = new TestWdlClient(WdlClient.fromConfig(config))
 
   before {
     SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
@@ -20,9 +16,9 @@ class WDLBasicTest extends FlatSpec with Matchers with WDLSparkTest with Inspect
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
     .option("project", "jetfiretest2")
-    .option("apiKey", writeApiKey)
     .option("type", "welldatalayer")
     .option("wdlDataType", "Well")
+    .useOIDCWrite
     .load()
   destinationDf.createOrReplaceTempView("wdl_test")
 
@@ -37,7 +33,7 @@ class WDLBasicTest extends FlatSpec with Matchers with WDLSparkTest with Inspect
       .option("project", "jetfiretest2")
       .option("type", "welldatalayer")
       .option("wdlDataType", "WellIngestion")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .save()
   }
 
