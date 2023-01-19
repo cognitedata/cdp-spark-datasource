@@ -13,7 +13,7 @@ import sttp.client3.{Empty, RequestT, ResponseException, SttpBackend, UriContext
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
 import org.apache.logging.log4j.LogManager.getLogger
-
+import io.circe.generic.auto._
 import scala.concurrent.duration.DurationInt
 
 object WdlClient {
@@ -126,7 +126,8 @@ class WdlClient(
   }
 
   def getSchema(modelType: String): StructType = {
-    // It is annoying, but get[String], since a string can't be decoded into a string, for some reason.
+    // circe doesn't understand how to decode a string into a string (decode[String]("{...}"))
+    //     val response = get[String](s"spark/structtypes/$modelType") // this should have worked.
     // So, it has to be done like this:
     val url = uri"$basePath/spark/structtypes/$modelType"
     val response = sttpRequest
@@ -137,38 +138,17 @@ class WdlClient(
       .map(_.body)
       .unsafeRunSync()
       .merge
-
     DataType.fromJson(response).asInstanceOf[StructType]
   }
 
-
   def getItems(modelType: String): ItemsWithCursor[JsonObject] = {
-    implicit val decoder: Decoder[ItemsWithCursor[JsonObject]] = deriveDecoder
-    val url = uri"$basePath/${getReadUrlPart(modelType)}"
-
-
-    val request = {
-      val req = sttpRequest
-        .header("accept", "application/json")
-
-      if (modelType == "Source") {
-        req
-          .get(url)
-      } else {
-        req
-          .contentType("application/json")
-          .body("""{"limit": null}""")
-          .post(url)
-      }
+    val url: String = getReadUrlPart(modelType).mkString("/")
+    val input = LimitRequest(limit = None)
+    if (modelType == "Source") {
+      get[ItemsWithCursor[JsonObject]](url)
+    } else {
+      post[LimitRequest, ItemsWithCursor[JsonObject]](url, input)
     }
-
-    val response = request
-      .response(asJson[ItemsWithCursor[JsonObject]])
-      .send(sttpBackend)
-      .map(_.body)
-      .unsafeRunSync()
-
-    handleResponse(response)
   }
 
   private def getReadUrlPart(modelType: String): Seq[String] =
