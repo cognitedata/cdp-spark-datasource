@@ -15,7 +15,7 @@ private object implicits { // scalastyle:ignore object.name
           throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $optionValue")
         case None | Some(null) => // scalastyle:ignore null
           if (nullable) {
-            null.asInstanceOf[T] // scalastyle:ignore null
+            null.asInstanceOf[T] // scalastyle:ignore
           } else {
             throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $optionValue")
           }

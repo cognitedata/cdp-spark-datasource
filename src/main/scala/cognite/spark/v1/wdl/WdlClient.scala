@@ -137,7 +137,11 @@ class WdlClient(
       .map(_.body)
       .unsafeRunSync()
       .merge
-    DataType.fromJson(response).asInstanceOf[StructType]
+
+    DataType.fromJson(response) match {
+      case s @ StructType(_) => s
+      case _ => throw new CdfSparkException("Failed to decode well-data-layer schema into StructType")
+    }
   }
 
   def getItems(modelType: String): ItemsWithCursor[JsonObject] = {
