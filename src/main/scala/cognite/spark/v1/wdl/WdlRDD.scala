@@ -11,11 +11,9 @@ private object Implicits {
   implicit class RequiredOption[T](optionValue: Option[T]) {
     def orThrow(structFieldName: String, nullable: Boolean): T =
       optionValue match {
-        case Some(Some(_)) =>
-          throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $optionValue")
         case None | Some(null) => // scalastyle:ignore null
           if (nullable) {
-            null.asInstanceOf[T] // scalastyle:ignore
+            null.asInstanceOf[T]
           } else {
             throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $optionValue")
           }
@@ -37,7 +35,11 @@ class WdlRDD(
     val client = WdlClient.fromConfig(config)
     val response = client.getItems(model)
 
-    val rows = response.items.map(jsonObject => convertToValue(jsonObject, schema).orNull)
+    val rows = response.items.map(jsonObject =>
+      convertToRow(jsonObject, schema) match {
+        case Some(row) => row
+        case None => throw new CdfSparkException("Got null as top level row.")
+    })
 
     rows.iterator
   }
@@ -55,26 +57,29 @@ class WdlRDD(
       throw new CdfSparkException(s"Element ${structFieldName} should not be NULL.")
     }
 
-    val result = dataType match {
+    val maybeResult: Option[Any] = dataType match {
       case ArrayType(elementType, containsNull) =>
-        jsonValue.asArray.map(values =>
-          values.map(value => convertToValue(value, elementType, structFieldName, containsNull)))
+        jsonValue.asArray match {
+          case Some(arr) =>
+            Some(arr.map(value => convertToValue(value, elementType, structFieldName, containsNull)))
+          case None => None
+        }
       case structType: StructType =>
-        convertToValue(jsonValue.asObject.orThrow(structFieldName, nullable), structType)
+        convertToRow(jsonValue.asObject.orThrow(structFieldName, nullable), structType)
       case StringType => jsonValue.asString
-      case DoubleType => jsonValue.asNumber.map(value => value.toDouble)
-      case IntegerType => jsonValue.asNumber.flatMap(value => value.toInt)
-      case LongType => jsonValue.asNumber.flatMap(value => value.toLong)
+      case DoubleType => jsonValue.asNumber.map(_.toDouble)
+      case IntegerType => jsonValue.asNumber.flatMap(_.toInt)
+      case LongType => jsonValue.asNumber.flatMap(_.toLong)
       case _ =>
         throw new CdfSparkException(
           s"Conversion to type ${dataType.typeName} is not supported for WDL, element $structFieldName.")
     }
 
-    result.orThrow(structFieldName, nullable)
+    maybeResult.orThrow(structFieldName, nullable)
   }
   // scalastyle:on cyclomatic.complexity
 
-  private def convertToValue(jsonObject: JsonObject, dataType: StructType): Option[Row] = {
+  private def convertToRow(jsonObject: JsonObject, dataType: StructType): Option[Row] = {
     if (jsonObject == null) {
       return None // scalastyle:ignore return
     }
@@ -84,11 +89,11 @@ class WdlRDD(
         jsonFields
           .get(structField.name)
           .map(jsonField => {
-            val converted =
-              convertToValue(jsonField, structField.dataType, structField.name, structField.nullable)
-            converted
+            convertToValue(jsonField, structField.dataType, structField.name, structField.nullable)
           })
-          .orThrow(structField.name, structField.nullable))
+          .orThrow(structField.name, structField.nullable)
+    )
+
     val row = Row.fromSeq(cols)
     Some(row)
   }

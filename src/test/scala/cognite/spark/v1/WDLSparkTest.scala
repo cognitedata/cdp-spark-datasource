@@ -21,7 +21,6 @@ import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
 
-
 trait WDLSparkTest {
   import CdpConnector.ioRuntime
 
@@ -33,7 +32,6 @@ trait WDLSparkTest {
 
       override def clsTag: ClassTag[OptionalField[A]] = c
     }
-
 
   val spark: SparkSession = SparkSession
     .builder()
@@ -68,7 +66,8 @@ trait WDLSparkTest {
 
   implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
 
-  protected val config: RelationConfig = getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(writeCredentials))
+  protected val config: RelationConfig = getDefaultConfig(
+    CdfSparkAuth.OAuth2ClientCredentials(writeCredentials))
   protected val wdlClient: WdlClient = WdlClient.fromConfig(config)
   protected val client = new TestWdlClient(wdlClient)
 
@@ -89,7 +88,6 @@ trait WDLSparkTest {
         .option("project", OIDCWrite.project)
         .option("scopes", OIDCWrite.scopes)
   }
-
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 

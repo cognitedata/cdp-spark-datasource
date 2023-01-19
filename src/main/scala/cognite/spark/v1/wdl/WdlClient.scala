@@ -50,8 +50,6 @@ class WdlClient(
   implicit val decoder: Decoder[ItemsWithCursor[JsonObject]] = deriveDecoder
   implicit val encoder: Encoder[Items[JsonObject]] = deriveEncoder
 
-  println(s"base url: $baseUrl") // So that the warning isn't fatal.
-//  private val basePath = uri"http://localhost:8080/api/playground/projects/${projectName}/wdl"
   private val basePath = uri"$baseUrl/api/playground/projects/$projectName/wdl"
 
   implicit val sttpBackend: SttpBackend[IO, Any] = {
