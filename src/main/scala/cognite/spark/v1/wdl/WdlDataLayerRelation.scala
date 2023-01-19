@@ -17,7 +17,7 @@ class WellDataLayerRelation(
     with TableScan
     with Serializable {
 
-  @transient private lazy val client = new WdlClient(config)
+  @transient private lazy val client = WdlClient.fromConfig(config)
 
   override def schema: StructType = client.getSchema(model)
 

@@ -20,10 +20,10 @@ class WDLTestUtilsTest
     .format("cognite.spark.v1")
     .option("project", "jetfiretest2")
     .option("apiKey", writeApiKey)
-    .option("type", "wdl")
+    .option("type", "welldatalayer")
 
   private val config = getDefaultConfig(CdfSparkAuth.Static(ApiKeyAuth(writeApiKey)))
-  private val client = new TestWdlClient(config)
+  private val client = new TestWdlClient(WdlClient.fromConfig(config))
 
   before {
     client.deleteAll()

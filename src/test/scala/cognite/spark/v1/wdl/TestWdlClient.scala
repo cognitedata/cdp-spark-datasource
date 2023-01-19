@@ -1,84 +1,31 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{CdfSparkException, CdpConnector, RelationConfig}
 import io.circe.generic.auto._
-import io.circe.parser._
-import io.circe.syntax.EncoderOps
-import io.circe.{Decoder, Encoder}
-import sttp.client3.UriContext
+import org.apache.spark.sql.types.StructType
 
-class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
-  import CdpConnector.ioRuntime
+class TestWdlClient(val client: WdlClient) {
 
-  def post[Input, Output](url: String, body: Input)(
-      implicit encoder: Encoder[Input],
-      decoder: Decoder[Output],
-  ): Output = {
-    val bodyAsJson = body.asJson.noSpaces
-    val urlParts = url.split("/")
-    val fullUrl = uri"$baseUrl/$urlParts"
-    val response = sttpRequest
-      .contentType("application/json")
-      .header("accept", "application/json")
-      .body(bodyAsJson)
-      .post(fullUrl)
-      .send(sttpBackend)
-      .map(_.body)
-      .unsafeRunSync()
-
-    response match {
-      case Left(e) => throw new CdfSparkException(s"Query to $fullUrl failed: " + e)
-      case Right(s) =>
-        decode[Output](s) match {
-          case Left(e) => throw new CdfSparkException("Failed to decode: " + e)
-          case Right(decoded) => decoded
-        }
-    }
-  }
-
-  def get[Output](url: String)(
-      implicit decoder: Decoder[Output],
-  ): Output = {
-    val urlParts = url.split("/")
-    val fullUrl = uri"$baseUrl/$urlParts"
-    val response = sttpRequest
-      .contentType("application/json")
-      .header("accept", "application/json")
-      .get(fullUrl)
-      .send(sttpBackend)
-      .map(_.body)
-      .unsafeRunSync()
-
-    response match {
-      case Left(e) => throw new CdfSparkException(s"Query to $fullUrl failed: " + e)
-      case Right(s) => {
-        decode[Output](s) match {
-          case Left(e) => throw new CdfSparkException("Failed to decode: " + e)
-          case Right(decoded) => decoded
-        }
-      }
-    }
-  }
+  def getSchema(name: String): StructType = client.getSchema(name)
 
   def ingestSources(sources: Seq[Source]): Seq[Source] = {
-    val created = post[SourceItems, SourceItems]("sources", SourceItems(sources))
+    val created = client.post[SourceItems, SourceItems]("sources", SourceItems(sources))
     created.items
   }
 
   def getSources: Seq[Source] =
-    get[SourceItems]("sources").items
+    client.get[SourceItems]("sources").items
 
   def deleteSources(sourceNames: Seq[String]): Unit = {
     val items = sourceNames.map(name => Source(name))
     val deleteSources = DeleteSources(items = items)
 
-    val _ = post[DeleteSources, EmptyObj]("sources/delete", deleteSources)
+    val _ = client.post[DeleteSources, EmptyObj]("sources/delete", deleteSources)
   }
 
   def setMergeRules(sources: Seq[String]): Unit = {
     // Discard two values. Can't set both to _, so I'm doing this gymnastics.
-    val _1 = post[WellMergeRules, EmptyObj]("wells/mergerules", WellMergeRules(sources))
-    val _2 = post[WellboreMergeRules, EmptyObj]("wellbores/mergerules", WellboreMergeRules(sources))
+    val _1 = client.post[WellMergeRules, EmptyObj]("wells/mergerules", WellMergeRules(sources))
+    val _2 = client.post[WellboreMergeRules, EmptyObj]("wellbores/mergerules", WellboreMergeRules(sources))
     val _ = (_1, _2)
   }
 
@@ -96,12 +43,12 @@ class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
 
   def ingestWells(wells: Seq[WellIngestion]): Seq[Well] = {
     val body = WellIngestionItems(wells)
-    post[WellIngestionItems, WellItems]("wells", body).items
+    client.post[WellIngestionItems, WellItems]("wells", body).items
   }
 
   def ingestWellbores(wells: Seq[WellboreIngestion]): Seq[Wellbore] = {
     val body = WellboreIngestionItems(wells)
-    post[WellboreIngestionItems, WellboreItems]("wellbores", body).items
+    client.post[WellboreIngestionItems, WellboreItems]("wellbores", body).items
   }
 
   case class MiniSetup(
@@ -149,11 +96,11 @@ class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
   }
 
   def getWells: Seq[Well] =
-    post[EmptyObj, WellItems]("wells/list", EmptyObj()).items
+    client.post[EmptyObj, WellItems]("wells/list", EmptyObj()).items
 
   def deleteWells(wells: Seq[AssetSource], recursive: Boolean = false): Unit = {
     val body = DeleteWells(wells, recursive = recursive)
-    val _ = post[DeleteWells, EmptyObj]("wells/delete", body)
+    val _ = client.post[DeleteWells, EmptyObj]("wells/delete", body)
   }
 
   def initTestWells(): Seq[Well] = {
@@ -183,6 +130,6 @@ class TestWdlClient(config: RelationConfig) extends WdlClient(config) {
     )
 
     val wellIngestionItems = WellIngestionItems(items = items)
-    post[WellIngestionItems, WellItems]("wells", wellIngestionItems).items
+    client.post[WellIngestionItems, WellItems]("wells", wellIngestionItems).items
   }
 }

@@ -3,49 +3,132 @@ package cognite.spark.v1.wdl
 import cats.effect.IO
 import cognite.spark.v1.udf.CogniteUdfs.backend
 import cognite.spark.v1.{CdfSparkException, CdpConnector, RelationConfig}
-import com.cognite.sdk.scala.common.{Items, ItemsWithCursor}
+import com.cognite.sdk.scala.common.{AuthProvider, Items, ItemsWithCursor}
 import com.cognite.sdk.scala.v1.AuthSttpBackend
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder, JsonObject}
 import org.apache.spark.sql.types.{DataType, StructType}
 import sttp.client3.circe._
 import sttp.client3.{Empty, RequestT, ResponseException, SttpBackend, UriContext, basicRequest}
+import io.circe.parser._
+import io.circe.syntax.EncoderOps
+import org.apache.logging.log4j.LogManager.getLogger
 
 import scala.concurrent.duration.DurationInt
 
+object WdlClient {
+  def fromConfig(config: RelationConfig): WdlClient = {
+    import CdpConnector._
+
+    val authProvider = config.auth.provider(implicitly, backend)
+
+    new WdlClient(
+      baseUrl = config.baseUrl,
+      projectName = config.projectName,
+      maxRetries = config.maxRetries,
+      maxRetryDelaySeconds = config.maxRetryDelaySeconds,
+      parallelismPerPartition = config.parallelismPerPartition,
+      authProvider = authProvider.unsafeRunSync()
+    )
+  }
+}
+
+case class LimitRequest(limit: Option[Int])
+
 class WdlClient(
-    val config: RelationConfig,
+  baseUrl: String,
+  val projectName: String,
+  maxRetries: Int,
+  maxRetryDelaySeconds: Int,
+  parallelismPerPartition: Int,
+  authProvider: AuthProvider[IO],
 ) {
   import CdpConnector._
+
+
+  private val logger = getLogger
+
   implicit val decoder: Decoder[ItemsWithCursor[JsonObject]] = deriveDecoder
   implicit val encoder: Encoder[Items[JsonObject]] = deriveEncoder
 
-  protected val baseUrl =
-    uri"http://localhost:8080/api/playground/projects/${config.projectName}/wdl"
-//  private val baseUrl =uri"${config.baseUrl}/api/playground/projects/${config.projectName}/wdl"
+  println(s"base url: $baseUrl") // So that the warning isn't fatal.
+  private val basePath = uri"http://localhost:8080/api/playground/projects/${projectName}/wdl"
+  // private val basePath =uri"$baseUrl/api/playground/projects/$projectName/wdl"
 
   implicit val sttpBackend: SttpBackend[IO, Any] = {
     val retryingBackend = retryingSttpBackend(
-      config.maxRetries,
-      config.maxRetryDelaySeconds,
-      config.parallelismPerPartition,
+      maxRetries,
+      maxRetryDelaySeconds,
+      parallelismPerPartition,
     )
-    val authProvider = config.auth.provider(implicitly, backend).unsafeRunSync()
     new AuthSttpBackend[IO, Any](
       retryingBackend,
       authProvider
     )
   }
 
-  protected val sttpRequest: RequestT[Empty, Either[String, String], Any] = basicRequest
+   private val sttpRequest: RequestT[Empty, Either[String, String], Any] = basicRequest
     .followRedirects(false)
     .header("x-cdp-sdk", s"CogniteWellsInSpark:${BuildInfo.BuildInfo.version}")
     .header("x-cdp-app", "cdp-spark-datasource")
     .header("cdf-version", "alpha")
     .readTimeout(3.seconds)
 
+  def post[Input, Output](url: String, body: Input)(
+    implicit encoder: Encoder[Input],
+    decoder: Decoder[Output],
+  ): Output = {
+    logger.info(s"POST $url")
+    val bodyAsJson = body.asJson.noSpaces
+    val urlParts = url.split("/")
+    val fullUrl = uri"$basePath/$urlParts"
+    val response = sttpRequest
+      .contentType("application/json")
+      .header("accept", "application/json")
+      .body(bodyAsJson)
+      .post(fullUrl)
+      .send(sttpBackend)
+      .map(_.body)
+      .unsafeRunSync()
+
+    response match {
+      case Left(e) => throw new CdfSparkException(s"Query to $fullUrl failed: " + e)
+      case Right(s) =>
+        decode[Output](s) match {
+          case Left(e) => throw new CdfSparkException("Failed to decode: " + e)
+          case Right(decoded) => decoded
+        }
+    }
+  }
+
+  def get[Output](url: String)(
+    implicit decoder: Decoder[Output],
+  ): Output = {
+    logger.info(s"GET $url")
+    val urlParts = url.split("/")
+    val fullUrl = uri"$basePath/$urlParts"
+    val response = sttpRequest
+      .contentType("application/json")
+      .header("accept", "application/json")
+      .get(fullUrl)
+      .send(sttpBackend)
+      .map(_.body)
+      .unsafeRunSync()
+
+    response match {
+      case Left(e) => throw new CdfSparkException(s"Query to $fullUrl failed: " + e)
+      case Right(s) =>
+        decode[Output](s) match {
+          case Left(e) => throw new CdfSparkException("Failed to decode", e)
+          case Right(decoded) => decoded
+        }
+    }
+  }
+
   def getSchema(modelType: String): StructType = {
-    val url = uri"$baseUrl/spark/structtypes/$modelType"
+    // It is annoying, but get[String], since a string can't be decoded into a string, for some reason.
+    // So, it has to be done like this:
+    val url = uri"$basePath/spark/structtypes/$modelType"
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")
@@ -58,9 +141,11 @@ class WdlClient(
     DataType.fromJson(response).asInstanceOf[StructType]
   }
 
+
   def getItems(modelType: String): ItemsWithCursor[JsonObject] = {
     implicit val decoder: Decoder[ItemsWithCursor[JsonObject]] = deriveDecoder
-    val url = uri"$baseUrl/${getReadUrlPart(modelType)}"
+    val url = uri"$basePath/${getReadUrlPart(modelType)}"
+
 
     val request = {
       val req = sttpRequest
@@ -87,7 +172,7 @@ class WdlClient(
   }
 
   private def getReadUrlPart(modelType: String): Seq[String] =
-    modelType match {
+    modelType.replace("Ingestion", "") match {
       case "Well" => Seq("wells", "list")
       case "Npt" => Seq("npt", "list")
       case "Nds" => Seq("npt", "list")
@@ -97,12 +182,10 @@ class WdlClient(
     }
 
   private def getWriteUrlPart(modelType: String): String =
-    modelType match {
+    modelType.replace("Ingestion", "") match {
       case "Well" => "wells"
       case "Wellbore" => "wellbores"
-      case "WellIngestion" => "wells"
       case "Npt" => "npt"
-      case "NptIngestion" => "npt"
       case "Nds" => "npt"
       case "CasingSchematic" => "casings"
       case "Source" => "sources"
@@ -110,7 +193,7 @@ class WdlClient(
     }
 
   def setItems(modelType: String, items: Items[JsonObject]): ItemsWithCursor[JsonObject] = {
-    val url = uri"$baseUrl/${getWriteUrlPart(modelType)}"
+    val url = uri"$basePath/${getWriteUrlPart(modelType)}"
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")

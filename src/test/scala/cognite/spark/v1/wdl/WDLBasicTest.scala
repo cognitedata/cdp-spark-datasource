@@ -9,7 +9,7 @@ import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors, Matchers}
 class WDLBasicTest extends FlatSpec with Matchers with WDLSparkTest with Inspectors with BeforeAndAfter {
 
   private val config = getDefaultConfig(CdfSparkAuth.Static(ApiKeyAuth(writeApiKey)))
-  private val client = new TestWdlClient(config)
+  private val client = new TestWdlClient(WdlClient.fromConfig(config))
 
   before {
     SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
@@ -21,7 +21,7 @@ class WDLBasicTest extends FlatSpec with Matchers with WDLSparkTest with Inspect
     .format("cognite.spark.v1")
     .option("project", "jetfiretest2")
     .option("apiKey", writeApiKey)
-    .option("type", "wdl")
+    .option("type", "welldatalayer")
     .option("wdlDataType", "Well")
     .load()
   destinationDf.createOrReplaceTempView("wdl_test")
@@ -35,7 +35,7 @@ class WDLBasicTest extends FlatSpec with Matchers with WDLSparkTest with Inspect
       .write
       .format("cognite.spark.v1")
       .option("project", "jetfiretest2")
-      .option("type", "wdl")
+      .option("type", "welldatalayer")
       .option("wdlDataType", "WellIngestion")
       .option("apiKey", writeApiKey)
       .save()

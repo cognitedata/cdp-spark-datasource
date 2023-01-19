@@ -206,7 +206,7 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
-      case "wdl" =>
+      case "welldatalayer" =>
         createWellDataLayer(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
@@ -270,7 +270,7 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
-        case "wdl" =>
+        case "welldatalayer" =>
           createWellDataLayer(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }

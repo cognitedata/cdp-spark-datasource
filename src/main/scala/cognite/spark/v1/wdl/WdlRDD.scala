@@ -34,7 +34,7 @@ class WdlRDD(
   import implicits._
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
-    val client = new WdlClient(config)
+    val client = WdlClient.fromConfig(config)
     val response = client.getItems(model)
 
     val rows = response.items.map(jsonObject => convertToValue(jsonObject, schema).orNull)
