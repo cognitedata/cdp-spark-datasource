@@ -7,7 +7,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 
-private object implicits { // scalastyle:ignore object.name
+private object Implicits {
   implicit class RequiredOption[T](optionValue: Option[T]) {
     def orThrow(structFieldName: String, nullable: Boolean): T =
       optionValue match {
@@ -31,7 +31,7 @@ class WdlRDD(
     val config: RelationConfig,
 ) extends RDD[Row](sparkContext, Nil) {
 
-  import implicits._
+  import Implicits.RequiredOption
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
     val client = WdlClient.fromConfig(config)
