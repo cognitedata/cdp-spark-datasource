@@ -37,6 +37,8 @@ import org.apache.spark.sql.{Row, SQLContext, types}
 import java.math.BigInteger
 import java.sql.{Date, Timestamp}
 import java.time._
+import java.util.Locale
+import scala.util.Try
 import scala.util.control.NonFatal
 
 class FlexibleDataModelsRelation(
@@ -251,7 +253,8 @@ class FlexibleDataModelsRelation(
               .ofInstant(v.toInstant, ZoneId.of("UTC"))
               .toZonedDateTime
               .format(InstancePropertyValue.Timestamp.formatter)))
-      case v: Array[_] => toFilterValueListDefinition(attribute, v)
+      case v: Array[Any] =>
+        toFilterValueListDefinition(attribute, v)
       case v =>
         Left(
           new CdfSparkIllegalArgumentException(
@@ -264,63 +267,98 @@ class FlexibleDataModelsRelation(
   // scalastyle:off cyclomatic.complexity method.length
   def toFilterValueListDefinition(
       attribute: String,
-      value: Any): Either[CdfSparkException, FilterValueDefinition] =
-    value match {
-      case v: Array[String] =>
-        v.headOption.flatMap(io.circe.parser.parse(_).toOption) match {
+      values: Array[Any]): Either[CdfSparkException, FilterValueDefinition] = {
+    val result = values.headOption match {
+      case Some(s: String) =>
+        io.circe.parser.parse(s).toOption match {
           case Some(_) =>
-            Right(FilterValueDefinition.ObjectList(v.flatMap(io.circe.parser.parse(_).toOption)))
-          case None => Right(FilterValueDefinition.StringList(v))
+            Try(FilterValueDefinition.ObjectList(values.flatMap(v =>
+              io.circe.parser.parse(String.valueOf(v)).toOption))).toEither
+          case None =>
+            Try(FilterValueDefinition.StringList(values.map(_.asInstanceOf[String]))).toEither
         }
-      case v: Array[Float] => Right(FilterValueDefinition.DoubleList(v.map(_.toDouble)))
-      case v: Array[Double] => Right(FilterValueDefinition.DoubleList(v))
-      case v: Array[Int] => Right(FilterValueDefinition.IntegerList(v.map(_.toLong)))
-      case v: Array[Long] => Right(FilterValueDefinition.IntegerList(v))
-      case v: Array[Boolean] => Right(FilterValueDefinition.BooleanList(v))
-      case v: Array[java.math.BigDecimal] =>
-        Right(FilterValueDefinition.DoubleList(v.map(_.doubleValue)))
-      case v: Array[BigInteger] => Right(FilterValueDefinition.IntegerList(v.map(_.longValue)))
-      case v: Array[LocalDate] =>
-        Right(FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Date.formatter))))
-      case v: Array[LocalDateTime] =>
-        Right(
-          FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Timestamp.formatter))))
-      case v: Array[Instant] =>
-        Right(
-          FilterValueDefinition.StringList(
-            v.map(
-              OffsetDateTime
-                .ofInstant(_, ZoneId.of("UTC"))
-                .toZonedDateTime
-                .format(InstancePropertyValue.Timestamp.formatter))))
-      case v: Array[ZonedDateTime] =>
-        Right(
-          FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Timestamp.formatter))))
-      case v: Array[Date] =>
-        Right(
-          FilterValueDefinition.StringList(
-            v.map(_.toLocalDate.format(InstancePropertyValue.Date.formatter))))
-      case v: Array[Timestamp] =>
-        Right(
-          FilterValueDefinition.StringList(
-            v.map(
-              ts =>
-                OffsetDateTime
-                  .ofInstant(ts.toInstant, ZoneId.of("UTC"))
-                  .toZonedDateTime
-                  .format(InstancePropertyValue.Timestamp.formatter))))
-      case v =>
+      case Some(_: Int | _: Long) =>
+        Try(FilterValueDefinition.IntegerList(values.map(_.asInstanceOf[Long]))).toEither
+      case Some(_: Float | _: Double) =>
+        Try(FilterValueDefinition.DoubleList(values.map(_.asInstanceOf[Double]))).toEither
+      case Some(_: Boolean) =>
+        Try(FilterValueDefinition.BooleanList(values.map(_.asInstanceOf[Boolean]))).toEither
+      case _ =>
         Left(
           new CdfSparkIllegalArgumentException(
-            s"Expecting a value of type number, string, boolean or an array of them for '$attribute', but found ${v.toString}"
+            s"Expecting an array of number, string, boolean or json for '$attribute', but found ${String
+              .valueOf(values)}"
           )
         )
     }
+    result.leftMap {
+      case e: CdfSparkIllegalArgumentException => e
+      case e: Throwable =>
+        val arrAsStr = values.map(String.valueOf).mkString(",")
+        new CdfSparkIllegalArgumentException(
+          s"""Expecting an array of number, string, boolean or json for '$attribute', but found $arrAsStr
+             |${e.getMessage}
+             |""".stripMargin
+        )
+    }
+  }
+
+  //    value match {
+//      case v: Array[String] =>
+//        v.headOption.flatMap(io.circe.parser.parse(_).toOption) match {
+//          case Some(_) =>
+//            Right(FilterValueDefinition.ObjectList(v.flatMap(io.circe.parser.parse(_).toOption)))
+//          case None => Right(FilterValueDefinition.StringList(v))
+//        }
+//      case v: Array[Float] => Right(FilterValueDefinition.DoubleList(v.map(_.toDouble)))
+//      case v: Array[Double] => Right(FilterValueDefinition.DoubleList(v))
+//      case v: Array[Int] => Right(FilterValueDefinition.IntegerList(v.map(_.toLong)))
+//      case v: Array[Long] => Right(FilterValueDefinition.IntegerList(v))
+//      case v: Array[Boolean] => Right(FilterValueDefinition.BooleanList(v))
+//      case v: Array[java.math.BigDecimal] =>
+//        Right(FilterValueDefinition.DoubleList(v.map(_.doubleValue)))
+//      case v: Array[BigInteger] => Right(FilterValueDefinition.IntegerList(v.map(_.longValue)))
+//      case v: Array[LocalDate] =>
+//        Right(FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Date.formatter))))
+//      case v: Array[LocalDateTime] =>
+//        Right(
+//          FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Timestamp.formatter))))
+//      case v: Array[Instant] =>
+//        Right(
+//          FilterValueDefinition.StringList(
+//            v.map(
+//              OffsetDateTime
+//                .ofInstant(_, ZoneId.of("UTC"))
+//                .toZonedDateTime
+//                .format(InstancePropertyValue.Timestamp.formatter))))
+//      case v: Array[ZonedDateTime] =>
+//        Right(
+//          FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Timestamp.formatter))))
+//      case v: Array[Date] =>
+//        Right(
+//          FilterValueDefinition.StringList(
+//            v.map(_.toLocalDate.format(InstancePropertyValue.Date.formatter))))
+//      case v: Array[Timestamp] =>
+//        Right(
+//          FilterValueDefinition.StringList(
+//            v.map(
+//              ts =>
+//                OffsetDateTime
+//                  .ofInstant(ts.toInstant, ZoneId.of("UTC"))
+//                  .toZonedDateTime
+//                  .format(InstancePropertyValue.Timestamp.formatter))))
+//      case v =>
+//        Left(
+//          new CdfSparkIllegalArgumentException(
+//            s"Expecting a value of type number, string, boolean or an array of them for '$attribute', but found ${v.toString}"
+//          )
+//        )
+//    }
   // scalastyle:on cyclomatic.complexity method.length
 
   def toSeqFilterValueDefinition(
       attribute: String,
-      value: Any): Either[CdfSparkException, SeqFilterValue] =
+      value: Array[Any]): Either[CdfSparkException, SeqFilterValue] =
     toFilterValueDefinition(attribute, value) match {
       case Right(v: SeqFilterValue) => Right(v)
       case Right(FilterValueDefinition.Double(v)) => Right(FilterValueDefinition.DoubleList(Seq(v)))
@@ -386,7 +424,9 @@ class FlexibleDataModelsRelation(
       }).orElse {
         filters.collectFirst {
           case EqualTo("instanceType", value) =>
-            Decoder[InstanceType].decodeJson(Json.fromString(String.valueOf(value))).toOption
+            Decoder[InstanceType]
+              .decodeJson(Json.fromString(String.valueOf(value).toLowerCase(Locale.US)))
+              .toOption
         }.flatten
       }
     }

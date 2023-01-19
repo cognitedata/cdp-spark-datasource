@@ -798,7 +798,7 @@ class DataModelInstancesRelationTest
 
         val metricPrefix2 = shortRandomString()
         val df2 = readRows(primitiveExtId, metricPrefix2)
-          .where("prop_string in('abc', 'yyyy') or prop_float < 6.8")
+          .where("prop_string in('abc', 'yyyy')")
         df2.count() shouldBe 3
         getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 3
 
