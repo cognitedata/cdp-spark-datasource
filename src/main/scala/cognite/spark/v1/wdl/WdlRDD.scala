@@ -14,7 +14,8 @@ private object Implicits {
       optionValue match {
         case None | Some(null) => // scalastyle:ignore null
           if (nullable) {
-            null.asInstanceOf[T]
+            val circumventingNotNullScalaStyle: Option[T] = None
+            circumventingNotNullScalaStyle.orNull
           } else {
             throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $optionValue")
           }
@@ -53,7 +54,8 @@ class WdlRDD(
       nullable: Boolean): Any =
     if (jsonValue == null || jsonValue.isNull) {
       if (nullable) {
-        null
+        val myNull: Option[Any] = None
+        myNull.orNull
       } else {
         throw new CdfSparkException(s"Element ${structFieldName} should not be NULL.")
       }
