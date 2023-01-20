@@ -10,7 +10,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 class WellDataLayerRelation(
     config: RelationConfig,
-    model: String,
+    model: String
 )(override val sqlContext: SQLContext)
     extends BaseRelation
     with WritableRelation
@@ -49,6 +49,6 @@ class WellDataLayerRelation(
       sparkContext = sqlContext.sparkContext,
       schema = schema,
       model = model,
-      config = config,
+      config = config
     )
 }

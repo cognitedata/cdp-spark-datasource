@@ -27,7 +27,7 @@ class WdlRDD(
     @transient override val sparkContext: SparkContext,
     val schema: StructType,
     val model: String,
-    val config: RelationConfig,
+    val config: RelationConfig
 ) extends RDD[Row](sparkContext, Nil) {
 
   import Implicits.RequiredOption
@@ -101,6 +101,6 @@ class WdlRDD(
     }
 
   override protected def getPartitions: Array[Partition] = Array(
-    CdfPartition(0),
+    CdfPartition(0)
   )
 }

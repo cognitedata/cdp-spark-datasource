@@ -41,7 +41,7 @@ class WdlClient(
     maxRetries: Int,
     maxRetryDelaySeconds: Int,
     parallelismPerPartition: Int,
-    authProvider: AuthProvider[IO],
+    authProvider: AuthProvider[IO]
 ) {
   import CdpConnector._
 
@@ -56,7 +56,7 @@ class WdlClient(
     val retryingBackend = retryingSttpBackend(
       maxRetries,
       maxRetryDelaySeconds,
-      parallelismPerPartition,
+      parallelismPerPartition
     )
     new AuthSttpBackend[IO, Any](
       retryingBackend,
@@ -73,7 +73,7 @@ class WdlClient(
 
   def post[Input, Output](url: String, body: Input)(
       implicit encoder: Encoder[Input],
-      decoder: Decoder[Output],
+      decoder: Decoder[Output]
   ): Output = {
     val bodyAsJson = body.asJson.noSpaces
     val urlParts = url.split("/")
@@ -99,7 +99,7 @@ class WdlClient(
   }
 
   def get[Output](url: String)(
-      implicit decoder: Decoder[Output],
+      implicit decoder: Decoder[Output]
   ): Output = {
     val urlParts = url.split("/")
     val fullUrl = uri"$basePath/$urlParts"
