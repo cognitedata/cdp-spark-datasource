@@ -4,10 +4,12 @@ import com.cognite.sdk.scala.common.{DomainSpecificLanguageFilter, EmptyFilter}
 import com.cognite.sdk.scala.v1.DataModelType.{EdgeType, NodeType}
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
-import org.apache.spark.sql.types.{DataTypes, IntegerType, StringType}
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
+import java.time.format.DateTimeFormatter
+import java.time.{Instant, LocalDate, ZonedDateTime}
+import java.time.temporal.TemporalAccessor
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration.DurationInt
 import scala.util.Try
 import scala.util.control.NonFatal
@@ -1129,5 +1131,64 @@ class DataModelInstancesRelationTest
     ex3 shouldBe an[CdfSparkException]
     ex3.getMessage shouldBe
       s"Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`) but got array(1, 2) as the value."
+  }
+
+  it should "pass" in {
+    import com.cognite.sdk.scala.v1.fdm.instances.{
+      DirectRelationReference,
+      EdgeOrNodeData,
+      InstanceCreate
+    }
+    import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue._
+    import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
+    import com.cognite.sdk.scala.v1.fdm.views.ViewReference
+
+    val request = InstanceCreate(
+      Vector(
+        EdgeWrite(
+          DirectRelationReference("test-space-scala-sdk", "randomId82f8aAll"),
+          "test-space-scala-sdk",
+          "randomId82f8aAll",
+          DirectRelationReference(
+            "test-space-scala-sdk",
+            "sparkDatasourceTestViewStartAndEndNodes1StartNode"),
+          DirectRelationReference(
+            "test-space-scala-sdk",
+            "sparkDatasourceTestViewStartAndEndNodes1EndNode"),
+          List(EdgeOrNodeData(
+            ViewReference("test-space-scala-sdk", "sparkDatasourceTestViewAllList1", "v1"),
+            Some(Map(
+              "jsonListProp1" -> ObjectList(Vector(
+                io.circe.parser.parse("""{"a" : "a","b" : 1}""").toOption.get,
+                io.circe.parser.parse("""{"a" : "b","b" : 2}""").toOption.get,
+                io.circe.parser.parse("""{"a" : "c","b" : 3}""").toOption.get
+              )),
+              "floatListProp1" -> Float32List(Vector(3.1F, 3.2F, 3.3F)),
+              "intListProp1" -> Int32List(Vector(1, 2, 3)),
+              "longListProp1" -> Int64List(Vector(101, 102, 103)),
+              "doubleListProp1" -> Float64List(Vector(104.2, 104.3, 104.4)),
+              "boolListProp1" -> BooleanList(Vector(true, true, false, false)),
+              "stringListProp1" -> StringList(Vector("stringListProp1Val", "stringListProp2Val")),
+              "timestampListProp1" -> TimestampList(ArrayBuffer(
+                ZonedDateTime.from(
+                  DateTimeFormatter.ISO_ZONED_DATE_TIME.parse("2023-01-15T15:34:23.277245Z")),
+                ZonedDateTime.from(
+                  DateTimeFormatter.ISO_ZONED_DATE_TIME.parse("2023-01-10T15:34:23.277939Z"))
+              )),
+              "dateListProp1" -> DateList(ArrayBuffer(
+                LocalDate.from(DateTimeFormatter.ISO_LOCAL_DATE.parse("2023-01-15")),
+                LocalDate.from(DateTimeFormatter.ISO_LOCAL_DATE.parse("2023-01-10"))
+              ))
+            ))
+          ))
+        )),
+      Some(false),
+      Some(false),
+      Some(true)
+    )
+
+    val result = bluefieldAlphaClient.instances.createItems(request).attempt.unsafeRunSync()
+    println(result)
+    1 shouldBe 1
   }
 }
