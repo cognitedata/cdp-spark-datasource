@@ -8,7 +8,6 @@ import org.apache.spark.sql.types._
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 
 private object Implicits {
-  @SuppressWarnings(Array("scalafix:DisableSyntax.asInstanceOf"))
   implicit class RequiredOption[T](optionValue: Option[T]) {
     def orThrow(structFieldName: String, nullable: Boolean): Option[T] =
       optionValue match {
@@ -29,7 +28,6 @@ class WdlRDD(
     val model: String,
     val config: RelationConfig
 ) extends RDD[Row](sparkContext, Nil) {
-
   import Implicits.RequiredOption
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
@@ -77,7 +75,7 @@ class WdlRDD(
             s"Conversion to type ${dataType.typeName} is not supported for WDL, element $structFieldName.")
       }
 
-      maybeResult.orThrow(structFieldName, nullable)
+      maybeResult.orThrow(structFieldName, nullable).orNull
     }
 
   // scalastyle:on cyclomatic.complexity
@@ -95,7 +93,15 @@ class WdlRDD(
               convertToValue(jsonField, structField.dataType, structField.name, structField.nullable)
             })
             .orThrow(structField.name, structField.nullable)
+            .orNull
       )
+
+      // Assert that the types are not options.
+      cols.foreach {
+        case it @ (Some(_) | None) =>
+          throw new CdfSparkException(s"Bad type for struct value. Should not be option, but was: $it")
+        case _ => {}
+      }
 
       val row = Row.fromSeq(cols)
       Some(row)

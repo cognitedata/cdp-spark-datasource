@@ -24,7 +24,7 @@ import scala.util.Random
 trait WDLSparkTest {
   import CdpConnector.ioRuntime
 
-  val useLocalWellDataLayer = true
+  val useLocalWellDataLayer = false
 
   implicit def single[A](
       implicit c: ClassTag[OptionalField[A]],
@@ -47,7 +47,7 @@ trait WDLSparkTest {
     .getOrCreate()
 
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
-  spark.sparkContext.setLogLevel("OFF")
+  spark.sparkContext.setLogLevel("INFO")
 
   object OIDCWrite {
     val clientId: String = sys.env("TEST_CLIENT_ID_BLUEFIELD")
@@ -77,20 +77,30 @@ trait WDLSparkTest {
 
   implicit class DataFrameWriterHelper[T](df: DataFrameWriter[T]) {
     def useOIDCWrite: DataFrameWriter[T] =
-      df.option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+      if (useLocalWellDataLayer) {
+        df.option("apiKey", "not in use")
+          .option("baseUrl", "http://localhost:8080")
+      } else {
+        df.option("tokenUri", OIDCWrite.tokenUri)
+          .option("clientId", OIDCWrite.clientId)
+          .option("clientSecret", OIDCWrite.clientSecret)
+          .option("project", OIDCWrite.project)
+          .option("scopes", OIDCWrite.scopes)
+      }
   }
 
   implicit class DataFrameReaderHelper(df: DataFrameReader) {
     def useOIDCWrite: DataFrameReader =
-      df.option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+      if (useLocalWellDataLayer) {
+        df.option("apiKey", "not in use")
+          .option("baseUrl", "http://localhost:8080")
+      } else {
+        df.option("tokenUri", OIDCWrite.tokenUri)
+          .option("clientId", OIDCWrite.clientId)
+          .option("clientSecret", OIDCWrite.clientSecret)
+          .option("project", OIDCWrite.project)
+          .option("scopes", OIDCWrite.scopes)
+      }
   }
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)

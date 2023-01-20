@@ -8,8 +8,7 @@ import com.cognite.sdk.scala.v1.AuthSttpBackend
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder, JsonObject}
 import org.apache.spark.sql.types.{DataType, StructType}
-import sttp.client3.circe._
-import sttp.client3.{Empty, RequestT, ResponseException, SttpBackend, UriContext, basicRequest}
+import sttp.client3.{Empty, RequestT, SttpBackend, UriContext, basicRequest}
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
 import org.apache.logging.log4j.LogManager.getLogger
@@ -103,7 +102,7 @@ class WdlClient(
   ): Output = {
     val urlParts = url.split("/")
     val fullUrl = uri"$basePath/$urlParts"
-    logger.info(s"GET $fullUrl")
+    logger.info(s"GET  $fullUrl")
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")
@@ -127,6 +126,7 @@ class WdlClient(
     //     val response = get[String](s"spark/structtypes/$modelType") // this should have worked.
     // So, it has to be done like this:
     val url = uri"$basePath/spark/structtypes/$modelType"
+    logger.info(s"Getting schema for $modelType: $url")
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")
@@ -144,11 +144,11 @@ class WdlClient(
 
   def getItems(modelType: String): ItemsWithCursor[JsonObject] = {
     val url: String = getReadUrlPart(modelType).mkString("/")
-    val input = LimitRequest(limit = None)
+    logger.info(s"Getting items from $modelType")
     if (modelType == "Source") {
       get[ItemsWithCursor[JsonObject]](url)
     } else {
-      post[LimitRequest, ItemsWithCursor[JsonObject]](url, input)
+      post[LimitRequest, ItemsWithCursor[JsonObject]](url, LimitRequest(limit = None))
     }
   }
 
@@ -174,26 +174,7 @@ class WdlClient(
     }
 
   def setItems(modelType: String, items: Items[JsonObject]): ItemsWithCursor[JsonObject] = {
-    val url = uri"$basePath/${getWriteUrlPart(modelType)}"
-    val response = sttpRequest
-      .contentType("application/json")
-      .header("accept", "application/json")
-      .body(items)
-      .post(url)
-      .response(asJson[ItemsWithCursor[JsonObject]])
-      .send(sttpBackend)
-      .map(_.body)
-      .unsafeRunSync()
-
-    handleResponse(response)
+    logger.info(s"Settings items of type=$modelType")
+    post[Items[JsonObject], ItemsWithCursor[JsonObject]](getWriteUrlPart(modelType), items)
   }
-
-  private def handleResponse[O](
-      response: Either[ResponseException[String, io.circe.Error], ItemsWithCursor[O]])
-    : ItemsWithCursor[O] =
-    response match {
-      case Left(e) =>
-        throw new CdfSparkException(s"Failed to run WDL query: $e")
-      case Right(a) => a
-    }
 }
