@@ -75,10 +75,10 @@ class WdlClient(
       implicit encoder: Encoder[Input],
       decoder: Decoder[Output],
   ): Output = {
-    logger.info(s"POST $url")
     val bodyAsJson = body.asJson.noSpaces
     val urlParts = url.split("/")
     val fullUrl = uri"$basePath/$urlParts"
+    logger.info(s"POST $fullUrl")
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")
@@ -101,9 +101,9 @@ class WdlClient(
   def get[Output](url: String)(
       implicit decoder: Decoder[Output],
   ): Output = {
-    logger.info(s"GET $url")
     val urlParts = url.split("/")
     val fullUrl = uri"$basePath/$urlParts"
+    logger.info(s"GET $fullUrl")
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")

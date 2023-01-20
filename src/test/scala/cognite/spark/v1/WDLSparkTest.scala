@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.wdl.{TestWdlClient, WdlClient}
-import com.cognite.sdk.scala.common.OAuth2
+import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
@@ -23,6 +23,8 @@ import scala.util.Random
 
 trait WDLSparkTest {
   import CdpConnector.ioRuntime
+
+  val useLocalWellDataLayer = true
 
   implicit def single[A](
       implicit c: ClassTag[OptionalField[A]],
@@ -64,10 +66,12 @@ trait WDLSparkTest {
     OIDCWrite.project
   )
 
-  implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
-
-  protected val config: RelationConfig = getDefaultConfig(
-    CdfSparkAuth.OAuth2ClientCredentials(writeCredentials))
+  protected val config: RelationConfig = if (useLocalWellDataLayer) {
+    getDefaultConfig(CdfSparkAuth.Static(ApiKeyAuth("something something")))
+  } else {
+    implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
+    getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(writeCredentials))
+  }
   protected val wdlClient: WdlClient = WdlClient.fromConfig(config)
   protected val client = new TestWdlClient(wdlClient)
 
@@ -147,7 +151,11 @@ trait WDLSparkTest {
       collectMetrics = false,
       collectTestMetrics = false,
       "",
-      Constants.DefaultBaseUrl,
+      if (useLocalWellDataLayer) {
+        "http://localhost:8080"
+      } else {
+        Constants.DefaultBaseUrl
+      },
       OnConflictOption.Abort,
       spark.sparkContext.applicationId,
       Constants.DefaultParallelismPerPartition,
