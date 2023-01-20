@@ -5,15 +5,16 @@ import cognite.spark.v1.udf.CogniteUdfs.backend
 import cognite.spark.v1.{CdfSparkException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.common.{AuthProvider, Items, ItemsWithCursor}
 import com.cognite.sdk.scala.v1.AuthSttpBackend
+import io.circe.generic.auto._
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Decoder, Encoder, JsonObject}
+import io.circe.parser._
+import io.circe.syntax.EncoderOps
+import io.circe.{Decoder, Encoder, Json, JsonObject}
+import org.apache.logging.log4j.LogManager.getLogger
 import org.apache.spark.sql.types.{DataType, StructType}
 import sttp.client3.circe._
 import sttp.client3.{Empty, RequestT, ResponseException, SttpBackend, UriContext, basicRequest}
-import io.circe.parser._
-import io.circe.syntax.EncoderOps
-import org.apache.logging.log4j.LogManager.getLogger
-import io.circe.generic.auto._
+
 import scala.concurrent.duration.DurationInt
 
 object WdlClient {
@@ -50,9 +51,9 @@ class WdlClient(
   implicit val decoder: Decoder[ItemsWithCursor[JsonObject]] = deriveDecoder
   implicit val encoder: Encoder[Items[JsonObject]] = deriveEncoder
 
-  println(s"base url: $baseUrl") // So that the warning isn't fatal.
-//  private val basePath = uri"http://localhost:8080/api/playground/projects/${projectName}/wdl"
-  private val basePath = uri"$baseUrl/api/playground/projects/$projectName/wdl"
+//  println(s"base url: $baseUrl") // So that the warning isn't fatal.
+  private val basePath = uri"http://localhost:8080/api/playground/projects/${projectName}/wdl"
+//  private val basePath = uri"$baseUrl/api/playground/projects/$projectName/wdl"
 
   implicit val sttpBackend: SttpBackend[IO, Any] = {
     val retryingBackend = retryingSttpBackend(
@@ -156,6 +157,7 @@ class WdlClient(
       case "Npt" => Seq("npt", "list")
       case "Nds" => Seq("npt", "list")
       case "CasingSchematic" => Seq("casings", "list")
+      case "Trajectory" => Seq("trajectories", "list")
       case "Source" => Seq("sources")
       case _ => sys.error(s"Unknown model type: $modelType")
     }
@@ -167,11 +169,12 @@ class WdlClient(
       case "Npt" => "npt"
       case "Nds" => "npt"
       case "CasingSchematic" => "casings"
+      case "Trajectory" => "trajectories"
       case "Source" => "sources"
       case _ => sys.error(s"Unknown model type: $modelType")
     }
 
-  def setItems(modelType: String, items: Items[JsonObject]): ItemsWithCursor[JsonObject] = {
+  def setItems(modelType: String, items: Items[Json]): ItemsWithCursor[JsonObject] = {
     val url = uri"$basePath/${getWriteUrlPart(modelType)}"
     val response = sttpRequest
       .contentType("application/json")

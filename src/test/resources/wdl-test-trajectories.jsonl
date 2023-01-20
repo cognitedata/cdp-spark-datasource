@@ -1,0 +1,1 @@
+{"wellboreAssetExternalId": "A:wb1", "source": {"sequenceExternalId": "A:trajectory:data:1", "sourceName": "A"}, "measuredDepthUnit": "meter", "inclinationUnit": "degree", "azimuthUnit": "degree", "type": "ACTUAL", "doglegSeverityUnit": null, "phase": "planned"}

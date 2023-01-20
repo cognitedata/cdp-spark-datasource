@@ -1,9 +1,17 @@
 package cognite.spark.v1.wdl
 
-import io.circe.parser.decode
+import cognite.spark.v1.CdfSparkException
+import cognite.spark.v1.wdl.implicits.RequiredOption
 import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.util.{DateFormatter, DateTimeUtils, TimestampFormatter}
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
+import org.apache.spark.unsafe.types.CalendarInterval
+
+import java.sql.{Date, Timestamp}
+import java.time.{Instant, LocalDate}
+import scala.collection.mutable
 
 // scalastyle:off
 object RowConversion {
@@ -17,70 +25,101 @@ object RowConversion {
     *
     * @return a JsonObject
     */
-  def toJsonObject(row: Row, schema: StructType): JsonObject = {
+  def convertToJson(row: Row, dataType: StructType): Json = {
+    if (row == null) {
+      return Json.Null
+    }
     if (row.schema == null) {
       sys.error(
         s"Schema for $row is null. The input row needs a schema, because it must be matched with the schema of the output format.")
     }
-
-    val fields = schema
-      .map(field => {
-        // i is the index in the Row for the field in the schema.
-        val fieldIndex: Option[Int] = try {
-          Some(row.fieldIndex(field.name))
-        } catch {
-          case _: IllegalArgumentException =>
-            None
-        }
-
-        fieldIndex match {
-          case None => null
-          case Some(i) =>
-            val jsonValue: Json = row.isNullAt(i) match {
-              case true =>
-                field.nullable match {
-                  case true => Json.Null
-                  case false =>
-                    sys.error(s"Failed to parse non-nullable ${field} from NULL")
-                }
-              case false =>
-                field.dataType match {
-                  case _: NullType => Json.Null
-                  case s: StructType => parseStructType(row.get(i), field, s)
-                  case StringType => Json.fromString(row.getString(i))
-                  case DoubleType | DecimalType() | FloatType => parseDouble(row.get(i), field)
-                  case IntegerType => Json.fromInt(row.getInt(i))
-                  case LongType => Json.fromLong(row.getLong(i))
-                  case _ => sys.error(s"Unknown type: ${field.dataType} with name ${field.name}")
-                }
-            }
-            (field.name, jsonValue)
-        }
-      })
-      .filterNot(p => p == null) // removed _continued_ iterations.
-    JsonObject.fromMap(fields.toMap)
+    val rowFields = row.schema.map(f => f.name -> row.get(row.fieldIndex(f.name))).toMap
+    val jsonFields = dataType.toList
+      .map(
+        structField =>
+          rowFields
+            .get(structField.name)
+            .map(rowField => {
+              val converted =
+                convertToJson(rowField, structField.dataType, structField.name, structField.nullable)
+              structField.name -> converted
+            })
+            .orThrow(structField.name, structField.nullable))
+      .toMap
+    val jsonObject = JsonObject.fromMap(jsonFields)
+    Json.fromJsonObject(jsonObject)
   }
 
-  private def parseStructType(value: Any, field: StructField, schema: StructType) =
-    value match {
-      case r: Row =>
-        val inner = toJsonObject(r, schema)
-        Json.fromJsonObject(inner)
-      case s: String =>
-        decode[JsonObject](s) match {
-          case Left(_) => sys.error(s"Failed to convert string `$s` into a struct field")
-          case Right(j) => Json.fromJsonObject(j)
-        }
-      case err =>
-        sys.error(s"Failed to parse $field as a StructField. Value was $err of type ${err.getClass}")
+  private def convertToJson(
+      dataValue: Any,
+      dataType: DataType,
+      structFieldName: String,
+      nullable: Boolean): Json = {
+
+    if (dataValue == null) {
+      if (nullable) {
+        return Json.Null // scalastyle:ignore
+      }
+      sys.error(s"Element ${structFieldName} should not be NULL.")
     }
 
-  private def parseDouble(value: Any, field: StructField): Json =
-    value match {
-      case d: Double => Json.fromDoubleOrNull(d)
-      case f: Float => Json.fromDoubleOrNull(f.toDouble)
-      case decimal: java.math.BigDecimal => Json.fromDoubleOrNull(decimal.doubleValue())
+    lazy val dateFormatter = DateFormatter()
+    lazy val zoneId = DateTimeUtils.getZoneId(SQLConf.get.sessionLocalTimeZone)
+    lazy val timestampFormatter = TimestampFormatter(zoneId)
+
+    // Convert an iterator of values to a json array
+    def iteratorToJsonArray(iterator: Iterator[_], elementType: DataType): Json =
+      Json.fromValues(iterator.map(toJson(_, elementType)).toList)
+
+    // Convert a value to json.
+    def toJson(value: Any, dataType: DataType): Json = (value, dataType) match {
+      case (null, _) => Json.Null
+      case (b: Boolean, _) => Json.fromBoolean(b)
+      case (b: Byte, _) => Json.fromInt(b.toInt)
+      case (s: Short, _) => Json.fromInt(s.toInt)
+      case (i: Int, _) => Json.fromInt(i)
+      case (l: Long, _) => Json.fromLong(l)
+      case (f: Float, _) => Json.fromFloatOrNull(f)
+      case (d: Double, _) => Json.fromDoubleOrNull(d)
+      case (d: BigDecimal, _) => Json.fromBigDecimal(d)
+      case (d: java.math.BigDecimal, _) => Json.fromBigDecimal(d)
+      case (d: Decimal, _) => Json.fromBigDecimal(d.toBigDecimal)
+      case (s: String, _) => Json.fromString(s)
+      case (d: LocalDate, _) => Json.fromString(dateFormatter.format(d))
+      case (d: Date, _) => Json.fromString(dateFormatter.format(d))
+      case (i: Instant, _) => Json.fromString(timestampFormatter.format(i))
+      case (t: Timestamp, _) => Json.fromString(timestampFormatter.format(t))
+      case (i: CalendarInterval, _) => Json.fromString(i.toString)
+      case (a: Array[_], ArrayType(elementType, _)) =>
+        iteratorToJsonArray(a.iterator, elementType)
+      case (a: mutable.ArraySeq[_], ArrayType(elementType, _)) =>
+        iteratorToJsonArray(a.iterator, elementType)
+      case (s: Seq[_], ArrayType(elementType, _)) =>
+        iteratorToJsonArray(s.iterator, elementType)
+      case (m: Map[String @unchecked, _], MapType(StringType, valueType, _)) =>
+        Json.fromFields(m.toList.sortBy(_._1).map {
+          case (k, v) => k -> toJson(v, valueType)
+        })
+      case (m: Map[_, _], MapType(keyType, valueType, _)) =>
+        Json.fromValues(m.iterator.map {
+          case (k, v) =>
+            Json.fromFields("key" -> toJson(k, keyType) :: "value" -> toJson(v, valueType) :: Nil)
+        }.toList)
+      case (r: Row, s: StructType) => convertToJson(r, s)
+//      case (v: Any, udt: UserDefinedType[Any @unchecked]) =>
+//        val dataType = udt.sqlType
+//        toJson(CatalystTypeConverters.convertToScala(udt.serialize(v), dataType), dataType)
       case _ =>
-        sys.error(s"Failed to parse ${field} as Double. Value was ${value} of type ${value.getClass}")
+        throw new CdfSparkException(
+          s"Failed to convert value $value " +
+            s"(class of ${value.getClass}}) with the type of $dataType to JSON.")
     }
+
+    val json = toJson(dataValue, dataType)
+    if (json.isNull && !nullable) {
+      throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $dataValue")
+    }
+    json
+  }
+  // scalastyle:on cyclomatic.complexity
 }
