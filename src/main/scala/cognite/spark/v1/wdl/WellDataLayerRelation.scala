@@ -17,7 +17,7 @@ class WellDataLayerRelation(
     with TableScan
     with Serializable {
 
-  @transient private lazy val client = WdlClient.fromConfig(config)
+  @transient private lazy val client = WellDataLayerClient.fromConfig(config)
 
   override def schema: StructType = client.getSchema(model)
 
@@ -25,7 +25,7 @@ class WellDataLayerRelation(
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val jsonObjects = rows.map(row => {
-      val jsonObj = RowConversion.toJsonObject(row, schema)
+      val jsonObj = RowToJsonObject.toJsonObject(row, schema)
       if (jsonObj == null) {
         sys.error("This json object is null!")
       }
@@ -45,7 +45,7 @@ class WellDataLayerRelation(
     IO.unit
 
   override def buildScan(): RDD[Row] =
-    new WdlRDD(
+    new WellDataLayerRDD(
       sparkContext = sqlContext.sparkContext,
       schema = schema,
       model = model,

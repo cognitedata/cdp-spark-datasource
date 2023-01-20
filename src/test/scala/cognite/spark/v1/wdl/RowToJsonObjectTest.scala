@@ -6,7 +6,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
-class RowConversionTest extends FlatSpec with Matchers with ParallelTestExecution {
+class RowToJsonObjectTest extends FlatSpec with Matchers with ParallelTestExecution {
   it should "convert a Row with nested StructTypes into a JsonObject" in {
     val sourceSchema = new StructType()
       .add("assetExternalId", StringType)
@@ -24,7 +24,7 @@ class RowConversionTest extends FlatSpec with Matchers with ParallelTestExecutio
       schema
     )
 
-    val json = Json.fromJsonObject(RowConversion.toJsonObject(input, schema))
+    val json = Json.fromJsonObject(RowToJsonObject.toJsonObject(input, schema))
     val actual = json.printWith(Printer.spaces2.withSortedKeys)
     val expected =
       """{
@@ -55,7 +55,7 @@ class RowConversionTest extends FlatSpec with Matchers with ParallelTestExecutio
         new StructType()
           .add("assetExternalId", StringType)
           .add("sourceName", StringType))
-    val json = Json.fromJsonObject(RowConversion.toJsonObject(input, schema))
+    val json = Json.fromJsonObject(RowToJsonObject.toJsonObject(input, schema))
     val actual = json.printWith(Printer.spaces2.withSortedKeys)
     val expected =
       """{
@@ -86,7 +86,7 @@ class RowConversionTest extends FlatSpec with Matchers with ParallelTestExecutio
       schema
     )
 
-    val json = Json.fromJsonObject(RowConversion.toJsonObject(input, schema))
+    val json = Json.fromJsonObject(RowToJsonObject.toJsonObject(input, schema))
     val actual = json.printWith(Printer.spaces2.withSortedKeys)
     val expected =
       """{
@@ -120,7 +120,7 @@ class RowConversionTest extends FlatSpec with Matchers with ParallelTestExecutio
       schema
     )
 
-    val json = Json.fromJsonObject(RowConversion.toJsonObject(input, schema))
+    val json = Json.fromJsonObject(RowToJsonObject.toJsonObject(input, schema))
     val actual = json.printWith(Printer.spaces2.withSortedKeys)
     val expected =
       """{
@@ -156,7 +156,7 @@ class RowConversionTest extends FlatSpec with Matchers with ParallelTestExecutio
     )
 
     val expectedException = intercept[RuntimeException] {
-      Json.fromJsonObject(RowConversion.toJsonObject(input, schema))
+      Json.fromJsonObject(RowToJsonObject.toJsonObject(input, schema))
     }
 
     assert(expectedException.getMessage.startsWith("Failed to parse non-nullable "))

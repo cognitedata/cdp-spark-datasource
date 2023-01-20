@@ -1,6 +1,5 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{WDLSparkTest}
 import io.circe.generic.auto._
 import io.circe.syntax.EncoderOps
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors, Matchers}

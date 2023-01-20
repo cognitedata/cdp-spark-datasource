@@ -15,13 +15,13 @@ import org.apache.logging.log4j.LogManager.getLogger
 import io.circe.generic.auto._
 import scala.concurrent.duration.DurationInt
 
-object WdlClient {
-  def fromConfig(config: RelationConfig): WdlClient = {
+object WellDataLayerClient {
+  def fromConfig(config: RelationConfig): WellDataLayerClient = {
     import CdpConnector._
 
     val authProvider = config.auth.provider(implicitly, backend)
 
-    new WdlClient(
+    new WellDataLayerClient(
       baseUrl = config.baseUrl,
       projectName = config.projectName,
       maxRetries = config.maxRetries,
@@ -34,7 +34,7 @@ object WdlClient {
 
 case class LimitRequest(limit: Option[Int])
 
-class WdlClient(
+class WellDataLayerClient(
     baseUrl: String,
     val projectName: String,
     maxRetries: Int,

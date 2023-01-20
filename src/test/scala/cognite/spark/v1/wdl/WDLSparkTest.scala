@@ -1,7 +1,15 @@
-package cognite.spark.v1
+package cognite.spark.v1.wdl
 
 import cats.effect.IO
-import cognite.spark.v1.wdl.{TestWdlClient, WdlClient}
+import cognite.spark.v1.{
+  AssetSubtreeOption,
+  CdfSparkAuth,
+  CdpConnector,
+  Constants,
+  OnConflictOption,
+  OptionalField,
+  RelationConfig
+}
 import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
@@ -9,15 +17,15 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Encoder, SparkSession}
 import org.scalactic.{Prettifier, source}
 import org.scalatest.Matchers
-import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
+import org.scalatest.prop.Tables.Table
 import sttp.client3.SttpBackend
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import java.io.IOException
 import java.util.UUID
 import scala.concurrent.TimeoutException
-import scala.concurrent.duration._
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
 
@@ -72,7 +80,7 @@ trait WDLSparkTest {
     implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
     getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(writeCredentials))
   }
-  protected val wdlClient: WdlClient = WdlClient.fromConfig(config)
+  protected val wdlClient: WellDataLayerClient = WellDataLayerClient.fromConfig(config)
   protected val client = new TestWdlClient(wdlClient)
 
   implicit class DataFrameWriterHelper[T](df: DataFrameWriter[T]) {

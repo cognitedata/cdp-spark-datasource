@@ -6,7 +6,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
 // scalastyle:off
-object RowConversion {
+object RowToJsonObject {
 
   /**
     * Creates a JsonObject from the values of `row` with the schema of `schema`.
