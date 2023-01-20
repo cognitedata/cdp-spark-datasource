@@ -10,16 +10,15 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
 private object Implicits {
   @SuppressWarnings(Array("scalafix:DisableSyntax.asInstanceOf"))
   implicit class RequiredOption[T](optionValue: Option[T]) {
-    def orThrow(structFieldName: String, nullable: Boolean): T =
+    def orThrow(structFieldName: String, nullable: Boolean): Option[T] =
       optionValue match {
         case None | Some(null) => // scalastyle:ignore null
           if (nullable) {
-            val circumventingNotNullScalaStyle: Option[T] = None
-            circumventingNotNullScalaStyle.orNull
+            None
           } else {
             throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $optionValue")
           }
-        case Some(value) => value
+        case Some(value) => Some(value)
       }
   }
 }
@@ -54,8 +53,8 @@ class WdlRDD(
       nullable: Boolean): Any =
     if (jsonValue == null || jsonValue.isNull) {
       if (nullable) {
-        val myNull: Option[Any] = None
-        myNull.orNull
+        val circumventingScalaStyleThatDoesNotLikeNulls: Option[Any] = None
+        circumventingScalaStyleThatDoesNotLikeNulls.orNull
       } else {
         throw new CdfSparkException(s"Element ${structFieldName} should not be NULL.")
       }
@@ -68,7 +67,7 @@ class WdlRDD(
             case None => None
           }
         case structType: StructType =>
-          convertToRow(jsonValue.asObject.orThrow(structFieldName, nullable), structType)
+          convertToRow(jsonValue.asObject.orThrow(structFieldName, nullable).orNull, structType)
         case StringType => jsonValue.asString
         case DoubleType => jsonValue.asNumber.map(_.toDouble)
         case IntegerType => jsonValue.asNumber.flatMap(_.toInt)
