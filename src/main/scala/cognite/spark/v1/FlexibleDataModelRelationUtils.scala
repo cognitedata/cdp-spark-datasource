@@ -158,7 +158,7 @@ object FlexibleDataModelRelationUtils {
                                       |Fields 'type', 'externalId', 'startNode' & 'endNode' fields must be present to create an Edge.
                                       |Field 'externalId' is required to create a Node
                                       |Only found: 'externalId', ${relationRefNames.mkString(", ")}
-                                      |data row: ${row.mkString(",")}
+                                      |data row: ${rowToString(row)}
                                       |""".stripMargin))
     }
 
@@ -195,13 +195,13 @@ object FlexibleDataModelRelationUtils {
           new CdfSparkException(
             s"""
                |'externalId' shouldn't be null
-               |data row: ${row.mkString(",")}
+               |data row: ${rowToString(row)}
                |""".stripMargin
           ))
       case Failure(err) =>
         Left(new CdfSparkException(s"""
                                       |Couldn't find required string property 'externalId': ${err.getMessage}
-                                      |data row: ${row.mkString(",")}
+                                      |data row: ${rowToString(row)}
                                       |""".stripMargin))
     }
 
@@ -238,14 +238,14 @@ object FlexibleDataModelRelationUtils {
             s"""
                |'$propertyName' ($descriptiveName) shouldn't contain null values.
                |Please verify that 'space' & 'externalId' values are not null for '$propertyName'
-               |data row: ${row.mkString(",")}
+               |data row: ${rowToString(row)}
                |""".stripMargin
           ))
       case Failure(err) =>
         Left(new CdfSparkException(s"""
                                       |Couldn't find required property '$propertyName'
                                       |'$propertyName' ($descriptiveName) should be a 'StructType' which consists 'space' & 'externalId' : ${err.getMessage}
-                                      |data row: ${row.mkString(",")}
+                                      |data row: ${rowToString(row)}
                                       |""".stripMargin))
     }
 
@@ -314,14 +314,14 @@ object FlexibleDataModelRelationUtils {
         new CdfSparkException(
           s"""
              |${e.getMessage}
-             |table row: ${row.mkString(",")}
+             |table row: ${rowToString(row)}
              |""".stripMargin
         )
       case e: Throwable =>
         new CdfSparkException(
           s"""
              |Error parsing value of field '$propertyName': ${e.getMessage}
-             |table row: ${row.mkString(",")}
+             |table row: ${rowToString(row)}
              |""".stripMargin
         )
     }
@@ -348,13 +348,13 @@ object FlexibleDataModelRelationUtils {
           case PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
             Try(InstancePropertyValue.BooleanList(skipNulls(row.getSeq[Boolean](i)))).toEither
           case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
-            tryAsFloatSeq(row.getSeq[Number](i), propertyName).map(InstancePropertyValue.Float32List)
+            tryAsFloatSeq(row.getSeq[Any](i), propertyName).map(InstancePropertyValue.Float32List)
           case PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
-            tryAsDoubleSeq(row.getSeq[Number](i), propertyName).map(InstancePropertyValue.Float64List)
+            tryAsDoubleSeq(row.getSeq[Any](i), propertyName).map(InstancePropertyValue.Float64List)
           case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
-            tryAsIntSeq(row.getSeq[Number](i), propertyName).map(InstancePropertyValue.Int32List)
+            tryAsIntSeq(row.getSeq[Any](i), propertyName).map(InstancePropertyValue.Int32List)
           case PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
-            tryAsLongSeq(row.getSeq[Number](i), propertyName).map(InstancePropertyValue.Int64List)
+            tryAsLongSeq(row.getSeq[Any](i), propertyName).map(InstancePropertyValue.Int64List)
           case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
             Try(
               InstancePropertyValue.TimestampList(skipNulls(row.getSeq[String](i))
@@ -410,13 +410,13 @@ object FlexibleDataModelRelationUtils {
           case PrimitiveProperty(PrimitivePropType.Boolean, None | Some(false)) =>
             Try(InstancePropertyValue.Boolean(row.getBoolean(i))).toEither
           case PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) =>
-            tryAsFloat(row.getAs[Number](i), propertyName).map(InstancePropertyValue.Float32)
+            tryAsFloat(row.get(i), propertyName).map(InstancePropertyValue.Float32)
           case PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) =>
-            tryAsDouble(row.getAs[Number](i), propertyName).map(InstancePropertyValue.Float64)
+            tryAsDouble(row.get(i), propertyName).map(InstancePropertyValue.Float64)
           case PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) =>
-            tryAsInt(row.getAs[Number](i), propertyName).map(InstancePropertyValue.Int32)
+            tryAsInt(row.get(i), propertyName).map(InstancePropertyValue.Int32)
           case PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
-            tryAsLong(row.getAs[Number](i), propertyName).map(InstancePropertyValue.Int64)
+            tryAsLong(row.get(i), propertyName).map(InstancePropertyValue.Int64)
           case PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
             Try(
               InstancePropertyValue.Timestamp(ZonedDateTime
@@ -450,7 +450,7 @@ object FlexibleDataModelRelationUtils {
   }
   // scalastyle:on cyclomatic.complexity method.length
 
-  private def tryAsLong(n: Number, propertyName: String): Either[CdfSparkException, Long] = {
+  private def tryAsLong(n: Any, propertyName: String): Either[CdfSparkException, Long] = {
     val nAsStr = String.valueOf(n)
     val bd = BigDecimal(nAsStr)
     if (bd.isValidLong) {
@@ -462,26 +462,27 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  private def tryAsLongSeq(ns: Seq[Number], propertyName: String): Either[CdfSparkException, Seq[Long]] =
+  private def tryAsLongSeq(ns: Seq[Any], propertyName: String): Either[CdfSparkException, Seq[Long]] =
     Try {
       skipNulls(ns).map { n =>
         val bd = BigDecimal(String.valueOf(n))
         if (bd.isValidLong) {
           bd.longValue()
         } else {
-          throw new IllegalArgumentException()
+          throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Long")
         }
       }
     } match {
       case Success(value) => Right(value)
-      case Failure(_) =>
+      case Failure(e) =>
         val seqAsStr = ns.map(String.valueOf).mkString(",")
         Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
-                                                       |Expecting an Array[Long] but found '[$seqAsStr]'
-                                                       |""".stripMargin))
+                                       |Expecting an Array[Long] but found '[$seqAsStr]' where
+                                       |${e.getMessage}
+                                       |""".stripMargin))
     }
 
-  private def tryAsInt(n: Number, propertyName: String): Either[CdfSparkException, Int] = {
+  private def tryAsInt(n: Any, propertyName: String): Either[CdfSparkException, Int] = {
     val nAsStr = String.valueOf(n)
     val bd = BigDecimal(nAsStr)
     if (bd.isValidInt) {
@@ -493,26 +494,27 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  private def tryAsIntSeq(ns: Seq[Number], propertyName: String): Either[CdfSparkException, Seq[Int]] =
+  private def tryAsIntSeq(ns: Seq[Any], propertyName: String): Either[CdfSparkException, Seq[Int]] =
     Try {
       skipNulls(ns).map { n =>
         val bd = BigDecimal(String.valueOf(n))
         if (bd.isValidInt) {
           bd.intValue()
         } else {
-          throw new IllegalArgumentException()
+          throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Int")
         }
       }
     } match {
       case Success(value) => Right(value)
-      case Failure(_) =>
+      case Failure(e) =>
         val seqAsStr = ns.map(String.valueOf).mkString(",")
         Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
-                                      |Expecting an Array[Int] but found '[$seqAsStr]'
+                                      |Expecting an Array[Int] but found '[$seqAsStr]' where
+                                      |${e.getMessage}
                                       |""".stripMargin))
     }
 
-  private def tryAsFloat(n: Number, propertyName: String): Either[CdfSparkException, Float] = {
+  private def tryAsFloat(n: Any, propertyName: String): Either[CdfSparkException, Float] = {
     val nAsStr = String.valueOf(n)
     val bd = BigDecimal(nAsStr)
     if (bd.isDecimalFloat) {
@@ -524,28 +526,27 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  private def tryAsFloatSeq(
-      ns: Seq[Number],
-      propertyName: String): Either[CdfSparkException, Seq[Float]] =
+  private def tryAsFloatSeq(ns: Seq[Any], propertyName: String): Either[CdfSparkException, Seq[Float]] =
     Try {
       skipNulls(ns).map { n =>
         val bd = BigDecimal(String.valueOf(n))
         if (bd.isDecimalFloat) {
           bd.floatValue()
         } else {
-          throw new IllegalArgumentException()
+          throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Float")
         }
       }
     } match {
       case Success(value) => Right(value)
-      case Failure(_) =>
+      case Failure(e) =>
         val seqAsStr = ns.map(String.valueOf).mkString(",")
         Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
                                       |Expecting an Array[Float] but found '[$seqAsStr]'
+                                      |${e.getMessage}
                                       |""".stripMargin))
     }
 
-  private def tryAsDouble(n: Number, propertyName: String): Either[CdfSparkException, Double] = {
+  private def tryAsDouble(n: Any, propertyName: String): Either[CdfSparkException, Double] = {
     val nAsStr = String.valueOf(n)
     val bd = BigDecimal(nAsStr)
     if (bd.isDecimalDouble) {
@@ -558,7 +559,7 @@ object FlexibleDataModelRelationUtils {
   }
 
   private def tryAsDoubleSeq(
-      ns: Seq[Number],
+      ns: Seq[Any],
       propertyName: String): Either[CdfSparkException, Seq[Double]] =
     Try {
       skipNulls(ns).map { n =>
@@ -566,18 +567,22 @@ object FlexibleDataModelRelationUtils {
         if (bd.isDecimalDouble) {
           bd.doubleValue()
         } else {
-          throw new IllegalArgumentException()
+          throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Double")
         }
       }
     } match {
       case Success(value) => Right(value)
-      case Failure(_) =>
+      case Failure(e) =>
         val seqAsStr = ns.map(String.valueOf).mkString(",")
         Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
-                                      |Expecting an Array[Double] but found '[$seqAsStr]'
+                                      |Expecting an Array[Double] but found '[$seqAsStr]' where
+                                      |${e.getMessage}
                                       |""".stripMargin))
     }
 
   private def skipNulls[T](seq: Seq[T]): Seq[T] =
     seq.filter(_ != null)
+
+  private def rowToString(row: Row): String =
+    Try(row.json).getOrElse(row.mkString(", "))
 }

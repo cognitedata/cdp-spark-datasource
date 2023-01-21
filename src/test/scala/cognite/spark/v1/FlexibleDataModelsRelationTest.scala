@@ -185,7 +185,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |null as intListProp2,
                 |array(101, null, 102, 103) as longListProp1,
                 |null as longListProp2,
-                |array(3.1, 3.2, 3.3) as floatListProp1,
+                |array(3.1, 3.2, 3.3, nvl(null, '3.4')) as floatListProp1,
                 |null as floatListProp2,
                 |array(null, 104.2, 104.3, 104.4) as doubleListProp1,
                 |null as doubleListProp2,
