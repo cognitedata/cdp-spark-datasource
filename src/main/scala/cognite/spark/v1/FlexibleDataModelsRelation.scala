@@ -104,7 +104,11 @@ class FlexibleDataModelsRelation(
                 .retrieveItems(v.map(vRef =>
                   DataModelReference(vRef.space, vRef.externalId, vRef.version)))
                 .map { inheritingViews =>
+                  // If there are properties with the same name,
+                  // most recent view's property will override the old view's property.
+                  // At the time of this implementation, there's no requirement on this matter.
                   val inheritingProperties = inheritingViews
+                    .sortBy(_.createdTime)(Ordering[Long].reverse)
                     .map(_.properties)
                     .reduce((propMap1, propMap2) => propMap1 ++ propMap2)
 
@@ -597,6 +601,9 @@ class FlexibleDataModelsRelation(
       case e: InstanceDefinition.EdgeDefinition => (e.externalId, e.properties)
     }
 
+    // Merging all the properties without considering the space & view/container externalId
+    // At the time of this impl there is no requirement to consider properties with same name
+    // in different view/containers
     val allAvailablePropValues =
       properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
 

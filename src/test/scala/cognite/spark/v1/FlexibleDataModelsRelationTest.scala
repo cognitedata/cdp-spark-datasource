@@ -16,12 +16,10 @@ import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.catalyst.analysis.UnresolvedSubqueryColumnAliases
-import org.apache.spark.sql.catalyst.expressions.In
 import org.scalatest.{FlatSpec, Matchers}
 
-import java.time.{LocalDate, LocalDateTime, ZonedDateTime}
 import java.time.format.DateTimeFormatter
+import java.time.{LocalDate, ZonedDateTime}
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.util.{Success, Try}
@@ -181,17 +179,17 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |    'space', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode,
-                |array('stringListProp1Val', 'stringListProp2Val') as stringListProp1,
+                |array('stringListProp1Val', null, 'stringListProp2Val') as stringListProp1,
                 |null as stringListProp2,
                 |array(1, 2, 3) as intListProp1,
                 |null as intListProp2,
-                |array(101, 102, 103) as longListProp1,
+                |array(101, null, 102, 103) as longListProp1,
                 |null as longListProp2,
                 |array(3.1, 3.2, 3.3) as floatListProp1,
                 |null as floatListProp2,
-                |array(104.2, 104.3, 104.4) as doubleListProp1,
+                |array(null, 104.2, 104.3, 104.4) as doubleListProp1,
                 |null as doubleListProp2,
-                |array(true, true, false, false) as boolListProp1,
+                |array(true, true, false, null, false) as boolListProp1,
                 |null as boolListProp2,
                 |array('${LocalDate
                   .now()
@@ -241,6 +239,9 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
 
     result shouldBe Success(Vector((), (), ()))
     result.get.size shouldBe 3
+    getUpsertedMetricsCount(viewAll) shouldBe 1
+    getUpsertedMetricsCount(viewNodes) shouldBe 1
+    getUpsertedMetricsCount(viewEdges) shouldBe 1
   }
 
   // Blocked by filter 'values' issue
@@ -740,4 +741,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
 
   private def generateNodeExternalId: String = s"randomId${apiCompatibleRandomString()}"
 
+  private def getUpsertedMetricsCount(viewDef: ViewDefinition) =
+    getNumberOfRowsUpserted(
+      s"${viewDef.externalId}-${viewDef.version}",
+      FlexibleDataModelsRelation.ResourceType)
 }

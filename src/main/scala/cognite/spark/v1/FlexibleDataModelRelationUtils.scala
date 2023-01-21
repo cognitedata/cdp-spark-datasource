@@ -299,9 +299,7 @@ object FlexibleDataModelRelationUtils {
       propDef: PropertyDefinition): Either[CdfSparkException, Option[InstancePropertyValue]] = {
     val instancePropertyValueResult = propDef.`type` match {
       case DirectNodeRelationProperty(_) => // TODO: Verify this
-        row
-          .getSeq[String](schema.fieldIndex(propertyName))
-          .toVector
+        skipNulls(row.getSeq[String](schema.fieldIndex(propertyName))).toVector
           .traverse(io.circe.parser.parse)
           .map(l => Some(InstancePropertyValue.ObjectList(l)))
           .leftMap(e =>
@@ -346,9 +344,9 @@ object FlexibleDataModelRelationUtils {
       val propVal = fieldIndex.toOption.traverse { i =>
         propDef.`type` match {
           case TextProperty(Some(true), _) =>
-            Try(InstancePropertyValue.StringList(row.getSeq[String](i))).toEither
+            Try(InstancePropertyValue.StringList(skipNulls(row.getSeq[String](i)))).toEither
           case PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
-            Try(InstancePropertyValue.BooleanList(row.getSeq[Boolean](i))).toEither
+            Try(InstancePropertyValue.BooleanList(skipNulls(row.getSeq[Boolean](i)))).toEither
           case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
             tryAsFloatSeq(row.getSeq[Number](i), propertyName).map(InstancePropertyValue.Float32List)
           case PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
@@ -359,28 +357,22 @@ object FlexibleDataModelRelationUtils {
             tryAsLongSeq(row.getSeq[Number](i), propertyName).map(InstancePropertyValue.Int64List)
           case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
             Try(
-              InstancePropertyValue.TimestampList(
-                row
-                  .getSeq[String](i)
-                  .map(ZonedDateTime.parse(_, DateTimeFormatter.ISO_ZONED_DATE_TIME)))).toEither
+              InstancePropertyValue.TimestampList(skipNulls(row.getSeq[String](i))
+                .map(ZonedDateTime.parse(_, DateTimeFormatter.ISO_ZONED_DATE_TIME)))).toEither
               .leftMap(e => new CdfSparkException(s"""
                                                      |Error parsing value of field '$propertyName' as a list of ISO formatted zoned timestamps: ${e.getMessage}
                                                      |Expected timestamp format is: ${DateTimeFormatter.ISO_ZONED_DATE_TIME.toString}
                                                      |""".stripMargin))
           case PrimitiveProperty(PrimitivePropType.Date, Some(true)) =>
             Try(
-              InstancePropertyValue.DateList(
-                row
-                  .getSeq[String](i)
-                  .map(LocalDate.parse(_, DateTimeFormatter.ISO_LOCAL_DATE)))).toEither
+              InstancePropertyValue.DateList(skipNulls(row.getSeq[String](i))
+                .map(LocalDate.parse(_, DateTimeFormatter.ISO_LOCAL_DATE)))).toEither
               .leftMap(e => new CdfSparkException(s"""
                                                      |Error parsing value of field '$propertyName' as a list of ISO formatted dates: ${e.getMessage}
                                                      |Expected date format is: ${DateTimeFormatter.ISO_LOCAL_DATE.toString}
                                                      |""".stripMargin))
           case PrimitiveProperty(PrimitivePropType.Json, Some(true)) | DirectNodeRelationProperty(_) =>
-            row
-              .getSeq[String](i)
-              .toVector
+            skipNulls(row.getSeq[String](i)).toVector
               .traverse(io.circe.parser.parse)
               .map(InstancePropertyValue.ObjectList.apply)
               .leftMap(e =>
@@ -470,12 +462,10 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  private def tryAsLongSeq(
-      decimals: Seq[Number],
-      propertyName: String): Either[CdfSparkException, Seq[Long]] =
+  private def tryAsLongSeq(ns: Seq[Number], propertyName: String): Either[CdfSparkException, Seq[Long]] =
     Try {
-      decimals.map { d =>
-        val bd = BigDecimal(String.valueOf(d))
+      skipNulls(ns).map { n =>
+        val bd = BigDecimal(String.valueOf(n))
         if (bd.isValidLong) {
           bd.longValue()
         } else {
@@ -485,7 +475,7 @@ object FlexibleDataModelRelationUtils {
     } match {
       case Success(value) => Right(value)
       case Failure(_) =>
-        val seqAsStr = decimals.map(String.valueOf).mkString(",")
+        val seqAsStr = ns.map(String.valueOf).mkString(",")
         Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
                                                        |Expecting an Array[Long] but found '[$seqAsStr]'
                                                        |""".stripMargin))
@@ -503,12 +493,10 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  private def tryAsIntSeq(
-      decimals: Seq[Number],
-      propertyName: String): Either[CdfSparkException, Seq[Int]] =
+  private def tryAsIntSeq(ns: Seq[Number], propertyName: String): Either[CdfSparkException, Seq[Int]] =
     Try {
-      decimals.map { d =>
-        val bd = BigDecimal(String.valueOf(d))
+      skipNulls(ns).map { n =>
+        val bd = BigDecimal(String.valueOf(n))
         if (bd.isValidInt) {
           bd.intValue()
         } else {
@@ -518,7 +506,7 @@ object FlexibleDataModelRelationUtils {
     } match {
       case Success(value) => Right(value)
       case Failure(_) =>
-        val seqAsStr = decimals.map(String.valueOf).mkString(",")
+        val seqAsStr = ns.map(String.valueOf).mkString(",")
         Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
                                       |Expecting an Array[Int] but found '[$seqAsStr]'
                                       |""".stripMargin))
@@ -537,11 +525,11 @@ object FlexibleDataModelRelationUtils {
   }
 
   private def tryAsFloatSeq(
-      decimals: Seq[Number],
+      ns: Seq[Number],
       propertyName: String): Either[CdfSparkException, Seq[Float]] =
     Try {
-      decimals.map { d =>
-        val bd = BigDecimal(String.valueOf(d))
+      skipNulls(ns).map { n =>
+        val bd = BigDecimal(String.valueOf(n))
         if (bd.isDecimalFloat) {
           bd.floatValue()
         } else {
@@ -551,7 +539,7 @@ object FlexibleDataModelRelationUtils {
     } match {
       case Success(value) => Right(value)
       case Failure(_) =>
-        val seqAsStr = decimals.map(String.valueOf).mkString(",")
+        val seqAsStr = ns.map(String.valueOf).mkString(",")
         Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
                                       |Expecting an Array[Float] but found '[$seqAsStr]'
                                       |""".stripMargin))
@@ -570,11 +558,11 @@ object FlexibleDataModelRelationUtils {
   }
 
   private def tryAsDoubleSeq(
-      decimals: Seq[Number],
+      ns: Seq[Number],
       propertyName: String): Either[CdfSparkException, Seq[Double]] =
     Try {
-      decimals.map { d =>
-        val bd = BigDecimal(String.valueOf(d))
+      skipNulls(ns).map { n =>
+        val bd = BigDecimal(String.valueOf(n))
         if (bd.isDecimalDouble) {
           bd.doubleValue()
         } else {
@@ -584,9 +572,12 @@ object FlexibleDataModelRelationUtils {
     } match {
       case Success(value) => Right(value)
       case Failure(_) =>
-        val seqAsStr = decimals.map(String.valueOf).mkString(",")
+        val seqAsStr = ns.map(String.valueOf).mkString(",")
         Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
                                       |Expecting an Array[Double] but found '[$seqAsStr]'
                                       |""".stripMargin))
     }
+
+  private def skipNulls[T](seq: Seq[T]): Seq[T] =
+    seq.filter(_ != null)
 }
