@@ -25,7 +25,7 @@ object RowToJson {
     *
     * @return a JsonObject
     */
-  def toJson(row: Row, dataType: StructType): Json = {
+  def toJson(row: Row, schema: StructType): Json = {
     if (row == null) {
       return Json.Null
     }
@@ -34,7 +34,7 @@ object RowToJson {
         s"Schema for $row is null. The input row needs a schema, because it must be matched with the schema of the output format.")
     }
     val rowFields = row.schema.map(f => f.name -> row.get(row.fieldIndex(f.name))).toMap
-    val jsonFields = dataType.toList
+    val jsonFields = schema.toList
       .flatMap(
         structField =>
           rowFields

@@ -68,6 +68,7 @@ object JsonObjectToRow {
         case DoubleType => jsonValue.asNumber.map(_.toDouble)
         case IntegerType => jsonValue.asNumber.flatMap(_.toInt)
         case LongType => jsonValue.asNumber.flatMap(_.toLong)
+        case BooleanType => jsonValue.asBoolean
         case _ =>
           throw new CdfSparkException(
             s"Conversion to type ${dataType.typeName} is not supported for WDL, element $structFieldName.")
