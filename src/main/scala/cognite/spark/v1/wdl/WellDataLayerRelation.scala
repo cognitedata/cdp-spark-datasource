@@ -10,14 +10,14 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 class WellDataLayerRelation(
     config: RelationConfig,
-    model: String,
+    model: String
 )(override val sqlContext: SQLContext)
     extends BaseRelation
     with WritableRelation
     with TableScan
     with Serializable {
 
-  @transient private lazy val client = WdlClient.fromConfig(config)
+  @transient private lazy val client = WellDataLayerClient.fromConfig(config)
 
   override def schema: StructType = client.getSchema(model)
 
@@ -25,11 +25,11 @@ class WellDataLayerRelation(
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val jsons = rows.map(row => {
-      val jsonObj = RowConversion.convertToJson(row, schema)
-      if (jsonObj == null) {
+      val rowJson = RowToJson.toJson(row, schema)
+      if (rowJson.isNull) {
         sys.error("This json object is null!")
       }
-      jsonObj
+      rowJson
     })
 
     val items = Items(jsons)
@@ -45,10 +45,10 @@ class WellDataLayerRelation(
     IO.unit
 
   override def buildScan(): RDD[Row] =
-    new WdlRDD(
+    new WellDataLayerRDD(
       sparkContext = sqlContext.sparkContext,
       schema = schema,
       model = model,
-      config = config,
+      config = config
     )
 }

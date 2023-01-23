@@ -3,7 +3,7 @@ package cognite.spark.v1.wdl
 import io.circe.generic.auto._
 import org.apache.spark.sql.types.StructType
 
-class TestWdlClient(val client: WdlClient) {
+class TestWdlClient(val client: WellDataLayerClient) {
 
   def getSchema(name: String): StructType = client.getSchema(name)
 

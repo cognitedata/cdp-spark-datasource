@@ -1,6 +1,6 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{DataFrameMatcher, WDLSparkTest}
+import cognite.spark.v1.DataFrameMatcher
 import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
 
@@ -42,7 +42,7 @@ class WDLTrajectoriesTest
       .sql(s"""with r as
            | (select wellboreAssetExternalId,
            |  collect_list(
-           |    named_struct("azimuth", azimuth, "inclination", inclination, "measuredDepth", measuredDepth, ", "doglegSeverity", doglegSeverity)
+           |    named_struct("azimuth", azimuth, "inclination", inclination, "measuredDepth", measuredDepth, "doglegSeverity", doglegSeverity)
            |  ) as rows
            | from wdl_test_trajectory_rows
            | group by wellboreAssetExternalId)

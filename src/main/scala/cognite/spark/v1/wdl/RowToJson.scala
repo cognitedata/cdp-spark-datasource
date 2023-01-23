@@ -1,7 +1,7 @@
 package cognite.spark.v1.wdl
 
 import cognite.spark.v1.CdfSparkException
-import cognite.spark.v1.wdl.implicits.RequiredOption
+import cognite.spark.v1.wdl.JsonObjectToRow.RequiredOption
 import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.util.{DateFormatter, DateTimeUtils, TimestampFormatter}
@@ -14,7 +14,7 @@ import java.time.{Instant, LocalDate}
 import scala.collection.mutable
 
 // scalastyle:off
-object RowConversion {
+object RowToJson {
 
   /**
     * Creates a JsonObject from the values of `row` with the schema of `schema`.
@@ -25,7 +25,7 @@ object RowConversion {
     *
     * @return a JsonObject
     */
-  def convertToJson(row: Row, dataType: StructType): Json = {
+  def toJson(row: Row, dataType: StructType): Json = {
     if (row == null) {
       return Json.Null
     }
@@ -35,7 +35,7 @@ object RowConversion {
     }
     val rowFields = row.schema.map(f => f.name -> row.get(row.fieldIndex(f.name))).toMap
     val jsonFields = dataType.toList
-      .map(
+      .flatMap(
         structField =>
           rowFields
             .get(structField.name)
@@ -44,7 +44,8 @@ object RowConversion {
                 convertToJson(rowField, structField.dataType, structField.name, structField.nullable)
               structField.name -> converted
             })
-            .orThrow(structField.name, structField.nullable))
+            .orThrow(structField.name, structField.nullable)
+      )
       .toMap
     val jsonObject = JsonObject.fromMap(jsonFields)
     Json.fromJsonObject(jsonObject)
@@ -69,10 +70,10 @@ object RowConversion {
 
     // Convert an iterator of values to a json array
     def iteratorToJsonArray(iterator: Iterator[_], elementType: DataType): Json =
-      Json.fromValues(iterator.map(toJson(_, elementType)).toList)
+      Json.fromValues(iterator.map(toJsonHelper(_, elementType)).toList)
 
     // Convert a value to json.
-    def toJson(value: Any, dataType: DataType): Json = (value, dataType) match {
+    def toJsonHelper(value: Any, dataType: DataType): Json = (value, dataType) match {
       case (null, _) => Json.Null
       case (b: Boolean, _) => Json.fromBoolean(b)
       case (b: Byte, _) => Json.fromInt(b.toInt)
@@ -98,24 +99,25 @@ object RowConversion {
         iteratorToJsonArray(s.iterator, elementType)
       case (m: Map[String @unchecked, _], MapType(StringType, valueType, _)) =>
         Json.fromFields(m.toList.sortBy(_._1).map {
-          case (k, v) => k -> toJson(v, valueType)
+          case (k, v) => k -> toJsonHelper(v, valueType)
         })
       case (m: Map[_, _], MapType(keyType, valueType, _)) =>
         Json.fromValues(m.iterator.map {
           case (k, v) =>
-            Json.fromFields("key" -> toJson(k, keyType) :: "value" -> toJson(v, valueType) :: Nil)
+            Json.fromFields(
+              "key" -> toJsonHelper(k, keyType) :: "value" -> toJsonHelper(v, valueType) :: Nil)
         }.toList)
-      case (r: Row, s: StructType) => convertToJson(r, s)
+      case (r: Row, s: StructType) => toJson(r, s)
 //      case (v: Any, udt: UserDefinedType[Any @unchecked]) =>
 //        val dataType = udt.sqlType
-//        toJson(CatalystTypeConverters.convertToScala(udt.serialize(v), dataType), dataType)
+//        toJsonHelper(CatalystTypeConverters.convertToScala(udt.serialize(v), dataType), dataType)
       case _ =>
         throw new CdfSparkException(
           s"Failed to convert value $value " +
             s"(class of ${value.getClass}}) with the type of $dataType to JSON.")
     }
 
-    val json = toJson(dataValue, dataType)
+    val json = toJsonHelper(dataValue, dataType)
     if (json.isNull && !nullable) {
       throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $dataValue")
     }

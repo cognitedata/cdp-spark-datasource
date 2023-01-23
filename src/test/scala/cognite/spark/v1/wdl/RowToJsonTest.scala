@@ -4,9 +4,9 @@ import io.circe.Printer
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.scalatest.{FlatSpec, Matchers}
 
-class RowConversionTest extends FlatSpec with Matchers /*with ParallelTestExecution*/ {
+class RowToJsonTest extends FlatSpec with Matchers /*with ParallelTestExecution*/ {
   it should "convert a Row with number types into a JsonObject" in {
     val schema = new StructType()
       .add("double", DoubleType)
@@ -26,7 +26,7 @@ class RowConversionTest extends FlatSpec with Matchers /*with ParallelTestExecut
       schema
     )
 
-    val json = RowConversion.convertToJson(input, schema)
+    val json = RowToJson.toJson(input, schema)
     val actual = json.printWith(Printer.spaces2.withSortedKeys)
     val expected =
       """{
@@ -60,7 +60,7 @@ class RowConversionTest extends FlatSpec with Matchers /*with ParallelTestExecut
       schema
     )
 
-    val json = RowConversion.convertToJson(input, schema)
+    val json = RowToJson.toJson(input, schema)
     val actual = json.printWith(Printer.spaces2.withSortedKeys)
     val expected =
       """{
@@ -96,7 +96,7 @@ class RowConversionTest extends FlatSpec with Matchers /*with ParallelTestExecut
     )
 
     val expectedException = intercept[RuntimeException] {
-      RowConversion.convertToJson(input, schema)
+      RowToJson.toJson(input, schema)
     }
 
     assert(expectedException.getMessage.startsWith("Element "))
@@ -120,7 +120,7 @@ class RowConversionTest extends FlatSpec with Matchers /*with ParallelTestExecut
       schema
     )
 
-    val json = RowConversion.convertToJson(input, schema)
+    val json = RowToJson.toJson(input, schema)
     val actual = json.printWith(Printer.spaces2.withSortedKeys)
     val expected =
       """{
@@ -151,7 +151,7 @@ class RowConversionTest extends FlatSpec with Matchers /*with ParallelTestExecut
         new StructType()
           .add("assetExternalId", StringType)
           .add("sourceName", StringType))
-    val json = RowConversion.convertToJson(input, schema)
+    val json = RowToJson.toJson(input, schema)
     val actual = json.printWith(Printer.spaces2.withSortedKeys)
     val expected =
       """{
@@ -180,7 +180,7 @@ class RowConversionTest extends FlatSpec with Matchers /*with ParallelTestExecut
       schema
     )
 
-    val json = RowConversion.convertToJson(input, schema)
+    val json = RowToJson.toJson(input, schema)
     val actual = json.printWith(Printer.spaces2.withSortedKeys)
     val expected =
       """{

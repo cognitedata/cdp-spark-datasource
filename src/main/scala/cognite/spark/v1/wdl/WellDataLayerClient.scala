@@ -12,18 +12,17 @@ import io.circe.syntax.EncoderOps
 import io.circe.{Decoder, Encoder, Json, JsonObject}
 import org.apache.logging.log4j.LogManager.getLogger
 import org.apache.spark.sql.types.{DataType, StructType}
-import sttp.client3.circe._
-import sttp.client3.{Empty, RequestT, ResponseException, SttpBackend, UriContext, basicRequest}
+import sttp.client3.{Empty, RequestT, SttpBackend, UriContext, basicRequest}
 
 import scala.concurrent.duration.DurationInt
 
-object WdlClient {
-  def fromConfig(config: RelationConfig): WdlClient = {
+object WellDataLayerClient {
+  def fromConfig(config: RelationConfig): WellDataLayerClient = {
     import CdpConnector._
 
     val authProvider = config.auth.provider(implicitly, backend)
 
-    new WdlClient(
+    new WellDataLayerClient(
       baseUrl = config.baseUrl,
       projectName = config.projectName,
       maxRetries = config.maxRetries,
@@ -36,13 +35,13 @@ object WdlClient {
 
 case class LimitRequest(limit: Option[Int])
 
-class WdlClient(
+class WellDataLayerClient(
     baseUrl: String,
     val projectName: String,
     maxRetries: Int,
     maxRetryDelaySeconds: Int,
     parallelismPerPartition: Int,
-    authProvider: AuthProvider[IO],
+    authProvider: AuthProvider[IO]
 ) {
   import CdpConnector._
 
@@ -51,15 +50,13 @@ class WdlClient(
   implicit val decoder: Decoder[ItemsWithCursor[JsonObject]] = deriveDecoder
   implicit val encoder: Encoder[Items[JsonObject]] = deriveEncoder
 
-//  println(s"base url: $baseUrl") // So that the warning isn't fatal.
-  private val basePath = uri"http://localhost:8080/api/playground/projects/${projectName}/wdl"
-//  private val basePath = uri"$baseUrl/api/playground/projects/$projectName/wdl"
+  private val basePath = uri"$baseUrl/api/playground/projects/$projectName/wdl"
 
   implicit val sttpBackend: SttpBackend[IO, Any] = {
     val retryingBackend = retryingSttpBackend(
       maxRetries,
       maxRetryDelaySeconds,
-      parallelismPerPartition,
+      parallelismPerPartition
     )
     new AuthSttpBackend[IO, Any](
       retryingBackend,
@@ -76,12 +73,12 @@ class WdlClient(
 
   def post[Input, Output](url: String, body: Input)(
       implicit encoder: Encoder[Input],
-      decoder: Decoder[Output],
+      decoder: Decoder[Output]
   ): Output = {
-    logger.info(s"POST $url")
     val bodyAsJson = body.asJson.noSpaces
     val urlParts = url.split("/")
     val fullUrl = uri"$basePath/$urlParts"
+    logger.info(s"POST $fullUrl")
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")
@@ -102,11 +99,11 @@ class WdlClient(
   }
 
   def get[Output](url: String)(
-      implicit decoder: Decoder[Output],
+      implicit decoder: Decoder[Output]
   ): Output = {
-    logger.info(s"GET $url")
     val urlParts = url.split("/")
     val fullUrl = uri"$basePath/$urlParts"
+    logger.info(s"GET  $fullUrl")
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")
@@ -130,6 +127,7 @@ class WdlClient(
     //     val response = get[String](s"spark/structtypes/$modelType") // this should have worked.
     // So, it has to be done like this:
     val url = uri"$basePath/spark/structtypes/$modelType"
+    logger.info(s"Getting schema for $modelType: $url")
     val response = sttpRequest
       .contentType("application/json")
       .header("accept", "application/json")
@@ -138,16 +136,20 @@ class WdlClient(
       .map(_.body)
       .unsafeRunSync()
       .merge
-    DataType.fromJson(response).asInstanceOf[StructType]
+
+    DataType.fromJson(response) match {
+      case s @ StructType(_) => s
+      case _ => throw new CdfSparkException("Failed to decode well-data-layer schema into StructType")
+    }
   }
 
   def getItems(modelType: String): ItemsWithCursor[JsonObject] = {
     val url: String = getReadUrlPart(modelType).mkString("/")
-    val input = LimitRequest(limit = None)
+    logger.info(s"Getting items from $modelType")
     if (modelType == "Source") {
       get[ItemsWithCursor[JsonObject]](url)
     } else {
-      post[LimitRequest, ItemsWithCursor[JsonObject]](url, input)
+      post[LimitRequest, ItemsWithCursor[JsonObject]](url, LimitRequest(limit = None))
     }
   }
 
@@ -175,26 +177,7 @@ class WdlClient(
     }
 
   def setItems(modelType: String, items: Items[Json]): ItemsWithCursor[JsonObject] = {
-    val url = uri"$basePath/${getWriteUrlPart(modelType)}"
-    val response = sttpRequest
-      .contentType("application/json")
-      .header("accept", "application/json")
-      .body(items)
-      .post(url)
-      .response(asJson[ItemsWithCursor[JsonObject]])
-      .send(sttpBackend)
-      .map(_.body)
-      .unsafeRunSync()
-
-    handleResponse(response)
+    logger.info(s"Settings items of type=$modelType")
+    post[Items[Json], ItemsWithCursor[JsonObject]](getWriteUrlPart(modelType), items)
   }
-
-  private def handleResponse[O](
-      response: Either[ResponseException[String, io.circe.Error], ItemsWithCursor[O]])
-    : ItemsWithCursor[O] =
-    response match {
-      case Left(e) =>
-        throw new CdfSparkException(s"Failed to run WDL query: $e")
-      case Right(a) => a
-    }
 }

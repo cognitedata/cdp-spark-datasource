@@ -1,6 +1,6 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{DataFrameMatcher, WDLSparkTest}
+import cognite.spark.v1.DataFrameMatcher
 import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
 

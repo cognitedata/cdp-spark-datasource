@@ -1,29 +1,38 @@
-package cognite.spark.v1
+package cognite.spark.v1.wdl
 
 import cats.effect.IO
-import cognite.spark.v1.wdl.{TestWdlClient, WdlClient}
-import com.cognite.sdk.scala.common.OAuth2
+import cognite.spark.v1.{
+  AssetSubtreeOption,
+  CdfSparkAuth,
+  CdpConnector,
+  Constants,
+  OnConflictOption,
+  OptionalField,
+  RelationConfig
+}
+import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Encoder, SparkSession}
 import org.scalactic.{Prettifier, source}
 import org.scalatest.Matchers
-import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
+import org.scalatest.prop.Tables.Table
 import sttp.client3.SttpBackend
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 import java.io.IOException
 import java.util.UUID
 import scala.concurrent.TimeoutException
-import scala.concurrent.duration._
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
 
-
 trait WDLSparkTest {
   import CdpConnector.ioRuntime
+
+  val useLocalWellDataLayer = false
 
   implicit def single[A](
       implicit c: ClassTag[OptionalField[A]],
@@ -33,7 +42,6 @@ trait WDLSparkTest {
 
       override def clsTag: ClassTag[OptionalField[A]] = c
     }
-
 
   val spark: SparkSession = SparkSession
     .builder()
@@ -47,7 +55,7 @@ trait WDLSparkTest {
     .getOrCreate()
 
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
-  spark.sparkContext.setLogLevel("OFF")
+  spark.sparkContext.setLogLevel("INFO")
 
   object OIDCWrite {
     val clientId: String = sys.env("TEST_CLIENT_ID_BLUEFIELD")
@@ -66,30 +74,42 @@ trait WDLSparkTest {
     OIDCWrite.project
   )
 
-  implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
-
-  protected val config: RelationConfig = getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(writeCredentials))
-  protected val wdlClient: WdlClient = WdlClient.fromConfig(config)
+  protected val config: RelationConfig = if (useLocalWellDataLayer) {
+    getDefaultConfig(CdfSparkAuth.Static(ApiKeyAuth("something something")))
+  } else {
+    implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
+    getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(writeCredentials))
+  }
+  protected val wdlClient: WellDataLayerClient = WellDataLayerClient.fromConfig(config)
   protected val client = new TestWdlClient(wdlClient)
 
   implicit class DataFrameWriterHelper[T](df: DataFrameWriter[T]) {
     def useOIDCWrite: DataFrameWriter[T] =
-      df.option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+      if (useLocalWellDataLayer) {
+        df.option("apiKey", "not in use")
+          .option("baseUrl", "http://localhost:8080")
+      } else {
+        df.option("tokenUri", OIDCWrite.tokenUri)
+          .option("clientId", OIDCWrite.clientId)
+          .option("clientSecret", OIDCWrite.clientSecret)
+          .option("project", OIDCWrite.project)
+          .option("scopes", OIDCWrite.scopes)
+      }
   }
 
   implicit class DataFrameReaderHelper(df: DataFrameReader) {
     def useOIDCWrite: DataFrameReader =
-      df.option("tokenUri", OIDCWrite.tokenUri)
-        .option("clientId", OIDCWrite.clientId)
-        .option("clientSecret", OIDCWrite.clientSecret)
-        .option("project", OIDCWrite.project)
-        .option("scopes", OIDCWrite.scopes)
+      if (useLocalWellDataLayer) {
+        df.option("apiKey", "not in use")
+          .option("baseUrl", "http://localhost:8080")
+      } else {
+        df.option("tokenUri", OIDCWrite.tokenUri)
+          .option("clientId", OIDCWrite.clientId)
+          .option("clientSecret", OIDCWrite.clientSecret)
+          .option("project", OIDCWrite.project)
+          .option("scopes", OIDCWrite.scopes)
+      }
   }
-
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
@@ -149,7 +169,11 @@ trait WDLSparkTest {
       collectMetrics = false,
       collectTestMetrics = false,
       "",
-      Constants.DefaultBaseUrl,
+      if (useLocalWellDataLayer) {
+        "http://localhost:8080"
+      } else {
+        Constants.DefaultBaseUrl
+      },
       OnConflictOption.Abort,
       spark.sparkContext.applicationId,
       Constants.DefaultParallelismPerPartition,
