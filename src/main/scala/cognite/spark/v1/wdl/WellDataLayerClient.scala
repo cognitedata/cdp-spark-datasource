@@ -5,14 +5,15 @@ import cognite.spark.v1.udf.CogniteUdfs.backend
 import cognite.spark.v1.{CdfSparkException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.common.{AuthProvider, Items, ItemsWithCursor}
 import com.cognite.sdk.scala.v1.AuthSttpBackend
+import io.circe.generic.auto._
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Decoder, Encoder, JsonObject}
-import org.apache.spark.sql.types.{DataType, StructType}
-import sttp.client3.{Empty, RequestT, SttpBackend, UriContext, basicRequest}
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
+import io.circe.{Decoder, Encoder, Json, JsonObject}
 import org.apache.logging.log4j.LogManager.getLogger
-import io.circe.generic.auto._
+import org.apache.spark.sql.types.{DataType, StructType}
+import sttp.client3.{Empty, RequestT, SttpBackend, UriContext, basicRequest}
+
 import scala.concurrent.duration.DurationInt
 
 object WellDataLayerClient {
@@ -158,6 +159,7 @@ class WellDataLayerClient(
       case "Npt" => Seq("npt", "list")
       case "Nds" => Seq("npt", "list")
       case "CasingSchematic" => Seq("casings", "list")
+      case "Trajectory" => Seq("trajectories", "list")
       case "Source" => Seq("sources")
       case _ => sys.error(s"Unknown model type: $modelType")
     }
@@ -169,12 +171,13 @@ class WellDataLayerClient(
       case "Npt" => "npt"
       case "Nds" => "npt"
       case "CasingSchematic" => "casings"
+      case "Trajectory" => "trajectories"
       case "Source" => "sources"
       case _ => sys.error(s"Unknown model type: $modelType")
     }
 
-  def setItems(modelType: String, items: Items[JsonObject]): ItemsWithCursor[JsonObject] = {
+  def setItems(modelType: String, items: Items[Json]): ItemsWithCursor[JsonObject] = {
     logger.info(s"Settings items of type=$modelType")
-    post[Items[JsonObject], ItemsWithCursor[JsonObject]](getWriteUrlPart(modelType), items)
+    post[Items[Json], ItemsWithCursor[JsonObject]](getWriteUrlPart(modelType), items)
   }
 }

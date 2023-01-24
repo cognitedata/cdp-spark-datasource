@@ -9,6 +9,8 @@ object JsonObjectToRow {
   implicit class RequiredOption[T](optionValue: Option[T]) {
     def orThrow(structFieldName: String, nullable: Boolean): Option[T] =
       optionValue match {
+        case Some(Some(_)) =>
+          throw new CdfSparkException(s"Option should not contain option, but it is: $optionValue")
         case None | Some(null) => // scalastyle:ignore null
           if (nullable) {
             None
@@ -34,13 +36,6 @@ object JsonObjectToRow {
             .orThrow(structField.name, structField.nullable)
             .orNull
       )
-
-      // Assert that the types are not options.
-      cols.foreach {
-        case it @ (Some(_) | None) =>
-          throw new CdfSparkException(s"Bad type for struct value. Should not be option, but was: $it")
-        case _ => {}
-      }
 
       val row = Row.fromSeq(cols)
       Some(row)
@@ -73,6 +68,7 @@ object JsonObjectToRow {
         case DoubleType => jsonValue.asNumber.map(_.toDouble)
         case IntegerType => jsonValue.asNumber.flatMap(_.toInt)
         case LongType => jsonValue.asNumber.flatMap(_.toLong)
+        case BooleanType => jsonValue.asBoolean
         case _ =>
           throw new CdfSparkException(
             s"Conversion to type ${dataType.typeName} is not supported for WDL, element $structFieldName.")
