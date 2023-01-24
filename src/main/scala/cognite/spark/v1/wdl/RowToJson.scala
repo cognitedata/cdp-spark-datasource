@@ -25,6 +25,7 @@ object RowToJson {
     *
     * @return a JsonObject
     */
+  @SuppressWarnings(Array("DisableSyntax.return"))
   def toJson(row: Row, schema: StructType): Json = {
     if (row == null) {
       return Json.Null
@@ -51,6 +52,7 @@ object RowToJson {
     Json.fromJsonObject(jsonObject)
   }
 
+  @SuppressWarnings(Array("DisableSyntax.return"))
   private def convertToJson(
       dataValue: Any,
       dataType: DataType,

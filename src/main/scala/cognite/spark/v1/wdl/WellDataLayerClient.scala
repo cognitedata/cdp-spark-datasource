@@ -52,7 +52,7 @@ class WellDataLayerClient(
 
   private val basePath = uri"$baseUrl/api/playground/projects/$projectName/wdl"
 
-  implicit val sttpBackend: SttpBackend[IO, Any] = {
+  private implicit val sttpBackend: SttpBackend[IO, Any] = {
     val retryingBackend = retryingSttpBackend(
       maxRetries,
       maxRetryDelaySeconds,

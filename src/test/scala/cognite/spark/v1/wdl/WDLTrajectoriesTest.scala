@@ -27,7 +27,6 @@ class WDLTrajectoriesTest
 
   it should "ingest and read bent trajectory" in {
     val testTrajectoryIngestionRowsDF = spark.read
-//      .schema(client.getSchema("TrajectoryIngestionRow"))
       .json("src/test/resources/wdl-test-trajectory-rows.jsonl")
     testTrajectoryIngestionRowsDF.createOrReplaceTempView("wdl_test_trajectory_rows")
 
@@ -39,13 +38,19 @@ class WDLTrajectoriesTest
     testTrajectoryIngestionsDF.printSchema()
 
     val testIngestionsDF = spark
-      .sql(s"""with r as
-           | (select wellboreAssetExternalId,
-           |  collect_list(
-           |    named_struct("azimuth", azimuth, "inclination", inclination, "measuredDepth", measuredDepth, "doglegSeverity", doglegSeverity)
-           |  ) as rows
-           | from wdl_test_trajectory_rows
-           | group by wellboreAssetExternalId)
+      .sql(s"""with r as (
+           |  select wellboreAssetExternalId,
+           |    collect_list(
+           |      named_struct(
+           |        "azimuth", azimuth,
+           |        "inclination", inclination,
+           |        "measuredDepth", measuredDepth,
+           |        "doglegSeverity", doglegSeverity
+           |      )
+           |    ) as rows
+           |   from wdl_test_trajectory_rows
+           |   group by wellboreAssetExternalId
+           | )
            | select
            |   t.wellboreAssetExternalId,
            |   t.source,
