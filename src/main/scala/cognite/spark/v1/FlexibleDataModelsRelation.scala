@@ -165,13 +165,14 @@ class FlexibleDataModelsRelation(
     }
 
     nodesOrEdges match {
-      case Left(err) => IO.raiseError(err)
-      case Right(items) => // TODO: error when empty or skip calling api?
+      case Right(items) if items.nonEmpty =>
         val instanceCreate = InstanceCreate(
           items = items,
           replace = Some(true)
         )
         alphaClient.instances.createItems(instanceCreate)
+      case Right(_) => IO.pure(Vector.empty)
+      case Left(err) => IO.raiseError(err)
     }
   }
 
