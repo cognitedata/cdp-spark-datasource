@@ -36,7 +36,7 @@ object FlexibleDataModelRelationUtils {
       propertyDefMap,
       rows)
 
-  def createEdges(
+  private[spark] def createEdges(
       instanceSpaceExternalId: String,
       rows: Seq[Row],
       schema: StructType,
@@ -49,7 +49,7 @@ object FlexibleDataModelRelationUtils {
       propertyDefMap,
       rows)
 
-  def createNodesOrEdges(
+  private[spark] def createNodesOrEdges(
       instanceSpaceExternalId: String,
       rows: Seq[Row],
       schema: StructType,
