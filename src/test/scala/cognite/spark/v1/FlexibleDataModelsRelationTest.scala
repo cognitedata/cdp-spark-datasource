@@ -38,17 +38,17 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   private val containerNodesExternalId = "sparkDatasourceTestContainerNodes5"
   private val containerEdgesExternalId = "sparkDatasourceTestContainerEdges5"
 
-  private val containerAllListExternalId = "sparkDatasourceTestContainerAllList5"
-  private val containerNodesListExternalId = "sparkDatasourceTestContainerNodesList5"
-  private val containerEdgesListExternalId = "sparkDatasourceTestContainerEdgesList5"
+  private val containerAllListExternalId = "sparkDatasourceTestContainerAllList6"
+  private val containerNodesListExternalId = "sparkDatasourceTestContainerNodesList6"
+  private val containerEdgesListExternalId = "sparkDatasourceTestContainerEdgesList6"
 
   private val viewAllExternalId = "sparkDatasourceTestViewAll5"
   private val viewNodesExternalId = "sparkDatasourceTestViewNodes5"
   private val viewEdgesExternalId = "sparkDatasourceTestViewEdges5"
 
-  private val viewAllListExternalId = "sparkDatasourceTestViewAllList5"
-  private val viewNodesListExternalId = "sparkDatasourceTestViewNodesList5"
-  private val viewEdgesListExternalId = "sparkDatasourceTestViewEdgesList5"
+  private val viewAllListExternalId = "sparkDatasourceTestViewAllList6"
+  private val viewNodesListExternalId = "sparkDatasourceTestViewNodesList6"
+  private val viewEdgesListExternalId = "sparkDatasourceTestViewEdgesList6"
 
   private val containerAllNumericProps = "sparkDatasourceTestContainerNumericProps1"
   private val viewAllNumericProps = "sparkDatasourceTestViewNumericProps1"
@@ -115,11 +115,11 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |null as doubleProp2,
                 |true as boolProp1,
                 |null as boolProp2,
-                |'${LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)}' as dateProp1,
+                |'${LocalDate.now().format(InstancePropertyValue.Date.formatter)}' as dateProp1,
                 |null as dateProp2,
                 |'${ZonedDateTime
                   .now()
-                  .format(DateTimeFormatter.ISO_ZONED_DATE_TIME)}' as timestampProp1,
+                  .format(InstancePropertyValue.Timestamp.formatter)}' as timestampProp1,
                 |null as timestampProp2,
                 |'{"a": "a", "b": 1}' as jsonProp1,
                 |null as jsonProp2
@@ -179,7 +179,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |    'space', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode,
-                |array('stringListProp1Val', null, 'stringListProp2Val') as stringListProp1,
+                |array('stringListProp1Val', null, 'stringListProp2Val', 24) as stringListProp1,
                 |null as stringListProp2,
                 |array(1, 2, 3) as intListProp1,
                 |null as intListProp2,
@@ -409,8 +409,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       "boolProp2" -> FDMContainerPropertyTypes.BooleanNonListWithDefaultValueNullable,
       "dateProp1" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNonNullable,
       "dateProp2" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNullable,
-//      "timestampProp1" -> FDMContainerPropertyTypes.TimestampNonListWithDefaultValueNonNullable,
-//      "timestampProp2" -> FDMContainerPropertyTypes.TimestampNonListWithDefaultValueNullable,
+      "timestampProp1" -> FDMContainerPropertyTypes.TimestampNonListWithDefaultValueNonNullable,
+      "timestampProp2" -> FDMContainerPropertyTypes.TimestampNonListWithDefaultValueNullable,
       "jsonProp1" -> FDMContainerPropertyTypes.JsonNonListWithDefaultValueNonNullable,
       "jsonProp2" -> FDMContainerPropertyTypes.JsonNonListWithDefaultValueNullable,
     )
@@ -441,8 +441,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       "boolListProp2" -> FDMContainerPropertyTypes.BooleanListWithoutDefaultValueNullable,
       "dateListProp1" -> FDMContainerPropertyTypes.DateListWithoutDefaultValueNonNullable,
       "dateListProp2" -> FDMContainerPropertyTypes.DateListWithoutDefaultValueNullable,
-//      "timestampListProp1" -> FDMContainerPropertyTypes.TimestampListWithoutDefaultValueNonNullable,
-//      "timestampListProp2" -> FDMContainerPropertyTypes.TimestampListWithoutDefaultValueNullable,
+      "timestampListProp1" -> FDMContainerPropertyTypes.TimestampListWithoutDefaultValueNonNullable,
+      "timestampListProp2" -> FDMContainerPropertyTypes.TimestampListWithoutDefaultValueNullable,
       "jsonListProp1" -> FDMContainerPropertyTypes.JsonListWithoutDefaultValueNonNullable,
       "jsonListProp2" -> FDMContainerPropertyTypes.JsonListWithoutDefaultValueNullable,
     )

@@ -24,7 +24,7 @@ import org.apache.spark.sql.types.DecimalType.{
 }
 import org.apache.spark.sql.types.{Decimal, DecimalType, StructField, StructType}
 
-import java.time.{LocalDate, ZonedDateTime}
+import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
 import java.time.format.DateTimeFormatter
 import scala.util.{Failure, Success, Try}
 
@@ -356,20 +356,28 @@ object FlexibleDataModelRelationUtils {
           case PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
             tryAsLongSeq(row.getSeq[Any](i), propertyName).map(InstancePropertyValue.Int64List)
           case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
+            val formatter = InstancePropertyValue.Timestamp.formatter
             Try(
               InstancePropertyValue.TimestampList(skipNulls(row.getSeq[String](i))
-                .map(ZonedDateTime.parse(_, DateTimeFormatter.ISO_ZONED_DATE_TIME)))).toEither
-              .leftMap(e => new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as a list of ISO formatted zoned timestamps: ${e.getMessage}
-                                                     |Expected timestamp format is: ${DateTimeFormatter.ISO_ZONED_DATE_TIME.toString}
-                                                     |""".stripMargin))
+                .map(ZonedDateTime.parse(_, formatter)))).toEither
+              .leftMap { e =>
+                val exampleTimestamp = ZonedDateTime
+                  .of(LocalDateTime.now(), ZoneId.of("Europe/Berlin"))
+                  .format(formatter)
+                new CdfSparkException(s"""
+                                                     |Error parsing value of field '$propertyName' as a list of timestamps: ${e.getMessage}
+                                                     |Expected timestamp format is: ${formatter.toString}
+                                                     |Eg: $exampleTimestamp
+                                                     |""".stripMargin)
+              }
           case PrimitiveProperty(PrimitivePropType.Date, Some(true)) =>
+            val formatter = InstancePropertyValue.Date.formatter
             Try(
               InstancePropertyValue.DateList(skipNulls(row.getSeq[String](i))
-                .map(LocalDate.parse(_, DateTimeFormatter.ISO_LOCAL_DATE)))).toEither
+                .map(LocalDate.parse(_, formatter)))).toEither
               .leftMap(e => new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as a list of ISO formatted dates: ${e.getMessage}
-                                                     |Expected date format is: ${DateTimeFormatter.ISO_LOCAL_DATE.toString}
+                                                     |Error parsing value of field '$propertyName' as a list of dates: ${e.getMessage}
+                                                     |Expected date format is: ${formatter.toString}
                                                      |""".stripMargin))
           case PrimitiveProperty(PrimitivePropType.Json, Some(true)) | DirectNodeRelationProperty(_) =>
             skipNulls(row.getSeq[String](i)).toVector
@@ -418,20 +426,26 @@ object FlexibleDataModelRelationUtils {
           case PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
             tryAsLong(row.get(i), propertyName).map(InstancePropertyValue.Int64)
           case PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
+            val formatter = InstancePropertyValue.Timestamp.formatter
             Try(
               InstancePropertyValue.Timestamp(ZonedDateTime
-                .parse(row.getString(i), DateTimeFormatter.ISO_ZONED_DATE_TIME))).toEither
-              .leftMap(e => new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as a list of ISO formatted zoned timestamps: ${e.getMessage}
-                                                     |Expected timestamp format is: ${DateTimeFormatter.ISO_ZONED_DATE_TIME.toString}
-                                                     |""".stripMargin))
+                .parse(row.getString(i), formatter))).toEither
+              .leftMap { e =>
+                val exampleTimestamp = ZonedDateTime
+                  .of(LocalDateTime.now(), ZoneId.of("Europe/Berlin"))
+                  .format(formatter)
+                new CdfSparkException(s"""
+                                                     |Error parsing value of field '$propertyName' as a list of timestamps: ${e.getMessage}
+                                                     |Expected timestamp format is: ${formatter.toString}
+                                                     |Eg: $exampleTimestamp
+                                                     |""".stripMargin)
+              }
           case PrimitiveProperty(PrimitivePropType.Date, None | Some(false)) =>
-            Try(
-              InstancePropertyValue.Date(
-                LocalDate.parse(row.getString(i), DateTimeFormatter.ISO_LOCAL_DATE))).toEither
+            val formatter = InstancePropertyValue.Date.formatter
+            Try(InstancePropertyValue.Date(LocalDate.parse(row.getString(i), formatter))).toEither
               .leftMap(e => new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as a list of ISO formatted dates: ${e.getMessage}
-                                                     |Expected date format is: ${DateTimeFormatter.ISO_LOCAL_DATE.toString}
+                                                     |Error parsing value of field '$propertyName' as a list of dates: ${e.getMessage}
+                                                     |Expected date format is: ${formatter.toString}
                                                      |""".stripMargin))
           case PrimitiveProperty(PrimitivePropType.Json, None | Some(false)) =>
             io.circe.parser
