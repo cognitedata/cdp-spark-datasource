@@ -2,30 +2,24 @@ package cognite.spark.v1
 
 import cats.Apply
 import cats.implicits._
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
   DirectNodeRelationProperty,
   PrimitiveProperty,
   TextProperty
 }
-import com.cognite.sdk.scala.v1.fdm.common.refs.SourceReference
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
+import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances.{
   DirectRelationReference,
   EdgeOrNodeData,
   InstancePropertyValue,
   NodeOrEdgeCreate
 }
-import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.DecimalType.{
-  is32BitDecimalType,
-  is64BitDecimalType,
-  isByteArrayDecimalType
-}
-import org.apache.spark.sql.types.{Decimal, DecimalType, StructField, StructType}
+import org.apache.spark.sql.types.StructType
 
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
-import java.time.format.DateTimeFormatter
 import scala.util.{Failure, Success, Try}
 
 object FlexibleDataModelRelationUtils {
@@ -34,11 +28,11 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row],
       schema: StructType,
       propertyDefMap: Map[String, PropertyDefinition],
-      destinationRef: SourceReference): Either[CdfSparkException, Vector[NodeWrite]] =
+      source: SourceReference): Either[CdfSparkException, Vector[NodeWrite]] =
     validateRowFieldsWithPropertyDefinitions(schema, propertyDefMap) *> createNodeWriteData(
       instanceSpaceExternalId,
       schema,
-      destinationRef,
+      source,
       propertyDefMap,
       rows)
 
@@ -47,11 +41,11 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row],
       schema: StructType,
       propertyDefMap: Map[String, PropertyDefinition],
-      destinationRef: SourceReference): Either[CdfSparkException, Vector[EdgeWrite]] =
+      source: SourceReference): Either[CdfSparkException, Vector[EdgeWrite]] =
     validateRowFieldsWithPropertyDefinitions(schema, propertyDefMap) *> createEdgeWriteData(
       instanceSpaceExternalId,
       schema,
-      destinationRef,
+      source,
       propertyDefMap,
       rows)
 
@@ -60,7 +54,7 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row],
       schema: StructType,
       propertyDefMap: Map[String, PropertyDefinition],
-      destinationRef: SourceReference
+      source: SourceReference
   ): Either[CdfSparkException, Vector[NodeOrEdgeCreate]] =
     rows.toVector.traverse { row =>
       for {
@@ -69,7 +63,7 @@ object FlexibleDataModelRelationUtils {
         writeData <- createNodeOrEdgeWriteData(
           externalId = externalId,
           instanceSpaceExternalId = instanceSpaceExternalId,
-          destinationRef,
+          source,
           edgeNodeTypeRelation = extractEdgeTypeDirectRelation(schema, row).toOption,
           startNodeRelation = extractEdgeStartNodeDirectRelation(schema, row).toOption,
           endNodeRelation = extractEdgeEndNodeDirectRelation(schema, row).toOption,
@@ -82,7 +76,7 @@ object FlexibleDataModelRelationUtils {
   private def createEdgeWriteData(
       instanceSpaceExternalId: String,
       schema: StructType,
-      destinationRef: SourceReference,
+      source: SourceReference,
       propertyDefMap: Map[String, PropertyDefinition],
       rows: Seq[Row]): Either[CdfSparkException, Vector[EdgeWrite]] =
     rows.toVector.traverse { row =>
@@ -101,7 +95,7 @@ object FlexibleDataModelRelationUtils {
           endNode = endNode,
           sources = Seq(
             EdgeOrNodeData(
-              source = destinationRef,
+              source = source,
               properties = Some(props.toMap)
             )
           )
@@ -112,7 +106,7 @@ object FlexibleDataModelRelationUtils {
   private def createNodeOrEdgeWriteData(
       externalId: String,
       instanceSpaceExternalId: String,
-      destinationRef: SourceReference,
+      source: SourceReference,
       edgeNodeTypeRelation: Option[DirectRelationReference],
       startNodeRelation: Option[DirectRelationReference],
       endNodeRelation: Option[DirectRelationReference],
@@ -129,7 +123,7 @@ object FlexibleDataModelRelationUtils {
             endNode = endNode,
             sources = Seq(
               EdgeOrNodeData(
-                source = destinationRef,
+                source = source,
                 properties = Some(props.toMap)
               )
             )
@@ -142,7 +136,7 @@ object FlexibleDataModelRelationUtils {
             externalId = externalId,
             sources = Seq(
               EdgeOrNodeData(
-                source = destinationRef,
+                source = source,
                 properties = Some(props.toMap)
               )
             )
@@ -165,7 +159,7 @@ object FlexibleDataModelRelationUtils {
   private def createNodeWriteData(
       instanceSpaceExternalId: String,
       schema: StructType,
-      destinationRef: SourceReference,
+      source: SourceReference,
       propertyDefMap: Map[String, PropertyDefinition],
       rows: Seq[Row]): Either[CdfSparkException, Vector[NodeWrite]] =
     rows.toVector.traverse { row =>
@@ -178,7 +172,7 @@ object FlexibleDataModelRelationUtils {
           externalId = externalId,
           sources = Seq(
             EdgeOrNodeData(
-              source = destinationRef,
+              source = source,
               properties = Some(props.toMap)
             )
           )

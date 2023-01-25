@@ -174,9 +174,7 @@ class DataModelInstanceRelation(
     sparkFilter match {
       case EqualTo(left, right) =>
         Some(
-          DSLEqualsFilter(
-            Seq(spaceExternalId, modelExternalId, left),
-            parsePropertyValueV2(left, right)))
+          DSLEqualsFilter(Seq(spaceExternalId, modelExternalId, left), parsePropertyValue(left, right)))
       case In(attribute, values) =>
         if (modelInfo(attribute).`type`.code.endsWith("[]")) {
           None
@@ -185,33 +183,33 @@ class DataModelInstanceRelation(
           Some(
             DSLInFilter(
               Seq(spaceExternalId, modelExternalId, attribute),
-              setValues.map(parsePropertyValueV2(attribute, _)).toIndexedSeq))
+              setValues.map(parsePropertyValue(attribute, _)).toIndexedSeq))
         }
       case StringStartsWith(attribute, value) =>
         Some(
           DSLPrefixFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            parsePropertyValueV2(attribute, value)))
+            parsePropertyValue(attribute, value)))
       case GreaterThanOrEqual(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            gte = Some(parsePropertyValueV2(attribute, value))))
+            gte = Some(parsePropertyValue(attribute, value))))
       case GreaterThan(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            gt = Some(parsePropertyValueV2(attribute, value))))
+            gt = Some(parsePropertyValue(attribute, value))))
       case LessThanOrEqual(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            lte = Some(parsePropertyValueV2(attribute, value))))
+            lte = Some(parsePropertyValue(attribute, value))))
       case LessThan(attribute, value) =>
         Some(
           DSLRangeFilter(
             Seq(spaceExternalId, modelExternalId, attribute),
-            lt = Some(parsePropertyValueV2(attribute, value))))
+            lt = Some(parsePropertyValue(attribute, value))))
       case And(f1, f2) =>
         (getInstanceFilter(f1) ++ getInstanceFilter(f2)).reduceLeftOption((sf1, sf2) =>
           DSLAndFilter(Seq(sf1, sf2)))
@@ -340,7 +338,7 @@ class DataModelInstanceRelation(
 
     def parseEdgeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Edge = {
-      val externalId = String.valueOf(row.get(externalIdIndex))
+      val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
 
       val edgeType = getDirectRelationIdentifierProperty(externalId, row, "type", typeIndex)
       val startNode = getDirectRelationIdentifierProperty(externalId, row, "startNode", startNodeIndex)
@@ -362,7 +360,7 @@ class DataModelInstanceRelation(
 
     def parseNodeRow(indexedPropertyList: Array[(Int, String, DataModelPropertyDefinition)])(
         row: Row): Node = {
-      val externalId = String.valueOf(row.get(externalIdIndex))
+      val externalId = getStringValueForFixedProperty(row, "externalId", externalIdIndex)
       val propertyValues: Map[String, DataModelProperty[_]] =
         getDataModelPropertyMap(indexedPropertyList, row)
 

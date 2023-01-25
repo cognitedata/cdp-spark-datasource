@@ -25,7 +25,6 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
 import io.circe.{Json, JsonObject}
 
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
-import scala.collection.immutable
 import scala.util.Random
 
 object FDMTestUtils {
@@ -232,7 +231,7 @@ object FDMTestUtils {
         throw new IllegalArgumentException(s"Container: ${container.externalId} doesn't support nodes!")
       case _ =>
         val space = container.space
-        val containerRef = container.toContainerReference
+        val containerRef = container.toSourceReference
         val containerProps = container.properties
         val instanceValuesForProps = containerProps.map {
           case (propName, prop) =>
@@ -272,7 +271,7 @@ object FDMTestUtils {
         throw new IllegalArgumentException(s"Container: ${container.externalId} doesn't support edges!")
       case _ =>
         val space = container.space
-        val containerRef = container.toContainerReference
+        val containerRef = container.toSourceReference
         val containerProps = container.properties
         val instanceValuesForProps = containerProps.map {
           case (propName, prop) =>

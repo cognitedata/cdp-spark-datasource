@@ -2,7 +2,6 @@ package cognite.spark.v1
 
 import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes.{
-  Float32ListWithoutDefaultValueNonNullable,
   Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
   TextPropertyNonListWithDefaultValueNonNullable,
   TextPropertyNonListWithoutDefaultValueNonNullable
@@ -10,7 +9,6 @@ import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes.{
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
-import org.apache.spark.sql.types
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
@@ -1156,10 +1154,5 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers with Bef
       .head shouldBe "instanceSpaceExternalId1"
     nodesOrEdges.collect { case e: NodeWrite => e.externalId }.distinct.sorted shouldBe Vector("extId3")
   }
-//  it should "pass" in {
-//    println(FDMTestUtils.viewPropStr.distinct.mkString(System.lineSeparator()))
-//    println(FDMTestUtils.createAllPossibleContainerPropCombinations.keys.toVector.distinct.mkString(","))
-//    1 shouldBe 1
-//  }
 }
 // scalastyle:on null

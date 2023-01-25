@@ -6,10 +6,6 @@ import com.cognite.sdk.scala.v1._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
 
-import java.time.format.DateTimeFormatter
-import java.time.{Instant, LocalDate, ZonedDateTime}
-import java.time.temporal.TemporalAccessor
-import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration.DurationInt
 import scala.util.Try
 import scala.util.control.NonFatal
@@ -800,7 +796,7 @@ class DataModelInstancesRelationTest
 
         val metricPrefix2 = shortRandomString()
         val df2 = readRows(primitiveExtId, metricPrefix2)
-          .where("prop_string in('abc', 'yyyy')")
+          .where("prop_string in('abc', 'yyyy') or prop_float < 6.8")
         df2.count() shouldBe 3
         getNumberOfRowsRead(metricPrefix2, "datamodelinstances") shouldBe 3
 

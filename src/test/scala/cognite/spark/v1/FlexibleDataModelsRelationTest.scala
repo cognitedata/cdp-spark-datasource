@@ -18,7 +18,6 @@ import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
-import java.time.format.DateTimeFormatter
 import java.time.{LocalDate, ZonedDateTime}
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
@@ -50,8 +49,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   private val viewNodesListExternalId = "sparkDatasourceTestViewNodesList6"
   private val viewEdgesListExternalId = "sparkDatasourceTestViewEdgesList6"
 
-  private val containerAllNumericProps = "sparkDatasourceTestContainerNumericProps1"
-  private val viewAllNumericProps = "sparkDatasourceTestViewNumericProps1"
+  private val containerAllNumericProps = "sparkDatasourceTestContainerNumericProps2"
+  private val viewAllNumericProps = "sparkDatasourceTestViewNumericProps2"
 
   private val containerFilterByProps = "sparkDatasourceTestContainerFilterByProps1"
   private val viewFilterByProps = "sparkDatasourceTestViewFilterByProps1"
@@ -79,7 +78,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
 
   createStartAndEndNodesForEdgesIfNotExists.unsafeRunSync()
 
-  ignore should "succeed when inserting all nullable & non nullable non list values" in {
+  it should "succeed when inserting all nullable & non nullable non list values" in {
     val (viewAll, viewNodes, viewEdges) = setupAllNonListPropertyTest.unsafeRunSync()
     val randomId = generateNodeExternalId
     val instanceExtIdAll = s"${randomId}All"
@@ -153,6 +152,9 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
 
     result shouldBe Success(Vector((), (), ()))
     result.get.size shouldBe 3
+    getUpsertedMetricsCount(viewAll) shouldBe 1
+    getUpsertedMetricsCount(viewNodes) shouldBe 1
+    getUpsertedMetricsCount(viewEdges) shouldBe 1
   }
 
   it should "succeed when inserting all nullable & non nullable list values" in {
@@ -194,20 +196,20 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |array('${LocalDate
                   .now()
                   .minusDays(5)
-                  .format(DateTimeFormatter.ISO_LOCAL_DATE)}', '${LocalDate
+                  .format(InstancePropertyValue.Date.formatter)}', '${LocalDate
                   .now()
                   .minusDays(10)
-                  .format(DateTimeFormatter.ISO_LOCAL_DATE)}') as dateListProp1,
+                  .format(InstancePropertyValue.Date.formatter)}') as dateListProp1,
                 |null as dateListProp2,
                 |array('{"a": "a", "b": 1}', '{"a": "b", "b": 2}', '{"a": "c", "b": 3}') as jsonListProp1,
                 |null as jsonListProp2,
                 |array('${ZonedDateTime
                   .now()
                   .minusDays(5)
-                  .format(DateTimeFormatter.ISO_ZONED_DATE_TIME)}', '${ZonedDateTime
+                  .format(InstancePropertyValue.Timestamp.formatter)}', '${ZonedDateTime
                   .now()
                   .minusDays(10)
-                  .format(DateTimeFormatter.ISO_ZONED_DATE_TIME)}') as timestampListProp1,
+                  .format(InstancePropertyValue.Timestamp.formatter)}') as timestampListProp1,
                 |null as timestampListProp2
                 |""".stripMargin)
 
@@ -283,10 +285,10 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   }
 
   // Blocked by types not returning issue
-  ignore should "successfully cast numeric properties" in {
+  it should "successfully cast numeric properties" in {
     val viewDef = setupNumericConversionTest.unsafeRunSync()
-    val nodeExtId1 = s"${generateNodeExternalId}Numeric1"
-    val nodeExtId2 = s"${generateNodeExternalId}Numeric2"
+    val nodeExtId1 = s"${viewDef.externalId}Numeric1"
+    val nodeExtId2 = s"${viewDef.externalId}Numeric2"
 
     val df = spark
       .sql(s"""
@@ -326,13 +328,13 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         instanceType = InstanceType.Node,
         externalId = nodeExtId1,
         space = spaceExternalId,
-        sources = Some(Seq(InstanceSource(viewDef.toViewReference)))
+        sources = Some(Seq(InstanceSource(viewDef.toSourceReference)))
       ),
       InstanceRetrieve(
         instanceType = InstanceType.Node,
         externalId = nodeExtId2,
         space = spaceExternalId,
-        sources = Some(Seq(InstanceSource(viewDef.toViewReference)))
+        sources = Some(Seq(InstanceSource(viewDef.toSourceReference)))
       )
     ).traverse(i => bluefieldAlphaClient.instances.retrieveByExternalIds(Vector(i), true))
       .map { instances =>
@@ -482,19 +484,19 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   }
 
   private def setupInstancesForFiltering(view: ViewDefinition): IO[Seq[String]] = {
-    val viewRef = view.toViewReference
+    val viewRef = view.toSourceReference
     val viewExtId = view.externalId
 
     Vector(
       InstanceRetrieve(
         instanceType = InstanceType.Node,
         externalId = s"${viewExtId}Node1",
-        space = viewRef.space,
+        space = spaceExternalId,
         sources = Some(Seq(InstanceSource(viewRef)))
       ),
       InstanceRetrieve(
         instanceType = InstanceType.Node,
-        externalId = s"${viewExtId}Node1",
+        externalId = s"${viewExtId}Node2",
         space = spaceExternalId,
         sources = Some(Seq(InstanceSource(viewRef)))
       )
@@ -660,7 +662,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, viewVersion)))
       .flatMap { views =>
         if (views.isEmpty) {
-          val containerRef = container.toContainerReference
+          val containerRef = container.toSourceReference
           val viewToCreate = ViewCreateDefinition(
             space = spaceExternalId,
             externalId = viewExternalId,
@@ -689,13 +691,13 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         instanceType = InstanceType.Node,
         externalId = startNodeExtId,
         space = spaceExternalId,
-        sources = Some(Seq(InstanceSource(viewStartAndEndNodes.toViewReference)))
+        sources = Some(Seq(InstanceSource(viewStartAndEndNodes.toSourceReference)))
       ),
       InstanceRetrieve(
         instanceType = InstanceType.Node,
         externalId = endNodeExtId,
         space = spaceExternalId,
-        sources = Some(Seq(InstanceSource(viewStartAndEndNodes.toViewReference)))
+        sources = Some(Seq(InstanceSource(viewStartAndEndNodes.toSourceReference)))
       )
     ).traverse(i => bluefieldAlphaClient.instances.retrieveByExternalIds(Vector(i), false))
       .flatMap { response =>
@@ -713,7 +715,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                   spaceExternalId,
                   startNodeExtId,
                   Seq(EdgeOrNodeData(
-                    viewStartAndEndNodes.toViewReference,
+                    viewStartAndEndNodes.toSourceReference,
                     Some(Map(
                       "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
                       "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
@@ -723,7 +725,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                   spaceExternalId,
                   endNodeExtId,
                   Seq(EdgeOrNodeData(
-                    viewStartAndEndNodes.toViewReference,
+                    viewStartAndEndNodes.toSourceReference,
                     Some(Map(
                       "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
                       "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))

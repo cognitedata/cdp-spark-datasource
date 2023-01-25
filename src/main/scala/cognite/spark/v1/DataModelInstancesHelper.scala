@@ -30,7 +30,7 @@ object DataModelInstancesHelper {
     s"Property of ${propertyType.code} type is not nullable."
 
   // scalastyle:off method.length
-  def parsePropertyValueV2(propName: String, value: Any): DataModelProperty[_] = value match {
+  def parsePropertyValue(propName: String, value: Any): DataModelProperty[_] = value match {
     case x: String if Seq("startNode", "endNode", "type") contains propName =>
       val identifier = x.split(":")
       PropertyType.DirectRelation.Property(identifier.toIndexedSeq)

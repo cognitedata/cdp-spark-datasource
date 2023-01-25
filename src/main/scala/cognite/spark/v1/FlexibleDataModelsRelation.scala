@@ -19,7 +19,7 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.{
   PropertyDefinition,
   PropertyType
 }
-import com.cognite.sdk.scala.v1.fdm.common.refs.SourceReference
+import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
   EdgeDeletionRequest,
   NodeDeletionRequest
@@ -32,7 +32,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Row, SQLContext, types}
+import org.apache.spark.sql.{Row, SQLContext}
 
 import java.math.BigInteger
 import java.sql.{Date, Timestamp}
@@ -72,7 +72,7 @@ class FlexibleDataModelsRelation(
           instanceSpaceExternalId,
           rows,
           firstRow.schema,
-          viewDefinition.toViewReference,
+          viewDefinition.toSourceReference,
           allViewProperties,
           viewDefinition.usedFor
         ).flatMap(results => incMetrics(itemsUpserted, results.length))
@@ -127,16 +127,14 @@ class FlexibleDataModelsRelation(
       instanceSpaceExternalId: String,
       rows: Seq[Row],
       schema: StructType,
-      destinationRef: SourceReference,
+      source: SourceReference,
       propDefMap: Map[String, PropertyDefinition],
       usedFor: Usage): IO[Seq[SlimNodeOrEdge]] = {
-    println(rows.map(_.mkString(", ")).mkString(System.lineSeparator()))
-    println(rows.map(_.schema.mkString(", ")).mkString(System.lineSeparator()))
     val nodesOrEdges = usedFor match {
-      case Usage.Node => createNodes(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
-      case Usage.Edge => createEdges(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
+      case Usage.Node => createNodes(instanceSpaceExternalId, rows, schema, propDefMap, source)
+      case Usage.Edge => createEdges(instanceSpaceExternalId, rows, schema, propDefMap, source)
       case Usage.All =>
-        createNodesOrEdges(instanceSpaceExternalId, rows, schema, propDefMap, destinationRef)
+        createNodesOrEdges(instanceSpaceExternalId, rows, schema, propDefMap, source)
     }
 
     nodesOrEdges match {
@@ -146,7 +144,6 @@ class FlexibleDataModelsRelation(
           items = items,
           replace = Some(true)
         )
-        println(instanceCreate)
         alphaClient.instances.createItems(instanceCreate)
     }
   }
@@ -380,34 +377,46 @@ class FlexibleDataModelsRelation(
     }
 
   // scalastyle:off cyclomatic.complexity
-  def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
+  def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
+    val space = viewDefinition.space
+    val externalId = viewDefinition.externalId
+
     sparkFilter match {
       case EqualTo(attribute, value) =>
-        toFilterValueDefinition(attribute, value).map(FilterDefinition.Equals(Seq(attribute), _))
+        toFilterValueDefinition(attribute, value).map(
+          FilterDefinition.Equals(Seq(space, externalId, attribute), _))
       case In(attribute, values) =>
-        toSeqFilterValueDefinition(attribute, values).map(FilterDefinition.In(Seq(attribute), _))
+        toSeqFilterValueDefinition(attribute, values).map(
+          FilterDefinition.In(Seq(space, externalId, attribute), _))
       case GreaterThanOrEqual(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(attribute), gte = Some(f)))
+          FilterDefinition.Range(property = Seq(space, externalId, attribute), gte = Some(f)))
       case GreaterThan(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(attribute), gt = Some(f)))
+          FilterDefinition.Range(property = Seq(space, externalId, attribute), gt = Some(f)))
       case LessThanOrEqual(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(attribute), lte = Some(f)))
+          FilterDefinition.Range(property = Seq(space, externalId, attribute), lte = Some(f)))
       case LessThan(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(attribute), lt = Some(f)))
+          FilterDefinition.Range(property = Seq(space, externalId, attribute), lt = Some(f)))
+      case StringStartsWith(attribute, value) =>
+        Right(
+          FilterDefinition
+            .Prefix(Seq(space, externalId, attribute), FilterValueDefinition.String(value)))
       case And(f1, f2) =>
         List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.Or.apply)
-      case IsNotNull(attribute) => Right(FilterDefinition.Exists(Seq(attribute)))
-      case IsNull(attribute) => Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(attribute))))
+      case IsNotNull(attribute) =>
+        Right(FilterDefinition.Exists(Seq(space, externalId, attribute)))
+      case IsNull(attribute) =>
+        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, externalId, attribute))))
       case Not(f) => toInstanceFilter(f).map(FilterDefinition.Not.apply)
       case f =>
         Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.getClass.getSimpleName}'"))
     }
+  }
   // scalastyle:on cyclomatic.complexity
 
   private def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
@@ -447,7 +456,7 @@ class FlexibleDataModelsRelation(
       sort = None, // Some(Seq(PropertyFilterV3))
       limit = limit,
       cursor = None,
-      sources = Some(Seq(InstanceSource(viewDefinition.toViewReference)))
+      sources = Some(Seq(InstanceSource(viewDefinition.toSourceReference)))
     )
 
     Seq(
