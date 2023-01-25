@@ -462,7 +462,7 @@ object FlexibleDataModelRelationUtils {
     val nAsStr = String.valueOf(n)
     val bd = BigDecimal(nAsStr)
     if (bd.isValidLong) {
-      Right(bd.longValue())
+      Right(bd.longValue)
     } else {
       Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
                                     |Expecting a Long but found '$nAsStr'
@@ -475,7 +475,7 @@ object FlexibleDataModelRelationUtils {
       skipNulls(ns).map { n =>
         val bd = BigDecimal(String.valueOf(n))
         if (bd.isValidLong) {
-          bd.longValue()
+          bd.longValue
         } else {
           throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Long")
         }
@@ -494,7 +494,7 @@ object FlexibleDataModelRelationUtils {
     val nAsStr = String.valueOf(n)
     val bd = BigDecimal(nAsStr)
     if (bd.isValidInt) {
-      Right(bd.intValue())
+      Right(bd.intValue)
     } else {
       Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
                                     |Expecting an Int but found '$nAsStr'
@@ -507,7 +507,7 @@ object FlexibleDataModelRelationUtils {
       skipNulls(ns).map { n =>
         val bd = BigDecimal(String.valueOf(n))
         if (bd.isValidInt) {
-          bd.intValue()
+          bd.intValue
         } else {
           throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Int")
         }
@@ -526,7 +526,7 @@ object FlexibleDataModelRelationUtils {
     val nAsStr = String.valueOf(n)
     val bd = BigDecimal(nAsStr)
     if (bd.isDecimalFloat) {
-      Right(bd.floatValue())
+      Right(bd.floatValue)
     } else {
       Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
                                     |Expecting a Float but found '$nAsStr'
@@ -539,7 +539,7 @@ object FlexibleDataModelRelationUtils {
       skipNulls(ns).map { n =>
         val bd = BigDecimal(String.valueOf(n))
         if (bd.isDecimalFloat) {
-          bd.floatValue()
+          bd.floatValue
         } else {
           throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Float")
         }
@@ -558,7 +558,7 @@ object FlexibleDataModelRelationUtils {
     val nAsStr = String.valueOf(n)
     val bd = BigDecimal(nAsStr)
     if (bd.isDecimalDouble) {
-      Right(bd.doubleValue())
+      Right(bd.doubleValue)
     } else {
       Left(new CdfSparkException(s"""Error parsing value for field '$propertyName'.
                                     |Expecting a Double but found '$nAsStr'
@@ -573,7 +573,7 @@ object FlexibleDataModelRelationUtils {
       skipNulls(ns).map { n =>
         val bd = BigDecimal(String.valueOf(n))
         if (bd.isDecimalDouble) {
-          bd.doubleValue()
+          bd.doubleValue
         } else {
           throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Double")
         }

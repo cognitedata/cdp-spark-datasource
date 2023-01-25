@@ -8,7 +8,6 @@ import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
   ComparableFilterValue,
-  LogicalFilterValue,
   SeqFilterValue
 }
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
@@ -38,6 +37,7 @@ import java.math.BigInteger
 import java.sql.{Date, Timestamp}
 import java.time._
 import java.util.Locale
+import scala.annotation.nowarn
 import scala.util.Try
 import scala.util.control.NonFatal
 
@@ -76,10 +76,37 @@ class FlexibleDataModelsRelation(
           allViewProperties,
           viewDefinition.usedFor
         ).flatMap(results => incMetrics(itemsUpserted, results.length))
-      case None if rows.isEmpty => incMetrics(itemsUpserted, 0)
+      case None => incMetrics(itemsUpserted, 0)
     }
   }
   // scalastyle:on cyclomatic.complexity
+
+  override def insert(rows: Seq[Row]): IO[Unit] =
+    IO.raiseError[Unit](
+      new CdfSparkException(
+        "Create (abort) is not supported for data model instances. Use upsert instead."))
+
+  override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
+    SdkV1Rdd[ProjectedFlexibleDataModelInstance, String](
+      sqlContext.sparkContext,
+      config,
+      (item: ProjectedFlexibleDataModelInstance, _) => toRow(item),
+      _.externalId,
+      getStreams(filters, selectedColumns)
+    )
+
+  // scalastyle:off cyclomatic.complexity
+  override def delete(rows: Seq[Row]): IO[Unit] =
+    viewDefinition.usedFor match {
+      case Usage.Node => deleteNodesWithMetrics(rows)
+      case Usage.Edge => deleteEdgesWithMetrics(rows)
+      case Usage.All => deleteNodesOrEdgesWithMetrics(rows)
+    }
+  // scalastyle:on cyclomatic.complexity
+
+  override def update(rows: Seq[Row]): IO[Unit] =
+    IO.raiseError[Unit](
+      new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
 
   private def retrieveViewDefWithAllPropsAndSchema
     : IO[Option[(ViewDefinition, Map[String, ViewPropertyDefinition], StructType)]] =
@@ -171,19 +198,14 @@ class FlexibleDataModelsRelation(
     }
   }
 
-  def insert(rows: Seq[Row]): IO[Unit] =
-    IO.raiseError[Unit](
-      new CdfSparkException(
-        "Create (abort) is not supported for data model instances. Use upsert instead."))
-
-  def toRow(a: ProjectedFlexibleDataModelInstance): Row = {
+  private def toRow(a: ProjectedFlexibleDataModelInstance): Row = {
     if (config.collectMetrics) {
       itemsRead.inc()
     }
     new GenericRow(a.properties)
   }
 
-  def toComparableFilterValueDefinition(
+  private def toComparableFilterValueDefinition(
       attribute: String,
       value: Any): Either[CdfSparkException, ComparableFilterValue] =
     toFilterValueDefinition(attribute, value) match {
@@ -201,22 +223,8 @@ class FlexibleDataModelsRelation(
       case Left(err) => Left(err)
     }
 
-  def toLogicalFilterValueDefinition(
-      attribute: String,
-      value: Any): Either[CdfSparkException, LogicalFilterValue] =
-    toFilterValueDefinition(attribute, value) match {
-      case Right(v: LogicalFilterValue) => Right(v)
-      case Right(v) =>
-        Left(
-          new CdfSparkIllegalArgumentException(
-            s"Expecting a boolean value for '$attribute', but found ${v.getClass.getSimpleName} in ${value.toString}"
-          )
-        )
-      case Left(err) => Left(err)
-    }
-
   // scalastyle:off cyclomatic.complexity
-  def toFilterValueDefinition(
+  private def toFilterValueDefinition(
       attribute: String,
       value: Any): Either[CdfSparkException, FilterValueDefinition] =
     value match {
@@ -255,7 +263,7 @@ class FlexibleDataModelsRelation(
               .toZonedDateTime
               .format(InstancePropertyValue.Timestamp.formatter)))
       case v: Array[Any] =>
-        toFilterValueListDefinition(attribute, v)
+        toFilterValueListDefinition(attribute, v.toVector)
       case v =>
         Left(
           new CdfSparkIllegalArgumentException(
@@ -266,9 +274,9 @@ class FlexibleDataModelsRelation(
   // scalastyle:on cyclomatic.complexity
 
   // scalastyle:off cyclomatic.complexity method.length
-  def toFilterValueListDefinition(
+  private def toFilterValueListDefinition(
       attribute: String,
-      values: Array[Any]): Either[CdfSparkException, FilterValueDefinition] = {
+      values: Vector[Any]): Either[CdfSparkException, FilterValueDefinition] = {
     val result = values.headOption match {
       case Some(s: String) =>
         io.circe.parser.parse(s).toOption match {
@@ -304,7 +312,7 @@ class FlexibleDataModelsRelation(
     }
   }
 
-  def toSeqFilterValueDefinition(
+  private def toSeqFilterValueDefinition(
       attribute: String,
       value: Array[Any]): Either[CdfSparkException, SeqFilterValue] =
     toFilterValueDefinition(attribute, value) match {
@@ -317,14 +325,15 @@ class FlexibleDataModelsRelation(
       case Right(v) =>
         Left(
           new CdfSparkIllegalArgumentException(
-            s"Expecting a SeqFilterValue for '$attribute', but found ${v.getClass.getSimpleName} as ${value.toString}"
+            s"Expecting a SeqFilterValue for '$attribute', but found ${v.getClass.getSimpleName} as ${value
+              .mkString(",")}"
           )
         )
       case Left(err) => Left(err)
     }
 
   // scalastyle:off cyclomatic.complexity
-  def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
+  private def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
     val space = viewDefinition.space
     val externalId = viewDefinition.externalId
 
@@ -369,7 +378,7 @@ class FlexibleDataModelsRelation(
   private def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
@@ -412,28 +421,6 @@ class FlexibleDataModelsRelation(
         .map(toProjectedInstance(_, selectedInstanceProps)))
   }
 
-  override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    SdkV1Rdd[ProjectedFlexibleDataModelInstance, String](
-      sqlContext.sparkContext,
-      config,
-      (item: ProjectedFlexibleDataModelInstance, _) => toRow(item),
-      _.externalId,
-      getStreams(filters, selectedColumns)
-    )
-
-  // scalastyle:off cyclomatic.complexity
-  override def delete(rows: Seq[Row]): IO[Unit] =
-    viewDefinition.usedFor match {
-      case Usage.Node => deleteNodesWithMetrics(rows)
-      case Usage.Edge => deleteEdgesWithMetrics(rows)
-      case Usage.All => deleteNodesOrEdgesWithMetrics(rows)
-    }
-  // scalastyle:on cyclomatic.complexity
-
-  override def update(rows: Seq[Row]): IO[Unit] =
-    IO.raiseError[Unit](
-      new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
-
   private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
@@ -463,18 +450,17 @@ class FlexibleDataModelsRelation(
           alphaClient.instances
             .delete(deleteCandidates.map(i =>
               EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
-            .handleErrorWith {
-              case NonFatal(edgeDeletionErr) =>
-                IO.raiseError(
-                  new CdfSparkException(
-                    s"""
+            .handleErrorWith { edgeDeletionErr =>
+              IO.raiseError(
+                new CdfSparkException(
+                  s"""
                        |View with externalId: ${viewDefinition.externalId} & version: ${viewDefinition.version}" supports both Nodes & Edges.
                        |Tried deleting as nodes and failed: ${nodeDeletionErr.getMessage}
                        |Tried deleting as edges and failed: ${edgeDeletionErr.getMessage}
                        |Please verify your data
                        |""".stripMargin
-                  )
                 )
+              )
             }
       }
       .flatMap(results => incMetrics(itemsDeleted, results.length))
