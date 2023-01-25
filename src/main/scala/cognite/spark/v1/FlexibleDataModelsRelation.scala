@@ -304,59 +304,6 @@ class FlexibleDataModelsRelation(
     }
   }
 
-  //    value match {
-//      case v: Array[String] =>
-//        v.headOption.flatMap(io.circe.parser.parse(_).toOption) match {
-//          case Some(_) =>
-//            Right(FilterValueDefinition.ObjectList(v.flatMap(io.circe.parser.parse(_).toOption)))
-//          case None => Right(FilterValueDefinition.StringList(v))
-//        }
-//      case v: Array[Float] => Right(FilterValueDefinition.DoubleList(v.map(_.toDouble)))
-//      case v: Array[Double] => Right(FilterValueDefinition.DoubleList(v))
-//      case v: Array[Int] => Right(FilterValueDefinition.IntegerList(v.map(_.toLong)))
-//      case v: Array[Long] => Right(FilterValueDefinition.IntegerList(v))
-//      case v: Array[Boolean] => Right(FilterValueDefinition.BooleanList(v))
-//      case v: Array[java.math.BigDecimal] =>
-//        Right(FilterValueDefinition.DoubleList(v.map(_.doubleValue)))
-//      case v: Array[BigInteger] => Right(FilterValueDefinition.IntegerList(v.map(_.longValue)))
-//      case v: Array[LocalDate] =>
-//        Right(FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Date.formatter))))
-//      case v: Array[LocalDateTime] =>
-//        Right(
-//          FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Timestamp.formatter))))
-//      case v: Array[Instant] =>
-//        Right(
-//          FilterValueDefinition.StringList(
-//            v.map(
-//              OffsetDateTime
-//                .ofInstant(_, ZoneId.of("UTC"))
-//                .toZonedDateTime
-//                .format(InstancePropertyValue.Timestamp.formatter))))
-//      case v: Array[ZonedDateTime] =>
-//        Right(
-//          FilterValueDefinition.StringList(v.map(_.format(InstancePropertyValue.Timestamp.formatter))))
-//      case v: Array[Date] =>
-//        Right(
-//          FilterValueDefinition.StringList(
-//            v.map(_.toLocalDate.format(InstancePropertyValue.Date.formatter))))
-//      case v: Array[Timestamp] =>
-//        Right(
-//          FilterValueDefinition.StringList(
-//            v.map(
-//              ts =>
-//                OffsetDateTime
-//                  .ofInstant(ts.toInstant, ZoneId.of("UTC"))
-//                  .toZonedDateTime
-//                  .format(InstancePropertyValue.Timestamp.formatter))))
-//      case v =>
-//        Left(
-//          new CdfSparkIllegalArgumentException(
-//            s"Expecting a value of type number, string, boolean or an array of them for '$attribute', but found ${v.toString}"
-//          )
-//        )
-//    }
-  // scalastyle:on cyclomatic.complexity method.length
-
   def toSeqFilterValueDefinition(
       attribute: String,
       value: Array[Any]): Either[CdfSparkException, SeqFilterValue] =
