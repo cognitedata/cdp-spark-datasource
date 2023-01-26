@@ -84,7 +84,7 @@ class FlexibleDataModelsRelation(
   override def insert(rows: Seq[Row]): IO[Unit] =
     IO.raiseError[Unit](
       new CdfSparkException(
-        "Create (abort) is not supported for data model instances. Use upsert instead."))
+        "Create is not supported for flexible data model instances. Use upsert instead."))
 
   override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
     SdkV1Rdd[ProjectedFlexibleDataModelInstance, String](

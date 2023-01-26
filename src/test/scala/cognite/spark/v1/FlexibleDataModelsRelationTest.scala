@@ -284,7 +284,6 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     filteredInstanceExtId shouldBe s"${view}Node1"
   }
 
-  // Blocked by types not returning issue
   it should "successfully cast numeric properties" in {
     val viewDef = setupNumericConversionTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}Numeric1"
