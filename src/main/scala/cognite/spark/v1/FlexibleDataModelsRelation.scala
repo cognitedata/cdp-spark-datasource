@@ -456,9 +456,9 @@ class FlexibleDataModelsRelation(
                 new CdfSparkException(
                   s"""
                        |View with externalId: ${viewDefinition.externalId} & version: ${viewDefinition.version}" supports both Nodes & Edges.
-                       |Tried deleting as nodes and failed: ${nodeDeletionErr.getMessage}
-                       |Tried deleting as edges and failed: ${edgeDeletionErr.getMessage}
-                       |Please verify your data
+                       |Tried deleting as nodes and failed with: ${nodeDeletionErr.getMessage}
+                       |Tried deleting as edges and failed with: ${edgeDeletionErr.getMessage}
+                       |Please verify your data!
                        |""".stripMargin
                 )
               )

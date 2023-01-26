@@ -19,7 +19,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 
-import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
+import java.time.{LocalDate, ZonedDateTime}
 import scala.util.{Failure, Success, Try}
 
 object FlexibleDataModelRelationUtils {
@@ -149,10 +149,10 @@ object FlexibleDataModelRelationUtils {
           endNodeRelation.map(_ => "'endNode'")
         ).flatten
         Left(new CdfSparkException(s"""
-                                      |Fields 'type', 'externalId', 'startNode' & 'endNode' fields must be present to create an Edge.
+                                      |Fields 'type', 'externalId', 'startNode' & 'endNode' fields are required to create an Edge.
                                       |Field 'externalId' is required to create a Node
                                       |Only found: 'externalId', ${relationRefNames.mkString(", ")}
-                                      |data row: ${rowToString(row)}
+                                      |in data row: ${rowToString(row)}
                                       |""".stripMargin))
     }
 
@@ -188,14 +188,14 @@ object FlexibleDataModelRelationUtils {
         Left(
           new CdfSparkException(
             s"""
-               |'externalId' shouldn't be null
-               |data row: ${rowToString(row)}
+               |'externalId' cannot be null
+               |in data row: ${rowToString(row)}
                |""".stripMargin
           ))
       case Failure(err) =>
         Left(new CdfSparkException(s"""
                                       |Couldn't find required string property 'externalId': ${err.getMessage}
-                                      |data row: ${rowToString(row)}
+                                      |in data row: ${rowToString(row)}
                                       |""".stripMargin))
     }
 
@@ -230,16 +230,16 @@ object FlexibleDataModelRelationUtils {
         Left(
           new CdfSparkException(
             s"""
-               |'$propertyName' ($descriptiveName) shouldn't contain null values.
+               |'$propertyName' ($descriptiveName) cannot contain null values.
                |Please verify that 'space' & 'externalId' values are not null for '$propertyName'
-               |data row: ${rowToString(row)}
+               |in data row: ${rowToString(row)}
                |""".stripMargin
           ))
       case Failure(err) =>
         Left(new CdfSparkException(s"""
-                                      |Couldn't find required property '$propertyName'
-                                      |'$propertyName' ($descriptiveName) should be a 'StructType' which consists 'space' & 'externalId' : ${err.getMessage}
-                                      |data row: ${rowToString(row)}
+                                      |Could not find required property '$propertyName'
+                                      |'$propertyName' ($descriptiveName) should be a 'StructType' with 'space' & 'externalId' properties: ${err.getMessage}
+                                      |in data row: ${rowToString(row)}
                                       |""".stripMargin))
     }
 
@@ -269,16 +269,17 @@ object FlexibleDataModelRelationUtils {
       propsExistsInSchema.partition {
         case (propName, prop) => (prop.nullable contains false) && schema(propName).nullable
       }
-// TODO: Verify this
 
     if (nonNullablePropsMissingInSchema.nonEmpty) {
       val propsAsStr = nonNullablePropsMissingInSchema.keys.mkString(", ")
-      Left(new CdfSparkException(s"Can't find required properties: [$propsAsStr]"))
+      Left(new CdfSparkException(s"Could not find required properties: [$propsAsStr]"))
     } else if (falselyNullableFieldsInSchema.nonEmpty) {
       val propsAsStr = falselyNullableFieldsInSchema.keys.mkString(", ")
       Left(
         new CdfSparkException(
-          s"""Properties [$propsAsStr] cannot be nullable""".stripMargin
+          s"""Properties [$propsAsStr] cannot contain null values
+             |Please verify your data!
+             |""".stripMargin
         )
       )
     } else {
@@ -308,14 +309,14 @@ object FlexibleDataModelRelationUtils {
         new CdfSparkException(
           s"""
              |${e.getMessage}
-             |table row: ${rowToString(row)}
+             |for data row: ${rowToString(row)}
              |""".stripMargin
         )
       case e: Throwable =>
         new CdfSparkException(
           s"""
              |Error parsing value of field '$propertyName': ${e.getMessage}
-             |table row: ${rowToString(row)}
+             |for data row: ${rowToString(row)}
              |""".stripMargin
         )
     }
@@ -342,39 +343,55 @@ object FlexibleDataModelRelationUtils {
           case PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
             Try(InstancePropertyValue.BooleanList(skipNulls(row.getSeq[Boolean](i)))).toEither
           case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
-            tryAsFloatSeq(row.getSeq[Any](i), propertyName).map(InstancePropertyValue.Float32List)
+            val floatSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            tryAsFloatSeq(floatSeq, propertyName)
+              .map(InstancePropertyValue.Float32List)
           case PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
-            tryAsDoubleSeq(row.getSeq[Any](i), propertyName).map(InstancePropertyValue.Float64List)
+            val doubleSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            tryAsDoubleSeq(doubleSeq, propertyName)
+              .map(InstancePropertyValue.Float64List)
           case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
-            tryAsIntSeq(row.getSeq[Any](i), propertyName).map(InstancePropertyValue.Int32List)
+            val intSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            tryAsIntSeq(intSeq, propertyName)
+              .map(InstancePropertyValue.Int32List)
           case PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
-            tryAsLongSeq(row.getSeq[Any](i), propertyName).map(InstancePropertyValue.Int64List)
+            val longSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            tryAsLongSeq(longSeq, propertyName)
+              .map(InstancePropertyValue.Int64List)
           case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
             val formatter = InstancePropertyValue.Timestamp.formatter
+            val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
             Try(
-              InstancePropertyValue.TimestampList(skipNulls(row.getSeq[String](i))
+              InstancePropertyValue.TimestampList(skipNulls(strSeq)
                 .map(ZonedDateTime.parse(_, formatter)))).toEither
               .leftMap { e =>
-                val exampleTimestamp = ZonedDateTime
-                  .of(LocalDateTime.now(), ZoneId.of("Europe/Berlin"))
-                  .format(formatter)
+                val exampleTimestamps = Vector(
+                  "2023-01-17T20:39:57Z",
+                  "2023-01-17T20:39:57+01:00",
+                  "2023-01-17T20:39:57.234Z",
+                  "2023-01-17T20:39:57.234+01:00"
+                )
                 new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as a list of timestamps: ${e.getMessage}
+                                                     |Error parsing value of field '$propertyName' as an array of timestamps: ${e.getMessage}
                                                      |Expected timestamp format is: ${formatter.toString}
-                                                     |Eg: $exampleTimestamp
+                                                     |Eg: ${exampleTimestamps.mkString(",")}
                                                      |""".stripMargin)
               }
           case PrimitiveProperty(PrimitivePropType.Date, Some(true)) =>
             val formatter = InstancePropertyValue.Date.formatter
+            val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
             Try(
-              InstancePropertyValue.DateList(skipNulls(row.getSeq[String](i))
-                .map(LocalDate.parse(_, formatter)))).toEither
+              InstancePropertyValue.DateList(
+                skipNulls(strSeq)
+                  .map(LocalDate.parse(_, formatter))
+              )).toEither
               .leftMap(e => new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as a list of dates: ${e.getMessage}
+                                                     |Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}
                                                      |Expected date format is: ${formatter.toString}
                                                      |""".stripMargin))
           case PrimitiveProperty(PrimitivePropType.Json, Some(true)) | DirectNodeRelationProperty(_) =>
-            skipNulls(row.getSeq[String](i)).toVector
+            val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
+            skipNulls(strSeq).toVector
               .traverse(io.circe.parser.parse)
               .map(InstancePropertyValue.ObjectList.apply)
               .leftMap(e =>
@@ -425,20 +442,23 @@ object FlexibleDataModelRelationUtils {
               InstancePropertyValue.Timestamp(ZonedDateTime
                 .parse(row.getString(i), formatter))).toEither
               .leftMap { e =>
-                val exampleTimestamp = ZonedDateTime
-                  .of(LocalDateTime.now(), ZoneId.of("Europe/Berlin"))
-                  .format(formatter)
+                val exampleTimestamps = Vector(
+                  "2023-01-17T20:39:57Z",
+                  "2023-01-17T20:39:57+01:00",
+                  "2023-01-17T20:39:57.234Z",
+                  "2023-01-17T20:39:57.234+01:00"
+                )
                 new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as a list of timestamps: ${e.getMessage}
+                                                     |Error parsing value of field '$propertyName' as an array of timestamps: ${e.getMessage}
                                                      |Expected timestamp format is: ${formatter.toString}
-                                                     |Eg: $exampleTimestamp
+                                                     |Eg: ${exampleTimestamps.mkString(",")}
                                                      |""".stripMargin)
               }
           case PrimitiveProperty(PrimitivePropType.Date, None | Some(false)) =>
             val formatter = InstancePropertyValue.Date.formatter
             Try(InstancePropertyValue.Date(LocalDate.parse(row.getString(i), formatter))).toEither
               .leftMap(e => new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as a list of dates: ${e.getMessage}
+                                                     |Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}
                                                      |Expected date format is: ${formatter.toString}
                                                      |""".stripMargin))
           case PrimitiveProperty(PrimitivePropType.Json, None | Some(false)) =>
@@ -448,7 +468,7 @@ object FlexibleDataModelRelationUtils {
               .map(InstancePropertyValue.Object.apply)
               .leftMap(e =>
                 new CdfSparkException(
-                  s"Error parsing value of field '$propertyName' as a list of json objects: ${e.getMessage}"))
+                  s"Error parsing value of field '$propertyName' as an array of json objects: ${e.getMessage}"))
 
           case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
         }
