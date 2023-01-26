@@ -55,7 +55,7 @@ trait WDLSparkTest {
     .getOrCreate()
 
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
-  spark.sparkContext.setLogLevel("INFO")
+  spark.sparkContext.setLogLevel("OFF")
 
   object OIDCWrite {
     val clientId: String = sys.env("TEST_CLIENT_ID_BLUEFIELD")

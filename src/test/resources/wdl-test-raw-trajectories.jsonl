@@ -1,0 +1,2 @@
+{"wellboreAssetExternalId": "A:wb1", "externalId": "A:trajectory:data:1", "sourceName": "A", "measuredDepthUnit": "meter", "inclinationUnit": "degree", "azimuthUnit": "degree", "type": "ACTUAL", "doglegSeverityUnit": null, "phase": "planned"}
+{"wellboreAssetExternalId": "A:wb2", "externalId": "A:trajectory:data:2", "sourceName": "A", "measuredDepthUnit": "foot", "inclinationUnit": "degree", "azimuthUnit": "degree", "type": "ACTUAL", "doglegSeverityUnit": null, "phase": "planned"}
