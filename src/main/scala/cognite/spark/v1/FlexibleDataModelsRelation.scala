@@ -560,7 +560,7 @@ class FlexibleDataModelsRelation(
 }
 
 object FlexibleDataModelsRelation {
-  val ResourceType = "flexibledatamodels"
+  val ResourceType = "instances"
 
   final case class ProjectedFlexibleDataModelInstance(externalId: String, properties: Array[Any])
   final case class FlexibleDataModelInstanceDeleteModel(space: Option[String], externalId: String)
