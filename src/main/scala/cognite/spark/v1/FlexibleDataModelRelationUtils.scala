@@ -338,27 +338,27 @@ object FlexibleDataModelRelationUtils {
     } else {
       val propVal = fieldIndex.toOption.traverse { i =>
         propDef.`type` match {
-          case TextProperty(Some(true), _) =>
+          case p: TextProperty if p.isList =>
             Try(InstancePropertyValue.StringList(skipNulls(row.getSeq[String](i)))).toEither
-          case PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) if p.isList =>
             Try(InstancePropertyValue.BooleanList(skipNulls(row.getSeq[Boolean](i)))).toEither
-          case PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Float32, _) if p.isList =>
             val floatSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
             tryAsFloatSeq(floatSeq, propertyName)
               .map(InstancePropertyValue.Float32List)
-          case PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Float64, _) if p.isList =>
             val doubleSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
             tryAsDoubleSeq(doubleSeq, propertyName)
               .map(InstancePropertyValue.Float64List)
-          case PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Int32, _) if p.isList =>
             val intSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
             tryAsIntSeq(intSeq, propertyName)
               .map(InstancePropertyValue.Int32List)
-          case PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Int64, _) if p.isList =>
             val longSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
             tryAsLongSeq(longSeq, propertyName)
               .map(InstancePropertyValue.Int64List)
-          case PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) if p.isList =>
             val formatter = InstancePropertyValue.Timestamp.formatter
             val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
             Try(
@@ -377,7 +377,7 @@ object FlexibleDataModelRelationUtils {
                                                      |Eg: ${exampleTimestamps.mkString(",")}
                                                      |""".stripMargin)
               }
-          case PrimitiveProperty(PrimitivePropType.Date, Some(true)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Date, _) if p.isList =>
             val formatter = InstancePropertyValue.Date.formatter
             val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
             Try(
@@ -389,7 +389,8 @@ object FlexibleDataModelRelationUtils {
                                                      |Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}
                                                      |Expected date format is: ${formatter.toString}
                                                      |""".stripMargin))
-          case PrimitiveProperty(PrimitivePropType.Json, Some(true)) | DirectNodeRelationProperty(_) =>
+          case p @ (PrimitiveProperty(PrimitivePropType.Json, _) | DirectNodeRelationProperty(_))
+              if p.isList =>
             val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
             skipNulls(strSeq).toVector
               .traverse(io.circe.parser.parse)
@@ -424,19 +425,19 @@ object FlexibleDataModelRelationUtils {
     } else {
       val propVal = fieldIndex.toOption.traverse { i =>
         propDef.`type` match {
-          case TextProperty(None | Some(false), _) =>
+          case p: TextProperty if !p.isList =>
             Try(InstancePropertyValue.String(row.getString(i))).toEither
-          case PrimitiveProperty(PrimitivePropType.Boolean, None | Some(false)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) if !p.isList =>
             Try(InstancePropertyValue.Boolean(row.getBoolean(i))).toEither
-          case PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Float32, _) if !p.isList =>
             tryAsFloat(row.get(i), propertyName).map(InstancePropertyValue.Float32)
-          case PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Float64, _) if !p.isList =>
             tryAsDouble(row.get(i), propertyName).map(InstancePropertyValue.Float64)
-          case PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Int32, _) if !p.isList =>
             tryAsInt(row.get(i), propertyName).map(InstancePropertyValue.Int32)
-          case PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Int64, _) if !p.isList =>
             tryAsLong(row.get(i), propertyName).map(InstancePropertyValue.Int64)
-          case PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) if !p.isList =>
             val formatter = InstancePropertyValue.Timestamp.formatter
             Try(
               InstancePropertyValue.Timestamp(ZonedDateTime
@@ -454,14 +455,14 @@ object FlexibleDataModelRelationUtils {
                                                      |Eg: ${exampleTimestamps.mkString(",")}
                                                      |""".stripMargin)
               }
-          case PrimitiveProperty(PrimitivePropType.Date, None | Some(false)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Date, _) if !p.isList =>
             val formatter = InstancePropertyValue.Date.formatter
             Try(InstancePropertyValue.Date(LocalDate.parse(row.getString(i)))).toEither
               .leftMap(e => new CdfSparkException(s"""
                                                      |Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}
                                                      |Expected date format is: ${formatter.toString}
                                                      |""".stripMargin))
-          case PrimitiveProperty(PrimitivePropType.Json, None | Some(false)) =>
+          case p @ PrimitiveProperty(PrimitivePropType.Json, _) if !p.isList =>
             io.circe.parser
               .parse(row
                 .getString(i))
