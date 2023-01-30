@@ -9,7 +9,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.parser._
 import io.circe.syntax.EncoderOps
-import io.circe.{Decoder, Encoder, Json, JsonObject}
+import io.circe.{Decoder, Encoder, JsonObject}
 import org.apache.logging.log4j.LogManager.getLogger
 import org.apache.spark.sql.types.{DataType, StructType}
 import sttp.client3.{Empty, RequestT, SttpBackend, UriContext, basicRequest}
