@@ -363,7 +363,7 @@ object FlexibleDataModelRelationUtils {
             val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
             Try(
               InstancePropertyValue.TimestampList(skipNulls(strSeq)
-                .map(ZonedDateTime.parse(_, formatter)))).toEither
+                .map(ZonedDateTime.parse))).toEither
               .leftMap { e =>
                 val exampleTimestamps = Vector(
                   "2023-01-17T20:39:57Z",
@@ -383,7 +383,7 @@ object FlexibleDataModelRelationUtils {
             Try(
               InstancePropertyValue.DateList(
                 skipNulls(strSeq)
-                  .map(LocalDate.parse(_, formatter))
+                  .map(LocalDate.parse)
               )).toEither
               .leftMap(e => new CdfSparkException(s"""
                                                      |Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}
@@ -456,7 +456,7 @@ object FlexibleDataModelRelationUtils {
               }
           case PrimitiveProperty(PrimitivePropType.Date, None | Some(false)) =>
             val formatter = InstancePropertyValue.Date.formatter
-            Try(InstancePropertyValue.Date(LocalDate.parse(row.getString(i), formatter))).toEither
+            Try(InstancePropertyValue.Date(LocalDate.parse(row.getString(i)))).toEither
               .leftMap(e => new CdfSparkException(s"""
                                                      |Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}
                                                      |Expected date format is: ${formatter.toString}
