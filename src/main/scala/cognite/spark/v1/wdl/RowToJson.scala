@@ -26,9 +26,9 @@ object RowToJson {
     * @return a JsonObject
     */
   @SuppressWarnings(Array("DisableSyntax.return"))
-  def toJson(row: Row, schema: StructType): Json = {
+  def toJsonObject(row: Row, schema: StructType): JsonObject = {
     if (row == null) {
-      return Json.Null
+      return JsonObject.empty
     }
     if (row.schema == null) {
       sys.error(
@@ -48,8 +48,15 @@ object RowToJson {
             .orThrow(structField.name, structField.nullable)
       )
       .toMap
-    val jsonObject = JsonObject.fromMap(jsonFields)
-    Json.fromJsonObject(jsonObject)
+    JsonObject.fromMap(jsonFields)
+  }
+
+  def toJson(row: Row, schema: StructType): Json = {
+    val jsonObject = toJsonObject(row, schema)
+    jsonObject.isEmpty match {
+      case true => Json.Null
+      case false => Json.fromJsonObject(jsonObject)
+    }
   }
 
   @SuppressWarnings(Array("DisableSyntax.return"))

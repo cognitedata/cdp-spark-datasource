@@ -96,7 +96,7 @@ class RowToJsonTest extends FlatSpec with Matchers /*with ParallelTestExecution*
     )
 
     val expectedException = intercept[RuntimeException] {
-      RowToJson.toJson(input, schema)
+      RowToJson.toJsonObject(input, schema)
     }
 
     assert(expectedException.getMessage.startsWith("Element "))

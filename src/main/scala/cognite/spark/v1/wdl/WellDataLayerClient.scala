@@ -176,8 +176,8 @@ class WellDataLayerClient(
       case _ => sys.error(s"Unknown model type: $modelType")
     }
 
-  def setItems(modelType: String, items: Items[Json]): ItemsWithCursor[JsonObject] = {
-    logger.info(s"Settings items of type=$modelType")
-    post[Items[Json], ItemsWithCursor[JsonObject]](getWriteUrlPart(modelType), items)
+  def setItems(modelType: String, items: Items[JsonObject]): ItemsWithCursor[JsonObject] = {
+    logger.info(s"Settings items of type=$modelType\n$items")
+    post[Items[JsonObject], ItemsWithCursor[JsonObject]](getWriteUrlPart(modelType), items)
   }
 }

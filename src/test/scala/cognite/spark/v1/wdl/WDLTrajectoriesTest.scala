@@ -116,4 +116,64 @@ class WDLTrajectoriesTest
 
     (expectedTrajectoriesDF.collect() should contain).theSameElementsAs(trajectoriesDF.collect())
   }
+
+  it should "fail while ingesting trajectory without rows" in {
+    val testIngestionsDF = spark
+      .sql("""select
+          |   t.wellboreAssetExternalId,
+          |   struct(t.sourceName, t.externalId as sequenceExternalId) as source,
+          |   t.type,
+          |   t.measuredDepthUnit,
+          |   t.inclinationUnit,
+          |   t.azimuthUnit,
+          |   t.doglegSeverityUnit,
+          |   t.phase,
+          |   array() as rows
+          | from wdl_test_raw_trajectories as t
+          |""".stripMargin)
+      .filter("""wellboreAssetExternalId = "A:wb1"""")
+
+    try {
+      testIngestionsDF.write
+        .format("cognite.spark.v1")
+        .option("project", "jetfiretest2")
+        .option("type", "welldatalayer")
+        .option("wdlDataType", "TrajectoryIngestion")
+        .useOIDCWrite
+        .save()
+    } catch {
+      case e: org.apache.spark.SparkException => println(e.getMessage)
+    }
+
+    val trajectoriesDF = sparkReader
+      .option("wdlDataType", "Trajectory")
+      .load()
+
+    trajectoriesDF shouldBe empty
+  }
+
+  it should "ingest and read multiple trajectories" in {
+    val testIngestionsDF = spark
+      .sql(s"""$getTrajectoryRowsCTE
+           | $getTrajectoriesExpr
+           |""".stripMargin)
+
+    testIngestionsDF.write
+      .format("cognite.spark.v1")
+      .option("project", "jetfiretest2")
+      .option("type", "welldatalayer")
+      .option("wdlDataType", "TrajectoryIngestion")
+      .useOIDCWrite
+      .save()
+
+    val expectedTrajectoriesDF = spark.read
+      .schema(client.getSchema("Trajectory"))
+      .json("src/test/resources/wdl-test-expected-trajectories.jsonl")
+
+    val trajectoriesDF = sparkReader
+      .option("wdlDataType", "Trajectory")
+      .load()
+
+    (expectedTrajectoriesDF.collect() should contain).theSameElementsAs(trajectoriesDF.collect())
+  }
 }

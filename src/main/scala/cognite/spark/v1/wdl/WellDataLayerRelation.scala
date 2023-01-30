@@ -24,16 +24,15 @@ class WellDataLayerRelation(
   override def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val jsons = rows.map(row => {
-      val rowJson = RowToJson.toJson(row, schema)
-      if (rowJson.isNull) {
-        sys.error("This json object is null!")
+    val jsonObjects = rows.map(row => {
+      val rowJson = RowToJson.toJsonObject(row, schema)
+      if (rowJson.isEmpty) {
+        sys.error("Upsert invalid empty row!")
       }
       rowJson
     })
 
-    val items = Items(jsons)
-    client.setItems(model, items)
+    client.setItems(model, Items(jsonObjects))
 
     IO.unit
   }

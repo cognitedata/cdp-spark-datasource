@@ -59,7 +59,9 @@ object CdpConnector {
     IORuntimeConfig()
   )
   private val sttpBackend: SttpBackend[IO, Any] =
-    new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
+    new GzipBackend[IO, Any](
+      AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()),
+      minimumSize = 10000)
 
   def retryingSttpBackend(
       maxRetries: Int,
