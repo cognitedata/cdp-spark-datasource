@@ -10,7 +10,7 @@ val circeVersion = "0.14.1"
 val sttpVersion = "3.5.2"
 val Specs2Version = "4.6.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "2.5.0-SNAPSHOT-31"
+val cogniteSdkVersion = "2.5.0-SNAPSHOT"
 
 val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
