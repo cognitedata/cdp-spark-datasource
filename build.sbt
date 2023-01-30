@@ -15,8 +15,6 @@ val cogniteSdkVersion = "2.5.0-SNAPSHOT"
 val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
 
-resolvers += "libs-release" at artifactory + "libs-release/"
-
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
 ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
@@ -35,6 +33,10 @@ lazy val commonSettings = Seq(
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
+  resolvers ++= Seq(
+    "libs-release".at(artifactory + "libs-release/"),
+    Resolver.sonatypeRepo("snapshots")
+  ),
   developers := List(
     Developer(
       id = "wjoel",
@@ -62,11 +64,13 @@ lazy val commonSettings = Seq(
     )
   ),
   // Remove all additional repository other than Maven Central from POM
-  pomIncludeRepository := { _ => false },
+  pomIncludeRepository := { _ =>
+    false
+  },
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
-    else Some("releases" at nexus + "service/local/staging/deploy/maven2")
+    if (isSnapshot.value) Some("snapshots".at(nexus + "content/repositories/snapshots"))
+    else Some("releases".at(nexus + "service/local/staging/deploy/maven2"))
   },
   publishMavenStyle := true,
   pgpPassphrase := {
@@ -106,40 +110,40 @@ lazy val library = (project in file("."))
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
-      "io.scalaland" %% "chimney" % "0.6.1"
-        // scala-collection-compat is used in TransformerF, but we don't use that,
-        // and this dependency causes issues with Livy.
-        exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
-        exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
+      ("io.scalaland" %% "chimney" % "0.6.1")
+      // scala-collection-compat is used in TransformerF, but we don't use that,
+      // and this dependency causes issues with Livy.
+        .exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
+        .exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
-      "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion
-        // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
-        exclude("io.netty", "netty-buffer")
-        exclude("io.netty", "netty-handler")
-        exclude("io.netty", "netty-transport-native-epoll")
-        exclude("com.softwaremill.sttp", "circe_2.12")
-        exclude("com.softwaremill.sttp", "circe_2.13")
-        exclude("org.typelevel", "cats-effect_2.12")
-        exclude("org.typelevel", "cats-effect_2.13")
-        exclude("org.typelevel", "cats-core_2.12")
-        exclude("org.typelevel", "cats-core_2.13"),
+      ("com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion)
+      // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
+        .exclude("io.netty", "netty-buffer")
+        .exclude("io.netty", "netty-handler")
+        .exclude("io.netty", "netty-transport-native-epoll")
+        .exclude("com.softwaremill.sttp", "circe_2.12")
+        .exclude("com.softwaremill.sttp", "circe_2.13")
+        .exclude("org.typelevel", "cats-effect_2.12")
+        .exclude("org.typelevel", "cats-effect_2.13")
+        .exclude("org.typelevel", "cats-core_2.12")
+        .exclude("org.typelevel", "cats-core_2.13"),
       "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
-      "io.circe" %% "circe-generic" % circeVersion
-        exclude("org.typelevel", "cats-core_2.12")
-        exclude("org.typelevel", "cats-core_2.13"),
-      "io.circe" %% "circe-generic-extras" % circeVersion
-        exclude("org.typelevel", "cats-core_2.12")
-        exclude("org.typelevel", "cats-core_2.13"),
+      ("io.circe" %% "circe-generic" % circeVersion)
+        .exclude("org.typelevel", "cats-core_2.12")
+        .exclude("org.typelevel", "cats-core_2.13"),
+      ("io.circe" %% "circe-generic-extras" % circeVersion)
+        .exclude("org.typelevel", "cats-core_2.12")
+        .exclude("org.typelevel", "cats-core_2.13"),
       "org.scalatest" %% "scalatest" % "3.0.8" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.4.44.v20210927" % Provided,
-      "org.apache.spark" %% "spark-core" % sparkVersion % Provided
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
-        exclude("org.glassfish.hk2.external", "javax.inject"),
+      ("org.apache.spark" %% "spark-core" % sparkVersion % Provided)
+        .exclude("org.glassfish.hk2.external", "javax.inject"),
+      ("org.apache.spark" %% "spark-sql" % sparkVersion % Provided)
+        .exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.log4s" %% "log4s" % log4sVersion
     ),
     assemblyMergeStrategy := {
-      case PathList("META-INF", _@_*) => MergeStrategy.discard
+      case PathList("META-INF", _ @_*) => MergeStrategy.discard
       case _ => MergeStrategy.first
     },
     assemblyShadeRules := {
@@ -176,10 +180,10 @@ lazy val performancebench = (project in file("performancebench"))
       "io.prometheus" % "simpleclient_httpserver" % prometheusVersion,
       "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
       "org.log4s" %% "log4s" % log4sVersion,
-      "org.apache.spark" %% "spark-core" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
+      ("org.apache.spark" %% "spark-core" % sparkVersion)
+        .exclude("org.glassfish.hk2.external", "javax.inject"),
+      ("org.apache.spark" %% "spark-sql" % sparkVersion)
+        .exclude("org.glassfish.hk2.external", "javax.inject"),
     ),
     dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",
     dockerCommands ++= Seq(
@@ -198,7 +202,8 @@ lazy val cdfdump = (project in file("cdf_dump"))
     buildInfoPackage := "cognite.spark.cdfdump",
     assembly / assemblyJarName := "cdf_dump.jar",
     assembly / assemblyMergeStrategy := {
-      case n if n.contains("services") || n.startsWith("reference.conf") || n.endsWith(".conf") => MergeStrategy.concat
+      case n if n.contains("services") || n.startsWith("reference.conf") || n.endsWith(".conf") =>
+        MergeStrategy.concat
       case PathList("META-INF", xs @ _*) => MergeStrategy.discard
       case x => MergeStrategy.first
     },
@@ -207,10 +212,10 @@ lazy val cdfdump = (project in file("cdf_dump"))
     libraryDependencies ++= Seq(
       "org.rogach" %% "scallop" % "4.0.1",
       "org.log4s" %% "log4s" % log4sVersion,
-      "org.apache.spark" %% "spark-core" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
+      ("org.apache.spark" %% "spark-core" % sparkVersion)
+        .exclude("org.glassfish.hk2.external", "javax.inject"),
+      ("org.apache.spark" %% "spark-sql" % sparkVersion)
+        .exclude("org.glassfish.hk2.external", "javax.inject"),
     ),
   )
 
