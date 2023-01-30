@@ -476,7 +476,7 @@ object FDMContainerPropertyTypes {
     ContainerPropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845609Z[UTC]")),
+      defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845+01:00")),
       description = Some("Test Timestamp NonList WithDefaultValue NonNullable Description"),
       name = Some("Test-Timestamp-NonList-WithDefaultValue-NonNullable-Name"),
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
@@ -506,7 +506,7 @@ object FDMContainerPropertyTypes {
     ContainerPropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845367Z[UTC]")),
+      defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845Z")),
       description = Some("Test Timestamp NonList WithDefaultValue Nullable Description"),
       name = Some("Test-Timestamp-NonList-WithDefaultValue-Nullable-Name"),
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),

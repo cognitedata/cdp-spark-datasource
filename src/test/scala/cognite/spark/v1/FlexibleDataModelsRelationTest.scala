@@ -247,7 +247,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   }
 
   // Blocked by filter 'values' issue
-  ignore should "succeed when filtering instances by properties" in {
+  it should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
@@ -360,38 +360,28 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
-  ignore should "delete" in {
+  ignore should "delete containers and views used for testing" in {
     bluefieldAlphaClient.containers
       .delete(Seq(
         ContainerId(spaceExternalId, containerAllExternalId),
-        ContainerId(spaceExternalId, "containerAllListExternalId1"),
-        ContainerId(spaceExternalId, "containerAllListExternalId11"),
-        ContainerId(spaceExternalId, "containerAllListExternalId111"),
-        ContainerId(spaceExternalId, "containerAllListExternalId1111"),
-        ContainerId(spaceExternalId, "containerAllListExternalId11111"),
-        ContainerId(spaceExternalId, "containerAllListExternalId111111"),
         ContainerId(spaceExternalId, containerNodesExternalId),
         ContainerId(spaceExternalId, containerEdgesExternalId),
         ContainerId(spaceExternalId, containerAllNumericProps),
+        ContainerId(spaceExternalId, containerFilterByProps),
       ))
       .unsafeRunSync()
 
     bluefieldAlphaClient.views
       .deleteItems(Seq(
-        DataModelReference(spaceExternalId, "sparkDatasourceTestViewAllList1", viewVersion),
-        DataModelReference(spaceExternalId, "sparkDatasourceTestViewAllList11", viewVersion),
-        DataModelReference(spaceExternalId, "sparkDatasourceTestViewAllList111", viewVersion),
-        DataModelReference(spaceExternalId, "sparkDatasourceTestViewAllList1111", viewVersion),
-        DataModelReference(spaceExternalId, "sparkDatasourceTestViewAllList11111", viewVersion),
-        DataModelReference(spaceExternalId, "sparkDatasourceTestViewAllList111111", viewVersion),
         DataModelReference(spaceExternalId, viewAllExternalId, viewVersion),
         DataModelReference(spaceExternalId, viewNodesExternalId, viewVersion),
         DataModelReference(spaceExternalId, viewEdgesExternalId, viewVersion),
         DataModelReference(spaceExternalId, viewAllNumericProps, viewVersion),
+        DataModelReference(spaceExternalId, viewFilterByProps, viewVersion),
       ))
       .unsafeRunSync()
 
-    1 shouldBe 1
+    succeed
   }
 
   private def setupAllNonListPropertyTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {

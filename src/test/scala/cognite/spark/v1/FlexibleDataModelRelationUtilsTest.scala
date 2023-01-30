@@ -666,7 +666,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       ))
   }
 
-  it should "fail to create nodesOrEdges or edges when externalId is not present" in {
+  it should "fail to create nodes or edges when externalId is not present" in {
     val propertyMap = Map(
       "stringProp" ->
         TextPropertyNonListWithoutDefaultValueNonNullable,
