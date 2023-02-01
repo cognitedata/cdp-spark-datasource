@@ -24,8 +24,10 @@ final case class SdkV1Rdd[A, I](
 
   type EitherQueue = ArrayBlockingQueue[Either[Throwable, Chunk[A]]]
 
-  @transient lazy val client: GenericClient[IO] =
-    CdpConnector.clientFromConfig(config)
+  @transient lazy val client: GenericClient[IO] = config.clientTag match {
+    case t @ Some(_) => CdpConnector.clientFromConfig(config, t)
+    case _ => CdpConnector.clientFromConfig(config)
+  }
 
   override def getPartitions: Array[Partition] = {
     val numberOfPartitions =
