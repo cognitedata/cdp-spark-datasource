@@ -1,12 +1,12 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.DataFrameMatcher
+import cognite.spark.v1.{DataFrameMatcher, SparkTest}
 import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
 
 class WDLSourcesTest
     extends FlatSpec
-    with WDLSparkTest
+    with SparkTest
     with Inspectors
     with DataFrameMatcher
     with BeforeAndAfter {
@@ -19,15 +19,17 @@ class WDLSourcesTest
     .option("type", "welldatalayer")
     .useOIDCWrite
 
+  val testClient = new TestWdlClient(writeClient)
+
   before {
     SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
-    client.deleteAll()
-    client.miniSetup()
+    testClient.deleteAll()
+    testClient.miniSetup()
   }
 
   it should "ingest and read Sources" in {
     val testSourcesDF = spark.read
-      .schema(client.getSchema("Source"))
+      .schema(testClient.getSchema("Source"))
       .json("src/test/resources/wdl-test-sources.jsonl")
 
     testSourcesDF.write
@@ -43,7 +45,7 @@ class WDLSourcesTest
       .load()
 
     val expectedSources = spark.read
-      .schema(client.getSchema("Source"))
+      .schema(testClient.getSchema("Source"))
       .json("src/test/resources/wdl-test-expected-sources.jsonl")
     (expectedSources.collect() should contain).theSameElementsAs(sourcesDF.collect())
   }

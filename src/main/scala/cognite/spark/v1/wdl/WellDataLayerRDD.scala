@@ -1,6 +1,10 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{CdfPartition, CdfSparkException, RelationConfig}
+import cats.effect.IO
+import cognite.spark.v1.{CdfPartition, CdfSparkException, CdpConnector, RelationConfig}
+import com.cognite.sdk.scala.common.ItemsWithCursor
+import com.cognite.sdk.scala.v1.GenericClient
+import io.circe.JsonObject
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
@@ -12,12 +16,30 @@ class WellDataLayerRDD(
     val model: String,
     val config: RelationConfig
 ) extends RDD[Row](sparkContext, Nil) {
+  import CdpConnector._
+
+  @transient lazy val client: GenericClient[IO] =
+    CdpConnector.clientFromConfig(config)
+
+  private def getReadUrlPart(modelType: String): String =
+    modelType.replace("Ingestion", "") match {
+      case "Well" => "wells/list"
+      case "Npt" => "npt/list"
+      case "Nds" => "npt/list"
+      case "CasingSchematic" => "casings/list"
+      case "Trajectory" => "trajectories/list"
+      case _ => sys.error(s"Unknown model type: $modelType")
+    }
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
-    val client = WellDataLayerClient.fromConfig(config)
-    val response = client.getItems(model)
+    val response: IO[ItemsWithCursor[JsonObject]] = if (model == "Source") {
+      client.wdl.listItemsWithGet("sources")
+    } else {
+      client.wdl.listItemsWithPost(getReadUrlPart(model))
+    }
+    val responseUnwrapped = response.unsafeRunSync()
 
-    val rows = response.items.map(jsonObject =>
+    val rows = responseUnwrapped.items.map(jsonObject =>
       JsonObjectToRow.toRow(jsonObject, schema) match {
         case Some(row) => row
         case None => throw new CdfSparkException("Got null as top level row.")

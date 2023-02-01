@@ -1,12 +1,12 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.DataFrameMatcher
+import cognite.spark.v1.{DataFrameMatcher, SparkTest}
 import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
 
 class WDLTrajectoriesTest
     extends FlatSpec
-    with WDLSparkTest
+    with SparkTest
     with Inspectors
     with DataFrameMatcher
     with BeforeAndAfter {
@@ -19,10 +19,12 @@ class WDLTrajectoriesTest
     .option("type", "welldatalayer")
     .useOIDCWrite
 
+  val testClient = new TestWdlClient(writeClient)
+
   before {
     SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
-    client.deleteAll()
-    client.miniSetup()
+    testClient.deleteAll()
+    testClient.miniSetup()
   }
 
   val rawTrajectoryRowsDF: Unit = spark.read
@@ -79,7 +81,7 @@ class WDLTrajectoriesTest
       .save()
 
     val expectedTrajectoriesDF = spark.read
-      .schema(client.getSchema("Trajectory"))
+      .schema(testClient.getSchema("Trajectory"))
       .json("src/test/resources/wdl-test-expected-trajectories.jsonl")
       .filter("""wellboreAssetExternalId = "A:wb1"""")
 
@@ -106,7 +108,7 @@ class WDLTrajectoriesTest
       .save()
 
     val expectedTrajectoriesDF = spark.read
-      .schema(client.getSchema("Trajectory"))
+      .schema(testClient.getSchema("Trajectory"))
       .json("src/test/resources/wdl-test-expected-trajectories.jsonl")
       .filter("""wellboreAssetExternalId = "A:wb2"""")
 
@@ -167,7 +169,7 @@ class WDLTrajectoriesTest
       .save()
 
     val expectedTrajectoriesDF = spark.read
-      .schema(client.getSchema("Trajectory"))
+      .schema(testClient.getSchema("Trajectory"))
       .json("src/test/resources/wdl-test-expected-trajectories.jsonl")
 
     val trajectoriesDF = sparkReader

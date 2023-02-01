@@ -1,12 +1,12 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.DataFrameMatcher
+import cognite.spark.v1.{DataFrameMatcher, SparkTest}
 import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
 
 class WDLNptsTest
     extends FlatSpec
-    with WDLSparkTest
+    with SparkTest
     with Inspectors
     with DataFrameMatcher
     with BeforeAndAfter {
@@ -19,15 +19,18 @@ class WDLNptsTest
     .option("type", "welldatalayer")
     .useOIDCWrite
 
+  val testClient = new TestWdlClient(writeClient)
+
   before {
     SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
-    client.deleteAll()
-    client.miniSetup()
+    testClient.deleteAll()
+    val setup = testClient.miniSetup()
+    println(s"Setup is $setup")
   }
 
   it should "ingest and read NTP events" in {
     val testNptIngestionsDF = spark.read
-      .schema(client.getSchema("NptIngestion"))
+      .schema(testClient.getSchema("NptIngestion"))
       .json("src/test/resources/wdl-test-ntp-ingestions.jsonl")
 
     testNptIngestionsDF.write
@@ -39,7 +42,7 @@ class WDLNptsTest
       .save()
 
     val testNptsDF = spark.read
-      .schema(client.getSchema("Npt"))
+      .schema(testClient.getSchema("Npt"))
       .json("src/test/resources/wdl-test-ntps.jsonl")
 
     val NptsDF = sparkReader

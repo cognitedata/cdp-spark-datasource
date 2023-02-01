@@ -1,16 +1,17 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.WriteTest
+import cognite.spark.v1.{SparkTest, WriteTest}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors, Matchers}
 
-class WDLBasicTest extends FlatSpec with Matchers with WDLSparkTest with Inspectors with BeforeAndAfter {
+class WDLBasicTest extends FlatSpec with Matchers with SparkTest with Inspectors with BeforeAndAfter {
+  val testClient = new TestWdlClient(writeClient)
 
   before {
     SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
-    client.deleteAll()
-    client.miniSetup()
+    testClient.deleteAll()
+    testClient.miniSetup()
   }
 
   val destinationDf: DataFrame = spark.read
@@ -32,7 +33,7 @@ class WDLBasicTest extends FlatSpec with Matchers with WDLSparkTest with Inspect
       .format("cognite.spark.v1")
       .option("project", "jetfiretest2")
       .option("type", "welldatalayer")
-      .option("wdlDataType", "WellIngestion")
+      .option("wdlDataType", "WellSource")
       .useOIDCWrite
       .save()
   }

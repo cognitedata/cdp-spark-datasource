@@ -1,83 +1,58 @@
 package cognite.spark.v1.wdl
 
-import io.circe.generic.auto._
-import org.apache.spark.sql.types.StructType
+import cats.effect.IO
+import cognite.spark.v1.CdfSparkException
+import com.cognite.sdk.scala.playground._
+import com.cognite.sdk.scala.v1.GenericClient
+import org.apache.spark.sql.types.{DataType, StructType}
 
-class TestWdlClient(val client: WellDataLayerClient) {
+class TestWdlClient(val client: GenericClient[IO]) {
+  import cognite.spark.v1.CdpConnector._
 
-  def getSchema(name: String): StructType = client.getSchema(name)
-
-  def ingestSources(sources: Seq[Source]): Seq[Source] = {
-    val created = client.post[SourceItems, SourceItems]("sources", SourceItems(sources))
-    created.items
-  }
-
-  def getSources: Seq[Source] =
-    client.get[SourceItems]("sources").items
-
-  def deleteSources(sourceNames: Seq[String]): Unit = {
-    val items = sourceNames.map(name => Source(name))
-    val deleteSources = DeleteSources(items = items)
-
-    val _ = client.post[DeleteSources, EmptyObj]("sources/delete", deleteSources)
-  }
-
-  def setMergeRules(sources: Seq[String]): Unit = {
-    // Discard two values. Can't set both to _, so I'm doing this gymnastics.
-    val _1 = client.post[WellMergeRules, EmptyObj]("wells/mergerules", WellMergeRules(sources))
-    val _2 = client.post[WellboreMergeRules, EmptyObj]("wellbores/mergerules", WellboreMergeRules(sources))
-    val _ = (_1, _2)
+  def getSchema(name: String): StructType = {
+    val schemaAsString = client.wdl.getSchema(name).unsafeRunSync()
+    DataType.fromJson(schemaAsString) match {
+      case s @ StructType(_) => s
+      case _ => throw new CdfSparkException("Failed to decode well-data-layer schema into StructType")
+    }
   }
 
   def deleteAll(): Unit = {
-    val wells = getWells
-    val wellSources = wells.flatMap(_.sources)
-    if (wellSources.nonEmpty) {
-      deleteWells(wellSources, recursive = true)
-    }
-    val sources = getSources
-    if (sources.nonEmpty) {
-      deleteSources(sources.map(_.name))
-    }
-  }
-
-  def ingestWells(wells: Seq[WellIngestion]): Seq[Well] = {
-    val body = WellIngestionItems(wells)
-    client.post[WellIngestionItems, WellItems]("wells", body).items
-  }
-
-  def ingestWellbores(wells: Seq[WellboreIngestion]): Seq[Wellbore] = {
-    val body = WellboreIngestionItems(wells)
-    client.post[WellboreIngestionItems, WellboreItems]("wellbores", body).items
+    val result = for {
+      sources <- client.wdl.sources.list()
+      _ <- if (sources.nonEmpty) {
+        client.wdl.sources.deleteRecursive(sources)
+      } else {
+        IO.unit
+      }
+    } yield ()
+    result.unsafeRunSync()
   }
 
   case class MiniSetup(
       source: Source,
       well: Well,
-      wellIngesiton: WellIngestion,
+      wellSource: WellSource,
       wellbores: Seq[Wellbore],
-      wellboreIngestions: Seq[WellboreIngestion],
+      wellboreSource: Seq[WellboreSource],
   )
 
   def miniSetup(): MiniSetup = {
-    val source = ingestSources(Seq(Source("A"))).head
-    setMergeRules(Seq("A"))
-    val wellIngestion = WellIngestion(
+    val wellSource = WellSource(
       matchingId = Some("w1"),
       source = AssetSource(assetExternalId = "A:w1", sourceName = "A"),
       name = "w1",
       wellhead = Some(Wellhead(x = 0.0, y = 60.0, crs = "EPSG:4326"))
     )
-    val well = ingestWells(Seq(wellIngestion)).head
-    val wellboreIngestions = Seq(
-      WellboreIngestion(
+    val wellboreSources = Seq(
+      WellboreSource(
         matchingId = Some("wb1"),
         name = "wb1",
         source = AssetSource(assetExternalId = "A:wb1", sourceName = "A"),
         datum = Some(Datum(value = 50.0, unit = "meter", reference = "KB")),
         wellAssetExternalId = "A:w1",
       ),
-      WellboreIngestion(
+      WellboreSource(
         matchingId = Some("wb2"),
         name = "wb1",
         source = AssetSource(assetExternalId = "A:wb2", sourceName = "A"),
@@ -85,27 +60,29 @@ class TestWdlClient(val client: WellDataLayerClient) {
         wellAssetExternalId = "A:w1",
       ),
     )
-    val wellbores = ingestWellbores(wellboreIngestions)
-    MiniSetup(
-      source = source,
-      well = well,
-      wellIngesiton = wellIngestion,
-      wellbores = wellbores,
-      wellboreIngestions = wellboreIngestions
-    )
-  }
+    val result = for {
+      sources <- client.wdl.sources.create(Seq(Source("A")))
+      source = sources.head
+      _ <- client.wdl.wells.setMergeRules(WellMergeRules(Seq("A")))
+      _ <- client.wdl.wellbores.setMergeRules(WellboreMergeRules(Seq("A")))
+      wells <- client.wdl.wells.create(Seq(wellSource))
+      well = wells.head
+      wellbores <- client.wdl.wellbores.create(wellboreSources)
+    } yield
+      MiniSetup(
+        source = source,
+        well = well,
+        wellSource = wellSource,
+        wellbores = wellbores,
+        wellboreSource = wellboreSources
+      )
 
-  def getWells: Seq[Well] =
-    client.post[EmptyObj, WellItems]("wells/list", EmptyObj()).items
-
-  def deleteWells(wells: Seq[AssetSource], recursive: Boolean = false): Unit = {
-    val body = DeleteWells(wells, recursive = recursive)
-    val _ = client.post[DeleteWells, EmptyObj]("wells/delete", body)
+    result.unsafeRunSync()
   }
 
   def initTestWells(): Seq[Well] = {
     val items = Seq(
-      WellIngestion(
+      WellSource(
         name = "34/10-8",
         uniqueWellIdentifier = Some("34/10-8"),
         waterDepth = Some(Distance(value = 100.0, unit = "meter")),
@@ -128,8 +105,6 @@ class TestWdlClient(val client: WellDataLayerClient) {
         region = Some("MyRegion"),
       )
     )
-
-    val wellIngestionItems = WellIngestionItems(items = items)
-    client.post[WellIngestionItems, WellItems]("wells", wellIngestionItems).items
+    client.wdl.wells.create(items).unsafeRunSync()
   }
 }
