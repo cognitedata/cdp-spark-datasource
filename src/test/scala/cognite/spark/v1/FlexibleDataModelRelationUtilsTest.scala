@@ -7,9 +7,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeW
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
-import org.scalatest.{FlatSpec, Matchers}
-
-import scala.collection.mutable.ArrayBuffer
+import org.scalatest.{Assertion, FlatSpec, Matchers}
 
 // scalastyle:off null
 class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
@@ -37,13 +35,11 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](Array("str1"), Array("str2"))
-    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+    val values = Seq[Array[Any]](Array("str1"), Array("str2"))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema)).toSeq
 
     val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage
-      .contains("Couldn't find required string property 'externalId'") shouldBe true
+    verifyErrorMessage(result, "Couldn't find required string property 'externalId'")
   }
 
   it should "fail to create nodes when externalId is null" in {
@@ -62,15 +58,14 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array("stringProp1", "extId1", null),
       Array(null, null, 5)
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage.contains("'externalId' cannot be null") shouldBe true
+    verifyErrorMessage(result, "'externalId' cannot be null")
   }
 
   it should "fail to create nodes when required a property is null" in {
@@ -89,12 +84,11 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Array[Array[Any]](Array("stringProp1", "extId1", 1), Array(null, "extId1", null))
+    val values = Seq[Array[Any]](Array("stringProp1", "extId1", 1), Array(null, "extId1", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage.contains("cannot be null") shouldBe true
+    verifyErrorMessage(result, "cannot be null")
   }
 
   it should "fail to create nodes when required a property is missing" in {
@@ -112,12 +106,11 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Array[Array[Any]](Array("extId1", 1), Array("extId2", null))
+    val values = Seq[Array[Any]](Array("extId1", 1), Array("extId2", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage.contains("Could not find required properties") shouldBe true
+    verifyErrorMessage(result, "Could not find required properties")
   }
 
   it should "fail to create nodes when required a property is nullable" in {
@@ -137,12 +130,11 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values =
-      Array[Array[Any]](Array("extId1", "stringProp1", 1), Array("extId2", "stringProp2", null))
+      Seq[Array[Any]](Array("extId1", "stringProp1", 1), Array("extId2", "stringProp2", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage.contains("cannot contain null values") shouldBe true
+    verifyErrorMessage(result, "cannot contain null values")
   }
 
   it should "successfully create nodes with all nullable/non-nullable properties" in {
@@ -166,7 +158,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values =
-      Array[Array[Any]](
+      Seq[Array[Any]](
         Array("stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
         Array("stringProp2", "extId2", 5, Array(2.1, 2.2), null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
@@ -174,8 +166,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -191,7 +183,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
         "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -214,7 +206,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array("stringProp1", "extId1", Seq(1.1, 1.2, null)),
       Array("stringProp2", "extId2", Array(2.1, 2.2)))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
@@ -222,8 +214,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -237,7 +229,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -263,7 +255,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values =
-      Array[Array[Any]](
+      Seq[Array[Any]](
         Array("stringProp1", "extId1", 1, "unrelatedProp1", Seq(1.1, 1.2, null), Array(2.1, null)),
         Array("stringProp2", "extId2", null, "unrelatedProp2", Array(2.1, 2.2), null)
       )
@@ -272,8 +264,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -289,7 +281,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -307,13 +299,11 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](Array("str1", 1), Array("str2", null))
+    val values = Seq[Array[Any]](Array("str1", 1), Array("str2", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage
-      .contains("Couldn't find required string property 'externalId'") shouldBe true
+    verifyErrorMessage(result, "Couldn't find required string property 'externalId'")
   }
 
   it should "fail to create edges when type is not present" in {
@@ -331,13 +321,11 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](Array("str1", null, "externalId1"), Array("str2", 2, "externalId2"))
+    val values = Seq[Array[Any]](Array("str1", null, "externalId1"), Array("str2", 2, "externalId2"))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage
-      .contains("Could not find required property 'type'") shouldBe true
+    verifyErrorMessage(result, "Could not find required property 'type'")
   }
 
   it should "fail to create edges when startNode is not present" in {
@@ -356,7 +344,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "str1",
         null,
@@ -371,9 +359,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage
-      .contains("Could not find required property 'startNode'") shouldBe true
+    verifyErrorMessage(result, "Could not find required property 'startNode'")
   }
 
   it should "fail to create edges when endNode is not present" in {
@@ -393,7 +379,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "str1",
         null,
@@ -412,9 +398,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage
-      .contains("Could not find required property 'endNode'") shouldBe true
+    verifyErrorMessage(result, "Could not find required property 'endNode'")
   }
 
   it should "fail to create edges when type.space is null" in {
@@ -435,7 +419,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "str1",
         null,
@@ -456,9 +440,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage
-      .contains("(Edge type) cannot contain null values") shouldBe true
+    verifyErrorMessage(result, "(Edge type) cannot contain null values")
   }
 
   it should "successfully create edges with all nullable/non-nullable properties" in {
@@ -483,7 +465,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "stringProp1",
         null,
@@ -509,8 +491,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -526,7 +508,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
         "intProp" -> InstancePropertyValue.Int32(2),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -551,7 +533,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "stringProp1",
         "extId1",
@@ -574,8 +556,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -589,7 +571,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -616,7 +598,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "stringProp1",
         null,
@@ -645,8 +627,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -662,7 +644,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
         "intProp" -> InstancePropertyValue.Int32(2),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -680,13 +662,11 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](Array("str1"), Array("str2"))
+    val values = Seq[Array[Any]](Array("str1"), Array("str2"))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage
-      .contains("Couldn't find required string property 'externalId'") shouldBe true
+    verifyErrorMessage(result, "Couldn't find required string property 'externalId'")
   }
 
   it should "fail to create nodesOrEdges or edges when externalId is null" in {
@@ -705,15 +685,14 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array("stringProp1", "extId1", null),
       Array(null, null, 5)
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage.contains("'externalId' cannot be null") shouldBe true
+    verifyErrorMessage(result, "'externalId' cannot be null")
   }
 
   it should "fail to create nodesOrEdges or edges when required a property is null" in {
@@ -732,12 +711,11 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Array[Array[Any]](Array("stringProp1", "extId1", 1), Array(null, "extId1", null))
+    val values = Seq[Array[Any]](Array("stringProp1", "extId1", 1), Array(null, "extId1", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage.contains("cannot be null") shouldBe true
+    verifyErrorMessage(result, "cannot be null")
   }
 
   it should "successfully create nodesOrEdges in createNodesOrEdges with all nullable/non-nullable properties" in {
@@ -761,7 +739,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values =
-      Array[Array[Any]](
+      Seq[Array[Any]](
         Array("stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
         Array("stringProp2", "extId2", 5, Array(2.1, 2.2), null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
@@ -769,8 +747,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get.asInstanceOf[Vector[NodeWrite]]
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[NodeWrite]]
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -786,7 +764,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
         "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -809,7 +787,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array("stringProp1", "extId1", Seq(1.1, 1.2, null)),
       Array("stringProp2", "extId2", Array(2.1, 2.2)))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
@@ -817,8 +795,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get.asInstanceOf[Vector[NodeWrite]]
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[NodeWrite]]
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -832,7 +810,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -858,7 +836,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values =
-      Array[Array[Any]](
+      Seq[Array[Any]](
         Array("stringProp1", "extId1", 1, "unrelatedProp1", Seq(1.1, 1.2, null), Array(2.1, null)),
         Array("stringProp2", "extId2", null, "unrelatedProp2", Array(2.1, 2.2), null)
       )
@@ -867,8 +845,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get.asInstanceOf[Vector[NodeWrite]]
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[NodeWrite]]
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -884,7 +862,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -910,7 +888,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "stringProp1",
         null,
@@ -936,8 +914,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get.asInstanceOf[Vector[EdgeWrite]]
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[EdgeWrite]]
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -953,7 +931,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
         "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -979,7 +957,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "stringProp1",
         "extId1",
@@ -1002,8 +980,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get.asInstanceOf[Vector[EdgeWrite]]
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[EdgeWrite]]
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -1017,7 +995,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -1045,7 +1023,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "stringProp1",
         null,
@@ -1074,8 +1052,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodes = result.right.get.asInstanceOf[Vector[EdgeWrite]]
-    nodes.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[EdgeWrite]]
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
       e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
     }.toMap
@@ -1091,7 +1069,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
         "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
   }
 
@@ -1113,7 +1091,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "str1",
         null,
@@ -1138,8 +1116,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage.contains("Only found: 'externalId', 'startNode', 'endNode'") shouldBe true
+    verifyErrorMessage(result, "Only found: 'externalId', 'startNode', 'endNode'")
   }
 
   it should "fail create nodes Or edges in createNodesOrEdges when a startNode is missing" in {
@@ -1160,7 +1137,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "str1",
         null,
@@ -1185,8 +1162,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage.contains("Only found: 'externalId', 'type', 'endNode'") shouldBe true
+    verifyErrorMessage(result, "Only found: 'externalId', 'type', 'endNode'")
   }
 
   it should "fail create nodes Or edges in createNodesOrEdges when a endNode is missing" in {
@@ -1207,7 +1183,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "str1",
         null,
@@ -1232,8 +1208,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    result.isRight shouldBe false
-    result.left.get.getMessage.contains("Only found: 'externalId', 'type', 'startNode'") shouldBe true
+    verifyErrorMessage(result, "Only found: 'externalId', 'type', 'startNode'")
   }
 
   it should "successfully create both nodesOrEdges & edges in createNodesOrEdges with all nullable/non-nullable properties" in {
@@ -1258,7 +1233,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "stringProp1",
         null,
@@ -1294,8 +1269,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodesOrEdges = result.right.get
-    nodesOrEdges.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodesOrEdges = result.toOption.getOrElse(Vector.empty)
+    nodesOrEdges.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     nodesOrEdges.map(_.externalId).distinct.sorted shouldBe Vector("extId1", "extId2", "extId3")
     val extIdPropsMap = nodesOrEdges.map {
       case n: NodeWrite =>
@@ -1316,13 +1291,13 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
         "intProp" -> InstancePropertyValue.Int32(2),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
     (extIdPropsMap("extId3") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp3"),
         "intProp" -> InstancePropertyValue.Int32(3),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(3.1, 3.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(3.1, 3.2))
       ))
   }
 
@@ -1347,7 +1322,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "stringProp1",
         "extId1",
@@ -1377,8 +1352,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodesOrEdges = result.right.get
-    nodesOrEdges.map(_.space).distinct.head shouldBe "instanceSpaceExternalId1"
+    val nodesOrEdges = result.toOption.getOrElse(Vector.empty)
+    nodesOrEdges.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     nodesOrEdges.map(_.externalId).distinct.sorted shouldBe Vector("extId1", "extId2", "extId3")
     val extIdPropsMap = nodesOrEdges.map {
       case n: NodeWrite =>
@@ -1397,12 +1372,12 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
     (extIdPropsMap("extId3") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp3"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(3.1, 3.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(3.1, 3.2))
       ))
   }
 
@@ -1429,7 +1404,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Array[Array[Any]](
+    val values = Seq[Array[Any]](
       Array(
         "stringProp1",
         null,
@@ -1466,7 +1441,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     result.isRight shouldBe true
 
-    val nodesOrEdges = result.right.get
+    val nodesOrEdges = result.toOption.getOrElse(Vector.empty)
     nodesOrEdges.map(_.externalId).distinct.sorted shouldBe Vector("extId1", "extId2", "extId3")
     val extIdPropsMap = nodesOrEdges.map {
       case n: NodeWrite =>
@@ -1487,14 +1462,22 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp2"),
         "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(2.1, 2.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
       ))
     (extIdPropsMap("extId3") should contain).theSameElementsAs(
       Map(
         "stringProp" -> InstancePropertyValue.String("stringProp3"),
         "intProp" -> InstancePropertyValue.Int32(6),
-        "doubleListProp" -> InstancePropertyValue.Float64List(ArrayBuffer(3.1, 3.2))
+        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(3.1, 3.2))
       ))
   }
+
+  private def verifyErrorMessage[A](result: Either[Exception, A], errorMsg: String): Assertion =
+    result match {
+      case Left(err) if err.getMessage.contains(errorMsg) => succeed
+      case Left(err) =>
+        fail(s"expecting error to contain '${err.getMessage}' fail but found: ${err.getMessage}")
+      case Right(value) => fail(s"expecting to fail but found: ${value.toString}")
+    }
 }
 // scalastyle:on null

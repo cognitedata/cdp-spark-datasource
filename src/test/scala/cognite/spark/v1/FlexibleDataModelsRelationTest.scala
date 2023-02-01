@@ -560,7 +560,6 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       cAll <- createContainerIfNotExists(Usage.All, containerProps, containerFilterByProps)
       viewAll <- createViewIfNotExists(cAll, viewFilterByProps, viewVersion)
       extIds <- setupInstancesForFiltering(viewAll)
-      _ <- IO.sleep(5.seconds)
     } yield (viewAll, extIds)
   }
 
@@ -643,6 +642,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
             )
           )
           .map(_.collect { case n: SlimNodeOrEdge.SlimNodeDefinition => n.externalId })
+          .flatTap(_ => IO.sleep(5.seconds))
       }
     }
   // scalastyle:on method.length
@@ -729,7 +729,9 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
             constraints = None,
             indexes = None
           )
-          bluefieldAlphaClient.containers.createItems(containers = Seq(containerToCreate))
+          bluefieldAlphaClient.containers
+            .createItems(containers = Seq(containerToCreate))
+            .flatTap(_ => IO.sleep(5.seconds))
         } else {
           IO.delay(containers)
         }
@@ -758,7 +760,9 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
             implements = None,
           )
 
-          bluefieldAlphaClient.views.createItems(items = Seq(viewToCreate))
+          bluefieldAlphaClient.views
+            .createItems(items = Seq(viewToCreate))
+            .flatTap(_ => IO.sleep(5.seconds))
         } else {
           IO.delay(views)
         }
@@ -815,7 +819,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 )
               ),
               replace = Some(true)
-            )) *> IO.unit
+            ))
+            .flatTap(_ => IO.sleep(5.seconds)) *> IO.unit
         }
       }
   // scalastyle:off method.length
