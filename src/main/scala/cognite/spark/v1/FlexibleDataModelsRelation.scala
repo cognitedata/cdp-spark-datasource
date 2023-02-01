@@ -336,7 +336,7 @@ class FlexibleDataModelsRelation(
   // scalastyle:off cyclomatic.complexity
   private def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
     val space = viewDefinition.space
-    val externalId = viewDefinition.externalId
+    val externalId = s"${viewDefinition.externalId}/${viewDefinition.version}"
 
     sparkFilter match {
       case EqualTo(attribute, value) =>
@@ -413,7 +413,8 @@ class FlexibleDataModelsRelation(
       sort = None, // Some(Seq(PropertyFilterV3))
       limit = limit,
       cursor = None,
-      sources = Some(Seq(InstanceSource(viewDefinition.toSourceReference)))
+      sources = Some(Seq(InstanceSource(viewDefinition.toSourceReference))),
+      includeTyping = Some(true)
     )
 
     Seq(

@@ -365,16 +365,11 @@ object FlexibleDataModelRelationUtils {
               InstancePropertyValue.TimestampList(skipNulls(strSeq)
                 .map(ZonedDateTime.parse))).toEither
               .leftMap { e =>
-                val exampleTimestamps = Vector(
-                  "2023-01-17T20:39:57Z",
-                  "2023-01-17T20:39:57+01:00",
-                  "2023-01-17T20:39:57.234Z",
-                  "2023-01-17T20:39:57.234+01:00"
-                )
                 new CdfSparkException(s"""
                                                      |Error parsing value of field '$propertyName' as an array of timestamps: ${e.getMessage}
                                                      |Expected timestamp format is: ${formatter.toString}
-                                                     |Eg: ${exampleTimestamps.mkString(",")}
+                                                     |Eg: ${exampleTimestampsForErrorMessages.mkString(
+                                           ",")}
                                                      |""".stripMargin)
               }
           case p @ PrimitiveProperty(PrimitivePropType.Date, _) if p.isList =>
@@ -443,16 +438,11 @@ object FlexibleDataModelRelationUtils {
               InstancePropertyValue.Timestamp(ZonedDateTime
                 .parse(row.getString(i), formatter))).toEither
               .leftMap { e =>
-                val exampleTimestamps = Vector(
-                  "2023-01-17T20:39:57Z",
-                  "2023-01-17T20:39:57+01:00",
-                  "2023-01-17T20:39:57.234Z",
-                  "2023-01-17T20:39:57.234+01:00"
-                )
                 new CdfSparkException(s"""
                                                      |Error parsing value of field '$propertyName' as an array of timestamps: ${e.getMessage}
                                                      |Expected timestamp format is: ${formatter.toString}
-                                                     |Eg: ${exampleTimestamps.mkString(",")}
+                                                     |Eg: ${exampleTimestampsForErrorMessages.mkString(
+                                           ",")}
                                                      |""".stripMargin)
               }
           case p @ PrimitiveProperty(PrimitivePropType.Date, _) if !p.isList =>
@@ -614,4 +604,11 @@ object FlexibleDataModelRelationUtils {
 
   private def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
+
+  private val exampleTimestampsForErrorMessages = Vector(
+    "2023-01-17T20:39:57Z",
+    "2023-01-17T20:39:57+01:00",
+    "2023-01-17T20:39:57.234Z",
+    "2023-01-17T20:39:57.234+01:00"
+  )
 }

@@ -85,7 +85,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     val instanceExtIdNode = s"${randomId}Node"
     val instanceExtIdEdge = s"${randomId}Edge"
 
-    def df(instanceExtId: String): DataFrame =
+    def insertionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
                 |select 
@@ -124,37 +124,82 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |null as jsonProp2
                 |""".stripMargin)
 
-    val result = Try {
+    val insertionResults = Try {
       Vector(
         insertRows(
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
           viewVersion = viewAll.version,
           instanceSpaceExternalId = spaceExternalId,
-          df(instanceExtIdAll)
+          insertionDf(instanceExtIdAll)
         ),
         insertRows(
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
           viewVersion = viewNodes.version,
           instanceSpaceExternalId = spaceExternalId,
-          df(instanceExtIdNode)
+          insertionDf(instanceExtIdNode)
         ),
         insertRows(
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
           instanceSpaceExternalId = spaceExternalId,
-          df(instanceExtIdEdge)
+          insertionDf(instanceExtIdEdge)
         )
       )
     }
 
-    result shouldBe Success(Vector((), (), ()))
-    result.get.size shouldBe 3
+    insertionResults shouldBe Success(Vector((), (), ()))
+    insertionResults.get.size shouldBe 3
     getUpsertedMetricsCount(viewAll) shouldBe 1
     getUpsertedMetricsCount(viewNodes) shouldBe 1
     getUpsertedMetricsCount(viewEdges) shouldBe 1
+
+    def deletionDf(instanceExtId: String): DataFrame = {
+      val space = if (instanceExtId.endsWith("Node")) "null" else s"'$spaceExternalId'"
+      spark
+        .sql(s"""
+             |select
+             | $space as space,
+             |'$instanceExtId' as externalId
+             |""".stripMargin)
+    }
+
+    val deletionResults = Try {
+      Vector(
+        insertRows(
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewAll.externalId,
+          viewVersion = viewAll.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdAll),
+          onConflict = "delete"
+        ),
+        insertRows(
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewNodes.externalId,
+          viewVersion = viewNodes.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdNode),
+          onConflict = "delete"
+        ),
+        insertRows(
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewEdges.externalId,
+          viewVersion = viewEdges.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdEdge),
+          onConflict = "delete"
+        )
+      )
+    }
+
+    deletionResults shouldBe Success(Vector((), (), ()))
+    deletionResults.get.size shouldBe 3
+    getDeletedMetricsCount(viewAll) shouldBe 1
+    getDeletedMetricsCount(viewNodes) shouldBe 1
+    getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
   it should "succeed when inserting all nullable & non nullable list values" in {
@@ -164,7 +209,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     val instanceExtIdNode = s"${randomId}Node"
     val instanceExtIdEdge = s"${randomId}Edge"
 
-    def df(instanceExtId: String): DataFrame =
+    def insertionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
                 |select 
@@ -213,41 +258,86 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |null as timestampListProp2
                 |""".stripMargin)
 
-    val result = Try {
+    val insertionResult = Try {
       Vector(
         insertRows(
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
           viewVersion = viewAll.version,
           instanceSpaceExternalId = spaceExternalId,
-          df(instanceExtIdAll)
+          insertionDf(instanceExtIdAll)
         ),
         insertRows(
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
           viewVersion = viewNodes.version,
           instanceSpaceExternalId = spaceExternalId,
-          df(instanceExtIdNode)
+          insertionDf(instanceExtIdNode)
         ),
         insertRows(
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
           instanceSpaceExternalId = spaceExternalId,
-          df(instanceExtIdEdge)
+          insertionDf(instanceExtIdEdge)
         )
       )
     }
 
-    result shouldBe Success(Vector((), (), ()))
-    result.get.size shouldBe 3
+    insertionResult shouldBe Success(Vector((), (), ()))
+    insertionResult.get.size shouldBe 3
     getUpsertedMetricsCount(viewAll) shouldBe 1
     getUpsertedMetricsCount(viewNodes) shouldBe 1
     getUpsertedMetricsCount(viewEdges) shouldBe 1
+
+    def deletionDf(instanceExtId: String): DataFrame = {
+      val space = if (instanceExtId.endsWith("Node")) "null" else s"'$spaceExternalId'"
+      spark
+        .sql(s"""
+             |select
+             | $space as space,
+             |'$instanceExtId' as externalId
+             |""".stripMargin)
+    }
+
+    val deletionResults = Try {
+      Vector(
+        insertRows(
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewAll.externalId,
+          viewVersion = viewAll.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdAll),
+          onConflict = "delete"
+        ),
+        insertRows(
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewNodes.externalId,
+          viewVersion = viewNodes.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdNode),
+          onConflict = "delete"
+        ),
+        insertRows(
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewEdges.externalId,
+          viewVersion = viewEdges.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdEdge),
+          onConflict = "delete"
+        )
+      )
+    }
+
+    deletionResults shouldBe Success(Vector((), (), ()))
+    deletionResults.get.size shouldBe 3
+    getDeletedMetricsCount(viewAll) shouldBe 1
+    getDeletedMetricsCount(viewNodes) shouldBe 1
+    getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-  // Blocked by filter 'values' issue
-  it should "succeed when filtering instances by properties" in {
+  // Blocked by filter 'values' issue CDF-17680
+  ignore should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
@@ -260,7 +350,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     readDf.createTempView(s"instance_filter_table")
 
     val sql = s"""
-                 |select * from instance_filter_table
+                 |select forEqualsFilter as externalId from instance_filter_table
                  |where
                  |forEqualsFilter = 'str1' and
                  |forInFilter in ('str1', 'str2', 'str3') and
@@ -413,6 +503,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       viewAll <- createViewIfNotExists(cAll, viewAllExternalId, viewVersion)
       viewNodes <- createViewIfNotExists(cNodes, viewNodesExternalId, viewVersion)
       viewEdges <- createViewIfNotExists(cEdges, viewEdgesExternalId, viewVersion)
+      _ <- IO.sleep(5.seconds)
     } yield (viewAll, viewNodes, viewEdges)
   }
 
@@ -467,8 +558,9 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
 
     for {
       cAll <- createContainerIfNotExists(Usage.All, containerProps, containerFilterByProps)
-      viewAll <- createViewIfNotExists(cAll, viewFilterByProps, viewFilterByProps)
+      viewAll <- createViewIfNotExists(cAll, viewFilterByProps, viewVersion)
       extIds <- setupInstancesForFiltering(viewAll)
+      _ <- IO.sleep(5.seconds)
     } yield (viewAll, extIds)
   }
 
@@ -492,7 +584,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     ).traverse { i =>
         createTestNodeInstancesForFiltering(i, viewRef)
       }
-      .map(_.flatten)
+      .map(_.flatten.distinct)
   }
 
   // scalastyle:off method.length
@@ -500,8 +592,9 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       i: InstanceRetrieve,
       viewRef: ViewReference): IO[Seq[String]] =
     bluefieldAlphaClient.instances.retrieveByExternalIds(Vector(i)).map(_.items).flatMap { instances =>
-      if (instances.length === 2) {
-        IO.delay(instances.collect { case n: InstanceDefinition.NodeDefinition => n.externalId })
+      val nodes = instances.collect { case n: InstanceDefinition.NodeDefinition => n.externalId }
+      if (nodes.length === 2) {
+        IO.pure(nodes)
       } else {
         bluefieldAlphaClient.instances
           .createItems(
@@ -734,6 +827,11 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
 
   private def getUpsertedMetricsCount(viewDef: ViewDefinition) =
     getNumberOfRowsUpserted(
+      s"${viewDef.externalId}-${viewDef.version}",
+      FlexibleDataModelsRelation.ResourceType)
+
+  private def getDeletedMetricsCount(viewDef: ViewDefinition) =
+    getNumberOfRowsDeleted(
       s"${viewDef.externalId}-${viewDef.version}",
       FlexibleDataModelsRelation.ResourceType)
 }

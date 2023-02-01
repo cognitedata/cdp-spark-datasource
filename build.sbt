@@ -23,7 +23,8 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "2.3.8",
+  version := "2.4.0-SNAPSHOT",
+  isSnapshot := true,
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
@@ -92,7 +93,7 @@ lazy val macroSub = (project in file("macro"))
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing()
     )
   )
 
