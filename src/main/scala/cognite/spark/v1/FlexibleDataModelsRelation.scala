@@ -336,7 +336,7 @@ class FlexibleDataModelsRelation(
   // scalastyle:off cyclomatic.complexity
   private def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
     val space = viewDefinition.space
-    val externalId = s"${viewDefinition.externalId}/${viewDefinition.version}"
+    val externalId = viewDefinition.externalId
 
     sparkFilter match {
       case EqualTo(attribute, value) =>
@@ -508,17 +508,17 @@ class FlexibleDataModelsRelation(
   private def usageBasedSchemaFields(usage: Usage): Array[StructField] =
     usage match {
       case Usage.Node =>
-        Array(DataTypes.createStructField("instanceExternalId", DataTypes.StringType, false))
+        Array(DataTypes.createStructField("externalId", DataTypes.StringType, false))
       case Usage.Edge =>
         Array(
-          DataTypes.createStructField("instanceExternalId", DataTypes.StringType, false),
+          DataTypes.createStructField("externalId", DataTypes.StringType, false),
           relationReferenceSchema("type", nullable = false),
           relationReferenceSchema("startNode", nullable = false),
           relationReferenceSchema("endNode", nullable = false)
         )
       case Usage.All =>
         Array(
-          DataTypes.createStructField("instanceExternalId", DataTypes.StringType, false),
+          DataTypes.createStructField("externalId", DataTypes.StringType, false),
           relationReferenceSchema("type", nullable = true),
           relationReferenceSchema("startNode", nullable = true),
           relationReferenceSchema("endNode", nullable = true)
