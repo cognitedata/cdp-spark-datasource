@@ -203,7 +203,10 @@ class FlexibleDataModelsRelation(
     if (config.collectMetrics) {
       itemsRead.inc()
     }
-    new GenericRow(a.properties)
+    new GenericRow(a.properties.map {
+      case a: Array[Any] => new GenericRow(a)
+      case e => e
+    })
   }
 
   private def toComparableFilterValueDefinition(
@@ -407,20 +410,11 @@ class FlexibleDataModelsRelation(
       case Left(err) => throw err
     }
 
-    val filterRequest = InstanceFilterRequest(
-      instanceType = instanceType,
-      filter = instanceFilter,
-      sort = None, // Some(Seq(PropertyFilterV3))
-      limit = limit,
-      cursor = None,
-      sources = Some(Seq(InstanceSource(viewDefinition.toSourceReference))),
-      includeTyping = Some(true)
-    )
-
-    Seq(
+    usageBasedFilterRequests(limit, instanceType, instanceFilter).map { filterRequest =>
       client.instances
         .filterStream(filterRequest, limit)
-        .map(toProjectedInstance(_, selectedInstanceProps)))
+        .map(toProjectedInstance(_, selectedInstanceProps))
+    }
   }
 
   private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
@@ -540,24 +534,90 @@ class FlexibleDataModelsRelation(
   private def toProjectedInstance(
       i: InstanceDefinition,
       selectedInstanceProps: Array[String]): ProjectedFlexibleDataModelInstance = {
-    val (externalId, properties) = i match {
-      case n: InstanceDefinition.NodeDefinition => (n.externalId, n.properties)
-      case e: InstanceDefinition.EdgeDefinition => (e.externalId, e.properties)
-    }
-
     // Merging all the properties without considering the space & view/container externalId
     // At the time of this impl there is no requirement to consider properties with same name
     // in different view/containers
     val allAvailablePropValues =
-      properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+      i.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
 
-    ProjectedFlexibleDataModelInstance(
-      externalId = externalId,
-      properties = selectedInstanceProps.map { prop =>
-        allAvailablePropValues.get(prop).map(extractInstancePropertyValue).orNull
-      }
-    )
+    i match {
+      case n: InstanceDefinition.NodeDefinition =>
+        ProjectedFlexibleDataModelInstance(
+          externalId = n.externalId,
+          properties = selectedInstanceProps.map {
+            case "externalId" => n.externalId
+            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
+          }
+        )
+      case e: InstanceDefinition.EdgeDefinition =>
+        ProjectedFlexibleDataModelInstance(
+          externalId = e.externalId,
+          properties = selectedInstanceProps.map {
+            case "externalId" => e.externalId
+            case "startNode" => Array(e.startNode.space, e.startNode.externalId)
+            case "type" => Array(e.startNode.space, e.startNode.externalId)
+            case "endNode" => Array(e.endNode.space, e.endNode.externalId)
+            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
+          }
+        )
+    }
   }
+
+  private def usageBasedFilterRequests(
+      limit: Option[Int],
+      instanceType: Option[InstanceType],
+      instanceFilter: Option[FilterDefinition]): Seq[InstanceFilterRequest] = {
+    val sources = Seq(InstanceSource(viewDefinition.toSourceReference))
+    val includeTyping = true
+    viewDefinition.usedFor match {
+      case Usage.Node =>
+        Seq(
+          InstanceFilterRequest(
+            instanceType = Some(instanceType.getOrElse(InstanceType.Node)),
+            filter = instanceFilter,
+            sort = None,
+            limit = limit,
+            cursor = None,
+            sources = Some(sources),
+            includeTyping = Some(includeTyping)
+          )
+        )
+      case Usage.Edge =>
+        Seq(
+          InstanceFilterRequest(
+            instanceType = Some(instanceType.getOrElse(InstanceType.Edge)),
+            filter = instanceFilter,
+            sort = None,
+            limit = limit,
+            cursor = None,
+            sources = Some(sources),
+            includeTyping = Some(includeTyping)
+          )
+        )
+      case Usage.All =>
+        Seq(
+          InstanceFilterRequest(
+            instanceType = Some(InstanceType.Node),
+            filter = instanceFilter,
+            sort = None,
+            limit = limit,
+            cursor = None,
+            sources = Some(sources),
+            includeTyping = Some(includeTyping)
+          ),
+          InstanceFilterRequest(
+            instanceType = Some(InstanceType.Edge),
+            filter = instanceFilter,
+            sort = None,
+            limit = limit,
+            cursor = None,
+            sources = Some(sources),
+            includeTyping = Some(includeTyping)
+          )
+        )
+    }
+  }
+
 }
 
 object FlexibleDataModelsRelation {

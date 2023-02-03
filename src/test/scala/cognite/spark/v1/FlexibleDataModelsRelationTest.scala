@@ -1,27 +1,29 @@
 package cognite.spark.v1
 
+import cats.Apply
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.containers.{
   ContainerCreateDefinition,
   ContainerDefinition,
   ContainerId
 }
-import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
+import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers}
 
-import java.time.{LocalDate, ZonedDateTime}
+import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.util.{Success, Try}
+import scala.util.{Random, Success, Try}
 
 class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTest {
 
@@ -336,6 +338,71 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
+  it should "succeed when fetching instances with select *" in {
+    val startNodeRef = DirectRelationReference(
+      space = spaceExternalId,
+      externalId = startNodeExtId
+    )
+    val endNodeRef = DirectRelationReference(
+      space = spaceExternalId,
+      externalId = endNodeExtId
+    )
+
+    val (viewAll, viewNodes, viewEdges, allInstanceExternalIds) = (for {
+      (viewAll, viewNodes, viewEdges) <- setupAllNonListPropertyTest
+      nodeIds <- createTestInstancesForView(viewNodes, None, None)
+      edgeIds <- createTestInstancesForView(viewEdges, Some(startNodeRef), Some(endNodeRef))
+      allIds <- createTestInstancesForView(viewAll, Some(startNodeRef), Some(endNodeRef))
+    } yield (viewAll, viewNodes, viewEdges, nodeIds ++ edgeIds ++ allIds)).unsafeRunSync()
+
+    val readNodesDf = readRows(
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewNodes.externalId,
+      viewVersion = viewNodes.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+
+    val readEdgesDf = readRows(
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewEdges.externalId,
+      viewVersion = viewEdges.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+
+    val readAllDf = readRows(
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewAll.externalId,
+      viewVersion = viewAll.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+
+    readNodesDf.createTempView(s"node_instances_table")
+    readEdgesDf.createTempView(s"edge_instances_table")
+    readAllDf.createTempView(s"all_instances_table")
+
+    val selectedNodes = spark
+      .sql("select * from node_instances_table")
+      .collect()
+
+    val selectedEdges = spark
+      .sql("select * from edge_instances_table")
+      .collect()
+
+    val selectedNodesAndEdges = spark
+      .sql("select * from all_instances_table")
+      .collect()
+
+    def toExternalIds(rows: Array[Row]): Array[String] =
+      rows.map(row => row.getString(row.schema.fieldIndex("externalId")))
+
+    val actualAllInstanceExternalIds = toExternalIds(selectedNodes) ++ toExternalIds(selectedEdges) ++ toExternalIds(
+      selectedNodesAndEdges)
+
+    allInstanceExternalIds.length shouldBe 6
+    (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
+    selectedNodesAndEdges.length shouldBe 6
+  }
+
   // Blocked by filter 'values' issue CDF-17680
   ignore should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
@@ -584,6 +651,111 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         createTestNodeInstancesForFiltering(i, viewRef)
       }
       .map(_.flatten.distinct)
+  }
+
+  // scalastyle:off method.length
+  private def createTestInstancesForView(
+      viewDef: ViewDefinition,
+      startNode: Option[DirectRelationReference],
+      endNode: Option[DirectRelationReference]): IO[Seq[String]] = {
+    val randomPrefix = apiCompatibleRandomString()
+    val writeData = viewDef.usedFor match {
+      case Usage.Node =>
+        createNodeWriteInstances(viewDef, randomPrefix)
+      case Usage.Edge =>
+        Apply[Option].map2(startNode, endNode)(Tuple2.apply).toSeq.flatMap {
+          case (s, e) => createEdgeWriteInstances(viewDef, startNode = s, endNode = e, randomPrefix)
+        }
+      case Usage.All =>
+        createNodeWriteInstances(viewDef, randomPrefix) ++ Apply[Option]
+          .map2(startNode, endNode)(Tuple2.apply)
+          .toSeq
+          .flatMap {
+            case (s, e) => createEdgeWriteInstances(viewDef, startNode = s, endNode = e, randomPrefix)
+          }
+    }
+
+    bluefieldAlphaClient.instances
+      .createItems(
+        instance = InstanceCreate(
+          items = writeData,
+          replace = Some(true)
+        )
+      )
+      .map(_.map {
+        case n: SlimNodeOrEdge.SlimNodeDefinition => n.externalId
+        case n: SlimNodeOrEdge.SlimEdgeDefinition => n.externalId
+      })
+      .flatTap(_ => IO.sleep(5.seconds))
+  }
+  // scalastyle:on method.length
+
+  private def createEdgeWriteInstances(
+      viewDef: ViewDefinition,
+      startNode: DirectRelationReference,
+      endNode: DirectRelationReference,
+      randomPrefix: String) = {
+    val viewRef = viewDef.toSourceReference
+    Seq(
+      EdgeWrite(
+        `type` =
+          DirectRelationReference(space = spaceExternalId, externalId = s"${viewDef.externalId}Edge1"),
+        space = spaceExternalId,
+        externalId = s"${viewDef.externalId}${randomPrefix}Edge1",
+        startNode = startNode,
+        endNode = endNode,
+        Seq(
+          EdgeOrNodeData(
+            viewRef,
+            Some(viewDef.properties.map {
+              case (n, p) => n -> createInstancePropertyValue(n, p.`type`)
+            })
+          ))
+      ),
+      EdgeWrite(
+        `type` =
+          DirectRelationReference(space = spaceExternalId, externalId = s"${viewDef.externalId}Edge1"),
+        space = spaceExternalId,
+        externalId = s"${viewDef.externalId}Edge1",
+        startNode = startNode,
+        endNode = endNode,
+        Seq(
+          EdgeOrNodeData(
+            viewRef,
+            Some(viewDef.properties.map {
+              case (n, p) => n -> createInstancePropertyValue(n, p.`type`)
+            })
+          ))
+      )
+    )
+  }
+
+  private def createNodeWriteInstances(viewDef: ViewDefinition, randomPrefix: String) = {
+    val viewRef = viewDef.toSourceReference
+    Seq(
+      NodeWrite(
+        spaceExternalId,
+        s"${viewDef.externalId}${randomPrefix}Node1",
+        Seq(
+          EdgeOrNodeData(
+            viewRef,
+            Some(viewDef.properties.map {
+              case (n, p) => n -> createInstancePropertyValue(n, p.`type`)
+            })
+          ))
+      ),
+      NodeWrite(
+        spaceExternalId,
+        s"${viewDef.externalId}${randomPrefix}Node2",
+        Seq(
+          EdgeOrNodeData(
+            viewRef,
+            Some(viewDef.properties.map {
+              case (n, p) => n -> createInstancePropertyValue(n, p.`type`)
+            })
+          ))
+      )
+    )
   }
 
   // scalastyle:off method.length
@@ -839,4 +1011,109 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     getNumberOfRowsDeleted(
       s"${viewDef.externalId}-${viewDef.version}",
       FlexibleDataModelsRelation.ResourceType)
+
+  def createInstancePropertyValue(
+      propName: String,
+      propType: PropertyType
+  ): InstancePropertyValue =
+    if (propType.isList) {
+      listContainerPropToInstanceProperty(propName, propType)
+    } else {
+      nonListContainerPropToInstanceProperty(propName, propType)
+    }
+
+  // scalastyle:off cyclomatic.complexity
+  private def listContainerPropToInstanceProperty(
+      propName: String,
+      propertyType: PropertyType
+  ): InstancePropertyValue =
+    propertyType match {
+      case PropertyType.TextProperty(Some(true), _) =>
+        InstancePropertyValue.StringList(List(s"${propName}Value1", s"${propName}Value2"))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
+        InstancePropertyValue.BooleanList(List(true, false, true, false))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
+        InstancePropertyValue.Int32List((1 to 10).map(_ => Random.nextInt(10000)).toList)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
+        InstancePropertyValue.Int64List((1 to 10).map(_ => Random.nextLong()).toList)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
+        InstancePropertyValue.Float32List((1 to 10).map(_ => Random.nextFloat()).toList)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
+        InstancePropertyValue.Float64List((1 to 10).map(_ => Random.nextDouble()).toList)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(true)) =>
+        InstancePropertyValue.DateList(
+          (1 to 10).toList.map(i => LocalDate.now().minusDays(i.toLong))
+        )
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
+        InstancePropertyValue.TimestampList(
+          (1 to 10).toList.map(i => LocalDateTime.now().minusDays(i.toLong).atZone(ZoneId.of("UTC")))
+        )
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(true)) =>
+        InstancePropertyValue.ObjectList(
+          List(
+            Json.fromJsonObject(
+              JsonObject.fromMap(
+                Map(
+                  "a" -> Json.fromString("a"),
+                  "b" -> Json.fromInt(1),
+                  "c" -> Json.fromBoolean(true)
+                )
+              )
+            ),
+            Json.fromJsonObject(
+              JsonObject.fromMap(
+                Map(
+                  "a" -> Json.fromString("b"),
+                  "b" -> Json.fromInt(1),
+                  "c" -> Json.fromBoolean(false),
+                  "d" -> Json.fromDoubleOrString(1.56)
+                )
+              )
+            )
+          )
+        )
+      case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
+    }
+  // scalastyle:on cyclomatic.complexity
+
+  // scalastyle:off cyclomatic.complexity
+  private def nonListContainerPropToInstanceProperty(
+      propName: String,
+      propertyType: PropertyType
+  ): InstancePropertyValue =
+    propertyType match {
+      case PropertyType.TextProperty(None | Some(false), _) =>
+        InstancePropertyValue.String(s"${propName}Value")
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, _) =>
+        InstancePropertyValue.Boolean(false)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) =>
+        InstancePropertyValue.Int32(Random.nextInt(10000))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
+        InstancePropertyValue.Int64(Random.nextLong())
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) =>
+        InstancePropertyValue.Float32(Random.nextFloat())
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) =>
+        InstancePropertyValue.Float64(Random.nextDouble())
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Date, None | Some(false)) =>
+        InstancePropertyValue.Date(LocalDate.now().minusDays(Random.nextInt(30).toLong))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
+        InstancePropertyValue.Timestamp(
+          LocalDateTime.now().minusDays(Random.nextInt(30).toLong).atZone(ZoneId.of("UTC")))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Json, None | Some(false)) =>
+        InstancePropertyValue.Object(
+          Json.fromJsonObject(
+            JsonObject.fromMap(
+              Map(
+                "a" -> Json.fromString("a"),
+                "b" -> Json.fromInt(1),
+                "c" -> Json.fromBoolean(true)
+              )
+            )
+          )
+        )
+      case PropertyType.DirectNodeRelationProperty(_) =>
+        InstancePropertyValue.Object(Json.fromJsonObject(JsonObject.empty))
+
+      case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
+    }
 }
