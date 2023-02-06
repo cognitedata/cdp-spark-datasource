@@ -21,15 +21,22 @@ class WellDataLayerRDD(
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
+  // scalastyle:off cyclomatic.complexity
   private def getReadUrlPart(modelType: String): String =
     modelType.replace("Ingestion", "") match {
       case "Well" => "wells/list"
+      case "DepthMeasurement" => "measurements/depth/list"
+      case "TimeMeasurement" => "measurements/time/list"
+      case "RigOperation" => "rigoperations/list"
+      case "HoleSectionGroup" => "holesections/list"
+      case "WellTopGroup" => "welltops/list"
       case "Npt" => "npt/list"
       case "Nds" => "npt/list"
       case "CasingSchematic" => "casings/list"
       case "Trajectory" => "trajectories/list"
       case _ => sys.error(s"Unknown model type: $modelType")
     }
+  // scalastyle:on cyclomatic.complexity
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
     val response: IO[ItemsWithCursor[JsonObject]] = if (model == "Source") {
