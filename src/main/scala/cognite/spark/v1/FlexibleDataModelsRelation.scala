@@ -389,23 +389,11 @@ class FlexibleDataModelsRelation(
       selectedColumns
     }
 
-    val instanceType = {
-      (viewDefinition.usedFor match {
-        case Usage.Node => Some(InstanceType.Node)
-        case Usage.Edge => Some(InstanceType.Edge)
-        case Usage.All => None
-      }).orElse {
-        filters.collectFirst {
-          case EqualTo("instanceType", value) =>
-            Decoder[InstanceType]
-              .decodeJson(Json.fromString(String.valueOf(value).toLowerCase(Locale.US)))
-              .toOption
-        }.flatten
-      }
-    }
+    val instanceType = getInstanceType(filters)
 
     val instanceFilter = filters.toVector.traverse(toInstanceFilter) match {
       case Right(fs) if fs.isEmpty => None
+      case Right(fs) if fs.length == 1 => fs.headOption
       case Right(fs) => Some(FilterDefinition.And(fs))
       case Left(err) => throw err
     }
@@ -531,6 +519,20 @@ class FlexibleDataModelsRelation(
       nullable
     )
 
+  private def getInstanceType(filters: Array[Filter]) =
+    (viewDefinition.usedFor match {
+      case Usage.Node => Some(InstanceType.Node)
+      case Usage.Edge => Some(InstanceType.Edge)
+      case Usage.All => None
+    }).orElse {
+      filters.collectFirst {
+        case EqualTo(attribute, value) if attribute.equalsIgnoreCase("instanceType") =>
+          Decoder[InstanceType]
+            .decodeJson(Json.fromString(String.valueOf(value).toLowerCase(Locale.US)))
+            .toOption
+      }.flatten
+    }
+
   private def toProjectedInstance(
       i: InstanceDefinition,
       selectedInstanceProps: Array[String]): ProjectedFlexibleDataModelInstance = {
@@ -555,8 +557,8 @@ class FlexibleDataModelsRelation(
           properties = selectedInstanceProps.map {
             case "externalId" => e.externalId
             case "startNode" => Array(e.startNode.space, e.startNode.externalId)
-            case "type" => Array(e.startNode.space, e.startNode.externalId)
             case "endNode" => Array(e.endNode.space, e.endNode.externalId)
+            case "type" => Array(e.relation.space, e.relation.externalId)
             case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
           }
         )
