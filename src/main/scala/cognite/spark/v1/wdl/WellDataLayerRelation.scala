@@ -42,11 +42,18 @@ class WellDataLayerRelation(
     IO.unit
   }
 
+  // scalastyle:off cyclomatic.complexity
   private def getWriteUrlPart(modelType: String): String =
     modelType.replace("Ingestion", "") match {
       case "Well" => "wells"
       case "WellSource" => "wells"
       case "Wellbore" => "wellbores"
+      case "WellboreSource" => "wellbores"
+      case "DepthMeasurement" => "measurements/depth"
+      case "TimeMeasurement" => "measurements/time"
+      case "RigOperation" => "rigoperations"
+      case "HoleSectionGroup" => "holesections"
+      case "WellTopGroup" => "welltops"
       case "Npt" => "npt"
       case "Nds" => "npt"
       case "CasingSchematic" => "casings"
@@ -54,6 +61,7 @@ class WellDataLayerRelation(
       case "Source" => "sources"
       case _ => sys.error(s"Unknown model type: $modelType")
     }
+  // scalastyle:on cyclomatic.complexity
 
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for WDL. Use upsert instead.")
