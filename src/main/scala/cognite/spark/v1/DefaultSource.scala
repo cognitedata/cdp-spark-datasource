@@ -133,7 +133,8 @@ class DefaultSource
 
   private def createFlexibleDataModelInstances(
       parameters: Map[String, String],
-      config: RelationConfig,      sqlContext: SQLContext): FlexibleDataModelsRelation = {
+      config: RelationConfig,
+      sqlContext: SQLContext): FlexibleDataModelsRelation = {
     val viewSpaceExternalId =
       parameters.getOrElse(
         "viewSpaceExternalId",
