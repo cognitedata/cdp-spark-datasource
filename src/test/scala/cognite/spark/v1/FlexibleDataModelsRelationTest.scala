@@ -336,6 +336,32 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
+  it should "succeed when no filter" in {
+    val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
+
+    val readDf = readRows(
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+
+    readDf.createTempView(s"instance_filter_table")
+
+    val sql = "select *"
+
+    val instances = spark
+      .sql(sql)
+      .collect()
+
+    instances.length > 0 shouldBe true
+    
+    val receivedExternalIds = instances.map(row => 
+      row.getString(row.schema.fieldIndex("externalId")))
+      .toSet[String]
+    instanceExtIds.toSet.subsetOf(receivedExternalIds) shouldBe true
+  }
+
   // Blocked by filter 'values' issue CDF-17680
   ignore should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
