@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, Label, LabelCreate, LabelsFilter}
 import org.apache.spark.sql.DataFrame
@@ -14,15 +15,20 @@ class LabelsRelationTest
   val datasetLabels: String = "spark-ds-labels-test"
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey)
+    .useOIDCWrite
     .option("type", "labels")
     .load()
   destinationDf.createOrReplaceTempView("destinationLabel")
 
-  val ds: Seq[DataSet] = writeClient.dataSets.retrieveByExternalIds(Seq(datasetLabels), ignoreUnknownIds = true)
+  val ds: Seq[DataSet] =
+    writeClient.dataSets
+      .retrieveByExternalIds(Seq(datasetLabels), ignoreUnknownIds = true)
+      .unsafeRunSync()
   val dsId: Long = if (ds.isEmpty) {
-    writeClient
-      .dataSets.createOne(DataSetCreate(externalId = Some(datasetLabels), name = Some(datasetLabels))).id
+    writeClient.dataSets
+      .createOne(DataSetCreate(externalId = Some(datasetLabels), name = Some(datasetLabels)))
+      .unsafeRunSync()
+      .id
   } else {
     ds.head.id
   }
@@ -32,11 +38,13 @@ class LabelsRelationTest
     val name = "test-read"
     val description = "Created by test for spark data source"
 
-    writeClient.labels.create(Seq(LabelCreate(externalId, name, Some(description), dataSetId = Some(dsId))))
+    writeClient.labels
+      .create(Seq(LabelCreate(externalId, name, Some(description), dataSetId = Some(dsId))))
+      .unsafeRunSync()
 
     val rows = spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "labels")
       .load()
       .where(s"externalId = '$externalId'")
@@ -49,7 +57,7 @@ class LabelsRelationTest
     assert(label.description.contains(description))
     assert(label.dataSetId.contains(dsId))
 
-    writeClient.labels.deleteByExternalId(externalId)
+    writeClient.labels.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to write a label" taggedAs (WriteTest) in {
@@ -58,20 +66,20 @@ class LabelsRelationTest
     val description = "Created by test for spark data source"
 
     spark
-      .sql(
-        s"""select '$externalId' as externalId,
+      .sql(s"""select '$externalId' as externalId,
            |'$name' as name, '$description' as description,
            |$dsId as dataSetId""".stripMargin)
       .write
       .format("cognite.spark.v1")
       .option("type", "labels")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .save()
 
     val labels = writeClient.labels
       .filter(LabelsFilter(externalIdPrefix = Some(externalId)))
       .compile
       .toList
+      .unsafeRunSync()
 
     assert(labels.length == 1)
 
@@ -82,7 +90,7 @@ class LabelsRelationTest
     assert(label.description.contains(description))
     assert(label.dataSetId.contains(dsId))
 
-    writeClient.labels.deleteByExternalId(externalId)
+    writeClient.labels.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to delete a label" taggedAs (WriteTest) in {
@@ -90,18 +98,18 @@ class LabelsRelationTest
     val name = "test-delete"
     val description = "Created by test for spark data source"
 
-    writeClient.labels.create(Seq(LabelCreate(externalId, name, Some(description))))
+    writeClient.labels.create(Seq(LabelCreate(externalId, name, Some(description)))).unsafeRunSync()
 
     spark
       .sql(s"select externalId from destinationLabel where externalId = '$externalId'")
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "labels")
       .option("onconflict", "delete")
       .save()
 
-    val labels = writeClient.labels.filter(LabelsFilter(Some(externalId))).compile.toList
+    val labels = writeClient.labels.filter(LabelsFilter(Some(externalId))).compile.toList.unsafeRunSync()
     assert(labels.isEmpty)
   }
 }

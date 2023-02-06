@@ -1,13 +1,12 @@
 package cognite.spark.v1
 
-import cats.Id
 import cats.effect.IO
-import com.cognite.sdk.scala.common.{ApiKeyAuth, OAuth2}
+import com.cognite.sdk.scala.common.OAuth2
 import com.cognite.sdk.scala.v1._
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrameReader, Encoder, SparkSession}
+import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Encoder, SparkSession}
 import org.scalactic.{Prettifier, source}
 import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
@@ -37,13 +36,53 @@ trait SparkTest {
       override def clsTag: ClassTag[OptionalField[A]] = c
     }
 
-  val writeApiKey = System.getenv("TEST_API_KEY_WRITE")
-  assert(
-    writeApiKey != null && !writeApiKey.isEmpty,
-    "Environment variable \"TEST_API_KEY_WRITE\" was not set")
-  implicit val writeApiKeyAuth: ApiKeyAuth = ApiKeyAuth(writeApiKey)
-  val writeClient: GenericClient[Id] =
-    GenericClient.forAuth[Id]("cdp-spark-datasource-test", writeApiKeyAuth)
+  object OIDCWrite {
+    val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+    val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+    private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+    val project = "jetfiretest2"
+    val scopes = "https://api.cognitedata.com/.default"
+  }
+
+  val writeCredentials = OAuth2.ClientCredentials(
+    tokenUri = sttp.model.Uri.unsafeParse(OIDCWrite.tokenUri),
+    clientId = OIDCWrite.clientId,
+    clientSecret = OIDCWrite.clientSecret,
+    scopes = List(OIDCWrite.scopes),
+    OIDCWrite.project
+  )
+  implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
+
+  val writeAuthProvider =
+    OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
+  val writeClient: GenericClient[IO] = new GenericClient(
+    applicationName = "jetfire-test",
+    projectName = writeCredentials.cdfProjectName,
+    baseUrl = s"https://api.cognitedata.com",
+    authProvider = writeAuthProvider,
+    apiVersion = None,
+    clientTag = None,
+    cdfVersion = None
+  )
+
+  implicit class DataFrameWriterHelper[T](df: DataFrameWriter[T]) {
+    def useOIDCWrite: DataFrameWriter[T] =
+      df.option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
+  }
+
+  implicit class DataFrameReaderHelper(df: DataFrameReader) {
+    def useOIDCWrite: DataFrameReader =
+      df.option("tokenUri", OIDCWrite.tokenUri)
+        .option("clientId", OIDCWrite.clientId)
+        .option("clientSecret", OIDCWrite.clientSecret)
+        .option("project", OIDCWrite.project)
+        .option("scopes", OIDCWrite.scopes)
+  }
 
   private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
   // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211

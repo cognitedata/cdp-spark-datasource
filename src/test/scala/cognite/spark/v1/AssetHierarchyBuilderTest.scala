@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
@@ -16,7 +17,7 @@ class AssetHierarchyBuilderTest
 
   private val assetsSourceDf = spark.read
     .format("cognite.spark.v1")
-    .option("apiKey", writeApiKey)
+    .useOIDCWrite
     .option("type", "assets")
     .load()
   assetsSourceDf.createOrReplaceTempView("assets")
@@ -48,7 +49,7 @@ class AssetHierarchyBuilderTest
       .toDF()
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "assethierarchy")
       .option("collectMetrics", metricsPrefix.isDefined)
       .option("subtrees", subtrees)
@@ -59,10 +60,12 @@ class AssetHierarchyBuilderTest
   }
 
   private def cleanDB(key: String) =
-    writeClient.assets.deleteRecursive(
-      Seq(s"dad$key", s"dad2$key", s"unusedZero$key", s"son$key").map(CogniteExternalId(_)),
-      true,
-      true)
+    writeClient.assets
+      .deleteRecursive(
+        Seq(s"dad$key", s"dad2$key", s"unusedZero$key", s"son$key").map(CogniteExternalId(_)),
+        true,
+        true)
+      .unsafeRunSync()
 
   it should "throw an error when everything is ignored" in {
     val key = shortRandomString()
@@ -152,38 +155,23 @@ class AssetHierarchyBuilderTest
   it should "fail reasonably when some subtree parents don't exist" in {
     val key = shortRandomString()
 
-    ingest(key, Seq(
-      AssetCreate(
-        "testRootNode1",
-        externalId = Some("testRootNode1"),
-        parentExternalId = Some("")),
-      AssetCreate(
-        "testRootNode2",
-        externalId = Some("testRootNode2"),
-        parentExternalId = Some(""))
-    ))
+    ingest(
+      key,
+      Seq(
+        AssetCreate("testRootNode1", externalId = Some("testRootNode1"), parentExternalId = Some("")),
+        AssetCreate("testRootNode2", externalId = Some("testRootNode2"), parentExternalId = Some(""))
+      )
+    )
 
     val tree = Seq(
-      AssetCreate(
-        "testNode1",
-        externalId = Some("testNode1"),
-        parentExternalId = Some("testRootNode1")),
+      AssetCreate("testNode1", externalId = Some("testNode1"), parentExternalId = Some("testRootNode1")),
       AssetCreate(
         "testNode2",
         externalId = Some("testNode2"),
         parentExternalId = Some("nonExistentNode-aakdhdslfskgslfuwfvbnvwbqrvotfeds")),
-      AssetCreate(
-        "testNode3",
-        externalId = Some("testNode3"),
-        parentExternalId = Some("testRootNode1")),
-      AssetCreate(
-        "testNode4",
-        externalId = Some("testNode4"),
-        parentExternalId = Some("testRootNode2")),
-      AssetCreate(
-        "testNode5",
-        externalId = Some("testNode5"),
-        parentExternalId = Some("testNode4")),
+      AssetCreate("testNode3", externalId = Some("testNode3"), parentExternalId = Some("testRootNode1")),
+      AssetCreate("testNode4", externalId = Some("testNode4"), parentExternalId = Some("testRootNode2")),
+      AssetCreate("testNode5", externalId = Some("testNode5"), parentExternalId = Some("testNode4")),
       AssetCreate(
         "testNode6",
         externalId = Some("testNode6"),
@@ -210,7 +198,6 @@ class AssetHierarchyBuilderTest
     )
 
     ingest(key, assetTree)
-
 
     val ex = sparkIntercept {
       ingest(
@@ -296,8 +283,8 @@ class AssetHierarchyBuilderTest
 
   it should "fail reasonably on invalid source type" in {
     val exception = sparkIntercept {
-      spark.sql(
-        """
+      spark
+        .sql("""
           |select "test-asset-rV2yGok98VNzWMb9yWGk" as externalId,
           |       "" as parentExternalId,
           |       1 as source,
@@ -305,7 +292,7 @@ class AssetHierarchyBuilderTest
           |""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
     }
@@ -316,8 +303,8 @@ class AssetHierarchyBuilderTest
 
   it should "fail reasonably on NULLs" in {
     val exception = sparkIntercept {
-      spark.sql(
-        """
+      spark
+        .sql("""
           |select "test-asset-rV2yGok98VNzWMb9yWGk" as externalId,
           |       "" as parentExternalId,
           |       1 as source,
@@ -325,7 +312,7 @@ class AssetHierarchyBuilderTest
           |""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
     }
@@ -336,8 +323,8 @@ class AssetHierarchyBuilderTest
 
   it should "fail reasonably on invalid dataSetId type" in {
     val exception = sparkIntercept {
-      spark.sql(
-        """
+      spark
+        .sql("""
           |select "test-asset-MNwWje501UZ83dFA3S" as externalId,
           |       "" as parentExternalId,
           |       "" as dataSetId,
@@ -345,7 +332,7 @@ class AssetHierarchyBuilderTest
           |""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
     }
@@ -356,15 +343,15 @@ class AssetHierarchyBuilderTest
 
   it should "fail with hint on parentExternalId=NULL" in {
     val exception = sparkIntercept {
-      spark.sql(
-        """
+      spark
+        .sql("""
           |select "test-asset-55UbfFlTh2I95usWl7gnok" as externalId,
           |       NULL as parentExternalId,
           |       "my-test-asset" as name
           |""".stripMargin)
         .write
         .format("cognite.spark.v1")
-        .option("apiKey", writeApiKey)
+        .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
     }
@@ -405,7 +392,6 @@ class AssetHierarchyBuilderTest
     cleanDB(key)
   }
 
-
   it should "ignore on nulls in metadata" in {
     val key = shortRandomString()
 
@@ -413,7 +399,14 @@ class AssetHierarchyBuilderTest
     ingest(
       key,
       Seq(
-        AssetCreate("dad", None, None, None, Some("dad"), Some(Map("foo" -> nullString, "bar" -> "a")), Some(""))
+        AssetCreate(
+          "dad",
+          None,
+          None,
+          None,
+          Some("dad"),
+          Some(Map("foo" -> nullString, "bar" -> "a")),
+          Some(""))
       )
     )
 
@@ -489,7 +482,15 @@ class AssetHierarchyBuilderTest
 
     val tree = Seq(
       AssetCreate("dad", None, None, None, Some("dad"), Some(Map("Meta" -> "data")), Some("")),
-      AssetCreate("son", None, Some("description"), Some("source"), Some("son"), None, Some("dad"), dataSetId = Some(testDataSetId)),
+      AssetCreate(
+        "son",
+        None,
+        Some("description"),
+        Some("source"),
+        Some("son"),
+        None,
+        Some("dad"),
+        dataSetId = Some(testDataSetId)),
       AssetCreate("son2", None, None, None, Some("son2"), None, Some("dad"))
     )
 
@@ -720,11 +721,7 @@ class AssetHierarchyBuilderTest
     )
 
     val metricsPrefix = "insert.assetsHierarchy.ignored"
-    ingest(
-      key,
-      assetTree,
-      subtrees = "ignore",
-      metricsPrefix = Some(metricsPrefix))
+    ingest(key, assetTree, subtrees = "ignore", metricsPrefix = Some(metricsPrefix))
 
     val namesOfAssetsToInsert = assetTree.slice(0, 4).map(_.name).toSet
 
@@ -807,10 +804,11 @@ class AssetHierarchyBuilderTest
       rows => rows.map(r => r.getString(0)).toSet != Set("dad", "son")
     )
 
-    spark.sql(s"select id from assets where externalId = 'dad$key'")
+    spark
+      .sql(s"select id from assets where externalId = 'dad$key'")
       .write
       .format("cognite.spark.v1")
-      .option("apiKey", writeApiKey)
+      .useOIDCWrite
       .option("type", "assethierarchy")
       .option("onconflict", "delete")
       .option("collectMetrics", "true")
@@ -962,7 +960,9 @@ class AssetHierarchyBuilderTest
     )
 
     val result = retryWhile[Array[Row]](
-      spark.sql(s"select * from assets where source = '$testName$key' and name = 'child-updated'").collect(),
+      spark
+        .sql(s"select * from assets where source = '$testName$key' and name = 'child-updated'")
+        .collect(),
       rows => rows.length < 1
     )
 
@@ -1040,10 +1040,8 @@ class AssetHierarchyBuilderTest
     val sourceTree = Seq(
       AssetCreate("root1", externalId = Some("root1"), parentExternalId = Some("")),
       AssetCreate("subtree1", externalId = Some("subtree1"), parentExternalId = Some("root1")),
-
       AssetCreate("root2", externalId = Some("root2"), parentExternalId = Some("")),
       AssetCreate("subtree2", externalId = Some("subtree2"), parentExternalId = Some("root2")),
-
       AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree1"))
     )
 
@@ -1059,22 +1057,28 @@ class AssetHierarchyBuilderTest
     val apiException = sparkIntercept {
       // Attempting to move the subtree root to a different root asset will result in a proper error from CDF.
       // The "child" asset is the subtree root in this case.
-      ingest(key, Seq(
-        AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree2"))
-      ))
+      ingest(
+        key,
+        Seq(
+          AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree2"))
+        ))
     }
     apiException shouldBe an[CdpApiException]
 
-    apiException.asInstanceOf[CdpApiException].message should startWith("Asset must stay within same asset hierarchy root")
+    apiException.asInstanceOf[CdpApiException].message should startWith(
+      "Asset must stay within same asset hierarchy root")
 
     val rootChangeException = sparkIntercept {
       // However, when attempting to move any of the subtree's children to a different root, we fail to find the asset,
       // and assume it doesn't exist. So we attempt to create it, which results in a duplicated error, which we catch
       // and convert to a more helpful error message.
-      ingest(key, Seq(
-        AssetCreate("subtree2", externalId = Some("subtree2"), parentExternalId = Some("root2")),
-        AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree2"))
-      ))
+      ingest(
+        key,
+        Seq(
+          AssetCreate("subtree2", externalId = Some("subtree2"), parentExternalId = Some("root2")),
+          AssetCreate("child", externalId = Some("child"), parentExternalId = Some("subtree2"))
+        )
+      )
     }
 
     val newRootAssetId = assetRows.where(s"externalId = 'root2$key'").head().getAs[Long]("id")
@@ -1094,11 +1098,10 @@ class AssetHierarchyBuilderTest
 
     val dad = AssetCreate("dad", None, None, None, Some("dad"), None, Some(""))
 
-    val kids = (1 to 1100).flatMap(k => Seq(
-      AssetCreate(s"kid$k", None, None, None, Some(s"kid$k"), None, Some("dad"))))
+    val kids = (1 to 1100).flatMap(k =>
+      Seq(AssetCreate(s"kid$k", None, None, None, Some(s"kid$k"), None, Some("dad"))))
     val grandkids = (1 to 1100).map(k =>
-      AssetCreate(s"grandkid$k", None, None, None, Some(s"grandkid$k"), None, Some(s"kid$k"))
-    )
+      AssetCreate(s"grandkid$k", None, None, None, Some(s"grandkid$k"), None, Some(s"kid$k")))
 
     // Ingest the first two levels of the tree
     ingest(key, kids :+ dad, batchSize = 1000)
@@ -1112,9 +1115,16 @@ class AssetHierarchyBuilderTest
     // 2 for creating the roots
     getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 6
 
-    val grandkidsUpdate = (1 to 1100).map(k =>
-      AssetCreate(s"grandkid$k", None, Some("some description"), None, Some(s"grandkid$k"), None, Some(s"kid$k"))
-    )
+    val grandkidsUpdate = (1 to 1100).map(
+      k =>
+        AssetCreate(
+          s"grandkid$k",
+          None,
+          Some("some description"),
+          None,
+          Some(s"grandkid$k"),
+          None,
+          Some(s"kid$k")))
     // Update the third level, 1100 subtrees
     ingest(key, grandkidsUpdate, batchSize = 1000, metricsPrefix = Some(s"ingest.tree.grandkidsU.$key"))
 
@@ -1134,11 +1144,18 @@ class AssetHierarchyBuilderTest
     try {
       val dad = AssetCreate("dad", None, None, None, Some("dad"), None, Some(""))
 
-      val kids = (0 to 200 * 1000).flatMap(k => Seq(
-        AssetCreate(s"kid${k}_", None, None, None, Some(s"kid${k}_"), None, Some("dad"))))
-      val grandkids = (0 to 1000 * 1000).map(k =>
-        AssetCreate(s"grandkid${k}_", None, None, None, Some(s"grandkid${k}_"), None, Some(s"kid${k / 5}_"))
-      )
+      val kids = (0 to 200 * 1000).flatMap(k =>
+        Seq(AssetCreate(s"kid${k}_", None, None, None, Some(s"kid${k}_"), None, Some("dad"))))
+      val grandkids = (0 to 1000 * 1000).map(
+        k =>
+          AssetCreate(
+            s"grandkid${k}_",
+            None,
+            None,
+            None,
+            Some(s"grandkid${k}_"),
+            None,
+            Some(s"kid${k / 5}_")))
 
       // Ingest the first two levels of the tree
       ingest(key, kids ++ grandkids :+ dad, batchSize = 1000)
@@ -1147,8 +1164,7 @@ class AssetHierarchyBuilderTest
       ingest(key, grandkids, batchSize = 1000, metricsPrefix = Some(s"ingest.bigtree.$key"))
 
       getNumberOfRowsCreated(s"ingest.bigtree.$key", "assethierarchy") shouldBe 1 + 200 * 1000 + 1000 * 1000
-    }
-    finally {
+    } finally {
       cleanDB(key)
     }
   }
