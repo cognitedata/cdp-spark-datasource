@@ -24,8 +24,7 @@ class WDLNptsTest
   before {
     SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
     testClient.deleteAll()
-    val setup = testClient.miniSetup()
-    println(s"Setup is $setup")
+    testClient.miniSetup()
   }
 
   it should "ingest and read NTP events" in {

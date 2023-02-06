@@ -144,7 +144,7 @@ class WDLTrajectoriesTest
         .useOIDCWrite
         .save()
     } catch {
-      case e: org.apache.spark.SparkException => println(e.getMessage)
+      case _: org.apache.spark.SparkException => ()
     }
 
     val trajectoriesDF = sparkReader
