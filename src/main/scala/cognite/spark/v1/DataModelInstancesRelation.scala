@@ -322,7 +322,7 @@ class DataModelInstanceRelation(
             case null => // scalastyle:off null
               None
             case _ =>
-              toPropertyType(propT.`type`)(row.get(index))
+              toPropertyType(propT.`type`, spaceExternalId)(row.get(index))
           })
       }
       .collect { case (a, Some(value)) => a -> value }
