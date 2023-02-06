@@ -15,8 +15,6 @@ val cogniteSdkVersion = "2.5.0-SNAPSHOT"
 val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
 
-resolvers += "libs-release" at artifactory + "libs-release/"
-
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
 ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
@@ -25,7 +23,8 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "2.3.8-SNAPSHOT",
+  version := "2.4.0-SNAPSHOT",
+  isSnapshot := true,
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
@@ -35,7 +34,10 @@ lazy val commonSettings = Seq(
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
-  scalacOptions --= Seq("-Xfatal-warnings"),
+  resolvers ++= Seq(
+    "libs-release".at(artifactory + "libs-release/"),
+    Resolver.sonatypeRepo("snapshots")
+  ),
   developers := List(
     Developer(
       id = "wjoel",
@@ -91,7 +93,7 @@ lazy val macroSub = (project in file("macro"))
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing()
     )
   )
 
