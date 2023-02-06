@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import cognite.spark.v1.SparkSchemaHelper.fromRow
+
 import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId, ZonedDateTime}
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
 import com.cognite.sdk.scala.v1.{
@@ -139,10 +141,16 @@ object DataModelInstancesHelper {
         notValidPropertyTypeMessage(a, PropertyType.Timestamp.code, Some("timestamp")))
   }
 
+  final case class DirectRelationRef(spaceExternalId: Option[String], externalId: Option[String])
+
   private val directRelationErr =
     "Direct relation identifier should be an array of 2 strings (`array(<spaceExternalId>, <externalId>)`)"
-  private def toDirectRelationProperty: Any => Option[DataModelProperty[_]] = {
-    case x: Iterable[_] => //PropertyType.DirectRelation.Property(x)
+
+  private val directRelationUsingStructErr = "Direct relation identifier should be " +
+    "named_struct(\"spaceExternalId\", yourSpace, \"externalId\", yourExternalId) or named_struct(\"externalId\", yourExternalId)"
+
+  private def toDirectRelationProperty(defaultSpace: String): Any => Option[DataModelProperty[_]] = {
+    case x: Iterable[_] =>
       x.headOption match {
         case Some(_: String) if x.size == 2 =>
           if (x.toList(1) == null) {
@@ -155,6 +163,20 @@ object DataModelInstancesHelper {
         case _ =>
           val lstStr = x.mkString(", ")
           throw new CdfSparkException(s"$directRelationErr but got array($lstStr) as the value.")
+      }
+
+    case r: Row
+        if !Set(Set("spaceExternalId", "externalId"), Set("externalId"))
+          .contains(r.schema.map(_.name).toSet) =>
+      throw new CdfSparkException(
+        s"$directRelationUsingStructErr but got ${r.schema.map(_.name).mkString(",")} as the schema.")
+    case r: Row =>
+      fromRow[DirectRelationRef](r) match {
+        case DirectRelationRef(_, None) => None
+        case DirectRelationRef(None, Some(externalId)) =>
+          Some(PropertyType.DirectRelation.Property(Seq(defaultSpace, externalId)))
+        case DirectRelationRef(Some(space), Some(externalId)) =>
+          Some(PropertyType.DirectRelation.Property(Seq(space, externalId)))
       }
     case a =>
       throw new CdfSparkException(s"$directRelationErr but got $a as the value.")
@@ -348,7 +370,9 @@ object DataModelInstancesHelper {
     case x => throw new CdfSparkException(notValidPropertyTypeMessage(x, propertyAlias.code))
   }
 
-  def toPropertyType(propertyType: PropertyType[_]): Any => Option[DataModelProperty[_]] =
+  def toPropertyType(
+      propertyType: PropertyType[_],
+      defaultSpace: String): Any => Option[DataModelProperty[_]] =
     propertyType match {
       case PropertyType.Float32 => toFloat32Property
       case PropertyType.Float64 | PropertyType.Numeric => toFloat64Property(propertyType)
@@ -358,7 +382,7 @@ object DataModelInstancesHelper {
       case PropertyType.Text => toStringProperty
       case PropertyType.Date => toDateProperty
       case PropertyType.Timestamp => toTimestampProperty
-      case PropertyType.DirectRelation => toDirectRelationProperty
+      case PropertyType.DirectRelation => toDirectRelationProperty(defaultSpace)
       case PropertyType.Geometry => toGeometryProperty
       case PropertyType.Geography => toGeographyProperty
       case PropertyType.Json => toJsonProperty
