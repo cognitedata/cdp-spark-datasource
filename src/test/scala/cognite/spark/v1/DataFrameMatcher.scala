@@ -4,6 +4,8 @@ import org.apache.spark.sql.DataFrame
 import org.scalatest.Matchers
 import org.scalatest.matchers.{MatchResult, Matcher}
 
+import scala.collection.compat.immutable.ArraySeq.unsafeWrapArray
+
 trait DataFrameMatcher extends Matchers {
   def containTheSameRowsAs(expectedDataFrame: DataFrame): ExpectedDataFrameMatcher =
     new ExpectedDataFrameMatcher(expectedDataFrame)
@@ -12,12 +14,14 @@ trait DataFrameMatcher extends Matchers {
     def apply(dataFrame: DataFrame): MatchResult =
       if (dataFrame.columns.toSet == expectedDataFrame.columns.toSet) {
         val leftOuter = dataFrame
-          .select(expectedDataFrame.columns.map(dataFrame(_)): _*)
+          .select(
+            unsafeWrapArray(expectedDataFrame.columns.map(dataFrame(_))): _*
+          )
           .exceptAll(expectedDataFrame)
           .isEmpty
 
         val rightOuter = expectedDataFrame
-          .select(dataFrame.columns.map(expectedDataFrame(_)): _*)
+          .select(unsafeWrapArray(dataFrame.columns.map(expectedDataFrame(_))): _*)
           .exceptAll(dataFrame)
           .isEmpty
 
@@ -30,17 +34,21 @@ trait DataFrameMatcher extends Matchers {
         } else {
           MatchResult(
             matches = false,
-            s"Actual dataframe ${dataFrame.collect().mkString("Array(", ", ", ")")} is different from expected: [${expectedDataFrame
-              .collect()
-              .mkString("Array(", ", ", ")")}]",
+            s"Actual dataframe ${dataFrame.collect().mkString("Array(", ", ", ")")} is different from expected: [${
+              expectedDataFrame
+                .collect()
+                .mkString("Array(", ", ", ")")
+            }]",
             ""
           )
         }
       } else {
         MatchResult(
           matches = false,
-          s"Actual dataframe columns [${dataFrame.columns.sorted.mkString("Array(", ", ", ")")}] is different from expected: [${expectedDataFrame.columns.sorted
-            .mkString("Array(", ", ", ")")}]",
+          s"Actual dataframe columns [${dataFrame.columns.sorted.mkString("Array(", ", ", ")")}] is different from expected: [${
+            expectedDataFrame.columns.sorted
+              .mkString("Array(", ", ", ")")
+          }]",
           ""
         )
       }

@@ -11,7 +11,7 @@ private[wdl] object RowEquality { // scalastyle:ignore object.name
           case p: Row =>
             val fieldNames = a.schema.fieldNames
             if (fieldNames.toSet == p.schema.fieldNames.toSet) {
-              a.getValuesMap(fieldNames) == p.getValuesMap(fieldNames)
+              a.getValuesMap(fieldNames.toSeq) == p.getValuesMap(fieldNames.toSeq)
             } else {
               false
             }
