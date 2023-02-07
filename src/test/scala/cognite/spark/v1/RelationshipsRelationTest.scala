@@ -278,7 +278,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     assert(relationshipsRead == 1)
   }
 
-  ignore should "support pushdown filters on sourceExternalId" taggedAs ReadTest in {
+  it should "support pushdown filters on sourceExternalId" taggedAs ReadTest in {
     val countRowsIn = spark.sql(s"""select * from destinationRelationship
          |where sourceExternalId in('${assetExtId1}', 'nonExistingSource')""".stripMargin).count()
     assert(countRowsIn == 2)
@@ -288,7 +288,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     assert(countRows == 1)
   }
 
-  ignore should "support pushdown filters on targetExternalId" taggedAs (ReadTest) in {
+  it should "support pushdown filters on targetExternalId" taggedAs (ReadTest) in {
     val countRowsIn = spark.sql(s"""select * from destinationRelationship
          |where targetExternalId in('${assetExtId2}', 'nonExistingTarget')""".stripMargin).count()
     assert(countRowsIn == 3)
