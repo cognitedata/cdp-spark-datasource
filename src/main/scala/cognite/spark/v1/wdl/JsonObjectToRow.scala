@@ -23,7 +23,7 @@ object JsonObjectToRow {
 
   def toRow(jsonObject: JsonObject, dataType: StructType): Option[Row] =
     if (jsonObject == null) {
-      None // scalastyle:ignore return
+      None
     } else {
       val jsonFields = jsonObject.toMap
       val cols = dataType.toList.map(
