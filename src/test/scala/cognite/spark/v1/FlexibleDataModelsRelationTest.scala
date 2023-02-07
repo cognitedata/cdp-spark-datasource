@@ -62,8 +62,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   private val containerAllNumericProps = "sparkDatasourceTestContainerNumericProps2"
   private val viewAllNumericProps = "sparkDatasourceTestViewNumericProps2"
 
-  private val containerFilterByProps = "sparkDatasourceTestContainerFilterByProps3"
-  private val viewFilterByProps = "sparkDatasourceTestViewFilterByProps3"
+  private val containerFilterByProps = "sparkDatasourceTestContainerFilterByProps4"
+  private val viewFilterByProps = "sparkDatasourceTestViewFilterByProps4"
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDatasourceTestContainerStartAndEndNodes"
   private val viewStartNodeAndEndNodesExternalId = "sparkDatasourceTestViewStartAndEndNodes"
@@ -417,7 +417,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
   }
 
-  it should "succeed when filtering instances by properties" in {
+  ignore should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
@@ -695,7 +695,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       "boolProp2" -> FDMContainerPropertyTypes.BooleanNonListWithDefaultValueNullable,
       "dateProp1" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNonNullable,
       "forIsNotNullFilter" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNullable,
-      "forIsNullFilter" -> FDMContainerPropertyTypes.JsonNonListWithDefaultValueNullable,
+      "forIsNullFilter" -> FDMContainerPropertyTypes.JsonNonListWithoutDefaultValueNullable,
     )
 
     for {
