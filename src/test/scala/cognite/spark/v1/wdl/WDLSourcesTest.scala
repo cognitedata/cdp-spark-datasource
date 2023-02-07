@@ -47,6 +47,7 @@ class WDLSourcesTest
     val expectedSources = spark.read
       .schema(testClient.getSchema("Source"))
       .json("src/test/resources/wdl-test-expected-sources.jsonl")
+
     (expectedSources.collect() should contain).theSameElementsAs(sourcesDF.collect())
   }
 }

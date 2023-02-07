@@ -4,9 +4,9 @@ import io.circe.Printer
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
-class RowToJsonTest extends FlatSpec with Matchers /*with ParallelTestExecution*/ {
+class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
   it should "convert a Row with number types into a JsonObject" in {
     val schema = new StructType()
       .add("double", DoubleType)
