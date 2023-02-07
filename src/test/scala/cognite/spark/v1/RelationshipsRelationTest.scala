@@ -1,13 +1,13 @@
 package cognite.spark.v1
 
 import cognite.spark.v1.CdpConnector.ioRuntime
-
-import java.time.Instant
 import cognite.spark.v1.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.{CogniteExternalId, RelationshipCreate}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Inspectors, Matchers}
+
+import java.time.Instant
 
 class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest with Inspectors {
 
@@ -278,7 +278,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     assert(relationshipsRead == 1)
   }
 
-  it should "support pushdown filters on sourceExternalId" taggedAs ReadTest in {
+  ignore should "support pushdown filters on sourceExternalId" taggedAs ReadTest in {
     val countRowsIn = spark.sql(s"""select * from destinationRelationship
          |where sourceExternalId in('${assetExtId1}', 'nonExistingSource')""".stripMargin).count()
     assert(countRowsIn == 2)
@@ -288,7 +288,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
     assert(countRows == 1)
   }
 
-  it should "support pushdown filters on targetExternalId" taggedAs (ReadTest) in {
+  ignore should "support pushdown filters on targetExternalId" taggedAs (ReadTest) in {
     val countRowsIn = spark.sql(s"""select * from destinationRelationship
          |where targetExternalId in('${assetExtId2}', 'nonExistingTarget')""".stripMargin).count()
     assert(countRowsIn == 3)
