@@ -417,7 +417,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
   }
 
-  ignore should "succeed when filtering instances by properties" in {
+  it should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
@@ -432,6 +432,14 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     val sql = s"""
                  |select * from instance_filter_table
                  |where
+                 |forEqualsFilter = 'str1' and
+                 |forInFilter in ('str1', 'str2', 'str3') and
+                 |forGteFilter >= 1 and
+                 |forGtFilter > 1 and
+                 |forLteFilter <= 2 and
+                 |forLtFilter < 4 and
+                 |(forOrFilter1 == 5.1 or forOrFilter2 == 6.1) and
+                 |forIsNotNullFilter is not null and
                  |forIsNullFilter is null
                  |""".stripMargin
 

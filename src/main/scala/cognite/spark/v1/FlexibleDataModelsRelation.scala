@@ -204,6 +204,7 @@ class FlexibleDataModelsRelation(
       itemsRead.inc()
     }
     new GenericRow(a.properties.map {
+      // For startNode, endNode & type
       case a: Array[Any] => new GenericRow(a)
       case e => e
     })
@@ -569,54 +570,25 @@ class FlexibleDataModelsRelation(
       limit: Option[Int],
       instanceType: Option[InstanceType],
       instanceFilter: Option[FilterDefinition]): Seq[InstanceFilterRequest] = {
-    val sources = Seq(InstanceSource(viewDefinition.toSourceReference))
-    val includeTyping = true
+    val defaultFilterReq = InstanceFilterRequest(
+      instanceType = instanceType,
+      filter = instanceFilter,
+      sort = None,
+      limit = limit,
+      cursor = None,
+      sources = Some(Seq(viewDefinition.toInstanceSource)),
+      includeTyping = Some(true)
+    )
     viewDefinition.usedFor match {
       case Usage.Node =>
-        Seq(
-          InstanceFilterRequest(
-            instanceType = Some(instanceType.getOrElse(InstanceType.Node)),
-            filter = instanceFilter,
-            sort = None,
-            limit = limit,
-            cursor = None,
-            sources = Some(sources),
-            includeTyping = Some(includeTyping)
-          )
-        )
+        Seq(defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Node))))
       case Usage.Edge =>
-        Seq(
-          InstanceFilterRequest(
-            instanceType = Some(instanceType.getOrElse(InstanceType.Edge)),
-            filter = instanceFilter,
-            sort = None,
-            limit = limit,
-            cursor = None,
-            sources = Some(sources),
-            includeTyping = Some(includeTyping)
-          )
-        )
+        Seq(defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Edge))))
       case Usage.All =>
         Seq(
-          InstanceFilterRequest(
-            instanceType = Some(InstanceType.Node),
-            filter = instanceFilter,
-            sort = None,
-            limit = limit,
-            cursor = None,
-            sources = Some(sources),
-            includeTyping = Some(includeTyping)
-          ),
-          InstanceFilterRequest(
-            instanceType = Some(InstanceType.Edge),
-            filter = instanceFilter,
-            sort = None,
-            limit = limit,
-            cursor = None,
-            sources = Some(sources),
-            includeTyping = Some(includeTyping)
-          )
-        )
+          defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Node))),
+          defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Edge)))
+        ).distinct
     }
   }
 
