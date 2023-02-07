@@ -140,7 +140,7 @@ class DefaultSource
       throw new CdfSparkException("'instanceSpaceExternalId' should be specified"))
 
     new FlexibleDataModelsRelation(
-      config.copy(clientTag = Some("alpha")),
+      config,
       viewSpaceExternalId = viewSpaceExternalId,
       viewExternalId = viewExternalId,
       viewVersion = viewVersion,
