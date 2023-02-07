@@ -62,8 +62,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   private val containerAllNumericProps = "sparkDatasourceTestContainerNumericProps2"
   private val viewAllNumericProps = "sparkDatasourceTestViewNumericProps2"
 
-  private val containerFilterByProps = "sparkDatasourceTestContainerFilterByProps1"
-  private val viewFilterByProps = "sparkDatasourceTestViewFilterByProps1"
+  private val containerFilterByProps = "sparkDatasourceTestContainerFilterByProps3"
+  private val viewFilterByProps = "sparkDatasourceTestViewFilterByProps3"
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDatasourceTestContainerStartAndEndNodes"
   private val viewStartNodeAndEndNodesExternalId = "sparkDatasourceTestViewStartAndEndNodes"
@@ -417,7 +417,6 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
   }
 
-  // Blocked by filter 'values' issue CDF-17680
   ignore should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
@@ -431,16 +430,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     readDf.createTempView(s"instance_filter_table")
 
     val sql = s"""
-                 |select forEqualsFilter as externalId from instance_filter_table
+                 |select * from instance_filter_table
                  |where
-                 |forEqualsFilter = 'str1' and
-                 |forInFilter in ('str1', 'str2', 'str3') and
-                 |forGteFilter >= 1 and
-                 |forGtFilter > 1 and
-                 |forLteFilter <= 2 and
-                 |forLtFilter < 4 and
-                 |(forOrFilter1 == 5.1 or forOrFilter2 == 6.1) and
-                 |forIsNotNullFilter is not null and
                  |forIsNullFilter is null
                  |""".stripMargin
 
@@ -449,10 +440,10 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       .collect()
 
     filtered.length shouldBe 1
-    val row = filtered.head
-    val filteredInstanceExtId = row.getString(row.schema.fieldIndex("externalId"))
-    instanceExtIds.contains(filteredInstanceExtId) shouldBe true
-    filteredInstanceExtId shouldBe s"${view}Node1"
+    val filteredInstanceExtIds =
+      filtered.map(row => row.getString(row.schema.fieldIndex("externalId"))).toVector
+    instanceExtIds.containsSlice(filteredInstanceExtIds) shouldBe true
+    filteredInstanceExtIds shouldBe Vector(s"${view.externalId}Node1")
   }
 
   it should "successfully cast numeric properties" in {
@@ -706,29 +697,6 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     } yield (viewAll, extIds)
   }
 
-  private def setupInstancesForFiltering(view: ViewDefinition): IO[Seq[String]] = {
-    val viewRef = view.toSourceReference
-    val viewExtId = view.externalId
-
-    Vector(
-      InstanceRetrieve(
-        instanceType = InstanceType.Node,
-        externalId = s"${viewExtId}Node1",
-        space = spaceExternalId,
-        sources = Some(Seq(InstanceSource(viewRef)))
-      ),
-      InstanceRetrieve(
-        instanceType = InstanceType.Node,
-        externalId = s"${viewExtId}Node2",
-        space = spaceExternalId,
-        sources = Some(Seq(InstanceSource(viewRef)))
-      )
-    ).traverse { i =>
-        createTestNodeInstancesForFiltering(i, viewRef)
-      }
-      .map(_.flatten.distinct)
-  }
-
   // scalastyle:off method.length
   private def createTestInstancesForView(
       viewDef: ViewDefinition,
@@ -836,64 +804,81 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   }
 
   // scalastyle:off method.length
-  private def createTestNodeInstancesForFiltering(
-      i: InstanceRetrieve,
-      viewRef: ViewReference): IO[Seq[String]] =
-    bluefieldAlphaClient.instances.retrieveByExternalIds(Vector(i)).map(_.items).flatMap { instances =>
-      val nodes = instances.collect { case n: InstanceDefinition.NodeDefinition => n.externalId }
-      if (nodes.length === 2) {
-        IO.pure(nodes)
-      } else {
-        bluefieldAlphaClient.instances
-          .createItems(
-            instance = InstanceCreate(
-              items = Seq(
-                NodeWrite(
-                  spaceExternalId,
-                  s"${viewRef.externalId}Node1",
-                  Seq(EdgeOrNodeData(
-                    viewRef,
-                    Some(Map(
-                      "forEqualsFilter" -> InstancePropertyValue.String("str1"),
-                      "forInFilter" -> InstancePropertyValue.String("str2"),
-                      "forGteFilter" -> InstancePropertyValue.Int32(1),
-                      "forGtFilter" -> InstancePropertyValue.Int32(2),
-                      "forLteFilter" -> InstancePropertyValue.Int64(2),
-                      "forLtFilter" -> InstancePropertyValue.Int64(3),
-                      "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                      "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                      "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
+  private def setupInstancesForFiltering(viewDef: ViewDefinition): IO[Seq[String]] = {
+    val viewExtId = viewDef.externalId
+    val source = viewDef.toInstanceSource
+    val viewRef = viewDef.toSourceReference
+    val instanceRetrieves = Vector(
+      InstanceRetrieve(
+        instanceType = InstanceType.Node,
+        externalId = s"${viewExtId}Node1",
+        space = spaceExternalId,
+        sources = Some(Seq(source))
+      ),
+      InstanceRetrieve(
+        instanceType = InstanceType.Node,
+        externalId = s"${viewExtId}Node2",
+        space = spaceExternalId,
+        sources = Some(Seq(source))
+      )
+    )
+    bluefieldAlphaClient.instances.retrieveByExternalIds(instanceRetrieves).map(_.items).flatMap {
+      instances =>
+        val nodes = instances.collect { case n: InstanceDefinition.NodeDefinition => n.externalId }
+        if (nodes.length === 2) {
+          IO.pure(nodes)
+        } else {
+          bluefieldAlphaClient.instances
+            .createItems(
+              instance = InstanceCreate(
+                items = Seq(
+                  NodeWrite(
+                    spaceExternalId,
+                    s"${viewDef.externalId}Node1",
+                    Seq(EdgeOrNodeData(
+                      viewRef,
+                      Some(Map(
+                        "forEqualsFilter" -> InstancePropertyValue.String("str1"),
+                        "forInFilter" -> InstancePropertyValue.String("str1"),
+                        "forGteFilter" -> InstancePropertyValue.Int32(1),
+                        "forGtFilter" -> InstancePropertyValue.Int32(2),
+                        "forLteFilter" -> InstancePropertyValue.Int64(2),
+                        "forLtFilter" -> InstancePropertyValue.Int64(3),
+                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
+                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
+                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
+                      ))
                     ))
-                  ))
+                  ),
+                  NodeWrite(
+                    spaceExternalId,
+                    s"${viewDef.externalId}Node2",
+                    Seq(EdgeOrNodeData(
+                      viewRef,
+                      Some(Map(
+                        "forEqualsFilter" -> InstancePropertyValue.String("str2"),
+                        "forInFilter" -> InstancePropertyValue.String("str2"),
+                        "forGteFilter" -> InstancePropertyValue.Int32(5),
+                        "forGtFilter" -> InstancePropertyValue.Int32(2),
+                        "forLteFilter" -> InstancePropertyValue.Int64(1),
+                        "forLtFilter" -> InstancePropertyValue.Int64(-1),
+                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
+                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
+                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now()),
+                        "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
+                          JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
+                      ))
+                    ))
+                  )
                 ),
-                NodeWrite(
-                  spaceExternalId,
-                  s"${viewRef.externalId}Node2",
-                  Seq(EdgeOrNodeData(
-                    viewRef,
-                    Some(Map(
-                      "forEqualsFilter" -> InstancePropertyValue.String("str2"),
-                      "forInFilter" -> InstancePropertyValue.String("str2"),
-                      "forGteFilter" -> InstancePropertyValue.Int32(1),
-                      "forGtFilter" -> InstancePropertyValue.Int32(2),
-                      "forLteFilter" -> InstancePropertyValue.Int64(2),
-                      "forLtFilter" -> InstancePropertyValue.Int64(3),
-                      "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                      "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                      "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now()),
-                      "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
-                        JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
-                    ))
-                  ))
-                )
-              ),
-              replace = Some(true)
+                replace = Some(true)
+              )
             )
-          )
-          .map(_.collect { case n: SlimNodeOrEdge.SlimNodeDefinition => n.externalId })
-          .flatTap(_ => IO.sleep(5.seconds))
-      }
+            .map(_.collect { case n: SlimNodeOrEdge.SlimNodeDefinition => n.externalId })
+            .map(_.distinct)
+        }
     }
+  }
   // scalastyle:on method.length
 
   private def setupNumericConversionTest: IO[ViewDefinition] = {

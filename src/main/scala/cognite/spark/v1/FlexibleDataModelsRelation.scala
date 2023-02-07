@@ -110,7 +110,7 @@ class FlexibleDataModelsRelation(
 
   private def retrieveViewDefWithAllPropsAndSchema
     : IO[Option[(ViewDefinition, Map[String, ViewPropertyDefinition], StructType)]] =
-    alphaClient.views
+    client.views
       .retrieveItems(
         Seq(DataModelReference(viewSpaceExternalId, viewExternalId, viewVersion)),
         includeInheritedProperties = Some(true))
@@ -127,7 +127,7 @@ class FlexibleDataModelsRelation(
                 )
               )
             } else {
-              alphaClient.views
+              client.views
                 .retrieveItems(v.map(vRef =>
                   DataModelReference(vRef.space, vRef.externalId, vRef.version)))
                 .map { inheritingViews =>
@@ -170,7 +170,7 @@ class FlexibleDataModelsRelation(
           items = items,
           replace = Some(true)
         )
-        alphaClient.instances.createItems(instanceCreate)
+        client.instances.createItems(instanceCreate)
       case Right(_) => IO.pure(Vector.empty)
       case Left(err) => IO.raiseError(err)
     }
@@ -408,7 +408,7 @@ class FlexibleDataModelsRelation(
   private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    alphaClient.instances
+    client.instances
       .delete(deleteCandidates.map(i =>
         NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
@@ -417,7 +417,7 @@ class FlexibleDataModelsRelation(
   private def deleteEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    alphaClient.instances
+    client.instances
       .delete(deleteCandidates.map(i =>
         EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
@@ -426,12 +426,12 @@ class FlexibleDataModelsRelation(
   private def deleteNodesOrEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    alphaClient.instances
+    client.instances
       .delete(deleteCandidates.map(i =>
         NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .recoverWith {
         case NonFatal(nodeDeletionErr) =>
-          alphaClient.instances
+          client.instances
             .delete(deleteCandidates.map(i =>
               EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
             .handleErrorWith { edgeDeletionErr =>
