@@ -113,30 +113,6 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     verifyErrorMessage(result, "Could not find required properties")
   }
 
-  it should "fail to create nodes when required a property is nullable" in {
-    val propertyMap = Map(
-      "stringProp" ->
-        TextPropertyNonListWithDefaultValueNonNullable,
-      "intProp" ->
-        Int32NonListWithoutAutoIncrementWithDefaultValueNullable
-    )
-    val schema =
-      StructType(
-        Array(
-          StructField("externalId", StringType, nullable = false),
-          StructField("stringProp", StringType, nullable = true),
-          StructField("intProp", IntegerType, nullable = true)
-        )
-      )
-
-    val values =
-      Seq[Array[Any]](Array("extId1", "stringProp1", 1), Array("extId2", "stringProp2", null))
-    val rows = values.map(r => new GenericRowWithSchema(r, schema))
-
-    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    verifyErrorMessage(result, "cannot contain null values")
-  }
-
   it should "successfully create nodes with all nullable/non-nullable properties" in {
     val propertyMap = Map(
       "stringProp" ->

@@ -267,23 +267,9 @@ object FlexibleDataModelRelationUtils {
     val (nullablePropsMissingInSchema @ _, nonNullablePropsMissingInSchema) =
       propsMissingInSchema.partition { case (_, prop) => prop.nullable.getOrElse(true) }
 
-    val (falselyNullableFieldsInSchema, trulyNullableOrNonNullableFieldsInSchema @ _) =
-      propsExistsInSchema.partition {
-        case (propName, prop) => (prop.nullable contains false) && schema(propName).nullable
-      }
-
     if (nonNullablePropsMissingInSchema.nonEmpty) {
       val propsAsStr = nonNullablePropsMissingInSchema.keys.mkString(", ")
       Left(new CdfSparkException(s"Could not find required properties: [$propsAsStr]"))
-    } else if (falselyNullableFieldsInSchema.nonEmpty) {
-      val propsAsStr = falselyNullableFieldsInSchema.keys.mkString(", ")
-      Left(
-        new CdfSparkException(
-          s"""Properties [$propsAsStr] cannot contain null values
-             |Please verify your data!
-             |""".stripMargin
-        )
-      )
     } else {
       Right(true)
     }
