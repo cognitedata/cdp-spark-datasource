@@ -181,9 +181,9 @@ object FlexibleDataModelRelationUtils {
 
   private def extractExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
     Try {
-      Option(row.getString(schema.fieldIndex("externalId")))
+      Option(row.get(schema.fieldIndex("externalId")))
     } match {
-      case Success(Some(relation)) => Right(relation)
+      case Success(Some(externalId)) => Right(String.valueOf(externalId))
       case Success(None) =>
         Left(
           new CdfSparkException(
@@ -221,9 +221,11 @@ object FlexibleDataModelRelationUtils {
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     Try {
       val edgeTypeRow = row.getStruct(schema.fieldIndex(propertyName))
-      val space = Option(edgeTypeRow.getAs[String]("space"))
-      val externalId = Option(edgeTypeRow.getAs[String]("externalId"))
-      Apply[Option].map2(space, externalId)(DirectRelationReference.apply)
+      val space = Option(edgeTypeRow.getAs[Any]("space"))
+      val externalId = Option(edgeTypeRow.getAs[Any]("externalId"))
+      Apply[Option].map2(space, externalId) {
+        case (s, e) => DirectRelationReference(space = String.valueOf(s), externalId = String.valueOf(e))
+      }
     } match {
       case Success(Some(relation)) => Right(relation)
       case Success(None) =>
