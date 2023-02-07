@@ -60,12 +60,12 @@ class WellDataLayerRDD(
     private[this] var nextComputed: Option[(Row, ItemsWithCursor[JsonObject])] =
       computeNext(ItemsWithCursor[JsonObject](Seq.empty), isFirstQuery = true) // scalafix:ok
 
-    def hasNext: Boolean = nextComputed match {
+    override def hasNext: Boolean = nextComputed match {
       case Some(_) => true
       case None => false
     }
 
-    def next(): Row = nextComputed match {
+    override def next(): Row = nextComputed match {
       case Some((head, tail)) =>
         nextComputed = computeNext(tail, isFirstQuery = false)
         head

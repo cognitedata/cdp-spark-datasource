@@ -18,11 +18,17 @@ class WellDataLayerRelation(
 
   import cognite.spark.v1.CdpConnector._
 
-  override def schema: StructType = {
+  override def schema: StructType =
+    cachedSchema.getOrElse(
+      throw new CdfSparkException("Failed to decode well-data-layer schema into StructType"))
+
+  private lazy val cachedSchema: Option[StructType] = getSchema
+
+  private def getSchema: Option[StructType] = {
     val schemaAsString = client.wdl.getSchema(model).unsafeRunSync()
     DataType.fromJson(schemaAsString) match {
-      case s @ StructType(_) => s
-      case _ => throw new CdfSparkException("Failed to decode well-data-layer schema into StructType")
+      case s @ StructType(_) => Some(s)
+      case _ => None
     }
   }
 
@@ -37,9 +43,7 @@ class WellDataLayerRelation(
       rowJson
     })
 
-    client.wdl.setItems(getWriteUrlPart(model), jsonObjects).unsafeRunSync()
-
-    IO.unit
+    client.wdl.setItems(getWriteUrlPart(model), jsonObjects)
   }
 
   // scalastyle:off cyclomatic.complexity
