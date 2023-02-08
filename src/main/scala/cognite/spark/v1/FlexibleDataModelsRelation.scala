@@ -46,7 +46,7 @@ class FlexibleDataModelsRelation(
     viewSpaceExternalId: String,
     viewExternalId: String,
     viewVersion: String,
-    instanceSpaceExternalId: String)(val sqlContext: SQLContext)
+    instanceSpaceExternalId: Option[String])(val sqlContext: SQLContext)
     extends CdfRelation(config, FlexibleDataModelsRelation.ResourceType)
     with WritableRelation
     with PrunedFilteredScan {
@@ -66,17 +66,19 @@ class FlexibleDataModelsRelation(
   // scalastyle:off cyclomatic.complexity
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val firstRow = rows.headOption
-    firstRow match {
-      case Some(firstRow) =>
+    (firstRow, instanceSpaceExternalId) match {
+      case (Some(fr), Some(instanceSpaceExtId)) =>
         upsertNodesOrEdges(
-          instanceSpaceExternalId,
+          instanceSpaceExtId,
           rows,
-          firstRow.schema,
+          fr.schema,
           viewDefinition.toSourceReference,
           allViewProperties,
           viewDefinition.usedFor
         ).flatMap(results => incMetrics(itemsUpserted, results.length))
-      case None => incMetrics(itemsUpserted, 0)
+      case (None, Some(_)) => incMetrics(itemsUpserted, 0)
+      case (_, None) =>
+        IO.raiseError(new CdfSparkException(s"'instanceSpaceExternalId' id required to upsert data"))
     }
   }
   // scalastyle:on cyclomatic.complexity

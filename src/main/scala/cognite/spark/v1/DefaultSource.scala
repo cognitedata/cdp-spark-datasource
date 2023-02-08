@@ -135,9 +135,7 @@ class DefaultSource
     val viewVersion = parameters.getOrElse(
       "viewVersion",
       throw new CdfSparkException("'viewVersion' should be specified"))
-    val instanceSpaceExternalId = parameters.getOrElse(
-      "instanceSpaceExternalId",
-      throw new CdfSparkException("'instanceSpaceExternalId' should be specified"))
+    val instanceSpaceExternalId = parameters.get("instanceSpaceExternalId")
 
     new FlexibleDataModelsRelation(
       config,
