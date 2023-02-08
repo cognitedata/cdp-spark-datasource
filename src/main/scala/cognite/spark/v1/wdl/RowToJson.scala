@@ -63,7 +63,7 @@ object RowToJson {
 
   // Convert an iterator of values to a json array
   private def iteratorToJsonArray(iterator: Iterator[_], elementType: DataType): Json =
-    Json.fromValues(iterator.map(toJsonHelper(_, elementType)).toIterable)
+    Json.fromValues(iterator.map(toJsonHelper(_, elementType)).toList)
 
   // Convert a value to json.
   // scalastyle:off cyclomatic.complexity
