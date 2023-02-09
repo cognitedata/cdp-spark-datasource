@@ -342,39 +342,39 @@ class FlexibleDataModelsRelation(
   // scalastyle:off cyclomatic.complexity
   private def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
     val space = viewDefinition.space
-    val externalId = viewDefinition.externalId
+    val versionedExternalId = s"${viewDefinition.externalId}/${viewDefinition.version}"
 
     sparkFilter match {
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
-          FilterDefinition.Equals(Seq(space, externalId, attribute), _))
+          FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
       case In(attribute, values) =>
         toSeqFilterValueDefinition(attribute, values).map(
-          FilterDefinition.In(Seq(space, externalId, attribute), _))
+          FilterDefinition.In(Seq(space, versionedExternalId, attribute), _))
       case GreaterThanOrEqual(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, externalId, attribute), gte = Some(f)))
+          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), gte = Some(f)))
       case GreaterThan(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, externalId, attribute), gt = Some(f)))
+          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), gt = Some(f)))
       case LessThanOrEqual(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, externalId, attribute), lte = Some(f)))
+          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), lte = Some(f)))
       case LessThan(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, externalId, attribute), lt = Some(f)))
+          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), lt = Some(f)))
       case StringStartsWith(attribute, value) =>
         Right(
           FilterDefinition
-            .Prefix(Seq(space, externalId, attribute), FilterValueDefinition.String(value)))
+            .Prefix(Seq(space, versionedExternalId, attribute), FilterValueDefinition.String(value)))
       case And(f1, f2) =>
         List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.Or.apply)
       case IsNotNull(attribute) =>
-        Right(FilterDefinition.Exists(Seq(space, externalId, attribute)))
+        Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
       case IsNull(attribute) =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, externalId, attribute))))
+        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
       case Not(f) => toInstanceFilter(f).map(FilterDefinition.Not.apply)
       case f =>
         Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.getClass.getSimpleName}'"))
