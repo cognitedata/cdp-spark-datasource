@@ -417,7 +417,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
   }
 
-  ignore should "succeed when filtering instances by properties" in {
+  it should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
