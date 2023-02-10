@@ -561,7 +561,7 @@ class FlexibleDataModelsRelation(
             case "externalId" => e.externalId
             case "startNode" => Array(e.startNode.space, e.startNode.externalId)
             case "endNode" => Array(e.endNode.space, e.endNode.externalId)
-            case "type" => Array(e.relation.space, e.relation.externalId)
+            case "type" => Array(e.`type`.space, e.`type`.externalId)
             case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
           }
         )
