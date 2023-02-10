@@ -16,12 +16,15 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
   InstancePropertyValue,
   NodeOrEdgeCreate
 }
+import com.cognite.sdk.scala.v1.resources.fdm.instances.Instances.directRelationReferenceEncoder
+import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 
-import java.time.{LocalDate, LocalDateTime, ZoneId, ZoneOffset, ZonedDateTime}
+import java.time._
 import scala.util.{Failure, Success, Try}
 
+// scalastyle:off number.of.methods
 object FlexibleDataModelRelationUtils {
   private[spark] def createNodes(
       instanceSpaceExternalId: String,
@@ -220,9 +223,9 @@ object FlexibleDataModelRelationUtils {
       schema: StructType,
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     Try {
-      val edgeTypeRow = row.getStruct(schema.fieldIndex(propertyName))
-      val space = Option(edgeTypeRow.getAs[Any]("space"))
-      val externalId = Option(edgeTypeRow.getAs[Any]("externalId"))
+      val struct = row.getStruct(schema.fieldIndex(propertyName))
+      val space = Option(struct.getAs[Any]("space"))
+      val externalId = Option(struct.getAs[Any]("externalId"))
       Apply[Option].map2(space, externalId) {
         case (s, e) => DirectRelationReference(space = String.valueOf(s), externalId = String.valueOf(e))
       }
@@ -281,13 +284,8 @@ object FlexibleDataModelRelationUtils {
       propertyName: String,
       propDef: PropertyDefinition): Either[CdfSparkException, Option[InstancePropertyValue]] = {
     val instancePropertyValueResult = propDef.`type` match {
-      case DirectNodeRelationProperty(_) => // TODO: Verify this
-        skipNulls(row.getSeq[String](schema.fieldIndex(propertyName))).toVector
-          .traverse(io.circe.parser.parse)
-          .map(l => Some(InstancePropertyValue.ObjectList(l)))
-          .leftMap(e =>
-            new CdfSparkException(
-              s"Error parsing value of field '$propertyName' as a list of json objects: ${e.getMessage}"))
+      case DirectNodeRelationProperty(_) =>
+        directNodeRelationToInstancePropertyValue(row, schema, propertyName, propDef)
       case t if t.isList => toInstantPropertyValueOfList(row, schema, propertyName, propDef)
       case _ => toInstantPropertyValueOfNonList(row, schema, propertyName, propDef)
     }
@@ -424,6 +422,25 @@ object FlexibleDataModelRelationUtils {
     }
   }
   // scalastyle:on cyclomatic.complexity method.length
+
+  private def directNodeRelationToInstancePropertyValue(
+      row: Row,
+      schema: StructType,
+      propertyName: String,
+      propDef: PropertyDefinition): Either[CdfSparkException, Option[InstancePropertyValue]] = {
+    val nullable = propDef.nullable.getOrElse(true)
+    val fieldIndex = Try(schema.fieldIndex(propertyName))
+    val nullAtIndex = fieldIndex.map(row.isNullAt).getOrElse(true)
+    if (nullable && nullAtIndex) {
+      Right(None)
+    } else if (!nullable && nullAtIndex) {
+      Left(new CdfSparkException(s"'$propertyName' cannot be null"))
+    } else {
+      extractDirectRelation(propertyName, "Direct Node Relation", schema, row)
+        .map(_.asJson)
+        .map(json => Some(InstancePropertyValue.Object(json)))
+    }
+  }
 
   private def tryAsLong(n: Any, propertyName: String): Either[CdfSparkException, Long] = {
     val nAsStr = String.valueOf(n)
@@ -601,3 +618,4 @@ object FlexibleDataModelRelationUtils {
   private def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
 }
+// scalastyle:on number.of.methods
