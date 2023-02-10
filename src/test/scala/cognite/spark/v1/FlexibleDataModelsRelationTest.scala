@@ -31,42 +31,42 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
   val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
   val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
-  private val bluefieldAlphaClient = getBlufieldClient(Some("alpha"))
+  private val client = getBlufieldClient()
 
   private val spaceExternalId = "test-space-scala-sdk"
 
-  private val containerAllListAndNonListExternalId = "sparkDatasourceTestContainerAllListAndNonList1"
-  private val containerNodesListAndNonListExternalId = "sparkDatasourceTestContainerNodesListAndNonList1"
-  private val containerEdgesListAndNonListExternalId = "sparkDatasourceTestContainerEdgesListAndNonList1"
+  private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList"
+  private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList"
+  private val containerEdgesListAndNonListExternalId = "sparkDsTestContainerEdgesListAndNonList"
 
-  private val containerAllNonListExternalId = "sparkDatasourceTestContainerAllNonList1"
-  private val containerNodesNonListExternalId = "sparkDatasourceTestContainerNodesNonList1"
-  private val containerEdgesNonListExternalId = "sparkDatasourceTestContainerEdgesNonList1"
+  private val containerAllNonListExternalId = "sparkDsTestContainerAllNonList"
+  private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList"
+  private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList"
 
-  private val containerAllListExternalId = "sparkDatasourceTestContainerAllList6"
-  private val containerNodesListExternalId = "sparkDatasourceTestContainerNodesList6"
-  private val containerEdgesListExternalId = "sparkDatasourceTestContainerEdgesList6"
+  private val containerAllListExternalId = "sparkDsTestContainerAllList"
+  private val containerNodesListExternalId = "sparkDsTestContainerNodesList"
+  private val containerEdgesListExternalId = "sparkDsTestContainerEdgesList"
 
-  private val viewAllListAndNonListExternalId = "sparkDatasourceTestViewAllListAndNonList1"
-  private val viewNodesListAndNonListExternalId = "sparkDatasourceTestViewNodesListAndNonList1"
-  private val viewEdgesListAndNonListExternalId = "sparkDatasourceTestViewEdgesListAndNonList1"
+  private val viewAllListAndNonListExternalId = "sparkDsTestViewAllListAndNonList"
+  private val viewNodesListAndNonListExternalId = "sparkDsTestViewNodesListAndNonList"
+  private val viewEdgesListAndNonListExternalId = "sparkDsTestViewEdgesListAndNonList"
 
-  private val viewAllNonListExternalId = "sparkDatasourceTestViewAllNonList1"
-  private val viewNodesNonListExternalId = "sparkDatasourceTestViewNodesNonList1"
-  private val viewEdgesNonListExternalId = "sparkDatasourceTestViewEdgesNonList1"
+  private val viewAllNonListExternalId = "sparkDsTestViewAllNonList"
+  private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList"
+  private val viewEdgesNonListExternalId = "sparkDsTestViewEdgesNonList"
 
-  private val viewAllListExternalId = "sparkDatasourceTestViewAllList6"
-  private val viewNodesListExternalId = "sparkDatasourceTestViewNodesList6"
-  private val viewEdgesListExternalId = "sparkDatasourceTestViewEdgesList6"
+  private val viewAllListExternalId = "sparkDsTestViewAllList"
+  private val viewNodesListExternalId = "sparkDsTestViewNodesList"
+  private val viewEdgesListExternalId = "sparkDsTestViewEdgesList"
 
-  private val containerAllNumericProps = "sparkDatasourceTestContainerNumericProps2"
-  private val viewAllNumericProps = "sparkDatasourceTestViewNumericProps2"
+  private val containerAllNumericProps = "sparkDsTestContainerNumericProps"
+  private val viewAllNumericProps = "sparkDsTestViewNumericProps"
 
-  private val containerFilterByProps = "sparkDatasourceTestContainerFilterByProps4"
-  private val viewFilterByProps = "sparkDatasourceTestViewFilterByProps4"
+  private val containerFilterByProps = "sparkDsTestContainerFilterByProps"
+  private val viewFilterByProps = "sparkDsTestViewFilterByProps"
 
-  private val containerStartNodeAndEndNodesExternalId = "sparkDatasourceTestContainerStartAndEndNodes"
-  private val viewStartNodeAndEndNodesExternalId = "sparkDatasourceTestViewStartAndEndNodes"
+  private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes"
+  private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes"
 
   private val viewVersion = "v1"
 
@@ -505,7 +505,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         space = spaceExternalId,
         sources = Some(Seq(InstanceSource(viewDef.toSourceReference)))
       )
-    ).traverse(i => bluefieldAlphaClient.instances.retrieveByExternalIds(Vector(i), true))
+    ).traverse(i => client.instances.retrieveByExternalIds(Vector(i), true))
       .map { instances =>
         instances.flatMap(_.items).collect {
           case n: InstanceDefinition.NodeDefinition =>
@@ -531,7 +531,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   }
 
   ignore should "delete containers and views used for testing" in {
-    bluefieldAlphaClient.containers
+    client.containers
       .delete(Seq(
         ContainerId(spaceExternalId, containerAllNonListExternalId),
         ContainerId(spaceExternalId, containerNodesNonListExternalId),
@@ -542,7 +542,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       ))
       .unsafeRunSync()
 
-    bluefieldAlphaClient.views
+    client.views
       .deleteItems(Seq(
         DataModelReference(spaceExternalId, viewAllListAndNonListExternalId, viewVersion),
         DataModelReference(spaceExternalId, viewNodesListAndNonListExternalId, viewVersion),
@@ -727,7 +727,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
           }
     }
 
-    bluefieldAlphaClient.instances
+    client.instances
       .createItems(
         instance = InstanceCreate(
           items = writeData,
@@ -830,61 +830,60 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         sources = Some(Seq(source))
       )
     )
-    bluefieldAlphaClient.instances.retrieveByExternalIds(instanceRetrieves).map(_.items).flatMap {
-      instances =>
-        val nodes = instances.collect { case n: InstanceDefinition.NodeDefinition => n.externalId }
-        if (nodes.length === 2) {
-          IO.pure(nodes)
-        } else {
-          bluefieldAlphaClient.instances
-            .createItems(
-              instance = InstanceCreate(
-                items = Seq(
-                  NodeWrite(
-                    spaceExternalId,
-                    s"${viewDef.externalId}Node1",
-                    Seq(EdgeOrNodeData(
-                      viewRef,
-                      Some(Map(
-                        "forEqualsFilter" -> InstancePropertyValue.String("str1"),
-                        "forInFilter" -> InstancePropertyValue.String("str1"),
-                        "forGteFilter" -> InstancePropertyValue.Int32(1),
-                        "forGtFilter" -> InstancePropertyValue.Int32(2),
-                        "forLteFilter" -> InstancePropertyValue.Int64(2),
-                        "forLtFilter" -> InstancePropertyValue.Int64(3),
-                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
-                      ))
+    client.instances.retrieveByExternalIds(instanceRetrieves).map(_.items).flatMap { instances =>
+      val nodes = instances.collect { case n: InstanceDefinition.NodeDefinition => n.externalId }
+      if (nodes.length === 2) {
+        IO.pure(nodes)
+      } else {
+        client.instances
+          .createItems(
+            instance = InstanceCreate(
+              items = Seq(
+                NodeWrite(
+                  spaceExternalId,
+                  s"${viewDef.externalId}Node1",
+                  Seq(EdgeOrNodeData(
+                    viewRef,
+                    Some(Map(
+                      "forEqualsFilter" -> InstancePropertyValue.String("str1"),
+                      "forInFilter" -> InstancePropertyValue.String("str1"),
+                      "forGteFilter" -> InstancePropertyValue.Int32(1),
+                      "forGtFilter" -> InstancePropertyValue.Int32(2),
+                      "forLteFilter" -> InstancePropertyValue.Int64(2),
+                      "forLtFilter" -> InstancePropertyValue.Int64(3),
+                      "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
+                      "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
+                      "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
                     ))
-                  ),
-                  NodeWrite(
-                    spaceExternalId,
-                    s"${viewDef.externalId}Node2",
-                    Seq(EdgeOrNodeData(
-                      viewRef,
-                      Some(Map(
-                        "forEqualsFilter" -> InstancePropertyValue.String("str2"),
-                        "forInFilter" -> InstancePropertyValue.String("str2"),
-                        "forGteFilter" -> InstancePropertyValue.Int32(5),
-                        "forGtFilter" -> InstancePropertyValue.Int32(2),
-                        "forLteFilter" -> InstancePropertyValue.Int64(1),
-                        "forLtFilter" -> InstancePropertyValue.Int64(-1),
-                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now()),
-                        "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
-                          JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
-                      ))
-                    ))
-                  )
+                  ))
                 ),
-                replace = Some(true)
-              )
+                NodeWrite(
+                  spaceExternalId,
+                  s"${viewDef.externalId}Node2",
+                  Seq(EdgeOrNodeData(
+                    viewRef,
+                    Some(Map(
+                      "forEqualsFilter" -> InstancePropertyValue.String("str2"),
+                      "forInFilter" -> InstancePropertyValue.String("str2"),
+                      "forGteFilter" -> InstancePropertyValue.Int32(5),
+                      "forGtFilter" -> InstancePropertyValue.Int32(2),
+                      "forLteFilter" -> InstancePropertyValue.Int64(1),
+                      "forLtFilter" -> InstancePropertyValue.Int64(-1),
+                      "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
+                      "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
+                      "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now()),
+                      "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
+                        JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
+                    ))
+                  ))
+                )
+              ),
+              replace = Some(true)
             )
-            .map(_.collect { case n: SlimNodeOrEdge.SlimNodeDefinition => n.externalId })
-            .map(_.distinct)
-        }
+          )
+          .map(_.collect { case n: SlimNodeOrEdge.SlimNodeDefinition => n.externalId })
+          .map(_.distinct)
+      }
     }
   }
   // scalastyle:on method.length
@@ -955,7 +954,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       usage: Usage,
       properties: Map[String, ContainerPropertyDefinition],
       containerExternalId: String): IO[ContainerDefinition] =
-    bluefieldAlphaClient.containers
+    client.containers
       .retrieveByExternalIds(
         Seq(ContainerId(spaceExternalId, containerExternalId))
       )
@@ -971,7 +970,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
             constraints = None,
             indexes = None
           )
-          bluefieldAlphaClient.containers
+          client.containers
             .createItems(containers = Seq(containerToCreate))
             .flatTap(_ => IO.sleep(5.seconds))
         } else {
@@ -984,7 +983,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       container: ContainerDefinition,
       viewExternalId: String,
       viewVersion: String): IO[ViewDefinition] =
-    bluefieldAlphaClient.views
+    client.views
       .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, viewVersion)))
       .flatMap { views =>
         if (views.isEmpty) {
@@ -1002,7 +1001,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
             implements = None,
           )
 
-          bluefieldAlphaClient.views
+          client.views
             .createItems(items = Seq(viewToCreate))
             .flatTap(_ => IO.sleep(5.seconds))
         } else {
@@ -1020,16 +1019,16 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         instanceType = InstanceType.Node,
         externalId = startNodeExtId,
         space = spaceExternalId,
-        sources = Some(Seq(InstanceSource(viewStartAndEndNodes.toSourceReference)))
+        sources = Some(Seq(viewStartAndEndNodes.toInstanceSource))
       ),
       InstanceRetrieve(
         instanceType = InstanceType.Node,
         externalId = endNodeExtId,
         space = spaceExternalId,
-        sources = Some(Seq(InstanceSource(viewStartAndEndNodes.toSourceReference)))
+        sources = Some(Seq(viewStartAndEndNodes.toInstanceSource))
       )
     )
-    bluefieldAlphaClient.instances
+    client.instances
       .retrieveByExternalIds(instanceRetrieves, false)
       .flatMap { response =>
         val nodes = response.items.collect {
@@ -1038,7 +1037,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         if (nodes.size === 2) {
           IO.unit
         } else {
-          bluefieldAlphaClient.instances
+          client.instances
             .createItems(instance = InstanceCreate(
               items = Seq(
                 NodeWrite(
