@@ -1,6 +1,7 @@
 package cognite.spark.v1.wdl
 
 import cognite.spark.v1.{DataFrameMatcher, SparkTest}
+import org.apache.spark.SparkException
 import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
 
@@ -135,17 +136,13 @@ class WDLTrajectoriesTest
           |""".stripMargin)
       .filter("""wellboreAssetExternalId = "A:wb1"""")
 
-    try {
-      testIngestionsDF.write
-        .format("cognite.spark.v1")
-        .option("project", "jetfiretest2")
-        .option("type", "welldatalayer")
-        .option("wdlDataType", "TrajectoryIngestion")
-        .useOIDCWrite
-        .save()
-    } catch {
-      case _: org.apache.spark.SparkException => ()
-    }
+    a[SparkException] should be thrownBy testIngestionsDF.write
+      .format("cognite.spark.v1")
+      .option("project", "jetfiretest2")
+      .option("type", "welldatalayer")
+      .option("wdlDataType", "TrajectoryIngestion")
+      .useOIDCWrite
+      .save()
 
     val trajectoriesDF = sparkReader
       .option("wdlDataType", "Trajectory")

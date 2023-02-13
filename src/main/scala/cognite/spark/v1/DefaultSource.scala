@@ -127,7 +127,8 @@ class DefaultSource
       config: RelationConfig,
       sqlContext: SQLContext
   ): WellDataLayerRelation = {
-    val model = parameters.getOrElse("wdlDataType", sys.error("wdlDataType must be specified"))
+    val model =
+      parameters.getOrElse("wdlDataType", throw new CdfSparkException("wdlDataType must be specified"))
     new WellDataLayerRelation(config, model)(sqlContext)
   }
 

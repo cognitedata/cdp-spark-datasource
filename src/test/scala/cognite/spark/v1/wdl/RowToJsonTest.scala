@@ -1,5 +1,6 @@
 package cognite.spark.v1.wdl
 
+import cognite.spark.v1.CdfSparkException
 import io.circe.Printer
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
@@ -95,7 +96,7 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
       schema
     )
 
-    val expectedException = intercept[RuntimeException] {
+    val expectedException = intercept[CdfSparkException] {
       RowToJson.toJsonObject(input, schema)
     }
 

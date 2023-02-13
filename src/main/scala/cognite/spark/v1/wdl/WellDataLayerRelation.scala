@@ -38,7 +38,7 @@ class WellDataLayerRelation(
     val jsonObjects = rows.map(row => {
       val rowJson = RowToJson.toJsonObject(row, schema)
       if (rowJson.isEmpty) {
-        sys.error("Upsert invalid empty row!")
+        throw new CdfSparkException("Upsert invalid empty row!")
       }
       rowJson
     })
@@ -46,26 +46,29 @@ class WellDataLayerRelation(
     client.wdl.setItems(getWriteUrlPart(model), jsonObjects)
   }
 
-  // scalastyle:off cyclomatic.complexity
-  private def getWriteUrlPart(modelType: String): String =
-    modelType.replace("Ingestion", "") match {
-      case "Well" => "wells"
-      case "WellSource" => "wells"
-      case "Wellbore" => "wellbores"
-      case "WellboreSource" => "wellbores"
-      case "DepthMeasurement" => "measurements/depth"
-      case "TimeMeasurement" => "measurements/time"
-      case "RigOperation" => "rigoperations"
-      case "HoleSectionGroup" => "holesections"
-      case "WellTopGroup" => "welltops"
-      case "Npt" => "npt"
-      case "Nds" => "npt"
-      case "CasingSchematic" => "casings"
-      case "Trajectory" => "trajectories"
-      case "Source" => "sources"
-      case _ => sys.error(s"Unknown model type: $modelType")
-    }
-  // scalastyle:on cyclomatic.complexity
+  private val modelTypeToWriteUrlPart = Map(
+    "Well" -> "wells",
+    "WellSource" -> "wells",
+    "Wellbore" -> "wellbores",
+    "WellboreSource" -> "wellbores",
+    "DepthMeasurement" -> "measurements/depth",
+    "TimeMeasurement" -> "measurements/time",
+    "RigOperation" -> "rigoperations",
+    "HoleSectionGroup" -> "holesections",
+    "WellTopGroup" -> "welltops",
+    "Npt" -> "npt",
+    "Nds" -> "npt",
+    "CasingSchematic" -> "casings",
+    "Trajectory" -> "trajectories",
+    "Source" -> "sources",
+  )
+
+  private def getWriteUrlPart(modelType: String): String = {
+    val modelKey = modelType.replace("Ingestion", "")
+    modelTypeToWriteUrlPart.getOrElse(
+      modelKey,
+      throw new CdfSparkException(s"Unknown model type: $modelType"))
+  }
 
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for WDL. Use upsert instead.")

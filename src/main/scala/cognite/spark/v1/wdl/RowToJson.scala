@@ -29,7 +29,7 @@ object RowToJson {
     if (row == null) {
       JsonObject.empty
     } else if (row.schema == null) {
-      sys.error(
+      throw new CdfSparkException(
         s"Schema for $row is null. The input row needs a schema, because it must be matched with the schema of the output format.")
     } else {
       val rowFields = row.schema.map(f => f.name -> row.get(row.fieldIndex(f.name))).toMap
@@ -118,7 +118,7 @@ object RowToJson {
       if (nullable) {
         Json.Null
       } else {
-        sys.error(s"Element ${structFieldName} should not be NULL.")
+        throw new CdfSparkException(s"Element ${structFieldName} should not be NULL.")
       }
     } else {
       val json = toJsonHelper(dataValue, dataType)

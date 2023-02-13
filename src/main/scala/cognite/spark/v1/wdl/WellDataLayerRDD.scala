@@ -23,22 +23,25 @@ class WellDataLayerRDD(
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
-  // scalastyle:off cyclomatic.complexity
-  private def getReadUrlPart(modelType: String): String =
-    modelType.replace("Ingestion", "") match {
-      case "Well" => "wells/list"
-      case "DepthMeasurement" => "measurements/depth/list"
-      case "TimeMeasurement" => "measurements/time/list"
-      case "RigOperation" => "rigoperations/list"
-      case "HoleSectionGroup" => "holesections/list"
-      case "WellTopGroup" => "welltops/list"
-      case "Npt" => "npt/list"
-      case "Nds" => "npt/list"
-      case "CasingSchematic" => "casings/list"
-      case "Trajectory" => "trajectories/list"
-      case _ => sys.error(s"Unknown model type: $modelType")
-    }
-  // scalastyle:on cyclomatic.complexity
+  private val modelTypeToReadUrlPart = Map(
+    "Well" -> "wells/list",
+    "DepthMeasurement" -> "measurements/depth/list",
+    "TimeMeasurement" -> "measurements/time/list",
+    "RigOperation" -> "rigoperations/list",
+    "HoleSectionGroup" -> "holesections/list",
+    "WellTopGroup" -> "welltops/list",
+    "Npt" -> "npt/list",
+    "Nds" -> "npt/list",
+    "CasingSchematic" -> "casings/list",
+    "Trajectory" -> "trajectories/list",
+  )
+
+  private def getReadUrlPart(modelType: String): String = {
+    val modelKey = modelType.replace("Ingestion", "")
+    modelTypeToReadUrlPart.getOrElse(
+      modelKey,
+      throw new CdfSparkException(s"Unknown model type: $modelType"))
+  }
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] =
     if (model == "Source") {
