@@ -60,7 +60,7 @@ class WellDataLayerRelation(
     "Nds" -> "npt",
     "CasingSchematic" -> "casings",
     "Trajectory" -> "trajectories",
-    "Source" -> "sources",
+    "Source" -> "sources"
   )
 
   private def getWriteUrlPart(modelType: String): String = {

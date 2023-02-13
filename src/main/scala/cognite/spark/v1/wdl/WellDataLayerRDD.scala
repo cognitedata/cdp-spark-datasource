@@ -33,7 +33,7 @@ class WellDataLayerRDD(
     "Npt" -> "npt/list",
     "Nds" -> "npt/list",
     "CasingSchematic" -> "casings/list",
-    "Trajectory" -> "trajectories/list",
+    "Trajectory" -> "trajectories/list"
   )
 
   private def getReadUrlPart(modelType: String): String = {
