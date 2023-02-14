@@ -46,7 +46,7 @@ class FlexibleDataModelsRelation(
     viewSpaceExternalId: String,
     viewExternalId: String,
     viewVersion: String,
-    instanceSpaceExternalId: String)(val sqlContext: SQLContext)
+    instanceSpaceExternalId: Option[String])(val sqlContext: SQLContext)
     extends CdfRelation(config, FlexibleDataModelsRelation.ResourceType)
     with WritableRelation
     with PrunedFilteredScan {
@@ -66,17 +66,19 @@ class FlexibleDataModelsRelation(
   // scalastyle:off cyclomatic.complexity
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val firstRow = rows.headOption
-    firstRow match {
-      case Some(firstRow) =>
+    (firstRow, instanceSpaceExternalId) match {
+      case (Some(fr), Some(instanceSpaceExtId)) =>
         upsertNodesOrEdges(
-          instanceSpaceExternalId,
+          instanceSpaceExtId,
           rows,
-          firstRow.schema,
+          fr.schema,
           viewDefinition.toSourceReference,
           allViewProperties,
           viewDefinition.usedFor
         ).flatMap(results => incMetrics(itemsUpserted, results.length))
-      case None => incMetrics(itemsUpserted, 0)
+      case (None, Some(_)) => incMetrics(itemsUpserted, 0)
+      case (_, None) =>
+        IO.raiseError(new CdfSparkException(s"'instanceSpaceExternalId' id required to upsert data"))
     }
   }
   // scalastyle:on cyclomatic.complexity
@@ -110,7 +112,7 @@ class FlexibleDataModelsRelation(
 
   private def retrieveViewDefWithAllPropsAndSchema
     : IO[Option[(ViewDefinition, Map[String, ViewPropertyDefinition], StructType)]] =
-    alphaClient.views
+    client.views
       .retrieveItems(
         Seq(DataModelReference(viewSpaceExternalId, viewExternalId, viewVersion)),
         includeInheritedProperties = Some(true))
@@ -127,7 +129,7 @@ class FlexibleDataModelsRelation(
                 )
               )
             } else {
-              alphaClient.views
+              client.views
                 .retrieveItems(v.map(vRef =>
                   DataModelReference(vRef.space, vRef.externalId, vRef.version)))
                 .map { inheritingViews =>
@@ -170,7 +172,7 @@ class FlexibleDataModelsRelation(
           items = items,
           replace = Some(true)
         )
-        alphaClient.instances.createItems(instanceCreate)
+        client.instances.createItems(instanceCreate)
       case Right(_) => IO.pure(Vector.empty)
       case Left(err) => IO.raiseError(err)
     }
@@ -203,7 +205,11 @@ class FlexibleDataModelsRelation(
     if (config.collectMetrics) {
       itemsRead.inc()
     }
-    new GenericRow(a.properties)
+    new GenericRow(a.properties.map {
+      // For startNode, endNode & type
+      case a: Array[Any] => new GenericRow(a)
+      case e => e
+    })
   }
 
   private def toComparableFilterValueDefinition(
@@ -386,47 +392,26 @@ class FlexibleDataModelsRelation(
       selectedColumns
     }
 
-    val instanceType = {
-      (viewDefinition.usedFor match {
-        case Usage.Node => Some(InstanceType.Node)
-        case Usage.Edge => Some(InstanceType.Edge)
-        case Usage.All => None
-      }).orElse {
-        filters.collectFirst {
-          case EqualTo("instanceType", value) =>
-            Decoder[InstanceType]
-              .decodeJson(Json.fromString(String.valueOf(value).toLowerCase(Locale.US)))
-              .toOption
-        }.flatten
-      }
-    }
+    val instanceType = getInstanceType(filters)
 
     val instanceFilter = filters.toVector.traverse(toInstanceFilter) match {
       case Right(fs) if fs.isEmpty => None
+      case Right(fs) if fs.length == 1 => fs.headOption
       case Right(fs) => Some(FilterDefinition.And(fs))
       case Left(err) => throw err
     }
 
-    val filterRequest = InstanceFilterRequest(
-      instanceType = instanceType,
-      filter = instanceFilter,
-      sort = None, // Some(Seq(PropertyFilterV3))
-      limit = limit,
-      cursor = None,
-      sources = Some(Seq(InstanceSource(viewDefinition.toSourceReference))),
-      includeTyping = Some(true)
-    )
-
-    Seq(
+    usageBasedFilterRequests(limit, instanceType, instanceFilter).map { filterRequest =>
       client.instances
         .filterStream(filterRequest, limit)
-        .map(toProjectedInstance(_, selectedInstanceProps)))
+        .map(toProjectedInstance(_, selectedInstanceProps))
+    }
   }
 
   private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    alphaClient.instances
+    client.instances
       .delete(deleteCandidates.map(i =>
         NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
@@ -435,7 +420,7 @@ class FlexibleDataModelsRelation(
   private def deleteEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    alphaClient.instances
+    client.instances
       .delete(deleteCandidates.map(i =>
         EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .flatMap(results => incMetrics(itemsDeleted, results.length))
@@ -444,12 +429,12 @@ class FlexibleDataModelsRelation(
   private def deleteNodesOrEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    alphaClient.instances
+    client.instances
       .delete(deleteCandidates.map(i =>
         NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
       .recoverWith {
         case NonFatal(nodeDeletionErr) =>
-          alphaClient.instances
+          client.instances
             .delete(deleteCandidates.map(i =>
               EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
             .handleErrorWith { edgeDeletionErr =>
@@ -537,27 +522,78 @@ class FlexibleDataModelsRelation(
       nullable
     )
 
+  private def getInstanceType(filters: Array[Filter]) =
+    (viewDefinition.usedFor match {
+      case Usage.Node => Some(InstanceType.Node)
+      case Usage.Edge => Some(InstanceType.Edge)
+      case Usage.All => None
+    }).orElse {
+      filters.collectFirst {
+        case EqualTo(attribute, value) if attribute.equalsIgnoreCase("instanceType") =>
+          Decoder[InstanceType]
+            .decodeJson(Json.fromString(String.valueOf(value).toLowerCase(Locale.US)))
+            .toOption
+      }.flatten
+    }
+
   private def toProjectedInstance(
       i: InstanceDefinition,
       selectedInstanceProps: Array[String]): ProjectedFlexibleDataModelInstance = {
-    val (externalId, properties) = i match {
-      case n: InstanceDefinition.NodeDefinition => (n.externalId, n.properties)
-      case e: InstanceDefinition.EdgeDefinition => (e.externalId, e.properties)
-    }
-
     // Merging all the properties without considering the space & view/container externalId
     // At the time of this impl there is no requirement to consider properties with same name
     // in different view/containers
     val allAvailablePropValues =
-      properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+      i.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
 
-    ProjectedFlexibleDataModelInstance(
-      externalId = externalId,
-      properties = selectedInstanceProps.map { prop =>
-        allAvailablePropValues.get(prop).map(extractInstancePropertyValue).orNull
-      }
-    )
+    i match {
+      case n: InstanceDefinition.NodeDefinition =>
+        ProjectedFlexibleDataModelInstance(
+          externalId = n.externalId,
+          properties = selectedInstanceProps.map {
+            case "externalId" => n.externalId
+            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
+          }
+        )
+      case e: InstanceDefinition.EdgeDefinition =>
+        ProjectedFlexibleDataModelInstance(
+          externalId = e.externalId,
+          properties = selectedInstanceProps.map {
+            case "externalId" => e.externalId
+            case "startNode" => Array(e.startNode.space, e.startNode.externalId)
+            case "endNode" => Array(e.endNode.space, e.endNode.externalId)
+            case "type" => Array(e.`type`.space, e.`type`.externalId)
+            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
+          }
+        )
+    }
   }
+
+  private def usageBasedFilterRequests(
+      limit: Option[Int],
+      instanceType: Option[InstanceType],
+      instanceFilter: Option[FilterDefinition]): Seq[InstanceFilterRequest] = {
+    val defaultFilterReq = InstanceFilterRequest(
+      instanceType = instanceType,
+      filter = instanceFilter,
+      sort = None,
+      limit = limit,
+      cursor = None,
+      sources = Some(Seq(viewDefinition.toInstanceSource)),
+      includeTyping = Some(true)
+    )
+    viewDefinition.usedFor match {
+      case Usage.Node =>
+        Seq(defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Node))))
+      case Usage.Edge =>
+        Seq(defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Edge))))
+      case Usage.All =>
+        Seq(
+          defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Node))),
+          defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Edge)))
+        ).distinct
+    }
+  }
+
 }
 
 object FlexibleDataModelsRelation {

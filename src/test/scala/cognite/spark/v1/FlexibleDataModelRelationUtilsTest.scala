@@ -9,6 +9,9 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
 import org.scalatest.{Assertion, FlatSpec, Matchers}
 
+import java.time.format.DateTimeFormatter
+import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
+
 // scalastyle:off null
 class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
@@ -111,30 +114,6 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
     verifyErrorMessage(result, "Could not find required properties")
-  }
-
-  it should "fail to create nodes when required a property is nullable" in {
-    val propertyMap = Map(
-      "stringProp" ->
-        TextPropertyNonListWithDefaultValueNonNullable,
-      "intProp" ->
-        Int32NonListWithoutAutoIncrementWithDefaultValueNullable
-    )
-    val schema =
-      StructType(
-        Array(
-          StructField("externalId", StringType, nullable = false),
-          StructField("stringProp", StringType, nullable = true),
-          StructField("intProp", IntegerType, nullable = true)
-        )
-      )
-
-    val values =
-      Seq[Array[Any]](Array("extId1", "stringProp1", 1), Array("extId2", "stringProp2", null))
-    val rows = values.map(r => new GenericRowWithSchema(r, schema))
-
-    val result = createNodes("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
-    verifyErrorMessage(result, "cannot contain null values")
   }
 
   it should "successfully create nodes with all nullable/non-nullable properties" in {
@@ -1470,6 +1449,110 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         "intProp" -> InstancePropertyValue.Int32(6),
         "doubleListProp" -> InstancePropertyValue.Float64List(Seq(3.1, 3.2))
       ))
+  }
+
+  it should "successfully handle properties with date & timestamp values" in {
+    val propertyMap = Map(
+      "timestampProp1" -> TimestampNonListWithDefaultValueNonNullable,
+      "timestampProp2" -> TimestampNonListWithDefaultValueNonNullable,
+      "timestampProp3" -> TimestampNonListWithDefaultValueNonNullable,
+      "timestampListProp1" -> TimestampListWithoutDefaultValueNonNullable,
+      "timestampListProp2" -> TimestampListWithoutDefaultValueNonNullable,
+      "timestampListProp3" -> TimestampListWithoutDefaultValueNonNullable,
+      "dateProp1" -> DateNonListWithDefaultValueNonNullable,
+      "dateProp2" -> DateNonListWithDefaultValueNonNullable,
+      "dateProp3" -> DateNonListWithDefaultValueNonNullable,
+      "dateProp4" -> DateNonListWithDefaultValueNonNullable,
+      "dateListProp1" -> DateListWithoutDefaultValueNonNullable,
+      "dateListProp2" -> DateListWithoutDefaultValueNonNullable,
+      "dateListProp3" -> DateListWithoutDefaultValueNonNullable,
+    )
+    val schema = StructType(
+      Array(
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("timestampProp1", StringType, nullable = false),
+        StructField("timestampProp2", StringType, nullable = false),
+        StructField("timestampProp3", TimestampType, nullable = true),
+        StructField("timestampListProp1", ArrayType(StringType), nullable = false),
+        StructField("timestampListProp2", ArrayType(StringType), nullable = false),
+        StructField("timestampListProp3", ArrayType(TimestampType), nullable = false),
+        StructField("dateProp1", StringType, nullable = false),
+        StructField("dateProp2", StringType, nullable = false),
+        StructField("dateProp3", DateType, nullable = true),
+        StructField("dateProp4", DateType, nullable = true),
+        StructField("dateListProp1", ArrayType(StringType), nullable = false),
+        StructField("dateListProp2", ArrayType(StringType), nullable = false),
+        StructField("dateListProp3", ArrayType(DateType), nullable = false),
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        "extId1",
+        // timestamps
+        s"${ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)}",
+        s"${ZonedDateTime.now(ZoneId.of("Asia/Colombo")).format(InstancePropertyValue.Timestamp.formatter)}",
+        java.sql.Timestamp.valueOf(LocalDateTime.now(ZoneId.of("UTC"))),
+        Array(
+          s"${LocalDateTime.now().atZone(ZoneId.of("UTC")).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)}",
+          s"${LocalDateTime.now().atZone(ZoneId.of("Europe/Berlin")).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)}"
+        ),
+        Seq(
+          s"${LocalDateTime.now().atZone(ZoneId.of("UTC")).format(InstancePropertyValue.Timestamp.formatter)}",
+          s"${LocalDateTime.now().atZone(ZoneId.of("Asia/Bangkok")).format(InstancePropertyValue.Timestamp.formatter)}"
+        ),
+        Seq(java.sql.Timestamp.valueOf(LocalDateTime.now(ZoneId.of("UTC")))),
+        // dates
+        s"${LocalDate.now().format(DateTimeFormatter.ISO_DATE)}",
+        s"${LocalDate.now().plusDays(7).format(InstancePropertyValue.Date.formatter)}",
+        java.sql.Date.valueOf(LocalDate.now()),
+        java.sql.Timestamp.valueOf(LocalDateTime.now(ZoneId.of("UTC"))),
+        Array(
+          s"${LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)}",
+          s"${LocalDate.now().plusDays(7).format(DateTimeFormatter.ISO_LOCAL_DATE)}"
+        ),
+        Seq(
+          s"${LocalDate.now().format(InstancePropertyValue.Date.formatter)}",
+          s"${LocalDate.now().plusDays(7).format(InstancePropertyValue.Date.formatter)}"
+        ),
+        Seq(
+          java.sql.Date.valueOf(LocalDate.now()),
+          java.sql.Date.valueOf(LocalDate.now().plusDays(7))
+        )
+      )
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+    val result = createNodesOrEdges("instanceSpaceExternalId1", rows, schema, propertyMap, destRef)
+    result.isRight shouldBe true
+
+    val nodesOrEdges = result.toOption.getOrElse(Vector.empty)
+    nodesOrEdges.map(_.externalId).distinct.sorted shouldBe Vector("extId1")
+    val props = nodesOrEdges
+      .collect {
+        case n: NodeWrite => n.sources.flatMap(_.properties.getOrElse(Map.empty))
+      }
+      .flatten
+      .toMap
+
+    val justBeforeNow = LocalDateTime.now(ZoneId.of("UTC")).minusMinutes(10)
+    val today = LocalDate.now()
+    val nextWeek = LocalDate.now().plusDays(7)
+
+    propertyMap.keys.map { prop =>
+      props(prop) match {
+        case t: InstancePropertyValue.Timestamp =>
+          justBeforeNow.isBefore(t.value.toLocalDateTime)
+        case ts: InstancePropertyValue.TimestampList =>
+          ts.value.forall { t =>
+            justBeforeNow.isBefore(t.toLocalDateTime)
+          }
+        case d: InstancePropertyValue.Date =>
+          d.value.isEqual(today) || d.value.isEqual(nextWeek)
+        case ds: InstancePropertyValue.DateList =>
+          ds.value.forall(d => d.isEqual(today) || d.isEqual(nextWeek))
+        case _ => false
+      }
+    }.toVector shouldBe Vector(true)
   }
 
   private def verifyErrorMessage[A](result: Either[Exception, A], errorMsg: String): Assertion =

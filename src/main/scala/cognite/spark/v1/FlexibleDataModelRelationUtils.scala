@@ -19,7 +19,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 
-import java.time.{LocalDate, ZonedDateTime}
+import java.time.{LocalDate, LocalDateTime, ZoneId, ZoneOffset, ZonedDateTime}
 import scala.util.{Failure, Success, Try}
 
 object FlexibleDataModelRelationUtils {
@@ -181,9 +181,9 @@ object FlexibleDataModelRelationUtils {
 
   private def extractExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
     Try {
-      Option(row.getString(schema.fieldIndex("externalId")))
+      Option(row.get(schema.fieldIndex("externalId")))
     } match {
-      case Success(Some(relation)) => Right(relation)
+      case Success(Some(externalId)) => Right(String.valueOf(externalId))
       case Success(None) =>
         Left(
           new CdfSparkException(
@@ -221,9 +221,11 @@ object FlexibleDataModelRelationUtils {
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     Try {
       val edgeTypeRow = row.getStruct(schema.fieldIndex(propertyName))
-      val space = Option(edgeTypeRow.getAs[String]("space"))
-      val externalId = Option(edgeTypeRow.getAs[String]("externalId"))
-      Apply[Option].map2(space, externalId)(DirectRelationReference.apply)
+      val space = Option(edgeTypeRow.getAs[Any]("space"))
+      val externalId = Option(edgeTypeRow.getAs[Any]("externalId"))
+      Apply[Option].map2(space, externalId) {
+        case (s, e) => DirectRelationReference(space = String.valueOf(s), externalId = String.valueOf(e))
+      }
     } match {
       case Success(Some(relation)) => Right(relation)
       case Success(None) =>
@@ -265,23 +267,9 @@ object FlexibleDataModelRelationUtils {
     val (nullablePropsMissingInSchema @ _, nonNullablePropsMissingInSchema) =
       propsMissingInSchema.partition { case (_, prop) => prop.nullable.getOrElse(true) }
 
-    val (falselyNullableFieldsInSchema, trulyNullableOrNonNullableFieldsInSchema @ _) =
-      propsExistsInSchema.partition {
-        case (propName, prop) => (prop.nullable contains false) && schema(propName).nullable
-      }
-
     if (nonNullablePropsMissingInSchema.nonEmpty) {
       val propsAsStr = nonNullablePropsMissingInSchema.keys.mkString(", ")
       Left(new CdfSparkException(s"Could not find required properties: [$propsAsStr]"))
-    } else if (falselyNullableFieldsInSchema.nonEmpty) {
-      val propsAsStr = falselyNullableFieldsInSchema.keys.mkString(", ")
-      Left(
-        new CdfSparkException(
-          s"""Properties [$propsAsStr] cannot contain null values
-             |Please verify your data!
-             |""".stripMargin
-        )
-      )
     } else {
       Right(true)
     }
@@ -322,6 +310,8 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
+  private val timezoneId: ZoneId = ZoneId.of("UTC")
+
   // scalastyle:off cyclomatic.complexity method.length
   private def toInstantPropertyValueOfList(
       row: Row,
@@ -339,9 +329,11 @@ object FlexibleDataModelRelationUtils {
       val propVal = fieldIndex.toOption.traverse { i =>
         propDef.`type` match {
           case p: TextProperty if p.isList =>
-            Try(InstancePropertyValue.StringList(skipNulls(row.getSeq[String](i)))).toEither
+            val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            Try(InstancePropertyValue.StringList(skipNulls(strSeq).map(String.valueOf))).toEither
           case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) if p.isList =>
-            Try(InstancePropertyValue.BooleanList(skipNulls(row.getSeq[Boolean](i)))).toEither
+            val boolSeq = Try(row.getSeq[Boolean](i)).getOrElse(row.getAs[Array[Boolean]](i).toSeq)
+            Try(InstancePropertyValue.BooleanList(boolSeq)).toEither
           case p @ PrimitiveProperty(PrimitivePropType.Float32, _) if p.isList =>
             val floatSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
             tryAsFloatSeq(floatSeq, propertyName)
@@ -359,31 +351,11 @@ object FlexibleDataModelRelationUtils {
             tryAsLongSeq(longSeq, propertyName)
               .map(InstancePropertyValue.Int64List)
           case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) if p.isList =>
-            val formatter = InstancePropertyValue.Timestamp.formatter
-            val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
-            Try(
-              InstancePropertyValue.TimestampList(skipNulls(strSeq)
-                .map(ZonedDateTime.parse))).toEither
-              .leftMap { e =>
-                new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as an array of timestamps: ${e.getMessage}
-                                                     |Expected timestamp format is: ${formatter.toString}
-                                                     |Eg: ${exampleTimestampsForErrorMessages.mkString(
-                                           ",")}
-                                                     |""".stripMargin)
-              }
+            val tsSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            tryAsTimestamps(tsSeq, propertyName).map(InstancePropertyValue.TimestampList)
           case p @ PrimitiveProperty(PrimitivePropType.Date, _) if p.isList =>
-            val formatter = InstancePropertyValue.Date.formatter
-            val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
-            Try(
-              InstancePropertyValue.DateList(
-                skipNulls(strSeq)
-                  .map(LocalDate.parse)
-              )).toEither
-              .leftMap(e => new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}
-                                                     |Expected date format is: ${formatter.toString}
-                                                     |""".stripMargin))
+            val dateSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            tryAsDates(dateSeq, propertyName).map(InstancePropertyValue.DateList)
           case p @ (PrimitiveProperty(PrimitivePropType.Json, _) | DirectNodeRelationProperty(_))
               if p.isList =>
             val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
@@ -421,7 +393,7 @@ object FlexibleDataModelRelationUtils {
       val propVal = fieldIndex.toOption.traverse { i =>
         propDef.`type` match {
           case p: TextProperty if !p.isList =>
-            Try(InstancePropertyValue.String(row.getString(i))).toEither
+            Try(InstancePropertyValue.String(String.valueOf(row.get(i)))).toEither
           case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) if !p.isList =>
             Try(InstancePropertyValue.Boolean(row.getBoolean(i))).toEither
           case p @ PrimitiveProperty(PrimitivePropType.Float32, _) if !p.isList =>
@@ -433,25 +405,9 @@ object FlexibleDataModelRelationUtils {
           case p @ PrimitiveProperty(PrimitivePropType.Int64, _) if !p.isList =>
             tryAsLong(row.get(i), propertyName).map(InstancePropertyValue.Int64)
           case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) if !p.isList =>
-            val formatter = InstancePropertyValue.Timestamp.formatter
-            Try(
-              InstancePropertyValue.Timestamp(ZonedDateTime
-                .parse(row.getString(i), formatter))).toEither
-              .leftMap { e =>
-                new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as an array of timestamps: ${e.getMessage}
-                                                     |Expected timestamp format is: ${formatter.toString}
-                                                     |Eg: ${exampleTimestampsForErrorMessages.mkString(
-                                           ",")}
-                                                     |""".stripMargin)
-              }
+            tryAsTimestamp(row.get(i), propertyName).map(InstancePropertyValue.Timestamp.apply)
           case p @ PrimitiveProperty(PrimitivePropType.Date, _) if !p.isList =>
-            val formatter = InstancePropertyValue.Date.formatter
-            Try(InstancePropertyValue.Date(LocalDate.parse(row.getString(i)))).toEither
-              .leftMap(e => new CdfSparkException(s"""
-                                                     |Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}
-                                                     |Expected date format is: ${formatter.toString}
-                                                     |""".stripMargin))
+            tryAsDate(row.get(i), propertyName).map(InstancePropertyValue.Date.apply)
           case p @ PrimitiveProperty(PrimitivePropType.Json, _) if !p.isList =>
             io.circe.parser
               .parse(row
@@ -459,7 +415,7 @@ object FlexibleDataModelRelationUtils {
               .map(InstancePropertyValue.Object.apply)
               .leftMap(e =>
                 new CdfSparkException(
-                  s"Error parsing value of field '$propertyName' as an array of json objects: ${e.getMessage}"))
+                  s"Error parsing value of field '$propertyName' as a json object: ${e.getMessage}"))
 
           case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
         }
@@ -599,16 +555,49 @@ object FlexibleDataModelRelationUtils {
                                       |""".stripMargin))
     }
 
+  private def tryAsDate(value: Any, propertyName: String): Either[CdfSparkException, LocalDate] =
+    Try(value.asInstanceOf[java.sql.Date].toLocalDate)
+      .orElse(Try(LocalDate.parse(String.valueOf(value))))
+      .toEither
+      .orElse(tryAsTimestamp(value, propertyName).map(_.toLocalDate))
+      .leftMap { e =>
+        new CdfSparkException(
+          s"""Error parsing value of field '$propertyName' as a date: ${e.getMessage}""".stripMargin)
+      }
+
+  private def tryAsDates(
+      value: Seq[Any],
+      propertyName: String): Either[CdfSparkException, Vector[LocalDate]] =
+    skipNulls(value).toVector.traverse(tryAsDate(_, propertyName)).leftMap { e =>
+      new CdfSparkException(
+        s"""Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}""".stripMargin)
+    }
+
+  private def tryAsTimestamp(
+      value: Any,
+      propertyName: String): Either[CdfSparkException, ZonedDateTime] =
+    Try(
+      ZonedDateTime
+        .ofLocal(value.asInstanceOf[java.sql.Timestamp].toLocalDateTime, timezoneId, ZoneOffset.UTC))
+      .orElse(Try(ZonedDateTime.parse(String.valueOf(value))))
+      .orElse(Try(LocalDateTime.parse(String.valueOf(value)).atZone(timezoneId)))
+      .toEither
+      .leftMap { e =>
+        new CdfSparkException(
+          s"""Error parsing value of field '$propertyName' as a timestamp: ${e.getMessage}""".stripMargin)
+      }
+
+  private def tryAsTimestamps(
+      value: Seq[Any],
+      propertyName: String): Either[CdfSparkException, Vector[ZonedDateTime]] =
+    skipNulls(value).toVector.traverse(tryAsTimestamp(_, propertyName)).leftMap { e =>
+      new CdfSparkException(
+        s"""Error parsing value of field '$propertyName' as an array of timestamps: ${e.getMessage}""".stripMargin)
+    }
+
   private def skipNulls[T](seq: Seq[T]): Seq[T] =
     seq.filter(_ != null)
 
   private def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
-
-  private val exampleTimestampsForErrorMessages = Vector(
-    "2023-01-17T20:39:57Z",
-    "2023-01-17T20:39:57+01:00",
-    "2023-01-17T20:39:57.234Z",
-    "2023-01-17T20:39:57.234+01:00"
-  )
 }
