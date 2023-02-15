@@ -6,23 +6,13 @@ import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes
 import cognite.spark.v1.FlexibleDataModelsRelation._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
-  ComparableFilterValue,
-  SeqFilterValue
-}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{ComparableFilterValue, SeqFilterValue}
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  PrimitivePropType,
-  PropertyDefinition,
-  PropertyType
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
-  EdgeDeletionRequest,
-  NodeDeletionRequest
-}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{EdgeDeletionRequest, NodeDeletionRequest}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition}
 import fs2.Stream
@@ -157,7 +147,7 @@ class FlexibleDataModelsRelation(
       rows: Seq[Row],
       schema: StructType,
       source: SourceReference,
-      propDefMap: Map[String, PropertyDefinition],
+      propDefMap: Map[String, ViewPropertyDefinition],
       usedFor: Usage): IO[Seq[SlimNodeOrEdge]] = {
     val nodesOrEdges = usedFor match {
       case Usage.Node => createNodes(instanceSpaceExternalId, rows, schema, propDefMap, source)
@@ -175,29 +165,6 @@ class FlexibleDataModelsRelation(
         client.instances.createItems(instanceCreate)
       case Right(_) => IO.pure(Vector.empty)
       case Left(err) => IO.raiseError(err)
-    }
-  }
-
-  private def convertToSparkDataType(propType: PropertyType, nullable: Boolean): DataType = {
-    def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
-      case PrimitivePropType.Timestamp => DataTypes.TimestampType
-      case PrimitivePropType.Date => DataTypes.DateType
-      case PrimitivePropType.Boolean => DataTypes.BooleanType
-      case PrimitivePropType.Float32 => DataTypes.FloatType
-      case PrimitivePropType.Float64 => DataTypes.DoubleType
-      case PrimitivePropType.Int32 => DataTypes.IntegerType
-      case PrimitivePropType.Int64 => DataTypes.LongType
-      case PrimitivePropType.Json => DataTypes.StringType
-    }
-
-    propType match {
-      case TextProperty(Some(true), _) => DataTypes.createArrayType(DataTypes.StringType, nullable)
-      case TextProperty(_, _) => DataTypes.StringType
-      case PrimitiveProperty(ppt, Some(true)) =>
-        DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable)
-      case PrimitiveProperty(ppt, _) => primitivePropTypeToSparkDataType(ppt)
-      case DirectNodeRelationProperty(_) =>
-        DataTypes.createArrayType(DataTypes.StringType, nullable) // TODO: Verify this
     }
   }
 
@@ -464,6 +431,8 @@ class FlexibleDataModelsRelation(
     case InstancePropertyValue.Date(value) => java.sql.Date.valueOf(value)
     case InstancePropertyValue.Timestamp(value) => java.sql.Timestamp.from(value.toInstant)
     case InstancePropertyValue.Object(value) => value.noSpaces
+    case InstancePropertyValue.ViewDirectNodeRelation(value) =>
+      value.map(r => Array(r.space, r.externalId)).orNull
     case InstancePropertyValue.StringList(value) => value
     case InstancePropertyValue.BooleanList(value) => value
     case InstancePropertyValue.Int32List(value) => value
@@ -477,16 +446,49 @@ class FlexibleDataModelsRelation(
   }
   // scalastyle:on cyclomatic.complexity
 
+  // scalastyle:off cyclomatic.complexity
   private def deriveViewSchemaWithUsage(usage: Usage, viewProps: Map[String, ViewPropertyDefinition]) = {
+    def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
+      case PrimitivePropType.Timestamp => DataTypes.TimestampType
+      case PrimitivePropType.Date => DataTypes.DateType
+      case PrimitivePropType.Boolean => DataTypes.BooleanType
+      case PrimitivePropType.Float32 => DataTypes.FloatType
+      case PrimitivePropType.Float64 => DataTypes.DoubleType
+      case PrimitivePropType.Int32 => DataTypes.IntegerType
+      case PrimitivePropType.Int64 => DataTypes.LongType
+      case PrimitivePropType.Json => DataTypes.StringType
+    }
+
     val fields = viewProps.map {
-      case (identifier, propType) =>
-        DataTypes.createStructField(
-          identifier,
-          convertToSparkDataType(propType.`type`, propType.nullable.getOrElse(true)),
-          propType.nullable.getOrElse(true))
+      case (propName, propDef) =>
+        propDef match {
+          case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
+            val nullable = corePropDef.nullable.getOrElse(true)
+            corePropDef.`type` match {
+              case DirectNodeRelationProperty(_) =>
+                relationReferenceSchema(propName, nullable = nullable)
+              case t: TextProperty if t.isList =>
+                DataTypes.createStructField(
+                  propName,
+                  DataTypes.createArrayType(DataTypes.StringType, nullable),
+                  nullable)
+              case t: TextProperty if !t.isList =>
+                DataTypes.createStructField(propName, DataTypes.StringType, nullable)
+              case p @ PrimitiveProperty(ppt, _) if p.isList =>
+                DataTypes.createStructField(
+                  propName,
+                  DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable),
+                  nullable)
+              case p @ PrimitiveProperty(ppt, _) if !p.isList =>
+                DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable)
+            }
+          case _: PropertyDefinition.ConnectionDefinition =>
+            relationReferenceSchema(propName, nullable = true)
+        }
     } ++ usageBasedSchemaFields(usage)
     DataTypes.createStructType(fields.toArray)
   }
+  // scalastyle:on cyclomatic.complexity
 
   // schema fields for relation references and node/edge identifiers
   // https://cognitedata.slack.com/archives/G012UKQJLC9/p1673627087186579

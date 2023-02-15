@@ -1,27 +1,12 @@
 package cognite.spark.v1.utils.fdm
 
-import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
-  ContainerPropertyDefinition,
-  ViewPropertyDefinition
-}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
-  DirectNodeRelationProperty,
-  PrimitiveProperty,
-  TextProperty
-}
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  PrimitivePropType,
-  PropertyDefaultValue,
-  PropertyType
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, PrimitiveProperty, TextProperty}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
+import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers._
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  DirectRelationReference,
-  EdgeOrNodeData,
-  InstancePropertyValue
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstancePropertyValue}
 import io.circe.{Json, JsonObject}
 
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
@@ -74,8 +59,8 @@ object FDMTestUtils {
   def toViewPropertyDefinition(
       containerPropDef: ContainerPropertyDefinition,
       containerRef: Option[ContainerReference],
-      containerPropertyIdentifier: Option[String]): ViewPropertyDefinition =
-    ViewPropertyDefinition(
+      containerPropertyIdentifier: Option[String]): ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = containerPropDef.nullable,
       autoIncrement = containerPropDef.autoIncrement,
       defaultValue = containerPropDef.defaultValue,
@@ -139,7 +124,7 @@ object FDMTestUtils {
   }
   // scalastyle:on cyclomatic.complexity method.length
 
-  def createAllPossibleViewPropCombinations: Map[String, ViewPropertyDefinition] =
+  def createAllPossibleViewPropCombinations: Map[String, ViewCorePropertyDefinition] =
     createAllPossibleContainerPropCombinations.map {
       case (key, prop) => key -> toViewPropertyDefinition(prop, None, None)
     }

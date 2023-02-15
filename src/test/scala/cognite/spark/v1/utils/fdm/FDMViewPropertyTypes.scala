@@ -1,16 +1,12 @@
 package cognite.spark.v1.utils.fdm
 
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewCorePropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  PrimitivePropType,
-  PropertyDefaultValue,
-  PropertyType
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
 
 object FDMViewPropertyTypes {
 
-  val DateNonListWithDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val DateNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.String("2023-01-17")),
@@ -21,7 +17,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val JsonNonListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val JsonNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -32,7 +28,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val DateNonListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val DateNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -43,7 +39,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Float32NonListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float32NonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -54,7 +50,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val BooleanListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val BooleanListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -65,7 +61,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyNonListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TextPropertyNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -76,7 +72,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val JsonListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val JsonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -87,8 +83,8 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(true),
       defaultValue = None,
@@ -100,8 +96,8 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Int32NonListWithAutoIncrementWithoutDefaultValueNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int32NonListWithAutoIncrementWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(true),
       defaultValue = None,
@@ -113,8 +109,8 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Int32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
@@ -126,8 +122,8 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val DirectNodeRelationPropertyNonListWithoutDefaultValueNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val DirectNodeRelationPropertyNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
       defaultValue = None,
@@ -139,7 +135,7 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Float64NonListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float64NonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -150,8 +146,8 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int64NonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int64NonListWithoutAutoIncrementWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = None,
@@ -163,7 +159,7 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Float64NonListWithDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float64NonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.Float64(1.21)),
@@ -174,7 +170,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Float64NonListWithDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float64NonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.Float64(1.21)),
@@ -185,7 +181,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val JsonNonListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val JsonNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -196,8 +192,8 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int32NonListWithoutAutoIncrementWithDefaultValueNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int32NonListWithoutAutoIncrementWithDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
       defaultValue = Some(PropertyDefaultValue.Int32(1)),
@@ -208,8 +204,8 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
       defaultValue = None,
@@ -221,7 +217,7 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Float64NonListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float64NonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -232,7 +228,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val JsonListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val JsonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -243,7 +239,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val DateNonListWithDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val DateNonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.String("2023-01-17")),
@@ -254,7 +250,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Float32NonListWithDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float32NonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.Float32(1.2F)),
@@ -265,7 +261,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int64ListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Int64ListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -276,7 +272,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TextPropertyListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -287,7 +283,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyNonListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TextPropertyNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -298,7 +294,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TimestampListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TimestampListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -309,7 +305,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val JsonNonListWithDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val JsonNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = io.circe.parser.parse("""{"a":"a","b":1}""").toOption.map(PropertyDefaultValue.Object),
@@ -320,7 +316,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val DateListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val DateListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -331,7 +327,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TimestampNonListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TimestampNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -342,7 +338,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val DateNonListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val DateNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -353,8 +349,8 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int64NonListWithoutAutoIncrementWithDefaultValueNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int64NonListWithoutAutoIncrementWithDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
       defaultValue = Some(PropertyDefaultValue.Int64(12)),
@@ -365,8 +361,8 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Int64NonListWithoutAutoIncrementWithDefaultValueNonNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int64NonListWithoutAutoIncrementWithDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = Some(PropertyDefaultValue.Int64(12)),
@@ -378,7 +374,7 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Float32ListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float32ListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -389,7 +385,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val DateListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val DateListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -400,7 +396,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Float32NonListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float32NonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -411,7 +407,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val BooleanListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val BooleanListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -422,7 +418,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyNonListWithDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TextPropertyNonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
@@ -433,7 +429,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val BooleanNonListWithDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val BooleanNonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.Boolean(false)),
@@ -444,7 +440,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TimestampNonListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TimestampNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -455,7 +451,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int32ListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Int32ListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -466,8 +462,8 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
       defaultValue = None,
@@ -479,7 +475,7 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Int64ListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Int64ListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -490,7 +486,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val JsonNonListWithDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val JsonNonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = io.circe.parser.parse("""{"a":"a","b":1}""").toOption.map(PropertyDefaultValue.Object),
@@ -501,7 +497,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TimestampListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TimestampListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -512,8 +508,8 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int32NonListWithoutAutoIncrementWithDefaultValueNonNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int32NonListWithoutAutoIncrementWithDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(false),
       defaultValue = Some(PropertyDefaultValue.Int32(1)),
@@ -525,7 +521,7 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Float64ListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float64ListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -536,7 +532,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyNonListWithDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TextPropertyNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
@@ -547,8 +543,8 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(false),
       autoIncrement = Some(true),
       defaultValue = None,
@@ -560,8 +556,8 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Int64NonListWithAutoIncrementWithoutDefaultValueNullable: ViewPropertyDefinition =
-    ViewPropertyDefinition(
+  val Int64NonListWithAutoIncrementWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(true),
       defaultValue = None,
@@ -573,7 +569,7 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val TimestampNonListWithDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TimestampNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845609Z[UTC]")),
@@ -584,7 +580,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val BooleanNonListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val BooleanNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -595,7 +591,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val BooleanNonListWithoutDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val BooleanNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -606,7 +602,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TimestampNonListWithDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TimestampNonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845367Z[UTC]")),
@@ -617,7 +613,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val TextPropertyListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -628,7 +624,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Int32ListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Int32ListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -639,7 +635,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Float32ListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float32ListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -650,7 +646,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val BooleanNonListWithDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val BooleanNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.Boolean(false)),
@@ -661,7 +657,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Float64ListWithoutDefaultValueNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float64ListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
     defaultValue = None,
@@ -672,7 +668,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Float32NonListWithDefaultValueNonNullable: ViewPropertyDefinition = ViewPropertyDefinition(
+  val Float32NonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
     defaultValue = Some(PropertyDefaultValue.Float32(1.2F)),
@@ -683,7 +679,7 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val AllPossibleViewPropertyDefs: Vector[ViewPropertyDefinition] = Vector(
+  val AllPossibleViewPropertyDefs: Vector[ViewCorePropertyDefinition] = Vector(
     DateNonListWithDefaultValueNonNullable,
     JsonNonListWithoutDefaultValueNullable,
     DateNonListWithoutDefaultValueNonNullable,

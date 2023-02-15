@@ -5,17 +5,23 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
-import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
+  ContainerPropertyDefinition,
+  ViewCorePropertyDefinition
+}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
+import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers.{
   ContainerCreateDefinition,
   ContainerDefinition,
-  ContainerId
+  ContainerId,
+  ContainerReference
 }
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
+import io.circe.syntax.EncoderOps
 import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers}
@@ -362,12 +368,28 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       space = spaceExternalId,
       externalId = endNodeExtId
     )
+    val directNodeReference = DirectRelationReference(
+      space = spaceExternalId,
+      externalId = startNodeExtId
+    )
 
     val (viewAll, viewNodes, viewEdges, allInstanceExternalIds) = (for {
       (viewAll, viewNodes, viewEdges) <- setupAllListAndNonListPropertyTest
-      nodeIds <- createTestInstancesForView(viewNodes, None, None)
-      edgeIds <- createTestInstancesForView(viewEdges, Some(startNodeRef), Some(endNodeRef))
-      allIds <- createTestInstancesForView(viewAll, Some(startNodeRef), Some(endNodeRef))
+      nodeIds <- createTestInstancesForView(
+        viewNodes,
+        directNodeReference = directNodeReference,
+        None,
+        None)
+      edgeIds <- createTestInstancesForView(
+        viewEdges,
+        directNodeReference,
+        Some(startNodeRef),
+        Some(endNodeRef))
+      allIds <- createTestInstancesForView(
+        viewAll,
+        directNodeReference,
+        Some(startNodeRef),
+        Some(endNodeRef))
     } yield (viewAll, viewNodes, viewEdges, nodeIds ++ edgeIds ++ allIds)).unsafeRunSync()
 
     val readNodesDf = readRows(
@@ -596,6 +618,13 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       "timestampListProp2" -> FDMContainerPropertyTypes.TimestampListWithoutDefaultValueNullable,
       "jsonListProp1" -> FDMContainerPropertyTypes.JsonListWithoutDefaultValueNonNullable,
       "jsonListProp2" -> FDMContainerPropertyTypes.JsonListWithoutDefaultValueNullable,
+      "directRelation1" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "directRelation2" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
+        .copy(
+          `type` = DirectNodeRelationProperty(
+            Some(ContainerReference(
+              space = spaceExternalId,
+              externalId = containerStartNodeAndEndNodesExternalId))))
     )
 
     for {
@@ -636,6 +665,13 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       "timestampProp2" -> FDMContainerPropertyTypes.TimestampNonListWithDefaultValueNullable,
       "jsonProp1" -> FDMContainerPropertyTypes.JsonNonListWithDefaultValueNonNullable,
       "jsonProp2" -> FDMContainerPropertyTypes.JsonNonListWithDefaultValueNullable,
+      "directRelation1" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "directRelation2" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
+        .copy(
+          `type` = DirectNodeRelationProperty(
+            Some(ContainerReference(
+              space = spaceExternalId,
+              externalId = containerStartNodeAndEndNodesExternalId))))
     )
 
     for {
@@ -708,22 +744,35 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
   // scalastyle:off method.length
   private def createTestInstancesForView(
       viewDef: ViewDefinition,
+      directNodeReference: DirectRelationReference,
       startNode: Option[DirectRelationReference],
       endNode: Option[DirectRelationReference]): IO[Seq[String]] = {
     val randomPrefix = apiCompatibleRandomString()
     val writeData = viewDef.usedFor match {
       case Usage.Node =>
-        createNodeWriteInstances(viewDef, randomPrefix)
+        createNodeWriteInstances(viewDef, directNodeReference, randomPrefix)
       case Usage.Edge =>
         Apply[Option].map2(startNode, endNode)(Tuple2.apply).toSeq.flatMap {
-          case (s, e) => createEdgeWriteInstances(viewDef, startNode = s, endNode = e, randomPrefix)
+          case (s, e) =>
+            createEdgeWriteInstances(
+              viewDef,
+              startNode = s,
+              endNode = e,
+              directNodeReference,
+              randomPrefix)
         }
       case Usage.All =>
-        createNodeWriteInstances(viewDef, randomPrefix) ++ Apply[Option]
+        createNodeWriteInstances(viewDef, directNodeReference, randomPrefix) ++ Apply[Option]
           .map2(startNode, endNode)(Tuple2.apply)
           .toSeq
           .flatMap {
-            case (s, e) => createEdgeWriteInstances(viewDef, startNode = s, endNode = e, randomPrefix)
+            case (s, e) =>
+              createEdgeWriteInstances(
+                viewDef,
+                startNode = s,
+                endNode = e,
+                directNodeReference,
+                randomPrefix)
           }
     }
 
@@ -746,6 +795,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
       viewDef: ViewDefinition,
       startNode: DirectRelationReference,
       endNode: DirectRelationReference,
+      directNodeReference: DirectRelationReference,
       randomPrefix: String) = {
     val viewRef = viewDef.toSourceReference
     val edgeExternalIdPrefix = s"${viewDef.externalId}${randomPrefix}Edge"
@@ -760,8 +810,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         Seq(
           EdgeOrNodeData(
             viewRef,
-            Some(viewDef.properties.map {
-              case (n, p) => n -> createInstancePropertyValue(n, p.`type`)
+            Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
+              case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
             })
           ))
       ),
@@ -775,15 +825,18 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         Seq(
           EdgeOrNodeData(
             viewRef,
-            Some(viewDef.properties.map {
-              case (n, p) => n -> createInstancePropertyValue(n, p.`type`)
+            Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
+              case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
             })
           ))
       )
     )
   }
 
-  private def createNodeWriteInstances(viewDef: ViewDefinition, randomPrefix: String) = {
+  private def createNodeWriteInstances(
+      viewDef: ViewDefinition,
+      directNodeReference: DirectRelationReference,
+      randomPrefix: String) = {
     val viewRef = viewDef.toSourceReference
     Seq(
       NodeWrite(
@@ -792,8 +845,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         Seq(
           EdgeOrNodeData(
             viewRef,
-            Some(viewDef.properties.map {
-              case (n, p) => n -> createInstancePropertyValue(n, p.`type`)
+            Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
+              case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
             })
           ))
       ),
@@ -803,8 +856,8 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
         Seq(
           EdgeOrNodeData(
             viewRef,
-            Some(viewDef.properties.map {
-              case (n, p) => n -> createInstancePropertyValue(n, p.`type`)
+            Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
+              case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
             })
           ))
       )
@@ -996,7 +1049,11 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
             description = Some("Test View For Spark Datasource"),
             filter = None,
             properties = container.properties.map {
-              case (pName, _) => pName -> CreatePropertyReference(containerRef, pName)
+              case (pName, _) =>
+                pName -> ViewPropertyCreateDefinition.CreateViewProperty(
+                  name = Some(pName),
+                  container = containerRef,
+                  containerPropertyIdentifier = pName)
             },
             implements = None,
           )
@@ -1086,12 +1143,18 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
 
   def createInstancePropertyValue(
       propName: String,
-      propType: PropertyType
+      propType: PropertyType,
+      directNodeReference: DirectRelationReference
   ): InstancePropertyValue =
-    if (propType.isList) {
-      listContainerPropToInstanceProperty(propName, propType)
-    } else {
-      nonListContainerPropToInstanceProperty(propName, propType)
+    propType match {
+      case DirectNodeRelationProperty(_) =>
+        InstancePropertyValue.Object(directNodeReference.asJson)
+      case p =>
+        if (p.isList) {
+          listContainerPropToInstanceProperty(propName, p)
+        } else {
+          nonListContainerPropToInstanceProperty(propName, p)
+        }
     }
 
   // scalastyle:off cyclomatic.complexity
