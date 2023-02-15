@@ -1,7 +1,6 @@
 package cognite.spark.v1.wdl
 
 import cognite.spark.v1.{DataFrameMatcher, SparkTest}
-import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
 
 class WDLNptsTest
@@ -22,7 +21,6 @@ class WDLNptsTest
   val testClient = new TestWdlClient(writeClient)
 
   before {
-    SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
     testClient.deleteAll()
     testClient.miniSetup()
   }

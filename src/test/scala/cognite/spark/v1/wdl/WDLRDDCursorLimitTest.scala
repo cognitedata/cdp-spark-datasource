@@ -1,7 +1,6 @@
 package cognite.spark.v1.wdl
 
 import cognite.spark.v1.{DataFrameMatcher, SparkTest}
-import org.apache.spark.sql.internal.SQLConf
 import org.scalatest.{BeforeAndAfterAll, FunSpec, Inspectors}
 
 class WDLRDDCursorLimitTest
@@ -30,7 +29,6 @@ class WDLRDDCursorLimitTest
     .json("src/test/resources/wdl-test-ntps.jsonl")
 
   override protected def beforeAll(): Unit = {
-    SQLConf.get.setConfString("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
     testClient.deleteAll()
     testClient.miniSetup()
     ()
