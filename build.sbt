@@ -93,7 +93,7 @@ lazy val macroSub = (project in file("macro"))
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing()
     )
   )
 
@@ -108,7 +108,7 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing(),
       "io.scalaland" %% "chimney" % "0.6.1"
         // scala-collection-compat is used in TransformerF, but we don't use that,
         // and this dependency causes issues with Livy.
