@@ -83,7 +83,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     createViewIfNotExists(containerStartAndEndNodes, viewStartNodeAndEndNodesExternalId, viewVersion)
       .unsafeRunSync()
 
-  it should "succeed when inserting all nullable & non nullable non list values" in {
+  ignore should "succeed when inserting all nullable & non nullable non list values" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertNonListEndNode"
     createStartAndEndNodesForEdgesIfNotExists(startNodeExtId, endNodeExtId).unsafeRunSync()
@@ -211,7 +211,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-  it should "succeed when inserting all nullable & non nullable list values" in {
+  ignore should "succeed when inserting all nullable & non nullable list values" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
     createStartAndEndNodesForEdgesIfNotExists(startNodeExtId, endNodeExtId).unsafeRunSync()

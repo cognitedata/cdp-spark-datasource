@@ -134,36 +134,6 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
     assert(actual == expected)
   }
 
-  ignore should "convert a Row with a struct type string value into JsonObject" in {
-    val rowSchema = new StructType()
-      .add("source", StringType)
-
-    val input = new GenericRowWithSchema(
-      Array("""{
-        |  "assetExternalId" : "MyAssetExternalId",
-        |  "sourceName": "MySourceName"
-        |}""".stripMargin),
-      rowSchema,
-    )
-
-    val schema = new StructType()
-      .add(
-        "source",
-        new StructType()
-          .add("assetExternalId", StringType)
-          .add("sourceName", StringType))
-    val json = RowToJson.toJson(input, schema)
-    val actual = json.printWith(Printer.spaces2.withSortedKeys)
-    val expected =
-      """{
-        |  "source" : {
-        |    "assetExternalId" : "MyAssetExternalId",
-        |    "sourceName" : "MySourceName"
-        |  }
-        |}""".stripMargin
-    assert(actual == expected)
-  }
-
   it should "convert a Row with array of StructTypes into a JsonObject" in {
     val sourceSchema = new StructType()
       .add("assetExternalId", StringType)
