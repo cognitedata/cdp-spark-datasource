@@ -130,7 +130,7 @@ object FDMViewPropertyTypes {
       description =
         Some("Test DirectNodeRelationProperty NonList WithoutDefaultValue Nullable Description"),
       name = Some("Test-DirectNodeRelationProperty-NonList-WithoutDefaultValue-Nullable-Name"),
-      `type` = DirectNodeRelationProperty(None),
+      `type` = DirectNodeRelationProperty(None, None),
       container = None,
       containerPropertyIdentifier = None
     )

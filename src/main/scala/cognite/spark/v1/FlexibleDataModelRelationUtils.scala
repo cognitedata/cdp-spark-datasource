@@ -291,7 +291,7 @@ object FlexibleDataModelRelationUtils {
     val instancePropertyValueResult = propDef match {
       case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
         corePropDef.`type` match {
-          case DirectNodeRelationProperty(_) =>
+          case _: DirectNodeRelationProperty =>
             directNodeRelationToInstancePropertyValue(row, schema, propertyName, corePropDef)
           case t if t.isList => toInstantPropertyValueOfList(row, schema, propertyName, corePropDef)
           case _ => toInstantPropertyValueOfNonList(row, schema, propertyName, corePropDef)
@@ -372,8 +372,7 @@ object FlexibleDataModelRelationUtils {
           case p @ PrimitiveProperty(PrimitivePropType.Date, _) if p.isList =>
             val dateSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
             tryAsDates(dateSeq, propertyName).map(InstancePropertyValue.DateList)
-          case p @ (PrimitiveProperty(PrimitivePropType.Json, _) | DirectNodeRelationProperty(_))
-              if p.isList =>
+          case p @ PrimitiveProperty(PrimitivePropType.Json, _) if p.isList =>
             val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
             skipNulls(strSeq).toVector
               .traverse(io.circe.parser.parse)

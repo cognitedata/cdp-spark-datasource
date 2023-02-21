@@ -1,8 +1,19 @@
 package cognite.spark.v1.utils.fdm
 
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, PrimitiveProperty, TextProperty}
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
+  ContainerPropertyDefinition,
+  ViewCorePropertyDefinition
+}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
+  DirectNodeRelationProperty,
+  PrimitiveProperty,
+  TextProperty
+}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{
+  PrimitivePropType,
+  PropertyDefaultValue,
+  PropertyType
+}
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers._
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
@@ -33,7 +44,7 @@ object FDMTestUtils {
     PrimitiveProperty(`type` = PrimitivePropType.Timestamp, list = Some(true)),
     PrimitiveProperty(`type` = PrimitivePropType.Date, list = Some(true)),
     PrimitiveProperty(`type` = PrimitivePropType.Json, list = Some(true)),
-    DirectNodeRelationProperty(container = None)
+    DirectNodeRelationProperty(None, None)
   )
 
   val AllPropertyDefaultValues: List[PropertyDefaultValue] = List(
@@ -94,7 +105,7 @@ object FDMTestUtils {
       val autoIncrement = autoIncrementApplicableProp && !nullable && !withDefault
 
       val alwaysNullable = p match {
-        case DirectNodeRelationProperty(_) => true
+        case _: DirectNodeRelationProperty => true
         case _ => false
       }
       val nullability = alwaysNullable || nullable
@@ -434,7 +445,7 @@ object FDMTestUtils {
               )
             )
           )
-        case DirectNodeRelationProperty(_) => None
+        case _: DirectNodeRelationProperty => None
       }
     } else {
       None

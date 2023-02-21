@@ -6,13 +6,19 @@ import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes
 import cognite.spark.v1.FlexibleDataModelsRelation._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{ComparableFilterValue, SeqFilterValue}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
+  ComparableFilterValue,
+  SeqFilterValue
+}
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{EdgeDeletionRequest, NodeDeletionRequest}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
+  EdgeDeletionRequest,
+  NodeDeletionRequest
+}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition}
 import fs2.Stream
@@ -371,6 +377,12 @@ class FlexibleDataModelsRelation(
     usageBasedFilterRequests(limit, instanceType, instanceFilter).map { filterRequest =>
       client.instances
         .filterStream(filterRequest, limit)
+        // TODO: remove this temp fix for https://cognitedata.slack.com/archives/C031G8Y19HP/p1676890774181079
+        .filter { instDef =>
+          def allAvailableInstanceProps =
+            instDef.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+          instDef.space == viewSpaceExternalId && allAvailableInstanceProps.nonEmpty
+        }
         .map(toProjectedInstance(_, selectedInstanceProps))
     }
   }
@@ -465,21 +477,21 @@ class FlexibleDataModelsRelation(
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
             val nullable = corePropDef.nullable.getOrElse(true)
             corePropDef.`type` match {
-              case DirectNodeRelationProperty(_) =>
+              case _: DirectNodeRelationProperty =>
                 relationReferenceSchema(propName, nullable = nullable)
               case t: TextProperty if t.isList =>
                 DataTypes.createStructField(
                   propName,
                   DataTypes.createArrayType(DataTypes.StringType, nullable),
                   nullable)
-              case t: TextProperty if !t.isList =>
+              case _: TextProperty =>
                 DataTypes.createStructField(propName, DataTypes.StringType, nullable)
               case p @ PrimitiveProperty(ppt, _) if p.isList =>
                 DataTypes.createStructField(
                   propName,
                   DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable),
                   nullable)
-              case p @ PrimitiveProperty(ppt, _) if !p.isList =>
+              case PrimitiveProperty(ppt, _) =>
                 DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable)
             }
           case _: PropertyDefinition.ConnectionDefinition =>
