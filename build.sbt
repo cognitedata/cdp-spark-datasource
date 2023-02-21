@@ -10,7 +10,7 @@ val circeVersion = "0.14.1"
 val sttpVersion = "3.5.2"
 val Specs2Version = "4.6.0"
 val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "2.5.2"
+val cogniteSdkVersion = "2.5.3-SNAPSHOT"
 
 val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
@@ -23,7 +23,8 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "2.4.1",
+  version := "2.4.2-SNAPSHOT",
+  isSnapshot := true,
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
@@ -92,7 +93,7 @@ lazy val macroSub = (project in file("macro"))
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing()
     )
   )
 
@@ -107,7 +108,7 @@ lazy val library = (project in file("."))
     scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
-      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion,
+      "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing(),
       "io.scalaland" %% "chimney" % "0.6.1"
         // scala-collection-compat is used in TransformerF, but we don't use that,
         // and this dependency causes issues with Livy.
