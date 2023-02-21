@@ -13,11 +13,7 @@ import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  PrimitivePropType,
-  PropertyDefinition,
-  PropertyType
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
   EdgeDeletionRequest,
@@ -157,7 +153,7 @@ class FlexibleDataModelsRelation(
       rows: Seq[Row],
       schema: StructType,
       source: SourceReference,
-      propDefMap: Map[String, PropertyDefinition],
+      propDefMap: Map[String, ViewPropertyDefinition],
       usedFor: Usage): IO[Seq[SlimNodeOrEdge]] = {
     val nodesOrEdges = usedFor match {
       case Usage.Node => createNodes(instanceSpaceExternalId, rows, schema, propDefMap, source)
@@ -175,29 +171,6 @@ class FlexibleDataModelsRelation(
         client.instances.createItems(instanceCreate)
       case Right(_) => IO.pure(Vector.empty)
       case Left(err) => IO.raiseError(err)
-    }
-  }
-
-  private def convertToSparkDataType(propType: PropertyType, nullable: Boolean): DataType = {
-    def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
-      case PrimitivePropType.Timestamp => DataTypes.TimestampType
-      case PrimitivePropType.Date => DataTypes.DateType
-      case PrimitivePropType.Boolean => DataTypes.BooleanType
-      case PrimitivePropType.Float32 => DataTypes.FloatType
-      case PrimitivePropType.Float64 => DataTypes.DoubleType
-      case PrimitivePropType.Int32 => DataTypes.IntegerType
-      case PrimitivePropType.Int64 => DataTypes.LongType
-      case PrimitivePropType.Json => DataTypes.StringType
-    }
-
-    propType match {
-      case TextProperty(Some(true), _) => DataTypes.createArrayType(DataTypes.StringType, nullable)
-      case TextProperty(_, _) => DataTypes.StringType
-      case PrimitiveProperty(ppt, Some(true)) =>
-        DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable)
-      case PrimitiveProperty(ppt, _) => primitivePropTypeToSparkDataType(ppt)
-      case DirectNodeRelationProperty(_) =>
-        DataTypes.createArrayType(DataTypes.StringType, nullable) // TODO: Verify this
     }
   }
 
@@ -342,39 +315,39 @@ class FlexibleDataModelsRelation(
   // scalastyle:off cyclomatic.complexity
   private def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
     val space = viewDefinition.space
-    val externalId = viewDefinition.externalId
+    val versionedExternalId = s"${viewDefinition.externalId}/${viewDefinition.version}"
 
     sparkFilter match {
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
-          FilterDefinition.Equals(Seq(space, externalId, attribute), _))
+          FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
       case In(attribute, values) =>
         toSeqFilterValueDefinition(attribute, values).map(
-          FilterDefinition.In(Seq(space, externalId, attribute), _))
+          FilterDefinition.In(Seq(space, versionedExternalId, attribute), _))
       case GreaterThanOrEqual(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, externalId, attribute), gte = Some(f)))
+          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), gte = Some(f)))
       case GreaterThan(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, externalId, attribute), gt = Some(f)))
+          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), gt = Some(f)))
       case LessThanOrEqual(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, externalId, attribute), lte = Some(f)))
+          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), lte = Some(f)))
       case LessThan(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, externalId, attribute), lt = Some(f)))
+          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), lt = Some(f)))
       case StringStartsWith(attribute, value) =>
         Right(
           FilterDefinition
-            .Prefix(Seq(space, externalId, attribute), FilterValueDefinition.String(value)))
+            .Prefix(Seq(space, versionedExternalId, attribute), FilterValueDefinition.String(value)))
       case And(f1, f2) =>
         List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.Or.apply)
       case IsNotNull(attribute) =>
-        Right(FilterDefinition.Exists(Seq(space, externalId, attribute)))
+        Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
       case IsNull(attribute) =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, externalId, attribute))))
+        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
       case Not(f) => toInstanceFilter(f).map(FilterDefinition.Not.apply)
       case f =>
         Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.getClass.getSimpleName}'"))
@@ -404,6 +377,12 @@ class FlexibleDataModelsRelation(
     usageBasedFilterRequests(limit, instanceType, instanceFilter).map { filterRequest =>
       client.instances
         .filterStream(filterRequest, limit)
+        // TODO: remove this temp fix for https://cognitedata.slack.com/archives/C031G8Y19HP/p1676890774181079
+        .filter { instDef =>
+          def allAvailableInstanceProps =
+            instDef.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+          instDef.space == viewSpaceExternalId && allAvailableInstanceProps.nonEmpty
+        }
         .map(toProjectedInstance(_, selectedInstanceProps))
     }
   }
@@ -464,6 +443,8 @@ class FlexibleDataModelsRelation(
     case InstancePropertyValue.Date(value) => java.sql.Date.valueOf(value)
     case InstancePropertyValue.Timestamp(value) => java.sql.Timestamp.from(value.toInstant)
     case InstancePropertyValue.Object(value) => value.noSpaces
+    case InstancePropertyValue.ViewDirectNodeRelation(value) =>
+      value.map(r => Array(r.space, r.externalId)).orNull
     case InstancePropertyValue.StringList(value) => value
     case InstancePropertyValue.BooleanList(value) => value
     case InstancePropertyValue.Int32List(value) => value
@@ -477,16 +458,49 @@ class FlexibleDataModelsRelation(
   }
   // scalastyle:on cyclomatic.complexity
 
+  // scalastyle:off cyclomatic.complexity
   private def deriveViewSchemaWithUsage(usage: Usage, viewProps: Map[String, ViewPropertyDefinition]) = {
+    def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
+      case PrimitivePropType.Timestamp => DataTypes.TimestampType
+      case PrimitivePropType.Date => DataTypes.DateType
+      case PrimitivePropType.Boolean => DataTypes.BooleanType
+      case PrimitivePropType.Float32 => DataTypes.FloatType
+      case PrimitivePropType.Float64 => DataTypes.DoubleType
+      case PrimitivePropType.Int32 => DataTypes.IntegerType
+      case PrimitivePropType.Int64 => DataTypes.LongType
+      case PrimitivePropType.Json => DataTypes.StringType
+    }
+
     val fields = viewProps.map {
-      case (identifier, propType) =>
-        DataTypes.createStructField(
-          identifier,
-          convertToSparkDataType(propType.`type`, propType.nullable.getOrElse(true)),
-          propType.nullable.getOrElse(true))
+      case (propName, propDef) =>
+        propDef match {
+          case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
+            val nullable = corePropDef.nullable.getOrElse(true)
+            corePropDef.`type` match {
+              case _: DirectNodeRelationProperty =>
+                relationReferenceSchema(propName, nullable = nullable)
+              case t: TextProperty if t.isList =>
+                DataTypes.createStructField(
+                  propName,
+                  DataTypes.createArrayType(DataTypes.StringType, nullable),
+                  nullable)
+              case _: TextProperty =>
+                DataTypes.createStructField(propName, DataTypes.StringType, nullable)
+              case p @ PrimitiveProperty(ppt, _) if p.isList =>
+                DataTypes.createStructField(
+                  propName,
+                  DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable),
+                  nullable)
+              case PrimitiveProperty(ppt, _) =>
+                DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable)
+            }
+          case _: PropertyDefinition.ConnectionDefinition =>
+            relationReferenceSchema(propName, nullable = true)
+        }
     } ++ usageBasedSchemaFields(usage)
     DataTypes.createStructType(fields.toArray)
   }
+  // scalastyle:on cyclomatic.complexity
 
   // schema fields for relation references and node/edge identifiers
   // https://cognitedata.slack.com/archives/G012UKQJLC9/p1673627087186579

@@ -106,7 +106,7 @@ object FDMContainerPropertyTypes {
       description =
         Some("Test DirectNodeRelationProperty NonList WithoutDefaultValue Nullable Description"),
       name = Some("Test-DirectNodeRelationProperty-NonList-WithoutDefaultValue-Nullable-Name"),
-      `type` = DirectNodeRelationProperty(None),
+      `type` = DirectNodeRelationProperty(None, None),
     )
 
   val Float64NonListWithoutDefaultValueNullable: ContainerPropertyDefinition =
