@@ -5,19 +5,11 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
-  ContainerPropertyDefinition,
-  ViewCorePropertyDefinition
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.containers.{
-  ContainerCreateDefinition,
-  ContainerDefinition,
-  ContainerId,
-  ContainerReference
-}
+import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, ContainerDefinition, ContainerId, ContainerReference}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
@@ -973,7 +965,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
       onConflict: String = "upsert"): Unit =
     df.write
       .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelsRelation.ResourceType)
+      .option("type", FlexibleDataModelRelationConfig.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)
@@ -996,7 +988,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
       instanceSpaceExternalId: String): DataFrame =
     spark.read
       .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelsRelation.ResourceType)
+      .option("type", FlexibleDataModelRelationConfig.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)
@@ -1142,12 +1134,12 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
   private def getUpsertedMetricsCount(viewDef: ViewDefinition) =
     getNumberOfRowsUpserted(
       s"${viewDef.externalId}-${viewDef.version}",
-      FlexibleDataModelsRelation.ResourceType)
+      FlexibleDataModelRelationConfig.ResourceType)
 
   private def getDeletedMetricsCount(viewDef: ViewDefinition) =
     getNumberOfRowsDeleted(
       s"${viewDef.externalId}-${viewDef.version}",
-      FlexibleDataModelsRelation.ResourceType)
+      FlexibleDataModelRelationConfig.ResourceType)
 
   def createInstancePropertyValue(
       propName: String,

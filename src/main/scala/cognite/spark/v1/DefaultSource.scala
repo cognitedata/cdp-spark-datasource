@@ -3,6 +3,10 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.FlexibleDataModelRelationConfig.{
+  ConnectionRelationConfig,
+  NodeOrEdgeRelationConfig
+}
 import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
@@ -135,10 +139,10 @@ class DefaultSource
   }
 
   // scalastyle:off method.length
-  private def createFlexibleDataModelInstances(
+  private def createFlexibleDataModelRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext): CdfRelation = {
+      sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
     val nodeOrEdgeRelation = Apply[Option]
       .map3(
         parameters.get("viewSpaceExternalId"),
@@ -148,10 +152,10 @@ class DefaultSource
       .map {
         case (viewSpaceExternalId, viewExternalId, viewVersion) =>
           val instanceSpaceExternalId = parameters.get("instanceSpaceExternalId")
-          FlexibleDataModelsRelation.nodeOrEdgeRelation(
+          FlexibleDataModelRelationConfig.nodeOrEdgeRelation(
             config = config,
             sqlContext = sqlContext,
-            FlexibleDataModelsRelation.NodeOrEdgeRelation(
+            NodeOrEdgeRelationConfig(
               viewSpaceExternalId = viewSpaceExternalId,
               viewExternalId = viewExternalId,
               viewVersion = viewVersion,
@@ -165,10 +169,10 @@ class DefaultSource
       )(Tuple2.apply)
       .map {
         case (edgeSpaceExternalId, edgeExternalId) =>
-          FlexibleDataModelsRelation.connectionRelation(
+          FlexibleDataModelRelationConfig.connectionRelation(
             config = config,
             sqlContext = sqlContext,
-            FlexibleDataModelsRelation.ConnectionRelation(
+            ConnectionRelationConfig(
               edgeSpaceExternalId = edgeSpaceExternalId,
               edgeExternalId = edgeExternalId
             )
@@ -180,10 +184,10 @@ class DefaultSource
       .getOrElse(
         throw new CdfSparkException(
           s"""
-         |Invalid combination of arguments!
-         |Expecting (viewSpaceExternalId, viewExternalId, viewVersion, instanceSpaceExternalId) for NodeOrEdgeRelation,
-         |Expecting (edgeSpaceExternalId, edgeExternalId) for ConnectionRelation
-         |""".stripMargin
+             |Invalid combination of arguments!
+             |Expecting (viewSpaceExternalId, viewExternalId, viewVersion, instanceSpaceExternalId) for NodeOrEdgeRelation,
+             |Expecting (edgeSpaceExternalId, edgeExternalId) for ConnectionRelation
+             |""".stripMargin
         ))
   }
   // scalastyle:on method.length
@@ -263,10 +267,8 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
-      case FlexibleDataModelsRelation.ResourceType =>
-        createFlexibleDataModelInstances(parameters, config, sqlContext)
-      case "welldatalayer" =>
-        createWellDataLayer(parameters, config, sqlContext)
+      case FlexibleDataModelRelationConfig.ResourceType =>
+        createFlexibleDataModelRelation(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -329,10 +331,8 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
-        case FlexibleDataModelsNodeOrEdgeRelation.ResourceType =>
-          createFlexibleDataModelInstances(parameters, config, sqlContext)
-        case "welldatalayer" =>
-          createWellDataLayer(parameters, config, sqlContext)
+        case FlexibleDataModelRelationConfig.ResourceType =>
+          createFlexibleDataModelRelation(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {

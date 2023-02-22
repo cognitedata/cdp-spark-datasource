@@ -3,15 +3,14 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
-import cognite.spark.v1.FlexibleDataModelsNodeOrEdgeRelation._
-import cognite.spark.v1.FlexibleDataModelsRelation.ConnectionRelation
+import cognite.spark.v1.FlexibleDataModelBaseRelation.{
+  FlexibleDataModelInstanceDeleteModel,
+  ProjectedFlexibleDataModelInstance
+}
+import cognite.spark.v1.FlexibleDataModelRelationConfig.NodeOrEdgeRelationConfig
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
-  ComparableFilterValue,
-  SeqFilterValue
-}
-import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
@@ -24,33 +23,30 @@ import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition}
 import fs2.Stream
 import io.circe.{Decoder, Json}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
-import java.math.BigInteger
-import java.sql.{Date, Timestamp}
-import java.time._
 import java.util.Locale
 import scala.annotation.nowarn
-import scala.util.Try
 import scala.util.control.NonFatal
 
 /**
-  * FlexibleDataModels Relation for Connection definitions
+  * FlexibleDataModelRelation for Nodes or Edges with properties
   * @param config common relation configs
-  * @param connectionsRelation connection config
+  * @param nodeOrEdgeRelation view config
   * @param sqlContext sql context
   */
-private[spark] class FlexibleDataModelsConnectionRelation(
+private[spark] class FlexibleDataModelNodeOrEdgeRelation(
     config: RelationConfig,
-    connectionsRelation: ConnectionRelation)(val sqlContext: SQLContext)
-    extends CdfRelation(config, FlexibleDataModelsRelation.ResourceType)
-    with WritableRelation
-    with PrunedFilteredScan {
+    nodeOrEdgeRelation: NodeOrEdgeRelationConfig)(val sqlContext: SQLContext)
+    extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
+
+  private val viewSpaceExternalId = nodeOrEdgeRelation.viewSpaceExternalId
+  private val viewExternalId = nodeOrEdgeRelation.viewExternalId
+  private val viewVersion = nodeOrEdgeRelation.viewVersion
+  private val instanceSpaceExternalId = nodeOrEdgeRelation.instanceSpaceExternalId
 
   private val (viewDefinition, allViewProperties, viewSchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
@@ -88,27 +84,52 @@ private[spark] class FlexibleDataModelsConnectionRelation(
       new CdfSparkException(
         "Create is not supported for flexible data model instances. Use upsert instead."))
 
-  override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    SdkV1Rdd[ProjectedFlexibleDataModelInstance, String](
-      sqlContext.sparkContext,
-      config,
-      (item: ProjectedFlexibleDataModelInstance, _) => toRow(item),
-      _.externalId,
-      getStreams(filters, selectedColumns)
-    )
-
-  // scalastyle:off cyclomatic.complexity
   override def delete(rows: Seq[Row]): IO[Unit] =
     viewDefinition.usedFor match {
       case Usage.Node => deleteNodesWithMetrics(rows)
       case Usage.Edge => deleteEdgesWithMetrics(rows)
       case Usage.All => deleteNodesOrEdgesWithMetrics(rows)
     }
-  // scalastyle:on cyclomatic.complexity
 
   override def update(rows: Seq[Row]): IO[Unit] =
     IO.raiseError[Unit](
       new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
+
+  def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
+      client: GenericClient[IO],
+      limit: Option[Int],
+      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+    val selectedInstanceProps = if (selectedColumns.isEmpty) {
+      schema.fieldNames
+    } else {
+      selectedColumns
+    }
+
+    val instanceType = getInstanceType(filters)
+
+    val instanceFilter = filters.toVector.traverse(
+      toInstanceFilter(
+        _,
+        space = viewSpaceExternalId,
+        versionedExternalId = s"${viewExternalId}/${viewVersion}")) match {
+      case Right(fs) if fs.isEmpty => None
+      case Right(fs) if fs.length == 1 => fs.headOption
+      case Right(fs) => Some(FilterDefinition.And(fs))
+      case Left(err) => throw err
+    }
+
+    usageBasedFilterRequests(limit, instanceType, instanceFilter).map { filterRequest =>
+      client.instances
+        .filterStream(filterRequest, limit)
+        // TODO: remove this temp fix for https://cognitedata.slack.com/archives/C031G8Y19HP/p1676890774181079
+        .filter { instDef =>
+          def allAvailableInstanceProps =
+            instDef.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+          instDef.space == viewSpaceExternalId && allAvailableInstanceProps.nonEmpty
+        }
+        .map(toProjectedInstance(_, selectedInstanceProps))
+    }
+  }
 
   private def retrieveViewDefWithAllPropsAndSchema
     : IO[Option[(ViewDefinition, Map[String, ViewPropertyDefinition], StructType)]] =
@@ -178,219 +199,6 @@ private[spark] class FlexibleDataModelsConnectionRelation(
     }
   }
 
-  private def toRow(a: ProjectedFlexibleDataModelInstance): Row = {
-    if (config.collectMetrics) {
-      itemsRead.inc()
-    }
-    new GenericRow(a.properties.map {
-      // For startNode, endNode & type
-      case a: Array[Any] => new GenericRow(a)
-      case e => e
-    })
-  }
-
-  private def toComparableFilterValueDefinition(
-      attribute: String,
-      value: Any): Either[CdfSparkException, ComparableFilterValue] =
-    toFilterValueDefinition(attribute, value) match {
-      case Right(v: ComparableFilterValue) => Right(v)
-      case Right(v) =>
-        Left(
-          new CdfSparkIllegalArgumentException(
-            s"""
-               |Expecting a value of type number, string, boolean, json,
-               |array[number], array[string], array[boolean], array[json] for '$attribute',
-               |but found ${v.getClass.getSimpleName} in ${value.toString}
-               |""".stripMargin
-          )
-        )
-      case Left(err) => Left(err)
-    }
-
-  // scalastyle:off cyclomatic.complexity
-  private def toFilterValueDefinition(
-      attribute: String,
-      value: Any): Either[CdfSparkException, FilterValueDefinition] =
-    value match {
-      case v: String =>
-        io.circe.parser.parse(v) match {
-          case Right(json) if json.isObject => Right(FilterValueDefinition.Object(json))
-          case _ => Right(FilterValueDefinition.String(v))
-        }
-      case v: Float => Right(FilterValueDefinition.Double(v.toDouble))
-      case v: Double => Right(FilterValueDefinition.Double(v))
-      case v: Int => Right(FilterValueDefinition.Integer(v.toLong))
-      case v: Long => Right(FilterValueDefinition.Integer(v))
-      case v: Boolean => Right(FilterValueDefinition.Boolean(v))
-      case v: java.math.BigDecimal => Right(FilterValueDefinition.Double(v.doubleValue))
-      case v: BigInteger => Right(FilterValueDefinition.Integer(v.longValue))
-      case v: LocalDate =>
-        Right(FilterValueDefinition.String(v.format(InstancePropertyValue.Date.formatter)))
-      case v: LocalDateTime =>
-        Right(FilterValueDefinition.String(v.format(InstancePropertyValue.Timestamp.formatter)))
-      case v: Instant =>
-        Right(
-          FilterValueDefinition.String(
-            OffsetDateTime
-              .ofInstant(v, ZoneId.of("UTC"))
-              .toZonedDateTime
-              .format(InstancePropertyValue.Timestamp.formatter)))
-      case v: ZonedDateTime =>
-        Right(FilterValueDefinition.String(v.format(InstancePropertyValue.Timestamp.formatter)))
-      case v: Date =>
-        Right(FilterValueDefinition.String(v.toLocalDate.format(InstancePropertyValue.Date.formatter)))
-      case v: Timestamp =>
-        Right(
-          FilterValueDefinition.String(
-            OffsetDateTime
-              .ofInstant(v.toInstant, ZoneId.of("UTC"))
-              .toZonedDateTime
-              .format(InstancePropertyValue.Timestamp.formatter)))
-      case v: Array[Any] =>
-        toFilterValueListDefinition(attribute, v.toVector)
-      case v =>
-        Left(
-          new CdfSparkIllegalArgumentException(
-            s"Expecting a value of type number, string, boolean or an array of them for '$attribute', but found ${v.toString}"
-          )
-        )
-    }
-  // scalastyle:on cyclomatic.complexity
-
-  // scalastyle:off cyclomatic.complexity method.length
-  private def toFilterValueListDefinition(
-      attribute: String,
-      values: Vector[Any]): Either[CdfSparkException, FilterValueDefinition] = {
-    val result = values.headOption match {
-      case Some(s: String) =>
-        io.circe.parser.parse(s).toOption match {
-          case Some(_) =>
-            Try(FilterValueDefinition.ObjectList(values.flatMap(v =>
-              io.circe.parser.parse(String.valueOf(v)).toOption))).toEither
-          case None =>
-            Try(FilterValueDefinition.StringList(values.map(_.asInstanceOf[String]))).toEither
-        }
-      case Some(_: Int | _: Long) =>
-        Try(FilterValueDefinition.IntegerList(values.map(_.asInstanceOf[Long]))).toEither
-      case Some(_: Float | _: Double) =>
-        Try(FilterValueDefinition.DoubleList(values.map(_.asInstanceOf[Double]))).toEither
-      case Some(_: Boolean) =>
-        Try(FilterValueDefinition.BooleanList(values.map(_.asInstanceOf[Boolean]))).toEither
-      case _ =>
-        Left(
-          new CdfSparkIllegalArgumentException(
-            s"Expecting an array of number, string, boolean or json for '$attribute', but found ${String
-              .valueOf(values)}"
-          )
-        )
-    }
-    result.leftMap {
-      case e: CdfSparkIllegalArgumentException => e
-      case e: Throwable =>
-        val arrAsStr = values.map(String.valueOf).mkString(",")
-        new CdfSparkIllegalArgumentException(
-          s"""Expecting an array of number, string, boolean or json for '$attribute', but found $arrAsStr
-             |${e.getMessage}
-             |""".stripMargin
-        )
-    }
-  }
-
-  private def toSeqFilterValueDefinition(
-      attribute: String,
-      value: Array[Any]): Either[CdfSparkException, SeqFilterValue] =
-    toFilterValueDefinition(attribute, value) match {
-      case Right(v: SeqFilterValue) => Right(v)
-      case Right(FilterValueDefinition.Double(v)) => Right(FilterValueDefinition.DoubleList(Seq(v)))
-      case Right(FilterValueDefinition.Integer(v)) => Right(FilterValueDefinition.IntegerList(Seq(v)))
-      case Right(FilterValueDefinition.String(v)) => Right(FilterValueDefinition.StringList(Seq(v)))
-      case Right(FilterValueDefinition.Boolean(v)) => Right(FilterValueDefinition.BooleanList(Seq(v)))
-      case Right(FilterValueDefinition.Object(v)) => Right(FilterValueDefinition.ObjectList(Seq(v)))
-      case Right(v) =>
-        Left(
-          new CdfSparkIllegalArgumentException(
-            s"Expecting a SeqFilterValue for '$attribute', but found ${v.getClass.getSimpleName} as ${value
-              .mkString(",")}"
-          )
-        )
-      case Left(err) => Left(err)
-    }
-
-  // scalastyle:off cyclomatic.complexity
-  private def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
-    val space = viewDefinition.space
-    val versionedExternalId = s"${viewDefinition.externalId}/${viewDefinition.version}"
-
-    sparkFilter match {
-      case EqualTo(attribute, value) =>
-        toFilterValueDefinition(attribute, value).map(
-          FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
-      case In(attribute, values) =>
-        toSeqFilterValueDefinition(attribute, values).map(
-          FilterDefinition.In(Seq(space, versionedExternalId, attribute), _))
-      case GreaterThanOrEqual(attribute, value) =>
-        toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), gte = Some(f)))
-      case GreaterThan(attribute, value) =>
-        toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), gt = Some(f)))
-      case LessThanOrEqual(attribute, value) =>
-        toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), lte = Some(f)))
-      case LessThan(attribute, value) =>
-        toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), lt = Some(f)))
-      case StringStartsWith(attribute, value) =>
-        Right(
-          FilterDefinition
-            .Prefix(Seq(space, versionedExternalId, attribute), FilterValueDefinition.String(value)))
-      case And(f1, f2) =>
-        List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.And.apply)
-      case Or(f1, f2) =>
-        List(f1, f2).traverse(toInstanceFilter).map(FilterDefinition.Or.apply)
-      case IsNotNull(attribute) =>
-        Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
-      case IsNull(attribute) =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
-      case Not(f) => toInstanceFilter(f).map(FilterDefinition.Not.apply)
-      case f =>
-        Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.getClass.getSimpleName}'"))
-    }
-  }
-  // scalastyle:on cyclomatic.complexity
-
-  private def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
-    val selectedInstanceProps = if (selectedColumns.isEmpty) {
-      schema.fieldNames
-    } else {
-      selectedColumns
-    }
-
-    val instanceType = getInstanceType(filters)
-
-    val instanceFilter = filters.toVector.traverse(toInstanceFilter) match {
-      case Right(fs) if fs.isEmpty => None
-      case Right(fs) if fs.length == 1 => fs.headOption
-      case Right(fs) => Some(FilterDefinition.And(fs))
-      case Left(err) => throw err
-    }
-
-    usageBasedFilterRequests(limit, instanceType, instanceFilter).map { filterRequest =>
-      client.instances
-        .filterStream(filterRequest, limit)
-        // TODO: remove this temp fix for https://cognitedata.slack.com/archives/C031G8Y19HP/p1676890774181079
-        .filter { instDef =>
-          def allAvailableInstanceProps =
-            instDef.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
-          instDef.space == viewSpaceExternalId && allAvailableInstanceProps.nonEmpty
-        }
-        .map(toProjectedInstance(_, selectedInstanceProps))
-    }
-  }
-
   private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
     val deleteCandidates =
       rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
@@ -424,43 +232,17 @@ private[spark] class FlexibleDataModelsConnectionRelation(
               IO.raiseError(
                 new CdfSparkException(
                   s"""
-                       |View with externalId: ${viewDefinition.externalId} & version: ${viewDefinition.version}" supports both Nodes & Edges.
-                       |Tried deleting as nodes and failed with: ${nodeDeletionErr.getMessage}
-                       |Tried deleting as edges and failed with: ${edgeDeletionErr.getMessage}
-                       |Please verify your data!
-                       |""".stripMargin
+                     |View with externalId: ${viewDefinition.externalId} & version: ${viewDefinition.version}" supports both Nodes & Edges.
+                     |Tried deleting as nodes and failed with: ${nodeDeletionErr.getMessage}
+                     |Tried deleting as edges and failed with: ${edgeDeletionErr.getMessage}
+                     |Please verify your data!
+                     |""".stripMargin
                 )
               )
             }
       }
       .flatMap(results => incMetrics(itemsDeleted, results.length))
   }
-
-  // scalastyle:off cyclomatic.complexity
-  private def extractInstancePropertyValue: InstancePropertyValue => Any = {
-    case InstancePropertyValue.String(value) => value
-    case InstancePropertyValue.Int32(value) => value
-    case InstancePropertyValue.Int64(value) => value
-    case InstancePropertyValue.Float32(value) => value
-    case InstancePropertyValue.Float64(value) => value
-    case InstancePropertyValue.Boolean(value) => value
-    case InstancePropertyValue.Date(value) => java.sql.Date.valueOf(value)
-    case InstancePropertyValue.Timestamp(value) => java.sql.Timestamp.from(value.toInstant)
-    case InstancePropertyValue.Object(value) => value.noSpaces
-    case InstancePropertyValue.ViewDirectNodeRelation(value) =>
-      value.map(r => Array(r.space, r.externalId)).orNull
-    case InstancePropertyValue.StringList(value) => value
-    case InstancePropertyValue.BooleanList(value) => value
-    case InstancePropertyValue.Int32List(value) => value
-    case InstancePropertyValue.Int64List(value) => value
-    case InstancePropertyValue.Float32List(value) => value
-    case InstancePropertyValue.Float64List(value) => value
-    case InstancePropertyValue.DateList(value) => value.map(v => java.sql.Date.valueOf(v))
-    case InstancePropertyValue.TimestampList(value) =>
-      value.map(v => java.sql.Timestamp.from(v.toInstant))
-    case InstancePropertyValue.ObjectList(value) => value.map(_.noSpaces)
-  }
-  // scalastyle:on cyclomatic.complexity
 
   // scalastyle:off cyclomatic.complexity
   private def deriveViewSchemaWithUsage(usage: Usage, viewProps: Map[String, ViewPropertyDefinition]) = {
@@ -611,12 +393,4 @@ private[spark] class FlexibleDataModelsConnectionRelation(
         ).distinct
     }
   }
-
-}
-
-object FlexibleDataModelsNodesAndEdgesRelation {
-  val ResourceType = "instances"
-
-  final case class ProjectedFlexibleDataModelInstance(externalId: String, properties: Array[Any])
-  final case class FlexibleDataModelInstanceDeleteModel(space: Option[String], externalId: String)
 }

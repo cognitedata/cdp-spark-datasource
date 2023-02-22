@@ -1,9 +1,8 @@
 package cognite.spark.v1
 
-import cats.Apply
 import cats.implicits._
+import cats.Apply
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
   ConnectionDefinition,
   CorePropertyDefinition,
@@ -15,6 +14,7 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
   PrimitiveProperty,
   TextProperty
 }
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstancePropertyValue, NodeOrEdgeCreate}
@@ -636,4 +636,3 @@ object FlexibleDataModelRelationUtils {
   private def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
 }
-// scalastyle:on number.of.methods

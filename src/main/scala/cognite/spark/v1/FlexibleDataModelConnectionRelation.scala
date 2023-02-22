@@ -2,9 +2,8 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
-import cognite.spark.v1.FlexibleDataModelsNodeOrEdgeRelation._
-import cognite.spark.v1.FlexibleDataModelsRelation.NodeOrEdgeRelation
+import cognite.spark.v1.FlexibleDataModelRelationConfig.ConnectionRelationConfig
+import cognite.spark.v1.FlexibleDataModelRelationUtils._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
@@ -13,7 +12,11 @@ import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
 }
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
+  DirectNodeRelationProperty,
+  PrimitiveProperty,
+  TextProperty
+}
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
@@ -24,10 +27,9 @@ import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition}
 import fs2.Stream
 import io.circe.{Decoder, Json}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.math.BigInteger
@@ -39,34 +41,18 @@ import scala.util.Try
 import scala.util.control.NonFatal
 
 /**
-  * FlexibleDataModels Relation for normal Nodes or Edges
+  * FlexibleDataModels Relation for Connection definitions
+  *
   * @param config common relation configs
-  * @param nodeOrEdgeRelation view config
+  * @param connectionsRelation connection config
   * @param sqlContext sql context
   */
-private[spark] class FlexibleDataModelsNodeOrEdgeRelation(
+private[spark] class FlexibleDataModelConnectionRelation(
     config: RelationConfig,
-    nodeOrEdgeRelation: NodeOrEdgeRelation)(val sqlContext: SQLContext)
-    extends CdfRelation(config, FlexibleDataModelsRelation.ResourceType)
-    with WritableRelation
-    with PrunedFilteredScan {
-  import CdpConnector._
+    connectionsRelation: ConnectionRelationConfig)(val sqlContext: SQLContext)
+    extends FlexibleDataModelBaseRelation(config, sqlContext) {
 
-  private val viewSpaceExternalId = nodeOrEdgeRelation.viewSpaceExternalId
-  private val viewExternalId = nodeOrEdgeRelation.viewExternalId
-  private val viewVersion = nodeOrEdgeRelation.viewVersion
-  private val instanceSpaceExternalId = nodeOrEdgeRelation.instanceSpaceExternalId
-
-  private val (viewDefinition, allViewProperties, viewSchema) = retrieveViewDefWithAllPropsAndSchema
-    .unsafeRunSync()
-    .getOrElse {
-      throw new CdfSparkException(s"""
-                                       |Correct view external id & view version should be specified.
-                                       |Could not resolve schema from view externalId: $viewExternalId & view version: $viewVersion
-                                       |""".stripMargin)
-    }
-
-  override def schema: StructType = viewSchema
+  override def schema: StructType = ???
 
   // scalastyle:off cyclomatic.complexity
   override def upsert(rows: Seq[Row]): IO[Unit] = {
@@ -92,15 +78,6 @@ private[spark] class FlexibleDataModelsNodeOrEdgeRelation(
     IO.raiseError[Unit](
       new CdfSparkException(
         "Create is not supported for flexible data model instances. Use upsert instead."))
-
-  override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    SdkV1Rdd[ProjectedFlexibleDataModelInstance, String](
-      sqlContext.sparkContext,
-      config,
-      (item: ProjectedFlexibleDataModelInstance, _) => toRow(item),
-      _.externalId,
-      getStreams(filters, selectedColumns)
-    )
 
   // scalastyle:off cyclomatic.complexity
   override def delete(rows: Seq[Row]): IO[Unit] =
@@ -617,9 +594,4 @@ private[spark] class FlexibleDataModelsNodeOrEdgeRelation(
     }
   }
 
-}
-
-object FlexibleDataModelsNodeOrEdgeRelation {
-  final case class ProjectedFlexibleDataModelInstance(externalId: String, properties: Array[Any])
-  final case class FlexibleDataModelInstanceDeleteModel(space: Option[String], externalId: String)
 }
