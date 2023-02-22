@@ -30,7 +30,7 @@ import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.util.{Random, Success, Try}
 
-class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTest {
+class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers with SparkTest {
 
   val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
   val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")

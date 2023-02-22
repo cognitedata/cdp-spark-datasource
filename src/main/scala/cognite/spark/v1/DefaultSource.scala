@@ -1,9 +1,11 @@
 package cognite.spark.v1
 
+import cats.Apply
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
+import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
 import io.circe.Decoder
@@ -132,30 +134,59 @@ class DefaultSource
     new WellDataLayerRelation(config, model)(sqlContext)
   }
 
+  // scalastyle:off method.length
   private def createFlexibleDataModelInstances(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext): FlexibleDataModelsRelation = {
-    val viewSpaceExternalId =
-      parameters.getOrElse(
-        "viewSpaceExternalId",
-        throw new CdfSparkException("'viewSpaceExternalId' id of the 'space' must be specified"))
-    val viewExternalId = parameters.getOrElse(
-      "viewExternalId",
-      throw new CdfSparkException("'viewExternalId' should be specified"))
-    val viewVersion = parameters.getOrElse(
-      "viewVersion",
-      throw new CdfSparkException("'viewVersion' should be specified"))
-    val instanceSpaceExternalId = parameters.get("instanceSpaceExternalId")
+      sqlContext: SQLContext): CdfRelation = {
+    val nodeOrEdgeRelation = Apply[Option]
+      .map3(
+        parameters.get("viewSpaceExternalId"),
+        parameters.get("viewExternalId"),
+        parameters.get("viewVersion")
+      )(Tuple3.apply)
+      .map {
+        case (viewSpaceExternalId, viewExternalId, viewVersion) =>
+          val instanceSpaceExternalId = parameters.get("instanceSpaceExternalId")
+          FlexibleDataModelsRelation.nodeOrEdgeRelation(
+            config = config,
+            sqlContext = sqlContext,
+            FlexibleDataModelsRelation.NodeOrEdgeRelation(
+              viewSpaceExternalId = viewSpaceExternalId,
+              viewExternalId = viewExternalId,
+              viewVersion = viewVersion,
+              instanceSpaceExternalId)
+          )
+      }
+    val connectionRelation = Apply[Option]
+      .map2(
+        parameters.get("edgeSpaceExternalId"),
+        parameters.get("edgeExternalId")
+      )(Tuple2.apply)
+      .map {
+        case (edgeSpaceExternalId, edgeExternalId) =>
+          FlexibleDataModelsRelation.connectionRelation(
+            config = config,
+            sqlContext = sqlContext,
+            FlexibleDataModelsRelation.ConnectionRelation(
+              edgeSpaceExternalId = edgeSpaceExternalId,
+              edgeExternalId = edgeExternalId
+            )
+          )
+      }
 
-    new FlexibleDataModelsRelation(
-      config,
-      viewSpaceExternalId = viewSpaceExternalId,
-      viewExternalId = viewExternalId,
-      viewVersion = viewVersion,
-      instanceSpaceExternalId = instanceSpaceExternalId
-    )(sqlContext)
+    nodeOrEdgeRelation
+      .orElse(connectionRelation)
+      .getOrElse(
+        throw new CdfSparkException(
+          s"""
+         |Invalid combination of arguments!
+         |Expecting (viewSpaceExternalId, viewExternalId, viewVersion, instanceSpaceExternalId) for NodeOrEdgeRelation,
+         |Expecting (edgeSpaceExternalId, edgeExternalId) for ConnectionRelation
+         |""".stripMargin
+        ))
   }
+  // scalastyle:on method.length
 
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
@@ -298,7 +329,7 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
-        case FlexibleDataModelsRelation.ResourceType =>
+        case FlexibleDataModelsNodeOrEdgeRelation.ResourceType =>
           createFlexibleDataModelInstances(parameters, config, sqlContext)
         case "welldatalayer" =>
           createWellDataLayer(parameters, config, sqlContext)
