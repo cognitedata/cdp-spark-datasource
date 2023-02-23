@@ -1,8 +1,9 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import com.cognite.sdk.scala.common.{CdpApiException, DataPoint}
-import com.cognite.sdk.scala.v1.{CogniteExternalId, TimeSeriesCreate}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, TimeSeriesCreate, TimeSeriesFilter}
 import org.apache.spark.sql.functions.{col, expr}
 import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructField, TimestampType}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers, ParallelTestExecution}
@@ -11,6 +12,7 @@ import org.apache.spark.sql.Row
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import scala.concurrent.duration.DurationInt
 
 class DataPointsRelationTest
     extends FlatSpec
@@ -26,6 +28,8 @@ class DataPointsRelationTest
   // VAL_23-TT-92533:X.Value has some null aggregate values
   val withMissingAggregatesId = 5662453767080168L
 
+  val bluefieldClient = getBlufieldClient()
+
   val destinationDf = spark.read
     .format("cognite.spark.v1")
     .useOIDCWrite
@@ -34,7 +38,6 @@ class DataPointsRelationTest
   destinationDf.createOrReplaceTempView("destinationDatapoints")
 
   override def beforeAll(): Unit = {
-    val bluefieldClient = getBlufieldClient()
     bluefieldClient.timeSeries.deleteByExternalId("emel", true).unsafeRunSync()
     bluefieldClient.timeSeries.deleteByExternalId("emel2", true).unsafeRunSync()
     bluefieldClient.timeSeries
@@ -1170,5 +1173,58 @@ class DataPointsRelationTest
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res14.length shouldBe 3
+  }
+
+  it should "fetch datapoints with negative epoch timestamps" in {
+    val timeSeriesExtId = "dsNegativeDpTest"
+    bluefieldClient.timeSeries
+      .filter(TimeSeriesFilter(externalIdPrefix = Some(timeSeriesExtId)), limit = Some(1))
+      .compile
+      .toList
+      .flatMap {
+        case Nil =>
+          bluefieldClient.timeSeries
+            .createOne(
+              TimeSeriesCreate(
+                externalId = Some(timeSeriesExtId),
+                name = Some(timeSeriesExtId),
+              ))
+            .map(ts => List(ts))
+        case ts => IO.pure(ts)
+      }
+      .unsafeRunSync()
+      .head
+
+    (bluefieldClient.dataPoints
+      .insert(
+        id = CogniteExternalId(timeSeriesExtId),
+        dataPoints = Seq(
+          DataPoint(Instant.ofEpochMilli(-100L), value = 1.1),
+          DataPoint(Instant.ofEpochMilli(-101L), value = 1.2)
+        )
+      ) *> IO.sleep(2.seconds)).unsafeRunSync()
+
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .option("baseUrl", "https://bluefield.cognitedata.com")
+      .option("tokenUri", bluefieldTokenUriStr)
+      .option("clientId", bluefieldClientId)
+      .option("clientSecret", bluefieldClientSecret)
+      .option("project", "extractor-bluefield-testing")
+      .option("scopes", "https://bluefield.cognitedata.com/.default")
+      .option("type", "datapoints")
+      .load()
+    df.createOrReplaceTempView("dps")
+
+    val results = spark.sql(s"select * from dps where externalId = '$timeSeriesExtId'").collect()
+    results
+      .map { row =>
+        (
+          row.getTimestamp(row.fieldIndex("timestamp")).toInstant.toEpochMilli,
+          row.getDouble(row.fieldIndex("value")),
+        )
+      }
+      .toList
+      .sortBy(_._1) shouldBe List((-101, 1.2), (-100, 1.1))
   }
 }

@@ -181,7 +181,7 @@ object PushdownUtilities {
       // Note that this way of aggregating filters will not work with "Or" predicates.
       Try(timestampLimits.filter(_.isInstanceOf[Min]).max).toOption // scalafix:ok
         .map(_.value)
-        .getOrElse(Instant.ofEpochMilli(0)),
+        .getOrElse(Instant.ofEpochMilli(-2208988800000L)),
       Try(timestampLimits.filter(_.isInstanceOf[Max]).min).toOption // scalafix:ok
         .map(_.value)
         .getOrElse(Instant.ofEpochMilli(Constants.millisSinceEpochIn2100)) // Year 2100 should be sufficient
