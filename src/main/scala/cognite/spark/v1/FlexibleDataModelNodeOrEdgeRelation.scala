@@ -6,7 +6,7 @@ import cognite.spark.v1.FlexibleDataModelBaseRelation.{
   FlexibleDataModelInstanceDeleteModel,
   ProjectedFlexibleDataModelInstance
 }
-import cognite.spark.v1.FlexibleDataModelRelation.ViewConfig
+import cognite.spark.v1.FlexibleDataModelRelation.ViewCorePropertyConfig
 import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
@@ -33,18 +33,19 @@ import scala.util.control.NonFatal
 /**
   * FlexibleDataModelRelation for Nodes or Edges with properties
   * @param config common relation configs
-  * @param viewConfig view config
+  * @param corePropConfig view core property config
   * @param sqlContext sql context
   */
-private[spark] class FlexibleDataModelNodeOrEdgeRelation(config: RelationConfig, viewConfig: ViewConfig)(
-    val sqlContext: SQLContext)
+private[spark] class FlexibleDataModelNodeOrEdgeRelation(
+    config: RelationConfig,
+    corePropConfig: ViewCorePropertyConfig)(val sqlContext: SQLContext)
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 
-  private val viewSpaceExternalId = viewConfig.viewSpaceExternalId
-  private val viewExternalId = viewConfig.viewExternalId
-  private val viewVersion = viewConfig.viewVersion
-  private val instanceSpaceExternalId = viewConfig.instanceSpaceExternalId
+  private val viewSpaceExternalId = corePropConfig.viewSpaceExternalId
+  private val viewExternalId = corePropConfig.viewExternalId
+  private val viewVersion = corePropConfig.viewVersion
+  private val instanceSpaceExternalId = corePropConfig.instanceSpaceExternalId
 
   private val (viewDefinition, allViewProperties, viewSchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
@@ -204,7 +205,9 @@ private[spark] class FlexibleDataModelNodeOrEdgeRelation(config: RelationConfig,
               IO.raiseError(
                 new CdfSparkException(
                   s"""
-                     |View with space: ${viewDefinition.space}, externalId: ${viewDefinition.externalId} & version: ${viewDefinition.version}" supports both Nodes & Edges.
+                     |View with space: ${viewDefinition.space},
+                     | externalId: ${viewDefinition.externalId}
+                     | & version: ${viewDefinition.version}" supports both Nodes & Edges.
                      |Tried deleting as nodes and failed with: ${nodeDeletionErr.getMessage}
                      |Tried deleting as edges and failed with: ${edgeDeletionErr.getMessage}
                      |Please verify your data!

@@ -20,7 +20,6 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.math.BigInteger
 import java.sql.{Date, Timestamp}
 import java.time._
-import scala.annotation.nowarn
 import scala.util.Try
 
 abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext: SQLContext)
@@ -37,11 +36,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       getStreams(filters, selectedColumns)
     )
 
-  def getStreams(@nowarn filters: Array[Filter], @nowarn selectedColumns: Array[String])(
-      @nowarn client: GenericClient[IO],
-      @nowarn limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] =
-    Seq.empty
+  def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
+      client: GenericClient[IO],
+      limit: Option[Int],
+      numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]]
 
   protected def toRow(a: ProjectedFlexibleDataModelInstance): Row = {
     if (config.collectMetrics) {

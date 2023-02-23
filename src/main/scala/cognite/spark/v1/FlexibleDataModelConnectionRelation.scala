@@ -3,7 +3,10 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.FlexibleDataModelRelation.ConnectionConfig
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{createConnectionInstanceDeleteData, createConnectionInstances}
+import cognite.spark.v1.FlexibleDataModelRelationUtils.{
+  createConnectionInstanceDeleteData,
+  createConnectionInstances
+}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}

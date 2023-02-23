@@ -3,7 +3,8 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelation.{ConnectionConfig, ViewConfig}
+import cognite.spark.v1.FlexibleDataModelRelation.{ConnectionConfig, ViewCorePropertyConfig}
+import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
@@ -147,10 +148,10 @@ class DefaultSource
       .map {
         case (viewSpaceExternalId, viewExternalId, viewVersion) =>
           val instanceSpaceExternalId = parameters.get("instanceSpaceExternalId")
-          FlexibleDataModelRelation.nodeOrEdge(
+          FlexibleDataModelRelation.corePropertyConfig(
             config = config,
             sqlContext = sqlContext,
-            ViewConfig(
+            ViewCorePropertyConfig(
               viewSpaceExternalId = viewSpaceExternalId,
               viewExternalId = viewExternalId,
               viewVersion = viewVersion,
@@ -164,7 +165,7 @@ class DefaultSource
       )(Tuple2.apply)
       .map {
         case (edgeSpaceExternalId, edgeExternalId) =>
-          FlexibleDataModelRelation.connection(
+          FlexibleDataModelRelation.connectionConfig(
             config = config,
             sqlContext = sqlContext,
             ConnectionConfig(
@@ -264,6 +265,8 @@ class DefaultSource
         createDataModelInstances(parameters, config, sqlContext)
       case FlexibleDataModelRelation.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
+      case "welldatalayer" =>
+        createWellDataLayer(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -328,6 +331,8 @@ class DefaultSource
           createDataModelInstances(parameters, config, sqlContext)
         case FlexibleDataModelRelation.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
+        case "welldatalayer" =>
+          createWellDataLayer(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {

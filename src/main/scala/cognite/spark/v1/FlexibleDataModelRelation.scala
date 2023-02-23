@@ -7,7 +7,7 @@ sealed trait FlexibleDataModelRelation
 object FlexibleDataModelRelation {
   val ResourceType = "instances"
 
-  final case class ViewConfig(
+  final case class ViewCorePropertyConfig(
       viewSpaceExternalId: String,
       viewExternalId: String,
       viewVersion: String,
@@ -17,13 +17,13 @@ object FlexibleDataModelRelation {
   final case class ConnectionConfig(edgeSpaceExternalId: String, edgeExternalId: String)
       extends FlexibleDataModelRelation
 
-  def nodeOrEdge(
+  def corePropertyConfig(
       config: RelationConfig,
       sqlContext: SQLContext,
-      viewConfig: ViewConfig): FlexibleDataModelNodeOrEdgeRelation =
+      viewConfig: ViewCorePropertyConfig): FlexibleDataModelNodeOrEdgeRelation =
     new FlexibleDataModelNodeOrEdgeRelation(config, viewConfig)(sqlContext)
 
-  def connection(
+  def connectionConfig(
       config: RelationConfig,
       sqlContext: SQLContext,
       connectionConfig: ConnectionConfig): FlexibleDataModelConnectionRelation =
