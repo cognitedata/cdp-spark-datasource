@@ -16,8 +16,14 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
 }
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.EdgeDeletionRequest
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstancePropertyValue, NodeOrEdgeCreate}
+import com.cognite.sdk.scala.v1.fdm.instances.{
+  EdgeOrNodeData,
+  InstanceDeletionRequest,
+  InstancePropertyValue,
+  NodeOrEdgeCreate
+}
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
@@ -77,6 +83,31 @@ object FlexibleDataModelRelationUtils {
       } yield writeData
     }
 
+  private[spark] def createConnectionInstances(
+      edgeType: DirectRelationReference,
+      rows: Seq[Row],
+      schema: StructType,
+      connectionInstanceSchema: StructType): Either[CdfSparkException, Vector[EdgeWrite]] =
+    validateRowFieldsForConnectionInstances(dataRowSchema = schema, connectionInstanceSchema) *> createConnectionInstanceWriteData(
+      schema,
+      edgeType,
+      rows
+    )
+
+  private[spark] def createConnectionInstanceDeleteData(
+      schema: StructType,
+      rows: Seq[Row]): Either[CdfSparkException, Vector[InstanceDeletionRequest]] =
+    rows.toVector.traverse { row =>
+      for {
+        spaceExtId <- extractSpaceExternalId(schema, row)
+        extId <- extractExternalId(schema, row)
+      } yield
+        EdgeDeletionRequest(
+          space = spaceExtId,
+          externalId = extId
+        )
+    }
+
   private def createEdgeWriteData(
       instanceSpaceExternalId: String,
       schema: StructType,
@@ -97,10 +128,12 @@ object FlexibleDataModelRelationUtils {
           externalId = extId,
           startNode = startNode,
           endNode = endNode,
-          sources = Seq(
-            EdgeOrNodeData(
-              source = source,
-              properties = Some(props.toMap)
+          sources = Some(
+            Seq(
+              EdgeOrNodeData(
+                source = source,
+                properties = Some(props.toMap)
+              )
             )
           )
         )
@@ -125,10 +158,12 @@ object FlexibleDataModelRelationUtils {
             externalId = externalId,
             startNode = startNode,
             endNode = endNode,
-            sources = Seq(
-              EdgeOrNodeData(
-                source = source,
-                properties = Some(props.toMap)
+            sources = Some(
+              Seq(
+                EdgeOrNodeData(
+                  source = source,
+                  properties = Some(props.toMap)
+                )
               )
             )
           )
@@ -138,10 +173,12 @@ object FlexibleDataModelRelationUtils {
           NodeWrite(
             space = instanceSpaceExternalId,
             externalId = externalId,
-            sources = Seq(
-              EdgeOrNodeData(
-                source = source,
-                properties = Some(props.toMap)
+            sources = Some(
+              Seq(
+                EdgeOrNodeData(
+                  source = source,
+                  properties = Some(props.toMap)
+                )
               )
             )
           )
@@ -174,12 +211,35 @@ object FlexibleDataModelRelationUtils {
         NodeWrite(
           space = instanceSpaceExternalId,
           externalId = externalId,
-          sources = Seq(
-            EdgeOrNodeData(
-              source = source,
-              properties = Some(props.toMap)
+          sources = Some(
+            Seq(
+              EdgeOrNodeData(
+                source = source,
+                properties = Some(props.toMap)
+              )
             )
           )
+        )
+    }
+
+  private def createConnectionInstanceWriteData(
+      schema: StructType,
+      edgeType: DirectRelationReference,
+      rows: Seq[Row]): Either[CdfSparkException, Vector[EdgeWrite]] =
+    rows.toVector.traverse { row =>
+      for {
+        spaceExtId <- extractSpaceExternalId(schema, row)
+        extId <- extractExternalId(schema, row)
+        startNode <- extractEdgeStartNodeDirectRelation(schema, row)
+        endNode <- extractEdgeEndNodeDirectRelation(schema, row)
+      } yield
+        EdgeWrite(
+          `type` = edgeType,
+          space = spaceExtId,
+          externalId = extId,
+          startNode = startNode,
+          endNode = endNode,
+          sources = None
         )
     }
 
@@ -199,6 +259,26 @@ object FlexibleDataModelRelationUtils {
       case Failure(err) =>
         Left(new CdfSparkException(s"""
                                       |Couldn't find required string property 'externalId': ${err.getMessage}
+                                      |in data row: ${rowToString(row)}
+                                      |""".stripMargin))
+    }
+
+  private def extractSpaceExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
+    Try {
+      Option(row.get(schema.fieldIndex("space")))
+    } match {
+      case Success(Some(space)) => Right(String.valueOf(space))
+      case Success(None) =>
+        Left(
+          new CdfSparkException(
+            s"""
+               |'space' cannot be null
+               |in data row: ${rowToString(row)}
+               |""".stripMargin
+          ))
+      case Failure(err) =>
+        Left(new CdfSparkException(s"""
+                                      |Couldn't find required string property 'space': ${err.getMessage}
                                       |in data row: ${rowToString(row)}
                                       |""".stripMargin))
     }
@@ -280,6 +360,28 @@ object FlexibleDataModelRelationUtils {
       Left(new CdfSparkException(s"Could not find required properties: [$propsAsStr]"))
     } else {
       Right(true)
+    }
+  }
+
+  def validateRowFieldsForConnectionInstances(
+      dataRowSchema: StructType,
+      connectionInstanceSchema: StructType): Either[CdfSparkException, Boolean] = {
+
+    val missingRequiredFields = connectionInstanceSchema
+      .map { field =>
+        field -> Try {
+          dataRowSchema(field.name).dataType == field.dataType
+        }.isSuccess
+      }
+      .flatMap {
+        case (_, true) => Vector.empty
+        case (field, false) => Vector(s"${field.name}:${field.dataType.simpleString}")
+      }
+
+    if (missingRequiredFields.isEmpty) { Right(true) } else {
+      Left(
+        new CdfSparkException(
+          s"Could not find required properties: [${missingRequiredFields.mkString(", ")}]"))
     }
   }
 

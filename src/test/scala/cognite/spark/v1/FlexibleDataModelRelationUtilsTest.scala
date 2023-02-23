@@ -148,7 +148,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty)
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -196,7 +199,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty)
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -246,7 +252,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty)
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -473,7 +482,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty)
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -538,7 +550,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty)
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -609,7 +624,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty)
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -729,7 +747,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[NodeWrite]]
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -777,7 +798,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[NodeWrite]]
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -827,7 +851,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[NodeWrite]]
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -896,7 +923,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[EdgeWrite]]
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -962,7 +992,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[EdgeWrite]]
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -1034,7 +1067,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[EdgeWrite]]
     nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
     val extIdPropsMap = nodes.map { e =>
-      e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -1253,9 +1289,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     nodesOrEdges.map(_.externalId).distinct.sorted shouldBe Vector("extId1", "extId2", "extId3")
     val extIdPropsMap = nodesOrEdges.map {
       case n: NodeWrite =>
-        n.externalId -> n.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+        n.externalId -> n.sources
+          .getOrElse(Seq.empty)
+          .flatMap(s => s.properties.getOrElse(Map.empty))
+          .toMap
       case e: EdgeWrite =>
-        e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+        e.externalId -> e.sources
+          .getOrElse(Seq.empty)
+          .flatMap(s => s.properties.getOrElse(Map.empty))
+          .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -1336,9 +1378,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     nodesOrEdges.map(_.externalId).distinct.sorted shouldBe Vector("extId1", "extId2", "extId3")
     val extIdPropsMap = nodesOrEdges.map {
       case n: NodeWrite =>
-        n.externalId -> n.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+        n.externalId -> n.sources
+          .getOrElse(Seq.empty)
+          .flatMap(s => s.properties.getOrElse(Map.empty))
+          .toMap
       case e: EdgeWrite =>
-        e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+        e.externalId -> e.sources
+          .getOrElse(Seq.empty)
+          .flatMap(s => s.properties.getOrElse(Map.empty))
+          .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -1424,9 +1472,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     nodesOrEdges.map(_.externalId).distinct.sorted shouldBe Vector("extId1", "extId2", "extId3")
     val extIdPropsMap = nodesOrEdges.map {
       case n: NodeWrite =>
-        n.externalId -> n.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+        n.externalId -> n.sources
+          .getOrElse(Seq.empty)
+          .flatMap(s => s.properties.getOrElse(Map.empty))
+          .toMap
       case e: EdgeWrite =>
-        e.externalId -> e.sources.flatMap(s => s.properties.getOrElse(Map.empty)).toMap
+        e.externalId -> e.sources
+          .getOrElse(Seq.empty)
+          .flatMap(s => s.properties.getOrElse(Map.empty))
+          .toMap
     }.toMap
     extIdPropsMap.contains("extId1") shouldBe true
     extIdPropsMap.contains("extId2") shouldBe true
@@ -1529,7 +1583,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     nodesOrEdges.map(_.externalId).distinct.sorted shouldBe Vector("extId1")
     val props = nodesOrEdges
       .collect {
-        case n: NodeWrite => n.sources.flatMap(_.properties.getOrElse(Map.empty))
+        case n: NodeWrite => n.sources.getOrElse(Seq.empty).flatMap(_.properties.getOrElse(Map.empty))
       }
       .flatten
       .toMap

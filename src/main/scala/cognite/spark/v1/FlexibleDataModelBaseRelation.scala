@@ -14,6 +14,7 @@ import fs2.Stream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types.{DataTypes, StructField}
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.math.BigInteger
@@ -23,7 +24,7 @@ import scala.annotation.nowarn
 import scala.util.Try
 
 abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext: SQLContext)
-    extends CdfRelation(config, FlexibleDataModelRelationConfig.ResourceType)
+    extends CdfRelation(config, FlexibleDataModelRelation.ResourceType)
     with PrunedFilteredScan
     with WritableRelation {
 
@@ -36,10 +37,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       getStreams(filters, selectedColumns)
     )
 
-  def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]]
+  def getStreams(@nowarn filters: Array[Filter], @nowarn selectedColumns: Array[String])(
+      @nowarn client: GenericClient[IO],
+      @nowarn limit: Option[Int],
+      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] =
+    Seq.empty
 
   protected def toRow(a: ProjectedFlexibleDataModelInstance): Row = {
     if (config.collectMetrics) {
@@ -124,6 +126,55 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case f =>
         Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.getClass.getSimpleName}'"))
     }
+  // scalastyle:on cyclomatic.complexity
+
+  protected def relationReferenceSchema(name: String, nullable: Boolean): StructField =
+    DataTypes.createStructField(
+      name,
+      DataTypes.createStructType(
+        Array(
+          DataTypes.createStructField("space", DataTypes.StringType, false),
+          DataTypes.createStructField("externalId", DataTypes.StringType, false)
+        )
+      ),
+      nullable
+    )
+
+  // scalastyle:off cyclomatic.complexity
+  protected def toProjectedInstance(
+      i: InstanceDefinition,
+      selectedInstanceProps: Array[String]): ProjectedFlexibleDataModelInstance = {
+    // Merging all the properties without considering the space & view/container externalId
+    // At the time of this impl there is no requirement to consider properties with same name
+    // in different view/containers
+    val allAvailablePropValues =
+      i.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+    i match {
+      case n: InstanceDefinition.NodeDefinition =>
+        ProjectedFlexibleDataModelInstance(
+          externalId = n.externalId,
+          properties = selectedInstanceProps.map {
+            case s if s.equalsIgnoreCase("space") => n.space
+            case s if s.equalsIgnoreCase("spaceExternalId") => n.space
+            case s if s.equalsIgnoreCase("externalId") => n.externalId
+            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
+          }
+        )
+      case e: InstanceDefinition.EdgeDefinition =>
+        ProjectedFlexibleDataModelInstance(
+          externalId = e.externalId,
+          properties = selectedInstanceProps.map {
+            case s if s.equalsIgnoreCase("space") => e.space
+            case s if s.equalsIgnoreCase("spaceExternalId") => e.space
+            case s if s.equalsIgnoreCase("externalId") => e.externalId
+            case s if s.equalsIgnoreCase("startNode") => Array(e.startNode.space, e.startNode.externalId)
+            case s if s.equalsIgnoreCase("endNode") => Array(e.endNode.space, e.endNode.externalId)
+            case s if s.equalsIgnoreCase("type") => Array(e.`type`.space, e.`type`.externalId)
+            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
+          }
+        )
+    }
+  }
   // scalastyle:on cyclomatic.complexity
 
   private def toComparableFilterValueDefinition(

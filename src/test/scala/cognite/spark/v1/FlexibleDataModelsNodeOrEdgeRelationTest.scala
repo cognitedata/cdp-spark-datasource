@@ -5,11 +5,19 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
+  ContainerPropertyDefinition,
+  ViewCorePropertyDefinition
+}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, ContainerDefinition, ContainerId, ContainerReference}
+import com.cognite.sdk.scala.v1.fdm.containers.{
+  ContainerCreateDefinition,
+  ContainerDefinition,
+  ContainerId,
+  ContainerReference
+}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
@@ -353,7 +361,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-  ignore should "succeed when fetching instances with select *" in {
+  it should "succeed when fetching instances with select *" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertAllStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertAllEndNode"
     createStartAndEndNodesForEdgesIfNotExists(startNodeExtId, endNodeExtId).unsafeRunSync()
@@ -526,7 +534,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
         space = spaceExternalId,
         sources = Some(Seq(InstanceSource(viewDef.toSourceReference)))
       )
-    ).traverse(i => client.instances.retrieveByExternalIds(Vector(i), true))
+    ).traverse(i => client.instances.retrieveByExternalIds(Vector(i), includeTyping = true))
       .map { instances =>
         instances.flatMap(_.items).collect {
           case n: InstanceDefinition.NodeDefinition =>
@@ -801,19 +809,22 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
     val edgeExternalIdPrefix = s"${viewDef.externalId}${randomPrefix}Edge"
     Seq(
       EdgeWrite(
-        `type` =
-          DirectRelationReference(space = spaceExternalId, externalId = s"${edgeExternalIdPrefix}Type1"),
+//        `type` = DirectRelationReference(space = spaceExternalId, externalId = s"${edgeExternalIdPrefix}Type1"),
+        `type` = startNode,
         space = spaceExternalId,
         externalId = s"${edgeExternalIdPrefix}1",
         startNode = startNode,
         endNode = endNode,
-        Seq(
-          EdgeOrNodeData(
-            viewRef,
-            Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
-              case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
-            })
-          ))
+        sources = Some(
+          Seq(
+            EdgeOrNodeData(
+              viewRef,
+              Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
+                case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
+              })
+            )
+          )
+        )
       ),
       EdgeWrite(
         `type` =
@@ -822,13 +833,16 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
         externalId = s"${edgeExternalIdPrefix}2",
         startNode = startNode,
         endNode = endNode,
-        Seq(
-          EdgeOrNodeData(
-            viewRef,
-            Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
-              case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
-            })
-          ))
+        sources = Some(
+          Seq(
+            EdgeOrNodeData(
+              viewRef,
+              Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
+                case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
+              })
+            )
+          )
+        )
       )
     )
   }
@@ -842,24 +856,28 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
       NodeWrite(
         spaceExternalId,
         s"${viewDef.externalId}${randomPrefix}Node1",
-        Seq(
-          EdgeOrNodeData(
-            viewRef,
-            Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
-              case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
-            })
-          ))
+        sources = Some(
+          Seq(
+            EdgeOrNodeData(
+              viewRef,
+              Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
+                case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
+              })
+            ))
+        )
       ),
       NodeWrite(
         spaceExternalId,
         s"${viewDef.externalId}${randomPrefix}Node2",
-        Seq(
-          EdgeOrNodeData(
-            viewRef,
-            Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
-              case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
-            })
-          ))
+        sources = Some(
+          Seq(
+            EdgeOrNodeData(
+              viewRef,
+              Some(viewDef.properties.collect { case (n, p: ViewCorePropertyDefinition) => n -> p }.map {
+                case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
+              })
+            ))
+        )
       )
     )
   }
@@ -895,7 +913,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
                 NodeWrite(
                   spaceExternalId,
                   s"${viewDef.externalId}Node1",
-                  Seq(EdgeOrNodeData(
+                  Some(Seq(EdgeOrNodeData(
                     viewRef,
                     Some(Map(
                       "forEqualsFilter" -> InstancePropertyValue.String("str1"),
@@ -908,12 +926,12 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
                       "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
                       "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
                     ))
-                  ))
+                  )))
                 ),
                 NodeWrite(
                   spaceExternalId,
                   s"${viewDef.externalId}Node2",
-                  Seq(EdgeOrNodeData(
+                  Some(Seq(EdgeOrNodeData(
                     viewRef,
                     Some(Map(
                       "forEqualsFilter" -> InstancePropertyValue.String("str2"),
@@ -928,7 +946,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
                       "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
                         JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
                     ))
-                  ))
+                  )))
                 )
               ),
               replace = Some(true)
@@ -965,7 +983,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
       onConflict: String = "upsert"): Unit =
     df.write
       .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelRelationConfig.ResourceType)
+      .option("type", FlexibleDataModelRelation.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)
@@ -988,7 +1006,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
       instanceSpaceExternalId: String): DataFrame =
     spark.read
       .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelRelationConfig.ResourceType)
+      .option("type", FlexibleDataModelRelation.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)
@@ -1100,22 +1118,26 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
                 NodeWrite(
                   spaceExternalId,
                   startNodeExtId,
-                  Seq(EdgeOrNodeData(
-                    viewStartAndEndNodes.toSourceReference,
-                    Some(Map(
-                      "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
-                      "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
-                  ))
+                  Some(
+                    Seq(EdgeOrNodeData(
+                      viewStartAndEndNodes.toSourceReference,
+                      Some(Map(
+                        "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
+                        "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
+                    ))
+                  )
                 ),
                 NodeWrite(
                   spaceExternalId,
                   endNodeExtId,
-                  Seq(EdgeOrNodeData(
-                    viewStartAndEndNodes.toSourceReference,
-                    Some(Map(
-                      "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
-                      "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
-                  ))
+                  Some(
+                    Seq(EdgeOrNodeData(
+                      viewStartAndEndNodes.toSourceReference,
+                      Some(Map(
+                        "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
+                        "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
+                    ))
+                  )
                 )
               ),
               replace = Some(true)
@@ -1134,12 +1156,12 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
   private def getUpsertedMetricsCount(viewDef: ViewDefinition) =
     getNumberOfRowsUpserted(
       s"${viewDef.externalId}-${viewDef.version}",
-      FlexibleDataModelRelationConfig.ResourceType)
+      FlexibleDataModelRelation.ResourceType)
 
   private def getDeletedMetricsCount(viewDef: ViewDefinition) =
     getNumberOfRowsDeleted(
       s"${viewDef.externalId}-${viewDef.version}",
-      FlexibleDataModelRelationConfig.ResourceType)
+      FlexibleDataModelRelation.ResourceType)
 
   def createInstancePropertyValue(
       propName: String,

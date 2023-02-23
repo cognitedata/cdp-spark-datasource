@@ -3,13 +3,8 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationConfig.{
-  ConnectionRelationConfig,
-  NodeOrEdgeRelationConfig
-}
-import cognite.spark.v1.wdl.WellDataLayerRelation
+import cognite.spark.v1.FlexibleDataModelRelation.{ConnectionConfig, ViewConfig}
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
-import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
 import io.circe.Decoder
@@ -152,10 +147,10 @@ class DefaultSource
       .map {
         case (viewSpaceExternalId, viewExternalId, viewVersion) =>
           val instanceSpaceExternalId = parameters.get("instanceSpaceExternalId")
-          FlexibleDataModelRelationConfig.nodeOrEdgeRelation(
+          FlexibleDataModelRelation.nodeOrEdge(
             config = config,
             sqlContext = sqlContext,
-            NodeOrEdgeRelationConfig(
+            ViewConfig(
               viewSpaceExternalId = viewSpaceExternalId,
               viewExternalId = viewExternalId,
               viewVersion = viewVersion,
@@ -169,10 +164,10 @@ class DefaultSource
       )(Tuple2.apply)
       .map {
         case (edgeSpaceExternalId, edgeExternalId) =>
-          FlexibleDataModelRelationConfig.connectionRelation(
+          FlexibleDataModelRelation.connection(
             config = config,
             sqlContext = sqlContext,
-            ConnectionRelationConfig(
+            ConnectionConfig(
               edgeSpaceExternalId = edgeSpaceExternalId,
               edgeExternalId = edgeExternalId
             )
@@ -267,7 +262,7 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
-      case FlexibleDataModelRelationConfig.ResourceType =>
+      case FlexibleDataModelRelation.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
@@ -331,7 +326,7 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
-        case FlexibleDataModelRelationConfig.ResourceType =>
+        case FlexibleDataModelRelation.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }

@@ -2,12 +2,12 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
 import cognite.spark.v1.FlexibleDataModelBaseRelation.{
   FlexibleDataModelInstanceDeleteModel,
   ProjectedFlexibleDataModelInstance
 }
-import cognite.spark.v1.FlexibleDataModelRelationConfig.NodeOrEdgeRelationConfig
+import cognite.spark.v1.FlexibleDataModelRelation.ViewConfig
+import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
@@ -28,33 +28,33 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.util.Locale
-import scala.annotation.nowarn
 import scala.util.control.NonFatal
 
 /**
   * FlexibleDataModelRelation for Nodes or Edges with properties
   * @param config common relation configs
-  * @param nodeOrEdgeRelation view config
+  * @param viewConfig view config
   * @param sqlContext sql context
   */
-private[spark] class FlexibleDataModelNodeOrEdgeRelation(
-    config: RelationConfig,
-    nodeOrEdgeRelation: NodeOrEdgeRelationConfig)(val sqlContext: SQLContext)
+private[spark] class FlexibleDataModelNodeOrEdgeRelation(config: RelationConfig, viewConfig: ViewConfig)(
+    val sqlContext: SQLContext)
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 
-  private val viewSpaceExternalId = nodeOrEdgeRelation.viewSpaceExternalId
-  private val viewExternalId = nodeOrEdgeRelation.viewExternalId
-  private val viewVersion = nodeOrEdgeRelation.viewVersion
-  private val instanceSpaceExternalId = nodeOrEdgeRelation.instanceSpaceExternalId
+  private val viewSpaceExternalId = viewConfig.viewSpaceExternalId
+  private val viewExternalId = viewConfig.viewExternalId
+  private val viewVersion = viewConfig.viewVersion
+  private val instanceSpaceExternalId = viewConfig.instanceSpaceExternalId
 
   private val (viewDefinition, allViewProperties, viewSchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
     .getOrElse {
-      throw new CdfSparkException(s"""
-                                       |Correct view external id & view version should be specified.
-                                       |Could not resolve schema from view externalId: $viewExternalId & view version: $viewVersion
-                                       |""".stripMargin)
+      throw new CdfSparkException(s"""Could not resolve schema from
+           | space: $viewSpaceExternalId,
+           | view externalId: $viewExternalId &
+           | view version: $viewVersion
+           | Correct view space, view externalId & view version should be specified.
+           | """.stripMargin)
     }
 
   override def schema: StructType = viewSchema
@@ -95,10 +95,10 @@ private[spark] class FlexibleDataModelNodeOrEdgeRelation(
     IO.raiseError[Unit](
       new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
 
-  def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
+  override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO],
       limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+      numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
@@ -111,7 +111,7 @@ private[spark] class FlexibleDataModelNodeOrEdgeRelation(
       toInstanceFilter(
         _,
         space = viewSpaceExternalId,
-        versionedExternalId = s"${viewExternalId}/${viewVersion}")) match {
+        versionedExternalId = s"$viewExternalId/$viewVersion")) match {
       case Right(fs) if fs.isEmpty => None
       case Right(fs) if fs.length == 1 => fs.headOption
       case Right(fs) => Some(FilterDefinition.And(fs))
@@ -137,41 +137,13 @@ private[spark] class FlexibleDataModelNodeOrEdgeRelation(
       .retrieveItems(
         Seq(DataModelReference(viewSpaceExternalId, viewExternalId, viewVersion)),
         includeInheritedProperties = Some(true))
-      .map(_.headOption)
-      .flatMap {
-        case Some(viewDef) =>
-          viewDef.implements.traverse { v =>
-            if (v.isEmpty) {
-              IO.pure(
-                (
-                  viewDef,
-                  viewDef.properties,
-                  deriveViewSchemaWithUsage(viewDef.usedFor, viewDef.properties)
-                )
-              )
-            } else {
-              client.views
-                .retrieveItems(v.map(vRef =>
-                  DataModelReference(vRef.space, vRef.externalId, vRef.version)))
-                .map { inheritingViews =>
-                  // If there are properties with the same name,
-                  // most recent view's property will override the old view's property.
-                  // At the time of this implementation, there's no requirement on this matter.
-                  val inheritingProperties = inheritingViews
-                    .sortBy(_.createdTime)(Ordering[Long].reverse)
-                    .map(_.properties)
-                    .reduce((propMap1, propMap2) => propMap1 ++ propMap2)
-
-                  (viewDef, inheritingProperties ++ viewDef.properties)
-                }
-                .map {
-                  case (viewDef, viewProps) =>
-                    (viewDef, viewProps, deriveViewSchemaWithUsage(viewDef.usedFor, viewProps))
-                }
-            }
-          }
-        case None => IO.pure(None)
-      }
+      .map(_.headOption.map { viewDef =>
+        (
+          viewDef,
+          viewDef.properties,
+          deriveViewSchemaWithUsage(viewDef.usedFor, viewDef.properties)
+        )
+      })
 
   private def upsertNodesOrEdges(
       instanceSpaceExternalId: String,
@@ -232,7 +204,7 @@ private[spark] class FlexibleDataModelNodeOrEdgeRelation(
               IO.raiseError(
                 new CdfSparkException(
                   s"""
-                     |View with externalId: ${viewDefinition.externalId} & version: ${viewDefinition.version}" supports both Nodes & Edges.
+                     |View with space: ${viewDefinition.space}, externalId: ${viewDefinition.externalId} & version: ${viewDefinition.version}" supports both Nodes & Edges.
                      |Tried deleting as nodes and failed with: ${nodeDeletionErr.getMessage}
                      |Tried deleting as edges and failed with: ${edgeDeletionErr.getMessage}
                      |Please verify your data!
@@ -310,18 +282,6 @@ private[spark] class FlexibleDataModelNodeOrEdgeRelation(
         )
     }
 
-  private def relationReferenceSchema(name: String, nullable: Boolean): StructField =
-    DataTypes.createStructField(
-      name,
-      DataTypes.createStructType(
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false)
-        )
-      ),
-      nullable
-    )
-
   private def getInstanceType(filters: Array[Filter]) =
     (viewDefinition.usedFor match {
       case Usage.Node => Some(InstanceType.Node)
@@ -335,38 +295,6 @@ private[spark] class FlexibleDataModelNodeOrEdgeRelation(
             .toOption
       }.flatten
     }
-
-  private def toProjectedInstance(
-      i: InstanceDefinition,
-      selectedInstanceProps: Array[String]): ProjectedFlexibleDataModelInstance = {
-    // Merging all the properties without considering the space & view/container externalId
-    // At the time of this impl there is no requirement to consider properties with same name
-    // in different view/containers
-    val allAvailablePropValues =
-      i.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
-
-    i match {
-      case n: InstanceDefinition.NodeDefinition =>
-        ProjectedFlexibleDataModelInstance(
-          externalId = n.externalId,
-          properties = selectedInstanceProps.map {
-            case "externalId" => n.externalId
-            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
-          }
-        )
-      case e: InstanceDefinition.EdgeDefinition =>
-        ProjectedFlexibleDataModelInstance(
-          externalId = e.externalId,
-          properties = selectedInstanceProps.map {
-            case "externalId" => e.externalId
-            case "startNode" => Array(e.startNode.space, e.startNode.externalId)
-            case "endNode" => Array(e.endNode.space, e.endNode.externalId)
-            case "type" => Array(e.`type`.space, e.`type`.externalId)
-            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
-          }
-        )
-    }
-  }
 
   private def usageBasedFilterRequests(
       limit: Option[Int],
