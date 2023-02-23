@@ -38,7 +38,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
   val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
   private val client = getBlufieldClient()
 
-  private val spaceExternalId = "testSpaceSparkDs2"
+  private val spaceExternalId = "testSpaceForSparkDs"
 
   private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList"
   private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList"
@@ -90,7 +90,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
     createViewIfNotExists(containerStartAndEndNodes, viewStartNodeAndEndNodesExternalId, viewVersion)
       .unsafeRunSync()
 
-  ignore should "succeed when inserting all nullable & non nullable non list values" in {
+  it should "succeed when inserting all nullable & non nullable non list values" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertNonListEndNode"
     createStartAndEndNodesForEdgesIfNotExists(startNodeExtId, endNodeExtId).unsafeRunSync()
@@ -223,7 +223,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-  ignore should "succeed when inserting all nullable & non nullable list values" in {
+  it should "succeed when inserting all nullable & non nullable list values" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
     createStartAndEndNodesForEdgesIfNotExists(startNodeExtId, endNodeExtId).unsafeRunSync()
@@ -379,7 +379,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
       externalId = startNodeExtId
     )
 
-    val (_, _, viewEdges, allInstanceExternalIds) = (for {
+    val (viewAll, viewNodes, viewEdges, allInstanceExternalIds) = (for {
       (viewAll, viewNodes, viewEdges) <- setupAllListAndNonListPropertyTest
       nodeIds <- createTestInstancesForView(
         viewNodes,
@@ -398,12 +398,12 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
         Some(endNodeRef))
     } yield (viewAll, viewNodes, viewEdges, nodeIds ++ edgeIds ++ allIds)).unsafeRunSync()
 
-//    val readNodesDf = readRows(
-//      viewSpaceExternalId = spaceExternalId,
-//      viewExternalId = viewNodes.externalId,
-//      viewVersion = viewNodes.version,
-//      instanceSpaceExternalId = spaceExternalId
-//    )
+    val readNodesDf = readRows(
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewNodes.externalId,
+      viewVersion = viewNodes.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
 
     val readEdgesDf = readRows(
       viewSpaceExternalId = spaceExternalId,
@@ -412,41 +412,40 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
       instanceSpaceExternalId = spaceExternalId
     )
 
-//    val readAllDf = readRows(
-//      viewSpaceExternalId = spaceExternalId,
-//      viewExternalId = viewAll.externalId,
-//      viewVersion = viewAll.version,
-//      instanceSpaceExternalId = spaceExternalId
-//    )
+    val readAllDf = readRows(
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewAll.externalId,
+      viewVersion = viewAll.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
 
-//    readNodesDf.createTempView(s"node_instances_table")
+    readNodesDf.createTempView(s"node_instances_table")
     readEdgesDf.createTempView(s"edge_instances_table")
-//    readAllDf.createTempView(s"all_instances_table")
+    readAllDf.createTempView(s"all_instances_table")
 
-//    val selectedNodes = spark
-//      .sql("select * from node_instances_table")
-//      .collect()
+    val selectedNodes = spark
+      .sql("select * from node_instances_table")
+      .collect()
 
     val selectedEdges = spark
       .sql("select * from edge_instances_table")
       .collect()
 
-//    val selectedNodesAndEdges = spark
-//      .sql("select * from all_instances_table")
-//      .collect()
+    val selectedNodesAndEdges = spark
+      .sql("select * from all_instances_table")
+      .collect()
 
     def toExternalIds(rows: Array[Row]): Array[String] =
       rows.map(row => row.getString(row.schema.fieldIndex("externalId")))
 
-//    val actualAllInstanceExternalIds = toExternalIds(selectedNodesAndEdges) ++ toExternalIds(
-//      selectedNodes) ++ toExternalIds(selectedEdges)
-    val actualAllInstanceExternalIds = toExternalIds(selectedEdges)
+    val actualAllInstanceExternalIds = toExternalIds(selectedNodesAndEdges) ++ toExternalIds(
+      selectedNodes) ++ toExternalIds(selectedEdges)
 
     allInstanceExternalIds.length shouldBe 8
     (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
   }
 
-  ignore should "succeed when filtering instances by properties" in {
+  it should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
@@ -483,7 +482,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
     filteredInstanceExtIds shouldBe Vector(s"${view.externalId}Node1")
   }
 
-  ignore should "successfully cast numeric properties" in {
+  it should "successfully cast numeric properties" in {
     val viewDef = setupNumericConversionTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}Numeric1"
     val nodeExtId2 = s"${viewDef.externalId}Numeric2"
@@ -559,7 +558,7 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
-  ignore should "delete containers and views used for testing" in {
+  it should "delete containers and views used for testing" in {
     client.containers
       .delete(Seq(
         ContainerId(spaceExternalId, containerAllNonListExternalId),
