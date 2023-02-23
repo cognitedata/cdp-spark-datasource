@@ -1,9 +1,8 @@
 package cognite.spark.v1.utils.fdm
 
-import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
   ContainerPropertyDefinition,
-  ViewPropertyDefinition
+  ViewCorePropertyDefinition
 }
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
   DirectNodeRelationProperty,
@@ -15,13 +14,10 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.{
   PropertyDefaultValue,
   PropertyType
 }
+import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers._
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  DirectRelationReference,
-  EdgeOrNodeData,
-  InstancePropertyValue
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstancePropertyValue}
 import io.circe.{Json, JsonObject}
 
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
@@ -48,7 +44,7 @@ object FDMTestUtils {
     PrimitiveProperty(`type` = PrimitivePropType.Timestamp, list = Some(true)),
     PrimitiveProperty(`type` = PrimitivePropType.Date, list = Some(true)),
     PrimitiveProperty(`type` = PrimitivePropType.Json, list = Some(true)),
-    DirectNodeRelationProperty(container = None)
+    DirectNodeRelationProperty(None, None)
   )
 
   val AllPropertyDefaultValues: List[PropertyDefaultValue] = List(
@@ -74,8 +70,8 @@ object FDMTestUtils {
   def toViewPropertyDefinition(
       containerPropDef: ContainerPropertyDefinition,
       containerRef: Option[ContainerReference],
-      containerPropertyIdentifier: Option[String]): ViewPropertyDefinition =
-    ViewPropertyDefinition(
+      containerPropertyIdentifier: Option[String]): ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
       nullable = containerPropDef.nullable,
       autoIncrement = containerPropDef.autoIncrement,
       defaultValue = containerPropDef.defaultValue,
@@ -109,7 +105,7 @@ object FDMTestUtils {
       val autoIncrement = autoIncrementApplicableProp && !nullable && !withDefault
 
       val alwaysNullable = p match {
-        case DirectNodeRelationProperty(_) => true
+        case _: DirectNodeRelationProperty => true
         case _ => false
       }
       val nullability = alwaysNullable || nullable
@@ -139,7 +135,7 @@ object FDMTestUtils {
   }
   // scalastyle:on cyclomatic.complexity method.length
 
-  def createAllPossibleViewPropCombinations: Map[String, ViewPropertyDefinition] =
+  def createAllPossibleViewPropCombinations: Map[String, ViewCorePropertyDefinition] =
     createAllPossibleContainerPropCombinations.map {
       case (key, prop) => key -> toViewPropertyDefinition(prop, None, None)
     }
@@ -449,7 +445,7 @@ object FDMTestUtils {
               )
             )
           )
-        case DirectNodeRelationProperty(_) => None
+        case _: DirectNodeRelationProperty => None
       }
     } else {
       None
