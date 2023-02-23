@@ -5,19 +5,11 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
-  ContainerPropertyDefinition,
-  ViewCorePropertyDefinition
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.containers.{
-  ContainerCreateDefinition,
-  ContainerDefinition,
-  ContainerId,
-  ContainerReference
-}
+import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, ContainerDefinition, ContainerId, ContainerReference}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
@@ -32,13 +24,13 @@ import scala.util.{Random, Success, Try}
 
 class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers with SparkTest {
 
-  val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-  val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-  val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-  val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+  private val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+  private val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+  private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+  private val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
   private val client = getBlufieldClient()
 
-  private val spaceExternalId = "testSpaceForSparkDs"
+  private val spaceExternalId = "testSpaceForSparkDatasource"
 
   private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList"
   private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList"
@@ -558,12 +550,22 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
-  it should "delete containers and views used for testing" in {
+  // This should be kept as ignored
+  ignore should "delete containers and views used for testing" in {
     client.containers
       .delete(Seq(
+        ContainerId(spaceExternalId, containerAllListAndNonListExternalId),
+        ContainerId(spaceExternalId, containerNodesListAndNonListExternalId),
+        ContainerId(spaceExternalId, containerEdgesListAndNonListExternalId),
+        //
         ContainerId(spaceExternalId, containerAllNonListExternalId),
         ContainerId(spaceExternalId, containerNodesNonListExternalId),
         ContainerId(spaceExternalId, containerEdgesNonListExternalId),
+        //
+        ContainerId(spaceExternalId, containerAllListExternalId),
+        ContainerId(spaceExternalId, containerNodesListExternalId),
+        ContainerId(spaceExternalId, containerEdgesListExternalId),
+        //
         ContainerId(spaceExternalId, containerAllNumericProps),
         ContainerId(spaceExternalId, containerFilterByProps),
         ContainerId(spaceExternalId, containerStartNodeAndEndNodesExternalId),
@@ -575,6 +577,15 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
         DataModelReference(spaceExternalId, viewAllListAndNonListExternalId, viewVersion),
         DataModelReference(spaceExternalId, viewNodesListAndNonListExternalId, viewVersion),
         DataModelReference(spaceExternalId, viewEdgesListAndNonListExternalId, viewVersion),
+        //
+        DataModelReference(spaceExternalId, viewAllNonListExternalId, viewVersion),
+        DataModelReference(spaceExternalId, viewNodesNonListExternalId, viewVersion),
+        DataModelReference(spaceExternalId, viewEdgesNonListExternalId, viewVersion),
+        //
+        DataModelReference(spaceExternalId, viewAllListExternalId, viewVersion),
+        DataModelReference(spaceExternalId, viewNodesListExternalId, viewVersion),
+        DataModelReference(spaceExternalId, viewEdgesListExternalId, viewVersion),
+        //
         DataModelReference(spaceExternalId, viewAllNumericProps, viewVersion),
         DataModelReference(spaceExternalId, viewFilterByProps, viewVersion),
         DataModelReference(spaceExternalId, viewStartNodeAndEndNodesExternalId, viewVersion),
@@ -808,8 +819,8 @@ class FlexibleDataModelsNodeOrEdgeRelationTest extends FlatSpec with Matchers wi
     val edgeExternalIdPrefix = s"${viewDef.externalId}${randomPrefix}Edge"
     Seq(
       EdgeWrite(
-//        `type` = DirectRelationReference(space = spaceExternalId, externalId = s"${edgeExternalIdPrefix}Type1"),
-        `type` = startNode,
+        `type` =
+          DirectRelationReference(space = spaceExternalId, externalId = s"${edgeExternalIdPrefix}Type1"),
         space = spaceExternalId,
         externalId = s"${edgeExternalIdPrefix}1",
         startNode = startNode,
