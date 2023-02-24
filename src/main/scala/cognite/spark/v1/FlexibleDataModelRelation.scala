@@ -17,13 +17,13 @@ object FlexibleDataModelRelation {
   final case class ConnectionConfig(edgeSpaceExternalId: String, edgeExternalId: String)
       extends FlexibleDataModelRelation
 
-  def corePropertyConfig(
+  def corePropertyRelation(
       config: RelationConfig,
       sqlContext: SQLContext,
-      viewConfig: ViewCorePropertyConfig): FlexibleDataModelNodeOrEdgeRelation =
-    new FlexibleDataModelNodeOrEdgeRelation(config, viewConfig)(sqlContext)
+      viewCorePropConfig: ViewCorePropertyConfig): FlexibleDataModelCorePropertyRelation =
+    new FlexibleDataModelCorePropertyRelation(config, viewCorePropConfig)(sqlContext)
 
-  def connectionConfig(
+  def connectionRelation(
       config: RelationConfig,
       sqlContext: SQLContext,
       connectionConfig: ConnectionConfig): FlexibleDataModelConnectionRelation =

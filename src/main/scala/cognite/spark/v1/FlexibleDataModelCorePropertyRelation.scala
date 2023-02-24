@@ -36,7 +36,7 @@ import scala.util.control.NonFatal
   * @param corePropConfig view core property config
   * @param sqlContext sql context
   */
-private[spark] class FlexibleDataModelNodeOrEdgeRelation(
+private[spark] class FlexibleDataModelCorePropertyRelation(
     config: RelationConfig,
     corePropConfig: ViewCorePropertyConfig)(val sqlContext: SQLContext)
     extends FlexibleDataModelBaseRelation(config, sqlContext) {

@@ -19,7 +19,7 @@ import java.time.{LocalDate, ZonedDateTime}
 import scala.concurrent.duration.DurationInt
 import scala.util.{Success, Try}
 
-class FlexibleDataModelsNodeOrEdgeRelationTest
+class FlexibleDataModelCorePropertyRelationTest
     extends FlatSpec
     with Matchers
     with SparkTest

@@ -148,7 +148,7 @@ class DefaultSource
       .map {
         case (viewSpaceExternalId, viewExternalId, viewVersion) =>
           val instanceSpaceExternalId = parameters.get("instanceSpaceExternalId")
-          FlexibleDataModelRelation.corePropertyConfig(
+          FlexibleDataModelRelation.corePropertyRelation(
             config = config,
             sqlContext = sqlContext,
             ViewCorePropertyConfig(
@@ -165,7 +165,7 @@ class DefaultSource
       )(Tuple2.apply)
       .map {
         case (edgeSpaceExternalId, edgeExternalId) =>
-          FlexibleDataModelRelation.connectionConfig(
+          FlexibleDataModelRelation.connectionRelation(
             config = config,
             sqlContext = sqlContext,
             ConnectionConfig(
