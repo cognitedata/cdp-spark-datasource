@@ -45,7 +45,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
         IO.fromEither(
             createConnectionInstances(
               edgeType = DirectRelationReference(
-                space = connectionConfig.edgeSpaceExternalId,
+                space = connectionConfig.edgeSpace,
                 externalId = connectionConfig.edgeExternalId
               ),
               rows,
@@ -86,12 +86,15 @@ private[spark] class FlexibleDataModelConnectionRelation(
     val instanceFilter = FilterDefinition.And(
       Vector(
         FilterDefinition.Equals(
-          property = Seq("type", "space"),
-          value = FilterValueDefinition.String(connectionConfig.edgeSpaceExternalId)
+          property = Vector("edge", "space"),
+          value = FilterValueDefinition.String(connectionConfig.edgeSpace)
         ),
-        FilterDefinition.Equals(
-          property = Seq("type", "externalId"),
-          value = FilterValueDefinition.String(connectionConfig.edgeExternalId)
+        FilterDefinition.Nested(
+          scope = Vector("edge", "type"),
+          filter = FilterDefinition.Equals(
+            property = Vector("node", "externalId"),
+            value = FilterValueDefinition.String(connectionConfig.edgeExternalId)
+          )
         )
       )
     )

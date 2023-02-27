@@ -70,7 +70,10 @@ class FlexibleDataModelCorePropertyRelationTest
       .unsafeRunSync()
 
   private val viewStartAndEndNodes: ViewDefinition =
-    createViewIfNotExists(containerStartAndEndNodes, viewStartNodeAndEndNodesExternalId, viewVersion)
+    createViewWithCorePropsIfNotExists(
+      containerStartAndEndNodes,
+      viewStartNodeAndEndNodesExternalId,
+      viewVersion)
       .unsafeRunSync()
 
   it should "succeed when inserting all nullable & non nullable non list values" in {
@@ -660,9 +663,15 @@ class FlexibleDataModelCorePropertyRelationTest
         Usage.Edge,
         containerProps,
         containerEdgesListAndNonListExternalId)
-      viewAll <- createViewIfNotExists(cAll, viewAllListAndNonListExternalId, viewVersion)
-      viewNodes <- createViewIfNotExists(cNodes, viewNodesListAndNonListExternalId, viewVersion)
-      viewEdges <- createViewIfNotExists(cEdges, viewEdgesListAndNonListExternalId, viewVersion)
+      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllListAndNonListExternalId, viewVersion)
+      viewNodes <- createViewWithCorePropsIfNotExists(
+        cNodes,
+        viewNodesListAndNonListExternalId,
+        viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(
+        cEdges,
+        viewEdgesListAndNonListExternalId,
+        viewVersion)
       _ <- IO.sleep(5.seconds)
     } yield (viewAll, viewNodes, viewEdges)
   }
@@ -703,9 +712,9 @@ class FlexibleDataModelCorePropertyRelationTest
       cAll <- createContainerIfNotExists(Usage.All, containerProps, containerAllNonListExternalId)
       cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesNonListExternalId)
       cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesNonListExternalId)
-      viewAll <- createViewIfNotExists(cAll, viewAllNonListExternalId, viewVersion)
-      viewNodes <- createViewIfNotExists(cNodes, viewNodesNonListExternalId, viewVersion)
-      viewEdges <- createViewIfNotExists(cEdges, viewEdgesNonListExternalId, viewVersion)
+      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllNonListExternalId, viewVersion)
+      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesNonListExternalId, viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesNonListExternalId, viewVersion)
       _ <- IO.sleep(5.seconds)
     } yield (viewAll, viewNodes, viewEdges)
   }
@@ -736,9 +745,9 @@ class FlexibleDataModelCorePropertyRelationTest
       cAll <- createContainerIfNotExists(Usage.All, containerProps, containerAllListExternalId)
       cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesListExternalId)
       cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesListExternalId)
-      viewAll <- createViewIfNotExists(cAll, viewAllListExternalId, viewVersion)
-      viewNodes <- createViewIfNotExists(cNodes, viewNodesListExternalId, viewVersion)
-      viewEdges <- createViewIfNotExists(cEdges, viewEdgesListExternalId, viewVersion)
+      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllListExternalId, viewVersion)
+      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesListExternalId, viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesListExternalId, viewVersion)
     } yield (viewAll, viewNodes, viewEdges)
   }
 
@@ -761,7 +770,7 @@ class FlexibleDataModelCorePropertyRelationTest
 
     for {
       cAll <- createContainerIfNotExists(Usage.All, containerProps, containerFilterByProps)
-      viewAll <- createViewIfNotExists(cAll, viewFilterByProps, viewVersion)
+      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewFilterByProps, viewVersion)
       extIds <- setupInstancesForFiltering(viewAll)
     } yield (viewAll, extIds)
   }
@@ -854,8 +863,54 @@ class FlexibleDataModelCorePropertyRelationTest
 
     for {
       container <- createContainerIfNotExists(Usage.All, containerProps, containerAllNumericProps)
-      view <- createViewIfNotExists(container, viewAllNumericProps, viewVersion)
+      view <- createViewWithCorePropsIfNotExists(container, viewAllNumericProps, viewVersion)
     } yield view
   }
 
+  private def insertRows(
+      viewSpaceExternalId: String,
+      viewExternalId: String,
+      viewVersion: String,
+      instanceSpaceExternalId: String,
+      df: DataFrame,
+      onConflict: String = "upsert"): Unit =
+    df.write
+      .format("cognite.spark.v1")
+      .option("type", FlexibleDataModelRelation.ResourceType)
+      .option("baseUrl", "https://bluefield.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", "extractor-bluefield-testing")
+      .option("scopes", "https://bluefield.cognitedata.com/.default")
+      .option("viewSpaceExternalId", viewSpaceExternalId)
+      .option("viewExternalId", viewExternalId)
+      .option("viewVersion", viewVersion)
+      .option("instanceSpaceExternalId", instanceSpaceExternalId)
+      .option("onconflict", onConflict)
+      .option("collectMetrics", true)
+      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
+      .save()
+
+  private def readRows(
+      viewSpaceExternalId: String,
+      viewExternalId: String,
+      viewVersion: String,
+      instanceSpaceExternalId: String): DataFrame =
+    spark.read
+      .format("cognite.spark.v1")
+      .option("type", FlexibleDataModelRelation.ResourceType)
+      .option("baseUrl", "https://bluefield.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", "extractor-bluefield-testing")
+      .option("scopes", "https://bluefield.cognitedata.com/.default")
+      .option("viewSpaceExternalId", viewSpaceExternalId)
+      .option("viewExternalId", viewExternalId)
+      .option("viewVersion", viewVersion)
+      .option("instanceSpaceExternalId", instanceSpaceExternalId)
+      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
+      .option("collectMetrics", true)
+      .load()
 }

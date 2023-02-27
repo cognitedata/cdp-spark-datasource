@@ -42,10 +42,10 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 
-  private val viewSpaceExternalId = corePropConfig.viewSpaceExternalId
+  private val viewSpaceExternalId = corePropConfig.viewSpace
   private val viewExternalId = corePropConfig.viewExternalId
   private val viewVersion = corePropConfig.viewVersion
-  private val instanceSpaceExternalId = corePropConfig.instanceSpaceExternalId
+  private val instanceSpace = corePropConfig.instanceSpace
 
   private val (viewDefinition, allViewProperties, viewSchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
@@ -63,7 +63,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   // scalastyle:off cyclomatic.complexity
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val firstRow = rows.headOption
-    (firstRow, instanceSpaceExternalId) match {
+    (firstRow, instanceSpace) match {
       case (Some(fr), Some(instanceSpaceExtId)) =>
         upsertNodesOrEdges(
           instanceSpaceExtId,
@@ -75,7 +75,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         ).flatMap(results => incMetrics(itemsUpserted, results.length))
       case (None, Some(_)) => incMetrics(itemsUpserted, 0)
       case (_, None) =>
-        IO.raiseError(new CdfSparkException(s"'instanceSpaceExternalId' id required to upsert data"))
+        IO.raiseError(new CdfSparkException(s"'instanceSpace' id required to upsert data"))
     }
   }
   // scalastyle:on cyclomatic.complexity
@@ -147,17 +147,17 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       })
 
   private def upsertNodesOrEdges(
-      instanceSpaceExternalId: String,
+      instanceSpace: String,
       rows: Seq[Row],
       schema: StructType,
       source: SourceReference,
       propDefMap: Map[String, ViewPropertyDefinition],
       usedFor: Usage): IO[Seq[SlimNodeOrEdge]] = {
     val nodesOrEdges = usedFor match {
-      case Usage.Node => createNodes(instanceSpaceExternalId, rows, schema, propDefMap, source)
-      case Usage.Edge => createEdges(instanceSpaceExternalId, rows, schema, propDefMap, source)
+      case Usage.Node => createNodes(instanceSpace, rows, schema, propDefMap, source)
+      case Usage.Edge => createEdges(instanceSpace, rows, schema, propDefMap, source)
       case Usage.All =>
-        createNodesOrEdges(instanceSpaceExternalId, rows, schema, propDefMap, source)
+        createNodesOrEdges(instanceSpace, rows, schema, propDefMap, source)
     }
 
     nodesOrEdges match {

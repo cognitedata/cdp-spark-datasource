@@ -34,33 +34,33 @@ import scala.util.{Failure, Success, Try}
 // scalastyle:off number.of.methods
 object FlexibleDataModelRelationUtils {
   private[spark] def createNodes(
-      instanceSpaceExternalId: String,
+      instanceSpace: String,
       rows: Seq[Row],
       schema: StructType,
       propertyDefMap: Map[String, ViewPropertyDefinition],
       source: SourceReference): Either[CdfSparkException, Vector[NodeWrite]] =
     validateRowFieldsWithPropertyDefinitions(schema, propertyDefMap) *> createNodeWriteData(
-      instanceSpaceExternalId,
+      instanceSpace,
       schema,
       source,
       propertyDefMap,
       rows)
 
   private[spark] def createEdges(
-      instanceSpaceExternalId: String,
+      instanceSpace: String,
       rows: Seq[Row],
       schema: StructType,
       propertyDefMap: Map[String, ViewPropertyDefinition],
       source: SourceReference): Either[CdfSparkException, Vector[EdgeWrite]] =
     validateRowFieldsWithPropertyDefinitions(schema, propertyDefMap) *> createEdgeWriteData(
-      instanceSpaceExternalId,
+      instanceSpace,
       schema,
       source,
       propertyDefMap,
       rows)
 
   private[spark] def createNodesOrEdges(
-      instanceSpaceExternalId: String,
+      instanceSpace: String,
       rows: Seq[Row],
       schema: StructType,
       propertyDefMap: Map[String, ViewPropertyDefinition],
@@ -72,7 +72,7 @@ object FlexibleDataModelRelationUtils {
         props <- extractInstancePropertyValues(propertyDefMap, schema, row)
         writeData <- createNodeOrEdgeWriteData(
           externalId = externalId,
-          instanceSpaceExternalId = instanceSpaceExternalId,
+          instanceSpace = instanceSpace,
           source,
           edgeNodeTypeRelation = extractEdgeTypeDirectRelation(schema, row).toOption,
           startNodeRelation = extractEdgeStartNodeDirectRelation(schema, row).toOption,
@@ -109,7 +109,7 @@ object FlexibleDataModelRelationUtils {
     }
 
   private def createEdgeWriteData(
-      instanceSpaceExternalId: String,
+      instanceSpace: String,
       schema: StructType,
       source: SourceReference,
       propertyDefMap: Map[String, ViewPropertyDefinition],
@@ -124,7 +124,7 @@ object FlexibleDataModelRelationUtils {
       } yield
         EdgeWrite(
           `type` = edgeType,
-          space = instanceSpaceExternalId,
+          space = instanceSpace,
           externalId = extId,
           startNode = startNode,
           endNode = endNode,
@@ -142,7 +142,7 @@ object FlexibleDataModelRelationUtils {
   // scalastyle:off method.length
   private def createNodeOrEdgeWriteData(
       externalId: String,
-      instanceSpaceExternalId: String,
+      instanceSpace: String,
       source: SourceReference,
       edgeNodeTypeRelation: Option[DirectRelationReference],
       startNodeRelation: Option[DirectRelationReference],
@@ -154,7 +154,7 @@ object FlexibleDataModelRelationUtils {
         Right(
           EdgeWrite(
             `type` = edgeType,
-            space = instanceSpaceExternalId,
+            space = instanceSpace,
             externalId = externalId,
             startNode = startNode,
             endNode = endNode,
@@ -171,7 +171,7 @@ object FlexibleDataModelRelationUtils {
       case (None, None, None) =>
         Right(
           NodeWrite(
-            space = instanceSpaceExternalId,
+            space = instanceSpace,
             externalId = externalId,
             sources = Some(
               Seq(
@@ -198,7 +198,7 @@ object FlexibleDataModelRelationUtils {
     }
 
   private def createNodeWriteData(
-      instanceSpaceExternalId: String,
+      instanceSpace: String,
       schema: StructType,
       source: SourceReference,
       propertyDefMap: Map[String, ViewPropertyDefinition],
@@ -209,7 +209,7 @@ object FlexibleDataModelRelationUtils {
         props <- extractInstancePropertyValues(propertyDefMap, schema, row)
       } yield
         NodeWrite(
-          space = instanceSpaceExternalId,
+          space = instanceSpace,
           externalId = externalId,
           sources = Some(
             Seq(
@@ -363,7 +363,7 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  def validateRowFieldsForConnectionInstances(
+  private def validateRowFieldsForConnectionInstances(
       dataRowSchema: StructType,
       connectionInstanceSchema: StructType): Either[CdfSparkException, Boolean] = {
 

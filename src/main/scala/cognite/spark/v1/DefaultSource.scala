@@ -115,7 +115,7 @@ class DefaultSource
     val modelExternalId =
       parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
     val instanceSpaceExternalId =
-      parameters.get("instanceSpaceExternalId")
+      parameters.get("instanceSpace")
     new DataModelInstanceRelation(
       config,
       spaceExternalId,
@@ -141,35 +141,35 @@ class DefaultSource
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
     val nodeOrEdgeRelation = Apply[Option]
       .map3(
-        parameters.get("viewSpaceExternalId"),
+        parameters.get("viewSpace"),
         parameters.get("viewExternalId"),
         parameters.get("viewVersion")
       )(Tuple3.apply)
       .map {
-        case (viewSpaceExternalId, viewExternalId, viewVersion) =>
-          val instanceSpaceExternalId = parameters.get("instanceSpaceExternalId")
+        case (viewSpace, viewExternalId, viewVersion) =>
+          val instanceSpace = parameters.get("instanceSpace")
           FlexibleDataModelRelation.corePropertyRelation(
             config = config,
             sqlContext = sqlContext,
             ViewCorePropertyConfig(
-              viewSpaceExternalId = viewSpaceExternalId,
+              viewSpace = viewSpace,
               viewExternalId = viewExternalId,
               viewVersion = viewVersion,
-              instanceSpaceExternalId)
+              instanceSpace = instanceSpace)
           )
       }
     val connectionRelation = Apply[Option]
       .map2(
-        parameters.get("edgeSpaceExternalId"),
+        parameters.get("edgeSpace"),
         parameters.get("edgeExternalId")
       )(Tuple2.apply)
       .map {
-        case (edgeSpaceExternalId, edgeExternalId) =>
+        case (edgeSpace, edgeExternalId) =>
           FlexibleDataModelRelation.connectionRelation(
             config = config,
             sqlContext = sqlContext,
             ConnectionConfig(
-              edgeSpaceExternalId = edgeSpaceExternalId,
+              edgeSpace = edgeSpace,
               edgeExternalId = edgeExternalId
             )
           )
@@ -181,8 +181,8 @@ class DefaultSource
         throw new CdfSparkException(
           s"""
              |Invalid combination of arguments!
-             |Expecting (viewSpaceExternalId, viewExternalId, viewVersion, instanceSpaceExternalId) for NodeOrEdgeRelation,
-             |Expecting (edgeSpaceExternalId, edgeExternalId) for ConnectionRelation
+             |Expecting (viewSpace, viewExternalId, viewVersion, instanceSpace) for NodeOrEdgeRelation,
+             |Expecting (edgeSpace, edgeExternalId) for ConnectionRelation
              |""".stripMargin
         ))
   }

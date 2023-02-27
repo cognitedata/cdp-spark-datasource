@@ -13,7 +13,6 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeW
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
-import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
 import java.time.{LocalDate, LocalDateTime, ZoneId}
@@ -23,10 +22,10 @@ import scala.util.Random
 
 trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
 
-  private val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-  private val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-  private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-  private val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+  protected val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
+  protected val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
+  protected val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+  protected val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
   protected val client: GenericClient[IO] = getBlufieldClient()
 
   protected val spaceExternalId = "testSpaceForSparkDatasource"
@@ -163,53 +162,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
     )
   }
 
-  protected def insertRows(
-      viewSpaceExternalId: String,
-      viewExternalId: String,
-      viewVersion: String,
-      instanceSpaceExternalId: String,
-      df: DataFrame,
-      onConflict: String = "upsert"): Unit =
-    df.write
-      .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelRelation.ResourceType)
-      .option("baseUrl", "https://bluefield.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", "extractor-bluefield-testing")
-      .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("viewSpaceExternalId", viewSpaceExternalId)
-      .option("viewExternalId", viewExternalId)
-      .option("viewVersion", viewVersion)
-      .option("instanceSpaceExternalId", instanceSpaceExternalId)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", true)
-      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
-      .save()
-
-  protected def readRows(
-      viewSpaceExternalId: String,
-      viewExternalId: String,
-      viewVersion: String,
-      instanceSpaceExternalId: String): DataFrame =
-    spark.read
-      .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelRelation.ResourceType)
-      .option("baseUrl", "https://bluefield.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", "extractor-bluefield-testing")
-      .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("viewSpaceExternalId", viewSpaceExternalId)
-      .option("viewExternalId", viewExternalId)
-      .option("viewVersion", viewVersion)
-      .option("instanceSpaceExternalId", instanceSpaceExternalId)
-      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
-      .option("collectMetrics", true)
-      .load()
-
   protected def createContainerIfNotExists(
       usage: Usage,
       properties: Map[String, ContainerPropertyDefinition],
@@ -239,7 +191,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       }
       .map(_.head)
 
-  protected def createViewIfNotExists(
+  protected def createViewWithCorePropsIfNotExists(
       container: ContainerDefinition,
       viewExternalId: String,
       viewVersion: String): IO[ViewDefinition] =
@@ -268,6 +220,43 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
           client.views
             .createItems(items = Seq(viewToCreate))
             .flatTap(_ => IO.sleep(5.seconds))
+        } else {
+          IO.delay(views)
+        }
+      }
+      .map(_.head)
+
+  protected def createViewWithConnectionsIfNotExists(
+      connectionSource: ViewReference,
+      `type`: DirectRelationReference,
+      viewExternalId: String,
+      viewVersion: String): IO[ViewDefinition] =
+    client.views
+      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, viewVersion)))
+      .flatMap { views =>
+        if (views.isEmpty) {
+          val viewToCreate = ViewCreateDefinition(
+            space = spaceExternalId,
+            externalId = viewExternalId,
+            version = viewVersion,
+            name = Some(s"Test-View-Connections-Spark-DS"),
+            description = Some("Test View For Connections Spark Datasource"),
+            filter = None,
+            properties = Map(
+              "connectionProp" -> ViewPropertyCreateDefinition.ConnectionDefinition(
+                name = Some("connectionProp"),
+                description = Some("connectionProp"),
+                `type` = `type`,
+                source = connectionSource,
+                direction = Some(ConnectionDirection.Outwards)
+              )
+            ),
+            implements = None,
+          )
+
+          client.views
+            .createItems(items = Seq(viewToCreate))
+            .flatTap(_ => IO.sleep(3.seconds))
         } else {
           IO.delay(views)
         }
@@ -333,10 +322,45 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
               ),
               replace = Some(true)
             ))
-            .flatTap(_ => IO.sleep(5.seconds)) *> IO.unit
+            .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
         }
       }
   }
+  // scalastyle:off method.length
+
+  // scalastyle:off method.length
+  protected def createNodesForEdgesIfNotExists(
+      startNodeExtId: String,
+      endNodeExtId: String,
+      sourceReference: SourceReference): IO[Unit] =
+    client.instances
+      .createItems(instance = InstanceCreate(
+        items = Seq(
+          NodeWrite(
+            spaceExternalId,
+            startNodeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                sourceReference,
+                Some(Map("stringProp1" -> InstancePropertyValue.String("stringProp1StartNode")))
+              ))
+            )
+          ),
+          NodeWrite(
+            spaceExternalId,
+            endNodeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                sourceReference,
+                Some(Map("stringProp1" -> InstancePropertyValue.String("stringProp1EndNode")))
+              ))
+            )
+          )
+        ),
+        replace = Some(true)
+      ))
+      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
+
   // scalastyle:off method.length
 
   protected def apiCompatibleRandomString(): String =
@@ -344,12 +368,17 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
 
   protected def generateNodeExternalId: String = s"randomId${apiCompatibleRandomString()}"
 
-  protected def getUpsertedMetricsCount(viewDef: ViewDefinition) =
+  protected def getUpsertedMetricsCount(viewDef: ViewDefinition): Long =
     getNumberOfRowsUpserted(
       s"${viewDef.externalId}-${viewDef.version}",
       FlexibleDataModelRelation.ResourceType)
 
-  protected def getDeletedMetricsCount(viewDef: ViewDefinition) =
+  protected def getReadMetricsCount(viewDef: ViewDefinition): Long =
+    getNumberOfRowsRead(
+      s"${viewDef.externalId}-${viewDef.version}",
+      FlexibleDataModelRelation.ResourceType)
+
+  protected def getDeletedMetricsCount(viewDef: ViewDefinition): Long =
     getNumberOfRowsDeleted(
       s"${viewDef.externalId}-${viewDef.version}",
       FlexibleDataModelRelation.ResourceType)

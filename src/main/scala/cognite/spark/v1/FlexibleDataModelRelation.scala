@@ -8,13 +8,13 @@ object FlexibleDataModelRelation {
   val ResourceType = "instances"
 
   final case class ViewCorePropertyConfig(
-      viewSpaceExternalId: String,
+      viewSpace: String,
       viewExternalId: String,
       viewVersion: String,
-      instanceSpaceExternalId: Option[String])
+      instanceSpace: Option[String])
       extends FlexibleDataModelRelation
 
-  final case class ConnectionConfig(edgeSpaceExternalId: String, edgeExternalId: String)
+  final case class ConnectionConfig(edgeSpace: String, edgeExternalId: String)
       extends FlexibleDataModelRelation
 
   def corePropertyRelation(
