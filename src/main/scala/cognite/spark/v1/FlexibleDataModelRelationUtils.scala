@@ -243,10 +243,11 @@ object FlexibleDataModelRelationUtils {
           ))
       case Failure(err) =>
         Left(new CdfSparkException(s"""
-                                      |Could not find required property '$propertyName'
-                                      |'$propertyName' ($descriptiveName) should be a 'StructType' with 'spaceExternalId' & 'externalId' properties: ${err.getMessage}
-                                      |in data row: ${rowToString(row)}
-                                      |""".stripMargin))
+            |Could not find required property '$propertyName'
+            |'$propertyName' ($descriptiveName) should be a 'StructType' with 'spaceExternalId' &
+            | 'externalId' properties: ${err.getMessage}
+            |in data row: ${rowToString(row)}
+            |""".stripMargin))
     }
 
   private def extractInstancePropertyValues(
