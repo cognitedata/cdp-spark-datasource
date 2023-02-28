@@ -225,7 +225,7 @@ object FlexibleDataModelRelationUtils {
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     Try {
       val struct = row.getStruct(schema.fieldIndex(propertyName))
-      val space = Option(struct.getAs[Any]("space"))
+      val space = Option(struct.getAs[Any]("spaceExternalId"))
       val externalId = Option(struct.getAs[Any]("externalId"))
       Apply[Option].map2(space, externalId) {
         case (s, e) => DirectRelationReference(space = String.valueOf(s), externalId = String.valueOf(e))
@@ -244,7 +244,7 @@ object FlexibleDataModelRelationUtils {
       case Failure(err) =>
         Left(new CdfSparkException(s"""
                                       |Could not find required property '$propertyName'
-                                      |'$propertyName' ($descriptiveName) should be a 'StructType' with 'space' & 'externalId' properties: ${err.getMessage}
+                                      |'$propertyName' ($descriptiveName) should be a 'StructType' with 'spaceExternalId' & 'externalId' properties: ${err.getMessage}
                                       |in data row: ${rowToString(row)}
                                       |""".stripMargin))
     }
