@@ -28,10 +28,10 @@ class FlexibleDataModelConnectionRelationTest
 
   //  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
-  it should "fetch all connection instances" in {
+  it should "fetch connection instances with filters" in {
     val edgeTypeExtId = s"edgeTypeExternalId${apiCompatibleRandomString()}"
-    val startNodeExtId = s"${startEndNodeViewExternalId}FetchStartNode"
-    val endNodeExtId = s"${startEndNodeViewExternalId}FetchEndNode"
+    val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
+    val endNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchEndNode"
 
     val results = (for {
       startEndNodeContainer <- createContainerIfNotExists(
@@ -44,17 +44,22 @@ class FlexibleDataModelConnectionRelationTest
         startEndNodeViewExternalId,
         viewVersion)
       _ <- createNodesForEdgesIfNotExists(
-        startNodeExtId,
-        endNodeExtId,
+        s"${startNodeExtIdPrefix}1",
+        s"${endNodeExtIdPrefix}1",
+        startEndNodeView.toSourceReference,
+      )
+      _ <- createNodesForEdgesIfNotExists(
+        s"${startNodeExtIdPrefix}2",
+        s"${endNodeExtIdPrefix}2",
         startEndNodeView.toSourceReference,
       )
 
-      connectionsContainer <- createContainerIfNotExists(
+      connectionsSourceContainer <- createContainerIfNotExists(
         usage = Usage.Edge,
         propsMap,
         "connectionSourceContainer")
       connectionSourceView <- createViewWithCorePropsIfNotExists(
-        connectionsContainer,
+        connectionsSourceContainer,
         "connectionSourceView",
         viewVersion)
       _ <- createViewWithConnectionsIfNotExists(
@@ -63,20 +68,33 @@ class FlexibleDataModelConnectionRelationTest
         connectionsViewExtId,
         viewVersion
       )
-      connectionsWritten <- createConnectionWriteInstances(
+      c1 <- createConnectionWriteInstances(
+        externalId = "edge1",
         typeNode = DirectRelationReference(space = spaceExternalId, externalId = edgeTypeExtId),
-        startNode = DirectRelationReference(space = spaceExternalId, externalId = startNodeExtId),
-        endNode = DirectRelationReference(space = spaceExternalId, externalId = endNodeExtId)
+        startNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"${startNodeExtIdPrefix}1"),
+        endNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"${endNodeExtIdPrefix}1")
       )
-      _ <- IO.sleep(2.seconds)
-    } yield connectionsWritten).unsafeRunSync()
+      c2 <- createConnectionWriteInstances(
+        externalId = "edge2",
+        typeNode = DirectRelationReference(space = spaceExternalId, externalId = edgeTypeExtId),
+        startNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"${startNodeExtIdPrefix}2"),
+        endNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"${endNodeExtIdPrefix}2")
+      )
+      _ <- IO.sleep(5.seconds)
+    } yield c1 ++ c2).unsafeRunSync()
 
     val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = edgeTypeExtId)
 
     readConnectionsDf.createTempView("connection_instances_table")
 
     val selectedConnectionInstances = spark
-      .sql("select * from connection_instances_table")
+      .sql(s"""select * from connection_instances_table
+           |where startNode = named_struct('space', '$spaceExternalId', 'externalId', '${startNodeExtIdPrefix}1')
+           |""".stripMargin)
       .collect()
 
     def toExternalIds(rows: Array[Row]): Array[String] =
@@ -131,23 +149,15 @@ class FlexibleDataModelConnectionRelationTest
   }
 
   private def createConnectionWriteInstances(
+      externalId: String,
       typeNode: DirectRelationReference,
       startNode: DirectRelationReference,
       endNode: DirectRelationReference): IO[Seq[SlimNodeOrEdge]] = {
-    val connectionInstExternalIdPrefix = typeNode.externalId
     val connectionInstances = Seq(
       EdgeWrite(
         `type` = typeNode,
         space = spaceExternalId,
-        externalId = s"${connectionInstExternalIdPrefix}1",
-        startNode = startNode,
-        endNode = endNode,
-        sources = None
-      ),
-      EdgeWrite(
-        `type` = typeNode,
-        space = spaceExternalId,
-        externalId = s"${connectionInstExternalIdPrefix}2",
+        externalId = externalId,
         startNode = startNode,
         endNode = endNode,
         sources = None

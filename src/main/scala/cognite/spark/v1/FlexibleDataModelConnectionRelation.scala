@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.IO
+import cats.implicits.{toBifunctorOps, toTraverseOps}
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.FlexibleDataModelRelation.ConnectionConfig
 import cognite.spark.v1.FlexibleDataModelRelationUtils.{
@@ -12,9 +13,12 @@ import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceFilterRequest, InstanceType}
 import fs2.Stream
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
+
+import scala.util.Try
 
 /**
   * FlexibleDataModels Relation for Connection definitions
@@ -83,7 +87,29 @@ private[spark] class FlexibleDataModelConnectionRelation(
       selectedColumns
     }
 
-    val instanceFilter = FilterDefinition.And(
+    val instanceFilters = extractFilters(filters) match {
+      case Right(v) => v
+      case Left(err) => throw err
+    }
+
+    val filterReq = InstanceFilterRequest(
+      instanceType = Some(InstanceType.Edge),
+      filter = Some(instanceFilters),
+      sort = None,
+      limit = limit,
+      cursor = None,
+      sources = None,
+      includeTyping = Some(true)
+    )
+
+    Vector(
+      client.instances
+        .filterStream(filterReq, limit)
+        .map(toProjectedInstance(_, selectedFields)))
+  }
+
+  private def extractFilters(filters: Array[Filter]): Either[CdfSparkException, FilterDefinition] = {
+    val edgeTypeFilter = FilterDefinition.And(
       Vector(
         FilterDefinition.Equals(
           property = Vector("edge", "space"),
@@ -99,20 +125,13 @@ private[spark] class FlexibleDataModelConnectionRelation(
       )
     )
 
-    val filterReq = InstanceFilterRequest(
-      instanceType = Some(InstanceType.Edge),
-      filter = Some(instanceFilter),
-      sort = None,
-      limit = limit,
-      cursor = None,
-      sources = None,
-      includeTyping = Some(true)
-    )
-
-    Vector(
-      client.instances
-        .filterStream(filterReq, limit)
-        .map(toProjectedInstance(_, selectedFields)))
+    if (filters.isEmpty) {
+      Right(edgeTypeFilter)
+    } else {
+      filters.toVector.traverse(toInstanceFilter).map { f =>
+        edgeTypeFilter.copy(filters = edgeTypeFilter.filters ++ f)
+      }
+    }
   }
 
   override def update(rows: Seq[Row]): IO[Unit] =
@@ -125,4 +144,51 @@ private[spark] class FlexibleDataModelConnectionRelation(
       new CdfSparkException(
         "Create is not supported for flexible data model connection instances. Use upsert instead."))
 
+  private def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
+    sparkFilter match {
+      case EqualTo(attribute, value: String) if attribute.equalsIgnoreCase("space") =>
+        Right(
+          FilterDefinition.Equals(
+            property = Vector("edge", "space"),
+            value = FilterValueDefinition.String(value)
+          )
+        )
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
+        toDirectRelationReferenceFilter("startNode", value)
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
+        toDirectRelationReferenceFilter("endNode", value)
+      case f =>
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"Unsupported filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
+    }
+  // scalastyle:on cyclomatic.complexity
+
+  private def toDirectRelationReferenceFilter(
+      attribute: String,
+      struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
+    Try {
+      val space = struct.getString(struct.fieldIndex("space"))
+      val externalId = struct.getString(struct.fieldIndex("externalId"))
+      FilterDefinition.And(
+        Vector(
+          FilterDefinition.Equals(
+            property = Vector("edge", "space"),
+            value = FilterValueDefinition.String(space)
+          ),
+          FilterDefinition.Nested(
+            scope = Vector("edge", attribute),
+            filter = FilterDefinition.Equals(
+              property = Vector("node", "externalId"),
+              value = FilterValueDefinition.String(externalId)
+            )
+          )
+        )
+      )
+    }.toEither.leftMap { _ =>
+      new CdfSparkIllegalArgumentException(
+        s"""Expecting a struct with 'space' & 'externalId' attributes, but found: ${struct.json}
+           |""".stripMargin
+      )
+    }
 }
