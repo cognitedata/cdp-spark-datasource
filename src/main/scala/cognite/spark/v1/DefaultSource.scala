@@ -6,6 +6,8 @@ import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelRelation.{ConnectionConfig, ViewCorePropertyConfig}
 import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
+import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
 import io.circe.Decoder
@@ -139,40 +141,39 @@ class DefaultSource
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
-    val nodeOrEdgeRelation = Apply[Option]
-      .map3(
-        parameters.get("viewSpace"),
-        parameters.get("viewExternalId"),
-        parameters.get("viewVersion")
-      )(Tuple3.apply)
-      .map {
-        case (viewSpace, viewExternalId, viewVersion) =>
-          val instanceSpace = parameters.get("instanceSpace")
-          FlexibleDataModelRelation.corePropertyRelation(
-            config = config,
-            sqlContext = sqlContext,
-            ViewCorePropertyConfig(
-              viewSpace = viewSpace,
-              viewExternalId = viewExternalId,
-              viewVersion = viewVersion,
-              instanceSpace = instanceSpace)
+    val nodeOrEdgeRelation = parameters
+      .get("instanceType")
+      .collect {
+        case t if t.startsWith("edge") => InstanceType.Edge
+        case t if t.startsWith("node") => InstanceType.Node
+      }
+      .map { instanceType =>
+        FlexibleDataModelRelation.corePropertyRelation(
+          config = config,
+          sqlContext = sqlContext,
+          ViewCorePropertyConfig(
+            instanceType = instanceType,
+            viewReference = Apply[Option]
+              .map3(
+                parameters.get("viewSpace"),
+                parameters.get("viewExternalId"),
+                parameters.get("viewVersion")
+              )(ViewReference.apply),
+            instanceSpace = parameters.get("instanceSpace")
           )
+        )
       }
     val connectionRelation = Apply[Option]
       .map2(
-        parameters.get("edgeSpace"),
-        parameters.get("edgeExternalId")
-      )(Tuple2.apply)
-      .map {
-        case (edgeSpace, edgeExternalId) =>
-          FlexibleDataModelRelation.connectionRelation(
-            config = config,
-            sqlContext = sqlContext,
-            ConnectionConfig(
-              edgeSpace = edgeSpace,
-              edgeExternalId = edgeExternalId
-            )
-          )
+        parameters.get("edgeTypeSpace"),
+        parameters.get("edgeTypeExternalId")
+      )(ConnectionConfig.apply)
+      .map { connectionConfig =>
+        FlexibleDataModelRelation.connectionRelation(
+          config,
+          sqlContext,
+          connectionConfig
+        )
       }
 
     nodeOrEdgeRelation
@@ -181,7 +182,9 @@ class DefaultSource
         throw new CdfSparkException(
           s"""
              |Invalid combination of arguments!
-             |Expecting (viewSpace, viewExternalId, viewVersion, instanceSpace) for NodeOrEdgeRelation,
+             |Expecting instanceType for NodeOrEdgeRelation with
+             | optional arguments (viewSpace, viewExternalId, viewVersion, instanceSpace)
+             | 
              |Expecting (edgeSpace, edgeExternalId) for ConnectionRelation
              |""".stripMargin
         ))

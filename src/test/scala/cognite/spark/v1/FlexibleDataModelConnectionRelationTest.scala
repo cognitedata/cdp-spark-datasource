@@ -138,8 +138,8 @@ class FlexibleDataModelConnectionRelationTest
 
     val insertionResult = Try {
       insertRows(
-        edgeSpace = spaceExternalId,
-        edgeExternalId = edgeExternalId,
+        edgeTypeSpace = spaceExternalId,
+        edgeTypeExternalId = edgeExternalId,
         insertionDf(edgeExternalId)
       )
     }
@@ -170,8 +170,8 @@ class FlexibleDataModelConnectionRelationTest
     getNumberOfRowsUpserted(s"$edgeSpace-$edgeExternalId", FlexibleDataModelRelation.ResourceType)
 
   private def insertRows(
-      edgeSpace: String,
-      edgeExternalId: String,
+      edgeTypeSpace: String,
+      edgeTypeExternalId: String,
       df: DataFrame,
       onConflict: String = "upsert"): Unit =
     df.write
@@ -183,11 +183,11 @@ class FlexibleDataModelConnectionRelationTest
       .option("clientSecret", clientSecret)
       .option("project", "extractor-bluefield-testing")
       .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("edgeSpace", edgeSpace)
-      .option("edgeExternalId", edgeExternalId)
+      .option("edgeSpace", edgeTypeSpace)
+      .option("edgeExternalId", edgeTypeExternalId)
       .option("onconflict", onConflict)
       .option("collectMetrics", true)
-      .option("metricsPrefix", s"$edgeSpace-$edgeExternalId")
+      .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
       .save()
 
   private def readRows(edgeSpace: String, edgeExternalId: String): DataFrame =

@@ -4,10 +4,7 @@ import cats.effect.IO
 import cats.implicits.{toBifunctorOps, toTraverseOps}
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.FlexibleDataModelRelation.ConnectionConfig
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{
-  createConnectionInstanceDeleteData,
-  createConnectionInstances
-}
+import cognite.spark.v1.FlexibleDataModelRelationUtils.{createConnectionInstances, createEdgeDeleteData}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
@@ -49,11 +46,11 @@ private[spark] class FlexibleDataModelConnectionRelation(
         IO.fromEither(
             createConnectionInstances(
               edgeType = DirectRelationReference(
-                space = connectionConfig.edgeSpace,
-                externalId = connectionConfig.edgeExternalId
+                space = connectionConfig.edgeTypeSpace,
+                externalId = connectionConfig.edgeTypeExternalId
               ),
               rows,
-              schema = firstRow.schema,
+              dataRowSchema = firstRow.schema,
               connectionInstanceSchema
             )
           )
@@ -71,7 +68,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
   override def delete(rows: Seq[Row]): IO[Unit] =
     rows.headOption match {
       case Some(firstRow) =>
-        IO.fromEither(createConnectionInstanceDeleteData(firstRow.schema, rows))
+        IO.fromEither(createEdgeDeleteData(firstRow.schema, rows))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case None => incMetrics(itemsDeleted, 0)
@@ -119,7 +116,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
           scope = Vector("edge", "type"),
           filter = FilterDefinition.Equals(
             property = Vector("node", "externalId"),
-            value = FilterValueDefinition.String(connectionConfig.edgeExternalId)
+            value = FilterValueDefinition.String(connectionConfig.edgeTypeExternalId)
           )
         )
       )

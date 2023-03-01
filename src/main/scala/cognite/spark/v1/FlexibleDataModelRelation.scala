@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
+import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import org.apache.spark.sql.SQLContext
 
 sealed trait FlexibleDataModelRelation
@@ -8,13 +10,12 @@ object FlexibleDataModelRelation {
   val ResourceType = "instances"
 
   final case class ViewCorePropertyConfig(
-      viewSpace: String,
-      viewExternalId: String,
-      viewVersion: String,
+      instanceType: InstanceType,
+      viewReference: Option[ViewReference],
       instanceSpace: Option[String])
       extends FlexibleDataModelRelation
 
-  final case class ConnectionConfig(edgeSpace: String, edgeExternalId: String)
+  final case class ConnectionConfig(edgeTypeSpace: String, edgeTypeExternalId: String)
       extends FlexibleDataModelRelation
 
   def corePropertyRelation(

@@ -16,7 +16,10 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
 }
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.EdgeDeletionRequest
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
+  EdgeDeletionRequest,
+  NodeDeletionRequest
+}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances.{
   EdgeOrNodeData,
@@ -46,6 +49,12 @@ object FlexibleDataModelRelationUtils {
       propertyDefMap,
       rows)
 
+  private[spark] def createNodes(
+      instanceSpace: String,
+      rows: Seq[Row],
+      schema: StructType): Either[CdfSparkException, Vector[NodeWrite]] =
+    createNodeWriteData(instanceSpace, schema, rows)
+
   private[spark] def createEdges(
       instanceSpace: String,
       rows: Seq[Row],
@@ -58,6 +67,12 @@ object FlexibleDataModelRelationUtils {
       source,
       propertyDefMap,
       rows)
+
+  private[spark] def createEdges(
+      instanceSpace: String,
+      rows: Seq[Row],
+      schema: StructType): Either[CdfSparkException, Vector[EdgeWrite]] =
+    createEdgeWriteData(instanceSpace, schema, rows)
 
   private[spark] def createNodesOrEdges(
       instanceSpace: String,
@@ -86,15 +101,25 @@ object FlexibleDataModelRelationUtils {
   private[spark] def createConnectionInstances(
       edgeType: DirectRelationReference,
       rows: Seq[Row],
-      schema: StructType,
+      dataRowSchema: StructType,
       connectionInstanceSchema: StructType): Either[CdfSparkException, Vector[EdgeWrite]] =
-    validateRowFieldsForConnectionInstances(dataRowSchema = schema, connectionInstanceSchema) *> createConnectionInstanceWriteData(
-      schema,
+    validateRowFieldsForConnectionInstances(dataRowSchema = dataRowSchema, connectionInstanceSchema) *> createConnectionInstanceWriteData(
+      dataRowSchema,
       edgeType,
       rows
     )
 
-  private[spark] def createConnectionInstanceDeleteData(
+  private[spark] def createNodeDeleteData(
+      schema: StructType,
+      rows: Seq[Row]): Either[CdfSparkException, Vector[InstanceDeletionRequest]] =
+    rows.toVector.traverse { row =>
+      for {
+        spaceExtId <- extractSpaceExternalId(schema, row)
+        extId <- extractExternalId(schema, row)
+      } yield NodeDeletionRequest(space = spaceExtId, externalId = extId)
+    }
+
+  private[spark] def createEdgeDeleteData(
       schema: StructType,
       rows: Seq[Row]): Either[CdfSparkException, Vector[InstanceDeletionRequest]] =
     rows.toVector.traverse { row =>
@@ -136,6 +161,27 @@ object FlexibleDataModelRelationUtils {
               )
             )
           )
+        )
+    }
+
+  private def createEdgeWriteData(
+      instanceSpace: String,
+      schema: StructType,
+      rows: Seq[Row]): Either[CdfSparkException, Vector[EdgeWrite]] =
+    rows.toVector.traverse { row =>
+      for {
+        extId <- extractExternalId(schema, row)
+        edgeType <- extractEdgeTypeDirectRelation(schema, row)
+        startNode <- extractEdgeStartNodeDirectRelation(schema, row)
+        endNode <- extractEdgeEndNodeDirectRelation(schema, row)
+      } yield
+        EdgeWrite(
+          `type` = edgeType,
+          space = instanceSpace,
+          externalId = extId,
+          startNode = startNode,
+          endNode = endNode,
+          sources = None
         )
     }
 
@@ -219,6 +265,21 @@ object FlexibleDataModelRelationUtils {
               )
             )
           )
+        )
+    }
+
+  private def createNodeWriteData(
+      instanceSpace: String,
+      schema: StructType,
+      rows: Seq[Row]): Either[CdfSparkException, Vector[NodeWrite]] =
+    rows.toVector.traverse { row =>
+      for {
+        externalId <- extractExternalId(schema, row)
+      } yield
+        NodeWrite(
+          space = instanceSpace,
+          externalId = externalId,
+          sources = None
         )
     }
 

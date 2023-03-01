@@ -2,33 +2,21 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelBaseRelation.{
-  FlexibleDataModelInstanceDeleteModel,
-  ProjectedFlexibleDataModelInstance
-}
+import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.FlexibleDataModelRelation.ViewCorePropertyConfig
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
+import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdgeDeleteData, createEdges, createNodeDeleteData, createNodes}
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
-  EdgeDeletionRequest,
-  NodeDeletionRequest
-}
+import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.instances._
-import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition}
 import fs2.Stream
-import io.circe.{Decoder, Json}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-
-import java.util.Locale
-import scala.util.control.NonFatal
 
 /**
   * FlexibleDataModelRelation for Nodes or Edges with properties
@@ -42,40 +30,45 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 
-  private val viewSpaceExternalId = corePropConfig.viewSpace
-  private val viewExternalId = corePropConfig.viewExternalId
-  private val viewVersion = corePropConfig.viewVersion
-  private val instanceSpace = corePropConfig.instanceSpace
+  private val instanceType = corePropConfig.instanceType
+  private val viewReference = corePropConfig.viewReference
+  private val instanceSpace = corePropConfig.instanceSpace.orElse(viewReference.map(_.space)).getOrElse {
+    throw new CdfSparkIllegalArgumentException(s"""
+         |`instanceSpace` or (view space, view externalId & view version) should be specified.
+         |""".stripMargin)
+  }
 
-  private val (viewDefinition, allViewProperties, viewSchema) = retrieveViewDefWithAllPropsAndSchema
+  private val (allProperties, propertySchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
     .getOrElse {
-      throw new CdfSparkException(s"""Could not resolve schema from
-           | space: $viewSpaceExternalId,
-           | view externalId: $viewExternalId &
-           | view version: $viewVersion
-           | Correct view space, view externalId & view version should be specified.
-           | """.stripMargin)
+      val usage = instanceType match {
+        case InstanceType.Node => Usage.Node
+        case InstanceType.Edge => Usage.Edge
+      }
+      (Map.empty, DataTypes.createStructType(usageBasedSchemaFields(usage)))
     }
 
-  override def schema: StructType = viewSchema
+  override def schema: StructType = propertySchema
 
   // scalastyle:off cyclomatic.complexity
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val firstRow = rows.headOption
-    (firstRow, instanceSpace) match {
-      case (Some(fr), Some(instanceSpaceExtId)) =>
+    (firstRow, viewReference) match {
+      case (Some(fr), Some(viewRef)) =>
         upsertNodesOrEdges(
-          instanceSpaceExtId,
+          instanceSpace,
           rows,
           fr.schema,
-          viewDefinition.toSourceReference,
-          allViewProperties,
-          viewDefinition.usedFor
+          viewRef,
+          allProperties
         ).flatMap(results => incMetrics(itemsUpserted, results.length))
-      case (None, Some(_)) => incMetrics(itemsUpserted, 0)
-      case (_, None) =>
-        IO.raiseError(new CdfSparkException(s"'instanceSpace' id required to upsert data"))
+      case (Some(fr), None) =>
+        upsertNodesOrEdges(
+          instanceSpace,
+          rows,
+          fr.schema
+        ).flatMap(results => incMetrics(itemsUpserted, results.length))
+      case (None, _) => incMetrics(itemsUpserted, 0)
     }
   }
   // scalastyle:on cyclomatic.complexity
@@ -86,10 +79,16 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         "Create is not supported for flexible data model instances. Use upsert instead."))
 
   override def delete(rows: Seq[Row]): IO[Unit] =
-    viewDefinition.usedFor match {
-      case Usage.Node => deleteNodesWithMetrics(rows)
-      case Usage.Edge => deleteEdgesWithMetrics(rows)
-      case Usage.All => deleteNodesOrEdgesWithMetrics(rows)
+    (rows.headOption, instanceType) match {
+      case (Some(firstRow), InstanceType.Node) =>
+        IO.fromEither(createNodeDeleteData(firstRow.schema, rows))
+          .flatMap(client.instances.delete)
+          .flatMap(results => incMetrics(itemsDeleted, results.length))
+      case (Some(firstRow), InstanceType.Edge) =>
+        IO.fromEither(createEdgeDeleteData(firstRow.schema, rows))
+          .flatMap(client.instances.delete)
+          .flatMap(results => incMetrics(itemsDeleted, results.length))
+      case (None, _) => incMetrics(itemsDeleted, 0)
     }
 
   override def update(rows: Seq[Row]): IO[Unit] =
@@ -106,58 +105,62 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       selectedColumns
     }
 
-    val instanceType = getInstanceType(filters)
+    val instanceFilter = viewReference.map { ref =>
+      filters.toVector.traverse(
+        toInstanceFilter(
+          _,
+          space = ref.externalId,
+          versionedExternalId = s"${ref.externalId}/${ref.version}")) match {
+        case Right(fs) if fs.isEmpty => None
+        case Right(fs) if fs.length == 1 => fs.headOption
+        case Right(fs) => Some(FilterDefinition.And(fs))
+        case Left(err) => throw err
+      }
+    }.getOrElse()
 
-    val instanceFilter = filters.toVector.traverse(
-      toInstanceFilter(
-        _,
-        space = viewSpaceExternalId,
-        versionedExternalId = s"$viewExternalId/$viewVersion")) match {
-      case Right(fs) if fs.isEmpty => None
-      case Right(fs) if fs.length == 1 => fs.headOption
-      case Right(fs) => Some(FilterDefinition.And(fs))
-      case Left(err) => throw err
-    }
 
-    usageBasedFilterRequests(limit, instanceType, instanceFilter).map { filterRequest =>
-      client.instances
-        .filterStream(filterRequest, limit)
-        // TODO: remove this temp fix for https://cognitedata.slack.com/archives/C031G8Y19HP/p1676890774181079
-        .filter { instDef =>
-          def allAvailableInstanceProps =
-            instDef.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
-          instDef.space == viewSpaceExternalId && allAvailableInstanceProps.nonEmpty
-        }
-        .map(toProjectedInstance(_, selectedInstanceProps))
-    }
+    val filterRequest = InstanceFilterRequest(
+      instanceType = Some(instanceType),
+      filter = Some(instanceFilter),
+      sort = None,
+      limit = limit,
+      cursor = None,
+      sources = viewReference.map(r => Vector(InstanceSource(r))),
+      includeTyping = Some(true)
+    )
+    client.instances
+      .filterStream(filterRequest, limit)
+      .map(toProjectedInstance(_, selectedInstanceProps))
   }
 
   private def retrieveViewDefWithAllPropsAndSchema
-    : IO[Option[(ViewDefinition, Map[String, ViewPropertyDefinition], StructType)]] =
-    client.views
-      .retrieveItems(
-        Seq(DataModelReference(viewSpaceExternalId, viewExternalId, viewVersion)),
-        includeInheritedProperties = Some(true))
-      .map(_.headOption.map { viewDef =>
-        (
-          viewDef,
-          viewDef.properties,
-          deriveViewSchemaWithUsage(viewDef.usedFor, viewDef.properties)
-        )
-      })
+    : IO[Option[(Map[String, ViewPropertyDefinition], StructType)]] =
+    corePropConfig.viewReference.flatTraverse { viewRef =>
+      client.views
+        .retrieveItems(
+          Seq(
+            DataModelReference(
+              space = viewRef.space,
+              externalId = viewRef.externalId,
+              version = Some(viewRef.version))),
+          includeInheritedProperties = Some(true))
+        .map(_.headOption.map { viewDef =>
+          (
+            viewDef.properties,
+            deriveViewSchemaWithUsage(viewDef.usedFor, viewDef.properties)
+          )
+        })
+    }
 
   private def upsertNodesOrEdges(
       instanceSpace: String,
       rows: Seq[Row],
       schema: StructType,
       source: SourceReference,
-      propDefMap: Map[String, ViewPropertyDefinition],
-      usedFor: Usage): IO[Seq[SlimNodeOrEdge]] = {
-    val nodesOrEdges = usedFor match {
-      case Usage.Node => createNodes(instanceSpace, rows, schema, propDefMap, source)
-      case Usage.Edge => createEdges(instanceSpace, rows, schema, propDefMap, source)
-      case Usage.All =>
-        createNodesOrEdges(instanceSpace, rows, schema, propDefMap, source)
+      propDefMap: Map[String, ViewPropertyDefinition]): IO[Seq[SlimNodeOrEdge]] = {
+    val nodesOrEdges = instanceType match {
+      case InstanceType.Node => createNodes(instanceSpace, rows, schema, propDefMap, source)
+      case InstanceType.Edge => createEdges(instanceSpace, rows, schema, propDefMap, source)
     }
 
     nodesOrEdges match {
@@ -172,51 +175,25 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
   }
 
-  private def deleteNodesWithMetrics(rows: Seq[Row]): IO[Unit] = {
-    val deleteCandidates =
-      rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    client.instances
-      .delete(deleteCandidates.map(i =>
-        NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
-      .flatMap(results => incMetrics(itemsDeleted, results.length))
-  }
+  private def upsertNodesOrEdges(
+      instanceSpace: String,
+      rows: Seq[Row],
+      schema: StructType): IO[Seq[SlimNodeOrEdge]] = {
+    val nodesOrEdges = instanceType match {
+      case InstanceType.Node => createNodes(instanceSpace, rows, schema)
+      case InstanceType.Edge => createEdges(instanceSpace, rows, schema)
+    }
 
-  private def deleteEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
-    val deleteCandidates =
-      rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    client.instances
-      .delete(deleteCandidates.map(i =>
-        EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
-      .flatMap(results => incMetrics(itemsDeleted, results.length))
-  }
-
-  private def deleteNodesOrEdgesWithMetrics(rows: Seq[Row]): IO[Unit] = {
-    val deleteCandidates =
-      rows.map(r => SparkSchemaHelper.fromRow[FlexibleDataModelInstanceDeleteModel](r))
-    client.instances
-      .delete(deleteCandidates.map(i =>
-        NodeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
-      .recoverWith {
-        case NonFatal(nodeDeletionErr) =>
-          client.instances
-            .delete(deleteCandidates.map(i =>
-              EdgeDeletionRequest(i.space.getOrElse(viewSpaceExternalId), i.externalId)))
-            .handleErrorWith { edgeDeletionErr =>
-              IO.raiseError(
-                new CdfSparkException(
-                  s"""
-                     |View with space: ${viewDefinition.space},
-                     | externalId: ${viewDefinition.externalId}
-                     | & version: ${viewDefinition.version}" supports both Nodes & Edges.
-                     |Tried deleting as nodes and failed with: ${nodeDeletionErr.getMessage}
-                     |Tried deleting as edges and failed with: ${edgeDeletionErr.getMessage}
-                     |Please verify your data!
-                     |""".stripMargin
-                )
-              )
-            }
-      }
-      .flatMap(results => incMetrics(itemsDeleted, results.length))
+    nodesOrEdges match {
+      case Right(items) if items.nonEmpty =>
+        val instanceCreate = InstanceCreate(
+          items = items,
+          replace = Some(true)
+        )
+        client.instances.createItems(instanceCreate)
+      case Right(_) => IO.pure(Vector.empty)
+      case Left(err) => IO.raiseError(err)
+    }
   }
 
   // scalastyle:off cyclomatic.complexity
@@ -284,44 +261,4 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           relationReferenceSchema("endNode", nullable = true)
         )
     }
-
-  private def getInstanceType(filters: Array[Filter]) =
-    (viewDefinition.usedFor match {
-      case Usage.Node => Some(InstanceType.Node)
-      case Usage.Edge => Some(InstanceType.Edge)
-      case Usage.All => None
-    }).orElse {
-      filters.collectFirst {
-        case EqualTo(attribute, value) if attribute.equalsIgnoreCase("instanceType") =>
-          Decoder[InstanceType]
-            .decodeJson(Json.fromString(String.valueOf(value).toLowerCase(Locale.US)))
-            .toOption
-      }.flatten
-    }
-
-  private def usageBasedFilterRequests(
-      limit: Option[Int],
-      instanceType: Option[InstanceType],
-      instanceFilter: Option[FilterDefinition]): Seq[InstanceFilterRequest] = {
-    val defaultFilterReq = InstanceFilterRequest(
-      instanceType = instanceType,
-      filter = instanceFilter,
-      sort = None,
-      limit = limit,
-      cursor = None,
-      sources = Some(Seq(viewDefinition.toInstanceSource)),
-      includeTyping = Some(true)
-    )
-    viewDefinition.usedFor match {
-      case Usage.Node =>
-        Seq(defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Node))))
-      case Usage.Edge =>
-        Seq(defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Edge))))
-      case Usage.All =>
-        Seq(
-          defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Node))),
-          defaultFilterReq.copy(instanceType = instanceType.orElse(Some(InstanceType.Edge)))
-        ).distinct
-    }
-  }
 }
