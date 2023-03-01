@@ -5,11 +5,19 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
+  ContainerPropertyDefinition,
+  ViewCorePropertyDefinition
+}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, ContainerDefinition, ContainerId, ContainerReference}
+import com.cognite.sdk.scala.v1.fdm.containers.{
+  ContainerCreateDefinition,
+  ContainerDefinition,
+  ContainerId,
+  ContainerReference
+}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
@@ -99,15 +107,15 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |select
                 |'$instanceExtId' as externalId,
                 |named_struct(
-                |    'space', '$spaceExternalId',
+                |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$instanceExtId'
                 |) as type,
                 |named_struct(
-                |    'space', '$spaceExternalId',
+                |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
                 |) as startNode,
                 |named_struct(
-                |    'space', '$spaceExternalId',
+                |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode,
                 |'stringProp1' as stringProp1,
@@ -131,7 +139,7 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |'{"a": "a", "b": 1}' as jsonProp1,
                 |null as jsonProp2,
                 |named_struct(
-                |    'space', '$spaceExternalId',
+                |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
                 |) as directRelation1,
                 |null as directRelation2
@@ -232,15 +240,15 @@ class FlexibleDataModelsRelationTest extends FlatSpec with Matchers with SparkTe
                 |select
                 |'$instanceExtId' as externalId,
                 |named_struct(
-                |    'space', '$spaceExternalId',
+                |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$instanceExtId'
                 |) as type,
                 |named_struct(
-                |    'space', '$spaceExternalId',
+                |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
                 |) as startNode,
                 |named_struct(
-                |    'space', '$spaceExternalId',
+                |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode,
                 |array('stringListProp1Val', null, 'stringListProp2Val', 24) as stringListProp1,
