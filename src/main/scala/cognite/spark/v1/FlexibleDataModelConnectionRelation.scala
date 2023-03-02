@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.implicits.{toBifunctorOps, toTraverseOps}
+import cats.implicits.toTraverseOps
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.FlexibleDataModelRelation.ConnectionConfig
 import cognite.spark.v1.FlexibleDataModelRelationUtils.{createConnectionInstances, createEdgeDeleteData}
@@ -10,14 +10,9 @@ import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceFilterRequest, InstanceType}
 import fs2.Stream
-import io.circe.{Json, JsonObject}
-import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-
-import scala.annotation.nowarn
-import scala.util.Try
 
 /**
   * FlexibleDataModels Relation for Connection definitions
@@ -114,12 +109,10 @@ private[spark] class FlexibleDataModelConnectionRelation(
           property = Vector("edge", "space"),
           value = FilterValueDefinition.String(connectionConfig.edgeTypeSpace)
         ),
-        FilterDefinition.Nested(
-          scope = Vector("edge", "type"),
-          filter = FilterDefinition.Equals(
-            property = Vector("node", "externalId"),
-            value = FilterValueDefinition.String(connectionConfig.edgeTypeExternalId)
-          )
+        FilterDefinition.Equals(
+          property = Vector("edge", "type"),
+          value = FilterValueDefinition.StringList(
+            Vector(connectionConfig.edgeTypeSpace, connectionConfig.edgeTypeExternalId))
         )
       )
     )
@@ -127,7 +120,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
     if (filters.isEmpty) {
       Right(edgeTypeFilter)
     } else {
-      filters.toVector.traverse(toInstanceFilter).map { f =>
+      filters.toVector.traverse(toEdgeAttributeFilter).map { f =>
         edgeTypeFilter.copy(filters = edgeTypeFilter.filters ++ f)
       }
     }
@@ -142,48 +135,5 @@ private[spark] class FlexibleDataModelConnectionRelation(
     IO.raiseError[Unit](
       new CdfSparkException(
         "Create is not supported for flexible data model connection instances. Use upsert instead."))
-
-  private def toInstanceFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
-    sparkFilter match {
-      case EqualTo(attribute, value: String) if attribute.equalsIgnoreCase("space") =>
-        Right(
-          FilterDefinition.Equals(
-            property = Vector("edge", "space"),
-            value = FilterValueDefinition.String(value)
-          )
-        )
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
-        toDirectRelationReferenceFilter("startNode", value)
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
-        toDirectRelationReferenceFilter("endNode", value)
-      case f =>
-        Left(
-          new CdfSparkIllegalArgumentException(
-            s"Unsupported filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
-    }
   // scalastyle:on cyclomatic.complexity
-
-  private def toDirectRelationReferenceFilter(
-      @nowarn attribute: String,
-      struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
-    Try {
-      val space = struct.getString(struct.fieldIndex("space"))
-      val externalId = struct.getString(struct.fieldIndex("externalId"))
-      FilterDefinition.Equals(
-        property = Vector("edge", "startNode"),
-        value = FilterValueDefinition.Object(
-          Json.fromJsonObject(
-            JsonObject(
-              ("space", Json.fromString(space)),
-              ("externalId", Json.fromString(externalId))
-            )
-          )
-        )
-      )
-    }.toEither.leftMap { _ =>
-      new CdfSparkIllegalArgumentException(
-        s"""Expecting a struct with 'space' & 'externalId' attributes, but found: ${struct.json}
-           |""".stripMargin
-      )
-    }
 }

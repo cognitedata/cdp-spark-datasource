@@ -11,6 +11,7 @@ import cognite.spark.v1.FlexibleDataModelRelationUtils.{
   createNodes
 }
 import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
@@ -108,24 +109,24 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       selectedColumns
     }
 
-//    val instanceFilter = viewReference
-//      .map { ref =>
-//        filters.toVector.traverse(
-//          toInstanceFilter(
-//            _,
-//            space = ref.externalId,
-//            versionedExternalId = s"${ref.externalId}/${ref.version}")) match {
-//          case Right(fs) if fs.isEmpty => None
-//          case Right(fs) if fs.length == 1 => fs.headOption
-//          case Right(fs) => Some(FilterDefinition.And(fs))
-//          case Left(err) => throw err
-//        }
-//      }
-//      .getOrElse()
+    val instanceFilter = viewReference
+      .map { ref =>
+        filters.toVector.traverse(
+          toInstanceFilter(
+            _,
+            space = ref.space,
+            versionedExternalId = s"${ref.externalId}/${ref.version}"))
+      }
+      .getOrElse(filters.toVector.traverse(toEdgeAttributeFilter)) match {
+      case Right(fs) if fs.isEmpty => None
+      case Right(fs) if fs.length == 1 => fs.headOption
+      case Right(fs) => Some(FilterDefinition.And(fs))
+      case Left(err) => throw err
+    }
 
     val filterRequest = InstanceFilterRequest(
       instanceType = Some(instanceType),
-      filter = None,
+      filter = instanceFilter,
       sort = None,
       limit = limit,
       cursor = None,

@@ -12,7 +12,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
 import java.time.{LocalDate, ZonedDateTime}
@@ -365,6 +365,10 @@ class FlexibleDataModelCorePropertyRelationTest
       viewStartAndEndNodes.toInstanceSource,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
+    val typeNodeRef = DirectRelationReference(
+      space = spaceExternalId,
+      externalId = "insertAllTypeNodeExtId"
+    )
     val startNodeRef = DirectRelationReference(
       space = spaceExternalId,
       externalId = startNodeExtId
@@ -377,6 +381,7 @@ class FlexibleDataModelCorePropertyRelationTest
       space = spaceExternalId,
       externalId = startNodeExtId
     )
+    // DirectRelationReference(space = spaceExternalId, externalId = s"${edgeExternalIdPrefix}Type1"),
 
     val (viewAll, viewNodes, viewEdges, allInstanceExternalIds) = (for {
       (viewAll, viewNodes, viewEdges) <- setupAllListAndNonListPropertyTest
@@ -384,20 +389,24 @@ class FlexibleDataModelCorePropertyRelationTest
         viewNodes,
         directNodeReference = directNodeReference,
         None,
+        None,
         None)
       edgeIds <- createTestInstancesForView(
         viewEdges,
         directNodeReference,
+        Some(typeNodeRef),
         Some(startNodeRef),
         Some(endNodeRef))
       allIds <- createTestInstancesForView(
         viewAll,
         directNodeReference,
+        Some(typeNodeRef),
         Some(startNodeRef),
         Some(endNodeRef))
     } yield (viewAll, viewNodes, viewEdges, nodeIds ++ edgeIds ++ allIds)).unsafeRunSync()
 
     val readNodesDf = readRows(
+      instanceType = InstanceType.Node,
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewNodes.externalId,
       viewVersion = viewNodes.version,
@@ -405,6 +414,7 @@ class FlexibleDataModelCorePropertyRelationTest
     )
 
     val readEdgesDf = readRows(
+      instanceType = InstanceType.Edge,
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
@@ -412,11 +422,19 @@ class FlexibleDataModelCorePropertyRelationTest
     )
 
     val readAllDf = readRows(
+      instanceType = InstanceType.Edge,
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewAll.externalId,
       viewVersion = viewAll.version,
       instanceSpaceExternalId = spaceExternalId
-    )
+    ).unionAll(
+      readRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = spaceExternalId,
+        viewExternalId = viewAll.externalId,
+        viewVersion = viewAll.version,
+        instanceSpaceExternalId = spaceExternalId
+      ))
 
     readNodesDf.createTempView(s"node_instances_table")
     readEdgesDf.createTempView(s"edge_instances_table")
@@ -434,9 +452,6 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql("select * from all_instances_table")
       .collect()
 
-    def toExternalIds(rows: Array[Row]): Array[String] =
-      rows.map(row => row.getString(row.schema.fieldIndex("externalId")))
-
     val actualAllInstanceExternalIds = toExternalIds(selectedNodesAndEdges) ++ toExternalIds(
       selectedNodes) ++ toExternalIds(selectedEdges)
 
@@ -444,10 +459,72 @@ class FlexibleDataModelCorePropertyRelationTest
     (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
   }
 
+  it should "succeed when filtering edges with type, startNode & endNode" in {
+    val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsStartNode"
+    val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsEndNode"
+    createStartAndEndNodesForEdgesIfNotExists(
+      startNodeExtId,
+      endNodeExtId,
+      viewStartAndEndNodes.toInstanceSource,
+      viewStartAndEndNodes.toSourceReference).unsafeRunSync()
+
+    val typeNodeRef = DirectRelationReference(
+      space = spaceExternalId,
+      externalId = s"filterByEdgePropsTypeNodeExtId${apiCompatibleRandomString()}"
+    )
+    val startNodeRef = DirectRelationReference(
+      space = spaceExternalId,
+      externalId = startNodeExtId
+    )
+    val endNodeRef = DirectRelationReference(
+      space = spaceExternalId,
+      externalId = endNodeExtId
+    )
+    val directNodeReference = DirectRelationReference(
+      space = spaceExternalId,
+      externalId = startNodeExtId
+    )
+
+    val (viewEdges, allEdgeExternalIds) = (for {
+      (_, _, viewEdges) <- setupAllListAndNonListPropertyTest
+      edgeIds <- createTestInstancesForView(
+        viewEdges,
+        directNodeReference,
+        Some(typeNodeRef),
+        Some(startNodeRef),
+        Some(endNodeRef))
+    } yield (viewEdges, edgeIds)).unsafeRunSync()
+
+    val readEdgesDf = readRows(
+      instanceType = InstanceType.Edge,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewEdges.externalId,
+      viewVersion = viewEdges.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+
+    readEdgesDf.createTempView(s"edge_filter_instances_table")
+
+    val selectedEdges = spark
+      .sql(s"""select * from edge_filter_instances_table
+           | where startNode = named_struct('space', '${startNodeRef.space}', 'externalId', '${startNodeRef.externalId}')
+           | and endNode = named_struct('space', '${endNodeRef.space}', 'externalId', '${endNodeRef.externalId}')
+           | and type = named_struct('space', '${typeNodeRef.space}', 'externalId', '${typeNodeRef.externalId}')
+           | and directRelation1 = named_struct('space', '${directNodeReference.space}', 'externalId', '${directNodeReference.externalId}')
+           | """.stripMargin)
+      .collect()
+
+    val actualAllEdgeExternalIds = toExternalIds(selectedEdges)
+
+    allEdgeExternalIds.length shouldBe 2
+    (actualAllEdgeExternalIds should contain).allElementsOf(allEdgeExternalIds)
+  }
+
   it should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
+      instanceType = InstanceType.Node,
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = view.externalId,
       viewVersion = view.version,
@@ -893,6 +970,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .save()
 
   private def readRows(
+      instanceType: InstanceType,
       viewSpaceExternalId: String,
       viewExternalId: String,
       viewVersion: String,
@@ -906,10 +984,11 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("clientSecret", clientSecret)
       .option("project", "extractor-bluefield-testing")
       .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("viewSpaceExternalId", viewSpaceExternalId)
+      .option("instanceType", instanceType.productPrefix)
+      .option("viewSpace", viewSpaceExternalId)
       .option("viewExternalId", viewExternalId)
       .option("viewVersion", viewVersion)
-      .option("instanceSpaceExternalId", instanceSpaceExternalId)
+      .option("instanceSpace", instanceSpaceExternalId)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
       .option("collectMetrics", true)
       .load()

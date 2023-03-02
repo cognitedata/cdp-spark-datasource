@@ -144,8 +144,8 @@ class DefaultSource
     val nodeOrEdgeRelation = parameters
       .get("instanceType")
       .collect {
-        case t if t.startsWith("edge") => InstanceType.Edge
-        case t if t.startsWith("node") => InstanceType.Node
+        case t if t.equalsIgnoreCase("edge") => InstanceType.Edge
+        case t if t.equalsIgnoreCase("node") => InstanceType.Node
       }
       .map { instanceType =>
         FlexibleDataModelRelation.corePropertyRelation(

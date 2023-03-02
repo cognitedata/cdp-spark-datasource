@@ -20,6 +20,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeW
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
+import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
 
 import java.time.{LocalDate, LocalDateTime, ZoneId}
@@ -43,6 +44,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
   protected def createTestInstancesForView(
       viewDef: ViewDefinition,
       directNodeReference: DirectRelationReference,
+      typeNode: Option[DirectRelationReference],
       startNode: Option[DirectRelationReference],
       endNode: Option[DirectRelationReference]): IO[Seq[String]] = {
     val randomPrefix = apiCompatibleRandomString()
@@ -50,10 +52,11 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       case Usage.Node =>
         createNodeWriteInstances(viewDef, directNodeReference, randomPrefix)
       case Usage.Edge =>
-        Apply[Option].map2(startNode, endNode)(Tuple2.apply).toSeq.flatMap {
-          case (s, e) =>
+        Apply[Option].map3(typeNode, startNode, endNode)(Tuple3.apply).toSeq.flatMap {
+          case (t, s, e) =>
             createEdgeWriteInstances(
               viewDef,
+              typeNode = t,
               startNode = s,
               endNode = e,
               directNodeReference,
@@ -61,12 +64,13 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
         }
       case Usage.All =>
         createNodeWriteInstances(viewDef, directNodeReference, randomPrefix) ++ Apply[Option]
-          .map2(startNode, endNode)(Tuple2.apply)
+          .map3(typeNode, startNode, endNode)(Tuple3.apply)
           .toSeq
           .flatMap {
-            case (s, e) =>
+            case (t, s, e) =>
               createEdgeWriteInstances(
                 viewDef,
+                typeNode = t,
                 startNode = s,
                 endNode = e,
                 directNodeReference,
@@ -88,6 +92,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
 
   protected def createEdgeWriteInstances(
       viewDef: ViewDefinition,
+      typeNode: DirectRelationReference,
       startNode: DirectRelationReference,
       endNode: DirectRelationReference,
       directNodeReference: DirectRelationReference,
@@ -96,8 +101,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
     val edgeExternalIdPrefix = s"${viewDef.externalId}${randomPrefix}Edge"
     Seq(
       EdgeWrite(
-        `type` =
-          DirectRelationReference(space = spaceExternalId, externalId = s"${edgeExternalIdPrefix}Type1"),
+        `type` = typeNode,
         space = spaceExternalId,
         externalId = s"${edgeExternalIdPrefix}1",
         startNode = startNode,
@@ -114,8 +118,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
         )
       ),
       EdgeWrite(
-        `type` =
-          DirectRelationReference(space = spaceExternalId, externalId = s"${edgeExternalIdPrefix}Type2"),
+        `type` = typeNode,
         space = spaceExternalId,
         externalId = s"${edgeExternalIdPrefix}2",
         startNode = startNode,
@@ -501,4 +504,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
 
       case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
     }
+
+  def toExternalIds(rows: Array[Row]): Array[String] =
+    rows.map(row => row.getString(row.schema.fieldIndex("externalId")))
+
 }

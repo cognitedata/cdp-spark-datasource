@@ -9,7 +9,7 @@ import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValu
 import com.cognite.sdk.scala.v1.fdm.instances._
 import fs2.Stream
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.expressions.GenericRow
+import org.apache.spark.sql.catalyst.expressions.{GenericRow, GenericRowWithSchema}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -50,7 +50,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   }
 
   // scalastyle:off cyclomatic.complexity
-  protected def extractInstancePropertyValue: InstancePropertyValue => Any = {
+  private def extractInstancePropertyValue: InstancePropertyValue => Any = {
     case InstancePropertyValue.String(value) => value
     case InstancePropertyValue.Int32(value) => value
     case InstancePropertyValue.Int64(value) => value
@@ -75,12 +75,18 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   }
   // scalastyle:on cyclomatic.complexity
 
-  // scalastyle:off cyclomatic.complexity
+  // scalastyle:off cyclomatic.complexity method.length
   protected def toInstanceFilter(
       sparkFilter: Filter,
       space: String,
       versionedExternalId: String): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
+        createEdgeAttributeFilter("type", value)
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
+        createEdgeAttributeFilter("startNode", value)
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
+        createEdgeAttributeFilter("endNode", value)
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
           FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
@@ -122,6 +128,46 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.getClass.getSimpleName}'"))
     }
   // scalastyle:on cyclomatic.complexity
+
+  protected def toEdgeAttributeFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
+    sparkFilter match {
+      case EqualTo(attribute, value: String) if attribute.equalsIgnoreCase("space") =>
+        Right(
+          FilterDefinition.Equals(
+            property = Vector("edge", "space"),
+            value = FilterValueDefinition.String(value)
+          )
+        )
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
+        createEdgeAttributeFilter("startNode", value)
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
+        createEdgeAttributeFilter("endNode", value)
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
+        createEdgeAttributeFilter("type", value)
+      case f =>
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"Unsupported filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
+    }
+
+  // filter for `type`, `startNode` & `endNode`
+  private def createEdgeAttributeFilter(
+      attribute: String,
+      struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
+    Try {
+      val space = struct.getString(struct.fieldIndex("space"))
+      val externalId = struct.getString(struct.fieldIndex("externalId"))
+      FilterDefinition.Equals(
+        property = Vector("edge", attribute),
+        value = FilterValueDefinition.StringList(Vector(space, externalId))
+      )
+    }.toEither.leftMap { _ =>
+      new CdfSparkIllegalArgumentException(
+        s"""Invalid filter value for: 'edge $attribute'
+           |Expecting a struct with 'space' & 'externalId' attributes, but found: ${struct.json}
+           |""".stripMargin
+      )
+    }
 
   protected def relationReferenceSchema(name: String, nullable: Boolean): StructField =
     DataTypes.createStructField(
@@ -180,7 +226,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case Right(v) =>
         Left(
           new CdfSparkIllegalArgumentException(
-            s"""
+            s"""Invalid filter value!
                |Expecting a value of type number, string, boolean, json,
                |array[number], array[string], array[boolean], array[json] for '$attribute',
                |but found ${v.getClass.getSimpleName} in ${value.toString}
@@ -231,14 +277,31 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
               .format(InstancePropertyValue.Timestamp.formatter)))
       case v: Array[Any] =>
         toFilterValueListDefinition(attribute, v.toVector)
+      case v: GenericRowWithSchema =>
+        toFilterDirectNodeRelation(v)
       case v =>
         Left(
           new CdfSparkIllegalArgumentException(
-            s"Expecting a value of type number, string, boolean or an array of them for '$attribute', but found ${v.toString}"
+            s"""Invalid filter value!
+               |Expecting a value of type number, string, boolean or an array of them for '$attribute', but found ${v.toString}""".stripMargin
           )
         )
     }
   // scalastyle:on cyclomatic.complexity
+
+  private def toFilterDirectNodeRelation(
+      v: GenericRowWithSchema): Either[CdfSparkIllegalArgumentException, FilterValueDefinition] =
+    Try {
+      val space = v.getString(v.fieldIndex("space"))
+      val externalId = v.getString(v.fieldIndex("externalId"))
+      FilterValueDefinition.StringList(Vector(space, externalId))
+    }.toEither.leftMap { _ =>
+      new CdfSparkIllegalArgumentException(
+        s"""Invalid filter value!
+           |Expecting a struct with 'space' & 'externalId' attributes, but found: ${v.json}
+           |""".stripMargin
+      )
+    }
 
   // scalastyle:off cyclomatic.complexity method.length
   private def toFilterValueListDefinition(
@@ -302,5 +365,4 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
 
 object FlexibleDataModelBaseRelation {
   final case class ProjectedFlexibleDataModelInstance(externalId: String, properties: Array[Any])
-  final case class FlexibleDataModelInstanceDeleteModel(space: Option[String], externalId: String)
 }

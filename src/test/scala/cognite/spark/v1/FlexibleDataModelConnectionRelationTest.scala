@@ -7,7 +7,7 @@ import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, SlimNodeOrEdge}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
@@ -97,12 +97,10 @@ class FlexibleDataModelConnectionRelationTest
            |""".stripMargin)
       .collect()
 
-    def toExternalIds(rows: Array[Row]): Array[String] =
-      rows.map(row => row.getString(row.schema.fieldIndex("externalId")))
-
     val instExtIds = toExternalIds(selectedConnectionInstances)
-    (instExtIds should contain).allElementsOf(results.map(_.externalId))
-    instExtIds.length shouldBe 2
+    results.size shouldBe 2
+    instExtIds shouldBe Array("edge1")
+    instExtIds.length shouldBe 1
   }
 
   it should "insert connection instances" in {
@@ -166,8 +164,10 @@ class FlexibleDataModelConnectionRelationTest
     client.instances.createItems(InstanceCreate(connectionInstances, replace = Some(true)))
   }
 
-  private def getUpsertedMetricsCount(edgeSpace: String, edgeExternalId: String): Long =
-    getNumberOfRowsUpserted(s"$edgeSpace-$edgeExternalId", FlexibleDataModelRelation.ResourceType)
+  private def getUpsertedMetricsCount(edgeTypeSpace: String, edgeTypeExternalId: String): Long =
+    getNumberOfRowsUpserted(
+      s"$edgeTypeSpace-$edgeTypeExternalId",
+      FlexibleDataModelRelation.ResourceType)
 
   private def insertRows(
       edgeTypeSpace: String,
@@ -183,8 +183,8 @@ class FlexibleDataModelConnectionRelationTest
       .option("clientSecret", clientSecret)
       .option("project", "extractor-bluefield-testing")
       .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("edgeSpace", edgeTypeSpace)
-      .option("edgeExternalId", edgeTypeExternalId)
+      .option("edgeTypeSpace", edgeTypeSpace)
+      .option("edgeTypeExternalId", edgeTypeExternalId)
       .option("onconflict", onConflict)
       .option("collectMetrics", true)
       .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
