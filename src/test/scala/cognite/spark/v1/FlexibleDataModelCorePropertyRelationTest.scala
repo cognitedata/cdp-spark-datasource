@@ -139,6 +139,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val insertionResults = Try {
       Vector(
         insertRows(
+          instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
           viewVersion = viewAll.version,
@@ -146,6 +147,7 @@ class FlexibleDataModelCorePropertyRelationTest
           insertionDf(instanceExtIdAll)
         ),
         insertRows(
+          instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
           viewVersion = viewNodes.version,
@@ -153,6 +155,7 @@ class FlexibleDataModelCorePropertyRelationTest
           insertionDf(instanceExtIdNode)
         ),
         insertRows(
+          instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
@@ -168,19 +171,18 @@ class FlexibleDataModelCorePropertyRelationTest
     getUpsertedMetricsCount(viewNodes) shouldBe 1
     getUpsertedMetricsCount(viewEdges) shouldBe 1
 
-    def deletionDf(instanceExtId: String): DataFrame = {
-      val space = if (instanceExtId.endsWith("Node")) "null" else s"'$spaceExternalId'"
+    def deletionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
              |select
-             | $space as space,
+             |'$spaceExternalId' as space,
              |'$instanceExtId' as externalId
              |""".stripMargin)
-    }
 
     val deletionResults = Try {
       Vector(
         insertRows(
+          instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
           viewVersion = viewAll.version,
@@ -189,6 +191,7 @@ class FlexibleDataModelCorePropertyRelationTest
           onConflict = "delete"
         ),
         insertRows(
+          instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
           viewVersion = viewNodes.version,
@@ -197,6 +200,7 @@ class FlexibleDataModelCorePropertyRelationTest
           onConflict = "delete"
         ),
         insertRows(
+          instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
@@ -281,6 +285,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val insertionResult = Try {
       Vector(
         insertRows(
+          instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
           viewVersion = viewAll.version,
@@ -288,6 +293,7 @@ class FlexibleDataModelCorePropertyRelationTest
           insertionDf(instanceExtIdAll)
         ),
         insertRows(
+          instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
           viewVersion = viewNodes.version,
@@ -295,6 +301,7 @@ class FlexibleDataModelCorePropertyRelationTest
           insertionDf(instanceExtIdNode)
         ),
         insertRows(
+          instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
@@ -310,19 +317,18 @@ class FlexibleDataModelCorePropertyRelationTest
     getUpsertedMetricsCount(viewNodes) shouldBe 1
     getUpsertedMetricsCount(viewEdges) shouldBe 1
 
-    def deletionDf(instanceExtId: String): DataFrame = {
-      val space = if (instanceExtId.endsWith("Node")) "null" else s"'$spaceExternalId'"
+    def deletionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
              |select
-             | $space as space,
+             |'$spaceExternalId' as space,
              |'$instanceExtId' as externalId
              |""".stripMargin)
-    }
 
     val deletionResults = Try {
       Vector(
         insertRows(
+          instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
           viewVersion = viewAll.version,
@@ -331,6 +337,7 @@ class FlexibleDataModelCorePropertyRelationTest
           onConflict = "delete"
         ),
         insertRows(
+          instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
           viewVersion = viewNodes.version,
@@ -339,6 +346,7 @@ class FlexibleDataModelCorePropertyRelationTest
           onConflict = "delete"
         ),
         insertRows(
+          instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
@@ -586,6 +594,7 @@ class FlexibleDataModelCorePropertyRelationTest
 
     val result = Try {
       insertRows(
+        instanceType = InstanceType.Node,
         viewSpaceExternalId = viewDef.space,
         viewExternalId = viewDef.externalId,
         viewVersion = viewDef.version,
@@ -945,6 +954,7 @@ class FlexibleDataModelCorePropertyRelationTest
   }
 
   private def insertRows(
+      instanceType: InstanceType,
       viewSpaceExternalId: String,
       viewExternalId: String,
       viewVersion: String,
@@ -960,10 +970,11 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("clientSecret", clientSecret)
       .option("project", "extractor-bluefield-testing")
       .option("scopes", "https://bluefield.cognitedata.com/.default")
-      .option("viewSpaceExternalId", viewSpaceExternalId)
+      .option("instanceType", instanceType.productPrefix)
+      .option("viewSpace", viewSpaceExternalId)
       .option("viewExternalId", viewExternalId)
       .option("viewVersion", viewVersion)
-      .option("instanceSpaceExternalId", instanceSpaceExternalId)
+      .option("instanceSpace", instanceSpaceExternalId)
       .option("onconflict", onConflict)
       .option("collectMetrics", true)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
