@@ -34,7 +34,7 @@ import org.apache.spark.sql.types.StructType
 import java.time._
 import scala.util.{Failure, Success, Try}
 
-// scalastyle:off number.of.methods
+// scalastyle:off number.of.methods file.size.limit
 object FlexibleDataModelRelationUtils {
   private[spark] def createNodes(
       instanceSpace: String,
@@ -799,3 +799,4 @@ object FlexibleDataModelRelationUtils {
   private def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
 }
+// scalastyle:on number.of.methods file.size.limit
