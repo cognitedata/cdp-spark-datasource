@@ -6,7 +6,7 @@ import cats.implicits.toTraverseOps
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
-import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
+import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers.{ContainerDefinition, ContainerId, ContainerReference}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances._
@@ -581,21 +581,21 @@ class FlexibleDataModelCorePropertyRelationTest
 
     client.views
       .deleteItems(Seq(
-        DataModelReference(spaceExternalId, viewAllListAndNonListExternalId, viewVersion),
-        DataModelReference(spaceExternalId, viewNodesListAndNonListExternalId, viewVersion),
-        DataModelReference(spaceExternalId, viewEdgesListAndNonListExternalId, viewVersion),
+        DataModelReference(spaceExternalId, viewAllListAndNonListExternalId, Some(viewVersion)),
+        DataModelReference(spaceExternalId, viewNodesListAndNonListExternalId, Some(viewVersion)),
+        DataModelReference(spaceExternalId, viewEdgesListAndNonListExternalId, Some(viewVersion)),
         //
-        DataModelReference(spaceExternalId, viewAllNonListExternalId, viewVersion),
-        DataModelReference(spaceExternalId, viewNodesNonListExternalId, viewVersion),
-        DataModelReference(spaceExternalId, viewEdgesNonListExternalId, viewVersion),
+        DataModelReference(spaceExternalId, viewAllNonListExternalId, Some(viewVersion)),
+        DataModelReference(spaceExternalId, viewNodesNonListExternalId, Some(viewVersion)),
+        DataModelReference(spaceExternalId, viewEdgesNonListExternalId, Some(viewVersion)),
         //
-        DataModelReference(spaceExternalId, viewAllListExternalId, viewVersion),
-        DataModelReference(spaceExternalId, viewNodesListExternalId, viewVersion),
-        DataModelReference(spaceExternalId, viewEdgesListExternalId, viewVersion),
+        DataModelReference(spaceExternalId, viewAllListExternalId, Some(viewVersion)),
+        DataModelReference(spaceExternalId, viewNodesListExternalId, Some(viewVersion)),
+        DataModelReference(spaceExternalId, viewEdgesListExternalId, Some(viewVersion)),
         //
-        DataModelReference(spaceExternalId, viewAllNumericProps, viewVersion),
-        DataModelReference(spaceExternalId, viewFilterByProps, viewVersion),
-        DataModelReference(spaceExternalId, viewStartNodeAndEndNodesExternalId, viewVersion),
+        DataModelReference(spaceExternalId, viewAllNumericProps, Some(viewVersion)),
+        DataModelReference(spaceExternalId, viewFilterByProps, Some(viewVersion)),
+        DataModelReference(spaceExternalId, viewStartNodeAndEndNodesExternalId, Some(viewVersion)),
       ))
       .unsafeRunSync()
 

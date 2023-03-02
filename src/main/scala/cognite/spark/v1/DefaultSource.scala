@@ -182,10 +182,8 @@ class DefaultSource
         throw new CdfSparkException(
           s"""
              |Invalid combination of arguments!
-             |Expecting instanceType for NodeOrEdgeRelation with
-             | optional arguments (viewSpace, viewExternalId, viewVersion, instanceSpace)
-             | 
-             |Expecting (edgeSpace, edgeExternalId) for ConnectionRelation
+             |Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion', 'instanceSpace') for NodeOrEdgeRelation,
+             |Expecting ('edgeTypeSpace', 'edgeTypeExternalId') for ConnectionRelation
              |""".stripMargin
         ))
   }

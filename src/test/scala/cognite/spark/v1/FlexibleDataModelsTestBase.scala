@@ -3,12 +3,19 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
+  ContainerPropertyDefinition,
+  ViewCorePropertyDefinition
+}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, ContainerDefinition, ContainerId}
+import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
+import com.cognite.sdk.scala.v1.fdm.containers.{
+  ContainerCreateDefinition,
+  ContainerDefinition,
+  ContainerId
+}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
@@ -196,7 +203,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       viewExternalId: String,
       viewVersion: String): IO[ViewDefinition] =
     client.views
-      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, viewVersion)))
+      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, Some(viewVersion))))
       .flatMap { views =>
         if (views.isEmpty) {
           val containerRef = container.toSourceReference
@@ -232,7 +239,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       viewExternalId: String,
       viewVersion: String): IO[ViewDefinition] =
     client.views
-      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, viewVersion)))
+      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, Some(viewVersion))))
       .flatMap { views =>
         if (views.isEmpty) {
           val viewToCreate = ViewCreateDefinition(

@@ -10,11 +10,13 @@ import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceFilterRequest, InstanceType}
 import fs2.Stream
+import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+import scala.annotation.nowarn
 import scala.util.Try
 
 /**
@@ -110,7 +112,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
       Vector(
         FilterDefinition.Equals(
           property = Vector("edge", "space"),
-          value = FilterValueDefinition.String(connectionConfig.edgeSpace)
+          value = FilterValueDefinition.String(connectionConfig.edgeTypeSpace)
         ),
         FilterDefinition.Nested(
           scope = Vector("edge", "type"),
@@ -162,22 +164,18 @@ private[spark] class FlexibleDataModelConnectionRelation(
   // scalastyle:on cyclomatic.complexity
 
   private def toDirectRelationReferenceFilter(
-      attribute: String,
+      @nowarn attribute: String,
       struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
     Try {
       val space = struct.getString(struct.fieldIndex("space"))
       val externalId = struct.getString(struct.fieldIndex("externalId"))
-      FilterDefinition.And(
-        Vector(
-          FilterDefinition.Equals(
-            property = Vector("edge", "space"),
-            value = FilterValueDefinition.String(space)
-          ),
-          FilterDefinition.Nested(
-            scope = Vector("edge", attribute),
-            filter = FilterDefinition.Equals(
-              property = Vector("node", "externalId"),
-              value = FilterValueDefinition.String(externalId)
+      FilterDefinition.Equals(
+        property = Vector("edge", "startNode"),
+        value = FilterValueDefinition.Object(
+          Json.fromJsonObject(
+            JsonObject(
+              ("space", Json.fromString(space)),
+              ("externalId", Json.fromString(externalId))
             )
           )
         )
