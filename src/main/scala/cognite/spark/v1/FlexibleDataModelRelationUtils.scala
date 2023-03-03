@@ -97,12 +97,13 @@ object FlexibleDataModelRelationUtils {
           externalId = extId,
           startNode = startNode,
           endNode = endNode,
-          sources = Seq(
-            EdgeOrNodeData(
-              source = source,
-              properties = Some(props.toMap)
-            )
-          )
+          sources = Some(
+            Seq(
+              EdgeOrNodeData(
+                source = source,
+                properties = Some(props.toMap)
+              )
+            ))
         )
     }
 
@@ -125,12 +126,13 @@ object FlexibleDataModelRelationUtils {
             externalId = externalId,
             startNode = startNode,
             endNode = endNode,
-            sources = Seq(
-              EdgeOrNodeData(
-                source = source,
-                properties = Some(props.toMap)
-              )
-            )
+            sources = Some(
+              Seq(
+                EdgeOrNodeData(
+                  source = source,
+                  properties = Some(props.toMap)
+                )
+              ))
           )
         )
       case (None, None, None) =>
@@ -138,12 +140,13 @@ object FlexibleDataModelRelationUtils {
           NodeWrite(
             space = instanceSpaceExternalId,
             externalId = externalId,
-            sources = Seq(
-              EdgeOrNodeData(
-                source = source,
-                properties = Some(props.toMap)
-              )
-            )
+            sources = Some(
+              Seq(
+                EdgeOrNodeData(
+                  source = source,
+                  properties = Some(props.toMap)
+                )
+              ))
           )
         )
       case _ =>
@@ -174,12 +177,13 @@ object FlexibleDataModelRelationUtils {
         NodeWrite(
           space = instanceSpaceExternalId,
           externalId = externalId,
-          sources = Seq(
-            EdgeOrNodeData(
-              source = source,
-              properties = Some(props.toMap)
-            )
-          )
+          sources = Some(
+            Seq(
+              EdgeOrNodeData(
+                source = source,
+                properties = Some(props.toMap)
+              )
+            ))
         )
     }
 

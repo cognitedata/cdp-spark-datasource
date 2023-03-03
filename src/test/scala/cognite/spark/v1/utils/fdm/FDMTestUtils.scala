@@ -253,7 +253,7 @@ object FDMTestUtils {
         NodeWrite(
           space,
           s"node_instances_${container.externalId}",
-          nodeData
+          Some(nodeData)
         )
     }
 
@@ -297,7 +297,7 @@ object FDMTestUtils {
           externalId = edgeExternalId,
           startNode = startNode,
           endNode = endNode,
-          nodeData
+          Some(nodeData)
         )
     }
 

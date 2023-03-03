@@ -5,7 +5,7 @@ import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
 import cognite.spark.v1.FlexibleDataModelsRelation._
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.v1.fdm.common.Usage
+import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
   ComparableFilterValue,
   SeqFilterValue
@@ -20,7 +20,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
   NodeDeletionRequest
 }
 import com.cognite.sdk.scala.v1.fdm.instances._
-import com.cognite.sdk.scala.v1.fdm.views.{DataModelReference, ViewDefinition}
+import com.cognite.sdk.scala.v1.fdm.views.ViewDefinition
 import fs2.Stream
 import io.circe.{Decoder, Json}
 import org.apache.spark.rdd.RDD
@@ -110,7 +110,7 @@ class FlexibleDataModelsRelation(
     : IO[Option[(ViewDefinition, Map[String, ViewPropertyDefinition], StructType)]] =
     client.views
       .retrieveItems(
-        Seq(DataModelReference(viewSpaceExternalId, viewExternalId, viewVersion)),
+        Seq(DataModelReference(viewSpaceExternalId, viewExternalId, Some(viewVersion))),
         includeInheritedProperties = Some(true))
       .map(_.headOption)
       .flatMap {
@@ -127,7 +127,7 @@ class FlexibleDataModelsRelation(
             } else {
               client.views
                 .retrieveItems(v.map(vRef =>
-                  DataModelReference(vRef.space, vRef.externalId, vRef.version)))
+                  DataModelReference(vRef.space, vRef.externalId, Some(vRef.version))))
                 .map { inheritingViews =>
                   // If there are properties with the same name,
                   // most recent view's property will override the old view's property.
