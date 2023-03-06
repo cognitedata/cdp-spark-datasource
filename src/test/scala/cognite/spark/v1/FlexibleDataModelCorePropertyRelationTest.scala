@@ -519,6 +519,7 @@ class FlexibleDataModelCorePropertyRelationTest
            | and endNode = named_struct('space', '${endNodeRef.space}', 'externalId', '${endNodeRef.externalId}')
            | and type = named_struct('space', '${typeNodeRef.space}', 'externalId', '${typeNodeRef.externalId}')
            | and directRelation1 = named_struct('space', '${directNodeReference.space}', 'externalId', '${directNodeReference.externalId}')
+           | and space = '$spaceExternalId'
            | """.stripMargin)
       .collect()
 

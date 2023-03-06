@@ -103,25 +103,17 @@ private[spark] class FlexibleDataModelConnectionRelation(
   }
 
   private def extractFilters(filters: Array[Filter]): Either[CdfSparkException, FilterDefinition] = {
-    val edgeTypeFilter = FilterDefinition.And(
-      Vector(
-        FilterDefinition.Equals(
-          property = Vector("edge", "space"),
-          value = FilterValueDefinition.String(connectionConfig.edgeTypeSpace)
-        ),
-        FilterDefinition.Equals(
-          property = Vector("edge", "type"),
-          value = FilterValueDefinition.StringList(
-            Vector(connectionConfig.edgeTypeSpace, connectionConfig.edgeTypeExternalId))
-        )
-      )
+    val edgeTypeFilter = FilterDefinition.Equals(
+      property = Vector("edge", "type"),
+      value = FilterValueDefinition.StringList(
+        Vector(connectionConfig.edgeTypeSpace, connectionConfig.edgeTypeExternalId))
     )
 
     if (filters.isEmpty) {
       Right(edgeTypeFilter)
     } else {
-      filters.toVector.traverse(toEdgeAttributeFilter).map { f =>
-        edgeTypeFilter.copy(filters = edgeTypeFilter.filters ++ f)
+      filters.toVector.traverse(toNodeOrEdgeAttributeFilter(InstanceType.Edge, _)).map { f =>
+        FilterDefinition.And(edgeTypeFilter +: f)
       }
     }
   }

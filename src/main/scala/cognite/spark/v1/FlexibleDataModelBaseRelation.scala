@@ -20,6 +20,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.math.BigInteger
 import java.sql.{Date, Timestamp}
 import java.time._
+import java.util.Locale
 import scala.util.Try
 
 abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext: SQLContext)
@@ -80,10 +81,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
 
   // scalastyle:off cyclomatic.complexity method.length
   protected def toInstanceFilter(
+      instanceType: InstanceType,
       sparkFilter: Filter,
       space: String,
       versionedExternalId: String): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
+      case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
+        Right(createNodeOrEdgeSpaceFilter(instanceType, value))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
         createEdgeAttributeFilter("type", value)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
@@ -114,33 +118,34 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             .Prefix(Seq(space, versionedExternalId, attribute), FilterValueDefinition.String(value)))
       case And(f1, f2) =>
         List(f1, f2)
-          .traverse(toInstanceFilter(_, space = space, versionedExternalId = versionedExternalId))
+          .traverse(
+            toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         List(f1, f2)
-          .traverse(toInstanceFilter(_, space = space, versionedExternalId = versionedExternalId))
+          .traverse(
+            toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.Or.apply)
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
       case Not(f) =>
-        toInstanceFilter(f, space = space, versionedExternalId = versionedExternalId)
+        toInstanceFilter(instanceType, f, space = space, versionedExternalId = versionedExternalId)
           .map(FilterDefinition.Not.apply)
       case f =>
-        Left(new CdfSparkIllegalArgumentException(s"Unsupported filter '${f.getClass.getSimpleName}'"))
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"Unsupported filter '${f.getClass.getSimpleName}', ${f.toString}"))
     }
   // scalastyle:on cyclomatic.complexity
 
-  protected def toEdgeAttributeFilter(sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
+  protected def toNodeOrEdgeAttributeFilter(
+      instanceType: InstanceType,
+      sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
-      case EqualTo(attribute, value: String) if attribute.equalsIgnoreCase("space") =>
-        Right(
-          FilterDefinition.Equals(
-            property = Vector("edge", "space"),
-            value = FilterValueDefinition.String(value)
-          )
-        )
+      case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
+        Right(createNodeOrEdgeSpaceFilter(instanceType, value))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
         createEdgeAttributeFilter("startNode", value)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
@@ -148,9 +153,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
         createEdgeAttributeFilter("type", value)
       case f =>
-        Left(
-          new CdfSparkIllegalArgumentException(
-            s"Unsupported filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
+        Left(new CdfSparkIllegalArgumentException(
+          s"Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
     }
 
   // filter for `type`, `startNode` & `endNode`
@@ -171,6 +175,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
            |""".stripMargin
       )
     }
+
+  private def createNodeOrEdgeSpaceFilter(instanceType: InstanceType, value: Any): FilterDefinition =
+    FilterDefinition.Equals(
+      property = Vector(instanceType.productPrefix.toLowerCase(Locale.US), "space"),
+      value = FilterValueDefinition.String(String.valueOf(value))
+    )
 
   protected def relationReferenceSchema(name: String, nullable: Boolean): StructField =
     DataTypes.createStructField(

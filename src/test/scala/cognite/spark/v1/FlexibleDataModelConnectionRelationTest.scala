@@ -93,7 +93,8 @@ class FlexibleDataModelConnectionRelationTest
 
     val selectedConnectionInstances = spark
       .sql(s"""select * from connection_instances_table
-           |where startNode = named_struct('space', '$spaceExternalId', 'externalId', '${startNodeExtIdPrefix}1')
+           | where startNode = named_struct('space', '$spaceExternalId', 'externalId', '${startNodeExtIdPrefix}1')
+           | and space = '$spaceExternalId'
            |""".stripMargin)
       .collect()
 

@@ -37,18 +37,14 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
 
   private val instanceType = corePropConfig.instanceType
   private val viewReference = corePropConfig.viewReference
-  private val instanceSpace = corePropConfig.instanceSpace.orElse(viewReference.map(_.space)).getOrElse {
-    throw new CdfSparkIllegalArgumentException(s"""
-         |`instanceSpace` or (view space, view externalId & view version) should be specified.
-         |""".stripMargin)
-  }
+  private val instanceSpace = corePropConfig.instanceSpace.orElse(viewReference.map(_.space))
 
   private val (allProperties, propertySchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
     .getOrElse {
       (
         Map.empty[String, ViewPropertyDefinition],
-        DataTypes.createStructType(usageBasedSchemaFields(toUsage(instanceType)))
+        DataTypes.createStructType(usageBasedSchemaAttributes(toUsage(instanceType)))
       )
     }
 
@@ -113,11 +109,12 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       .map { ref =>
         filters.toVector.traverse(
           toInstanceFilter(
+            instanceType,
             _,
             space = ref.space,
             versionedExternalId = s"${ref.externalId}/${ref.version}"))
       }
-      .getOrElse(filters.toVector.traverse(toEdgeAttributeFilter)) match {
+      .getOrElse(filters.toVector.traverse(toNodeOrEdgeAttributeFilter(instanceType, _))) match {
       case Right(fs) if fs.isEmpty => None
       case Right(fs) if fs.length == 1 => fs.headOption
       case Right(fs) => Some(FilterDefinition.And(fs))
@@ -156,11 +153,10 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           case None => IO.pure(None)
           case Some(viewDef) if compatibleUsageForInstanceType(viewDef.usedFor, instanceType) =>
             IO.delay(
-              Some(
-                (
-                  viewDef.properties,
-                  deriveViewSchemaWithUsage(viewDef.usedFor, viewDef.properties)
-                )))
+              Some((
+                viewDef.properties,
+                deriveViewPropertySchemaWithUsageSpecificAttributes(viewDef.usedFor, viewDef.properties)
+              )))
           case _ =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
                |View ${corePropConfig.viewReference} is not compatible with '${instanceType.productPrefix}' instances
@@ -176,7 +172,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case _ => false
     }
   private def upsertNodesOrEdges(
-      instanceSpace: String,
+      instanceSpace: Option[String],
       rows: Seq[Row],
       schema: StructType,
       source: SourceReference,
@@ -199,7 +195,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   }
 
   private def upsertNodesOrEdges(
-      instanceSpace: String,
+      instanceSpace: Option[String],
       rows: Seq[Row],
       schema: StructType): IO[Seq[SlimNodeOrEdge]] = {
     val nodesOrEdges = instanceType match {
@@ -220,7 +216,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   }
 
   // scalastyle:off cyclomatic.complexity
-  private def deriveViewSchemaWithUsage(usage: Usage, viewProps: Map[String, ViewPropertyDefinition]) = {
+  private def deriveViewPropertySchemaWithUsageSpecificAttributes(
+      usage: Usage,
+      viewProps: Map[String, ViewPropertyDefinition]) = {
     def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
       case PrimitivePropType.Timestamp => DataTypes.TimestampType
       case PrimitivePropType.Date => DataTypes.DateType
@@ -258,19 +256,23 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           case _: PropertyDefinition.ConnectionDefinition =>
             relationReferenceSchema(propName, nullable = true)
         }
-    } ++ usageBasedSchemaFields(usage)
+    } ++ usageBasedSchemaAttributes(usage)
     DataTypes.createStructType(fields.toArray)
   }
   // scalastyle:on cyclomatic.complexity
 
   // schema fields for relation references and node/edge identifiers
   // https://cognitedata.slack.com/archives/G012UKQJLC9/p1673627087186579
-  private def usageBasedSchemaFields(usage: Usage): Array[StructField] =
+  private def usageBasedSchemaAttributes(usage: Usage): Array[StructField] =
     usage match {
       case Usage.Node =>
-        Array(DataTypes.createStructField("externalId", DataTypes.StringType, false))
+        Array(
+          DataTypes.createStructField("space", DataTypes.StringType, instanceSpace.isDefined),
+          DataTypes.createStructField("externalId", DataTypes.StringType, false)
+        )
       case Usage.Edge =>
         Array(
+          DataTypes.createStructField("space", DataTypes.StringType, instanceSpace.isDefined),
           DataTypes.createStructField("externalId", DataTypes.StringType, false),
           relationReferenceSchema("type", nullable = false),
           relationReferenceSchema("startNode", nullable = false),
@@ -278,6 +280,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         )
       case Usage.All =>
         Array(
+          DataTypes.createStructField("space", DataTypes.StringType, instanceSpace.isDefined),
           DataTypes.createStructField("externalId", DataTypes.StringType, false),
           relationReferenceSchema("type", nullable = true),
           relationReferenceSchema("startNode", nullable = true),
