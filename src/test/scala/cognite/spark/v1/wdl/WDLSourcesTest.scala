@@ -11,6 +11,7 @@ class WDLSourcesTest
     with BeforeAndAfter {
 
   import RowEquality._
+  import cognite.spark.v1.CdpConnector._
 
   private val sparkReader = spark.read
     .format("cognite.spark.v1")
@@ -22,7 +23,6 @@ class WDLSourcesTest
 
   before {
     testClient.deleteAll()
-    testClient.miniSetup()
   }
 
   it should "ingest and read Sources" in {
@@ -47,5 +47,10 @@ class WDLSourcesTest
       .json("src/test/resources/wdl-test-expected-sources.jsonl")
 
     (expectedSources.collect() should contain).theSameElementsAs(sourcesDF.collect())
+
+    val sources = testClient.client.wdl.sources.list().unsafeRunSync()
+    val expectedSourceNames =
+      Seq("EDM", "VOLVE", "test_source", "test_source_undefined_description").sorted
+    sources.map(_.name).sorted should be(expectedSourceNames)
   }
 }

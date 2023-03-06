@@ -1,4 +1,4 @@
 {"name": "EDM", "description": null}
 {"name": "VOLVE", "description": "VOLVE SOURCE"}
 {"name": "test_source", "description": "For testing merging with 3 sources"}
-{"name": "A", "description": null}
+{"name": "test_source_undefined_description", "description":  null}

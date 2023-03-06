@@ -4,14 +4,14 @@ import cats.effect.IO
 import cognite.spark.v1.{CdfRelation, CdfSparkException, RelationConfig, WritableRelation}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.TableScan
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.{DataType, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 class WellDataLayerRelation(
     config: RelationConfig,
     model: String
 )(override val sqlContext: SQLContext)
-    extends CdfRelation(config, "well-data-layer")
+    extends CdfRelation(config, "welldatalayer")
     with WritableRelation
     with TableScan
     with Serializable {
@@ -27,7 +27,7 @@ class WellDataLayerRelation(
   private def getSchema: Option[StructType] = {
     val schemaAsString = client.wdl.getSchema(model).unsafeRunSync()
     DataType.fromJson(schemaAsString) match {
-      case s @ StructType(_) => Some(s)
+      case s: StructType => Some(s)
       case _ => None
     }
   }
@@ -36,51 +36,28 @@ class WellDataLayerRelation(
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val jsonObjects = rows.map(row => {
-      val rowJson = RowToJson.toJsonObject(row, schema)
+      val rowJson = RowToJson.toJsonObject(row, schema, None)
       if (rowJson.isEmpty) {
         throw new CdfSparkException("Upsert invalid empty row!")
       }
       rowJson
     })
 
-    client.wdl.setItems(getWriteUrlPart(model), jsonObjects)
-  }
+    val url = WdlModels.fromIngestionSchemaName(model).ingest.getOrElse(sys.error("Unreachable")).url
 
-  private val modelTypeToWriteUrlPart = Map(
-    "Well" -> "wells",
-    "WellSource" -> "wells",
-    "Wellbore" -> "wellbores",
-    "WellboreSource" -> "wellbores",
-    "DepthMeasurement" -> "measurements/depth",
-    "TimeMeasurement" -> "measurements/time",
-    "RigOperation" -> "rigoperations",
-    "HoleSectionGroup" -> "holesections",
-    "WellTopGroup" -> "welltops",
-    "Npt" -> "npt",
-    "Nds" -> "npt",
-    "CasingSchematic" -> "casings",
-    "Trajectory" -> "trajectories",
-    "Source" -> "sources"
-  )
-
-  private def getWriteUrlPart(modelType: String): String = {
-    val modelKey = modelType.replace("Ingestion", "")
-    modelTypeToWriteUrlPart.getOrElse(
-      modelKey,
-      throw new CdfSparkException(s"Unknown model type: $modelType"))
+    client.wdl.setItems(url, jsonObjects)
   }
 
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for WDL. Use upsert instead.")
 
-  override def delete(rows: Seq[Row]): IO[Unit] =
-    IO.unit
+  override def delete(rows: Seq[Row]): IO[Unit] = IO.unit
 
   override def buildScan(): RDD[Row] =
     new WellDataLayerRDD(
       sparkContext = sqlContext.sparkContext,
       schema = schema,
-      model = model,
+      model = WdlModels.fromRetrievalSchemaName(model),
       config = config
     )
 }

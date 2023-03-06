@@ -80,6 +80,7 @@ object RowToJson {
   private def toJsonHelper(fieldName: String, value: Any, dataType: DataType): Json =
     (value, dataType) match {
       case (null, _) => Json.Null // scalastyle:ignore
+      case (None, _) => Json.Null
       case (b: Boolean, _) => Json.fromBoolean(b)
       case (b: Byte, _) => Json.fromInt(b.toInt)
       case (s: Short, _) => Json.fromInt(s.toInt)
@@ -118,9 +119,8 @@ object RowToJson {
             )
         }.toList)
       case (r: Row, s: StructType) => toJson(r, s, Some(fieldName))
-      case _ =>
-        throw new CdfSparkException(
-          s"Failed to convert value `$value` of type `${value.getClass}` to JSON using `${dataType.typeName}`.")
+      case (badValue, dataType) =>
+        throw new WrongFieldTypeException(fieldName, dataType, badValue)
     }
   // scalastyle:on cyclomatic.complexity
 

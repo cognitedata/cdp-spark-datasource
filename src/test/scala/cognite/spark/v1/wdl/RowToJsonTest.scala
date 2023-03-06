@@ -187,7 +187,6 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
     case class PersonInput(name: String)
 
     val targetSchema = structType[Person]()
-    val input = PersonInput("Sigurd Holsen")
     val inputRow = new GenericRowWithSchema(Array("Ola Nordmann"), structType[PersonInput]())
     val error = intercept[CdfSparkException] {
       RowToJson.toJson(inputRow, targetSchema)
@@ -199,9 +198,11 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
   it should "give good error message when nested required value is not defined" in {
     val targetSchema = new StructType()
       .add("name", StringType, nullable = false)
-      .add("address", new StructType()
-        .add("address", StringType, nullable = false)
-        .add("country", StringType, nullable = false))
+      .add(
+        "address",
+        new StructType()
+          .add("address", StringType, nullable = false)
+          .add("country", StringType, nullable = false))
 
     val addressSchema = new StructType()
       .add("address", StringType, nullable = false)
@@ -209,11 +210,14 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
       .add("name", StringType, nullable = false)
       .add("address", addressSchema, nullable = false)
 
-    val inputRow = new GenericRowWithSchema(Array("My name", new GenericRowWithSchema(Array("My address"), addressSchema)), schema)
+    val inputRow = new GenericRowWithSchema(
+      Array("My name", new GenericRowWithSchema(Array("My address"), addressSchema)),
+      schema)
     val error = intercept[CdfSparkException] {
       RowToJson.toJson(inputRow, targetSchema)
     }
 
-    assert(error.getMessage.contains("Required field `address.country` of type `string` should not be NULL"))
+    assert(
+      error.getMessage.contains("Required field `address.country` of type `string` should not be NULL"))
   }
 }

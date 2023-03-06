@@ -15,37 +15,16 @@ import scala.collection.AbstractIterator
 class WellDataLayerRDD(
     @transient override val sparkContext: SparkContext,
     val schema: StructType,
-    val model: String,
+    val model: WdlModel,
     val config: RelationConfig
 ) extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
 
-  @transient lazy val client: GenericClient[IO] =
-    CdpConnector.clientFromConfig(config)
-
-  private val modelTypeToReadUrlPart = Map(
-    "Well" -> "wells/list",
-    "DepthMeasurement" -> "measurements/depth/list",
-    "TimeMeasurement" -> "measurements/time/list",
-    "RigOperation" -> "rigoperations/list",
-    "HoleSectionGroup" -> "holesections/list",
-    "WellTopGroup" -> "welltops/list",
-    "Npt" -> "npt/list",
-    "Nds" -> "npt/list",
-    "CasingSchematic" -> "casings/list",
-    "Trajectory" -> "trajectories/list"
-  )
-
-  private def getReadUrlPart(modelType: String): String = {
-    val modelKey = modelType.replace("Ingestion", "")
-    modelTypeToReadUrlPart.getOrElse(
-      modelKey,
-      throw new CdfSparkException(s"Unknown model type: $modelType"))
-  }
+  @transient lazy val client: GenericClient[IO] = CdpConnector.clientFromConfig(config)
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] =
-    if (model == "Source") {
-      val response: IO[ItemsWithCursor[JsonObject]] = client.wdl.listItemsWithGet("sources")
+    if (model.retrieve.isGet) {
+      val response: IO[ItemsWithCursor[JsonObject]] = client.wdl.listItemsWithGet(model.retrieve.url)
       val responseUnwrapped = response.unsafeRunSync()
 
       val rows = responseUnwrapped.items.map(jsonObject =>
@@ -98,9 +77,11 @@ class WellDataLayerRDD(
     } else if (isFirstQuery || itemsWithCursor.nextCursor.nonEmpty) {
       val response: IO[ItemsWithCursor[JsonObject]] =
         client.wdl.listItemsWithPost(
-          getReadUrlPart(model),
+          model.retrieve.url,
           cursor = itemsWithCursor.nextCursor,
-          limit = config.batchSize)
+          limit = config.batchSize,
+          transformBody = jb => model.retrieve.transformBody(jb)
+        )
       val responseUnwrapped = response.unsafeRunSync()
 
       processItems(responseUnwrapped) match {
