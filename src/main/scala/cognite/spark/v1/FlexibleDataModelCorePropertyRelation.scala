@@ -264,16 +264,16 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   // scalastyle:on cyclomatic.complexity
 
   // schema fields for relation references and node/edge identifiers
-  private def usageBasedSchemaAttributes(usage: Usage): Array[StructField] = {
-    val spaceSchema = instanceSpace match {
-      case Some(_) => Array.empty
-      case None => Array(DataTypes.createStructField("space", DataTypes.StringType, false))
-    }
-    spaceSchema ++ (usage match {
+  private def usageBasedSchemaAttributes(usage: Usage): Array[StructField] =
+    usage match {
       case Usage.Node =>
-        Array(DataTypes.createStructField("externalId", DataTypes.StringType, false))
+        Array(
+          DataTypes.createStructField("space", DataTypes.StringType, false),
+          DataTypes.createStructField("externalId", DataTypes.StringType, false)
+        )
       case Usage.Edge =>
         Array(
+          DataTypes.createStructField("space", DataTypes.StringType, false),
           DataTypes.createStructField("externalId", DataTypes.StringType, false),
           relationReferenceSchema("type", nullable = false),
           relationReferenceSchema("startNode", nullable = false),
@@ -281,13 +281,13 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         )
       case Usage.All =>
         Array(
+          DataTypes.createStructField("space", DataTypes.StringType, false),
           DataTypes.createStructField("externalId", DataTypes.StringType, false),
           relationReferenceSchema("type", nullable = true),
           relationReferenceSchema("startNode", nullable = true),
           relationReferenceSchema("endNode", nullable = true)
         )
-    })
-  }
+    }
 
   private def toUsage(instanceType: InstanceType): Usage =
     instanceType match {
