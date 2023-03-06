@@ -37,8 +37,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
 
   private val instanceType = corePropConfig.instanceType
   private val viewReference = corePropConfig.viewReference
-  private val instanceSpace: Option[String] =
-    corePropConfig.instanceSpace.orElse(viewReference.map(_.space))
+  private val instanceSpace = corePropConfig.instanceSpace
 
   private val (allProperties, propertySchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
@@ -257,25 +256,24 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
                 Vector(
                   DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable))
             }
+          case _ => Vector.empty
         }
-      case _ => Vector.empty
     } ++ usageBasedSchemaAttributes(usage)
     DataTypes.createStructType(fields.toArray)
   }
   // scalastyle:on cyclomatic.complexity
 
   // schema fields for relation references and node/edge identifiers
-  // https://cognitedata.slack.com/archives/G012UKQJLC9/p1673627087186579
-  private def usageBasedSchemaAttributes(usage: Usage): Array[StructField] =
-    usage match {
+  private def usageBasedSchemaAttributes(usage: Usage): Array[StructField] = {
+    val spaceSchema = instanceSpace match {
+      case Some(_) => Array.empty
+      case None => Array(DataTypes.createStructField("space", DataTypes.StringType, false))
+    }
+    spaceSchema ++ (usage match {
       case Usage.Node =>
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, instanceSpace.isDefined),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false)
-        )
+        Array(DataTypes.createStructField("externalId", DataTypes.StringType, false))
       case Usage.Edge =>
         Array(
-          DataTypes.createStructField("space", DataTypes.StringType, instanceSpace.isDefined),
           DataTypes.createStructField("externalId", DataTypes.StringType, false),
           relationReferenceSchema("type", nullable = false),
           relationReferenceSchema("startNode", nullable = false),
@@ -283,13 +281,13 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         )
       case Usage.All =>
         Array(
-          DataTypes.createStructField("space", DataTypes.StringType, instanceSpace.isDefined),
           DataTypes.createStructField("externalId", DataTypes.StringType, false),
           relationReferenceSchema("type", nullable = true),
           relationReferenceSchema("startNode", nullable = true),
           relationReferenceSchema("endNode", nullable = true)
         )
-    }
+    })
+  }
 
   private def toUsage(instanceType: InstanceType): Usage =
     instanceType match {
