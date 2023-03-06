@@ -37,7 +37,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
 
   private val instanceType = corePropConfig.instanceType
   private val viewReference = corePropConfig.viewReference
-  private val instanceSpace = corePropConfig.instanceSpace.orElse(viewReference.map(_.space))
+  private val instanceSpace: Option[String] =
+    corePropConfig.instanceSpace.orElse(viewReference.map(_.space))
 
   private val (allProperties, propertySchema) = retrieveViewDefWithAllPropsAndSchema
     .unsafeRunSync()
@@ -230,32 +231,34 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case PrimitivePropType.Json => DataTypes.StringType
     }
 
-    val fields = viewProps.map {
+    val fields = viewProps.flatMap {
       case (propName, propDef) =>
         propDef match {
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
             val nullable = corePropDef.nullable.getOrElse(true)
             corePropDef.`type` match {
               case _: DirectNodeRelationProperty =>
-                relationReferenceSchema(propName, nullable = nullable)
+                Vector(relationReferenceSchema(propName, nullable = nullable))
               case t: TextProperty if t.isList =>
-                DataTypes.createStructField(
-                  propName,
-                  DataTypes.createArrayType(DataTypes.StringType, nullable),
-                  nullable)
+                Vector(
+                  DataTypes.createStructField(
+                    propName,
+                    DataTypes.createArrayType(DataTypes.StringType, nullable),
+                    nullable))
               case _: TextProperty =>
-                DataTypes.createStructField(propName, DataTypes.StringType, nullable)
+                Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
               case p @ PrimitiveProperty(ppt, _) if p.isList =>
-                DataTypes.createStructField(
-                  propName,
-                  DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable),
-                  nullable)
+                Vector(
+                  DataTypes.createStructField(
+                    propName,
+                    DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable),
+                    nullable))
               case PrimitiveProperty(ppt, _) =>
-                DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable)
+                Vector(
+                  DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable))
             }
-          case _: PropertyDefinition.ConnectionDefinition =>
-            relationReferenceSchema(propName, nullable = true)
         }
+      case _ => Vector.empty
     } ++ usageBasedSchemaAttributes(usage)
     DataTypes.createStructType(fields.toArray)
   }

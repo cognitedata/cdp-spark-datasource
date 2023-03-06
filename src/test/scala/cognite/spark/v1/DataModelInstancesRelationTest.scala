@@ -21,7 +21,7 @@ class DataModelInstancesRelationTest
   val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
   val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
   val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
-  private val bluefieldAlphaClient = getBlufieldClient(Some("alpha"))
+  private val bluefieldAlphaClient = getBlufieldClient()
   private val spaceExternalId = "test-space"
 
   private def listInstances(
