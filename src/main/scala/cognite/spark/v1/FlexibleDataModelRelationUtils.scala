@@ -296,8 +296,10 @@ object FlexibleDataModelRelationUtils {
       for {
         spaceExtId <- extractSpaceExternalId(schema, row)
         extId <- extractExternalId(schema, row)
-        startNode <- extractEdgeStartNodeDirectRelation(schema, row)
-        endNode <- extractEdgeEndNodeDirectRelation(schema, row)
+        startNode <- extractEdgeStartNodeDirectRelation(schema, row).orElse(
+          extractRelationWithDefaultSpace("startNode", schema, row, defaultSpace = edgeType.space))
+        endNode <- extractEdgeEndNodeDirectRelation(schema, row).orElse(
+          extractRelationWithDefaultSpace("endNode", schema, row, defaultSpace = edgeType.space))
       } yield
         EdgeWrite(
           `type` = edgeType,
@@ -347,6 +349,34 @@ object FlexibleDataModelRelationUtils {
                                       |Couldn't find required string property 'space': ${err.getMessage}
                                       |in data row: ${rowToString(row)}
                                       |""".stripMargin))
+    }
+
+  private def extractRelationWithDefaultSpace(
+      relation: String,
+      schema: StructType,
+      row: Row,
+      defaultSpace: String): Either[CdfSparkException, DirectRelationReference] =
+    Try {
+      val struct = row.getStruct(schema.fieldIndex(relation))
+      Option(struct.getAs[Any]("externalId"))
+    } match {
+      case Success(Some(externalId)) =>
+        Right(DirectRelationReference(space = defaultSpace, externalId = String.valueOf(externalId)))
+      case Success(None) =>
+        Left(
+          new CdfSparkException(
+            s"""
+               |'$relation' cannot contain null for `externalId`.
+               |Please verify that 'externalId' values are not null for '$relation'
+               |in data row: ${rowToString(row)}
+               |""".stripMargin
+          ))
+      case Failure(err) =>
+        Left(new CdfSparkException(s"""
+             |Could not find required property `externalId` for '$relation'
+             |'$relation' should be a 'StructType' with 'externalId': ${err.getMessage}
+             |in data row: ${rowToString(row)}
+             |""".stripMargin))
     }
 
   private def extractEdgeTypeDirectRelation(

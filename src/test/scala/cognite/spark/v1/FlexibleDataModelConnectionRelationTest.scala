@@ -130,7 +130,6 @@ class FlexibleDataModelConnectionRelationTest
              |    'externalId', '$startNodeExtId'
              |) as startNode,
              |named_struct(
-             |    'spaceExternalId', '$spaceExternalId',
              |    'externalId', '$endNodeExtId'
              |) as endNode
              |""".stripMargin)
