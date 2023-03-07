@@ -1,9 +1,13 @@
 package cognite.spark.v1
 
+import cats.Apply
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.FlexibleDataModelRelation.{ConnectionConfig, ViewCorePropertyConfig}
 import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
+import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
 import io.circe.Decoder
@@ -132,30 +136,58 @@ class DefaultSource
     new WellDataLayerRelation(config, model)(sqlContext)
   }
 
-  private def createFlexibleDataModelInstances(
+  // scalastyle:off method.length
+  private def createFlexibleDataModelRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext): FlexibleDataModelsRelation = {
-    val viewSpaceExternalId =
-      parameters.getOrElse(
-        "viewSpaceExternalId",
-        throw new CdfSparkException("'viewSpaceExternalId' id of the 'space' must be specified"))
-    val viewExternalId = parameters.getOrElse(
-      "viewExternalId",
-      throw new CdfSparkException("'viewExternalId' should be specified"))
-    val viewVersion = parameters.getOrElse(
-      "viewVersion",
-      throw new CdfSparkException("'viewVersion' should be specified"))
-    val instanceSpaceExternalId = parameters.get("instanceSpaceExternalId")
+      sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
+    val nodeOrEdgeRelation = parameters
+      .get("instanceType")
+      .collect {
+        case t if t.equalsIgnoreCase("edge") => InstanceType.Edge
+        case t if t.equalsIgnoreCase("node") => InstanceType.Node
+      }
+      .map { instanceType =>
+        FlexibleDataModelRelation.corePropertyRelation(
+          config = config,
+          sqlContext = sqlContext,
+          ViewCorePropertyConfig(
+            instanceType = instanceType,
+            viewReference = Apply[Option]
+              .map3(
+                parameters.get("viewSpace"),
+                parameters.get("viewExternalId"),
+                parameters.get("viewVersion")
+              )(ViewReference.apply),
+            instanceSpace = parameters.get("instanceSpace")
+          )
+        )
+      }
+    val connectionRelation = Apply[Option]
+      .map2(
+        parameters.get("edgeTypeSpace"),
+        parameters.get("edgeTypeExternalId")
+      )(ConnectionConfig.apply)
+      .map { connectionConfig =>
+        FlexibleDataModelRelation.connectionRelation(
+          config,
+          sqlContext,
+          connectionConfig
+        )
+      }
 
-    new FlexibleDataModelsRelation(
-      config,
-      viewSpaceExternalId = viewSpaceExternalId,
-      viewExternalId = viewExternalId,
-      viewVersion = viewVersion,
-      instanceSpaceExternalId = instanceSpaceExternalId
-    )(sqlContext)
+    nodeOrEdgeRelation
+      .orElse(connectionRelation)
+      .getOrElse(
+        throw new CdfSparkException(
+          s"""
+             |Invalid combination of arguments!
+             |Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion', 'instanceSpace') for NodeOrEdgeRelation,
+             |Expecting ('edgeTypeSpace', 'edgeTypeExternalId') for ConnectionRelation
+             |""".stripMargin
+        ))
   }
+  // scalastyle:on method.length
 
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
@@ -232,8 +264,8 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
-      case FlexibleDataModelsRelation.ResourceType =>
-        createFlexibleDataModelInstances(parameters, config, sqlContext)
+      case FlexibleDataModelRelation.ResourceType =>
+        createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
         createWellDataLayer(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
@@ -298,8 +330,8 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
-        case FlexibleDataModelsRelation.ResourceType =>
-          createFlexibleDataModelInstances(parameters, config, sqlContext)
+        case FlexibleDataModelRelation.ResourceType =>
+          createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
           createWellDataLayer(parameters, config, sqlContext)
         case _ => sys.error(s"Resource type $resourceType does not support save()")
