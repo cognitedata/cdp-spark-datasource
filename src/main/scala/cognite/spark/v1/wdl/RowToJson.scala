@@ -110,12 +110,9 @@ object RowToJson {
       case (m: Map[_, _], MapType(keyType, valueType, _)) =>
         Json.fromValues(m.iterator.map {
           case (k, v) =>
-            val key = toJsonHelper(fieldName + ".key", k, keyType)
-            val value = toJsonHelper(fieldName + ".value", v, valueType)
-            Json.fromFields(
-              "key" -> key ::
-                "value" -> value ::
-                Nil
+            Json.obj(
+              "key" -> toJsonHelper(fieldName + ".key", k, keyType),
+              "value" -> toJsonHelper(fieldName + ".value", v, valueType)
             )
         }.toList)
       case (r: Row, s: StructType) => toJson(r, s, Some(fieldName))
