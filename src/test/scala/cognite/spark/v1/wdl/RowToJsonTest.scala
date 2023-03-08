@@ -7,6 +7,8 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
+import cognite.spark.v1.SparkSchemaHelper._
+
 class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
   it should "convert a Row with number types into a JsonObject" in {
     val schema = new StructType()
@@ -166,7 +168,6 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
   }
 
   it should "give good error message when required value is None" in {
-    import cognite.spark.v1.SparkSchemaHelper._
 
     case class Person(name: String, age: Double)
     case class PersonInput(name: String, age: Option[Double])
@@ -177,12 +178,10 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
       RowToJson.toJson(inputRow, targetSchema)
     }
 
-    assert(error.getMessage.contains("Required field `age` of type `double` should not be NULL."))
+    error.getMessage should include("Required field `age` of type `double` should not be NULL.")
   }
 
   it should "give good error message when required value is not defined" in {
-    import cognite.spark.v1.SparkSchemaHelper._
-
     case class Person(name: String, age: Double)
     case class PersonInput(name: String)
 
@@ -192,7 +191,7 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
       RowToJson.toJson(inputRow, targetSchema)
     }
 
-    assert(error.getMessage.contains("Required field `age` of type `double` should not be NULL."))
+    error.getMessage should include("Required field `age` of type `double` should not be NULL.")
   }
 
   it should "give good error message when nested required value is not defined" in {
