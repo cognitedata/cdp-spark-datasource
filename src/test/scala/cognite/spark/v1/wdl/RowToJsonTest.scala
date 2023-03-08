@@ -172,7 +172,7 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
     case class PersonInput(name: String, age: Option[Double])
 
     val targetSchema = structType[Person]()
-    val inputRow = new GenericRowWithSchema(Array("Ola Nordmann", None), structType[PersonInput])
+    val inputRow = new GenericRowWithSchema(Array("Ola Nordmann", None), structType[PersonInput]())
     val error = intercept[CdfSparkException] {
       RowToJson.toJson(inputRow, targetSchema)
     }
