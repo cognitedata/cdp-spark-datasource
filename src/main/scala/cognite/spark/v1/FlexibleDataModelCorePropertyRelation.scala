@@ -3,18 +3,11 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.FlexibleDataModelRelation.ViewCorePropertyConfig
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{
-  createEdgeDeleteData,
-  createEdges,
-  createNodeDeleteData,
-  createNodes
-}
+import cognite.spark.v1.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
+import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdgeDeleteData, createEdges, createNodeDeleteData, createNodes}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.instances._
@@ -214,84 +207,4 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => IO.raiseError(err)
     }
   }
-
-  // scalastyle:off cyclomatic.complexity
-  private def deriveViewPropertySchemaWithUsageSpecificAttributes(
-      usage: Usage,
-      viewProps: Map[String, ViewPropertyDefinition]) = {
-    def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
-      case PrimitivePropType.Timestamp => DataTypes.TimestampType
-      case PrimitivePropType.Date => DataTypes.DateType
-      case PrimitivePropType.Boolean => DataTypes.BooleanType
-      case PrimitivePropType.Float32 => DataTypes.FloatType
-      case PrimitivePropType.Float64 => DataTypes.DoubleType
-      case PrimitivePropType.Int32 => DataTypes.IntegerType
-      case PrimitivePropType.Int64 => DataTypes.LongType
-      case PrimitivePropType.Json => DataTypes.StringType
-    }
-
-    val fields = viewProps.flatMap {
-      case (propName, propDef) =>
-        propDef match {
-          case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
-            val nullable = corePropDef.nullable.getOrElse(true)
-            corePropDef.`type` match {
-              case _: DirectNodeRelationProperty =>
-                Vector(relationReferenceSchema(propName, nullable = nullable))
-              case t: TextProperty if t.isList =>
-                Vector(
-                  DataTypes.createStructField(
-                    propName,
-                    DataTypes.createArrayType(DataTypes.StringType, nullable),
-                    nullable))
-              case _: TextProperty =>
-                Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
-              case p @ PrimitiveProperty(ppt, _) if p.isList =>
-                Vector(
-                  DataTypes.createStructField(
-                    propName,
-                    DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable),
-                    nullable))
-              case PrimitiveProperty(ppt, _) =>
-                Vector(
-                  DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable))
-            }
-          case _ => Vector.empty
-        }
-    } ++ usageBasedSchemaAttributes(usage)
-    DataTypes.createStructType(fields.toArray)
-  }
-  // scalastyle:on cyclomatic.complexity
-
-  // schema fields for relation references and node/edge identifiers
-  private def usageBasedSchemaAttributes(usage: Usage): Array[StructField] =
-    usage match {
-      case Usage.Node =>
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false)
-        )
-      case Usage.Edge =>
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false),
-          relationReferenceSchema("type", nullable = false),
-          relationReferenceSchema("startNode", nullable = false),
-          relationReferenceSchema("endNode", nullable = false)
-        )
-      case Usage.All =>
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false),
-          relationReferenceSchema("type", nullable = true),
-          relationReferenceSchema("startNode", nullable = true),
-          relationReferenceSchema("endNode", nullable = true)
-        )
-    }
-
-  private def toUsage(instanceType: InstanceType): Usage =
-    instanceType match {
-      case InstanceType.Node => Usage.Node
-      case InstanceType.Edge => Usage.Edge
-    }
 }

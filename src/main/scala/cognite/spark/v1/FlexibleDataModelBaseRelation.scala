@@ -4,17 +4,21 @@ import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
   ComparableFilterValue,
   SeqFilterValue
 }
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import fs2.Stream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.{GenericRow, GenericRowWithSchema}
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types.{DataTypes, StructField}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.math.BigInteger
@@ -24,7 +28,7 @@ import java.util.Locale
 import scala.util.Try
 
 abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext: SQLContext)
-    extends CdfRelation(config, FlexibleDataModelRelation.ResourceType)
+    extends CdfRelation(config, FlexibleDataModelRelationFactory.ResourceType)
     with PrunedFilteredScan
     with WritableRelation {
 
@@ -157,43 +161,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           s"Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
     }
 
-  // filter for `type`, `startNode` & `endNode`
-  private def createEdgeAttributeFilter(
-      attribute: String,
-      struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
-    Try {
-      val space = struct.getString(struct.fieldIndex("space"))
-      val externalId = struct.getString(struct.fieldIndex("externalId"))
-      FilterDefinition.Equals(
-        property = Vector("edge", attribute),
-        value = FilterValueDefinition.StringList(Vector(space, externalId))
-      )
-    }.toEither.leftMap { _ =>
-      new CdfSparkIllegalArgumentException(
-        s"""Invalid filter value for: 'edge $attribute'
-           |Expecting a struct with 'space' & 'externalId' attributes, but found: ${struct.json}
-           |""".stripMargin
-      )
-    }
-
-  private def createNodeOrEdgeSpaceFilter(instanceType: InstanceType, value: Any): FilterDefinition =
-    FilterDefinition.Equals(
-      property = Vector(instanceType.productPrefix.toLowerCase(Locale.US), "space"),
-      value = FilterValueDefinition.String(String.valueOf(value))
-    )
-
-  protected def relationReferenceSchema(name: String, nullable: Boolean): StructField =
-    DataTypes.createStructField(
-      name,
-      DataTypes.createStructType(
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false)
-        )
-      ),
-      nullable
-    )
-
   // scalastyle:off cyclomatic.complexity
   protected def toProjectedInstance(
       i: InstanceDefinition,
@@ -230,6 +197,123 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
   }
   // scalastyle:on cyclomatic.complexity
+
+  // scalastyle:off cyclomatic.complexity
+  protected def deriveViewPropertySchemaWithUsageSpecificAttributes(
+      usage: Usage,
+      viewProps: Map[String, ViewPropertyDefinition]): StructType = {
+    def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
+      case PrimitivePropType.Timestamp => DataTypes.TimestampType
+      case PrimitivePropType.Date => DataTypes.DateType
+      case PrimitivePropType.Boolean => DataTypes.BooleanType
+      case PrimitivePropType.Float32 => DataTypes.FloatType
+      case PrimitivePropType.Float64 => DataTypes.DoubleType
+      case PrimitivePropType.Int32 => DataTypes.IntegerType
+      case PrimitivePropType.Int64 => DataTypes.LongType
+      case PrimitivePropType.Json => DataTypes.StringType
+    }
+
+    val fields = viewProps.flatMap {
+      case (propName, propDef) =>
+        propDef match {
+          case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
+            val nullable = corePropDef.nullable.getOrElse(true)
+            corePropDef.`type` match {
+              case _: DirectNodeRelationProperty =>
+                Vector(relationReferenceSchema(propName, nullable = nullable))
+              case t: TextProperty if t.isList =>
+                Vector(
+                  DataTypes.createStructField(
+                    propName,
+                    DataTypes.createArrayType(DataTypes.StringType, nullable),
+                    nullable))
+              case _: TextProperty =>
+                Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
+              case p @ PrimitiveProperty(ppt, _) if p.isList =>
+                Vector(
+                  DataTypes.createStructField(
+                    propName,
+                    DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable),
+                    nullable))
+              case PrimitiveProperty(ppt, _) =>
+                Vector(
+                  DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable))
+            }
+          case _ => Vector.empty
+        }
+    } ++ usageBasedSchemaAttributes(usage)
+    DataTypes.createStructType(fields.toArray)
+  }
+  // scalastyle:on cyclomatic.complexity
+
+  // schema fields for relation references and node/edge identifiers
+  protected def usageBasedSchemaAttributes(usage: Usage): Array[StructField] =
+    usage match {
+      case Usage.Node =>
+        Array(
+          DataTypes.createStructField("space", DataTypes.StringType, false),
+          DataTypes.createStructField("externalId", DataTypes.StringType, false)
+        )
+      case Usage.Edge =>
+        Array(
+          DataTypes.createStructField("space", DataTypes.StringType, false),
+          DataTypes.createStructField("externalId", DataTypes.StringType, false),
+          relationReferenceSchema("type", nullable = false),
+          relationReferenceSchema("startNode", nullable = false),
+          relationReferenceSchema("endNode", nullable = false)
+        )
+      case Usage.All =>
+        Array(
+          DataTypes.createStructField("space", DataTypes.StringType, false),
+          DataTypes.createStructField("externalId", DataTypes.StringType, false),
+          relationReferenceSchema("type", nullable = true),
+          relationReferenceSchema("startNode", nullable = true),
+          relationReferenceSchema("endNode", nullable = true)
+        )
+    }
+
+  protected def toUsage(instanceType: InstanceType): Usage =
+    instanceType match {
+      case InstanceType.Node => Usage.Node
+      case InstanceType.Edge => Usage.Edge
+    }
+
+  // filter for `type`, `startNode` & `endNode`
+  private def createEdgeAttributeFilter(
+      attribute: String,
+      struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
+    Try {
+      val space = struct.getString(struct.fieldIndex("space"))
+      val externalId = struct.getString(struct.fieldIndex("externalId"))
+      FilterDefinition.Equals(
+        property = Vector("edge", attribute),
+        value = FilterValueDefinition.StringList(Vector(space, externalId))
+      )
+    }.toEither.leftMap { _ =>
+      new CdfSparkIllegalArgumentException(
+        s"""Invalid filter value for: 'edge $attribute'
+           |Expecting a struct with 'space' & 'externalId' attributes, but found: ${struct.json}
+           |""".stripMargin
+      )
+    }
+
+  private def createNodeOrEdgeSpaceFilter(instanceType: InstanceType, value: Any): FilterDefinition =
+    FilterDefinition.Equals(
+      property = Vector(instanceType.productPrefix.toLowerCase(Locale.US), "space"),
+      value = FilterValueDefinition.String(String.valueOf(value))
+    )
+
+  protected def relationReferenceSchema(name: String, nullable: Boolean): StructField =
+    DataTypes.createStructField(
+      name,
+      DataTypes.createStructType(
+        Array(
+          DataTypes.createStructField("space", DataTypes.StringType, false),
+          DataTypes.createStructField("externalId", DataTypes.StringType, false)
+        )
+      ),
+      nullable
+    )
 
   private def toComparableFilterValueDefinition(
       attribute: String,

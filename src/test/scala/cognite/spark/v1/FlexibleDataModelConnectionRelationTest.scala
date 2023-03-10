@@ -167,7 +167,7 @@ class FlexibleDataModelConnectionRelationTest
   private def getUpsertedMetricsCount(edgeTypeSpace: String, edgeTypeExternalId: String): Long =
     getNumberOfRowsUpserted(
       s"$edgeTypeSpace-$edgeTypeExternalId",
-      FlexibleDataModelRelation.ResourceType)
+      FlexibleDataModelRelationFactory.ResourceType)
 
   private def insertRows(
       edgeTypeSpace: String,
@@ -176,7 +176,7 @@ class FlexibleDataModelConnectionRelationTest
       onConflict: String = "upsert"): Unit =
     df.write
       .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelRelation.ResourceType)
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)
@@ -193,7 +193,7 @@ class FlexibleDataModelConnectionRelationTest
   private def readRows(edgeSpace: String, edgeExternalId: String): DataFrame =
     spark.read
       .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelRelation.ResourceType)
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)

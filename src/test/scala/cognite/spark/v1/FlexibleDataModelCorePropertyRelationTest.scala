@@ -964,7 +964,7 @@ class FlexibleDataModelCorePropertyRelationTest
       onConflict: String = "upsert"): Unit =
     df.write
       .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelRelation.ResourceType)
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)
@@ -989,7 +989,7 @@ class FlexibleDataModelCorePropertyRelationTest
       instanceSpaceExternalId: String): DataFrame =
     spark.read
       .format("cognite.spark.v1")
-      .option("type", FlexibleDataModelRelation.ResourceType)
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("clientId", clientId)

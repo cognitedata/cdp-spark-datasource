@@ -3,7 +3,13 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelation.{ConnectionConfig, ViewCorePropertyConfig}
+import cognite.spark.v1.FlexibleDataModelRelationFactory.{
+  ConnectionConfig,
+  DataModelConfig,
+  DataModelConnectionConfig,
+  DataModelViewConfig,
+  ViewCorePropertyConfig
+}
 import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
@@ -148,7 +154,7 @@ class DefaultSource
         case t if t.equalsIgnoreCase("node") => InstanceType.Node
       }
       .map { instanceType =>
-        FlexibleDataModelRelation.corePropertyRelation(
+        FlexibleDataModelRelationFactory.corePropertyRelation(
           config = config,
           sqlContext = sqlContext,
           ViewCorePropertyConfig(
@@ -168,22 +174,42 @@ class DefaultSource
         parameters.get("edgeTypeSpace"),
         parameters.get("edgeTypeExternalId")
       )(ConnectionConfig.apply)
-      .map { connectionConfig =>
-        FlexibleDataModelRelation.connectionRelation(
-          config,
-          sqlContext,
-          connectionConfig
-        )
-      }
+      .map(FlexibleDataModelRelationFactory.connectionRelation(config, sqlContext, _))
+
+    val dataModelRelationWithConnectionConfig = Apply[Option]
+      .map4(
+        parameters.get("modelSpace"),
+        parameters.get("modelExternalId"),
+        parameters.get("modelVersion"),
+        Apply[Option]
+          .map2(
+            parameters.get("edgeTypeSpace"),
+            parameters.get("edgeTypeExternalId")
+          )(ConnectionConfig.apply)
+      )(DataModelConnectionConfig.apply)
+      .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
+
+    val dataModelRelationWithViewConfig = Apply[Option]
+      .map4(
+        parameters.get("modelSpace"),
+        parameters.get("modelExternalId"),
+        parameters.get("modelVersion"),
+        parameters.get("viewExternalId"),
+      )(DataModelViewConfig.apply)
+      .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
 
     nodeOrEdgeRelation
       .orElse(connectionRelation)
+      .orElse(dataModelRelationWithConnectionConfig)
+      .orElse(dataModelRelationWithViewConfig)
       .getOrElse(
         throw new CdfSparkException(
           s"""
              |Invalid combination of arguments!
-             |Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion', 'instanceSpace') for NodeOrEdgeRelation,
-             |Expecting ('edgeTypeSpace', 'edgeTypeExternalId') for ConnectionRelation
+             |
+             | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion', 'instanceSpace') for CorePropertyRelation,
+             | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') for ConnectionRelation,
+             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion') for DataModelRelation,
              |""".stripMargin
         ))
   }
@@ -264,7 +290,7 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
-      case FlexibleDataModelRelation.ResourceType =>
+      case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
         createWellDataLayer(parameters, config, sqlContext)
@@ -330,7 +356,7 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
-        case FlexibleDataModelRelation.ResourceType =>
+        case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
           createWellDataLayer(parameters, config, sqlContext)
