@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
+import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import org.apache.spark.sql.SQLContext
 
@@ -10,7 +10,7 @@ object FlexibleDataModelRelationFactory {
   val ResourceType = "instances"
 
   final case class ViewCorePropertyConfig(
-      instanceType: InstanceType,
+      intendedUsage: Usage,
       viewReference: Option[ViewReference],
       instanceSpace: Option[String])
       extends FlexibleDataModelRelationFactory

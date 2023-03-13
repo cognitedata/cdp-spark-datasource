@@ -83,7 +83,7 @@ object FlexibleDataModelRelationUtils {
   ): Either[CdfSparkException, Vector[NodeOrEdgeCreate]] =
     rows.toVector.traverse { row =>
       for {
-        space <- instanceSpace.map(Right(_)).getOrElse(extractSpaceExternalId(schema, row))
+        space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         externalId <- extractExternalId(schema, row)
         props <- extractInstancePropertyValues(propertyDefMap, schema, row)
         writeData <- createNodeOrEdgeWriteData(
@@ -94,6 +94,26 @@ object FlexibleDataModelRelationUtils {
           startNodeRelation = extractEdgeStartNodeDirectRelation(schema, row).toOption,
           endNodeRelation = extractEdgeEndNodeDirectRelation(schema, row).toOption,
           props,
+          row
+        )
+      } yield writeData
+    }
+
+  private[spark] def createNodesOrEdges(
+      instanceSpace: Option[String],
+      rows: Seq[Row],
+      schema: StructType
+  ): Either[CdfSparkException, Vector[NodeOrEdgeCreate]] =
+    rows.toVector.traverse { row =>
+      for {
+        space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
+        externalId <- extractExternalId(schema, row)
+        writeData <- createNodeOrEdgeWriteData(
+          externalId = externalId,
+          instanceSpace = space,
+          edgeNodeTypeRelation = extractEdgeTypeDirectRelation(schema, row).toOption,
+          startNodeRelation = extractEdgeStartNodeDirectRelation(schema, row).toOption,
+          endNodeRelation = extractEdgeEndNodeDirectRelation(schema, row).toOption,
           row
         )
       } yield writeData
@@ -115,7 +135,7 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row]): Either[CdfSparkException, Vector[InstanceDeletionRequest]] =
     rows.toVector.traverse { row =>
       for {
-        spaceExtId <- extractSpaceExternalId(schema, row)
+        spaceExtId <- extractSpace(schema, row)
         extId <- extractExternalId(schema, row)
       } yield NodeDeletionRequest(space = spaceExtId, externalId = extId)
     }
@@ -125,7 +145,7 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row]): Either[CdfSparkException, Vector[InstanceDeletionRequest]] =
     rows.toVector.traverse { row =>
       for {
-        spaceExtId <- extractSpaceExternalId(schema, row)
+        spaceExtId <- extractSpace(schema, row)
         extId <- extractExternalId(schema, row)
       } yield
         EdgeDeletionRequest(
@@ -142,7 +162,7 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row]): Either[CdfSparkException, Vector[EdgeWrite]] =
     rows.toVector.traverse { row =>
       for {
-        space <- instanceSpace.map(Right(_)).getOrElse(extractSpaceExternalId(schema, row))
+        space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         extId <- extractExternalId(schema, row)
         edgeType <- extractEdgeTypeDirectRelation(schema, row)
         startNode <- extractEdgeStartNodeDirectRelation(schema, row)
@@ -172,7 +192,7 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row]): Either[CdfSparkException, Vector[EdgeWrite]] =
     rows.toVector.traverse { row =>
       for {
-        space <- instanceSpace.map(Right(_)).getOrElse(extractSpaceExternalId(schema, row))
+        space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         extId <- extractExternalId(schema, row)
         edgeType <- extractEdgeTypeDirectRelation(schema, row)
         startNode <- extractEdgeStartNodeDirectRelation(schema, row)
@@ -246,6 +266,47 @@ object FlexibleDataModelRelationUtils {
                                       |""".stripMargin))
     }
 
+  private def createNodeOrEdgeWriteData(
+      externalId: String,
+      instanceSpace: String,
+      edgeNodeTypeRelation: Option[DirectRelationReference],
+      startNodeRelation: Option[DirectRelationReference],
+      endNodeRelation: Option[DirectRelationReference],
+      row: Row): Either[CdfSparkException, NodeOrEdgeCreate] =
+    (edgeNodeTypeRelation, startNodeRelation, endNodeRelation) match {
+      case (Some(edgeType), Some(startNode), Some(endNode)) =>
+        Right(
+          EdgeWrite(
+            `type` = edgeType,
+            space = instanceSpace,
+            externalId = externalId,
+            startNode = startNode,
+            endNode = endNode,
+            sources = None
+          )
+        )
+      case (None, None, None) =>
+        Right(
+          NodeWrite(
+            space = instanceSpace,
+            externalId = externalId,
+            sources = None
+          )
+        )
+      case _ =>
+        val relationRefNames = Vector(
+          edgeNodeTypeRelation.map(_ => "'type'"),
+          startNodeRelation.map(_ => "'startNode'"),
+          endNodeRelation.map(_ => "'endNode'")
+        ).flatten
+        Left(new CdfSparkException(s"""
+             |Fields 'type', 'externalId', 'startNode' & 'endNode' fields are required to create an Edge.
+             |Field 'externalId' is required to create a Node
+             |Only found: 'externalId', ${relationRefNames.mkString(", ")}
+             |in data row: ${rowToString(row)}
+             |""".stripMargin))
+    }
+
   private def createNodeWriteData(
       instanceSpace: Option[String],
       schema: StructType,
@@ -254,7 +315,7 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row]): Either[CdfSparkException, Vector[NodeWrite]] =
     rows.toVector.traverse { row =>
       for {
-        space <- instanceSpace.map(Right(_)).getOrElse(extractSpaceExternalId(schema, row))
+        space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         externalId <- extractExternalId(schema, row)
         props <- extractInstancePropertyValues(propertyDefMap, schema, row)
       } yield
@@ -278,7 +339,7 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row]): Either[CdfSparkException, Vector[NodeWrite]] =
     rows.toVector.traverse { row =>
       for {
-        space <- instanceSpace.map(Right(_)).getOrElse(extractSpaceExternalId(schema, row))
+        space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         externalId <- extractExternalId(schema, row)
       } yield
         NodeWrite(
@@ -294,7 +355,7 @@ object FlexibleDataModelRelationUtils {
       rows: Seq[Row]): Either[CdfSparkException, Vector[EdgeWrite]] =
     rows.toVector.traverse { row =>
       for {
-        spaceExtId <- extractSpaceExternalId(schema, row)
+        spaceExtId <- extractSpace(schema, row)
         extId <- extractExternalId(schema, row)
         startNode <- extractEdgeStartNodeDirectRelation(schema, row).orElse(
           extractRelationWithDefaultSpace("startNode", schema, row, defaultSpace = edgeType.space))
@@ -331,7 +392,7 @@ object FlexibleDataModelRelationUtils {
                                       |""".stripMargin))
     }
 
-  private def extractSpaceExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
+  private def extractSpace(schema: StructType, row: Row): Either[CdfSparkException, String] =
     Try {
       Option(row.get(schema.fieldIndex("space")))
     } match {

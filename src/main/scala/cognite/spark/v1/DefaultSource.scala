@@ -3,16 +3,10 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationFactory.{
-  ConnectionConfig,
-  DataModelConfig,
-  DataModelConnectionConfig,
-  DataModelViewConfig,
-  ViewCorePropertyConfig
-}
+import cognite.spark.v1.FlexibleDataModelRelationFactory.{ConnectionConfig, DataModelConnectionConfig, DataModelViewConfig, ViewCorePropertyConfig}
 import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
+import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
@@ -150,15 +144,15 @@ class DefaultSource
     val nodeOrEdgeRelation = parameters
       .get("instanceType")
       .collect {
-        case t if t.equalsIgnoreCase("edge") => InstanceType.Edge
-        case t if t.equalsIgnoreCase("node") => InstanceType.Node
+        case t if t.equalsIgnoreCase("edge") => Usage.Edge
+        case t if t.equalsIgnoreCase("node") => Usage.Node
       }
-      .map { instanceType =>
+      .map { usage =>
         FlexibleDataModelRelationFactory.corePropertyRelation(
           config = config,
           sqlContext = sqlContext,
           ViewCorePropertyConfig(
-            instanceType = instanceType,
+            intendedUsage = usage,
             viewReference = Apply[Option]
               .map3(
                 parameters.get("viewSpace"),

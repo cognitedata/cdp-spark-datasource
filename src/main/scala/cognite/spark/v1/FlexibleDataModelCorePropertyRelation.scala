@@ -1,16 +1,24 @@
 package cognite.spark.v1
 
+import cats.Apply
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdgeDeleteData, createEdges, createNodeDeleteData, createNodes}
+import cognite.spark.v1.FlexibleDataModelRelationUtils.{
+  createEdgeDeleteData,
+  createEdges,
+  createNodeDeleteData,
+  createNodes,
+  createNodesOrEdges
+}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.instances._
+import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import fs2.Stream
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
@@ -28,18 +36,26 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 
-  private val instanceType = corePropConfig.instanceType
+  private val intendedUsage = corePropConfig.intendedUsage
   private val viewReference = corePropConfig.viewReference
   private val instanceSpace = corePropConfig.instanceSpace
 
-  private val (allProperties, propertySchema) = retrieveViewDefWithAllPropsAndSchema
-    .unsafeRunSync()
-    .getOrElse {
+  private val (allProperties, propertySchema) = config.onConflict match {
+    case OnConflictOption.Delete =>
       (
         Map.empty[String, ViewPropertyDefinition],
-        DataTypes.createStructType(usageBasedSchemaAttributes(toUsage(instanceType)))
+        createDeletionSchema
       )
-    }
+    case _ =>
+      retrieveAllViewPropsAndSchema
+        .unsafeRunSync()
+        .getOrElse {
+          (
+            Map.empty[String, ViewPropertyDefinition],
+            DataTypes.createStructType(usageBasedSchemaAttributes(intendedUsage))
+          )
+        }
+  }
 
   override def schema: StructType = propertySchema
 
@@ -72,13 +88,22 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         "Create is not supported for flexible data model instances. Use upsert instead."))
 
   override def delete(rows: Seq[Row]): IO[Unit] =
-    (rows.headOption, instanceType) match {
-      case (Some(firstRow), InstanceType.Node) =>
+    (rows.headOption, intendedUsage) match {
+      case (Some(firstRow), Usage.Node) =>
         IO.fromEither(createNodeDeleteData(firstRow.schema, rows))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
-      case (Some(firstRow), InstanceType.Edge) =>
+      case (Some(firstRow), Usage.Edge) =>
         IO.fromEither(createEdgeDeleteData(firstRow.schema, rows))
+          .flatMap(client.instances.delete)
+          .flatMap(results => incMetrics(itemsDeleted, results.length))
+      case (Some(firstRow), Usage.All) =>
+        val nodeOrEdgeDeleteData = createNodeDeleteData(firstRow.schema, rows)
+          .flatMap { nodes =>
+            createEdgeDeleteData(firstRow.schema, rows)
+              .map(edges => nodes ++ edges)
+          }
+        IO.fromEither(nodeOrEdgeDeleteData)
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case (None, _) => incMetrics(itemsDeleted, 0)
@@ -99,38 +124,102 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
 
     val instanceFilter = viewReference
-      .map { ref =>
-        filters.toVector.traverse(
-          toInstanceFilter(
-            instanceType,
-            _,
-            space = ref.space,
-            versionedExternalId = s"${ref.externalId}/${ref.version}"))
-      }
-      .getOrElse(filters.toVector.traverse(toNodeOrEdgeAttributeFilter(instanceType, _))) match {
-      case Right(fs) if fs.isEmpty => None
-      case Right(fs) if fs.length == 1 => fs.headOption
-      case Right(fs) => Some(FilterDefinition.And(fs))
+      .map(usageBasedPropertyFilter(intendedUsage, filters, _))
+      .getOrElse(usageBasedAttributeFilter(intendedUsage, filters)) match {
+      case Right(filters) => filters
       case Left(err) => throw err
     }
 
-    val filterRequest = InstanceFilterRequest(
-      instanceType = Some(instanceType),
-      filter = instanceFilter,
-      sort = None,
-      limit = limit,
-      cursor = None,
-      sources = viewReference.map(r => Vector(InstanceSource(r))),
-      includeTyping = Some(true)
-    )
-    Vector(
+    val filterRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
+      InstanceFilterRequest(
+        instanceType = Some(instanceType),
+        filter = instanceFilter,
+        sort = None,
+        limit = limit,
+        cursor = None,
+        sources = viewReference.map(r => Vector(InstanceSource(r))),
+        includeTyping = Some(true)
+      )
+    }
+
+    filterRequests.distinct.map { fr =>
       client.instances
-        .filterStream(filterRequest, limit)
+        .filterStream(fr, limit)
         .map(toProjectedInstance(_, selectedInstanceProps))
-    )
+    }
   }
 
-  private def retrieveViewDefWithAllPropsAndSchema
+  private def usageBasedAttributeFilter(
+      usage: Usage,
+      filters: Array[Filter]): Either[CdfSparkException, Option[FilterDefinition]] =
+    usage match {
+      case Usage.Node =>
+        filters.toVector
+          .traverse(toNodeOrEdgeAttributeFilter(InstanceType.Node, _))
+          .map(toAndFilter)
+      case Usage.Edge =>
+        filters.toVector
+          .traverse(toNodeOrEdgeAttributeFilter(InstanceType.Edge, _))
+          .map(toAndFilter)
+      case Usage.All =>
+        val nodeFilter = usageBasedAttributeFilter(Usage.Node, filters)
+        val edgeFilter = usageBasedAttributeFilter(Usage.Edge, filters)
+        nodeFilter.flatMap { nf =>
+          edgeFilter.map { ef =>
+            Apply[Option]
+              .map2(nf, ef)((n, e) => FilterDefinition.Or(Vector(n, e)))
+              .orElse(nf)
+              .orElse(ef)
+          }
+        }
+    }
+
+  private def usageBasedPropertyFilter(
+      usage: Usage,
+      filters: Array[Filter],
+      ref: ViewReference): Either[CdfSparkException, Option[FilterDefinition]] =
+    usage match {
+      case Usage.Node =>
+        filters.toVector
+          .traverse(
+            toInstanceFilter(
+              InstanceType.Node,
+              _,
+              space = ref.space,
+              versionedExternalId = s"${ref.externalId}/${ref.version}"))
+          .map(toAndFilter)
+      case Usage.Edge =>
+        filters.toVector
+          .traverse(
+            toInstanceFilter(
+              InstanceType.Edge,
+              _,
+              space = ref.space,
+              versionedExternalId = s"${ref.externalId}/${ref.version}"))
+          .map(toAndFilter)
+      case Usage.All =>
+        val nodeFilter = usageBasedPropertyFilter(Usage.Node, filters, ref)
+        val edgeFilter = usageBasedPropertyFilter(Usage.Edge, filters, ref)
+        nodeFilter.flatMap { nf =>
+          edgeFilter.map { ef =>
+            Apply[Option]
+              .map2(nf, ef)((n, e) => FilterDefinition.Or(Vector(n, e)))
+              .orElse(nf)
+              .orElse(ef)
+          }
+        }
+    }
+
+  private def toAndFilter(filters: Vector[FilterDefinition]): Option[FilterDefinition] =
+    if (filters.isEmpty) {
+      None
+    } else if (filters.length == 1) {
+      filters.headOption
+    } else {
+      Some(FilterDefinition.And(filters))
+    }
+
+  private def retrieveAllViewPropsAndSchema
     : IO[Option[(Map[String, ViewPropertyDefinition], StructType)]] =
     corePropConfig.viewReference.flatTraverse { viewRef =>
       client.views
@@ -144,7 +233,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         .map(_.headOption)
         .flatMap {
           case None => IO.pure(None)
-          case Some(viewDef) if compatibleUsageForInstanceType(viewDef.usedFor, instanceType) =>
+          case Some(viewDef) if compatibleUsageTypes(viewDef.usedFor, intendedUsage) =>
             IO.delay(
               Some((
                 viewDef.properties,
@@ -152,29 +241,22 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
               )))
           case _ =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
-               |View ${corePropConfig.viewReference} is not compatible with '${instanceType.productPrefix}' instances
+               |View '${corePropConfig.viewReference}' is not compatible with '${intendedUsage.productPrefix}s'
                |""".stripMargin))
         }
     }
 
-  private def compatibleUsageForInstanceType(usage: Usage, instanceType: InstanceType): Boolean =
-    (usage, instanceType) match {
-      case (Usage.All, _) => true
-      case (Usage.Node, InstanceType.Node) => true
-      case (Usage.Edge, InstanceType.Edge) => true
-      case _ => false
-    }
   private def upsertNodesOrEdges(
       instanceSpace: Option[String],
       rows: Seq[Row],
       schema: StructType,
       source: SourceReference,
       propDefMap: Map[String, ViewPropertyDefinition]): IO[Seq[SlimNodeOrEdge]] = {
-    val nodesOrEdges = instanceType match {
-      case InstanceType.Node => createNodes(instanceSpace, rows, schema, propDefMap, source)
-      case InstanceType.Edge => createEdges(instanceSpace, rows, schema, propDefMap, source)
+    val nodesOrEdges = intendedUsage match {
+      case Usage.Node => createNodes(instanceSpace, rows, schema, propDefMap, source)
+      case Usage.Edge => createEdges(instanceSpace, rows, schema, propDefMap, source)
+      case Usage.All => createNodesOrEdges(instanceSpace, rows, schema, propDefMap, source)
     }
-
     nodesOrEdges match {
       case Right(items) if items.nonEmpty =>
         val instanceCreate = InstanceCreate(
@@ -191,11 +273,11 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       instanceSpace: Option[String],
       rows: Seq[Row],
       schema: StructType): IO[Seq[SlimNodeOrEdge]] = {
-    val nodesOrEdges = instanceType match {
-      case InstanceType.Node => createNodes(instanceSpace, rows, schema)
-      case InstanceType.Edge => createEdges(instanceSpace, rows, schema)
+    val nodesOrEdges = intendedUsage match {
+      case Usage.Node => createNodes(instanceSpace, rows, schema)
+      case Usage.Edge => createEdges(instanceSpace, rows, schema)
+      case Usage.All => createNodesOrEdges(instanceSpace, rows, schema)
     }
-
     nodesOrEdges match {
       case Right(items) if items.nonEmpty =>
         val instanceCreate = InstanceCreate(
@@ -207,4 +289,26 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => IO.raiseError(err)
     }
   }
+
+  private def createDeletionSchema =
+    DataTypes.createStructType(
+      Array(
+        DataTypes.createStructField("space", DataTypes.StringType, false),
+        DataTypes.createStructField("externalId", DataTypes.StringType, false)
+      )
+    )
+
+  private def compatibleInstanceTypes(usage: Usage): Vector[InstanceType] =
+    usage match {
+      case Usage.Node => Vector(InstanceType.Node)
+      case Usage.Edge => Vector(InstanceType.Edge)
+      case Usage.All => Vector(InstanceType.Node, InstanceType.Edge)
+    }
+
+  private def compatibleUsageTypes(viewUsage: Usage, intendedUsage: Usage): Boolean =
+    (viewUsage, intendedUsage) match {
+      case (Usage.Node, Usage.Edge) => false
+      case (Usage.Edge, Usage.Node) => false
+      case _ => true
+    }
 }

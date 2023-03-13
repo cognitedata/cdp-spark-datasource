@@ -272,12 +272,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         )
     }
 
-  protected def toUsage(instanceType: InstanceType): Usage =
-    instanceType match {
-      case InstanceType.Node => Usage.Node
-      case InstanceType.Edge => Usage.Edge
-    }
-
   // filter for `type`, `startNode` & `endNode`
   private def createEdgeAttributeFilter(
       attribute: String,
