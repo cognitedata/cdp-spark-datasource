@@ -40,22 +40,14 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   private val viewReference = corePropConfig.viewReference
   private val instanceSpace = corePropConfig.instanceSpace
 
-  private val (allProperties, propertySchema) = config.onConflict match {
-    case OnConflictOption.Delete =>
+  private val (allProperties, propertySchema) = retrieveAllViewPropsAndSchema
+    .unsafeRunSync()
+    .getOrElse {
       (
         Map.empty[String, ViewPropertyDefinition],
-        createDeletionSchema
+        DataTypes.createStructType(usageBasedSchemaAttributes(intendedUsage))
       )
-    case _ =>
-      retrieveAllViewPropsAndSchema
-        .unsafeRunSync()
-        .getOrElse {
-          (
-            Map.empty[String, ViewPropertyDefinition],
-            DataTypes.createStructType(usageBasedSchemaAttributes(intendedUsage))
-          )
-        }
-  }
+    }
 
   override def schema: StructType = propertySchema
 
@@ -289,14 +281,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => IO.raiseError(err)
     }
   }
-
-  private def createDeletionSchema =
-    DataTypes.createStructType(
-      Array(
-        DataTypes.createStructField("space", DataTypes.StringType, false),
-        DataTypes.createStructField("externalId", DataTypes.StringType, false)
-      )
-    )
 
   private def compatibleInstanceTypes(usage: Usage): Vector[InstanceType] =
     usage match {
