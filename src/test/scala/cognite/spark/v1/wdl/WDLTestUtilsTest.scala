@@ -1,8 +1,6 @@
 package cognite.spark.v1.wdl
 
 import cognite.spark.v1.SparkTest
-import io.circe.generic.auto._
-import io.circe.syntax.EncoderOps
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors, Matchers}
 
 class WDLTestUtilsTest
@@ -12,15 +10,6 @@ class WDLTestUtilsTest
     with Inspectors
     with BeforeAndAfter {
 
-  import RowEquality._
-  import spark.implicits._
-
-  private val sparkReader = spark.read
-    .format("cognite.spark.v1")
-    .option("project", "jetfiretest2")
-    .option("type", "welldatalayer")
-    .useOIDCWrite
-
   val testClient: TestWdlClient = new TestWdlClient(writeClient)
 
   before {
@@ -28,20 +17,12 @@ class WDLTestUtilsTest
   }
 
   it should "setup wells and wellbores with miniSetup" in {
+    import cognite.spark.v1.CdpConnector._
     val miniSetup: testClient.MiniSetup = testClient.miniSetup()
+    val wellSources = writeClient.wdl.wellSources.list().unsafeRunSync()
+    wellSources.map(_.source) shouldBe miniSetup.well.sources
 
-    val ingestedWell = miniSetup.well.copy(wellbores = Some(miniSetup.wellbores))
-    val wellJsonString = ingestedWell.asJson.spaces2SortKeys
-    val testWellDS = spark.createDataset(Seq(wellJsonString))
-    val testWellDF = spark.read
-      .option("multiline", value = true)
-      .schema(testClient.getSchema("Well"))
-      .json(testWellDS)
-
-    val wellsDF = sparkReader
-      .option("wdlDataType", "Well")
-      .load()
-
-    (testWellDF.collect() should contain).theSameElementsAs(wellsDF.collect())
+    val wellboreSources = writeClient.wdl.wellboreSources.list().unsafeRunSync()
+    wellboreSources.map(_.source) shouldBe miniSetup.wellbores.flatMap(_.sources)
   }
 }
