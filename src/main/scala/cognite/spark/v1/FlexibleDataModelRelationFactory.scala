@@ -94,7 +94,8 @@ object FlexibleDataModelRelationFactory {
           IO.raiseError(
             new CdfSparkIllegalArgumentException(s"""
               |Could not find a view with externalId: '${modelViewConfig.viewExternalId}' in the specified data model
-              | with (space: '${modelViewConfig.modelSpace}', externalId: '${modelViewConfig.modelExternalId}', version: '${modelViewConfig.modelVersion}')
+              | with (space: '${modelViewConfig.modelSpace}', externalId: '${modelViewConfig.modelExternalId}',
+              | version: '${modelViewConfig.modelVersion}')
               |""".stripMargin)
           )
       }
@@ -127,8 +128,10 @@ object FlexibleDataModelRelationFactory {
           IO.raiseError(
             new CdfSparkIllegalArgumentException(s"""
               |Could not find a connection definition with
-              | (edgeTypeSpace: '${modelConnectionConfig.connectionConfig.edgeTypeSpace}', edgeTypeExternalId: '${modelConnectionConfig.connectionConfig.edgeTypeExternalId}')
-              | in any of the views linked with the data model (space: '${modelConnectionConfig.modelSpace}', externalId: '${modelConnectionConfig.modelExternalId}', version: '${modelConnectionConfig.modelVersion}')
+              | (edgeTypeSpace: '${modelConnectionConfig.connectionConfig.edgeTypeSpace}',
+              | edgeTypeExternalId: '${modelConnectionConfig.connectionConfig.edgeTypeExternalId}')
+              | in any of the views linked with the data model (space: '${modelConnectionConfig.modelSpace}',
+              | externalId: '${modelConnectionConfig.modelExternalId}', version: '${modelConnectionConfig.modelVersion}')
               |""".stripMargin)
           )
       }
@@ -137,13 +140,12 @@ object FlexibleDataModelRelationFactory {
   private def connectionDefinitionExists(
       viewDef: ViewDefinition,
       connectionConfig: ConnectionConfig): Boolean =
-    viewDef.properties
-      .collectFirst {
-        case (_, p: ConnectionDefinition) =>
-          p.`type`.space == connectionConfig.edgeTypeSpace &&
-            p.`type`.externalId == connectionConfig.edgeTypeExternalId
-      }
-      .contains(true)
+    viewDef.properties.exists {
+      case (_, p: ConnectionDefinition) =>
+        p.`type`.space == connectionConfig.edgeTypeSpace &&
+          p.`type`.externalId == connectionConfig.edgeTypeExternalId
+      case _ => false
+    }
 
   private def fetchInlinedDataModel(client: GenericClient[IO], modelViewConfig: DataModelViewConfig) =
     client.dataModelsV3

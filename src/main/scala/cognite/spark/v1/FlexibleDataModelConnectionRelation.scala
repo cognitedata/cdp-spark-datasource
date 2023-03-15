@@ -15,10 +15,10 @@ import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 /**
-  * FlexibleDataModels Relation for Connection definitions
+  * Flexible Data Model Relation for Connection instances (i.e edges without properties)
   *
   * @param config common relation configs
-  * @param connectionConfig connection config
+  * @param connectionConfig connection definition info
   * @param sqlContext sql context
   */
 private[spark] class FlexibleDataModelConnectionRelation(

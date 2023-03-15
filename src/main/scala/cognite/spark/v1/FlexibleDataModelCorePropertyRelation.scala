@@ -25,7 +25,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 /**
-  * FlexibleDataModelRelation for Nodes or Edges with properties
+  * Flexible Data Model Relation for Nodes or Edges with properties
   * @param config common relation configs
   * @param corePropConfig view core property config
   * @param sqlContext sql context
@@ -224,16 +224,21 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           includeInheritedProperties = Some(true))
         .map(_.headOption)
         .flatMap {
-          case None => IO.pure(None)
-          case Some(viewDef) if compatibleUsageTypes(viewDef.usedFor, intendedUsage) =>
+          case None =>
+            IO.raiseError(new CdfSparkIllegalArgumentException(s"""
+                 |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}')
+                 |""".stripMargin))
+          case Some(viewDef)
+              if compatibleUsageTypes(viewUsage = viewDef.usedFor, intendedUsage = intendedUsage) =>
             IO.delay(
               Some((
                 viewDef.properties,
                 deriveViewPropertySchemaWithUsageSpecificAttributes(viewDef.usedFor, viewDef.properties)
               )))
-          case _ =>
+          case Some(viewDef) =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
-               |View '${corePropConfig.viewReference}' is not compatible with '${intendedUsage.productPrefix}s'
+               | View with (space: '${viewDef.space}', externalId: '${viewDef.externalId}', version: '${viewDef.version}')
+               | is not compatible with '${intendedUsage.productPrefix}s'
                |""".stripMargin))
         }
     }

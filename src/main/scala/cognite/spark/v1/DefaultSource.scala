@@ -163,7 +163,8 @@ class DefaultSource
              |
              | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion', 'instanceSpace') for CorePropertyRelation,
              | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') for ConnectionRelation,
-             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion') for DataModelRelation,
+             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'viewExternalId') for data model based CorePropertyRelation,
+             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'edgeTypeSpace', 'edgeTypeExternalId') for data model based  ConnectionRelation,
              |""".stripMargin
         ))
   }
@@ -578,7 +579,7 @@ object DefaultSource {
         parameters.get("modelSpace"),
         parameters.get("modelExternalId"),
         parameters.get("modelVersion"),
-        parameters.get("viewExternalId"),
+        parameters.get("viewExternalId")
       )(DataModelViewConfig.apply)
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
 
@@ -617,6 +618,7 @@ object DefaultSource {
     parameters
       .get("instanceType")
       .collect {
+        // converting to `Usage` because when supporting data models, a view could have 'usedFor' set to 'All'
         case t if t.equalsIgnoreCase("edge") => Usage.Edge
         case t if t.equalsIgnoreCase("node") => Usage.Node
       }
