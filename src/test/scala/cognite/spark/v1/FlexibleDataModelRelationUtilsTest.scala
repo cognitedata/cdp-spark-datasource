@@ -1,15 +1,9 @@
 package cognite.spark.v1
 
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{
-  createEdgeDeleteData,
-  createEdges,
-  createNodeDeleteData,
-  createNodes,
-  createNodesOrEdges
-}
+import cognite.spark.v1.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes._
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDeletionRequest, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDeletionRequest, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
@@ -17,7 +11,6 @@ import org.scalatest.{Assertion, FlatSpec, Matchers}
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
-import scala.collection.Seq
 
 // scalastyle:off null
 class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
@@ -121,6 +114,95 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val result = createNodes(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
     verifyErrorMessage(result, "Could not find required properties")
+  }
+
+  it should "successfully create nodes with instance space extracted from data" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        TextPropertyNonListWithDefaultValueNonNullable,
+      "intProp" ->
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
+      "doubleListProp" -> Float64ListWithoutDefaultValueNonNullable,
+      "floatListProp" -> Float32ListWithoutDefaultValueNullable
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("space", StringType, nullable = false),
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", StringType, nullable = true),
+          StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+          StructField("floatListProp", ArrayType(FloatType), nullable = true)
+        )
+      )
+
+    val values =
+      Seq[Array[Any]](
+        Array("space1", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
+        Array("space1", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes(None, rows, schema, propertyMap, destRef)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct shouldBe Vector("space1")
+  }
+
+  it should "successfully create edges with instance space extracted from data" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        TextPropertyNonListWithDefaultValueNonNullable,
+      "intProp" ->
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
+      "doubleListProp" -> Float64ListWithoutDefaultValueNonNullable,
+      "floatListProp" -> Float32ListWithoutDefaultValueNullable
+    )
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("type", relationRefSchema, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+        StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+        StructField("floatListProp", ArrayType(FloatType), nullable = true)
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        "space1",
+        "stringProp1",
+        null,
+        "extId1",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
+        Seq(1.1, 1.2, null),
+        Array(2.1, null)
+      ),
+      Array(
+        "space1",
+        "stringProp2",
+        2,
+        "extId2",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema),
+        Array(2.1, 2.2),
+        null
+      )
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+    val result = createEdges(None, rows, schema, propertyMap, destRef)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct shouldBe Vector("space1")
   }
 
   it should "successfully create nodes with all nullable/non-nullable properties" in {
