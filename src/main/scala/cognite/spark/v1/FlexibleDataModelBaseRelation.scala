@@ -272,13 +272,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         )
     }
 
-  protected def createDeletionSchema: StructType =
-    DataTypes.createStructType(
-      Array(
-        DataTypes.createStructField("space", DataTypes.StringType, false),
-        DataTypes.createStructField("externalId", DataTypes.StringType, false)
-      )
-    )
   // filter for `type`, `startNode` & `endNode`
   private def createEdgeAttributeFilter(
       attribute: String,

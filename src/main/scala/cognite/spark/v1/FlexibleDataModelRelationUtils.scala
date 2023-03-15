@@ -131,21 +131,23 @@ object FlexibleDataModelRelationUtils {
     )
 
   private[spark] def createNodeDeleteData(
+      instanceSpace: Option[String],
       schema: StructType,
       rows: Seq[Row]): Either[CdfSparkException, Vector[InstanceDeletionRequest]] =
     rows.toVector.traverse { row =>
       for {
-        spaceExtId <- extractSpace(schema, row)
+        spaceExtId <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         extId <- extractExternalId(schema, row)
       } yield NodeDeletionRequest(space = spaceExtId, externalId = extId)
     }
 
   private[spark] def createEdgeDeleteData(
+      instanceSpace: Option[String],
       schema: StructType,
       rows: Seq[Row]): Either[CdfSparkException, Vector[InstanceDeletionRequest]] =
     rows.toVector.traverse { row =>
       for {
-        spaceExtId <- extractSpace(schema, row)
+        spaceExtId <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         extId <- extractExternalId(schema, row)
       } yield
         EdgeDeletionRequest(

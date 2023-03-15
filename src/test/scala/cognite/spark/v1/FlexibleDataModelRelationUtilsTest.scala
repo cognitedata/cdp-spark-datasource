@@ -1,8 +1,14 @@
 package cognite.spark.v1
 
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
+import cognite.spark.v1.FlexibleDataModelRelationUtils.{
+  createEdgeDeleteData,
+  createEdges,
+  createNodeDeleteData,
+  createNodes,
+  createNodesOrEdges
+}
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes._
-import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDeletionRequest, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
@@ -11,6 +17,7 @@ import org.scalatest.{Assertion, FlatSpec, Matchers}
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
+import scala.collection.Seq
 
 // scalastyle:off null
 class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
@@ -1607,6 +1614,196 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         case _ => false
       }
     }.toVector shouldBe Vector(true)
+  }
+
+  it should "successfully delete nodes from the specified instanceSpace" in {
+    val schema =
+      StructType(
+        Array(
+          StructField("space", StringType, nullable = false),
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", StringType, nullable = true),
+          StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+          StructField("floatListProp", ArrayType(FloatType), nullable = true)
+        )
+      )
+
+    val values =
+      Seq[Array[Any]](
+        Array("space2", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
+        Array("space2", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodeDeleteData(Some("space1"), schema, rows)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.collect {
+      case n: InstanceDeletionRequest.NodeDeletionRequest => n.space
+    }.distinct shouldBe Vector("space1")
+
+    val extIds = nodes.collect {
+      case n: InstanceDeletionRequest.NodeDeletionRequest => n.externalId
+    }
+    extIds.contains("extId1") shouldBe true
+    extIds.contains("extId2") shouldBe true
+  }
+
+  it should "successfully delete nodes from the space in data" in {
+    val schema =
+      StructType(
+        Array(
+          StructField("space", StringType, nullable = false),
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", StringType, nullable = true),
+          StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+          StructField("floatListProp", ArrayType(FloatType), nullable = true)
+        )
+      )
+
+    val values =
+      Seq[Array[Any]](
+        Array("space2", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
+        Array("space2", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodeDeleteData(None, schema, rows)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.collect {
+      case n: InstanceDeletionRequest.NodeDeletionRequest => n.space
+    }.distinct shouldBe Vector("space2")
+
+    val extIds = nodes.collect {
+      case n: InstanceDeletionRequest.NodeDeletionRequest => n.externalId
+    }
+    extIds.contains("extId1") shouldBe true
+    extIds.contains("extId2") shouldBe true
+  }
+
+  it should "successfully delete edges from the specified instanceSpace" in {
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("type", relationRefSchema, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+        StructField("unrelatedProp", IntegerType, nullable = false),
+        StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+        StructField("floatListProp", ArrayType(FloatType), nullable = true)
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        "space2",
+        "stringProp1",
+        null,
+        "extId1",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
+        "unrelatedProp1",
+        Seq(1.1, 1.2, null),
+        Array(2.1, null)
+      ),
+      Array(
+        "space2",
+        "stringProp2",
+        2,
+        "extId2",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema),
+        "unrelatedProp2",
+        Array(2.1, 2.2),
+        null
+      )
+    )
+
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createEdgeDeleteData(Some("space1"), schema, rows)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.collect {
+      case n: InstanceDeletionRequest.EdgeDeletionRequest => n.space
+    }.distinct shouldBe Vector("space1")
+
+    val extIds = nodes.collect {
+      case n: InstanceDeletionRequest.EdgeDeletionRequest => n.externalId
+    }
+    extIds.contains("extId1") shouldBe true
+    extIds.contains("extId2") shouldBe true
+  }
+
+  it should "successfully delete edges from the space in data" in {
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("type", relationRefSchema, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+        StructField("unrelatedProp", IntegerType, nullable = false),
+        StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+        StructField("floatListProp", ArrayType(FloatType), nullable = true)
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        "space2",
+        "stringProp1",
+        null,
+        "extId1",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
+        "unrelatedProp1",
+        Seq(1.1, 1.2, null),
+        Array(2.1, null)
+      ),
+      Array(
+        "space2",
+        "stringProp2",
+        2,
+        "extId2",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema),
+        "unrelatedProp2",
+        Array(2.1, 2.2),
+        null
+      )
+    )
+
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createEdgeDeleteData(None, schema, rows)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.collect {
+      case n: InstanceDeletionRequest.EdgeDeletionRequest => n.space
+    }.distinct shouldBe Vector("space2")
+
+    val extIds = nodes.collect {
+      case n: InstanceDeletionRequest.EdgeDeletionRequest => n.externalId
+    }
+    extIds.contains("extId1") shouldBe true
+    extIds.contains("extId2") shouldBe true
   }
 
   private def verifyErrorMessage[A](result: Either[Exception, A], errorMsg: String): Assertion =

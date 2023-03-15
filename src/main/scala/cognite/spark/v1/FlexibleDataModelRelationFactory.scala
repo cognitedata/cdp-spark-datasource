@@ -1,21 +1,13 @@
 package cognite.spark.v1
 
-import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import org.apache.spark.sql.SQLContext
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.FlexibleDataModelRelationFactory._
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.v1.fdm.common.DataModelReference
+import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ConnectionDefinition
 import com.cognite.sdk.scala.v1.fdm.views.{ViewDefinition, ViewReference}
-import fs2.Stream
-import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.SQLContext
 
 sealed trait FlexibleDataModelRelationFactory
 

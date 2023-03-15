@@ -82,17 +82,17 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   override def delete(rows: Seq[Row]): IO[Unit] =
     (rows.headOption, intendedUsage) match {
       case (Some(firstRow), Usage.Node) =>
-        IO.fromEither(createNodeDeleteData(firstRow.schema, rows))
+        IO.fromEither(createNodeDeleteData(instanceSpace, firstRow.schema, rows))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case (Some(firstRow), Usage.Edge) =>
-        IO.fromEither(createEdgeDeleteData(firstRow.schema, rows))
+        IO.fromEither(createEdgeDeleteData(instanceSpace, firstRow.schema, rows))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case (Some(firstRow), Usage.All) =>
-        val nodeOrEdgeDeleteData = createNodeDeleteData(firstRow.schema, rows)
+        val nodeOrEdgeDeleteData = createNodeDeleteData(instanceSpace, firstRow.schema, rows)
           .flatMap { nodes =>
-            createEdgeDeleteData(firstRow.schema, rows)
+            createEdgeDeleteData(instanceSpace, firstRow.schema, rows)
               .map(edges => nodes ++ edges)
           }
         IO.fromEither(nodeOrEdgeDeleteData)

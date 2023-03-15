@@ -65,7 +65,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
   override def delete(rows: Seq[Row]): IO[Unit] =
     rows.headOption match {
       case Some(firstRow) =>
-        IO.fromEither(createEdgeDeleteData(firstRow.schema, rows))
+        IO.fromEither(createEdgeDeleteData(None, firstRow.schema, rows))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case None => incMetrics(itemsDeleted, 0)
