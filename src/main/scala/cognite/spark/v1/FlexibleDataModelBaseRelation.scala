@@ -91,7 +91,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       versionedExternalId: String): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
-        Right(createNodeOrEdgeSpaceFilter(instanceType, value))
+        Right(createNodeOrEdgeCommonAttributeFilter(instanceType, "space", value))
+      case EqualTo(attribute, value) if attribute.equalsIgnoreCase("externalId") =>
+        Right(createNodeOrEdgeCommonAttributeFilter(instanceType, "externalId", value))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
         createEdgeAttributeFilter("type", value)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
@@ -144,12 +146,15 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
   // scalastyle:on cyclomatic.complexity
 
+  // scalastyle:off cyclomatic.complexity
   protected def toNodeOrEdgeAttributeFilter(
       instanceType: InstanceType,
       sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
-        Right(createNodeOrEdgeSpaceFilter(instanceType, value))
+        Right(createNodeOrEdgeCommonAttributeFilter(instanceType, "space", value))
+      case EqualTo(attribute, value) if attribute.equalsIgnoreCase("externalId") =>
+        Right(createNodeOrEdgeCommonAttributeFilter(instanceType, "externalId", value))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
         createEdgeAttributeFilter("startNode", value)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
@@ -160,6 +165,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         Left(new CdfSparkIllegalArgumentException(
           s"Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
     }
+  // scalastyle:on cyclomatic.complexity
 
   // scalastyle:off cyclomatic.complexity
   protected def toProjectedInstance(
@@ -291,9 +297,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       )
     }
 
-  private def createNodeOrEdgeSpaceFilter(instanceType: InstanceType, value: Any): FilterDefinition =
+  private def createNodeOrEdgeCommonAttributeFilter(
+      instanceType: InstanceType,
+      attribute: String,
+      value: Any): FilterDefinition =
     FilterDefinition.Equals(
-      property = Vector(instanceType.productPrefix.toLowerCase(Locale.US), "space"),
+      property = Vector(instanceType.productPrefix.toLowerCase(Locale.US), attribute),
       value = FilterValueDefinition.String(String.valueOf(value))
     )
 

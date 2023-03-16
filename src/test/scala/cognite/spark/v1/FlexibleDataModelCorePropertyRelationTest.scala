@@ -8,6 +8,7 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.Contain
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers.{ContainerDefinition, ContainerId, ContainerReference}
+import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
@@ -57,6 +58,25 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes"
   private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes"
+
+  private val testDataModelExternalId = "sparkDsTestModel"
+
+  client.dataModelsV3
+    .createItems(
+      Seq(DataModelCreate(
+        spaceExternalId,
+        testDataModelExternalId,
+        Some("SparkDatasourceTestModel"),
+        Some("Spark Datasource test model"),
+        viewVersion,
+        views = Some(
+          Seq(ViewReference(
+            spaceExternalId,
+            viewStartNodeAndEndNodesExternalId,
+            viewVersion
+          )))
+      )))
+    .unsafeRunSync()
 
 //  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
@@ -644,8 +664,51 @@ class FlexibleDataModelCorePropertyRelationTest
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
-  it should "successfully fetch instances from data model" in {
+  it should "successfully filter instances from a data model" in {
+    val df = readRowsFromModel(
+      modelSpace = spaceExternalId,
+      modelExternalId = testDataModelExternalId,
+      modelVersion = viewVersion,
+      viewExternalId = viewStartNodeAndEndNodesExternalId,
+      instanceSpace = None
+    )
 
+    df.createTempView("data_model_read_table")
+
+    val rows = spark
+      .sql(s"""select * from data_model_table
+           | where externalId = '${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode'
+           | """.stripMargin)
+      .collect()
+
+    rows.isEmpty shouldBe false
+    toExternalIds(rows).toVector shouldBe Vector("sparkDsTestViewStartAndEndNodesInsertNonListStartNode")
+    toPropVal(rows, "stringProp1").toVector shouldBe Vector("stringProp1Val")
+    toPropVal(rows, "stringProp2").toVector shouldBe Vector("stringProp2Val")
+  }
+
+  it should "successfully insert instances to a data model" in {
+    val df = spark
+      .sql(s"""
+           |select
+           |'insertedThroughModel' as externalId,
+           |'throughModelProp1' as stringProp1,
+           |'throughModelProp2' as stringProp2
+           |""".stripMargin)
+
+    val result = Try {
+      insertRowsToModel(
+        modelSpace = spaceExternalId,
+        modelExternalId = testDataModelExternalId,
+        modelVersion = viewVersion,
+        viewExternalId = viewStartNodeAndEndNodesExternalId,
+        instanceSpace = Some(spaceExternalId),
+        df
+      )
+    }
+
+    result shouldBe Success(())
+    getUpsertedMetricsCountForModel(testDataModelExternalId, viewVersion) shouldBe 1
   }
 
   // This should be kept as ignored
@@ -1008,4 +1071,61 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
       .option("collectMetrics", true)
       .load()
+
+  private def readRowsFromModel(
+      modelSpace: String,
+      modelExternalId: String,
+      modelVersion: String,
+      viewExternalId: String,
+      instanceSpace: Option[String]): DataFrame =
+    spark.read
+      .format("cognite.spark.v1")
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
+      .option("baseUrl", "https://bluefield.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", "extractor-bluefield-testing")
+      .option("scopes", "https://bluefield.cognitedata.com/.default")
+      .option("modelSpace", modelSpace)
+      .option("modelExternalId", modelExternalId)
+      .option("modelVersion", modelVersion)
+      .option("instanceSpace", instanceSpace.orNull)
+      .option("viewExternalId", viewExternalId)
+      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
+      .option("collectMetrics", true)
+      .load()
+
+  private def insertRowsToModel(
+      modelSpace: String,
+      modelExternalId: String,
+      modelVersion: String,
+      viewExternalId: String,
+      instanceSpace: Option[String],
+      df: DataFrame,
+      onConflict: String = "upsert"): Unit =
+    df.write
+      .format("cognite.spark.v1")
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
+      .option("baseUrl", "https://bluefield.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", "extractor-bluefield-testing")
+      .option("scopes", "https://bluefield.cognitedata.com/.default")
+      .option("modelSpace", modelSpace)
+      .option("modelExternalId", modelExternalId)
+      .option("modelVersion", modelVersion)
+      .option("instanceSpace", instanceSpace.orNull)
+      .option("viewExternalId", viewExternalId)
+      .option("onconflict", onConflict)
+      .option("collectMetrics", true)
+      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
+      .save()
+
+  private def getUpsertedMetricsCountForModel(modelSpace: String, modelExternalId: String): Long =
+    getNumberOfRowsUpserted(
+      s"$modelSpace-$modelExternalId",
+      FlexibleDataModelRelationFactory.ResourceType)
+
 }

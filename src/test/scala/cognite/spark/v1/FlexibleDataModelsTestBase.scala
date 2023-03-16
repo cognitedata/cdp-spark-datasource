@@ -508,4 +508,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
   def toExternalIds(rows: Array[Row]): Array[String] =
     rows.map(row => row.getString(row.schema.fieldIndex("externalId")))
 
+  def toPropVal(rows: Array[Row], prop: String): Array[String] =
+    rows.map(row => row.getString(row.schema.fieldIndex(prop)))
+
 }

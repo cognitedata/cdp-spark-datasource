@@ -91,8 +91,9 @@ object FlexibleDataModelRelationFactory {
               corePropConfig = ViewCorePropertyConfig(
                 intendedUsage = vc.usedFor,
                 viewReference = Some(vc.toSourceReference),
-                instanceSpace = None
-              ))(sqlContext)
+                instanceSpace = modelViewConfig.instanceSpace
+              )
+            )(sqlContext)
           )
         case None =>
           IO.raiseError(
