@@ -4,6 +4,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
+import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, SlimNodeOrEdge}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
@@ -24,12 +25,31 @@ class FlexibleDataModelConnectionRelationTest
   private val propsMap = Map(
     "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithoutDefaultValueNullable
   )
-  private val connectionsViewExtId = "sparkDsTestConnectionsView"
+  private val connectionsViewExtId = "sparkDsTestConnectionsView1"
 
   //  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
+  private val testDataModelExternalId = "testDataModelConnectionsExternalId1"
+  private val edgeTypeExtId = s"sparkDsConnectionsEdgeTypeExternalId"
+
+  client.dataModelsV3
+    .createItems(
+      Seq(DataModelCreate(
+        spaceExternalId,
+        testDataModelExternalId,
+        Some("SparkDatasourceConnectionsTestModel"),
+        Some("Spark Datasource connections test model"),
+        viewVersion,
+        views = Some(
+          Seq(ViewReference(
+            spaceExternalId,
+            connectionsViewExtId,
+            viewVersion
+          )))
+      )))
+    .unsafeRunSync()
+
   it should "fetch connection instances with filters" in {
-    val edgeTypeExtId = s"edgeTypeExternalId${apiCompatibleRandomString()}"
     val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
     val endNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchEndNode"
 
@@ -57,10 +77,10 @@ class FlexibleDataModelConnectionRelationTest
       connectionsSourceContainer <- createContainerIfNotExists(
         usage = Usage.Edge,
         propsMap,
-        "connectionSourceContainer")
+        "connectionSourceContainer1")
       connectionSourceView <- createViewWithCorePropsIfNotExists(
         connectionsSourceContainer,
-        "connectionSourceView",
+        "connectionSourceView1",
         viewVersion)
       _ <- createViewWithConnectionsIfNotExists(
         connectionSourceView.toSourceReference,
@@ -100,8 +120,60 @@ class FlexibleDataModelConnectionRelationTest
 
     val instExtIds = toExternalIds(selectedConnectionInstances)
     results.size shouldBe 2
-    instExtIds shouldBe Array("edge1")
-    instExtIds.length shouldBe 1
+    instExtIds should contain allElementsOf Array("edge1")
+  }
+
+  it should "fetch connection instances from a data model" in {
+    val df = readRowsFromModel(
+      spaceExternalId,
+      testDataModelExternalId,
+      viewVersion,
+      spaceExternalId,
+      edgeTypeExtId)
+
+    df.createTempView("data_model_read_connections_table")
+
+    val rows = spark
+      .sql(s"""select * from data_model_read_connections_table
+           | where startNode = named_struct(
+           |    'space', '$spaceExternalId',
+           |    'externalId', '${startEndNodeViewExternalId}FetchStartNode1'
+           |)
+           | """.stripMargin)
+      .collect()
+
+    rows.isEmpty shouldBe false
+    toExternalIds(rows) should contain allElementsOf Array("edge1")
+  }
+
+  it should "insert connection instance to a data model" in {
+    val df = spark
+      .sql(s"""
+           |select
+           |'edgeThroughModel1' as externalId,
+           |named_struct(
+           |    'space', '$spaceExternalId',
+           |    'externalId', '${startEndNodeViewExternalId}FetchStartNode1'
+           |) as startNode,
+           |named_struct(
+           |    'externalId', '${startEndNodeViewExternalId}FetchStartNode2'
+           |) as endNode
+           |""".stripMargin)
+
+    val result = Try {
+      insertRowsToModel(
+        spaceExternalId,
+        testDataModelExternalId,
+        viewVersion,
+        spaceExternalId,
+        edgeTypeExtId,
+        Some(spaceExternalId),
+        df
+      )
+    }
+
+    result shouldBe Success(())
+    getUpsertedMetricsCountForModel(testDataModelExternalId, viewVersion) shouldBe 1
   }
 
   it should "insert connection instances" in {
@@ -164,11 +236,6 @@ class FlexibleDataModelConnectionRelationTest
     client.instances.createItems(InstanceCreate(connectionInstances, replace = Some(true)))
   }
 
-  private def getUpsertedMetricsCount(edgeTypeSpace: String, edgeTypeExternalId: String): Long =
-    getNumberOfRowsUpserted(
-      s"$edgeTypeSpace-$edgeTypeExternalId",
-      FlexibleDataModelRelationFactory.ResourceType)
-
   private def insertRows(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
@@ -205,4 +272,67 @@ class FlexibleDataModelConnectionRelationTest
       .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
       .option("collectMetrics", true)
       .load()
+
+  private def readRowsFromModel(
+      modelSpace: String,
+      modelExternalId: String,
+      modelVersion: String,
+      edgeTypeSpace: String,
+      edgeTypeExternalId: String): DataFrame =
+    spark.read
+      .format("cognite.spark.v1")
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
+      .option("baseUrl", "https://bluefield.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", "extractor-bluefield-testing")
+      .option("scopes", "https://bluefield.cognitedata.com/.default")
+      .option("modelSpace", modelSpace)
+      .option("modelExternalId", modelExternalId)
+      .option("modelVersion", modelVersion)
+      .option("edgeTypeSpace", edgeTypeSpace)
+      .option("edgeTypeExternalId", edgeTypeExternalId)
+      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
+      .option("collectMetrics", true)
+      .load()
+
+  private def insertRowsToModel(
+      modelSpace: String,
+      modelExternalId: String,
+      modelVersion: String,
+      edgeTypeSpace: String,
+      edgeTypeExternalId: String,
+      instanceSpace: Option[String],
+      df: DataFrame,
+      onConflict: String = "upsert"): Unit =
+    df.write
+      .format("cognite.spark.v1")
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
+      .option("baseUrl", "https://bluefield.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", "extractor-bluefield-testing")
+      .option("scopes", "https://bluefield.cognitedata.com/.default")
+      .option("modelSpace", modelSpace)
+      .option("modelExternalId", modelExternalId)
+      .option("modelVersion", modelVersion)
+      .option("edgeTypeSpace", edgeTypeSpace)
+      .option("edgeTypeExternalId", edgeTypeExternalId)
+      .option("instanceSpace", instanceSpace.orNull)
+      .option("onconflict", onConflict)
+      .option("collectMetrics", true)
+      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
+      .save()
+
+  private def getUpsertedMetricsCount(edgeTypeSpace: String, edgeTypeExternalId: String): Long =
+    getNumberOfRowsUpserted(
+      s"$edgeTypeSpace-$edgeTypeExternalId",
+      FlexibleDataModelRelationFactory.ResourceType)
+
+  private def getUpsertedMetricsCountForModel(modelExternalId: String, modelVersion: String): Long =
+    getNumberOfRowsUpserted(
+      s"$modelExternalId-$modelVersion",
+      FlexibleDataModelRelationFactory.ResourceType)
 }

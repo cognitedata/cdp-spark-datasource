@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import cognite.spark.v1.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes._
+import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDeletionRequest, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
@@ -20,6 +21,12 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
   private val relationRefSchema: StructType = StructType(
     Array(
       StructField("spaceExternalId", StringType, nullable = false),
+      StructField("externalId", StringType, nullable = false)
+    )
+  )
+
+  private val relationRefWithoutSpaceSchema: StructType = StructType(
+    Array(
       StructField("externalId", StringType, nullable = false)
     )
   )
@@ -203,6 +210,88 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val nodes = result.toOption.getOrElse(Vector.empty)
     nodes.map(_.space).distinct shouldBe Vector("space1")
+  }
+
+  it should "successfully create connection instances with space extracted from data" in {
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        "space1",
+        "extId1",
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeExtId1"), relationRefWithoutSpaceSchema)
+      ),
+      Array(
+        "space1",
+        "extId2",
+        new GenericRowWithSchema(Array("startNodeExtId2"), relationRefWithoutSpaceSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema)
+      )
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+    val result = createConnectionInstances(
+      DirectRelationReference(space = "edgeTypeSpace", externalId = "edgeTypeExternalId"),
+      schema,
+      rows,
+      None)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    (nodes.map(_.startNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space1", "startNodeSpace1"))
+    (nodes.map(_.endNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space1", "endNodeSpace1"))
+    nodes.map(_.space).distinct shouldBe Vector("space1")
+    nodes.map(_.`type`.space).distinct shouldBe Vector("edgeTypeSpace")
+  }
+
+  it should "successfully create connection instances with instanceSpace" in {
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        null,
+        "extId1",
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeExtId1"), relationRefWithoutSpaceSchema)
+      ),
+      Array(
+        "space1",
+        "extId2",
+        new GenericRowWithSchema(Array("startNodeExtId2"), relationRefWithoutSpaceSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema)
+      )
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+    val result = createConnectionInstances(
+      DirectRelationReference(space = "edgeTypeSpace", externalId = "edgeTypeExternalId"),
+      schema,
+      rows,
+      instanceSpace = Some("space2"))
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    (nodes.map(_.startNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space2", "startNodeSpace1"))
+    (nodes.map(_.endNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space2", "endNodeSpace1"))
+    nodes.map(_.space).distinct shouldBe Vector("space2")
+    nodes.map(_.`type`.space).distinct shouldBe Vector("edgeTypeSpace")
   }
 
   it should "successfully create nodes with all nullable/non-nullable properties" in {

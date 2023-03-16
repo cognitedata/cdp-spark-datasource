@@ -118,12 +118,11 @@ object FlexibleDataModelRelationUtils {
 
   private[spark] def createConnectionInstances(
       edgeType: DirectRelationReference,
+      schema: StructType,
       rows: Seq[Row],
-      dataRowSchema: StructType,
-      connectionInstanceSchema: StructType,
       instanceSpace: Option[String]): Either[CdfSparkException, Vector[EdgeWrite]] =
-    validateRowFieldsForConnectionInstances(dataRowSchema = dataRowSchema, connectionInstanceSchema) *> createConnectionInstanceWriteData(
-      dataRowSchema,
+    createConnectionInstanceWriteData(
+      schema,
       edgeType,
       rows,
       instanceSpace
@@ -360,9 +359,9 @@ object FlexibleDataModelRelationUtils {
         spaceExtId <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         extId <- extractExternalId(schema, row)
         startNode <- extractEdgeStartNodeDirectRelation(schema, row).orElse(
-          extractRelationWithDefaultSpace("startNode", schema, row, defaultSpace = edgeType.space))
+          extractRelationWithDefaultSpace("startNode", schema, row, defaultSpace = spaceExtId))
         endNode <- extractEdgeEndNodeDirectRelation(schema, row).orElse(
-          extractRelationWithDefaultSpace("endNode", schema, row, defaultSpace = edgeType.space))
+          extractRelationWithDefaultSpace("endNode", schema, row, defaultSpace = spaceExtId))
       } yield
         EdgeWrite(
           `type` = edgeType,
@@ -519,28 +518,6 @@ object FlexibleDataModelRelationUtils {
       Left(new CdfSparkException(s"Could not find required properties: [$propsAsStr]"))
     } else {
       Right(true)
-    }
-  }
-
-  private def validateRowFieldsForConnectionInstances(
-      dataRowSchema: StructType,
-      connectionInstanceSchema: StructType): Either[CdfSparkException, Boolean] = {
-
-    val missingRequiredFields = connectionInstanceSchema
-      .map { field =>
-        field -> Try {
-          dataRowSchema(field.name).dataType == field.dataType
-        }.isSuccess
-      }
-      .flatMap {
-        case (_, true) => Vector.empty
-        case (field, false) => Vector(s"${field.name}:${field.dataType.simpleString}")
-      }
-
-    if (missingRequiredFields.isEmpty) { Right(true) } else {
-      Left(
-        new CdfSparkException(
-          s"Could not find required properties: [${missingRequiredFields.mkString(", ")}]"))
     }
   }
 

@@ -278,7 +278,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         )
     }
 
-  // filter for `type`, `startNode` & `endNode`
+  // Filter definition for edge `type`, `startNode` & `endNode`
   private def createEdgeAttributeFilter(
       attribute: String,
       struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
@@ -297,6 +297,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       )
     }
 
+  // Filter definitions for "space" & "externalId" attributes for nodes & edges
   private def createNodeOrEdgeCommonAttributeFilter(
       instanceType: InstanceType,
       attribute: String,

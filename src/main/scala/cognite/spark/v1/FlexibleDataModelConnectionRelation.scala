@@ -44,13 +44,12 @@ private[spark] class FlexibleDataModelConnectionRelation(
       case Some(firstRow) =>
         IO.fromEither(
             createConnectionInstances(
-              edgeType = DirectRelationReference(
+              DirectRelationReference(
                 space = connectionConfig.edgeTypeSpace,
                 externalId = connectionConfig.edgeTypeExternalId
               ),
+              firstRow.schema,
               rows,
-              dataRowSchema = firstRow.schema,
-              connectionInstanceSchema,
               instanceSpace
             )
           )
