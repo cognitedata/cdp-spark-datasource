@@ -676,7 +676,7 @@ class FlexibleDataModelCorePropertyRelationTest
     df.createTempView("data_model_read_table")
 
     val rows = spark
-      .sql(s"""select * from data_model_table
+      .sql(s"""select * from data_model_read_table
            | where externalId = '${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode'
            | """.stripMargin)
       .collect()
