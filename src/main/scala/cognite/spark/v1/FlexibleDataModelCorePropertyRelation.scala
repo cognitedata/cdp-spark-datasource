@@ -56,13 +56,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     val firstRow = rows.headOption
     (firstRow, viewReference) match {
       case (Some(fr), Some(viewRef)) =>
-        upsertNodesOrEdges(
-          instanceSpace,
-          rows,
-          fr.schema,
-          viewRef,
-          allProperties
-        ).flatMap(results => incMetrics(itemsUpserted, results.length))
+        upsertNodesOrEdges(rows, fr.schema, viewRef, allProperties, instanceSpace).flatMap(results =>
+          incMetrics(itemsUpserted, results.length))
       case (Some(fr), None) =>
         upsertNodesOrEdges(
           instanceSpace,
@@ -82,17 +77,17 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   override def delete(rows: Seq[Row]): IO[Unit] =
     (rows.headOption, intendedUsage) match {
       case (Some(firstRow), Usage.Node) =>
-        IO.fromEither(createNodeDeleteData(instanceSpace, firstRow.schema, rows))
+        IO.fromEither(createNodeDeleteData(firstRow.schema, rows, instanceSpace))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case (Some(firstRow), Usage.Edge) =>
-        IO.fromEither(createEdgeDeleteData(instanceSpace, firstRow.schema, rows))
+        IO.fromEither(createEdgeDeleteData(firstRow.schema, rows, instanceSpace))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case (Some(firstRow), Usage.All) =>
-        val nodeOrEdgeDeleteData = createNodeDeleteData(instanceSpace, firstRow.schema, rows)
+        val nodeOrEdgeDeleteData = createNodeDeleteData(firstRow.schema, rows, instanceSpace)
           .flatMap { nodes =>
-            createEdgeDeleteData(instanceSpace, firstRow.schema, rows)
+            createEdgeDeleteData(firstRow.schema, rows, instanceSpace)
               .map(edges => nodes ++ edges)
           }
         IO.fromEither(nodeOrEdgeDeleteData)
@@ -244,15 +239,15 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
 
   private def upsertNodesOrEdges(
-      instanceSpace: Option[String],
       rows: Seq[Row],
       schema: StructType,
       source: SourceReference,
-      propDefMap: Map[String, ViewPropertyDefinition]): IO[Seq[SlimNodeOrEdge]] = {
+      propDefMap: Map[String, ViewPropertyDefinition],
+      instanceSpace: Option[String]) = {
     val nodesOrEdges = intendedUsage match {
-      case Usage.Node => createNodes(instanceSpace, rows, schema, propDefMap, source)
-      case Usage.Edge => createEdges(instanceSpace, rows, schema, propDefMap, source)
-      case Usage.All => createNodesOrEdges(instanceSpace, rows, schema, propDefMap, source)
+      case Usage.Node => createNodes(rows, schema, propDefMap, source, instanceSpace)
+      case Usage.Edge => createEdges(rows, schema, propDefMap, source, instanceSpace)
+      case Usage.All => createNodesOrEdges(rows, schema, propDefMap, source, instanceSpace)
     }
     nodesOrEdges match {
       case Right(items) if items.nonEmpty =>
@@ -271,9 +266,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       rows: Seq[Row],
       schema: StructType): IO[Seq[SlimNodeOrEdge]] = {
     val nodesOrEdges = intendedUsage match {
-      case Usage.Node => createNodes(instanceSpace, rows, schema)
-      case Usage.Edge => createEdges(instanceSpace, rows, schema)
-      case Usage.All => createNodesOrEdges(instanceSpace, rows, schema)
+      case Usage.Node => createNodes(rows, schema, instanceSpace)
+      case Usage.Edge => createEdges(rows, schema, instanceSpace)
+      case Usage.All => createNodesOrEdges(rows, schema, instanceSpace)
     }
     nodesOrEdges match {
       case Right(items) if items.nonEmpty =>

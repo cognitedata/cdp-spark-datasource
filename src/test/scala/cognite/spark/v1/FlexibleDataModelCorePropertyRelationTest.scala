@@ -644,6 +644,10 @@ class FlexibleDataModelCorePropertyRelationTest
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
+  it should "successfully fetch instances from data model" in {
+
+  }
+
   // This should be kept as ignored
   ignore should "delete containers and views used for testing" in {
     client.containers

@@ -26,6 +26,8 @@ private[spark] class FlexibleDataModelConnectionRelation(
     connectionConfig: ConnectionConfig)(val sqlContext: SQLContext)
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
 
+  private val instanceSpace = connectionConfig.instanceSpace
+
   private val connectionInstanceSchema = DataTypes.createStructType(
     Array(
       DataTypes.createStructField("space", DataTypes.StringType, false),
@@ -48,7 +50,8 @@ private[spark] class FlexibleDataModelConnectionRelation(
               ),
               rows,
               dataRowSchema = firstRow.schema,
-              connectionInstanceSchema
+              connectionInstanceSchema,
+              instanceSpace
             )
           )
           .flatMap { instances =>
@@ -65,7 +68,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
   override def delete(rows: Seq[Row]): IO[Unit] =
     rows.headOption match {
       case Some(firstRow) =>
-        IO.fromEither(createEdgeDeleteData(None, firstRow.schema, rows))
+        IO.fromEither(createEdgeDeleteData(firstRow.schema, rows, instanceSpace))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case None => incMetrics(itemsDeleted, 0)

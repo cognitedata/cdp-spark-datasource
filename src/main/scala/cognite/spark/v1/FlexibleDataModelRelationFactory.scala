@@ -20,7 +20,10 @@ object FlexibleDataModelRelationFactory {
       instanceSpace: Option[String])
       extends FlexibleDataModelRelationFactory
 
-  final case class ConnectionConfig(edgeTypeSpace: String, edgeTypeExternalId: String)
+  final case class ConnectionConfig(
+      edgeTypeSpace: String,
+      edgeTypeExternalId: String,
+      instanceSpace: Option[String])
       extends FlexibleDataModelRelationFactory
 
   sealed trait DataModelConfig extends FlexibleDataModelRelationFactory
@@ -29,7 +32,8 @@ object FlexibleDataModelRelationFactory {
       modelSpace: String,
       modelExternalId: String,
       modelVersion: String,
-      viewExternalId: String)
+      viewExternalId: String,
+      instanceSpace: Option[String])
       extends DataModelConfig
 
   final case class DataModelConnectionConfig(

@@ -573,20 +573,23 @@ object DefaultSource {
   private def extractDataModelBasedCorePropertyRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) =
+      sqlContext: SQLContext) = {
+    val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map4(
         parameters.get("modelSpace"),
         parameters.get("modelExternalId"),
         parameters.get("modelVersion"),
         parameters.get("viewExternalId")
-      )(DataModelViewConfig.apply)
+      )(DataModelViewConfig(_, _, _, _, instanceSpace))
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
+  }
 
   private def extractDataModelBasedConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) =
+      sqlContext: SQLContext) = {
+    val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map4(
         parameters.get("modelSpace"),
@@ -596,20 +599,23 @@ object DefaultSource {
           .map2(
             parameters.get("edgeTypeSpace"),
             parameters.get("edgeTypeExternalId")
-          )(ConnectionConfig.apply)
+          )(ConnectionConfig(_, _, instanceSpace))
       )(DataModelConnectionConfig.apply)
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
+  }
 
   private def extractConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) =
+      sqlContext: SQLContext) = {
+    val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map2(
         parameters.get("edgeTypeSpace"),
         parameters.get("edgeTypeExternalId")
-      )(ConnectionConfig.apply)
+      )(ConnectionConfig(_, _, instanceSpace))
       .map(FlexibleDataModelRelationFactory.connectionRelation(config, sqlContext, _))
+  }
 
   private def extractCorePropertyRelation(
       parameters: Map[String, String],
