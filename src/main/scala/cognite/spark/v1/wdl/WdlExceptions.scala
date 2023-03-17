@@ -12,5 +12,5 @@ class WrongFieldTypeException(
     val expectedDataType: DataType,
     val value: Any)
     extends CdfSparkException(
-      s"Field `$structFieldName` with expected type `$expectedDataType` contains invalid value: `$value` of type `${value.getClass}`."
+      s"Field `$structFieldName` with expected type `$expectedDataType` contains invalid value: `$value`."
     )

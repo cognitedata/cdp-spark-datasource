@@ -167,6 +167,25 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
     assert(actual == expected)
   }
 
+  it should "give good error message if String is instead instead of struct" in {
+    case class Person(name: String, age: Double) // { name: age: 23.0 }
+    case class InnerInput(age: Double)
+    case class PersonInput(name: String, age: InnerInput) // { name: age: { age: 23.0 } }
+
+    val targetSchema = structType[Person]()
+    val inputRow = new GenericRowWithSchema(
+      Array(
+        "Ola",
+        new GenericRowWithSchema(Array(23.0), structType[InnerInput]())
+      ),
+      structType[PersonInput]()
+    )
+    val error = intercept[CdfSparkException] {
+      RowToJson.toJson(inputRow, targetSchema)
+    }
+    error.getMessage should include("Field `age` with expected type `DoubleType` contains invalid value: `[23.0]`.")
+  }
+
   it should "give good error message when required value is None" in {
 
     case class Person(name: String, age: Double)
