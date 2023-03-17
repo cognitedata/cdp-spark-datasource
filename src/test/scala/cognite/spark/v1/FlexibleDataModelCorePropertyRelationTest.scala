@@ -118,15 +118,15 @@ class FlexibleDataModelCorePropertyRelationTest
                 |select
                 |'$instanceExtId' as externalId,
                 |named_struct(
-                |    'spaceExternalId', '$spaceExternalId',
+                |    'space', '$spaceExternalId',
                 |    'externalId', '$instanceExtId'
                 |) as type,
                 |named_struct(
-                |    'spaceExternalId', '$spaceExternalId',
+                |    'space', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
                 |) as startNode,
                 |named_struct(
-                |    'spaceExternalId', '$spaceExternalId',
+                |    'space', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode,
                 |'stringProp1' as stringProp1,
@@ -150,7 +150,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 |'{"a": "a", "b": 1}' as jsonProp1,
                 |null as jsonProp2,
                 |named_struct(
-                |    'spaceExternalId', '$spaceExternalId',
+                |    'space', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
                 |) as directRelation1,
                 |null as directRelation2
@@ -259,15 +259,15 @@ class FlexibleDataModelCorePropertyRelationTest
                 |select
                 |'$instanceExtId' as externalId,
                 |named_struct(
-                |    'spaceExternalId', '$spaceExternalId',
+                |    'space', '$spaceExternalId',
                 |    'externalId', '$instanceExtId'
                 |) as type,
                 |named_struct(
-                |    'spaceExternalId', '$spaceExternalId',
+                |    'space', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
                 |) as startNode,
                 |named_struct(
-                |    'spaceExternalId', '$spaceExternalId',
+                |    'space', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode,
                 |array('stringListProp1Val', null, 'stringListProp2Val', 24) as stringListProp1,

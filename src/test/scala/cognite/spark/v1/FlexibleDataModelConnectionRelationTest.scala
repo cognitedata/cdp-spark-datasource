@@ -198,7 +198,7 @@ class FlexibleDataModelConnectionRelationTest
              |'$spaceExternalId' as space,
              |'$instanceExtId' as externalId,
              |named_struct(
-             |    'spaceExternalId', '$spaceExternalId',
+             |    'space', '$spaceExternalId',
              |    'externalId', '$startNodeExtId'
              |) as startNode,
              |named_struct(

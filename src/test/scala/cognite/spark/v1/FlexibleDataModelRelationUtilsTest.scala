@@ -20,7 +20,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
   private val relationRefSchema: StructType = StructType(
     Array(
-      StructField("spaceExternalId", StringType, nullable = false),
+      StructField("space", StringType, nullable = false),
       StructField("externalId", StringType, nullable = false)
     )
   )
