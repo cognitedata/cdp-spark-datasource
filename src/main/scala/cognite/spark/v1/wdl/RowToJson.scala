@@ -25,7 +25,7 @@ object RowToJson {
     *
     * @return a JsonObject
     */
-  def toJsonObject(row: Row, schema: StructType, fieldName: Option[String]): JsonObject =
+  def toJsonObject(row: Row, schema: StructType, fieldPath: Option[String]): JsonObject =
     if (row == null) {
       JsonObject.empty
     } else if (row.schema == null) {
@@ -36,27 +36,27 @@ object RowToJson {
       val jsonFields = schema.toList
         .flatMap(
           structField => {
-            val childFieldName = fieldName.map(_ + ".").getOrElse("") + structField.name
+            val childFieldPath = fieldPath.map(_ + ".").getOrElse("") + structField.name
             rowFields
               .get(structField.name)
               .map(rowField => {
                 val converted = try {
-                  convertToJson(rowField, structField.dataType, childFieldName, structField.nullable)
+                  convertToJson(rowField, structField.dataType, childFieldPath, structField.nullable)
                 } catch {
                   case e: CdfSparkException =>
                     throw new CdfSparkException(s"${e.getMessage}. Row: `$row`", e)
                 }
                 structField.name -> converted
               })
-              .orThrow(childFieldName, structField.nullable, structField.dataType)
+              .orThrow(childFieldPath, structField.nullable, structField.dataType)
           }
         )
         .toMap
       JsonObject.fromMap(jsonFields)
     }
 
-  def toJson(row: Row, schema: StructType, fieldName: Option[String] = None): Json = {
-    val jsonObject = toJsonObject(row, schema, fieldName)
+  def toJson(row: Row, schema: StructType, fieldPath: Option[String] = None): Json = {
+    val jsonObject = toJsonObject(row, schema, fieldPath)
     if (jsonObject.isEmpty) {
       Json.Null
     } else {
@@ -70,14 +70,14 @@ object RowToJson {
 
   // Convert an iterator of values to a json array
   private def iteratorToJsonArray(
-      fieldName: String,
+      fieldPath: String,
       iterator: Iterator[_],
       elementType: DataType): Json =
-    Json.fromValues(iterator.map(value => toJsonHelper(fieldName, value, elementType)).toList)
+    Json.fromValues(iterator.map(value => toJsonHelper(fieldPath, value, elementType)).toList)
 
   // Convert a value to json.
   // scalastyle:off cyclomatic.complexity
-  private def toJsonHelper(fieldName: String, value: Any, dataType: DataType): Json =
+  private def toJsonHelper(fieldPath: String, value: Any, dataType: DataType): Json =
     (value, dataType) match {
       case (null, _) => Json.Null // scalastyle:ignore
       case (None, _) => Json.Null
@@ -98,44 +98,44 @@ object RowToJson {
       case (t: Timestamp, _) => Json.fromString(timestampFormatter.format(t))
       case (i: CalendarInterval, _) => Json.fromString(i.toString)
       case (a: Array[_], ArrayType(elementType, _)) =>
-        iteratorToJsonArray(fieldName, a.iterator, elementType)
+        iteratorToJsonArray(fieldPath, a.iterator, elementType)
       case (a: mutable.ArraySeq[_], ArrayType(elementType, _)) =>
-        iteratorToJsonArray(fieldName, a.iterator, elementType)
+        iteratorToJsonArray(fieldPath, a.iterator, elementType)
       case (s: Seq[_], ArrayType(elementType, _)) =>
-        iteratorToJsonArray(fieldName, s.iterator, elementType)
+        iteratorToJsonArray(fieldPath, s.iterator, elementType)
       case (m: Map[String @unchecked, _], MapType(StringType, valueType, _)) =>
         Json.fromFields(m.toList.sortBy(_._1).map {
-          case (k, v) => k -> toJsonHelper(fieldName + ".value", v, valueType)
+          case (k, v) => k -> toJsonHelper(fieldPath + ".value", v, valueType)
         })
       case (m: Map[_, _], MapType(keyType, valueType, _)) =>
         Json.fromValues(m.iterator.map {
           case (k, v) =>
             Json.obj(
-              "key" -> toJsonHelper(fieldName + ".key", k, keyType),
-              "value" -> toJsonHelper(fieldName + ".value", v, valueType)
+              "key" -> toJsonHelper(fieldPath + ".key", k, keyType),
+              "value" -> toJsonHelper(fieldPath + ".value", v, valueType)
             )
         }.toList)
-      case (r: Row, s: StructType) => toJson(r, s, Some(fieldName))
+      case (r: Row, s: StructType) => toJson(r, s, Some(fieldPath))
       case (badValue, dataType) =>
-        throw new WrongFieldTypeException(fieldName, dataType, badValue)
+        throw new WrongFieldTypeException(fieldPath, dataType, badValue)
     }
   // scalastyle:on cyclomatic.complexity
 
   private def convertToJson(
       dataValue: Any,
       dataType: DataType,
-      fieldName: String,
+      fieldPath: String,
       nullable: Boolean): Json =
     if (dataValue == null) {
       if (nullable) {
         Json.Null
       } else {
-        throw new RequiredFieldIsNullException(fieldName, dataType)
+        throw new RequiredFieldIsNullException(fieldPath, dataType)
       }
     } else {
-      val json = toJsonHelper(fieldName, dataValue, dataType)
+      val json = toJsonHelper(fieldPath, dataValue, dataType)
       if (json.isNull && !nullable) {
-        throw new RequiredFieldIsNullException(fieldName, dataType)
+        throw new RequiredFieldIsNullException(fieldPath, dataType)
       }
       json
     }
