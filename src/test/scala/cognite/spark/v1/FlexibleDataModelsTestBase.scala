@@ -381,17 +381,17 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
   protected def getUpsertedMetricsCount(viewDef: ViewDefinition): Long =
     getNumberOfRowsUpserted(
       s"${viewDef.externalId}-${viewDef.version}",
-      FlexibleDataModelRelation.ResourceType)
+      FlexibleDataModelRelationFactory.ResourceType)
 
   protected def getReadMetricsCount(viewDef: ViewDefinition): Long =
     getNumberOfRowsRead(
       s"${viewDef.externalId}-${viewDef.version}",
-      FlexibleDataModelRelation.ResourceType)
+      FlexibleDataModelRelationFactory.ResourceType)
 
   protected def getDeletedMetricsCount(viewDef: ViewDefinition): Long =
     getNumberOfRowsDeleted(
       s"${viewDef.externalId}-${viewDef.version}",
-      FlexibleDataModelRelation.ResourceType)
+      FlexibleDataModelRelationFactory.ResourceType)
 
   protected def createInstancePropertyValue(
       propName: String,
@@ -507,5 +507,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
 
   def toExternalIds(rows: Array[Row]): Array[String] =
     rows.map(row => row.getString(row.schema.fieldIndex("externalId")))
+
+  def toPropVal(rows: Array[Row], prop: String): Array[String] =
+    rows.map(row => row.getString(row.schema.fieldIndex(prop)))
 
 }
