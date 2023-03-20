@@ -197,9 +197,9 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         "stringProp2",
         2,
         "extId2",
-        new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
-        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId2"), relationRefSchema),
-        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("typeExtId2"), relationRefWithoutSpaceSchema),
+        new GenericRowWithSchema(Array("startNodeExtId2"), relationRefWithoutSpaceSchema),
+        new GenericRowWithSchema(Array("endNodeExtId2"), relationRefWithoutSpaceSchema),
         Array(2.1, 2.2),
         null
       )
@@ -208,8 +208,13 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val result = createEdges(rows, schema, propertyMap, destRef, None)
     result.isRight shouldBe true
 
-    val nodes = result.toOption.getOrElse(Vector.empty)
-    nodes.map(_.space).distinct shouldBe Vector("space1")
+    val edges = result.toOption.getOrElse(Vector.empty)
+    (edges.map(_.space).distinct should contain).theSameElementsAs(Vector("space1"))
+    (edges.map(_.`type`.space).distinct should contain).theSameElementsAs(Vector("space1", "typeSpace1"))
+    (edges.map(_.startNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space1", "startNodeSpace1"))
+    (edges.map(_.endNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space1", "endNodeSpace1"))
   }
 
   it should "successfully create connection instances with space extracted from data" in {
