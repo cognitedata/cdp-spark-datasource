@@ -82,14 +82,17 @@ object FlexibleDataModelRelationUtils {
       for {
         space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         externalId <- extractExternalId(schema, row)
-        props <- extractInstancePropertyValues(propertyDefMap, schema, row)
+        props <- extractInstancePropertyValues(propertyDefMap, schema, instanceSpace, row)
         writeData <- createNodeOrEdgeWriteData(
           externalId = externalId,
           instanceSpace = space,
           source,
-          edgeNodeTypeRelation = extractEdgeTypeDirectRelation(schema, row).toOption,
-          startNodeRelation = extractEdgeStartNodeDirectRelation(schema, row).toOption,
-          endNodeRelation = extractEdgeEndNodeDirectRelation(schema, row).toOption,
+          edgeNodeTypeRelation =
+            extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
+          startNodeRelation =
+            extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
+          endNodeRelation =
+            extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           props,
           row
         )
@@ -108,9 +111,12 @@ object FlexibleDataModelRelationUtils {
         writeData <- createNodeOrEdgeWriteData(
           externalId = externalId,
           instanceSpace = space,
-          edgeNodeTypeRelation = extractEdgeTypeDirectRelation(schema, row).toOption,
-          startNodeRelation = extractEdgeStartNodeDirectRelation(schema, row).toOption,
-          endNodeRelation = extractEdgeEndNodeDirectRelation(schema, row).toOption,
+          edgeNodeTypeRelation =
+            extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
+          startNodeRelation =
+            extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
+          endNodeRelation =
+            extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           row
         )
       } yield writeData
@@ -164,10 +170,14 @@ object FlexibleDataModelRelationUtils {
       for {
         space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         extId <- extractExternalId(schema, row)
-        edgeType <- extractEdgeTypeDirectRelation(schema, row)
-        startNode <- extractEdgeStartNodeDirectRelation(schema, row)
-        endNode <- extractEdgeEndNodeDirectRelation(schema, row)
-        props <- extractInstancePropertyValues(propertyDefMap, schema, row)
+        edgeType <- extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
+        startNode <- extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
+        endNode <- extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
+        props <- extractInstancePropertyValues(
+          propertyDefMap,
+          schema,
+          instanceSpace.orElse(Some(space)),
+          row)
       } yield
         EdgeWrite(
           `type` = edgeType,
@@ -194,9 +204,9 @@ object FlexibleDataModelRelationUtils {
       for {
         space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         extId <- extractExternalId(schema, row)
-        edgeType <- extractEdgeTypeDirectRelation(schema, row)
-        startNode <- extractEdgeStartNodeDirectRelation(schema, row)
-        endNode <- extractEdgeEndNodeDirectRelation(schema, row)
+        edgeType <- extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
+        startNode <- extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
+        endNode <- extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
       } yield
         EdgeWrite(
           `type` = edgeType,
@@ -317,7 +327,7 @@ object FlexibleDataModelRelationUtils {
       for {
         space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         externalId <- extractExternalId(schema, row)
-        props <- extractInstancePropertyValues(propertyDefMap, schema, row)
+        props <- extractInstancePropertyValues(propertyDefMap, schema, instanceSpace, row)
       } yield
         NodeWrite(
           space = space,
@@ -356,16 +366,14 @@ object FlexibleDataModelRelationUtils {
       instanceSpace: Option[String]): Either[CdfSparkException, Vector[EdgeWrite]] =
     rows.toVector.traverse { row =>
       for {
-        spaceExtId <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
+        space <- instanceSpace.map(Right(_)).getOrElse(extractSpace(schema, row))
         extId <- extractExternalId(schema, row)
-        startNode <- extractEdgeStartNodeDirectRelation(schema, row).orElse(
-          extractRelationWithDefaultSpace("startNode", schema, row, defaultSpace = spaceExtId))
-        endNode <- extractEdgeEndNodeDirectRelation(schema, row).orElse(
-          extractRelationWithDefaultSpace("endNode", schema, row, defaultSpace = spaceExtId))
+        startNode <- extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
+        endNode <- extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
       } yield
         EdgeWrite(
           `type` = edgeType,
-          space = spaceExtId,
+          space = space,
           externalId = extId,
           startNode = startNode,
           endNode = endNode,
@@ -413,59 +421,35 @@ object FlexibleDataModelRelationUtils {
                                       |""".stripMargin))
     }
 
-  private def extractRelationWithDefaultSpace(
-      relation: String,
-      schema: StructType,
-      row: Row,
-      defaultSpace: String): Either[CdfSparkException, DirectRelationReference] =
-    Try {
-      val struct = row.getStruct(schema.fieldIndex(relation))
-      Option(struct.getAs[Any]("externalId"))
-    } match {
-      case Success(Some(externalId)) =>
-        Right(DirectRelationReference(space = defaultSpace, externalId = String.valueOf(externalId)))
-      case Success(None) =>
-        Left(
-          new CdfSparkException(
-            s"""
-               |'$relation' cannot contain null for `externalId`.
-               |Please verify that 'externalId' values are not null for '$relation'
-               |in data row: ${rowToString(row)}
-               |""".stripMargin
-          ))
-      case Failure(err) =>
-        Left(new CdfSparkException(s"""
-             |Could not find required property `externalId` for '$relation'
-             |'$relation' should be a 'StructType' with 'externalId': ${err.getMessage}
-             |in data row: ${rowToString(row)}
-             |""".stripMargin))
-    }
-
   private def extractEdgeTypeDirectRelation(
       schema: StructType,
+      instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
-    extractDirectRelation("type", "Edge type", schema, row)
+    extractDirectRelation("type", "Edge type", schema, instanceSpace, row)
 
   private def extractEdgeStartNodeDirectRelation(
       schema: StructType,
+      defaultSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
-    extractDirectRelation("startNode", "Edge start node", schema, row)
+    extractDirectRelation("startNode", "Edge start node", schema, defaultSpace, row)
 
   private def extractEdgeEndNodeDirectRelation(
       schema: StructType,
+      defaultSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
-    extractDirectRelation("endNode", "Edge end node", schema, row)
+    extractDirectRelation("endNode", "Edge end node", schema, defaultSpace, row)
 
   private def extractDirectRelation(
       propertyName: String,
       descriptiveName: String,
       schema: StructType,
+      defaultSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     Try {
       val struct = row.getStruct(schema.fieldIndex(propertyName))
       val space = Try(Option(struct.getAs[Any]("space")))
         .orElse(Try(Option(struct.getAs[Any]("spaceExternalId")))) // just in case of fdm v2 utils are used
-        .getOrElse(None)
+        .getOrElse(defaultSpace)
       val externalId = Option(struct.getAs[Any]("externalId"))
       Apply[Option].map2(space, externalId) {
         case (s, e) => DirectRelationReference(space = String.valueOf(s), externalId = String.valueOf(e))
@@ -492,10 +476,11 @@ object FlexibleDataModelRelationUtils {
   private def extractInstancePropertyValues(
       propertyDefMap: Map[String, ViewPropertyDefinition],
       schema: StructType,
+      instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, Vector[(String, InstancePropertyValue)]] =
     propertyDefMap.toVector.flatTraverse {
       case (propName, propDef) =>
-        propertyDefinitionToInstancePropertyValue(row, schema, propName, propDef).map {
+        propertyDefinitionToInstancePropertyValue(row, schema, propName, propDef, instanceSpace).map {
           case Some(t) => Vector(propName -> t)
           case None => Vector.empty
         }
@@ -527,12 +512,18 @@ object FlexibleDataModelRelationUtils {
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: ViewPropertyDefinition): Either[CdfSparkException, Option[InstancePropertyValue]] = {
+      propDef: ViewPropertyDefinition,
+      instanceSpace: Option[String]): Either[CdfSparkException, Option[InstancePropertyValue]] = {
     val instancePropertyValueResult = propDef match {
       case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
         corePropDef.`type` match {
           case _: DirectNodeRelationProperty =>
-            directNodeRelationToInstancePropertyValue(row, schema, propertyName, corePropDef)
+            directNodeRelationToInstancePropertyValue(
+              row,
+              schema,
+              propertyName,
+              corePropDef,
+              instanceSpace)
           case t if t.isList => toInstantPropertyValueOfList(row, schema, propertyName, corePropDef)
           case _ => toInstantPropertyValueOfNonList(row, schema, propertyName, corePropDef)
         }
@@ -542,7 +533,7 @@ object FlexibleDataModelRelationUtils {
         if (nullAtIndex) {
           Right(None)
         } else {
-          extractDirectRelation(propertyName, "Connection Reference", schema, row)
+          extractDirectRelation(propertyName, "Connection Reference", schema, None, row)
             .map(_.asJson)
             .map(json => Some(InstancePropertyValue.Object(json)))
         }
@@ -684,7 +675,8 @@ object FlexibleDataModelRelationUtils {
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: CorePropertyDefinition): Either[CdfSparkException, Option[InstancePropertyValue]] = {
+      propDef: CorePropertyDefinition,
+      defaultSpace: Option[String]): Either[CdfSparkException, Option[InstancePropertyValue]] = {
     val nullable = propDef.nullable.getOrElse(true)
     val fieldIndex = Try(schema.fieldIndex(propertyName))
     val nullAtIndex = fieldIndex.map(row.isNullAt).getOrElse(true)
@@ -693,7 +685,7 @@ object FlexibleDataModelRelationUtils {
     } else if (!nullable && nullAtIndex) {
       Left(new CdfSparkException(s"'$propertyName' cannot be null"))
     } else {
-      extractDirectRelation(propertyName, "Direct Node Relation", schema, row)
+      extractDirectRelation(propertyName, "Direct Node Relation", schema, defaultSpace, row)
         .map(_.asJson)
         .map(json => Some(InstancePropertyValue.Object(json)))
     }
