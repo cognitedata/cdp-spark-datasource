@@ -146,16 +146,16 @@ class DefaultSource
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
     val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext)
-    val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
     val dataModelBasedConnectionRelation =
       extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
     val dataModelBasedCorePropertyRelation =
       extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
+    val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
 
     corePropertyRelation
-      .orElse(connectionRelation)
       .orElse(dataModelBasedConnectionRelation)
       .orElse(dataModelBasedCorePropertyRelation)
+      .orElse(connectionRelation)
       .getOrElse(
         throw new CdfSparkException(
           s"""
@@ -164,7 +164,7 @@ class DefaultSource
              | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion', 'instanceSpace') for CorePropertyRelation,
              | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') for ConnectionRelation,
              | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'viewExternalId') for data model based CorePropertyRelation,
-             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'edgeTypeSpace', 'edgeTypeExternalId') for data model based  ConnectionRelation,
+             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', viewExternalId', 'connectionPropertyName') for data model based  ConnectionRelation,
              |""".stripMargin
         ))
   }
@@ -591,16 +591,13 @@ object DefaultSource {
       sqlContext: SQLContext) = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
-      .map4(
+      .map5(
         parameters.get("modelSpace"),
         parameters.get("modelExternalId"),
         parameters.get("modelVersion"),
-        Apply[Option]
-          .map2(
-            parameters.get("edgeTypeSpace"),
-            parameters.get("edgeTypeExternalId")
-          )(ConnectionConfig(_, _, instanceSpace))
-      )(DataModelConnectionConfig.apply)
+        parameters.get("viewExternalId"),
+        parameters.get("connectionPropertyName")
+      )(DataModelConnectionConfig(_, _, _, _, _, instanceSpace))
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
   }
 

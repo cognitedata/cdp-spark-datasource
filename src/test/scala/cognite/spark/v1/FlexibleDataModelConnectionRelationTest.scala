@@ -3,11 +3,17 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
-import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
+import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, SlimNodeOrEdge}
-import com.cognite.sdk.scala.v1.fdm.views.ViewReference
+import com.cognite.sdk.scala.v1.fdm.views.{
+  ConnectionDirection,
+  ViewCreateDefinition,
+  ViewDefinition,
+  ViewPropertyCreateDefinition,
+  ViewReference
+}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -120,7 +126,7 @@ class FlexibleDataModelConnectionRelationTest
 
     val instExtIds = toExternalIds(selectedConnectionInstances)
     results.size shouldBe 2
-    instExtIds should contain allElementsOf Array("edge1")
+    (instExtIds should contain).allElementsOf(Array("edge1"))
   }
 
   it should "fetch connection instances from a data model" in {
@@ -143,7 +149,7 @@ class FlexibleDataModelConnectionRelationTest
       .collect()
 
     rows.isEmpty shouldBe false
-    toExternalIds(rows) should contain allElementsOf Array("edge1")
+    (toExternalIds(rows) should contain).allElementsOf(Array("edge1"))
   }
 
   it should "insert connection instance to a data model" in {
@@ -165,8 +171,8 @@ class FlexibleDataModelConnectionRelationTest
         spaceExternalId,
         testDataModelExternalId,
         viewVersion,
-        spaceExternalId,
-        edgeTypeExtId,
+        connectionsViewExtId,
+        "connectionProp",
         Some(spaceExternalId),
         df
       )
@@ -236,6 +242,43 @@ class FlexibleDataModelConnectionRelationTest
     client.instances.createItems(InstanceCreate(connectionInstances, replace = Some(true)))
   }
 
+  private def createViewWithConnectionsIfNotExists(
+      connectionSource: ViewReference,
+      `type`: DirectRelationReference,
+      viewExternalId: String,
+      viewVersion: String): IO[ViewDefinition] =
+    client.views
+      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, Some(viewVersion))))
+      .flatMap { views =>
+        if (views.isEmpty) {
+          val viewToCreate = ViewCreateDefinition(
+            space = spaceExternalId,
+            externalId = viewExternalId,
+            version = viewVersion,
+            name = Some(s"Test-View-Connections-Spark-DS"),
+            description = Some("Test View For Connections Spark Datasource"),
+            filter = None,
+            properties = Map(
+              "connectionProp" -> ViewPropertyCreateDefinition.ConnectionDefinition(
+                name = Some("connectionProp"),
+                description = Some("connectionProp"),
+                `type` = `type`,
+                source = connectionSource,
+                direction = Some(ConnectionDirection.Outwards)
+              )
+            ),
+            implements = None,
+          )
+
+          client.views
+            .createItems(items = Seq(viewToCreate))
+            .flatTap(_ => IO.sleep(3.seconds))
+        } else {
+          IO.delay(views)
+        }
+      }
+      .map(_.head)
+
   private def insertRows(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
@@ -301,8 +344,8 @@ class FlexibleDataModelConnectionRelationTest
       modelSpace: String,
       modelExternalId: String,
       modelVersion: String,
-      edgeTypeSpace: String,
-      edgeTypeExternalId: String,
+      viewExternalId: String,
+      connectionPropertyName: String,
       instanceSpace: Option[String],
       df: DataFrame,
       onConflict: String = "upsert"): Unit =
@@ -318,8 +361,8 @@ class FlexibleDataModelConnectionRelationTest
       .option("modelSpace", modelSpace)
       .option("modelExternalId", modelExternalId)
       .option("modelVersion", modelVersion)
-      .option("edgeTypeSpace", edgeTypeSpace)
-      .option("edgeTypeExternalId", edgeTypeExternalId)
+      .option("viewExternalId", viewExternalId)
+      .option("connectionPropertyName", connectionPropertyName)
       .option("instanceSpace", instanceSpace.orNull)
       .option("onconflict", onConflict)
       .option("collectMetrics", true)

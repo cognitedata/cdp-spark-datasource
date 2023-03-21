@@ -40,7 +40,9 @@ object FlexibleDataModelRelationFactory {
       modelSpace: String,
       modelExternalId: String,
       modelVersion: String,
-      connectionConfig: ConnectionConfig)
+      viewExternalId: String,
+      connectionPropertyName: String,
+      instanceSpace: Option[String])
       extends DataModelConfig
 
   def corePropertyRelation(
@@ -114,42 +116,46 @@ object FlexibleDataModelRelationFactory {
     fetchInlinedDataModel(client, modelConnectionConfig)
       .flatMap {
         _.flatMap(_.views.getOrElse(Seq.empty)).toVector
-          .traverse {
+          .flatTraverse {
             case vc: ViewDefinition =>
-              IO.delay(connectionDefinitionExists(vc, modelConnectionConfig.connectionConfig))
+              IO.delay(
+                filterConnectionDefinition(vc, modelConnectionConfig.connectionPropertyName).toVector)
             case vr: ViewReference =>
-              fetchViewWithAllProps(client, vr).map(_.headOption.exists(
-                connectionDefinitionExists(_, modelConnectionConfig.connectionConfig)))
-            case _ => IO.pure(false)
+              fetchViewWithAllProps(client, vr).map(
+                _.headOption
+                  .flatMap(filterConnectionDefinition(_, modelConnectionConfig.connectionPropertyName))
+                  .toVector)
+            case _ => IO.pure(Vector.empty)
           }
-          .map(_.contains(true))
+          .map(_.headOption)
       }
       .flatMap {
-        case true =>
+        case Some(cDef) =>
           IO.delay(
-            new FlexibleDataModelConnectionRelation(config, modelConnectionConfig.connectionConfig)(
-              sqlContext))
-        case false =>
+            new FlexibleDataModelConnectionRelation(
+              config,
+              ConnectionConfig(
+                edgeTypeSpace = cDef.`type`.space,
+                edgeTypeExternalId = cDef.`type`.externalId,
+                instanceSpace = modelConnectionConfig.instanceSpace)
+            )(sqlContext))
+        case _ =>
           IO.raiseError(
             new CdfSparkIllegalArgumentException(s"""
-              |Could not find a connection definition with
-              | (edgeTypeSpace: '${modelConnectionConfig.connectionConfig.edgeTypeSpace}',
-              | edgeTypeExternalId: '${modelConnectionConfig.connectionConfig.edgeTypeExternalId}')
-              | in any of the views linked with the data model (space: '${modelConnectionConfig.modelSpace}',
-              | externalId: '${modelConnectionConfig.modelExternalId}', version: '${modelConnectionConfig.modelVersion}')
+              |Could not find a connection definition property named: '${modelConnectionConfig.connectionPropertyName}'
+              | in the data model with (space: '${modelConnectionConfig.modelSpace}',
+              | externalId: '${modelConnectionConfig.modelExternalId}',
+              | version: '${modelConnectionConfig.modelVersion}')
               |""".stripMargin)
           )
       }
   }
 
-  private def connectionDefinitionExists(
+  private def filterConnectionDefinition(
       viewDef: ViewDefinition,
-      connectionConfig: ConnectionConfig): Boolean =
-    viewDef.properties.exists {
-      case (_, p: ConnectionDefinition) =>
-        p.`type`.space == connectionConfig.edgeTypeSpace &&
-          p.`type`.externalId == connectionConfig.edgeTypeExternalId
-      case _ => false
+      connectionPropertyName: String): Option[ConnectionDefinition] =
+    viewDef.properties.collectFirst {
+      case (name, p: ConnectionDefinition) if name == connectionPropertyName => p
     }
 
   private def fetchInlinedDataModel(client: GenericClient[IO], modelViewConfig: DataModelViewConfig) =

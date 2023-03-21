@@ -236,43 +236,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       }
       .map(_.head)
 
-  protected def createViewWithConnectionsIfNotExists(
-      connectionSource: ViewReference,
-      `type`: DirectRelationReference,
-      viewExternalId: String,
-      viewVersion: String): IO[ViewDefinition] =
-    client.views
-      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, Some(viewVersion))))
-      .flatMap { views =>
-        if (views.isEmpty) {
-          val viewToCreate = ViewCreateDefinition(
-            space = spaceExternalId,
-            externalId = viewExternalId,
-            version = viewVersion,
-            name = Some(s"Test-View-Connections-Spark-DS"),
-            description = Some("Test View For Connections Spark Datasource"),
-            filter = None,
-            properties = Map(
-              "connectionProp" -> ViewPropertyCreateDefinition.ConnectionDefinition(
-                name = Some("connectionProp"),
-                description = Some("connectionProp"),
-                `type` = `type`,
-                source = connectionSource,
-                direction = Some(ConnectionDirection.Outwards)
-              )
-            ),
-            implements = None,
-          )
-
-          client.views
-            .createItems(items = Seq(viewToCreate))
-            .flatTap(_ => IO.sleep(3.seconds))
-        } else {
-          IO.delay(views)
-        }
-      }
-      .map(_.head)
-
   // scalastyle:off method.length
   protected def createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId: String,
