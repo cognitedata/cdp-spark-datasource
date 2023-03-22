@@ -22,7 +22,7 @@ case class WdlRetrieveDefinition(
 )
 
 object WdlModels {
-  private val models = Seq(
+  val models: Seq[WdlModel] = Seq(
     WdlModel(
       "sources",
       Some(WdlIngestDefinition("Source", "sources")),
@@ -59,7 +59,7 @@ object WdlModels {
     ),
     WdlModel(
       "timemeasurements",
-      Some(WdlIngestDefinition("TimeMeasurementIngestion", "measurements/time")),
+      Some(WdlIngestDefinition("TimeMeasurement", "measurements/time")),
       WdlRetrieveDefinition("TimeMeasurement", "measurements/time/list")
     ),
     WdlModel(
@@ -74,8 +74,8 @@ object WdlModels {
     ),
     WdlModel(
       "welltops",
-      Some(WdlIngestDefinition("WellTopGroupIngestion", "welltops")),
-      WdlRetrieveDefinition("WellTopGroup", "welltops/list")
+      Some(WdlIngestDefinition("WellTopsIngestion", "welltops")),
+      WdlRetrieveDefinition("WellTops", "welltops/list")
     ),
     WdlModel(
       "nptevents",

@@ -1,9 +1,9 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.CdfSparkException
+import cognite.spark.v1.{CdfSparkException, SparkTest}
 import org.scalatest.{FlatSpec, Matchers}
 
-class WdlModelsTest extends FlatSpec with Matchers {
+class WdlModelsTest extends FlatSpec with Matchers with SparkTest {
   it should "get from ingestion name" in {
     val wellSource = WdlModels.fromIngestionSchemaName("NptIngestion")
     wellSource.shortName should be("nptevents")
@@ -50,5 +50,16 @@ class WdlModelsTest extends FlatSpec with Matchers {
     }
     error.getMessage should include("Invalid schema name: `NptIngestion`. The valid options are")
     error.getMessage should include("Npt")
+  }
+
+  it should "give 200 OK for all schema names" in {
+    import cognite.spark.v1.CdpConnector._
+    for (model <- WdlModels.models) {
+      model.ingest match {
+        case Some(k) => writeClient.wdl.getSchema(k.schemaName).unsafeRunSync()
+        case None =>
+      }
+      writeClient.wdl.getSchema(model.retrieve.schemaName).unsafeRunSync()
+    }
   }
 }
