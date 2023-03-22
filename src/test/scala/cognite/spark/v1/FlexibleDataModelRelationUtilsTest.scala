@@ -1,9 +1,10 @@
 package cognite.spark.v1
 
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{createEdges, createNodes, createNodesOrEdges}
+import cognite.spark.v1.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes._
-import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue
+import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDeletionRequest, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
@@ -20,6 +21,12 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
   private val relationRefSchema: StructType = StructType(
     Array(
       StructField("spaceExternalId", StringType, nullable = false),
+      StructField("externalId", StringType, nullable = false)
+    )
+  )
+
+  private val relationRefWithoutSpaceSchema: StructType = StructType(
+    Array(
       StructField("externalId", StringType, nullable = false)
     )
   )
@@ -41,7 +48,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val values = Seq[Array[Any]](Array("str1"), Array("str2"))
     val rows = values.map(r => new GenericRowWithSchema(r, schema)).toSeq
 
-    val result = createNodes(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodes(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Couldn't find required string property 'externalId'")
   }
 
@@ -67,7 +74,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodes(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodes(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "'externalId' cannot be null")
   }
 
@@ -90,7 +97,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val values = Seq[Array[Any]](Array("stringProp1", "extId1", 1), Array(null, "extId1", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodes(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodes(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "cannot be null")
   }
 
@@ -112,8 +119,184 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val values = Seq[Array[Any]](Array("extId1", 1), Array("extId2", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodes(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodes(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Could not find required properties")
+  }
+
+  it should "successfully create nodes with instance space extracted from data" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        TextPropertyNonListWithDefaultValueNonNullable,
+      "intProp" ->
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
+      "doubleListProp" -> Float64ListWithoutDefaultValueNonNullable,
+      "floatListProp" -> Float32ListWithoutDefaultValueNullable
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("space", StringType, nullable = false),
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", StringType, nullable = true),
+          StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+          StructField("floatListProp", ArrayType(FloatType), nullable = true)
+        )
+      )
+
+    val values =
+      Seq[Array[Any]](
+        Array("space1", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
+        Array("space1", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes(rows, schema, propertyMap, destRef, None)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct shouldBe Vector("space1")
+  }
+
+  it should "successfully create edges with instance space extracted from data" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        TextPropertyNonListWithDefaultValueNonNullable,
+      "intProp" ->
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
+      "doubleListProp" -> Float64ListWithoutDefaultValueNonNullable,
+      "floatListProp" -> Float32ListWithoutDefaultValueNullable
+    )
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("type", relationRefSchema, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+        StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+        StructField("floatListProp", ArrayType(FloatType), nullable = true)
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        "space1",
+        "stringProp1",
+        null,
+        "extId1",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
+        Seq(1.1, 1.2, null),
+        Array(2.1, null)
+      ),
+      Array(
+        "space1",
+        "stringProp2",
+        2,
+        "extId2",
+        new GenericRowWithSchema(Array("typeExtId2"), relationRefWithoutSpaceSchema),
+        new GenericRowWithSchema(Array("startNodeExtId2"), relationRefWithoutSpaceSchema),
+        new GenericRowWithSchema(Array("endNodeExtId2"), relationRefWithoutSpaceSchema),
+        Array(2.1, 2.2),
+        null
+      )
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+    val result = createEdges(rows, schema, propertyMap, destRef, None)
+    result.isRight shouldBe true
+
+    val edges = result.toOption.getOrElse(Vector.empty)
+    (edges.map(_.space).distinct should contain).theSameElementsAs(Vector("space1"))
+    (edges.map(_.`type`.space).distinct should contain).theSameElementsAs(Vector("space1", "typeSpace1"))
+    (edges.map(_.startNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space1", "startNodeSpace1"))
+    (edges.map(_.endNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space1", "endNodeSpace1"))
+  }
+
+  it should "successfully create connection instances with space extracted from data" in {
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        "space1",
+        "extId1",
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeExtId1"), relationRefWithoutSpaceSchema)
+      ),
+      Array(
+        "space1",
+        "extId2",
+        new GenericRowWithSchema(Array("startNodeExtId2"), relationRefWithoutSpaceSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema)
+      )
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+    val result = createConnectionInstances(
+      DirectRelationReference(space = "edgeTypeSpace", externalId = "edgeTypeExternalId"),
+      schema,
+      rows,
+      None)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    (nodes.map(_.startNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space1", "startNodeSpace1"))
+    (nodes.map(_.endNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space1", "endNodeSpace1"))
+    nodes.map(_.space).distinct shouldBe Vector("space1")
+    nodes.map(_.`type`.space).distinct shouldBe Vector("edgeTypeSpace")
+  }
+
+  it should "successfully create connection instances with instanceSpace" in {
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        null,
+        "extId1",
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeExtId1"), relationRefWithoutSpaceSchema)
+      ),
+      Array(
+        "space1",
+        "extId2",
+        new GenericRowWithSchema(Array("startNodeExtId2"), relationRefWithoutSpaceSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema)
+      )
+    )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+    val result = createConnectionInstances(
+      DirectRelationReference(space = "edgeTypeSpace", externalId = "edgeTypeExternalId"),
+      schema,
+      rows,
+      instanceSpace = Some("space2"))
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    (nodes.map(_.startNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space2", "startNodeSpace1"))
+    (nodes.map(_.endNode.space).distinct should contain)
+      .theSameElementsAs(Vector("space2", "endNodeSpace1"))
+    nodes.map(_.space).distinct shouldBe Vector("space2")
+    nodes.map(_.`type`.space).distinct shouldBe Vector("edgeTypeSpace")
   }
 
   it should "successfully create nodes with all nullable/non-nullable properties" in {
@@ -142,7 +325,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         Array("stringProp2", "extId2", 5, Array(2.1, 2.2), null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodes(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodes(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty)
@@ -193,7 +376,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Array("stringProp2", "extId2", Array(2.1, 2.2)))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodes(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodes(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty)
@@ -246,7 +429,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodes(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodes(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty)
@@ -290,7 +473,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val values = Seq[Array[Any]](Array("str1", 1), Array("str2", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Couldn't find required string property 'externalId'")
   }
 
@@ -312,7 +495,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val values = Seq[Array[Any]](Array("str1", null, "externalId1"), Array("str2", 2, "externalId2"))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Could not find required property 'type'")
   }
 
@@ -346,7 +529,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Could not find required property 'startNode'")
   }
 
@@ -385,7 +568,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Could not find required property 'endNode'")
   }
 
@@ -427,7 +610,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "(Edge type) cannot contain null values")
   }
 
@@ -476,7 +659,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
-    val result = createEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty)
@@ -544,7 +727,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty)
@@ -618,7 +801,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty)
@@ -662,7 +845,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val values = Seq[Array[Any]](Array("str1"), Array("str2"))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Couldn't find required string property 'externalId'")
   }
 
@@ -688,7 +871,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "'externalId' cannot be null")
   }
 
@@ -711,7 +894,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val values = Seq[Array[Any]](Array("stringProp1", "extId1", 1), Array(null, "extId1", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "cannot be null")
   }
 
@@ -741,7 +924,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         Array("stringProp2", "extId2", 5, Array(2.1, 2.2), null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[NodeWrite]]
@@ -792,7 +975,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       Array("stringProp2", "extId2", Array(2.1, 2.2)))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[NodeWrite]]
@@ -845,7 +1028,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[NodeWrite]]
@@ -917,7 +1100,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[EdgeWrite]]
@@ -986,7 +1169,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[EdgeWrite]]
@@ -1061,7 +1244,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodes = result.toOption.getOrElse(Vector.empty).asInstanceOf[Vector[EdgeWrite]]
@@ -1130,7 +1313,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Only found: 'externalId', 'startNode', 'endNode'")
   }
 
@@ -1176,7 +1359,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Only found: 'externalId', 'type', 'endNode'")
   }
 
@@ -1222,7 +1405,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     verifyErrorMessage(result, "Only found: 'externalId', 'type', 'startNode'")
   }
 
@@ -1281,7 +1464,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodesOrEdges = result.toOption.getOrElse(Vector.empty)
@@ -1370,7 +1553,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodesOrEdges = result.toOption.getOrElse(Vector.empty)
@@ -1465,7 +1648,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodesOrEdges = result.toOption.getOrElse(Vector.empty)
@@ -1576,7 +1759,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
-    val result = createNodesOrEdges(Some("instanceSpaceExternalId1"), rows, schema, propertyMap, destRef)
+    val result = createNodesOrEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
     result.isRight shouldBe true
 
     val nodesOrEdges = result.toOption.getOrElse(Vector.empty)
@@ -1607,6 +1790,196 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         case _ => false
       }
     }.toVector shouldBe Vector(true)
+  }
+
+  it should "successfully delete nodes from the specified instanceSpace" in {
+    val schema =
+      StructType(
+        Array(
+          StructField("space", StringType, nullable = false),
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", StringType, nullable = true),
+          StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+          StructField("floatListProp", ArrayType(FloatType), nullable = true)
+        )
+      )
+
+    val values =
+      Seq[Array[Any]](
+        Array("space2", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
+        Array("space2", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodeDeleteData(schema, rows, Some("space1"))
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.collect {
+      case n: InstanceDeletionRequest.NodeDeletionRequest => n.space
+    }.distinct shouldBe Vector("space1")
+
+    val extIds = nodes.collect {
+      case n: InstanceDeletionRequest.NodeDeletionRequest => n.externalId
+    }
+    extIds.contains("extId1") shouldBe true
+    extIds.contains("extId2") shouldBe true
+  }
+
+  it should "successfully delete nodes from the space in data" in {
+    val schema =
+      StructType(
+        Array(
+          StructField("space", StringType, nullable = false),
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", StringType, nullable = true),
+          StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+          StructField("floatListProp", ArrayType(FloatType), nullable = true)
+        )
+      )
+
+    val values =
+      Seq[Array[Any]](
+        Array("space2", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
+        Array("space2", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodeDeleteData(schema, rows, None)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.collect {
+      case n: InstanceDeletionRequest.NodeDeletionRequest => n.space
+    }.distinct shouldBe Vector("space2")
+
+    val extIds = nodes.collect {
+      case n: InstanceDeletionRequest.NodeDeletionRequest => n.externalId
+    }
+    extIds.contains("extId1") shouldBe true
+    extIds.contains("extId2") shouldBe true
+  }
+
+  it should "successfully delete edges from the specified instanceSpace" in {
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("type", relationRefSchema, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+        StructField("unrelatedProp", IntegerType, nullable = false),
+        StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+        StructField("floatListProp", ArrayType(FloatType), nullable = true)
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        "space2",
+        "stringProp1",
+        null,
+        "extId1",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
+        "unrelatedProp1",
+        Seq(1.1, 1.2, null),
+        Array(2.1, null)
+      ),
+      Array(
+        "space2",
+        "stringProp2",
+        2,
+        "extId2",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema),
+        "unrelatedProp2",
+        Array(2.1, 2.2),
+        null
+      )
+    )
+
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createEdgeDeleteData(schema, rows, Some("space1"))
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.collect {
+      case n: InstanceDeletionRequest.EdgeDeletionRequest => n.space
+    }.distinct shouldBe Vector("space1")
+
+    val extIds = nodes.collect {
+      case n: InstanceDeletionRequest.EdgeDeletionRequest => n.externalId
+    }
+    extIds.contains("extId1") shouldBe true
+    extIds.contains("extId2") shouldBe true
+  }
+
+  it should "successfully delete edges from the space in data" in {
+    val schema = StructType(
+      Array(
+        StructField("space", StringType, nullable = false),
+        StructField("stringProp", StringType, nullable = false),
+        StructField("intProp", IntegerType, nullable = true),
+        StructField("externalId", IntegerType, nullable = false),
+        StructField("type", relationRefSchema, nullable = false),
+        StructField("startNode", relationRefSchema, nullable = false),
+        StructField("endNode", relationRefSchema, nullable = false),
+        StructField("unrelatedProp", IntegerType, nullable = false),
+        StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+        StructField("floatListProp", ArrayType(FloatType), nullable = true)
+      )
+    )
+
+    val values = Seq[Array[Any]](
+      Array(
+        "space2",
+        "stringProp1",
+        null,
+        "extId1",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
+        "unrelatedProp1",
+        Seq(1.1, 1.2, null),
+        Array(2.1, null)
+      ),
+      Array(
+        "space2",
+        "stringProp2",
+        2,
+        "extId2",
+        new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId2"), relationRefSchema),
+        new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema),
+        "unrelatedProp2",
+        Array(2.1, 2.2),
+        null
+      )
+    )
+
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createEdgeDeleteData(schema, rows, None)
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.collect {
+      case n: InstanceDeletionRequest.EdgeDeletionRequest => n.space
+    }.distinct shouldBe Vector("space2")
+
+    val extIds = nodes.collect {
+      case n: InstanceDeletionRequest.EdgeDeletionRequest => n.externalId
+    }
+    extIds.contains("extId1") shouldBe true
+    extIds.contains("extId2") shouldBe true
   }
 
   private def verifyErrorMessage[A](result: Either[Exception, A], errorMsg: String): Assertion =

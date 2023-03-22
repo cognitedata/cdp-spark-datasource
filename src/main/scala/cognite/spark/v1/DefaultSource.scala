@@ -3,10 +3,15 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelation.{ConnectionConfig, ViewCorePropertyConfig}
+import cognite.spark.v1.FlexibleDataModelRelationFactory.{
+  ConnectionConfig,
+  DataModelConnectionConfig,
+  DataModelViewConfig,
+  ViewCorePropertyConfig
+}
 import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
+import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
 import fs2.Stream
@@ -136,58 +141,33 @@ class DefaultSource
     new WellDataLayerRelation(config, model)(sqlContext)
   }
 
-  // scalastyle:off method.length
   private def createFlexibleDataModelRelation(
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
-    val nodeOrEdgeRelation = parameters
-      .get("instanceType")
-      .collect {
-        case t if t.equalsIgnoreCase("edge") => InstanceType.Edge
-        case t if t.equalsIgnoreCase("node") => InstanceType.Node
-      }
-      .map { instanceType =>
-        FlexibleDataModelRelation.corePropertyRelation(
-          config = config,
-          sqlContext = sqlContext,
-          ViewCorePropertyConfig(
-            instanceType = instanceType,
-            viewReference = Apply[Option]
-              .map3(
-                parameters.get("viewSpace"),
-                parameters.get("viewExternalId"),
-                parameters.get("viewVersion")
-              )(ViewReference.apply),
-            instanceSpace = parameters.get("instanceSpace")
-          )
-        )
-      }
-    val connectionRelation = Apply[Option]
-      .map2(
-        parameters.get("edgeTypeSpace"),
-        parameters.get("edgeTypeExternalId")
-      )(ConnectionConfig.apply)
-      .map { connectionConfig =>
-        FlexibleDataModelRelation.connectionRelation(
-          config,
-          sqlContext,
-          connectionConfig
-        )
-      }
+    val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext)
+    val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
+    val dataModelBasedConnectionRelation =
+      extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
+    val dataModelBasedCorePropertyRelation =
+      extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
 
-    nodeOrEdgeRelation
+    corePropertyRelation
       .orElse(connectionRelation)
+      .orElse(dataModelBasedConnectionRelation)
+      .orElse(dataModelBasedCorePropertyRelation)
       .getOrElse(
         throw new CdfSparkException(
           s"""
              |Invalid combination of arguments!
-             |Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion', 'instanceSpace') for NodeOrEdgeRelation,
-             |Expecting ('edgeTypeSpace', 'edgeTypeExternalId') for ConnectionRelation
+             |
+             | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion', 'instanceSpace') for CorePropertyRelation,
+             | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') for ConnectionRelation,
+             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'viewExternalId') for data model based CorePropertyRelation,
+             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'edgeTypeSpace', 'edgeTypeExternalId') for data model based  ConnectionRelation,
              |""".stripMargin
         ))
   }
-  // scalastyle:on method.length
 
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
@@ -264,7 +244,7 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
         createDataModelInstances(parameters, config, sqlContext)
-      case FlexibleDataModelRelation.ResourceType =>
+      case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
         createWellDataLayer(parameters, config, sqlContext)
@@ -330,7 +310,7 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
           createDataModelInstances(parameters, config, sqlContext)
-        case FlexibleDataModelRelation.ResourceType =>
+        case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
           createWellDataLayer(parameters, config, sqlContext)
@@ -589,4 +569,79 @@ object DefaultSource {
     } yield project
     getProject.unsafeRunSync()
   }
+
+  private def extractDataModelBasedCorePropertyRelation(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext) = {
+    val instanceSpace = parameters.get("instanceSpace")
+    Apply[Option]
+      .map4(
+        parameters.get("modelSpace"),
+        parameters.get("modelExternalId"),
+        parameters.get("modelVersion"),
+        parameters.get("viewExternalId")
+      )(DataModelViewConfig(_, _, _, _, instanceSpace))
+      .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
+  }
+
+  private def extractDataModelBasedConnectionRelation(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext) = {
+    val instanceSpace = parameters.get("instanceSpace")
+    Apply[Option]
+      .map4(
+        parameters.get("modelSpace"),
+        parameters.get("modelExternalId"),
+        parameters.get("modelVersion"),
+        Apply[Option]
+          .map2(
+            parameters.get("edgeTypeSpace"),
+            parameters.get("edgeTypeExternalId")
+          )(ConnectionConfig(_, _, instanceSpace))
+      )(DataModelConnectionConfig.apply)
+      .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
+  }
+
+  private def extractConnectionRelation(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext) = {
+    val instanceSpace = parameters.get("instanceSpace")
+    Apply[Option]
+      .map2(
+        parameters.get("edgeTypeSpace"),
+        parameters.get("edgeTypeExternalId")
+      )(ConnectionConfig(_, _, instanceSpace))
+      .map(FlexibleDataModelRelationFactory.connectionRelation(config, sqlContext, _))
+  }
+
+  private def extractCorePropertyRelation(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext) =
+    parameters
+      .get("instanceType")
+      .collect {
+        // converting to `Usage` because when supporting data models, a view could have 'usedFor' set to 'All'
+        case t if t.equalsIgnoreCase("edge") => Usage.Edge
+        case t if t.equalsIgnoreCase("node") => Usage.Node
+      }
+      .map { usage =>
+        FlexibleDataModelRelationFactory.corePropertyRelation(
+          config = config,
+          sqlContext = sqlContext,
+          ViewCorePropertyConfig(
+            intendedUsage = usage,
+            viewReference = Apply[Option]
+              .map3(
+                parameters.get("viewSpace"),
+                parameters.get("viewExternalId"),
+                parameters.get("viewVersion")
+              )(ViewReference.apply),
+            instanceSpace = parameters.get("instanceSpace")
+          )
+        )
+      }
 }

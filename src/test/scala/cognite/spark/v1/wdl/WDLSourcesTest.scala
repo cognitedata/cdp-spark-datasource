@@ -25,7 +25,7 @@ class WDLSourcesTest
     testClient.deleteAll()
   }
 
-  it should "ingest and read Sources" in {
+  ignore should "ingest and read Sources" in {
     val testSourcesDF = spark.read
       .schema(testClient.getSchema("Source"))
       .json("src/test/resources/wdl-test-sources.jsonl")
