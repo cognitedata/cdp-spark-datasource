@@ -7,7 +7,7 @@ import org.apache.spark.sql.types._
 
 object JsonObjectToRow {
   implicit class RequiredOption[T](optionValue: Option[T]) {
-    def orThrow(structFieldName: String, nullable: Boolean): Option[T] =
+    def orThrow(structFieldName: String, nullable: Boolean, dataType: DataType): Option[T] =
       optionValue match {
         case Some(Some(_)) =>
           throw new CdfSparkException(s"Option should not contain option, but it is: $optionValue")
@@ -15,7 +15,7 @@ object JsonObjectToRow {
           if (nullable) {
             None
           } else {
-            throw new CdfSparkException(s"Element ${structFieldName} have incorrect type. $optionValue")
+            throw new RequiredFieldIsNullException(structFieldName, dataType)
           }
         case Some(value) => Some(value)
       }
@@ -33,7 +33,7 @@ object JsonObjectToRow {
             .map(jsonField => {
               convertToValue(jsonField, structField.dataType, structField.name, structField.nullable)
             })
-            .orThrow(structField.name, structField.nullable)
+            .orThrow(structField.name, structField.nullable, structField.dataType)
             .orNull
       )
 
@@ -52,7 +52,7 @@ object JsonObjectToRow {
         val circumventingScalaStyleThatDoesNotLikeNulls: Option[Any] = None
         circumventingScalaStyleThatDoesNotLikeNulls.orNull
       } else {
-        throw new CdfSparkException(s"Element ${structFieldName} should not be NULL.")
+        throw new RequiredFieldIsNullException(structFieldName, dataType)
       }
     } else {
       val maybeResult: Option[Any] = dataType match {
@@ -63,7 +63,7 @@ object JsonObjectToRow {
             case None => None
           }
         case structType: StructType =>
-          toRow(jsonValue.asObject.orThrow(structFieldName, nullable).orNull, structType)
+          toRow(jsonValue.asObject.orThrow(structFieldName, nullable, dataType).orNull, structType)
         case StringType => jsonValue.asString
         case DoubleType => jsonValue.asNumber.map(_.toDouble)
         case IntegerType => jsonValue.asNumber.flatMap(_.toInt)
@@ -74,7 +74,7 @@ object JsonObjectToRow {
             s"Conversion to type ${dataType.typeName} is not supported for WDL, element $structFieldName.")
       }
 
-      maybeResult.orThrow(structFieldName, nullable).orNull
+      maybeResult.orThrow(structFieldName, nullable, dataType).orNull
     }
 // scalastyle:on cyclomatic.complexity{
 }

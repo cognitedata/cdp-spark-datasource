@@ -1,11 +1,13 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.CdfSparkException
+import cognite.spark.v1.{CdfSparkException, StructTypeEncoder}
 import io.circe.Printer
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+
+import cognite.spark.v1.SparkSchemaHelper._
 
 class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
   it should "convert a Row with number types into a JsonObject" in {
@@ -97,11 +99,10 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
     )
 
     val expectedException = intercept[CdfSparkException] {
-      RowToJson.toJsonObject(input, schema)
+      RowToJson.toJsonObject(input, schema, None)
     }
 
-    assert(expectedException.getMessage.startsWith("Element "))
-    assert(expectedException.getMessage.endsWith(" should not be NULL."))
+    assert(expectedException.getMessage.contains(" should not be NULL."))
   }
 
   it should "convert a Row with nested StructTypes into a JsonObject" in {
@@ -164,5 +165,77 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
         |  ]
         |}""".stripMargin
     assert(actual == expected)
+  }
+
+  it should "give good error message if String is instead instead of struct" in {
+    case class Person(name: String, age: Double) // { name: age: 23.0 }
+    case class InnerInput(age: Double)
+    case class PersonInput(name: String, age: InnerInput) // { name: age: { age: 23.0 } }
+
+    val targetSchema = structType[Person]()
+    val inputRow = new GenericRowWithSchema(
+      Array(
+        "Ola",
+        new GenericRowWithSchema(Array(23.0), structType[InnerInput]())
+      ),
+      structType[PersonInput]()
+    )
+    val error = intercept[CdfSparkException] {
+      RowToJson.toJson(inputRow, targetSchema)
+    }
+    error.getMessage should include("Field `age` with expected type `DoubleType` contains invalid value: `[23.0]`.")
+  }
+
+  it should "give good error message when required value is None" in {
+
+    case class Person(name: String, age: Double)
+    case class PersonInput(name: String, age: Option[Double])
+
+    val targetSchema = structType[Person]()
+    val inputRow = new GenericRowWithSchema(Array("Ola Nordmann", None), structType[PersonInput]())
+    val error = intercept[CdfSparkException] {
+      RowToJson.toJson(inputRow, targetSchema)
+    }
+
+    error.getMessage should include("Required field `age` of type `double` should not be NULL.")
+  }
+
+  it should "give good error message when required value is not defined" in {
+    case class Person(name: String, age: Double)
+    case class PersonInput(name: String)
+
+    val targetSchema = structType[Person]()
+    val inputRow = new GenericRowWithSchema(Array("Ola Nordmann"), structType[PersonInput]())
+    val error = intercept[CdfSparkException] {
+      RowToJson.toJson(inputRow, targetSchema)
+    }
+
+    error.getMessage should include("Required field `age` of type `double` should not be NULL.")
+  }
+
+  it should "give good error message when nested required value is not defined" in {
+    val targetSchema = new StructType()
+      .add("name", StringType, nullable = false)
+      .add(
+        "address",
+        new StructType()
+          .add("address", StringType, nullable = false)
+          .add("country", StringType, nullable = false))
+
+    val addressSchema = new StructType()
+      .add("address", StringType, nullable = false)
+    val schema = new StructType()
+      .add("name", StringType, nullable = false)
+      .add("address", addressSchema, nullable = false)
+
+    val inputRow = new GenericRowWithSchema(
+      Array("My name", new GenericRowWithSchema(Array("My address"), addressSchema)),
+      schema)
+    val error = intercept[CdfSparkException] {
+      RowToJson.toJson(inputRow, targetSchema)
+    }
+
+    assert(
+      error.getMessage.contains("Required field `address.country` of type `string` should not be NULL"))
   }
 }
