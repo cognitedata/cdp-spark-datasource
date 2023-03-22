@@ -161,10 +161,13 @@ class DefaultSource
           s"""
              |Invalid combination of arguments!
              |
-             | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion', 'instanceSpace') for CorePropertyRelation,
-             | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') for ConnectionRelation,
-             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'viewExternalId') for data model based CorePropertyRelation,
-             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', viewExternalId', 'connectionPropertyName') for data model based  ConnectionRelation,
+             | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
+             | 'instanceSpace') for CorePropertyRelation,
+             | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') with optional 'instanceSpace' for ConnectionRelation,
+             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'viewExternalId') with optional
+             | 'instanceSpace' for data model based CorePropertyRelation,
+             | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', viewExternalId', 'connectionPropertyName')
+             | with optional 'instanceSpace' for data model based  ConnectionRelation,
              |""".stripMargin
         ))
   }
