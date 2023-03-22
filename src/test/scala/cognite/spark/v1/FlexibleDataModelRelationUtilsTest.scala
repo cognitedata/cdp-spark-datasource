@@ -456,6 +456,42 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       ))
   }
 
+  it should "fail to create nodes space is not provided" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        TextPropertyNonListWithDefaultValueNonNullable,
+      "intProp" ->
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
+      "doubleListProp" -> Float64ListWithoutDefaultValueNonNullable,
+      "floatListProp" -> Float32ListWithoutDefaultValueNullable
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("space", StringType, nullable = false),
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", StringType, nullable = true),
+          StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+          StructField("floatListProp", ArrayType(FloatType), nullable = true)
+        )
+      )
+
+    val values =
+      Seq[Array[Any]](
+        Array("space1", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
+        Array(null, "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes(rows, schema, propertyMap, destRef, None)
+    result match {
+      case Left(err) =>
+        err.getMessage.contains(
+          "There's no 'instanceSpace' specified to be used as default space and could not extract 'space' from data") shouldBe true
+      case Right(_) => fail("Expecting to fail but succeeded")
+    }
+  }
+
   it should "fail to create edges when externalId is not present" in {
     val propertyMap = Map(
       "stringProp" ->
