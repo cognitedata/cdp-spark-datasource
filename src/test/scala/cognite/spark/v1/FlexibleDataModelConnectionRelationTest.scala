@@ -144,6 +144,9 @@ class FlexibleDataModelConnectionRelationTest
            | where startNode = named_struct(
            |    'space', '$spaceExternalId',
            |    'externalId', '${startEndNodeViewExternalId}FetchStartNode1'
+           |) or startNode = named_struct(
+           |    'space', '$spaceExternalId',
+           |    'externalId', '${startEndNodeViewExternalId}FetchStartNode2'
            |)
            | """.stripMargin)
       .collect()
