@@ -617,6 +617,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val schema = StructType(
       Array(
+        StructField("space", StringType, nullable = false),
         StructField("stringProp", StringType, nullable = false),
         StructField("intProp", IntegerType, nullable = true),
         StructField("externalId", IntegerType, nullable = false),
@@ -628,6 +629,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values = Seq[Array[Any]](
       Array(
+        "space1",
         "str1",
         null,
         "externalId1",
@@ -636,6 +638,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema)
       ),
       Array(
+        null,
         "str2",
         2,
         "externalId2",
@@ -646,8 +649,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
-    val result = createEdges(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
-    verifyErrorMessage(result, "(Edge type) cannot contain null values")
+    val result = createEdges(rows, schema, propertyMap, destRef, None)
+    verifyErrorMessage(result, "'space' cannot be null")
   }
 
   it should "successfully create edges with all nullable/non-nullable properties" in {
