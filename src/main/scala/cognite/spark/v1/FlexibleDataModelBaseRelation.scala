@@ -123,12 +123,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           FilterDefinition
             .Prefix(Seq(space, versionedExternalId, attribute), FilterValueDefinition.String(value)))
       case And(f1, f2) =>
-        List(f1, f2)
+        Vector(f1, f2)
           .traverse(
             toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
-        List(f1, f2)
+        Vector(f1, f2)
           .traverse(
             toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.Or.apply)
@@ -161,6 +161,17 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         createEdgeAttributeFilter("endNode", value)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
         createEdgeAttributeFilter("type", value)
+      case Or(f1, f2) =>
+        Vector(f1, f2)
+          .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
+          .map(FilterDefinition.Or.apply)
+      case And(f1, f2) =>
+        Vector(f1, f2)
+          .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
+          .map(FilterDefinition.And.apply)
+      case Not(f) =>
+        toNodeOrEdgeAttributeFilter(instanceType, f)
+          .map(FilterDefinition.Not.apply)
       case f =>
         Left(new CdfSparkIllegalArgumentException(
           s"Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
