@@ -2,7 +2,7 @@ package cognite.spark.v1.wdl
 
 import cats.effect.IO
 import cognite.spark.v1.CdfSparkException
-import com.cognite.sdk.scala.playground._
+import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.GenericClient
 import org.apache.spark.sql.types.{DataType, StructType}
 
