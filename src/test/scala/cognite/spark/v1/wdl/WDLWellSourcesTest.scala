@@ -1,7 +1,7 @@
 package cognite.spark.v1.wdl
 
 import cognite.spark.v1.{DataFrameMatcher, SparkTest}
-import com.cognite.sdk.scala.playground._
+import com.cognite.sdk.scala.v1._
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
 
 class WDLWellSourcesTest

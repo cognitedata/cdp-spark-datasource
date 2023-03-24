@@ -45,7 +45,7 @@ class WellDataLayerRelation(
 
     val url = WdlModels.fromIngestionSchemaName(model).ingest.getOrElse(sys.error("Unreachable")).url
 
-    client.wdl.setItems(url, jsonObjects)
+    client.wdl.setItems(url, jsonObjects).flatTap(_ => incMetrics(itemsCreated, jsonObjects.size))
   }
 
   override def update(rows: Seq[Row]): IO[Unit] =
