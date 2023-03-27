@@ -36,6 +36,10 @@ object CdfSparkAuth {
     override def provider(
         implicit clock: Clock[IO],
         sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
-      OAuth2.SessionProvider[IO](session, maybeCacheToken = cacheToken)
+      OAuth2.SessionProvider[IO](
+        session,
+        refreshSecondsBeforeExpiration = 300,
+        maybeCacheToken = cacheToken
+      )
   }
 }
