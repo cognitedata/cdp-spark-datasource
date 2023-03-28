@@ -31,14 +31,21 @@ object CdfSparkAuth {
 
   final case class OAuth2Sessions(session: OAuth2.Session)(implicit sttpBackend: SttpBackend[IO, Any])
       extends CdfSparkAuth {
-    private val cacheToken = session.getAuth[IO]().attempt.map(_.toOption).unsafeRunSync()
+
+    private val refreshSecondsBeforeExpiration = 300
+
+    private val cacheToken = session
+      .getAuth[IO](refreshSecondsBeforeExpiration = refreshSecondsBeforeExpiration)
+      .attempt
+      .map(_.toOption)
+      .unsafeRunSync()
 
     override def provider(
         implicit clock: Clock[IO],
         sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
       OAuth2.SessionProvider[IO](
         session,
-        refreshSecondsBeforeExpiration = 300,
+        refreshSecondsBeforeExpiration = refreshSecondsBeforeExpiration,
         maybeCacheToken = cacheToken
       )
   }
