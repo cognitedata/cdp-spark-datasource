@@ -32,7 +32,7 @@ object CdfSparkAuth {
   final case class OAuth2Sessions(session: OAuth2.Session)(implicit sttpBackend: SttpBackend[IO, Any])
       extends CdfSparkAuth {
 
-    private val refreshSecondsBeforeExpiration = 300
+    private val refreshSecondsBeforeExpiration = 300L
 
     private val cacheToken = session
       .getAuth[IO](refreshSecondsBeforeExpiration = refreshSecondsBeforeExpiration)
