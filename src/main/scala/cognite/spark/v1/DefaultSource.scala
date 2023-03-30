@@ -334,7 +334,7 @@ class DefaultSource
       val idealNumberOfPartitions = config.sparkPartitions
 
       val (dataRepartitioned, numberOfPartitions) = config.maxWritePartitions match {
-        case Some(maxWritePartitions) if maxWritePartitions > originalNumberOfPartitions =>
+        case Some(maxWritePartitions) if maxWritePartitions < originalNumberOfPartitions =>
           (data.repartition(maxWritePartitions), maxWritePartitions)
         case None =>
           // If we have very many partitions, it's quite likely that they are significantly uneven.
