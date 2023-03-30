@@ -31,6 +31,7 @@ final case class RelationConfig(
     batchSize: Option[Int],
     limitPerPartition: Option[Int],
     partitions: Int,
+    forceWritePartitions: Option[Int],
     maxRetries: Int,
     maxRetryDelaySeconds: Int,
     collectMetrics: Boolean,
@@ -172,12 +173,14 @@ class DefaultSource
         ))
   }
 
+  /**
+    * Create a spark relation for reading.
+    */
   // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
       sqlContext: SQLContext,
       parameters: Map[String, String],
       schema: StructType): BaseRelation = {
-
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
 
     val config = parseRelationConfig(parameters, sqlContext)
@@ -255,6 +258,9 @@ class DefaultSource
     }
   }
 
+  /**
+    * Create a spark relation for writing.
+    */
   override def createRelation(
       sqlContext: SQLContext,
       mode: SaveMode,
@@ -327,16 +333,22 @@ class DefaultSource
       val originalNumberOfPartitions = data.rdd.getNumPartitions
       val idealNumberOfPartitions = config.sparkPartitions
 
-      // If we have very many partitions, it's quite likely that they are significantly uneven.
-      // And we will have to limit parallelism on each partition to low number, so the operation could
-      // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
-      // If the number of partitions is reasonable, we avoid the data shuffling
-      val (dataRepartitioned, numberOfPartitions) =
-        if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-          (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
-        } else {
-          (data, originalNumberOfPartitions)
+      val (dataRepartitioned, numberOfPartitions) = {
+        config.forceWritePartitions match {
+          case Some(forceWritePartitions) =>
+            (data.repartition(forceWritePartitions), forceWritePartitions)
+          case None =>
+            // If we have very many partitions, it's quite likely that they are significantly uneven.
+            // And we will have to limit parallelism on each partition to low number, so the operation could
+            // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
+            // If the number of partitions is reasonable, we avoid the data shuffling
+            if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
+              (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
+            } else {
+              (data, originalNumberOfPartitions)
+            }
         }
+      }
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector.ioRuntime
 
@@ -474,6 +486,7 @@ object DefaultSource {
       .getOrElse("project", DefaultSource.getProjectFromAuth(auth, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
+    val forceWritePartitions = toPositiveInt(parameters, "forceWritePartitions")
     val partitions = toPositiveInt(parameters, "partitions")
       .getOrElse(Constants.DefaultPartitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
@@ -512,22 +525,23 @@ object DefaultSource {
       }
 
     RelationConfig(
-      auth,
-      clientTag,
-      applicationName,
-      projectName,
-      batchSize,
-      limitPerPartition,
-      partitions,
-      maxRetries,
-      maxRetryDelaySeconds,
-      collectMetrics,
-      collectTestMetrics,
-      metricsPrefix,
-      baseUrl,
-      saveMode,
-      Option(sqlContext).map(_.sparkContext.applicationId).getOrElse("CDF"),
-      parallelismPerPartition,
+      auth = auth,
+      clientTag = clientTag,
+      applicationName = applicationName,
+      projectName = projectName,
+      batchSize = batchSize,
+      limitPerPartition = limitPerPartition,
+      partitions = partitions,
+      forceWritePartitions = forceWritePartitions,
+      maxRetries = maxRetries,
+      maxRetryDelaySeconds = maxRetryDelaySeconds,
+      collectMetrics = collectMetrics,
+      collectTestMetrics = collectTestMetrics,
+      metricsPrefix = metricsPrefix,
+      baseUrl = baseUrl,
+      onConflict = saveMode,
+      applicationId = Option(sqlContext).map(_.sparkContext.applicationId).getOrElse("CDF"),
+      parallelismPerPartition = parallelismPerPartition,
       ignoreUnknownIds = toBoolean(parameters, "ignoreUnknownIds", defaultValue = true),
       deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
       subtrees = subtreesOption,
