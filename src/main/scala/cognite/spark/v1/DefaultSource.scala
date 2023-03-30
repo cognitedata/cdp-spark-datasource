@@ -334,6 +334,10 @@ class DefaultSource
       val idealNumberOfPartitions = config.sparkPartitions
 
       val (dataRepartitioned, numberOfPartitions) = config.maxWritePartitions match {
+        // Some CDF resource types (eg. Well data layer) struggle when multiple
+        // partitions are writing data at the same time. Setting the
+        // `maxWritePartitions` to a lower number will reduce the load on the
+        // service.
         case Some(maxWritePartitions) if maxWritePartitions < originalNumberOfPartitions =>
           (data.coalesce(maxWritePartitions), maxWritePartitions)
         case None =>
