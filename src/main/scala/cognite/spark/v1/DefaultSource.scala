@@ -333,21 +333,19 @@ class DefaultSource
       val originalNumberOfPartitions = data.rdd.getNumPartitions
       val idealNumberOfPartitions = config.sparkPartitions
 
-      val (dataRepartitioned, numberOfPartitions) = {
-        config.maxWritePartitions match {
-          case Some(maxWritePartitions) if maxWritePartitions > originalNumberOfPartitions =>
-            (data.repartition(maxWritePartitions), maxWritePartitions)
-          case None =>
-            // If we have very many partitions, it's quite likely that they are significantly uneven.
-            // And we will have to limit parallelism on each partition to low number, so the operation could
-            // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
-            // If the number of partitions is reasonable, we avoid the data shuffling
-            if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-              (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
-            } else {
-              (data, originalNumberOfPartitions)
-            }
-        }
+      val (dataRepartitioned, numberOfPartitions) = config.maxWritePartitions match {
+        case Some(maxWritePartitions) if maxWritePartitions > originalNumberOfPartitions =>
+          (data.repartition(maxWritePartitions), maxWritePartitions)
+        case None =>
+          // If we have very many partitions, it's quite likely that they are significantly uneven.
+          // And we will have to limit parallelism on each partition to low number, so the operation could
+          // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
+          // If the number of partitions is reasonable, we avoid the data shuffling
+          if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
+            (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
+          } else {
+            (data, originalNumberOfPartitions)
+          }
       }
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector.ioRuntime
