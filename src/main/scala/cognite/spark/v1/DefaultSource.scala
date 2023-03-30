@@ -340,7 +340,7 @@ class DefaultSource
         // service.
         case Some(maxWritePartitions) if maxWritePartitions < originalNumberOfPartitions =>
           (data.coalesce(maxWritePartitions), maxWritePartitions)
-        case None =>
+        case _ =>
           // If we have very many partitions, it's quite likely that they are significantly uneven.
           // And we will have to limit parallelism on each partition to low number, so the operation could
           // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
