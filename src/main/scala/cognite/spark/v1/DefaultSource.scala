@@ -335,7 +335,7 @@ class DefaultSource
 
       val (dataRepartitioned, numberOfPartitions) = config.maxWritePartitions match {
         case Some(maxWritePartitions) if maxWritePartitions < originalNumberOfPartitions =>
-          (data.repartition(maxWritePartitions), maxWritePartitions)
+          (data.coalesce(maxWritePartitions), maxWritePartitions)
         case None =>
           // If we have very many partitions, it's quite likely that they are significantly uneven.
           // And we will have to limit parallelism on each partition to low number, so the operation could
