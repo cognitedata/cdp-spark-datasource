@@ -217,7 +217,7 @@ trait SparkTest {
       Some(Constants.DefaultBatchSize),
       None,
       partitions = Constants.DefaultPartitions,
-      forceWritePartitions = None,
+      maxWritePartitions = None,
       Constants.DefaultMaxRetries,
       Constants.DefaultMaxRetryDelaySeconds,
       collectMetrics = false,

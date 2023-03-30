@@ -31,7 +31,7 @@ final case class RelationConfig(
     batchSize: Option[Int],
     limitPerPartition: Option[Int],
     partitions: Int,
-    forceWritePartitions: Option[Int],
+    maxWritePartitions: Option[Int],
     maxRetries: Int,
     maxRetryDelaySeconds: Int,
     collectMetrics: Boolean,
@@ -334,9 +334,9 @@ class DefaultSource
       val idealNumberOfPartitions = config.sparkPartitions
 
       val (dataRepartitioned, numberOfPartitions) = {
-        config.forceWritePartitions match {
-          case Some(forceWritePartitions) =>
-            (data.repartition(forceWritePartitions), forceWritePartitions)
+        config.maxWritePartitions match {
+          case Some(maxWritePartitions) if maxWritePartitions > originalNumberOfPartitions =>
+            (data.repartition(maxWritePartitions), maxWritePartitions)
           case None =>
             // If we have very many partitions, it's quite likely that they are significantly uneven.
             // And we will have to limit parallelism on each partition to low number, so the operation could
@@ -486,7 +486,7 @@ object DefaultSource {
       .getOrElse("project", DefaultSource.getProjectFromAuth(auth, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
-    val forceWritePartitions = toPositiveInt(parameters, "forceWritePartitions")
+    val maxWritePartitions = toPositiveInt(parameters, "maxWritePartitions")
     val partitions = toPositiveInt(parameters, "partitions")
       .getOrElse(Constants.DefaultPartitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
@@ -532,7 +532,7 @@ object DefaultSource {
       batchSize = batchSize,
       limitPerPartition = limitPerPartition,
       partitions = partitions,
-      forceWritePartitions = forceWritePartitions,
+      maxWritePartitions = maxWritePartitions,
       maxRetries = maxRetries,
       maxRetryDelaySeconds = maxRetryDelaySeconds,
       collectMetrics = collectMetrics,
