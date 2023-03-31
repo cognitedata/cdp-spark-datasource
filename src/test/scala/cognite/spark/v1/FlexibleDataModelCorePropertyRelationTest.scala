@@ -487,8 +487,7 @@ class FlexibleDataModelCorePropertyRelationTest
     (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
   }
 
-  // TODO: fix test: https://cognitedata.slack.com/archives/C031G8Y19HP/p1680183801505649
-  it should "succeed when filtering edges with type, startNode & endNode" ignore {
+  it should "succeed when filtering edges with type, startNode & endNode" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
