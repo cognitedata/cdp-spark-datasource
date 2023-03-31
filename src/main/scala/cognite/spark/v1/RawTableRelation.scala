@@ -49,13 +49,14 @@ class RawTableRelation(
     if (inferSchema) {
       val rdd =
         readRows(
-          inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
-          Some(1),
-          RawRowFilter(),
-          None,
-          None,
-          collectSchemaInferenceMetrics,
-          false)
+          limit = inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
+          numPartitions = Some(1),
+          filter = RawRowFilter(),
+          requestedKeys = None,
+          schema = None,
+          collectMetrics = collectSchemaInferenceMetrics,
+          collectTestMetrics = false
+        )
 
       import sqlContext.sparkSession.implicits._
       val df = sqlContext.createDataFrame(rdd, defaultSchema)
