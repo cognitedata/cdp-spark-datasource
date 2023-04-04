@@ -38,6 +38,8 @@ This repository also contains `cdf_dump` command line tool for reading data from
     - [Labels schema](#labels-schema)
     - [Relationships schema](#relationships-schema)
     - [Data sets schema](#data-sets-schema)
+    - [Nodes schema](#nodes-schema)
+    - [Edges schema](#edges-schema)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -53,6 +55,8 @@ This repository also contains `cdf_dump` command line tool for reading data from
     - [Labels](#labels)
     - [Relationships](#relationships)
     - [Data sets](#data-sets)
+    - [Nodes](#nodes)
+    - [Edges](#edges)
   - [Comprehensive example](#comprehensive-examples)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
@@ -533,6 +537,35 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `metadata`         | `map(string, string)` | Yes      | -                                     |
 | `writeProtected`   | `string`              | No       | equality                              |
 | `lastUpdatedTime`  | `timestamp`           | No       | comparison, equality                  |
+
+### Nodes schema
+| Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|-------------------------|-----------------------|----------|---------------------------------------|
+| `instanceType`          | `string`              | No       | equality                              |
+| `existingVersion`       | `integer`             | Yes      | equality                              |
+| `space`                 | `string`              | No       | equality                              |
+| `externalId`            | `String`              | No       | equality                              |
+| `sources`               | `map(string, string)` | Yes      | equality                              |
+| `autoCreateStartNodes`  | `boolean`             | Yes      | -                                     |
+| `autoCreateEndNodes`    | `boolean`             | Yes      | -                                     |
+| `skipOnVersionConflict` | `boolean`             | Yes      | -                                     |
+| `replace`               | `boolean`             | Yes      | -                                     |
+
+### Edges schema
+| Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|-------------------------|-----------------------|----------|---------------------------------------|
+| `instanceType`          | `string`              | No       | equality                              |
+| `existingVersion`       | `integer`             | Yes      | equality                              |
+| `type`                  | `map(string, string)` | No       | equality                              |
+| `space`                 | `string`              | No       | equality                              |
+| `externalId`            | `String`              | No       | equality                              |
+| `startNode`             | `map(string, string)` | No       | equality                              |
+| `endNode`               | `map(string, string)` | No       | equality                              |
+| `sources`               | `map(string, string)` | Yes      | equality                              |
+| `autoCreateStartNodes`  | `boolean`             | Yes      | -                                     |
+| `autoCreateEndNodes`    | `boolean`             | Yes      | -                                     |
+| `skipOnVersionConflict` | `boolean`             | Yes      | -                                     |
+| `replace`               | `boolean`             | Yes      | -                                     |
 
 ## Examples by resource types
 
@@ -1210,7 +1243,65 @@ spark.sql(
   .save()
 ```
 
+### Nodes
 
+Learn more about labels [here](https://docs.cognite.com/api/v1/#tag/Create-or-update-nodes/edges)
+
+Note that nodes can be read, created, updated and deleted.
+
+```python
+# Python Example
+
+# Read nodes
+df = spark.read.format("cognite.spark.v1") \
+    .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token) \
+    .option("clientId", client_ID) \
+    .option("clientSecret", client_secret) \
+    .option("project", project) \
+    .option("scopes", scope) \
+    .option("type", "nodes") \
+    .load()
+
+df.show()
+
+
+# Write nodes
+spark.sql(
+    "select 'node' as instanceType," \
+    " 'space' as space," \
+    " 'instanceExtId' as externalId") \
+  .write.format("cognite.spark.v1") \
+  .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token) \
+  .option("clientId", client_ID) \
+  .option("clientSecret", client_secret) \
+  .option("project", project) \
+  .option("scopes", scope) \
+  .option("type", "nodes") \
+  .save()
+```
+
+
+### Edges
+
+Learn more about labels [here](https://docs.cognite.com/api/v1/#tag/Create-or-update-nodes/edges)
+
+Note that nodes can be read, created, updated and deleted.
+
+```python
+# Python Example
+
+# Read edges
+df = spark.read.format("cognite.spark.v1") \
+    .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token) \
+    .option("clientId", client_ID) \
+    .option("clientSecret", client_secret) \
+    .option("project", project) \
+    .option("scopes", scope) \
+    .option("type", "edges") \
+    .load()
+
+df.show()
+```
 ### RAW tables
 
 Learn more about RAW tables [here](https://doc.cognitedata.com/api/v1/#tag/Raw).
