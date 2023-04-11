@@ -9,6 +9,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - run: |
+          git rev-list --count --first-parent HEAD > patch_version.txt
       - uses: olafurpg/setup-scala@v13
       - name: Set variables
         run: |
