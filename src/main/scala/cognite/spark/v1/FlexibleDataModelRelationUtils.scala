@@ -1,32 +1,15 @@
 package cognite.spark.v1
 
-import cats.implicits._
 import cats.Apply
+import cats.implicits._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
-  ConnectionDefinition,
-  CorePropertyDefinition,
-  ViewCorePropertyDefinition,
-  ViewPropertyDefinition
-}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
-  DirectNodeRelationProperty,
-  PrimitiveProperty,
-  TextProperty
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ConnectionDefinition, CorePropertyDefinition, ViewCorePropertyDefinition, ViewPropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, PrimitiveProperty, TextProperty, TimeSeriesReference}
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
-  EdgeDeletionRequest,
-  NodeDeletionRequest
-}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{EdgeDeletionRequest, NodeDeletionRequest}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  EdgeOrNodeData,
-  InstanceDeletionRequest,
-  InstancePropertyValue,
-  NodeOrEdgeCreate
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceDeletionRequest, InstancePropertyValue, NodeOrEdgeCreate}
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
@@ -671,7 +654,12 @@ object FlexibleDataModelRelationUtils {
               .leftMap(e =>
                 new CdfSparkException(
                   s"Error parsing value of field '$propertyName' as a json object: ${e.getMessage}"))
-
+          case _: TimeSeriesReference =>
+            Try(InstancePropertyValue.TimeSeriesReference(String.valueOf(row.get(i)))).toEither
+//          case _: FileReference =>
+//            Try(InstancePropertyValue.FileReference(String.valueOf(row.get(i)))).toEither
+//          case _: SequenceReference =>
+//            Try(InstancePropertyValue.SequenceReference(String.valueOf(row.get(i)))).toEither
           case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
         }
       }

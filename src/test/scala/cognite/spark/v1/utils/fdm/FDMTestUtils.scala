@@ -6,8 +6,11 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
 }
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
   DirectNodeRelationProperty,
+  FileReference,
   PrimitiveProperty,
-  TextProperty
+  SequenceReference,
+  TextProperty,
+  TimeSeriesReference
 }
 import com.cognite.sdk.scala.v1.fdm.common.properties.{
   PrimitivePropType,
@@ -140,6 +143,7 @@ object FDMTestUtils {
       case (key, prop) => key -> toViewPropertyDefinition(prop, None, None)
     }
 
+  // scalastyle:off cyclomatic.complexity
   def viewPropStr: Vector[String] =
     createAllPossibleViewPropCombinations.map {
       case (propName, prop) =>
@@ -150,6 +154,9 @@ object FDMTestUtils {
           case p: PrimitiveProperty =>
             s"PropertyType.PrimitiveProperty(PrimitivePropType.${p.`type`},${p.list})"
           case d: DirectNodeRelationProperty => d.toString
+          case _: PropertyType.TimeSeriesReference => s"PropertyType.TimeSeriesReference())"
+          case _: PropertyType.FileReference => s"PropertyType.FileReference())"
+          case _: PropertyType.SequenceReference => s"PropertyType.SequenceReference())"
         }
 
         val defaultValueStr = prop.defaultValue.map {
@@ -176,6 +183,7 @@ object FDMTestUtils {
        |    )
        |""".stripMargin
     }.toVector
+  // scalastyle:on cyclomatic.complexity
 
   def createTestContainer(
       space: String,
@@ -446,6 +454,9 @@ object FDMTestUtils {
             )
           )
         case _: DirectNodeRelationProperty => None
+        case _: TimeSeriesReference => Some(PropertyDefaultValue.String("timeSeriesExternalId"))
+        case _: FileReference => Some(PropertyDefaultValue.String("fileExternalId"))
+        case _: SequenceReference => Some(PropertyDefaultValue.String("sequenceExternalId"))
       }
     } else {
       None

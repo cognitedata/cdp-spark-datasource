@@ -569,6 +569,36 @@ object FDMContainerPropertyTypes {
       `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
     )
 
+  val TimeSeriesReference: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.TimeSeriesReference("timeseries1")),
+      description = Some("Test Time Series Description"),
+      name = Some("Test-Time-Series-Name"),
+      `type` = PropertyType.TimeSeriesReference(),
+    )
+
+  val FileReference: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.FileReference("file1")),
+      description = Some("Test File Description"),
+      name = Some("Test-File-Name"),
+      `type` = PropertyType.FileReference(),
+    )
+
+  val SequenceReference: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.SequenceReference("sequence1")),
+      description = Some("Test Sequence Description"),
+      name = Some("Test-Sequence-Name"),
+      `type` = PropertyType.SequenceReference(),
+    )
+
   val AllPossibleContainerPropertyDefs: Vector[ContainerPropertyDefinition] = Vector(
     DateNonListWithDefaultValueNonNullable,
     JsonNonListWithoutDefaultValueNullable,
@@ -626,6 +656,9 @@ object FDMContainerPropertyTypes {
     Float32ListWithoutDefaultValueNullable,
     BooleanNonListWithDefaultValueNonNullable,
     Float64ListWithoutDefaultValueNullable,
-    Float32NonListWithDefaultValueNonNullable
+    Float32NonListWithDefaultValueNonNullable,
+    TimeSeriesReference,
+    FileReference,
+    SequenceReference
   )
 }
