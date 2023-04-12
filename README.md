@@ -119,6 +119,7 @@ To autenticate using OIDC tokens set all of these options:
 | `clientSecret` | Client secret for the application.                                                                                                                       | Yes            |
 | `project`      | The CDF project.                                                                                                                                         | Yes            |
 | `scopes`       | The scopes needed for the user. Required for AAD setup.                                                                                                  | No             |
+| `baseUrl`     | Address of the CDF API. For example might be changed to https://greenfield.cognitedata.com. By default it is set to https://api.cognitedata.com          | Yes          |   |
 | `audience`     | The audience needed for token retrieval, supported for the custom Aize and AKSO OAuth2 setup.                                                            | No             |
 
 
@@ -541,31 +542,23 @@ schema as the `externalId` or `id` passed with the `.option()`.
 ### Nodes schema
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
-| `instanceType`          | `string`              | No       | equality                              |
-| `existingVersion`       | `integer`             | Yes      | equality                              |
 | `space`                 | `string`              | No       | equality                              |
-| `externalId`            | `String`              | No       | equality                              |
-| `sources`               | `map(string, string)` | Yes      | equality                              |
-| `autoCreateStartNodes`  | `boolean`             | Yes      | -                                     |
-| `autoCreateEndNodes`    | `boolean`             | Yes      | -                                     |
-| `skipOnVersionConflict` | `boolean`             | Yes      | -                                     |
-| `replace`               | `boolean`             | Yes      | -                                     |
+| `externalId`            | `string`              | No       | equality                              |
+
+
 
 ### Edges schema
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
-| `instanceType`          | `string`              | No       | equality                              |
-| `existingVersion`       | `integer`             | Yes      | equality                              |
-| `type`                  | `map(string, string)` | No       | equality                              |
+| `space`                 | `string`              | No       | equality                              |
+| `externalId`            | `string`              | No       | equality                              |
+| `type`                  | `struct`              | No       | equality                              |
 | `space`                 | `string`              | No       | equality                              |
 | `externalId`            | `String`              | No       | equality                              |
-| `startNode`             | `map(string, string)` | No       | equality                              |
-| `endNode`               | `map(string, string)` | No       | equality                              |
-| `sources`               | `map(string, string)` | Yes      | equality                              |
-| `autoCreateStartNodes`  | `boolean`             | Yes      | -                                     |
-| `autoCreateEndNodes`    | `boolean`             | Yes      | -                                     |
-| `skipOnVersionConflict` | `boolean`             | Yes      | -                                     |
-| `replace`               | `boolean`             | Yes      | -                                     |
+| `startNode`             | `struct`              | No       | equality                              |
+| `endNode`               | `struct`              | No       | equality                              |
+
+
 
 ## Examples by resource types
 
@@ -1247,7 +1240,8 @@ spark.sql(
 
 Learn more about labels [here](https://docs.cognite.com/api/v1/#tag/Create-or-update-nodes/edges)
 
-Note that nodes can be read, created, updated and deleted.
+Note that nodes can be read, created, updated and deleted. 
+Note view is optional, not needed for writing nodes without a view
 
 ```python
 # Python Example
@@ -1259,7 +1253,13 @@ df = spark.read.format("cognite.spark.v1") \
     .option("clientSecret", client_secret) \
     .option("project", project) \
     .option("scopes", scope) \
-    .option("type", "nodes") \
+    .option("baseUrl", baseUrl) \
+    .option("instanceType","node")
+    .option("type", "instances")
+    .option("space", ViewSpace")
+    .option("externalId", ViewExternaldId)
+    .option("version", ViewVersion)
+    .option("instanceSpace", instanceSpace)
     .load()
 
 df.show()
@@ -1267,17 +1267,21 @@ df.show()
 
 # Write nodes
 spark.sql(
-    "select 'node' as instanceType," \
-    " 'space' as space," \
-    " 'instanceExtId' as externalId") \
-  .write.format("cognite.spark.v1") \
-  .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token) \
-  .option("clientId", client_ID) \
-  .option("clientSecret", client_secret) \
-  .option("project", project) \
-  .option("scopes", scope) \
-  .option("type", "nodes") \
-  .save()
+    "select 'space' as space, 'ViewExternaldId' as externalId") \
+    .write.format("cognite.spark.v1") \
+    .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token) \
+    .option("clientId", client_ID) \
+    .option("clientSecret", client_secret) \
+    .option("project", project) \
+    .option("scopes", scope) \
+    .option("baseUrl", baseUrl) \
+    .option("instanceType","node") \
+    .option("type", "instances") \
+    .option("space", ViewSpace) \
+    .option("externalId", ViewExternaldId) \
+    .option("version", ViewVersion) \
+    .option("onConflict", "upsert") \
+    .save()
 ```
 
 
@@ -1285,22 +1289,49 @@ spark.sql(
 
 Learn more about labels [here](https://docs.cognite.com/api/v1/#tag/Create-or-update-nodes/edges)
 
-Note that nodes can be read, created, updated and deleted.
+Note that Edges can be read, created, updated and deleted. 
 
 ```python
 # Python Example
 
-# Read edges
-df = spark.read.format("cognite.spark.v1") \
+# Read edges 
+df = spark.read
+  .format("cognite.spark.v1")
+  .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token)
+  .option("clientId", client_ID)
+  .option("clientSecret", client_secret)
+  .option("project", project)
+  .option("scopes", scope)
+  .option("baseUrl", baseUrl)
+  .option("instanceType","edge")
+  .option("type", "instances")
+  .option("space", ViewSpace)
+  .option("externalId", ViewExternaldId)
+  .option("version", ViewVersion)
+  .option("instanceSpace", instanceSpace)
+  .load()
+
+df.show()
+
+# Write edges
+spark.sql(
+    "select 'ViewSpace' as space, 'ViewExternaldId' as externalId,  named_struct('spaceExternalId', 'ViewSpace', 'externalId', 'ViewExternaldId') as type, named_struct('spaceExternalId', 'spaceExternalId', 'externalId', 'startNodeExtId') as  startNode, named_struct('spaceExternalId', 'spaceExternalId', 'externalId', 'endNodeExtId') as endNode") \
+    .write.format("cognite.spark.v1") \
     .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token) \
     .option("clientId", client_ID) \
     .option("clientSecret", client_secret) \
     .option("project", project) \
-    .option("scopes", scope) \
-    .option("type", "edges") \
-    .load()
+    .option("scopes", scopes) \
+    .option("baseUrl", baseUrl) \
+    .option("instanceType","node") \
+    .option("type", "instances") \
+    .option("space", ViewSpace) \
+    .option("externalId", ViewExternaldId) \
+    .option("existingVersion", existingVersion) \
+    .option("onConflict", "upsert") \
+    .save() \
 
-df.show()
+
 ```
 ### RAW tables
 
