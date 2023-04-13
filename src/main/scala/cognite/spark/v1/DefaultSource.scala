@@ -354,7 +354,12 @@ class DefaultSource
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector.ioRuntime
 
-        val maxParallelism = Math.max(1, config.partitions / numberOfPartitions)
+        val maxParallelism = if (config.maxWritePartitions.isDefined) {
+          1
+        } else {
+          Math.max(1, config.partitions / numberOfPartitions)
+        }
+
         val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
         val operation = config.onConflict match {
