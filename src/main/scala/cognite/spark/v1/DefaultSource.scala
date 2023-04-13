@@ -31,7 +31,6 @@ final case class RelationConfig(
     batchSize: Option[Int],
     limitPerPartition: Option[Int],
     partitions: Int,
-    maxWritePartitions: Option[Int],
     maxRetries: Int,
     maxRetryDelaySeconds: Int,
     collectMetrics: Boolean,
@@ -333,24 +332,17 @@ class DefaultSource
       val originalNumberOfPartitions = data.rdd.getNumPartitions
       val idealNumberOfPartitions = config.sparkPartitions
 
-      val (dataRepartitioned, numberOfPartitions) = config.maxWritePartitions match {
-        // Some CDF resource types (eg. Well data layer) struggle when multiple
-        // partitions are writing data at the same time. Setting the
-        // `maxWritePartitions` to a lower number will reduce the load on the
-        // service.
-        case Some(maxWritePartitions) if maxWritePartitions < originalNumberOfPartitions =>
-          (data.coalesce(maxWritePartitions), maxWritePartitions)
-        case _ =>
-          // If we have very many partitions, it's quite likely that they are significantly uneven.
-          // And we will have to limit parallelism on each partition to low number, so the operation could
-          // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
-          // If the number of partitions is reasonable, we avoid the data shuffling
-          if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-            (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
-          } else {
-            (data, originalNumberOfPartitions)
-          }
-      }
+      // If we have very many partitions, it's quite likely that they are significantly uneven.
+      // And we will have to limit parallelism on each partition to low number, so the operation could
+      // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
+      // If the number of partitions is reasonable, we avoid the data shuffling
+      val (dataRepartitioned, numberOfPartitions) =
+        if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
+          (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
+        } else {
+          (data, originalNumberOfPartitions)
+        }
+
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector.ioRuntime
 
@@ -488,7 +480,6 @@ object DefaultSource {
       .getOrElse("project", DefaultSource.getProjectFromAuth(auth, baseUrl))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
-    val maxWritePartitions = toPositiveInt(parameters, "maxWritePartitions")
     val partitions = toPositiveInt(parameters, "partitions")
       .getOrElse(Constants.DefaultPartitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
@@ -534,7 +525,6 @@ object DefaultSource {
       batchSize = batchSize,
       limitPerPartition = limitPerPartition,
       partitions = partitions,
-      maxWritePartitions = maxWritePartitions,
       maxRetries = maxRetries,
       maxRetryDelaySeconds = maxRetryDelaySeconds,
       collectMetrics = collectMetrics,
