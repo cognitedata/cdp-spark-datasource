@@ -61,23 +61,6 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
-  client.dataModelsV3
-    .createItems(
-      Seq(DataModelCreate(
-        spaceExternalId,
-        testDataModelExternalId,
-        Some("SparkDatasourceTestModel"),
-        Some("Spark Datasource test model"),
-        viewVersion,
-        views = Some(
-          Seq(ViewReference(
-            spaceExternalId,
-            viewStartNodeAndEndNodesExternalId,
-            viewVersion
-          )))
-      )))
-    .unsafeRunSync()
-
 //  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
   val nodeContainerProps: Map[String, ContainerPropertyDefinition] = Map(
@@ -665,6 +648,7 @@ class FlexibleDataModelCorePropertyRelationTest
   }
 
   it should "successfully filter instances from a data model" in {
+    setUpDataModel()
     val df = readRowsFromModel(
       modelSpace = spaceExternalId,
       modelExternalId = testDataModelExternalId,
@@ -688,6 +672,7 @@ class FlexibleDataModelCorePropertyRelationTest
   }
 
   it should "successfully insert instances to a data model" in {
+    setUpDataModel()
     val df = spark
       .sql(s"""
            |select
@@ -860,6 +845,9 @@ class FlexibleDataModelCorePropertyRelationTest
                 externalId = containerStartNodeAndEndNodesExternalId)),
             source = None)),
       "directRelation2" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+//      "file" -> FDMContainerPropertyTypes.FileReference,
+      "timeseries" -> FDMContainerPropertyTypes.TimeSeriesReference
+//      "sequence" -> FDMContainerPropertyTypes.SequenceReference,
     )
 
     for {
@@ -920,6 +908,9 @@ class FlexibleDataModelCorePropertyRelationTest
       "dateProp1" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNonNullable,
       "forIsNotNullFilter" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNullable,
       "forIsNullFilter" -> FDMContainerPropertyTypes.JsonNonListWithoutDefaultValueNullable,
+      "forTimeseriesRef" -> FDMContainerPropertyTypes.TimeSeriesReference
+//      "forFileRef" -> FDMContainerPropertyTypes.FileReference,
+//      "forSequenceRef" -> FDMContainerPropertyTypes.SequenceReference,
     )
 
     for {
@@ -929,6 +920,23 @@ class FlexibleDataModelCorePropertyRelationTest
     } yield (viewAll, extIds)
   }
 
+  private def setUpDataModel() =
+    client.dataModelsV3
+      .createItems(
+        Seq(DataModelCreate(
+          spaceExternalId,
+          testDataModelExternalId,
+          Some("SparkDatasourceTestModel"),
+          Some("Spark Datasource test model"),
+          viewVersion,
+          views = Some(
+            Seq(ViewReference(
+              spaceExternalId,
+              viewStartNodeAndEndNodesExternalId,
+              viewVersion
+            )))
+        )))
+      .unsafeRunSync()
   // scalastyle:off method.length
   private def setupInstancesForFiltering(viewDef: ViewDefinition): IO[Seq[String]] = {
     val viewExtId = viewDef.externalId

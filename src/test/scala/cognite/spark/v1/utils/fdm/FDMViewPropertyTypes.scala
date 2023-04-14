@@ -39,16 +39,17 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val Float32NonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(false),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test Float32 NonList WithoutDefaultValue NonNullable Description"),
-    name = Some("Test-Float32-NonList-WithoutDefaultValue-NonNullable-Name"),
-    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val Float32NonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Float32 NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Float32-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(false)),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val BooleanListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
@@ -61,16 +62,17 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(true),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test TextProperty NonList WithoutDefaultValue Nullable Description"),
-    name = Some("Test-TextProperty-NonList-WithoutDefaultValue-Nullable-Name"),
-    `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TextPropertyNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test TextProperty NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Test-TextProperty-NonList-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val JsonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
@@ -217,16 +219,17 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val Float64NonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(false),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test Float64 NonList WithoutDefaultValue NonNullable Description"),
-    name = Some("Test-Float64-NonList-WithoutDefaultValue-NonNullable-Name"),
-    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val Float64NonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Float64 NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Float64-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(false)),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val JsonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
@@ -272,27 +275,29 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(false),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test TextProperty List WithoutDefaultValue NonNullable Description"),
-    name = Some("Test-TextProperty-List-WithoutDefaultValue-NonNullable-Name"),
-    `type` = PropertyType.TextProperty(Some(true), Some("ucs_basic")),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TextPropertyListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test TextProperty List WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-TextProperty-List-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.TextProperty(Some(true), Some("ucs_basic")),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
-  val TextPropertyNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(false),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test TextProperty NonList WithoutDefaultValue NonNullable Description"),
-    name = Some("Test-TextProperty-NonList-WithoutDefaultValue-NonNullable-Name"),
-    `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TextPropertyNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test TextProperty NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-TextProperty-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val TimestampListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
@@ -327,16 +332,17 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TimestampNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(false),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test Timestamp NonList WithoutDefaultValue NonNullable Description"),
-    name = Some("Test-Timestamp-NonList-WithoutDefaultValue-NonNullable-Name"),
-    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TimestampNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Timestamp NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Timestamp-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val DateNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
@@ -418,16 +424,17 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyNonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(true),
-    autoIncrement = Some(false),
-    defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
-    description = Some("Test TextProperty NonList WithDefaultValue Nullable Description"),
-    name = Some("Test-TextProperty-NonList-WithDefaultValue-Nullable-Name"),
-    `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TextPropertyNonListWithDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
+      description = Some("Test TextProperty NonList WithDefaultValue Nullable Description"),
+      name = Some("Test-TextProperty-NonList-WithDefaultValue-Nullable-Name"),
+      `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val BooleanNonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
@@ -440,16 +447,17 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TimestampNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(true),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test Timestamp NonList WithoutDefaultValue Nullable Description"),
-    name = Some("Test-Timestamp-NonList-WithoutDefaultValue-Nullable-Name"),
-    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TimestampNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Timestamp NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Test-Timestamp-NonList-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val Int32ListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
@@ -497,16 +505,17 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TimestampListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(false),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test Timestamp List WithoutDefaultValue NonNullable Description"),
-    name = Some("Test-Timestamp-List-WithoutDefaultValue-NonNullable-Name"),
-    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TimestampListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Timestamp List WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Timestamp-List-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val Int32NonListWithoutAutoIncrementWithDefaultValueNonNullable: ViewCorePropertyDefinition =
     ViewCorePropertyDefinition(
@@ -532,16 +541,17 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(false),
-    autoIncrement = Some(false),
-    defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
-    description = Some("Test TextProperty NonList WithDefaultValue NonNullable Description"),
-    name = Some("Test-TextProperty-NonList-WithDefaultValue-NonNullable-Name"),
-    `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TextPropertyNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.String("defaultTextValue")),
+      description = Some("Test TextProperty NonList WithDefaultValue NonNullable Description"),
+      name = Some("Test-TextProperty-NonList-WithDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.TextProperty(Some(false), Some("ucs_basic")),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
     ViewCorePropertyDefinition(
@@ -569,16 +579,17 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
-  val TimestampNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(false),
-    autoIncrement = Some(false),
-    defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845609Z[UTC]")),
-    description = Some("Test Timestamp NonList WithDefaultValue NonNullable Description"),
-    name = Some("Test-Timestamp-NonList-WithDefaultValue-NonNullable-Name"),
-    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TimestampNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.String("2023-01-17T20:39:57.845609Z[UTC]")),
+      description = Some("Test Timestamp NonList WithDefaultValue NonNullable Description"),
+      name = Some("Test-Timestamp-NonList-WithDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(false)),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val BooleanNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
@@ -591,16 +602,17 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val BooleanNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(false),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test Boolean NonList WithoutDefaultValue NonNullable Description"),
-    name = Some("Test-Boolean-NonList-WithoutDefaultValue-NonNullable-Name"),
-    `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val BooleanNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Boolean NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Test-Boolean-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(false)),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val TimestampNonListWithDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
@@ -613,16 +625,17 @@ object FDMViewPropertyTypes {
     containerPropertyIdentifier = None
   )
 
-  val TextPropertyListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
-    nullable = Some(true),
-    autoIncrement = Some(false),
-    defaultValue = None,
-    description = Some("Test TextProperty List WithoutDefaultValue Nullable Description"),
-    name = Some("Test-TextProperty-List-WithoutDefaultValue-Nullable-Name"),
-    `type` = PropertyType.TextProperty(Some(true), Some("ucs_basic")),
-    container = None,
-    containerPropertyIdentifier = None
-  )
+  val TextPropertyListWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test TextProperty List WithoutDefaultValue Nullable Description"),
+      name = Some("Test-TextProperty-List-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.TextProperty(Some(true), Some("ucs_basic")),
+      container = None,
+      containerPropertyIdentifier = None
+    )
 
   val Int32ListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(true),
@@ -678,6 +691,36 @@ object FDMViewPropertyTypes {
     container = None,
     containerPropertyIdentifier = None
   )
+
+  val TimeSeriesReference: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.TimeSeriesReference("timeseries1")),
+      description = Some("Test Time Series Description"),
+      name = Some("Test-Time-Series-Name"),
+      `type` = PropertyType.TimeSeriesReference(),
+    )
+
+  val FileReference: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.FileReference("file1")),
+      description = Some("Test File Description"),
+      name = Some("Test-File-Name"),
+      `type` = PropertyType.FileReference(),
+    )
+
+  val SequenceReference: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.SequenceReference("sequence1")),
+      description = Some("Test Sequence Description"),
+      name = Some("Test-Sequence-Name"),
+      `type` = PropertyType.SequenceReference(),
+    )
 
   val AllPossibleViewPropertyDefs: Vector[ViewCorePropertyDefinition] = Vector(
     DateNonListWithDefaultValueNonNullable,
@@ -738,6 +781,9 @@ object FDMViewPropertyTypes {
     Float32ListWithoutDefaultValueNullable,
     BooleanNonListWithDefaultValueNonNullable,
     Float64ListWithoutDefaultValueNullable,
-    Float32NonListWithDefaultValueNonNullable
+    Float32NonListWithDefaultValueNonNullable,
+    TimeSeriesReference,
+    FileReference,
+    SequenceReference
   )
 }

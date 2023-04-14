@@ -464,7 +464,10 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
         )
       case _: PropertyType.DirectNodeRelationProperty =>
         InstancePropertyValue.ViewDirectNodeRelation(None)
-
+      case _: PropertyType.TimeSeriesReference =>
+        InstancePropertyValue.TimeSeriesReference("timeseriesExtId1")
+      case _: PropertyType.FileReference => InstancePropertyValue.FileReference("fileExtId1")
+      case _: PropertyType.SequenceReference => InstancePropertyValue.SequenceReference("sequenceExtId1")
       case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
     }
 

@@ -80,6 +80,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     case InstancePropertyValue.TimestampList(value) =>
       value.map(v => java.sql.Timestamp.from(v.toInstant))
     case InstancePropertyValue.ObjectList(value) => value.map(_.noSpaces)
+    case InstancePropertyValue.TimeSeriesReference(value) => value
+    case InstancePropertyValue.FileReference(value) => value
+    case InstancePropertyValue.SequenceReference(value) => value
   }
   // scalastyle:on cyclomatic.complexity
 
@@ -255,6 +258,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
               case PrimitiveProperty(ppt, _) =>
                 Vector(
                   DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable))
+              case _: CDFExternalIdReference =>
+                Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
             }
           case _ => Vector.empty
         }
