@@ -38,6 +38,8 @@ This repository also contains `cdf_dump` command line tool for reading data from
     - [Labels schema](#labels-schema)
     - [Relationships schema](#relationships-schema)
     - [Data sets schema](#data-sets-schema)
+    - [Nodes schema](#nodes-schema)
+    - [Edges schema](#edges-schema)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -53,6 +55,8 @@ This repository also contains `cdf_dump` command line tool for reading data from
     - [Labels](#labels)
     - [Relationships](#relationships)
     - [Data sets](#data-sets)
+    - [Nodes](#nodes)
+    - [Edges](#edges)
   - [Comprehensive example](#comprehensive-examples)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
@@ -115,6 +119,7 @@ To autenticate using OIDC tokens set all of these options:
 | `clientSecret` | Client secret for the application.                                                                                                                       | Yes            |
 | `project`      | The CDF project.                                                                                                                                         | Yes            |
 | `scopes`       | The scopes needed for the user. Required for AAD setup.                                                                                                  | No             |
+| `baseUrl`     | Address of the CDF API. For example might be changed to https://greenfield.cognitedata.com. By default it is set to https://api.cognitedata.com          | Yes          |   |
 | `audience`     | The audience needed for token retrieval, supported for the custom Aize and AKSO OAuth2 setup.                                                            | No             |
 
 
@@ -533,6 +538,27 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `metadata`         | `map(string, string)` | Yes      | -                                     |
 | `writeProtected`   | `string`              | No       | equality                              |
 | `lastUpdatedTime`  | `timestamp`           | No       | comparison, equality                  |
+
+### Nodes schema
+| Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|-------------------------|-----------------------|----------|---------------------------------------|
+| `space`                 | `string`              | No       | equality                              |
+| `externalId`            | `string`              | No       | equality                              |
+
+
+
+### Edges schema
+| Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|-------------------------|-----------------------|----------|---------------------------------------|
+| `space`                 | `string`              | No       | equality                              |
+| `externalId`            | `string`              | No       | equality                              |
+| `type`                  | `struct`              | No       | equality                              |
+| `space`                 | `string`              | No       | equality                              |
+| `externalId`            | `String`              | No       | equality                              |
+| `startNode`             | `struct`              | No       | equality                              |
+| `endNode`               | `struct`              | No       | equality                              |
+
+
 
 ## Examples by resource types
 
@@ -1210,7 +1236,103 @@ spark.sql(
   .save()
 ```
 
+### Nodes
 
+Learn more about labels [here](https://docs.cognite.com/api/v1/#tag/Create-or-update-nodes/edges)
+
+Note that nodes can be read, created, updated and deleted. 
+Note view is optional, not needed for writing nodes without a view
+
+```python
+# Python Example
+
+# Read nodes
+df = spark.read.format("cognite.spark.v1") \
+    .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token) \
+    .option("clientId", client_ID) \
+    .option("clientSecret", client_secret) \
+    .option("project", project) \
+    .option("scopes", scope) \
+    .option("baseUrl", baseUrl) \
+    .option("instanceType","node")
+    .option("type", "instances")
+    .option("space", ViewSpace")
+    .option("externalId", ViewExternaldId)
+    .option("version", ViewVersion)
+    .option("instanceSpace", instanceSpace)
+    .load()
+
+df.show()
+
+
+# Write nodes
+spark.sql(
+    "select 'space' as space, 'ViewExternaldId' as externalId") \
+    .write.format("cognite.spark.v1") \
+    .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token) \
+    .option("clientId", client_ID) \
+    .option("clientSecret", client_secret) \
+    .option("project", project) \
+    .option("scopes", scope) \
+    .option("baseUrl", baseUrl) \
+    .option("instanceType","node") \
+    .option("type", "instances") \
+    .option("space", ViewSpace) \
+    .option("externalId", ViewExternaldId) \
+    .option("version", ViewVersion) \
+    .option("onConflict", "upsert") \
+    .save()
+```
+
+
+### Edges
+
+Learn more about labels [here](https://docs.cognite.com/api/v1/#tag/Create-or-update-nodes/edges)
+
+Note that Edges can be read, created, updated and deleted. 
+
+```python
+# Python Example
+
+# Read edges 
+df = spark.read
+  .format("cognite.spark.v1")
+  .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token)
+  .option("clientId", client_ID)
+  .option("clientSecret", client_secret)
+  .option("project", project)
+  .option("scopes", scope)
+  .option("baseUrl", baseUrl)
+  .option("instanceType","edge")
+  .option("type", "instances")
+  .option("space", ViewSpace)
+  .option("externalId", ViewExternaldId)
+  .option("version", ViewVersion)
+  .option("instanceSpace", instanceSpace)
+  .load()
+
+df.show()
+
+# Write edges
+spark.sql(
+    "select 'ViewSpace' as space, 'ViewExternaldId' as externalId,  named_struct('spaceExternalId', 'ViewSpace', 'externalId', 'ViewExternaldId') as type, named_struct('spaceExternalId', 'spaceExternalId', 'externalId', 'startNodeExtId') as  startNode, named_struct('spaceExternalId', 'spaceExternalId', 'externalId', 'endNodeExtId') as endNode") \
+    .write.format("cognite.spark.v1") \
+    .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token) \
+    .option("clientId", client_ID) \
+    .option("clientSecret", client_secret) \
+    .option("project", project) \
+    .option("scopes", scopes) \
+    .option("baseUrl", baseUrl) \
+    .option("instanceType","node") \
+    .option("type", "instances") \
+    .option("space", ViewSpace) \
+    .option("externalId", ViewExternaldId) \
+    .option("existingVersion", existingVersion) \
+    .option("onConflict", "upsert") \
+    .save() \
+
+
+```
 ### RAW tables
 
 Learn more about RAW tables [here](https://doc.cognitedata.com/api/v1/#tag/Raw).
