@@ -38,8 +38,10 @@ This repository also contains `cdf_dump` command line tool for reading data from
     - [Labels schema](#labels-schema)
     - [Relationships schema](#relationships-schema)
     - [Data sets schema](#data-sets-schema)
-    - [Nodes schema](#nodes-schema)
-    - [Edges schema](#edges-schema)
+    - [Nodes schema without view (aka connection definition)](#nodes-schema-without-view-aka-connection-definition)
+    - [Nodes with view schema](#nodes-with-view-schema)
+    - [Edges schema without view (aka connection definition)](#edges-schema-without-view-aka-connection-definition)
+    - [Edges schema with view](#edges-schema-with-view)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -539,22 +541,33 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `writeProtected`   | `string`              | No       | equality                              |
 | `lastUpdatedTime`  | `timestamp`           | No       | comparison, equality                  |
 
-### Nodes schema
+### Nodes schema without view (aka connection definition)
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
 | `space`                 | `string`              | No       | equality                              |
 | `externalId`            | `string`              | No       | equality                              |
 
+### Nodes with view schema
+| Column name                      | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|----------------------------------|-----------------------|----------|---------------------------------------|
+| `space`                          | `string`              | No       | equality                              |
+| `externalId`                     | `string`              | No       | equality                              |
+| Mandatory properties of the view |                       | No       |                                       |
 
+### Edges schema without view (aka connection definition)
+| Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|-------------------------|-----------------------|----------|---------------------------------------|
+| `space`                 | `string`              | No       | equality                              |
+| `externalId`            | `string`              | No       | equality                              |
+| `startNode`             | `struct`              | No       | equality                              |
+| `endNode`               | `struct`              | No       | equality                              |
 
-### Edges schema
+### Edges schema with view
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
 | `space`                 | `string`              | No       | equality                              |
 | `externalId`            | `string`              | No       | equality                              |
 | `type`                  | `struct`              | No       | equality                              |
-| `space`                 | `string`              | No       | equality                              |
-| `externalId`            | `String`              | No       | equality                              |
 | `startNode`             | `struct`              | No       | equality                              |
 | `endNode`               | `struct`              | No       | equality                              |
 
