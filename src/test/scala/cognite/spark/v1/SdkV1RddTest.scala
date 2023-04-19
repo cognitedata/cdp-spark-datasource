@@ -32,13 +32,18 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
 
     implicit val implicitBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(3, 5)
 
-    val sdkRdd =
+    val sdkRdd = {
+      val relationConfig = getDefaultConfig(
+        CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials)(implicitBackend),
+        readOidcCredentials.cdfProjectName
+      )
       SdkV1Rdd[String, String](
         spark.sparkContext,
-        getDefaultConfig(CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials)(implicitBackend)),
+        relationConfig,
         toRow,
         uniqueId,
         getStreams)
+    }
 
     val e = intercept[CdpApiException] {
       sdkRdd.compute(CdfPartition(0), TaskContext.get()).size

@@ -13,7 +13,7 @@ import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
@@ -474,8 +474,10 @@ object DefaultSource {
           s"Either apiKey, authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
             .mkString(", ")}")
     }
-    val projectName = parameters
-      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, baseUrl))
+    val projectName =
+      parameters.getOrElse(
+        "project",
+        throw new CdfSparkIllegalArgumentException(s"`project` must be specified"))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
@@ -559,25 +561,6 @@ object DefaultSource {
       .flatMap(_.as[List[CogniteId]])
       .getOrElse(List(CogniteExternalId(jsonIds)))
 
-  }
-
-  def getProjectFromAuth(auth: CdfSparkAuth, baseUrl: String)(
-      implicit backend: SttpBackend[IO, Any]): String = {
-    import CdpConnector.ioRuntime
-    val getProject = for {
-      authProvider <- auth.provider
-      project <- auth match {
-        case CdfSparkAuth.Static(a) =>
-          a.project
-            .traverse(
-              GenericClient
-                .forAuthProvider[IO](Constants.SparkDatasourceVersion, _, authProvider, baseUrl)
-                .map(_.projectName))
-            .map(_.getOrElse(""))
-        case _ => authProvider.getAuth.map(_.project).map(_.getOrElse(""))
-      }
-    } yield project
-    getProject.unsafeRunSync()
   }
 
   private def extractDataModelBasedCorePropertyRelation(
