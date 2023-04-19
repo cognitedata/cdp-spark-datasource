@@ -1257,7 +1257,7 @@ df = spark.read.format("cognite.spark.v1") \
     .option("instanceType","node")
     .option("type", "instances")
     .option("space", ViewSpace")
-    .option("externalId", ViewExternaldId)
+    .option("externalId", ViewExternalId)
     .option("version", ViewVersion)
     .option("instanceSpace", instanceSpace)
     .load()
@@ -1278,7 +1278,7 @@ spark.sql(
     .option("instanceType","node") \
     .option("type", "instances") \
     .option("space", ViewSpace) \
-    .option("externalId", ViewExternaldId) \
+    .option("externalId", ViewExternalId) \
     .option("version", ViewVersion) \
     .option("onConflict", "upsert") \
     .save()
@@ -1294,7 +1294,7 @@ Note that Edges can be read, created, updated and deleted.
 ```python
 # Python Example
 
-# Read edges 
+# Read edges with view in your data model
 df = spark.read
   .format("cognite.spark.v1")
   .option("tokenUri", https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token)
@@ -1306,14 +1306,14 @@ df = spark.read
   .option("instanceType","edge")
   .option("type", "instances")
   .option("space", ViewSpace)
-  .option("externalId", ViewExternaldId)
+  .option("externalId", ViewExternalId)
   .option("version", ViewVersion)
   .option("instanceSpace", instanceSpace)
   .load()
 
 df.show()
 
-# Write edges
+# Write edges with view in your data model
 spark.sql(
     "select 'ViewSpace' as space, 'ViewExternaldId' as externalId,  named_struct('spaceExternalId', 'ViewSpace', 'externalId', 'ViewExternaldId') as type, named_struct('spaceExternalId', 'spaceExternalId', 'externalId', 'startNodeExtId') as  startNode, named_struct('spaceExternalId', 'spaceExternalId', 'externalId', 'endNodeExtId') as endNode") \
     .write.format("cognite.spark.v1") \
@@ -1321,17 +1321,51 @@ spark.sql(
     .option("clientId", client_ID) \
     .option("clientSecret", client_secret) \
     .option("project", project) \
-    .option("scopes", scopes) \
+    .option("scopes", scope) \
     .option("baseUrl", baseUrl) \
     .option("instanceType","node") \
     .option("type", "instances") \
     .option("space", ViewSpace) \
-    .option("externalId", ViewExternaldId) \
+    .option("externalId", ViewExternalId) \
     .option("existingVersion", existingVersion) \
     .option("onConflict", "upsert") \
     .save() \
 
+# Read edges with (aka connection definition) in your data model
+%scala
+val df = spark.read
+  .format("cognite.spark.v1")
+  .option("tokenUri",  https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token)
+  .option("clientId", client_ID)
+  .option("clientSecret", client_secret)
+  .option("project", project)
+  .option("scopes", scope)
+  .option("baseUrl", baseUrl)
+  .option("instanceType","edge")
+  .option("type", "instances")
+  .option("edgeTypeSpace", edgeTypeSpace)
+  .option("edgeTypeExternalId", edgeTypeExternalId)
+  .option("collectMetrics", true)
+  .load()
 
+df.show()
+
+# Write edges with (aka connection definition) in your data model
+spark.sql(
+ "select 'edgeTypeSpace' as space, 'edgeTypeExternalId' as externalId,  named_struct('spaceExternalId', 'edgeTypeSpace', 'externalId', 'edgeTypeExternalId') as type, named_struct('spaceExternalId', 'authors', 'externalId', 'externalIdAuthors1') as  startNode, named_struct('spaceExternalId', 'books', 'externalId', 'externalIdBooks1') as endNode") \
+  .write.format("cognite.spark.v1") \
+  .option("tokenUri",  https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token)\
+  .option("clientId", client_ID)\
+  .option("clientSecret", client_secret)\
+  .option("project", project)\
+  .option("scopes", scope)\
+  .option("baseUrl", baseUrl)\
+  .option("instanceType","edge")\
+  .option("type", "instances")\
+  .option("edgeTypeSpace", edgeTypeSpace)\
+  .option("edgeTypeExternalId", edgeTypeExternalId)\
+  .option("onConflict", "upsert") \
+  .save()
 ```
 ### RAW tables
 
