@@ -10,7 +10,7 @@ import cognite.spark.v1.FlexibleDataModelRelationFactory.{
   ViewCorePropertyConfig
 }
 import cognite.spark.v1.wdl.WellDataLayerRelation
-import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
+import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
@@ -413,7 +413,6 @@ object DefaultSource {
       implicit backend: SttpBackend[IO, Any]): Option[CdfSparkAuth] = {
     val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
-    val apiKey = parameters.get("apiKey").map(apiKey => ApiKeyAuth(apiKey))
     val scopes: List[String] = parameters.get("scopes") match {
       case None => List.empty
       case Some(scopesStr) => scopesStr.split(" ").toList
@@ -449,7 +448,6 @@ object DefaultSource {
     } yield CdfSparkAuth.OAuth2Sessions(session)
 
     authTicket
-      .orElse(apiKey)
       .orElse(bearerToken)
       .map(CdfSparkAuth.Static)
       .orElse(session)
@@ -569,10 +567,13 @@ object DefaultSource {
     val getProject = for {
       authProvider <- auth.provider
       project <- auth match {
-        case CdfSparkAuth.Static(_) =>
-          GenericClient
-            .forAuthProvider[IO](Constants.SparkDatasourceVersion, authProvider, baseUrl)
-            .map(_.projectName)
+        case CdfSparkAuth.Static(a) =>
+          a.project
+            .traverse(
+              GenericClient
+                .forAuthProvider[IO](Constants.SparkDatasourceVersion, _, authProvider, baseUrl)
+                .map(_.projectName))
+            .map(_.getOrElse(""))
         case _ => authProvider.getAuth.map(_.project).map(_.getOrElse(""))
       }
     } yield project
