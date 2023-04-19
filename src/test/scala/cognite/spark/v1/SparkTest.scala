@@ -206,14 +206,12 @@ trait SparkTest {
 
   val updateAndUpsert: TableFor1[String] = Table(heading = "mode", "upsert", "update")
 
-  def getDefaultConfig(auth: CdfSparkAuth): RelationConfig =
+  def getDefaultConfig(auth: CdfSparkAuth, projectName: String): RelationConfig =
     RelationConfig(
       auth,
       Some("SparkDatasourceTestTag"),
       Some("SparkDatasourceTestApp"),
-      DefaultSource.getProjectFromAuth(auth, Constants.DefaultBaseUrl)(
-        CdpConnector
-          .retryingSttpBackend(Constants.DefaultMaxRetries, Constants.DefaultMaxRetryDelaySeconds)),
+      projectName,
       Some(Constants.DefaultBatchSize),
       None,
       partitions = Constants.DefaultPartitions,
