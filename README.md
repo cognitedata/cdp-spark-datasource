@@ -1331,7 +1331,7 @@ spark.sql(
     .option("onConflict", "upsert") \
     .save() \
 
-# Read edges with (aka connection definition) in your data model
+# Read edges without view (aka connection definition) in your data model
 %scala
 val df = spark.read
   .format("cognite.spark.v1")
@@ -1350,7 +1350,7 @@ val df = spark.read
 
 df.show()
 
-# Write edges with (aka connection definition) in your data model
+# Write edges without view (aka connection definition) in your data model
 spark.sql(
  "select 'edgeTypeSpace' as space, 'edgeTypeExternalId' as externalId,  named_struct('spaceExternalId', 'edgeTypeSpace', 'externalId', 'edgeTypeExternalId') as type, named_struct('spaceExternalId', 'authors', 'externalId', 'externalIdAuthors1') as  startNode, named_struct('spaceExternalId', 'books', 'externalId', 'externalIdBooks1') as endNode") \
   .write.format("cognite.spark.v1") \
