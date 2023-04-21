@@ -8,6 +8,7 @@ val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.1"
 val circeVersion = "0.14.5"
 val sttpVersion = "3.5.2"
+val natchezVersion = "0.3.1"
 val Specs2Version = "4.6.0"
 val cogniteSdkVersion = "2.6.720"
 
@@ -139,7 +140,8 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.log4s" %% "log4s" % log4sVersion
+      "org.log4s" %% "log4s" % log4sVersion,
+      "org.tpolecat" %% "natchez-core" % natchezVersion,
     ),
     assemblyMergeStrategy := {
       case PathList("META-INF", _@_*) => MergeStrategy.discard

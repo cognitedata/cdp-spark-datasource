@@ -23,6 +23,8 @@ import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
+import natchez.Trace
+
 final case class Data[A](data: A)
 final case class CdpApiErrorPayload(code: Int, message: String)
 final case class Error[A](error: A)
@@ -106,7 +108,9 @@ object CdpConnector {
           MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries")))
   }
 
-  def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
+  def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None)(
+      implicit trace: Trace[IO]): GenericClient[IO] = {
+    val _ = trace
     val metricsPrefix = if (config.collectMetrics) {
       Some(config.metricsPrefix)
     } else {

@@ -9,7 +9,9 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
 
-class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
+import natchez.Trace
+
+class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)(implicit val trace: Trace[IO])
     extends SdkV1Relation[Label, String](config, "labels")
     with InsertableRelation
     with WritableRelation {

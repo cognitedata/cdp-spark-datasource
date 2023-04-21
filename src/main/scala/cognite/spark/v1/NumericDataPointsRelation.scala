@@ -22,6 +22,8 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import scala.util.matching.Regex
 
+import natchez.Trace
+
 final case class DataPointsFilter(
     id: Option[Long],
     externalId: Option[String],
@@ -119,7 +121,8 @@ object Granularity {
       }
 }
 
-class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)
+class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)(
+    implicit trace: Trace[IO])
     extends DataPointsRelationV1[DataPointsItem](config, "datapoints")(sqlContext)
     with WritableRelation {
   import PushdownUtilities.filtersToTimestampLimits

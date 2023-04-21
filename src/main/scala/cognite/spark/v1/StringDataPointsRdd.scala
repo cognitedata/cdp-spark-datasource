@@ -11,13 +11,16 @@ import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskCon
 
 import java.time.Instant
 
+import natchez.Trace
+
 final case class StringDataPointsRdd(
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,
     filters: Array[Filter],
     ids: Seq[CogniteId],
     toRow: StringDataPointsItem => Row
-) extends RDD[Row](sparkContext, Nil) {
+)(implicit trace: Trace[IO])
+    extends RDD[Row](sparkContext, Nil) {
   import CdpConnector.ioRuntime
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)

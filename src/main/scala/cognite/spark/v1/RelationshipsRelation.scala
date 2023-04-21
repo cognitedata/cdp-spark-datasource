@@ -15,7 +15,10 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
 
-class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
+import natchez.Trace
+
+class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)(
+    implicit val trace: Trace[IO])
     extends SdkV1Relation[RelationshipsReadSchema, String](config, "relationships")
     with InsertableRelation
     with WritableRelation {

@@ -16,6 +16,8 @@ import java.time.{Duration, Instant}
 import scala.Ordering.Implicits._
 import scala.annotation.tailrec
 
+import natchez.Trace
+
 sealed trait Range {
   val count: Option[Long]
   val id: CogniteId
@@ -62,7 +64,8 @@ final case class NumericDataPointsRdd(
     granularities: Seq[Granularity],
     increaseReadMetrics: Int => Unit,
     rowIndices: Array[Int]
-) extends RDD[Row](sparkContext, Nil) {
+)(implicit trace: Trace[IO])
+    extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
 
   @transient lazy val client: GenericClient[IO] =

@@ -9,6 +9,10 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 import java.time.Instant
 
+import cognite.spark.v1.SparkSchemaHelper.fromRow
+
+import natchez.Trace
+
 abstract class Limit extends Ordered[Limit] with Serializable {
   def value: Instant
 
@@ -21,10 +25,8 @@ sealed case class Max(value: Instant) extends Limit
 
 final case class AggregationFilter(aggregation: String)
 
-import cognite.spark.v1.SparkSchemaHelper.fromRow
-
 abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String)(
-    override val sqlContext: SQLContext)
+    override val sqlContext: SQLContext)(implicit val trace: Trace[IO])
     extends CdfRelation(config, shortName)
     with TableScan
     with PrunedFilteredScan

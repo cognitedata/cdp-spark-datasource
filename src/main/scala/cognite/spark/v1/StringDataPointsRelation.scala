@@ -17,6 +17,8 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
 
+import natchez.Trace
+
 final case class StringDataPointsItem(
     id: Option[Long],
     externalId: Option[String],
@@ -31,7 +33,8 @@ final case class StringDataPointsInsertItem(
     value: String
 ) extends RowWithCogniteId("inserting string data points")
 
-class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext: SQLContext)
+class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext: SQLContext)(
+    implicit trace: Trace[IO])
     extends DataPointsRelationV1[StringDataPointsItem](config, "stringdatapoints")(sqlContext)
     with WritableRelation {
   override def insert(rows: Seq[Row]): IO[Unit] =

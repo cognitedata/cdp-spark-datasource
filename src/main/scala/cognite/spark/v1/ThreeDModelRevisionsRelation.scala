@@ -8,6 +8,8 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
+import natchez.Trace
+
 final case class ModelRevisionItem(
     id: Long,
     fileId: Long,
@@ -22,7 +24,8 @@ final case class ModelRevisionItem(
     assetMappingCount: Long,
     createdTime: Long)
 
-class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(val sqlContext: SQLContext)
+class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(val sqlContext: SQLContext)(
+    implicit val trace: Trace[IO])
     extends SdkV1Relation[ThreeDRevision, Long](config, "3dmodelrevision") {
   override def schema: StructType = structType[ThreeDRevision]()
 

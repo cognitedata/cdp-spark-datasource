@@ -15,8 +15,10 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
 
+import natchez.Trace
+
 class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]] = None)(
-    val sqlContext: SQLContext)
+    val sqlContext: SQLContext)(implicit trace: Trace[IO])
     extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
     with InsertableRelation
     with WritableRelation {

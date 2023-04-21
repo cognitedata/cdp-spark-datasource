@@ -15,6 +15,8 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+import natchez.Trace
+
 /**
   * Flexible Data Model Relation for Connection instances (i.e edges without properties)
   *
@@ -24,7 +26,7 @@ import org.apache.spark.sql.{Row, SQLContext}
   */
 private[spark] class FlexibleDataModelConnectionRelation(
     config: RelationConfig,
-    connectionConfig: ConnectionConfig)(val sqlContext: SQLContext)
+    connectionConfig: ConnectionConfig)(val sqlContext: SQLContext)(implicit trace: Trace[IO])
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
 
   private val instanceSpace = connectionConfig.instanceSpace

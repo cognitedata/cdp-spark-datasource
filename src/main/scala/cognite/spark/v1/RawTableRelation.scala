@@ -16,6 +16,8 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import java.time.Instant
 import scala.util.Try
 
+import natchez.Trace
+
 class RawTableRelation(
     config: RelationConfig,
     database: String,
@@ -23,7 +25,7 @@ class RawTableRelation(
     userSchema: Option[StructType],
     inferSchema: Boolean,
     inferSchemaLimit: Option[Int],
-    collectSchemaInferenceMetrics: Boolean)(val sqlContext: SQLContext)
+    collectSchemaInferenceMetrics: Boolean)(val sqlContext: SQLContext)(implicit trace: Trace[IO])
     extends BaseRelation
     with InsertableRelation
     with TableScan

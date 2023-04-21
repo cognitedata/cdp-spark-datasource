@@ -22,7 +22,9 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
 
-class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
+import natchez.Trace
+
+class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)(implicit val trace: Trace[IO])
     extends SdkV1Relation[FilesReadSchema, Long](config, "files")
     with InsertableRelation
     with WritableRelation {

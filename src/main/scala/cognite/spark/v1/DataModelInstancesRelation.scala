@@ -29,11 +29,14 @@ import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import scala.annotation.nowarn
 
+import natchez.Trace
+
 class DataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
     modelExternalId: String,
-    instanceSpaceExternalId: Option[String] = None)(val sqlContext: SQLContext)
+    instanceSpaceExternalId: Option[String] = None)(val sqlContext: SQLContext)(
+    implicit val trace: Trace[IO])
     extends CdfRelation(config, "datamodelinstances")
     with WritableRelation
     with PrunedFilteredScan {

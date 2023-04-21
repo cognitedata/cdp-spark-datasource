@@ -10,6 +10,8 @@ import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskCon
 
 import java.util.concurrent.{ArrayBlockingQueue, ConcurrentHashMap}
 
+import natchez.Trace
+
 final case class CdfPartition(index: Int) extends Partition
 
 final case class SdkV1Rdd[A, I](
@@ -18,7 +20,7 @@ final case class SdkV1Rdd[A, I](
     toRow: (A, Option[Int]) => Row,
     uniqueId: A => I,
     getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]],
-    deduplicateRows: Boolean = true)
+    deduplicateRows: Boolean = true)(implicit trace: Trace[IO])
     extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
 

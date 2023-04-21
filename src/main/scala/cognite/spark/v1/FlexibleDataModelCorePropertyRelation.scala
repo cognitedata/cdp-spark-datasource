@@ -24,6 +24,8 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
+import natchez.Trace
+
 /**
   * Flexible Data Model Relation for Nodes or Edges with properties
   * @param config common relation configs
@@ -32,7 +34,7 @@ import org.apache.spark.sql.{Row, SQLContext}
   */
 private[spark] class FlexibleDataModelCorePropertyRelation(
     config: RelationConfig,
-    corePropConfig: ViewCorePropertyConfig)(val sqlContext: SQLContext)
+    corePropConfig: ViewCorePropertyConfig)(val sqlContext: SQLContext)(implicit trace: Trace[IO])
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 

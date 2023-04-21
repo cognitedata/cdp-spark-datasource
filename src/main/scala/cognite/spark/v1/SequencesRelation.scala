@@ -17,7 +17,10 @@ import java.time.Instant
 
 import cognite.spark.v1.CdpConnector.ioRuntime
 
-class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
+import natchez.Trace
+
+class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)(
+    implicit val trace: Trace[IO])
     extends SdkV1Relation[SequenceReadSchema, Long](config, "sequences")
     with InsertableRelation
     with WritableRelation {

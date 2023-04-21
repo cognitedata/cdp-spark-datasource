@@ -7,10 +7,12 @@ import org.apache.spark.sql.sources.TableScan
 import org.apache.spark.sql.types.{DataType, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+import natchez.Trace
+
 class WellDataLayerRelation(
     config: RelationConfig,
     model: String
-)(override val sqlContext: SQLContext)
+)(override val sqlContext: SQLContext)(implicit val trace: Trace[IO])
     extends CdfRelation(config, "welldatalayer")
     with WritableRelation
     with TableScan

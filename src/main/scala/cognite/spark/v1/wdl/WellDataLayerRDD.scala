@@ -12,12 +12,15 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
 
 import scala.collection.AbstractIterator
 
+import natchez.Trace
+
 class WellDataLayerRDD(
     @transient override val sparkContext: SparkContext,
     val schema: StructType,
     val model: WdlModel,
     val config: RelationConfig
-) extends RDD[Row](sparkContext, Nil) {
+)(implicit trace: Trace[IO])
+    extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
 
   @transient lazy val client: GenericClient[IO] = CdpConnector.clientFromConfig(config)

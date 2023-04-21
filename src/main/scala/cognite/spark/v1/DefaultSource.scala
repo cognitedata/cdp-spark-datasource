@@ -23,6 +23,8 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 import sttp.client3.SttpBackend
 import sttp.model.Uri
 
+import natchez.Trace
+
 final case class RelationConfig(
     auth: CdfSparkAuth,
     clientTag: Option[String],
@@ -82,7 +84,7 @@ object AssetSubtreeOption {
     fromString.get(s.toLowerCase)
 }
 
-class DefaultSource
+class DefaultSource(implicit trace: Trace[IO])
     extends RelationProvider
     with CreatableRelationProvider
     with SchemaRelationProvider
@@ -566,7 +568,7 @@ object DefaultSource {
   private def extractDataModelBasedCorePropertyRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
+      sqlContext: SQLContext)(implicit trace: Trace[IO]) = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map4(
@@ -581,7 +583,7 @@ object DefaultSource {
   private def extractDataModelBasedConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
+      sqlContext: SQLContext)(implicit trace: Trace[IO]) = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map5(
@@ -597,7 +599,7 @@ object DefaultSource {
   private def extractConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
+      sqlContext: SQLContext)(implicit trace: Trace[IO]) = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map2(
@@ -610,7 +612,7 @@ object DefaultSource {
   private def extractCorePropertyRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) =
+      sqlContext: SQLContext)(implicit trace: Trace[IO]) =
     parameters
       .get("instanceType")
       .collect {

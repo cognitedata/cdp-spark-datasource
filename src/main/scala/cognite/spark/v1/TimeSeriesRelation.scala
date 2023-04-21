@@ -14,7 +14,10 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
 
-class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
+import natchez.Trace
+
+class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)(
+    implicit val trace: Trace[IO])
     extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
     with WritableRelation
     with InsertableRelation {

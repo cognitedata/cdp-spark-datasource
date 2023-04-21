@@ -8,8 +8,10 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
+import natchez.Trace
+
 class ThreeDModelRevisionNodesRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
-    val sqlContext: SQLContext)
+    val sqlContext: SQLContext)(implicit val trace: Trace[IO])
     extends SdkV1Relation[ThreeDNode, Long](config, "3dmodelrevisionnodes") {
   override def schema: StructType = structType[ThreeDNode]()
 

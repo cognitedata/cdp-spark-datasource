@@ -28,7 +28,10 @@ import java.time._
 import java.util.Locale
 import scala.util.Try
 
-abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext: SQLContext)
+import natchez.Trace
+
+abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext: SQLContext)(
+    implicit val trace: Trace[IO])
     extends CdfRelation(config, FlexibleDataModelRelationFactory.ResourceType)
     with PrunedFilteredScan
     with WritableRelation {

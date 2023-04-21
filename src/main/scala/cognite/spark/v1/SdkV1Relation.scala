@@ -15,7 +15,10 @@ import org.apache.spark.sql.{DataFrame, Row}
 
 import scala.annotation.nowarn
 
-abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
+import natchez.Trace
+
+abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)(
+    implicit trace: Trace[IO])
     extends CdfRelation(config, shortName)
     with Serializable
     with TableScan

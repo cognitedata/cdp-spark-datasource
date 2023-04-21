@@ -13,6 +13,9 @@ import sttp.client3._
 import scala.concurrent.duration._
 
 class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+
+  import natchez.Trace.Implicits.noop
+
   it should "throw an error when passed streams that return an error" in {
 
     val errorMessage = "Some exception"

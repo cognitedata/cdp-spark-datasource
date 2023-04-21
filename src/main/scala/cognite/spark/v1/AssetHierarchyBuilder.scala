@@ -20,6 +20,8 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 import scala.collection.mutable
 
+import natchez.Trace
+
 final case class AssetsIngestSchema(
     externalId: String,
     parentExternalId: String,
@@ -71,7 +73,8 @@ final case class InvalidRootChangeException(assetIds: Seq[String], subtreeId: St
       }
     )
 
-class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
+class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)(
+    implicit val trace: Trace[IO])
     extends CdfRelation(config, "assethierarchy") {
 
   import CdpConnector.ioRuntime

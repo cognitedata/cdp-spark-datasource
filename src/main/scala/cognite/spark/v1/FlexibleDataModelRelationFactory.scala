@@ -9,6 +9,8 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.Connect
 import com.cognite.sdk.scala.v1.fdm.views.{ViewDefinition, ViewReference}
 import org.apache.spark.sql.SQLContext
 
+import natchez.Trace
+
 sealed trait FlexibleDataModelRelationFactory
 
 object FlexibleDataModelRelationFactory {
@@ -48,20 +50,22 @@ object FlexibleDataModelRelationFactory {
   def corePropertyRelation(
       config: RelationConfig,
       sqlContext: SQLContext,
-      viewCorePropConfig: ViewCorePropertyConfig): FlexibleDataModelCorePropertyRelation =
+      viewCorePropConfig: ViewCorePropertyConfig)(
+      implicit trace: Trace[IO]): FlexibleDataModelCorePropertyRelation =
     new FlexibleDataModelCorePropertyRelation(config, viewCorePropConfig)(sqlContext)
 
   def connectionRelation(
       config: RelationConfig,
       sqlContext: SQLContext,
-      connectionConfig: ConnectionConfig): FlexibleDataModelConnectionRelation =
+      connectionConfig: ConnectionConfig)(
+      implicit trace: Trace[IO]): FlexibleDataModelConnectionRelation =
     new FlexibleDataModelConnectionRelation(config, connectionConfig)(sqlContext)
 
   def dataModelRelation(
       config: RelationConfig,
       sqlContext: SQLContext,
       dataModelConfig: DataModelConfig
-  ): FlexibleDataModelBaseRelation =
+  )(implicit trace: Trace[IO]): FlexibleDataModelBaseRelation =
     (dataModelConfig match {
       case vc: DataModelViewConfig => createCorePropertyRelationForDataModel(config, sqlContext, vc)
       case cc: DataModelConnectionConfig => createConnectionRelationForDataModel(config, sqlContext, cc)
@@ -70,7 +74,8 @@ object FlexibleDataModelRelationFactory {
   private def createCorePropertyRelationForDataModel(
       config: RelationConfig,
       sqlContext: SQLContext,
-      modelViewConfig: DataModelViewConfig): IO[FlexibleDataModelCorePropertyRelation] = {
+      modelViewConfig: DataModelViewConfig)(
+      implicit trace: Trace[IO]): IO[FlexibleDataModelCorePropertyRelation] = {
     val client = CdpConnector.clientFromConfig(config)
     fetchInlinedDataModel(client, modelViewConfig)
       .map { models =>
@@ -111,7 +116,8 @@ object FlexibleDataModelRelationFactory {
   private def createConnectionRelationForDataModel(
       config: RelationConfig,
       sqlContext: SQLContext,
-      modelConnectionConfig: DataModelConnectionConfig): IO[FlexibleDataModelConnectionRelation] = {
+      modelConnectionConfig: DataModelConnectionConfig)(
+      implicit trace: Trace[IO]): IO[FlexibleDataModelConnectionRelation] = {
     val client = CdpConnector.clientFromConfig(config)
     fetchInlinedDataModel(client, modelConnectionConfig)
       .flatMap {

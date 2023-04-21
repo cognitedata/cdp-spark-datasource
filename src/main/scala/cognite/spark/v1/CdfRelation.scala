@@ -8,7 +8,9 @@ import io.scalaland.chimney.Transformer
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources.BaseRelation
 
-abstract class CdfRelation(config: RelationConfig, shortName: String)
+import natchez.Trace
+
+abstract class CdfRelation(config: RelationConfig, shortName: String)(implicit trace: Trace[IO])
     extends BaseRelation
     with Serializable {
   @transient lazy protected val itemsRead: Counter =

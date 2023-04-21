@@ -8,9 +8,12 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+import natchez.Trace
+
 final case class ModelItem(id: Long, name: String, createdTime: Long)
 
-class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
+class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)(
+    implicit val trace: Trace[IO])
     extends SdkV1Relation[ThreeDModel, Long](config, "threeDModels.read") {
 
   override def schema: StructType = structType[ThreeDModel]()

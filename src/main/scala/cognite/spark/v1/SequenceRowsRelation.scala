@@ -14,9 +14,12 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 import scala.annotation.nowarn
 
+import natchez.Trace
+
 case class SequenceRowWithId(id: CogniteId, sequenceRow: SequenceRow)
 
-class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)
+class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)(
+    implicit val trace: Trace[IO])
     extends CdfRelation(config, "sequencerows")
     with WritableRelation
     with PrunedFilteredScan {
