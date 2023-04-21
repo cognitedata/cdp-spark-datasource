@@ -10,10 +10,10 @@ import cognite.spark.v1.FlexibleDataModelRelationFactory.{
   ViewCorePropertyConfig
 }
 import cognite.spark.v1.wdl.WellDataLayerRelation
-import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
+import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, GenericClient}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
@@ -413,7 +413,6 @@ object DefaultSource {
       implicit backend: SttpBackend[IO, Any]): Option[CdfSparkAuth] = {
     val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
-    val apiKey = parameters.get("apiKey").map(apiKey => ApiKeyAuth(apiKey))
     val scopes: List[String] = parameters.get("scopes") match {
       case None => List.empty
       case Some(scopesStr) => scopesStr.split(" ").toList
@@ -449,7 +448,6 @@ object DefaultSource {
     } yield CdfSparkAuth.OAuth2Sessions(session)
 
     authTicket
-      .orElse(apiKey)
       .orElse(bearerToken)
       .map(CdfSparkAuth.Static)
       .orElse(session)
@@ -476,8 +474,10 @@ object DefaultSource {
           s"Either apiKey, authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
             .mkString(", ")}")
     }
-    val projectName = parameters
-      .getOrElse("project", DefaultSource.getProjectFromAuth(auth, baseUrl))
+    val projectName =
+      parameters.getOrElse(
+        "project",
+        throw new CdfSparkIllegalArgumentException(s"`project` must be specified"))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
     val partitions = toPositiveInt(parameters, "partitions")
@@ -561,22 +561,6 @@ object DefaultSource {
       .flatMap(_.as[List[CogniteId]])
       .getOrElse(List(CogniteExternalId(jsonIds)))
 
-  }
-
-  def getProjectFromAuth(auth: CdfSparkAuth, baseUrl: String)(
-      implicit backend: SttpBackend[IO, Any]): String = {
-    import CdpConnector.ioRuntime
-    val getProject = for {
-      authProvider <- auth.provider
-      project <- auth match {
-        case CdfSparkAuth.Static(_) =>
-          GenericClient
-            .forAuthProvider[IO](Constants.SparkDatasourceVersion, authProvider, baseUrl)
-            .map(_.projectName)
-        case _ => authProvider.getAuth.map(_.project).map(_.getOrElse(""))
-      }
-    } yield project
-    getProject.unsafeRunSync()
   }
 
   private def extractDataModelBasedCorePropertyRelation(

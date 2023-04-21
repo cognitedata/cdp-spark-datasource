@@ -1,8 +1,8 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import com.cognite.sdk.scala.common.{ApiKeyAuth, BearerTokenAuth, OAuth2, TicketAuth}
-import com.cognite.sdk.scala.v1.{CogniteInternalId, CogniteExternalId}
+import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId}
 import org.scalatest.{Matchers, WordSpec}
 import sttp.client3.{SttpBackend, UriContext}
 
@@ -31,13 +31,6 @@ class DefaultSourceTest extends WordSpec with Matchers {
       "work for authTicket" in {
         DefaultSource.parseAuth(fullParams) shouldBe Some(
           CdfSparkAuth.Static(TicketAuth("value-AuthTicket"))
-        )
-      }
-
-      "work for apiKey" in {
-        val params = fullParams.filter { case (key, _) => !Set("authTicket").contains(key) }
-        DefaultSource.parseAuth(params) shouldBe Some(
-          CdfSparkAuth.Static(ApiKeyAuth("value-ApiKey"))
         )
       }
 
