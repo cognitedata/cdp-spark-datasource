@@ -2,7 +2,6 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cats.implicits.toTraverseOps
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
@@ -85,7 +84,6 @@ class FlexibleDataModelCorePropertyRelationTest
     createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId,
       endNodeExtId,
-      viewStartAndEndNodes.toInstanceSource,
       viewStartAndEndNodes.toSourceReference,
     ).unsafeRunSync()
 
@@ -227,7 +225,6 @@ class FlexibleDataModelCorePropertyRelationTest
     createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId,
       endNodeExtId,
-      viewStartAndEndNodes.toInstanceSource,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
     val (viewAll, viewNodes, viewEdges) = setupAllListPropertyTest.unsafeRunSync()
@@ -373,7 +370,6 @@ class FlexibleDataModelCorePropertyRelationTest
     createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId,
       endNodeExtId,
-      viewStartAndEndNodes.toInstanceSource,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
     val typeNodeRef = DirectRelationReference(
@@ -476,7 +472,6 @@ class FlexibleDataModelCorePropertyRelationTest
     createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId,
       endNodeExtId,
-      viewStartAndEndNodes.toInstanceSource,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
     val typeNodeRef = DirectRelationReference(
@@ -609,22 +604,25 @@ class FlexibleDataModelCorePropertyRelationTest
 
     result shouldBe Success(())
 
-    val propertyMapForInstances = (IO.sleep(2.seconds) *> Vector(
-      InstanceRetrieve(
-        instanceType = InstanceType.Node,
-        externalId = nodeExtId1,
-        space = spaceExternalId,
-        sources = Some(Seq(InstanceSource(viewDef.toSourceReference)))
-      ),
-      InstanceRetrieve(
-        instanceType = InstanceType.Node,
-        externalId = nodeExtId2,
-        space = spaceExternalId,
+    val propertyMapForInstances = (IO.sleep(2.seconds) *> client.instances
+      .retrieveByExternalIds(
+        Vector(
+          InstanceRetrieve(
+            instanceType = InstanceType.Node,
+            externalId = nodeExtId1,
+            space = spaceExternalId
+          ),
+          InstanceRetrieve(
+            instanceType = InstanceType.Node,
+            externalId = nodeExtId2,
+            space = spaceExternalId
+          )
+        ),
+        includeTyping = true,
         sources = Some(Seq(InstanceSource(viewDef.toSourceReference)))
       )
-    ).traverse(i => client.instances.retrieveByExternalIds(Vector(i), includeTyping = true))
       .map { instances =>
-        instances.flatMap(_.items).collect {
+        instances.items.collect {
           case n: InstanceDefinition.NodeDefinition =>
             n.externalId -> n.properties
               .getOrElse(Map.empty)
@@ -946,71 +944,72 @@ class FlexibleDataModelCorePropertyRelationTest
       InstanceRetrieve(
         instanceType = InstanceType.Node,
         externalId = s"${viewExtId}Node1",
-        space = spaceExternalId,
-        sources = Some(Seq(source))
+        space = spaceExternalId
       ),
       InstanceRetrieve(
         instanceType = InstanceType.Node,
         externalId = s"${viewExtId}Node2",
-        space = spaceExternalId,
-        sources = Some(Seq(source))
+        space = spaceExternalId
       )
     )
-    client.instances.retrieveByExternalIds(instanceRetrieves).map(_.items).flatMap { instances =>
-      val nodes = instances.collect { case n: InstanceDefinition.NodeDefinition => n.externalId }
-      if (nodes.length === 2) {
-        IO.pure(nodes)
-      } else {
-        client.instances
-          .createItems(
-            instance = InstanceCreate(
-              items = Seq(
-                NodeWrite(
-                  spaceExternalId,
-                  s"${viewDef.externalId}Node1",
-                  Some(Seq(EdgeOrNodeData(
-                    viewRef,
-                    Some(Map(
-                      "forEqualsFilter" -> InstancePropertyValue.String("str1"),
-                      "forInFilter" -> InstancePropertyValue.String("str1"),
-                      "forGteFilter" -> InstancePropertyValue.Int32(1),
-                      "forGtFilter" -> InstancePropertyValue.Int32(2),
-                      "forLteFilter" -> InstancePropertyValue.Int64(2),
-                      "forLtFilter" -> InstancePropertyValue.Int64(3),
-                      "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                      "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                      "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
-                    ))
-                  )))
+    client.instances
+      .retrieveByExternalIds(instanceRetrieves, sources = Some(Seq(source)))
+      .map(_.items)
+      .flatMap { instances =>
+        val nodes = instances.collect { case n: InstanceDefinition.NodeDefinition => n.externalId }
+        if (nodes.length === 2) {
+          IO.pure(nodes)
+        } else {
+          client.instances
+            .createItems(
+              instance = InstanceCreate(
+                items = Seq(
+                  NodeWrite(
+                    spaceExternalId,
+                    s"${viewDef.externalId}Node1",
+                    Some(Seq(EdgeOrNodeData(
+                      viewRef,
+                      Some(Map(
+                        "forEqualsFilter" -> InstancePropertyValue.String("str1"),
+                        "forInFilter" -> InstancePropertyValue.String("str1"),
+                        "forGteFilter" -> InstancePropertyValue.Int32(1),
+                        "forGtFilter" -> InstancePropertyValue.Int32(2),
+                        "forLteFilter" -> InstancePropertyValue.Int64(2),
+                        "forLtFilter" -> InstancePropertyValue.Int64(3),
+                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
+                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
+                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
+                      ))
+                    )))
+                  ),
+                  NodeWrite(
+                    spaceExternalId,
+                    s"${viewDef.externalId}Node2",
+                    Some(Seq(EdgeOrNodeData(
+                      viewRef,
+                      Some(Map(
+                        "forEqualsFilter" -> InstancePropertyValue.String("str2"),
+                        "forInFilter" -> InstancePropertyValue.String("str2"),
+                        "forGteFilter" -> InstancePropertyValue.Int32(5),
+                        "forGtFilter" -> InstancePropertyValue.Int32(2),
+                        "forLteFilter" -> InstancePropertyValue.Int64(1),
+                        "forLtFilter" -> InstancePropertyValue.Int64(-1),
+                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
+                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
+                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now()),
+                        "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
+                          JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
+                      ))
+                    )))
+                  )
                 ),
-                NodeWrite(
-                  spaceExternalId,
-                  s"${viewDef.externalId}Node2",
-                  Some(Seq(EdgeOrNodeData(
-                    viewRef,
-                    Some(Map(
-                      "forEqualsFilter" -> InstancePropertyValue.String("str2"),
-                      "forInFilter" -> InstancePropertyValue.String("str2"),
-                      "forGteFilter" -> InstancePropertyValue.Int32(5),
-                      "forGtFilter" -> InstancePropertyValue.Int32(2),
-                      "forLteFilter" -> InstancePropertyValue.Int64(1),
-                      "forLtFilter" -> InstancePropertyValue.Int64(-1),
-                      "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                      "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                      "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now()),
-                      "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
-                        JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
-                    ))
-                  )))
-                )
-              ),
-              replace = Some(true)
+                replace = Some(true)
+              )
             )
-          )
-          .map(_.collect { case n: SlimNodeOrEdge.SlimNodeDefinition => n.externalId })
-          .map(_.distinct)
+            .map(_.collect { case n: SlimNodeOrEdge.SlimNodeDefinition => n.externalId })
+            .map(_.distinct)
+        }
       }
-    }
   }
   // scalastyle:on method.length
 

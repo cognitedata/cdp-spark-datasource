@@ -240,65 +240,38 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
   protected def createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId: String,
       endNodeExtId: String,
-      instanceSource: InstanceSource,
-      sourceReference: SourceReference): IO[Unit] = {
-    val instanceRetrieves = Vector(
-      InstanceRetrieve(
-        instanceType = InstanceType.Node,
-        externalId = startNodeExtId,
-        space = spaceExternalId,
-        sources = Some(Seq(instanceSource))
-      ),
-      InstanceRetrieve(
-        instanceType = InstanceType.Node,
-        externalId = endNodeExtId,
-        space = spaceExternalId,
-        sources = Some(Seq(instanceSource))
-      )
-    )
+      sourceReference: SourceReference): IO[Unit] =
     client.instances
-      .retrieveByExternalIds(instanceRetrieves, includeTyping = false)
-      .flatMap { response =>
-        val nodes = response.items.collect {
-          case n: InstanceDefinition.NodeDefinition => n
-        }
-        if (nodes.size === 2) {
-          IO.unit
-        } else {
-          client.instances
-            .createItems(instance = InstanceCreate(
-              items = Seq(
-                NodeWrite(
-                  spaceExternalId,
-                  startNodeExtId,
-                  Some(
-                    Seq(EdgeOrNodeData(
-                      sourceReference,
-                      Some(Map(
-                        "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
-                        "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
-                    ))
-                  )
-                ),
-                NodeWrite(
-                  spaceExternalId,
-                  endNodeExtId,
-                  Some(
-                    Seq(EdgeOrNodeData(
-                      sourceReference,
-                      Some(Map(
-                        "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
-                        "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
-                    ))
-                  )
-                )
-              ),
-              replace = Some(true)
-            ))
-            .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
-        }
-      }
-  }
+      .createItems(instance = InstanceCreate(
+        items = Seq(
+          NodeWrite(
+            spaceExternalId,
+            startNodeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                sourceReference,
+                Some(Map(
+                  "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
+                  "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
+              ))
+            )
+          ),
+          NodeWrite(
+            spaceExternalId,
+            endNodeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                sourceReference,
+                Some(Map(
+                  "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
+                  "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
+              ))
+            )
+          )
+        ),
+        replace = Some(true)
+      ))
+      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
   // scalastyle:off method.length
 
   // scalastyle:off method.length
