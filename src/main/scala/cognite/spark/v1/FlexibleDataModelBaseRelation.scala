@@ -83,6 +83,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     case InstancePropertyValue.TimeSeriesReference(value) => value
     case InstancePropertyValue.FileReference(value) => value
     case InstancePropertyValue.SequenceReference(value) => value
+    case InstancePropertyValue.TimeSeriesReferenceList(value) => value
+    case InstancePropertyValue.FileReferenceList(value) => value
+    case InstancePropertyValue.SequenceReferenceList(value) => value
   }
   // scalastyle:on cyclomatic.complexity
 

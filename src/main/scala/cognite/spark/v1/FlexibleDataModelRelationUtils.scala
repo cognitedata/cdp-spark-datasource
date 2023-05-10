@@ -6,7 +6,9 @@ import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
   DirectNodeRelationProperty,
+  FileReference,
   PrimitiveProperty,
+  SequenceReference,
   TextProperty,
   TimeSeriesReference
 }
@@ -616,7 +618,15 @@ object FlexibleDataModelRelationUtils {
               .leftMap(e =>
                 new CdfSparkException(
                   s"Error parsing value of field '$propertyName' as a list of json objects: ${e.getMessage}"))
-
+          case p: TimeSeriesReference if p.isList =>
+            val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            Try(InstancePropertyValue.TimeSeriesReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
+          case p: FileReference if p.isList =>
+            val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            Try(InstancePropertyValue.FileReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
+          case p: SequenceReference if p.isList =>
+            val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+            Try(InstancePropertyValue.SequenceReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
           case t => Left(new CdfSparkException(s"Unhandled list type: ${t.toString}"))
         }
       }
@@ -667,12 +677,12 @@ object FlexibleDataModelRelationUtils {
               .leftMap(e =>
                 new CdfSparkException(
                   s"Error parsing value of field '$propertyName' as a json object: ${e.getMessage}"))
-          case _: TimeSeriesReference =>
+          case p: TimeSeriesReference if !p.isList =>
             Try(InstancePropertyValue.TimeSeriesReference(String.valueOf(row.get(i)))).toEither
-//          case _: FileReference =>
-//            Try(InstancePropertyValue.FileReference(String.valueOf(row.get(i)))).toEither
-//          case _: SequenceReference =>
-//            Try(InstancePropertyValue.SequenceReference(String.valueOf(row.get(i)))).toEither
+          case p: FileReference if !p.isList =>
+            Try(InstancePropertyValue.FileReference(String.valueOf(row.get(i)))).toEither
+          case p: SequenceReference if !p.isList =>
+            Try(InstancePropertyValue.SequenceReference(String.valueOf(row.get(i)))).toEither
           case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
         }
       }
