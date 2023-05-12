@@ -42,6 +42,7 @@ This repository also contains `cdf_dump` command line tool for reading data from
     - [Nodes with view schema](#nodes-with-view-schema)
     - [Edges schema without view (aka connection definition)](#edges-schema-without-view-aka-connection-definition)
     - [Edges schema with view](#edges-schema-with-view)
+    - [Instances schema](#instances-schema)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -59,6 +60,7 @@ This repository also contains `cdf_dump` command line tool for reading data from
     - [Data sets](#data-sets)
     - [Nodes](#nodes)
     - [Edges](#edges)
+    - [Instances](#instances)
   - [Comprehensive example](#comprehensive-examples)
   - [Build the project with sbt](#build-the-project-with-sbt)
     - [Set up](#set-up)
@@ -563,15 +565,22 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `endNode`               | `struct`              | No       | equality                              |
 
 ### Edges schema with view
+| Column name                      | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|----------------------------------|-----------------------|----------|---------------------------------------|
+| `space`                          | `string`              | No       | equality                              |
+| `externalId`                     | `string`              | No       | equality                              |
+| `type`                           | `struct`              | No       | equality                              |
+| `startNode`                      | `struct`              | No       | equality                              |
+| `endNode`                        | `struct`              | No       | equality                              |
+| Mandatory properties of the view |                       | No       |                                       |
+
+### Instances schema 
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
 | `space`                 | `string`              | No       | equality                              |
 | `externalId`            | `string`              | No       | equality                              |
-| `type`                  | `struct`              | No       | equality                              |
 | `startNode`             | `struct`              | No       | equality                              |
 | `endNode`               | `struct`              | No       | equality                              |
-
-
 
 ## Examples by resource types
 
@@ -1380,6 +1389,55 @@ spark.sql(
   .option("onConflict", "upsert") \
   .save()
 ```
+
+### Instances
+
+Note that Instances can be read, created, updated and deleted. 
+
+```python
+# Python Example
+
+# Read instances 
+%scala
+val df = spark.read
+  .format("cognite.spark.v1")
+  .option("baseUrl", baseUrl)
+  .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")
+  .option("clientId", clientId)
+  .option("clientSecret", clientSecret)
+  .option("project", project)
+  .option("scopes", scope)
+  .option("instanceType","instances")
+  .option("type", "instances")
+  .option("edgeTypeSpace", edgeTypeSpace)
+  .option("edgeTypeExternalId", edgeTypeExternalId)
+  .option("modelVersion", modelVersion)
+  .option("viewExternalId", viewExternalId)
+  .load()
+
+df.show()
+
+# Write instances 
+spark.sql(
+ "select 'spaceExternalId' as space, 'edgeTypeExternalId' as externalId, named_struct('space', 'spaceExternalId', 'externalId', 'startEndNodeViewExternalId') as startNode, named_struct('space', 'spaceExternalId', 'externalId', 'startEndNodeViewExternalId') as endNode") \
+  .write.format("cognite.spark.v1") \
+    .option("baseUrl", baseUrl) \
+    .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token") \
+    .option("clientId", clientId) \
+    .option("clientSecret", clientSecret) \
+    .option("project", project) \
+    .option("scopes", scope) \
+    .option("instanceType","instances") \
+    .option("type", "instances") \
+    .option("edgeTypeSpace", edgeTypeSpace) \
+    .option("edgeTypeExternalId", edgeTypeExternalId) \
+    .option("modelVersion", modelVersion) \
+    .option("viewExternalId", viewExternalId) \
+    .option("onconflict", "upsert") \
+    .option("collectMetrics", True) \
+    .save() 
+```
+
 ### RAW tables
 
 Learn more about RAW tables [here](https://doc.cognitedata.com/api/v1/#tag/Raw).
