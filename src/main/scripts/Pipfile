@@ -9,4 +9,4 @@ verify_ssl = true
 cognite-sdk = "*"
 
 [requires]
-python_version = "3.5"
+python_version = "3.11"
