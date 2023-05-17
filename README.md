@@ -1371,8 +1371,7 @@ spark.sql(
     .save() \
 
 # Read edges without view (aka connection definition) in your data model
-%scala
-val df = spark.read
+df = spark.read
   .format("cognite.spark.v1")
   .option("tokenUri",  https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token)
   .option("clientId", client_ID)
@@ -1409,12 +1408,11 @@ spark.sql(
 
 ### Instances
 
-- Instances for nodes and edges with view
+- Instances to a type
 
 ```
 # Read instances 
-%scala
-val df = spark.read
+df = spark.read
   .format("cognite.spark.v1")
   .option("baseUrl", baseUrl)
   .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")
@@ -1434,8 +1432,7 @@ df.show()
 
 
 # Write instances 
-%scala
-val df = spark.sql("select 'modelSpace' as space, 'modelExternalId' as externalId, 'throughModelProp1' as stringProp1, 'throughModelProp2' as stringProp2" )
+spark.sql("select 'instanceSpace' as space, 'instanceExternalId' as externalId, 'throughModelProp1' as stringProp1, 'throughModelProp2' as stringProp2" )
   .write.format("cognite.spark.v1") 
   .option("baseUrl", baseUrl)
   .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")
@@ -1454,12 +1451,11 @@ val df = spark.sql("select 'modelSpace' as space, 'modelExternalId' as externalI
  
 ```
 
-- Insatances for edges without view (aka connection definition)
+- Instances to a relationship
 
 ```
 # Read instances 
-%scala
-val df = spark.read
+df = spark.read
   .format("cognite.spark.v1")
   .option("baseUrl",baseUrl)
   .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")
@@ -1481,8 +1477,7 @@ df.show()
 
 
 # Write instances
-%scala
-val df = spark.sql("select 'modelSpace' as space, 'modelExternalId' as externalId,  named_struct('space', 'spaceExternalId', 'externalId', 'startEndNodeViewExternalId') as startNode ,named_struct('space', 'spaceExternalId', 'externalId', 'startEndNodeViewExternalId') as endNode" )
+spark.sql("select 'instanceSpace' as space, 'instanceExternalId' as externalId,  node_reference('spaceExternalId of type', 'externalId of type') as startNode ,node_reference('spaceExternalId of type', 'externalId of type') as endNode" )
   .write.format("cognite.spark.v1") 
   .option("baseUrl", baseUrl)
   .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")
