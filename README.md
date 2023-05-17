@@ -40,12 +40,12 @@ This repository also contains `cdf_dump` command line tool for reading data from
     - [Data sets schema](#data-sets-schema)
     - [View centric](#view-centric)
       - [Nodes schema with view](#nodes-schema-with-view)
-      - [Nodes schema without view (aka connection definition)](#nodes-schema-without-view-aka-connection-definition)
+      - [Nodes schema without view](#nodes-schema-without-view)
       - [Edges schema with view](#edges-schema-with-view)
       - [Edges schema without view (aka connection definition)](#edges-schema-without-view-aka-connection-definition)
     - [Model centric](#model-centric)
-      - [Instances schema for nodes and edges with view](#instances-schema-for-nodes-and-edges-with-view)
-      - [Insatances schema for edges without view (aka connection definition)](#insatances-schema-for-edges-without-view-aka-connection-definition)
+      - [Instances schema of type](#instances-schema-of-type)
+      - [Instances schema of relationship](#instances-schema-of-relationship)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -581,7 +581,7 @@ schema as the `externalId` or `id` passed with the `.option()`.
 
 ### Model centric
 
-#### Instances schema of Type
+#### Instances schema of type
 | Column name                      | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |----------------------------------|-----------------------|----------|---------------------------------------|
 | `space`                          | `string`              | No       | equality                              |
@@ -589,9 +589,9 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `type`                           | `struct`              | No       | equality                              |
 | `startNode`                      | `struct`              | No       | equality                              |
 | `endNode`                        | `struct`              | No       | equality                              |
-| Mandatory properties of the view |                       | No       |                                       |
+| Mandatory properties of the type |                       | No       |                                       |
 
-#### Insatances schema of Relationship
+#### Instances schema of relationship
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
 | `space`                 | `string`              | No       | equality                              |
