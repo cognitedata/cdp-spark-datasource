@@ -1473,8 +1473,7 @@ val df = spark.read
   .option("modelExternalId", modelExternalId)
   .option("modelVersion", modelVersion)
   .option("viewExternalId", viewExternalId)
-  .option("edgeTypeSpace", edgeTypeSpace)
-  .option("edgeTypeExternalId", edgeTypeExternalId)
+  .option("connectionPropertyName", connectionPropertyName)
   .load()
 
 df.show()
@@ -1483,7 +1482,7 @@ df.show()
 
 # Write instances
 %scala
-val df = spark.sql("select 'modelSpace' as space, 'modelExternalId' as externalId, 'throughModelProp1' as stringProp1, 'throughModelProp2' as stringProp2" )
+val df = spark.sql("select 'modelSpace' as space, 'modelExternalId' as externalId,  named_struct('space', 'spaceExternalId', 'externalId', 'startEndNodeViewExternalId') as startNode ,named_struct('space', 'spaceExternalId', 'externalId', 'startEndNodeViewExternalId') as endNode" )
   .write.format("cognite.spark.v1") 
   .option("baseUrl", baseUrl)
   .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")
@@ -1497,8 +1496,7 @@ val df = spark.sql("select 'modelSpace' as space, 'modelExternalId' as externalI
   .option("modelExternalId", modelExternalId)
   .option("modelVersion", modelVersion)
   .option("viewExternalId", viewExternalId)
-  .option("edgeTypeSpace", edgeTypeSpace)
-  .option("edgeTypeExternalId", edgeTypeExternalId)
+  .option("connectionPropertyName", connectionPropertyName)
   .option("onconflict",  "upsert")
   .save()
 
