@@ -38,11 +38,14 @@ This repository also contains `cdf_dump` command line tool for reading data from
     - [Labels schema](#labels-schema)
     - [Relationships schema](#relationships-schema)
     - [Data sets schema](#data-sets-schema)
-    - [Nodes schema without view (aka connection definition)](#nodes-schema-without-view-aka-connection-definition)
-    - [Nodes with view schema](#nodes-with-view-schema)
-    - [Edges schema without view (aka connection definition)](#edges-schema-without-view-aka-connection-definition)
-    - [Edges schema with view](#edges-schema-with-view)
-    - [Instances schema](#instances-schema)
+    - [View centric](#view-centric)
+      - [Nodes schema with view](#nodes-schema-with-view)
+      - [Nodes schema without view (aka connection definition)](#nodes-schema-without-view-aka-connection-definition)
+      - [Edges schema with view](#edges-schema-with-view)
+      - [Edges schema without view (aka connection definition)](#edges-schema-without-view-aka-connection-definition)
+    - [Model centric](#model-centric)
+      - [Instances schema for nodes and edges with view](#instances-schema-for-nodes-and-edges-with-view)
+      - [Insatances schema for edges without view (aka connection definition)](#insatances-schema-for-edges-without-view-aka-connection-definition)
   - [Examples by resource types](#examples-by-resource-types)
     - [Assets](#assets)
     - [Time series](#time-series)
@@ -543,28 +546,22 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `writeProtected`   | `string`              | No       | equality                              |
 | `lastUpdatedTime`  | `timestamp`           | No       | comparison, equality                  |
 
-### Nodes schema without view (aka connection definition)
-| Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
-|-------------------------|-----------------------|----------|---------------------------------------|
-| `space`                 | `string`              | No       | equality                              |
-| `externalId`            | `string`              | No       | equality                              |
+### View centric
 
-### Nodes with view schema
+#### Nodes schema with view
 | Column name                      | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |----------------------------------|-----------------------|----------|---------------------------------------|
 | `space`                          | `string`              | No       | equality                              |
 | `externalId`                     | `string`              | No       | equality                              |
 | Mandatory properties of the view |                       | No       |                                       |
 
-### Edges schema without view (aka connection definition)
+#### Nodes schema without view (aka connection definition)
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
 | `space`                 | `string`              | No       | equality                              |
 | `externalId`            | `string`              | No       | equality                              |
-| `startNode`             | `struct`              | No       | equality                              |
-| `endNode`               | `struct`              | No       | equality                              |
 
-### Edges schema with view
+#### Edges schema with view
 | Column name                      | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |----------------------------------|-----------------------|----------|---------------------------------------|
 | `space`                          | `string`              | No       | equality                              |
@@ -574,7 +571,27 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `endNode`                        | `struct`              | No       | equality                              |
 | Mandatory properties of the view |                       | No       |                                       |
 
-### Instances schema 
+#### Edges schema without view (aka connection definition)
+| Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|-------------------------|-----------------------|----------|---------------------------------------|
+| `space`                 | `string`              | No       | equality                              |
+| `externalId`            | `string`              | No       | equality                              |
+| `startNode`             | `struct`              | No       | equality                              |
+| `endNode`               | `struct`              | No       | equality                              |
+
+### Model centric
+
+#### Instances schema for nodes and edges with view
+| Column name                      | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
+|----------------------------------|-----------------------|----------|---------------------------------------|
+| `space`                          | `string`              | No       | equality                              |
+| `externalId`                     | `string`              | No       | equality                              |
+| `type`                           | `struct`              | No       | equality                              |
+| `startNode`                      | `struct`              | No       | equality                              |
+| `endNode`                        | `struct`              | No       | equality                              |
+| Mandatory properties of the view |                       | No       |                                       |
+
+#### Insatances schema for edges without view (aka connection definition)
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
 | `space`                 | `string`              | No       | equality                              |
@@ -1392,11 +1409,9 @@ spark.sql(
 
 ### Instances
 
-Note that Instances can be read, created, updated and deleted. 
+- Instances for nodes and edges with view
 
-```python
-# Python Example
-
+```
 # Read instances 
 %scala
 val df = spark.read
@@ -1409,33 +1424,84 @@ val df = spark.read
   .option("scopes", scope)
   .option("instanceType","instances")
   .option("type", "instances")
-  .option("edgeTypeSpace", edgeTypeSpace)
-  .option("edgeTypeExternalId", edgeTypeExternalId)
+  .option("modelSpace", modelSpace)
+  .option("modelExternalId", modelExternalId)
   .option("modelVersion", modelVersion)
   .option("viewExternalId", viewExternalId)
   .load()
 
 df.show()
 
+
 # Write instances 
-spark.sql(
- "select 'spaceExternalId' as space, 'edgeTypeExternalId' as externalId, named_struct('space', 'spaceExternalId', 'externalId', 'startEndNodeViewExternalId') as startNode, named_struct('space', 'spaceExternalId', 'externalId', 'startEndNodeViewExternalId') as endNode") \
-  .write.format("cognite.spark.v1") \
-    .option("baseUrl", baseUrl) \
-    .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token") \
-    .option("clientId", clientId) \
-    .option("clientSecret", clientSecret) \
-    .option("project", project) \
-    .option("scopes", scope) \
-    .option("instanceType","instances") \
-    .option("type", "instances") \
-    .option("edgeTypeSpace", edgeTypeSpace) \
-    .option("edgeTypeExternalId", edgeTypeExternalId) \
-    .option("modelVersion", modelVersion) \
-    .option("viewExternalId", viewExternalId) \
-    .option("onconflict", "upsert") \
-    .option("collectMetrics", True) \
-    .save() 
+%scala
+val df = spark.sql("select 'modelSpace' as space, 'modelExternalId' as externalId, 'throughModelProp1' as stringProp1, 'throughModelProp2' as stringProp2" )
+  .write.format("cognite.spark.v1") 
+  .option("baseUrl", baseUrl)
+  .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")
+  .option("clientId", clientId)
+  .option("clientSecret", clientSecret)
+  .option("project", project)
+  .option("scopes", scope)
+  .option("instanceType","instances")
+  .option("type", "instances")
+  .option("modelSpace", modelSpace)
+  .option("modelExternalId", modelExternalId)
+  .option("modelVersion", modelVersion)
+  .option("viewExternalId", viewExternalId)
+  .option("onconflict",  "upsert")
+  .save()
+ 
+```
+
+- Insatances for edges without view (aka connection definition)
+
+```
+# Read instances 
+%scala
+val df = spark.read
+  .format("cognite.spark.v1")
+  .option("baseUrl",baseUrl)
+  .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")
+  .option("clientId", clientId)
+  .option("clientSecret", clientSecret)
+  .option("project", project)
+  .option("scopes", scope)
+  .option("instanceType","instances")
+  .option("type", "instances")
+  .option("modelSpace", modelSpace)
+  .option("modelExternalId", modelExternalId)
+  .option("modelVersion", modelVersion)
+  .option("viewExternalId", viewExternalId)
+  .option("edgeTypeSpace", edgeTypeSpace)
+  .option("edgeTypeExternalId", edgeTypeExternalId)
+  .load()
+
+df.show()
+
+
+
+# Write instances
+%scala
+val df = spark.sql("select 'modelSpace' as space, 'modelExternalId' as externalId, 'throughModelProp1' as stringProp1, 'throughModelProp2' as stringProp2" )
+  .write.format("cognite.spark.v1") 
+  .option("baseUrl", baseUrl)
+  .option("tokenUri", "https://login.microsoftonline.com/<Directory (tenant) ID>/oauth2/v2.0/token")
+  .option("clientId", clientId)
+  .option("clientSecret", clientSecret)
+  .option("project", project)
+  .option("scopes", scope)
+  .option("instanceType","instances")
+  .option("type", "instances")
+  .option("modelSpace", modelSpace)
+  .option("modelExternalId", modelExternalId)
+  .option("modelVersion", modelVersion)
+  .option("viewExternalId", viewExternalId)
+  .option("edgeTypeSpace", edgeTypeSpace)
+  .option("edgeTypeExternalId", edgeTypeExternalId)
+  .option("onconflict",  "upsert")
+  .save()
+
 ```
 
 ### RAW tables
