@@ -555,7 +555,7 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `externalId`                     | `string`              | No       | equality                              |
 | Mandatory properties of the view |                       | No       |                                       |
 
-#### Nodes schema without view (aka connection definition)
+#### Nodes schema without view
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
 | `space`                 | `string`              | No       | equality                              |
@@ -581,7 +581,7 @@ schema as the `externalId` or `id` passed with the `.option()`.
 
 ### Model centric
 
-#### Instances schema for nodes and edges with view
+#### Instances schema of Type
 | Column name                      | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |----------------------------------|-----------------------|----------|---------------------------------------|
 | `space`                          | `string`              | No       | equality                              |
@@ -591,7 +591,7 @@ schema as the `externalId` or `id` passed with the `.option()`.
 | `endNode`                        | `struct`              | No       | equality                              |
 | Mandatory properties of the view |                       | No       |                                       |
 
-#### Insatances schema for edges without view (aka connection definition)
+#### Insatances schema of Relationship
 | Column name             | Type                  | Nullable | Filter pushdown [?](#filter-pushdown) |
 |-------------------------|-----------------------|----------|---------------------------------------|
 | `space`                 | `string`              | No       | equality                              |
