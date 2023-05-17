@@ -1410,8 +1410,10 @@ spark.sql(
 
 - Instances to a type
 
-```
-# Read instances 
+```python
+# Python Example
+
+# Reading instances from type
 df = spark.read
   .format("cognite.spark.v1")
   .option("baseUrl", baseUrl)
@@ -1431,7 +1433,7 @@ df = spark.read
 df.show()
 
 
-# Write instances 
+# Writing instances to a type
 spark.sql("select 'instanceSpace' as space, 'instanceExternalId' as externalId, 'throughModelProp1' as stringProp1, 'throughModelProp2' as stringProp2" )
   .write.format("cognite.spark.v1") 
   .option("baseUrl", baseUrl)
@@ -1453,8 +1455,10 @@ spark.sql("select 'instanceSpace' as space, 'instanceExternalId' as externalId, 
 
 - Instances to a relationship
 
-```
-# Read instances 
+```python
+# Python Example
+
+# Read instances from a relationship
 df = spark.read
   .format("cognite.spark.v1")
   .option("baseUrl",baseUrl)
@@ -1476,7 +1480,7 @@ df.show()
 
 
 
-# Write instances
+# Write instances to a relationship
 spark.sql("select 'instanceSpace' as space, 'instanceExternalId' as externalId,  node_reference('spaceExternalId of type', 'externalId of type') as startNode ,node_reference('spaceExternalId of type', 'externalId of type') as endNode" )
   .write.format("cognite.spark.v1") 
   .option("baseUrl", baseUrl)
