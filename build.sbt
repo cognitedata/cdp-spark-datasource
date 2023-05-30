@@ -9,7 +9,6 @@ val sparkVersion = "3.3.1"
 val circeVersion = "0.14.1"
 val sttpVersion = "3.5.2"
 val Specs2Version = "4.6.0"
-val artifactory = "https://cognite.jfrog.io/cognite/"
 val cogniteSdkVersion = "2.5.14"
 
 val prometheusVersion = "0.15.0"
@@ -35,8 +34,7 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
   resolvers ++= Seq(
-    "libs-release".at(artifactory + "libs-release/"),
-    Resolver.sonatypeRepo("snapshots")
+    Resolver.sonatypeRepo("releases")
   ),
   developers := List(
     Developer(
