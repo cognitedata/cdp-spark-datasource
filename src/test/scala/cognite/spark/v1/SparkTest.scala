@@ -91,7 +91,7 @@ trait SparkTest {
     val cid = System.getenv("TEST_OIDC_READ_CLIENT_ID")
     val path = Files.createTempFile("id", "")
     Files.write(path, util.Arrays.asList(cid), StandardCharsets.UTF_8, StandardOpenOption.WRITE)
-    print(s"oidc client id: ${Files.readString(path, StandardCharsets.UTF_8)}\n")
+    print(s"oidc client id: ${Files.readAllLines(path, StandardCharsets.UTF_8)}\n")
     cid
   }
   // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211
