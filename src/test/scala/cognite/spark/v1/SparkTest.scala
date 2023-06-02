@@ -15,6 +15,8 @@ import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import sttp.client3.{SttpBackend, UriContext}
 
 import java.io.IOException
+import java.nio.file.{Files, StandardOpenOption}
+import java.util
 import java.util.UUID
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
@@ -86,7 +88,9 @@ trait SparkTest {
 
   private val readClientId = {
     val cid = System.getenv("TEST_OIDC_READ_CLIENT_ID")
-    print(s"oidc client id: ${cid}")
+    val path = Files.createTempFile("id", "")
+    Files.write(path, util.Arrays.asList(cid), StandardOpenOption.WRITE)
+    print(s"oidc client id: ${Files.readString(path)}\n")
     cid
   }
   // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211
