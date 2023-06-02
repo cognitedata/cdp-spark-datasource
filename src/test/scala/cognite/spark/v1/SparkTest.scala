@@ -16,7 +16,7 @@ import sttp.client3.{SttpBackend, UriContext}
 
 import java.io.IOException
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path, Paths, StandardOpenOption}
+import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.util
 import java.util.UUID
 import scala.concurrent.TimeoutException
