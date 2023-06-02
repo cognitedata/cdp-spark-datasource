@@ -84,7 +84,11 @@ trait SparkTest {
         .option("scopes", OIDCWrite.scopes)
   }
 
-  private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
+  private val readClientId = {
+    val cid = System.getenv("TEST_OIDC_READ_CLIENT_ID")
+    print(s"oidc client id: ${cid}")
+    cid
+  }
   // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211
   private val readClientSecret = System.getenv("TEST_OIDC_READ_CLIENT_SECRET")
   private val readAadTenant = System.getenv("TEST_OIDC_READ_TENANT")
