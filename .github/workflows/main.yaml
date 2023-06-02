@@ -36,15 +36,12 @@ jobs:
           ./secrets/decrypt.sh secrets/secring.asc.gpg ~/.sbt/gpg/secring.asc
       - name: Run tests
         env:
-          TEST_API_KEY_WRITE: ${{ secrets.TEST_API_KEY_WRITE }}
-          TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
-          TEST_OIDC_READ_CLIENT_SECRET: ${{ secrets.TEST_OIDC_READ_CLIENT_SECRET }}
-          TEST_OIDC_READ_TENANT: ${{ secrets.TEST_OIDC_READ_TENANT }}
+          TEST_OIDC_READ_CLIENT_ID: ${{ secrets.BLUEFIELD_CLIENT_ID_2 }}
+          TEST_OIDC_READ_CLIENT_SECRET: ${{ secrets.BLUEFIELD_CLIENT_SECRET_2 }}
+          TEST_OIDC_READ_TENANT: ${{ secrets.TEST_AAD_TENANT_BLUEFIELD_2 }}
           TEST_CLIENT_ID_BLUEFIELD: ${{ secrets.BLUEFIELD_CLIENT_ID_2 }}
           TEST_CLIENT_SECRET_BLUEFIELD: ${{ secrets.BLUEFIELD_CLIENT_SECRET_2 }}
           TEST_AAD_TENANT_BLUEFIELD: ${{ secrets.TEST_AAD_TENANT_BLUEFIELD_2 }}
-          AIZE_CLIENT_ID: ${{ secrets.AIZE_CLIENT_ID }}
-          AIZE_CLIENT_SECRET: ${{ secrets.AIZE_CLIENT_SECRET }}
         run: |
           TEST="test +Test/compile"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
