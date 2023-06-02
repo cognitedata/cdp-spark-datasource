@@ -40,9 +40,10 @@ trait SparkTest {
     val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
     val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
     private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    val project = sys.env("TEST_PROJECT")
+    val cluster = sys.env("TEST_CLUSTER")
     val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
-    val project = "jetfiretest2"
-    val scopes = "https://api.cognitedata.com/.default"
+    val scopes = s"https://$cluster/.default"
   }
 
   val writeCredentials = OAuth2.ClientCredentials(
@@ -59,7 +60,7 @@ trait SparkTest {
   val writeClient: GenericClient[IO] = new GenericClient(
     applicationName = "jetfire-test",
     projectName = writeCredentials.cdfProjectName,
-    baseUrl = s"https://api.cognitedata.com",
+    baseUrl = s"https://${OIDCWrite.cluster}",
     authProvider = writeAuthProvider,
     apiVersion = None,
     clientTag = None,
@@ -84,42 +85,15 @@ trait SparkTest {
         .option("scopes", OIDCWrite.scopes)
   }
 
-  private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
-  // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211
-  private val readClientSecret = System.getenv("TEST_OIDC_READ_CLIENT_SECRET")
-  private val readAadTenant = System.getenv("TEST_OIDC_READ_TENANT")
-
-  assert(
-    readClientId != null && !readClientId.isEmpty,
-    "Environment variable \"TEST_OIDC_READ_CLIENT_ID\" was not set")
-  assert(
-    readClientSecret != null && !readClientSecret.isEmpty,
-    "Environment variable \"TEST_OIDC_READ_CLIENT_SECRET\" was not set")
-  assert(
-    readAadTenant != null && !readAadTenant.isEmpty,
-    "Environment variable \"TEST_OIDC_READ_TENANT\" was not set")
-
-  private val readTokenUri = s"https://login.microsoftonline.com/$readAadTenant/oauth2/v2.0/token"
-
-  val readOidcCredentials = OAuth2.ClientCredentials(
-    tokenUri = uri"$readTokenUri",
-    clientId = readClientId,
-    clientSecret = readClientSecret,
-    scopes = List("https://api.cognitedata.com/.default"),
-    cdfProjectName = "publicdata"
-  )
-
   def dataFrameReaderUsingOidc: DataFrameReader =
     spark.read
       .format("cognite.spark.v1")
-      .option("tokenUri", readTokenUri)
-      .option("clientId", readClientId)
-      .option("clientSecret", readClientSecret)
-      .option("project", "publicdata")
-      .option("scopes", "https://api.cognitedata.com/.default")
+      .option("tokenUri", OIDCWrite.tokenUri)
+      .option("clientId", OIDCWrite.clientId)
+      .option("clientSecret", OIDCWrite.clientSecret)
+      .option("project", OIDCWrite.project)
+      .option("scopes", OIDCWrite.scopes)
 
-  // not needed to run tests, only for replicating some problems specific to this tenant
-  lazy val jetfiretest2ApiKey = System.getenv("TEST_APU_KEY_JETFIRETEST2")
 
   val testDataSetId = 86163806167772L
 

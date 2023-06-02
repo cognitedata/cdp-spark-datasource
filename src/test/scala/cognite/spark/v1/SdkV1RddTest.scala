@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import com.cognite.sdk.scala.common.CdpApiException
+import com.cognite.sdk.scala.common.{CdpApiException, OAuth2}
 import com.cognite.sdk.scala.v1.{Event, GenericClient}
 import fs2.{Chunk, Stream}
 import org.apache.spark.TaskContext
@@ -33,6 +33,13 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     implicit val implicitBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(3, 5)
 
     val sdkRdd = {
+      val readOidcCredentials = OAuth2.ClientCredentials(
+        tokenUri = uri"https://login.microsoftonline.com/fake-tenant/oauth2/v2.0/token",
+        clientId = "fake_client_id",
+        clientSecret = "fake_secret",
+        scopes = List("https://api.cognitedata.com/.default"),
+        cdfProjectName = "fake_project"
+      )
       val relationConfig = getDefaultConfig(
         CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials)(implicitBackend),
         readOidcCredentials.cdfProjectName
