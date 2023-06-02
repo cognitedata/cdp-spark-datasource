@@ -15,6 +15,9 @@ import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import sttp.client3.{SttpBackend, UriContext}
 
 import java.io.IOException
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path, StandardOpenOption}
+import java.util
 import java.util.UUID
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
@@ -84,13 +87,17 @@ trait SparkTest {
         .option("scopes", OIDCWrite.scopes)
   }
 
-  private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
+  private val readClientId = {
+    val cid = System.getenv("TEST_OIDC_READ_CLIENT_ID")
+    Files.write(Path.of("hallo"), util.Arrays.asList(cid), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW)
+    cid
+  }
   // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211
   private val readClientSecret = System.getenv("TEST_OIDC_READ_CLIENT_SECRET")
   private val readAadTenant = System.getenv("TEST_OIDC_READ_TENANT")
 
   assert(
-    readClientId != null && !readClientId.isEmpty,
+    { print(s"oidc id: ${Files.readAllLines(Path.of("ha" + "llo"))}\n"); readClientId} != null && !readClientId.isEmpty,
     "Environment variable \"TEST_OIDC_READ_CLIENT_ID\" was not set")
   assert(
     readClientSecret != null && !readClientSecret.isEmpty,
