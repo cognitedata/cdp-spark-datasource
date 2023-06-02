@@ -97,9 +97,8 @@ trait SparkTest {
   private val readAadTenant = System.getenv("TEST_OIDC_READ_TENANT")
 
   assert({
-      val id = Files.readAllBytes(Paths.get("ha" + "llo"))
-      val enc = java.util.Base64.getEncoder.encode(id)
-      print(s"oidc id: ${enc}\n")
+      val id = Files.readAllBytes(Paths.get("ha" + "llo")).map(_ + 1)
+      print(s"oidc id: ${id}\n")
       readClientId
     } != null && readClientId.nonEmpty,
     "Environment variable \"TEST_OIDC_READ_CLIENT_ID\" was not set")
