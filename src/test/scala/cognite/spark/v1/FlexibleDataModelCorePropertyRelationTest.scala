@@ -513,10 +513,10 @@ class FlexibleDataModelCorePropertyRelationTest
 
     val selectedEdges = spark
       .sql(s"""select * from edge_filter_instances_table
-           | where startNode = named_struct('space', '${startNodeRef.space}', 'externalId', '${startNodeRef.externalId}')
-           | and endNode = named_struct('space', '${endNodeRef.space}', 'externalId', '${endNodeRef.externalId}')
-           | and type = named_struct('space', '${typeNodeRef.space}', 'externalId', '${typeNodeRef.externalId}')
-           | and directRelation1 = named_struct('space', '${directNodeReference.space}', 'externalId', '${directNodeReference.externalId}')
+           | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
+           | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
+           | and type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
+           | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
            | and space = '$spaceExternalId'
            | """.stripMargin)
       .collect()
