@@ -466,7 +466,8 @@ class FlexibleDataModelCorePropertyRelationTest
     (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
   }
 
-  it should "succeed when filtering edges with type, startNode & endNode" in {
+  // FIXME(audunska): Update scala sdk DirectRelation handling
+  ignore should "succeed when filtering edges with type, startNode & endNode" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
