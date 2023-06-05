@@ -13,7 +13,7 @@ import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.DataFrame
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Ignore, Matchers}
 
 import java.time.{LocalDate, ZonedDateTime}
 import scala.concurrent.duration.DurationInt
@@ -664,7 +664,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .collect()
 
     rows.isEmpty shouldBe false
-    toExternalIds(rows).toVector shouldBe Vector("sparkDsTestViewStartAndEndNodesInsertNonListStartNode")
+    toExternalIds(rows).toVector shouldBe Vector(s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
     toPropVal(rows, "stringProp1").toVector shouldBe Vector("stringProp1Val")
     toPropVal(rows, "stringProp2").toVector shouldBe Vector("stringProp2Val")
   }
