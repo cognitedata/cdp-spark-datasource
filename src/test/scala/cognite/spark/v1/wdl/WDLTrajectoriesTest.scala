@@ -2,8 +2,10 @@ package cognite.spark.v1.wdl
 
 import cognite.spark.v1.{DataFrameMatcher, SparkTest}
 import org.apache.spark.SparkException
-import org.scalatest.{BeforeAndAfter, FlatSpec, Inspectors}
+import org.scalatest.{BeforeAndAfter, FlatSpec, Ignore, Inspectors}
 
+// Ignored because wdl is being sunset
+@Ignore
 class WDLTrajectoriesTest
     extends FlatSpec
     with SparkTest
