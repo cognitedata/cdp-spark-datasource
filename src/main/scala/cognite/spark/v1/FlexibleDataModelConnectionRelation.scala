@@ -107,8 +107,10 @@ private[spark] class FlexibleDataModelConnectionRelation(
   private def extractFilters(filters: Array[Filter]): Either[CdfSparkException, FilterDefinition] = {
     val edgeTypeFilter = FilterDefinition.Equals(
       property = Vector("edge", "type"),
-      value = FilterValueDefinition.Object(Json.obj(
-        "space" -> Json.fromString(connectionConfig.edgeTypeSpace), "externalId"-> Json.fromString(connectionConfig.edgeTypeExternalId)))
+      value = FilterValueDefinition.Object(
+        Json.obj(
+          "space" -> Json.fromString(connectionConfig.edgeTypeSpace),
+          "externalId" -> Json.fromString(connectionConfig.edgeTypeExternalId)))
     )
 
     if (filters.isEmpty) {

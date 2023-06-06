@@ -4,8 +4,11 @@ import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{ComparableFilterValue, SeqFilterValue}
+import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
+  ComparableFilterValue,
+  SeqFilterValue
+}
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
@@ -304,7 +307,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       val externalId = struct.getString(struct.fieldIndex("externalId"))
       FilterDefinition.Equals(
         property = Vector("edge", attribute),
-        value = FilterValueDefinition.Object(Json.obj("space" -> Json.fromString(space), "externalId" -> Json.fromString(externalId)))
+        value = FilterValueDefinition.Object(
+          Json.obj("space" -> Json.fromString(space), "externalId" -> Json.fromString(externalId)))
       )
     }.toEither.leftMap { _ =>
       new CdfSparkIllegalArgumentException(
@@ -412,7 +416,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     Try {
       val space = v.getString(v.fieldIndex("space"))
       val externalId = v.getString(v.fieldIndex("externalId"))
-      FilterValueDefinition.StringList(Vector(space, externalId))
+      FilterValueDefinition.Object(
+        Json.obj("space" -> Json.fromString(space), "externalId" -> Json.fromString(externalId)))
     }.toEither.leftMap { _ =>
       new CdfSparkIllegalArgumentException(
         s"""Invalid filter value!
