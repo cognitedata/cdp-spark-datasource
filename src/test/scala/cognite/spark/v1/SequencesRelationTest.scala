@@ -12,8 +12,6 @@ import org.apache.spark.SparkException
 
 import scala.util.control.NonFatal
 
-// FIXME(audunska) Ignoring sequence tests for now because they run out of memory with 10 partitions
-@Ignore
 class SequencesRelationTest
     extends FlatSpec
     with Matchers
