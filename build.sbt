@@ -24,6 +24,7 @@ lazy val commonSettings = Seq(
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
   version := "2.5.7-SNAPSHOT",
+  isSnapshot := true,
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
