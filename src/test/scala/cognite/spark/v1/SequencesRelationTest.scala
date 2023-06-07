@@ -432,6 +432,7 @@ class SequencesRelationTest
       .option("onconflict", conflictMode)
       .option("collectMetrics", metricsPrefix.isDefined)
       .option("metricsPrefix", metricsPrefix.getOrElse(""))
+      .option("partitions", "200")
       .save()
 
     val checkedAssets = processedTree.filter(_.externalId.isDefined)
