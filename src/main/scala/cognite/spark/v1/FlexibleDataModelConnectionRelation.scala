@@ -57,7 +57,9 @@ private[spark] class FlexibleDataModelConnectionRelation(
           .flatMap { instances =>
             val instanceCreate = InstanceCreate(
               items = instances,
-              replace = Some(true)
+              replace = Some(true),
+              autoCreateStartNodes = Some(true),
+              autoCreateEndNodes = Some(true)
             )
             client.instances.createItems(instanceCreate)
           }

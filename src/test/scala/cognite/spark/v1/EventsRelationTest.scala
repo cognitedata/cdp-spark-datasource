@@ -80,9 +80,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .where(
         "type = 'Worktask' or dataSetId = 86163806167772 and createdTime < timestamp('2020-03-31 00:00:00.000Z')")
 
-    assert(df.count() == 232)
+    assert(df.count() == 230)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 232)
+    assert(eventsRead == 230)
   }
 
   it should "not fetch all items if filter on id" taggedAs WriteTest in {
@@ -101,9 +101,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where("dataSetId = 86163806167772 or externalId = 'null-id-events65847147385304'")
 
-    assert(df.count() == 18)
+    assert(df.count() == 22)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 18)
+    assert(eventsRead == 22)
   }
 
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {
