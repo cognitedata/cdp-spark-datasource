@@ -24,6 +24,7 @@ class SequencesRelationTest
     .format("cognite.spark.v1")
     .useOIDCWrite
     .option("type", "sequences")
+    .option("partitions", 200)
     .load()
   sequencesSourceDf.createOrReplaceTempView("sequences")
 
