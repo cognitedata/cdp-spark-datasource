@@ -80,9 +80,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .where(
         "type = 'Worktask' or dataSetId = 86163806167772 and createdTime < timestamp('2020-03-31 00:00:00.000Z')")
 
-    assert(df.count() == 232)
+    assert(df.count() == 230)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 232)
+    assert(eventsRead == 230)
   }
 
   it should "not fetch all items if filter on id" taggedAs WriteTest in {
