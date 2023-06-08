@@ -5,15 +5,13 @@ import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.v1.{SequenceColumnCreate, SequenceCreate}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.Row
-import org.scalatest.{FlatSpec, Ignore, Matchers, OptionValues, ParallelTestExecution}
+import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
 import java.util.UUID
 import org.apache.spark.SparkException
 
 import scala.util.control.NonFatal
 
-// FIXME(audunska) Ignoring sequence tests for now because they run out of memory with 10 partitions
-@Ignore
 class SequencesRelationTest
     extends FlatSpec
     with Matchers
@@ -26,6 +24,7 @@ class SequencesRelationTest
     .format("cognite.spark.v1")
     .useOIDCWrite
     .option("type", "sequences")
+    .option("partitions", 200)
     .load()
   sequencesSourceDf.createOrReplaceTempView("sequences")
 
@@ -342,8 +341,7 @@ class SequencesRelationTest
         "Column valueType cannot be modified: the previous value is STRING and the user attempted to update it with LONG")
   }
 
-  // FIXME(audunska) this fails with only 10 partitions. Find out how to configure more.
-  ignore should "chunk sequence if more than 10000 columns in the request" in {
+  it should "chunk sequence if more than 10000 columns in the request" in {
     Seq("abort", "upsert").foreach { mode =>
       val key = shortRandomString()
 
@@ -434,6 +432,7 @@ class SequencesRelationTest
       .option("onconflict", conflictMode)
       .option("collectMetrics", metricsPrefix.isDefined)
       .option("metricsPrefix", metricsPrefix.getOrElse(""))
+      .option("partitions", "200")
       .save()
 
     val checkedAssets = processedTree.filter(_.externalId.isDefined)
