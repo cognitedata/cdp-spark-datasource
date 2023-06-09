@@ -25,38 +25,38 @@ class FlexibleDataModelCorePropertyRelationTest
     with SparkTest
     with FlexibleDataModelsTestBase {
 
-  private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList"
-  private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList"
-  private val containerEdgesListAndNonListExternalId = "sparkDsTestContainerEdgesListAndNonList"
+  private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList2"
+  private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList2"
+  private val containerEdgesListAndNonListExternalId = "sparkDsTestContainerEdgesListAndNonList2"
 
-  private val containerAllNonListExternalId = "sparkDsTestContainerAllNonList"
-  private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList"
-  private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList"
+  private val containerAllNonListExternalId = "sparkDsTestContainerAllNonList2"
+  private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList2"
+  private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList2"
 
-  private val containerAllListExternalId = "sparkDsTestContainerAllList"
-  private val containerNodesListExternalId = "sparkDsTestContainerNodesList"
-  private val containerEdgesListExternalId = "sparkDsTestContainerEdgesList"
+  private val containerAllListExternalId = "sparkDsTestContainerAllList2"
+  private val containerNodesListExternalId = "sparkDsTestContainerNodesList2"
+  private val containerEdgesListExternalId = "sparkDsTestContainerEdgesList2"
 
-  private val viewAllListAndNonListExternalId = "sparkDsTestViewAllListAndNonList"
-  private val viewNodesListAndNonListExternalId = "sparkDsTestViewNodesListAndNonList"
-  private val viewEdgesListAndNonListExternalId = "sparkDsTestViewEdgesListAndNonList"
+  private val viewAllListAndNonListExternalId = "sparkDsTestViewAllListAndNonList2"
+  private val viewNodesListAndNonListExternalId = "sparkDsTestViewNodesListAndNonList2"
+  private val viewEdgesListAndNonListExternalId = "sparkDsTestViewEdgesListAndNonList2"
 
-  private val viewAllNonListExternalId = "sparkDsTestViewAllNonList"
-  private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList"
-  private val viewEdgesNonListExternalId = "sparkDsTestViewEdgesNonList"
+  private val viewAllNonListExternalId = "sparkDsTestViewAllNonList2"
+  private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList2"
+  private val viewEdgesNonListExternalId = "sparkDsTestViewEdgesNonList2"
 
-  private val viewAllListExternalId = "sparkDsTestViewAllList"
-  private val viewNodesListExternalId = "sparkDsTestViewNodesList"
-  private val viewEdgesListExternalId = "sparkDsTestViewEdgesList"
+  private val viewAllListExternalId = "sparkDsTestViewAllList2"
+  private val viewNodesListExternalId = "sparkDsTestViewNodesList2"
+  private val viewEdgesListExternalId = "sparkDsTestViewEdgesList2"
 
-  private val containerAllNumericProps = "sparkDsTestContainerNumericProps"
-  private val viewAllNumericProps = "sparkDsTestViewNumericProps"
+  private val containerAllNumericProps = "sparkDsTestContainerNumericProps2"
+  private val viewAllNumericProps = "sparkDsTestViewNumericProps2"
 
-  private val containerFilterByProps = "sparkDsTestContainerFilterByProps"
-  private val viewFilterByProps = "sparkDsTestViewFilterByProps"
+  private val containerFilterByProps = "sparkDsTestContainerFilterByProps2"
+  private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
 
-  private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes"
-  private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes"
+  private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
+  private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
@@ -513,10 +513,10 @@ class FlexibleDataModelCorePropertyRelationTest
 
     val selectedEdges = spark
       .sql(s"""select * from edge_filter_instances_table
-           | where startNode = named_struct('space', '${startNodeRef.space}', 'externalId', '${startNodeRef.externalId}')
-           | and endNode = named_struct('space', '${endNodeRef.space}', 'externalId', '${endNodeRef.externalId}')
-           | and type = named_struct('space', '${typeNodeRef.space}', 'externalId', '${typeNodeRef.externalId}')
-           | and directRelation1 = named_struct('space', '${directNodeReference.space}', 'externalId', '${directNodeReference.externalId}')
+           | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
+           | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
+           | and type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
+           | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
            | and space = '$spaceExternalId'
            | """.stripMargin)
       .collect()
@@ -664,7 +664,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .collect()
 
     rows.isEmpty shouldBe false
-    toExternalIds(rows).toVector shouldBe Vector("sparkDsTestViewStartAndEndNodesInsertNonListStartNode")
+    toExternalIds(rows).toVector shouldBe Vector(s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
     toPropVal(rows, "stringProp1").toVector shouldBe Vector("stringProp1Val")
     toPropVal(rows, "stringProp2").toVector shouldBe Vector("stringProp2Val")
   }
