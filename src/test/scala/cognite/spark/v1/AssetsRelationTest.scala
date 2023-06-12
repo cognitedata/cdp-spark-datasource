@@ -324,6 +324,79 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(assetsRead == 1)
   }
 
+  it should "be possible to create multiple outputs per row" taggedAs WriteTest in {
+    val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
+    val assetExternalId = s"assets-test-create-${shortRandomString()}"
+    val eventExternalId = s"events-test-create-${shortRandomString()}"
+    val metricsPrefix = s"assetsAndEvents.test.create.${shortRandomString()}"
+    val df = spark.read
+      .format("cognite.spark.v1")
+      .useOIDCWrite
+      .option("type", "a:assets,e:events")
+      .option("collectMetrics", "true")
+      .option("metricsPrefix", metricsPrefix)
+      .load()
+    df.createOrReplaceTempView("createAssetsAndEvents")
+    cleanupAssets(assetsTestSource)
+    try {
+      spark
+        .sql(
+          s"""
+             |select struct(
+               |'$assetExternalId' as externalId,
+               |'asset name' as name,
+               |null as parentId,
+               |null as parentExternalId,
+               |'asset description' as description,
+               |null as metadata,
+               |'$assetsTestSource' as source,
+               |10 as id,
+               |0 as createdTime,
+               |0 as lastUpdatedTime,
+               |null as rootId,
+               |null as aggregates,
+               |array('scala-sdk-relationships-test-label1') as labels,
+               |$testDataSetId as dataSetId
+             |) as a,
+             |struct(
+               |'$eventExternalId' as externalId,
+               |$testDataSetId as dataSetId,
+               |0 as startTime,
+               |100 as endTime,
+               |'type' as type,
+               |'subtype' as subtype,
+               |'event description' as description,
+               |null as metadata,
+               |array() as assetIds,
+               |null as source
+             |) as e
+      """.stripMargin)
+        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
+        .write
+        .insertInto("createAssetsAndEvents")
+
+      val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
+      assert(assetsCreated == 1)
+      val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
+      assert(eventsCreated == 1)
+
+      val Array(createdAsset) = retryWhile[Array[Row]](
+        spark.sql(s"select * from createAssetsAndEvents where source = '$assetsTestSource'").collect(),
+        rows => rows.length < 1)
+
+      createdAsset.getAs[String]("name") shouldBe "asset name"
+      createdAsset.getAs[Long]("dataSetId") shouldBe testDataSetId
+      createdAsset.getAs[String]("externalId") shouldBe assetExternalId
+    } finally {
+      try {
+        writeClient.assets.deleteByExternalId(assetExternalId).unsafeRunSync()
+        writeClient.events.deleteByExternalId(eventExternalId).unsafeRunSync()
+      } catch {
+        case NonFatal(_) => // ignore
+      }
+    }
+  }
+
   it should "be possible to create assets" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     val externalId = s"assets-test-create-${shortRandomString()}"
