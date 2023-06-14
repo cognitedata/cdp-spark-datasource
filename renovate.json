@@ -2,5 +2,11 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>cognitedata/renovate-config-public"
+  ],
+  "packageRules": [
+    {
+      "matchDatasources": ["maven", "sbt-package"],
+      "registryUrls": ["https://oss.sonatype.org/service/local/repositories/releases/content/"]
+    }
   ]
 }
