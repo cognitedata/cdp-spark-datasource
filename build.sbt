@@ -134,7 +134,7 @@ lazy val library = (project in file("."))
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
       "org.scalatest" %% "scalatest" % "3.0.8" % Test,
-      "org.eclipse.jetty" % "jetty-servlet" % "9.4.44.v20210927" % Provided,
+      "org.eclipse.jetty" % "jetty-servlet" % "9.4.51.v20230217" % Provided,
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
