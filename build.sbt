@@ -17,7 +17,7 @@ val log4sVersion = "1.8.2"
 
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
-ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
+ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.5"
 
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
