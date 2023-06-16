@@ -17,11 +17,14 @@ import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
+import jdk.jshell.spi.ExecutionControl.NotImplementedException
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 import sttp.client3.SttpBackend
 import sttp.model.Uri
+
+import scala.util.Try
 
 class DefaultSource
     extends RelationProvider
@@ -126,6 +129,7 @@ class DefaultSource
     val config = parseRelationConfig(parameters, sqlContext)
 
     resourceType match {
+      case MultiSpec(_) => throw new NotImplementedException("Multiple types")
       case "datapoints" =>
         new NumericDataPointsRelationV1(config)(sqlContext)
       case "stringdatapoints" =>
@@ -198,6 +202,21 @@ class DefaultSource
     }
   }
 
+  case class MultiSpec(val types: Map[String, String])
+  object MultiSpec {
+    def unapply(input: String): Option[MultiSpec] =
+      Try {
+        input.split(',').map { part =>
+          val parts = part.split(':')
+          if (parts.length == 2) {
+            parts.head -> parts.tail.head
+          } else {
+            throw new Exception("Bad")
+          }
+        }
+      }.toOption.map(_.toMap).flatMap(m => if (m.nonEmpty) Some(m) else None).map(MultiSpec(_))
+  }
+
   /**
     * Create a spark relation for writing.
     */
@@ -239,6 +258,7 @@ class DefaultSource
       relation
     } else {
       val relation = resourceType match {
+        case MultiSpec(_) => throw new NotImplementedException("Multiple types")
         case "events" =>
           new EventsRelation(config)(sqlContext)
         case "timeseries" =>

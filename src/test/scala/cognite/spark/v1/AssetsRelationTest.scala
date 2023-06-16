@@ -62,7 +62,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("limitPerPartition", "1000")
       .option("partitions", "1")
       .load()
-      .where("name = '23-TT-92604B'")
+      .where("metadata = map('hei', 'der')")
 
     assert(df.count() == 1)
 
