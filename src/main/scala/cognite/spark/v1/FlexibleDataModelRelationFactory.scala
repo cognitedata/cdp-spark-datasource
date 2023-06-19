@@ -117,10 +117,10 @@ object FlexibleDataModelRelationFactory {
       .flatMap {
         _.flatMap(_.views.getOrElse(Seq.empty)).toVector
           .flatTraverse {
-            case vc: ViewDefinition =>
+            case vc: ViewDefinition if vc.externalId == modelConnectionConfig.viewExternalId =>
               IO.delay(
                 filterConnectionDefinition(vc, modelConnectionConfig.connectionPropertyName).toVector)
-            case vr: ViewReference =>
+            case vr: ViewReference if vr.externalId == modelConnectionConfig.viewExternalId =>
               fetchViewWithAllProps(client, vr).map(
                 _.headOption
                   .flatMap(filterConnectionDefinition(_, modelConnectionConfig.connectionPropertyName))
