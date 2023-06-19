@@ -6,7 +6,7 @@ val scala212 = "2.12.15"
 val scala213 = "2.13.8"
 val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.1"
-val circeVersion = "0.14.1"
+val circeVersion = "0.14.5"
 val sttpVersion = "3.5.2"
 val Specs2Version = "4.6.0"
 val cogniteSdkVersion = "2.6.720"
@@ -130,7 +130,7 @@ lazy val library = (project in file("."))
       "io.circe" %% "circe-generic" % circeVersion
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
-      "io.circe" %% "circe-generic-extras" % circeVersion
+      "io.circe" %% "circe-generic-extras" % "0.14.3"
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
       "org.scalatest" %% "scalatest" % "3.0.8" % Test,
