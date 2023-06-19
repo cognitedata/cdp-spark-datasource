@@ -6,14 +6,8 @@ import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, SlimNodeOrEdge}
-import com.cognite.sdk.scala.v1.fdm.views.{
-  ConnectionDirection,
-  ViewCreateDefinition,
-  ViewDefinition,
-  ViewPropertyCreateDefinition,
-  ViewReference
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceDefinition, InstanceRetrieve, InstanceType, SlimNodeOrEdge}
+import com.cognite.sdk.scala.v1.fdm.views.{ConnectionDirection, ViewCreateDefinition, ViewDefinition, ViewPropertyCreateDefinition, ViewReference}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -38,6 +32,12 @@ class FlexibleDataModelConnectionRelationTest
   private val testDataModelExternalId = "testDataModelConnectionsExternalId1"
   private val edgeTypeExtId = s"sparkDsConnectionsEdgeTypeExternalId"
 
+  private val duplicateViewExtId1 = s"sparkDsConnectionsDuplicatePropertyViewExternalId1"
+  private val duplicateViewExtId2 = s"sparkDsConnectionsDuplicatePropertyViewExternalId2"
+  private val duplicateEdgeTypeExtId1 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId1"
+  private val duplicateEdgeTypeExtId2 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId2"
+  private val duplicatePropertyName = "testDataModelDuplicatePropertyName"
+
   client.dataModelsV3
     .createItems(
       Seq(DataModelCreate(
@@ -47,11 +47,42 @@ class FlexibleDataModelConnectionRelationTest
         Some("Spark Datasource connections test model"),
         viewVersion,
         views = Some(
-          Seq(ViewReference(
-            spaceExternalId,
-            connectionsViewExtId,
-            viewVersion
-          )))
+          Seq(
+            ViewReference(
+              spaceExternalId,
+              connectionsViewExtId,
+              viewVersion
+            ),
+            ViewCreateDefinition(
+              space=spaceExternalId,
+              externalId=duplicateViewExtId1,
+              version=viewVersion,
+              properties=Map(
+                duplicatePropertyName -> ViewPropertyCreateDefinition.ConnectionDefinition(
+                  `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId1),
+                  source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
+                  name=None,
+                  description=None,
+                  direction=None,
+                ),
+              ),
+            ),
+            ViewCreateDefinition(
+              space = spaceExternalId,
+              externalId = duplicateViewExtId2,
+              version = viewVersion,
+              properties = Map(
+                duplicatePropertyName -> ViewPropertyCreateDefinition.ConnectionDefinition(
+                  `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId2),
+                  source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
+                  name = None,
+                  description = None,
+                  direction = None,
+                ),
+              ),
+            ),
+          )
+        )
       )))
     .unsafeRunSync()
 
@@ -183,6 +214,77 @@ class FlexibleDataModelConnectionRelationTest
 
     result shouldBe Success(())
     getUpsertedMetricsCountForModel(testDataModelExternalId, viewVersion) shouldBe 1
+  }
+
+  it should "pick the right property even though views have same property names" in {
+    val df = spark
+      .sql(
+        s"""
+           |select
+           |'edgeWithDuplicate1' as externalId,
+           |named_struct(
+           |    'space', '$spaceExternalId',
+           |    'externalId', '${startEndNodeViewExternalId}FetchStartNode1'
+           |) as startNode,
+           |named_struct(
+           |    'externalId', '${startEndNodeViewExternalId}FetchStartNode2'
+           |) as endNode
+           |""".stripMargin)
+
+    val result = Try {
+      insertRowsToModel(
+        spaceExternalId,
+        testDataModelExternalId,
+        viewVersion,
+        duplicateViewExtId1,
+        duplicatePropertyName,
+        Some(spaceExternalId),
+        df
+      )
+    }
+    result shouldBe Success(())
+
+    val df2 = spark
+      .sql(
+        s"""
+           |select
+           |'edgeWithDuplicate2' as externalId,
+           |named_struct(
+           |    'space', '$spaceExternalId',
+           |    'externalId', '${startEndNodeViewExternalId}FetchStartNode1'
+           |) as startNode,
+           |named_struct(
+           |    'externalId', '${startEndNodeViewExternalId}FetchStartNode2'
+           |) as endNode
+           |""".stripMargin)
+
+    val result2 = Try {
+      insertRowsToModel(
+        spaceExternalId,
+        testDataModelExternalId,
+        viewVersion,
+        duplicateViewExtId2,
+        duplicatePropertyName,
+        Some(spaceExternalId),
+        df2
+      )
+    }
+    result2 shouldBe Success(())
+
+    client.instances.retrieveByExternalIds(
+      items = Seq(
+        InstanceRetrieve(instanceType = InstanceType.Edge, externalId = "edgeWithDuplicate1", space = spaceExternalId),
+        InstanceRetrieve(instanceType = InstanceType.Edge, externalId = "edgeWithDuplicate2", space = spaceExternalId),
+      ),
+      sources = None,
+      includeTyping = true,
+    ).unsafeRunSync().items.foreach {
+      case e: InstanceDefinition.EdgeDefinition => e.externalId match {
+        case "edgeWithDuplicate1" => e.`type`.externalId shouldBe duplicateEdgeTypeExtId1
+        case "edgeWithDuplicate2" => e.`type`.externalId shouldBe duplicateEdgeTypeExtId2
+      }
+      case _ => ()
+    }
   }
 
   it should "insert connection instances" in {
