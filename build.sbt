@@ -14,6 +14,8 @@ val cogniteSdkVersion = "2.6.720"
 val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
 
+sonatypeProfileName := "com.cognite" // default is same as organization and leads to 404 on sonatypeReleaseAll
+
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
 ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
