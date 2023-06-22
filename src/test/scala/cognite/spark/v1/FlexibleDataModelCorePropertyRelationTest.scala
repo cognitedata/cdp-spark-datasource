@@ -8,6 +8,7 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRel
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers.{ContainerDefinition, ContainerId, ContainerReference}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.NodeDeletionRequest
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
@@ -692,6 +693,66 @@ class FlexibleDataModelCorePropertyRelationTest
 
     result shouldBe Success(())
     getUpsertedMetricsCountForModel(testDataModelExternalId, viewVersion) shouldBe 1
+  }
+
+  it should "leave unmentioned properties alone" in {
+    val externalId = s"sparkDsTestNodePropsTest-${shortRandomString()}"
+    try {
+      // First, create a random node
+      val insertDf = spark
+        .sql(s"""
+             |select
+             |'${externalId}' as externalId,
+             |'stringProp1Val' as stringProp1,
+             |'stringProp2Val' as stringProp2
+             |""".stripMargin)
+      val insertResult = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          insertDf
+        )
+      }
+      insertResult shouldBe Success(())
+      // Now, update one of the values
+      val updateDf = spark
+        .sql(
+          s"""
+             |select
+             |'${externalId}' as externalId,
+             |'updatedProp1Val' as stringProp1
+             |""".stripMargin)
+      val updateResult = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          updateDf
+        )
+      }
+      updateResult shouldBe Success(())
+      // Fetch the updated instance
+      val instance = client.instances.retrieveByExternalIds(
+        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+        sources = Some(Seq(InstanceSource(ViewReference(
+          space = spaceExternalId,
+          externalId = viewStartNodeAndEndNodesExternalId,
+          version = viewVersion
+        ))))
+      ).unsafeRunSync().items.head
+      val props = instance.properties.get.get(spaceExternalId)
+        .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
+      // Check the properties
+      props.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1Val"))
+      props.get("stringProp2") shouldBe Some(InstancePropertyValue.String("stringProp2Val"))
+    } finally {
+      val _ = client.instances.delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId))).unsafeRunSync()
+    }
   }
 
   // This should be kept as ignored
