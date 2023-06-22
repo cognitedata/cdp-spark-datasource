@@ -253,7 +253,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Right(items) if items.nonEmpty =>
         val instanceCreate = InstanceCreate(
           items = items,
-          replace = Some(true),
+          replace = Some(false),
           // These options need to made dynamic by moving to frontend
           // https://cognitedata.slack.com/archives/C03G11UNHBJ/p1678971213050319
           autoCreateStartNodes = Some(true),
@@ -278,7 +278,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Right(items) if items.nonEmpty =>
         val instanceCreate = InstanceCreate(
           items = items,
-          replace = Some(true),
+          replace = Some(false),
           // These options need to made dynamic by moving to frontend
           // https://cognitedata.slack.com/archives/C03G11UNHBJ/p1678971213050319
           autoCreateStartNodes = Some(true),
