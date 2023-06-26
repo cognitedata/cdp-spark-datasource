@@ -26,7 +26,6 @@ import scala.concurrent.duration._
 final case class Data[A](data: A)
 final case class CdpApiErrorPayload(code: Int, message: String)
 final case class Error[A](error: A)
-final case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
 
 object CdpConnector {
   @transient private val logger = getLogger
