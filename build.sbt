@@ -103,6 +103,7 @@ lazy val library = (project in file("."))
   .dependsOn(macroSub)
   .enablePlugins(BuildInfoPlugin)
   .settings(
+    buildInfoUsePackageAsPath := true,
     commonSettings,
     name := "cdf-spark-datasource",
     assembly / assemblyJarName := s"${normalizedName.value}-${version.value}-jar-with-dependencies.jar",
@@ -165,7 +166,7 @@ lazy val library = (project in file("."))
     Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
     coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
-    buildInfoPackage := "cognite.spark"
+    buildInfoPackage := "cognite.spark.cdf_spark_datasource"
   )
 
 lazy val performancebench = (project in file("performancebench"))
