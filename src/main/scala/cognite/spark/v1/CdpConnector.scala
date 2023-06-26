@@ -101,6 +101,7 @@ object CdpConnector {
   }
 
   def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
+    import natchez.Trace.Implicits.noop // TODO: add tracing
     val metricsPrefix = if (config.collectMetrics) {
       Some(config.metricsPrefix)
     } else {
