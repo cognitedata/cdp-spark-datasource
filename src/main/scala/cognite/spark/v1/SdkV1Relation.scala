@@ -212,10 +212,3 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     (update, createOrUpdate).parMapN((_, _) => ())
   }
 }
-
-trait WritableRelation {
-  def insert(rows: Seq[Row]): IO[Unit]
-  def upsert(rows: Seq[Row]): IO[Unit]
-  def update(rows: Seq[Row]): IO[Unit]
-  def delete(rows: Seq[Row]): IO[Unit]
-}
