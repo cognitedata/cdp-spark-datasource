@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import BuildInfo.BuildInfo
+import cognite.spark.cdf_spark_datasource.BuildInfo
 
 import scala.concurrent.duration._
 
