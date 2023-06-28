@@ -1,5 +1,4 @@
 import com.typesafe.sbt.packager.docker.Cmd
-import sbtassembly.AssemblyPlugin.autoImport._
 import sbtassembly.MergeStrategy
 
 val scala212 = "2.12.15"
@@ -26,7 +25,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "2.6." + patchVersion,
+  version := "3.0." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -106,7 +105,6 @@ lazy val library = (project in file("."))
     buildInfoUsePackageAsPath := true,
     commonSettings,
     name := "cdf-spark-datasource",
-    assembly / assemblyJarName := s"${normalizedName.value}-${version.value}-jar-with-dependencies.jar",
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
@@ -144,24 +142,6 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.log4s" %% "log4s" % log4sVersion
     ),
-    assemblyMergeStrategy := {
-      case PathList("META-INF", _@_*) => MergeStrategy.discard
-      case _ => MergeStrategy.first
-    },
-    assemblyShadeRules := {
-      val shadePackage = "cognite.shaded"
-      Seq(
-        ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
-        ShadeRule.rename("com.cognite.sdk.scala.**" -> s"$shadePackage.sdk.scala.@1").inAll,
-        ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
-        ShadeRule.rename("fs2.**" -> s"$shadePackage.fs2.@1").inAll,
-        ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
-        ShadeRule.rename("org.typelevel.jawn.**" -> s"$shadePackage.org.typelevel.jawn.@1").inAll,
-        ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
-        ShadeRule.rename("sttp.client3.**" -> s"$shadePackage.sttp.client3.@1").inAll
-      )
-    },
-    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
     Compile / packageBin / mappings ++= (macroSub / Compile / packageBin / mappings).value,
     Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
     coverageExcludedPackages := "com.cognite.data.*",
@@ -195,7 +175,7 @@ lazy val performancebench = (project in file("performancebench"))
   )
 
 lazy val cdfdump = (project in file("cdf_dump"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, UniversalPlugin)
+  .enablePlugins(AssemblyPlugin, BuildInfoPlugin, JavaAppPackaging, UniversalPlugin)
   .dependsOn(library)
   .settings(
     commonSettings,
@@ -220,11 +200,33 @@ lazy val cdfdump = (project in file("cdf_dump"))
     ),
   )
 
-lazy val fatJar = project.settings(
-  commonSettings,
-  name := "cdf-spark-datasource",
-  Compile / packageBin := (library / assembly).value
-)
+lazy val fatJarShaded = project
+  .enablePlugins(AssemblyPlugin)
+  .dependsOn(library)
+  .settings(
+    commonSettings,
+    name := "cdf-spark-datasource-fatjar",
+    Compile / packageBin := assembly.value,
+    assembly / assemblyJarName := s"${normalizedName.value}-${version.value}-jar-with-dependencies.jar",
+    assemblyMergeStrategy := {
+      case PathList("META-INF", _@_*) => MergeStrategy.discard
+      case _ => MergeStrategy.first
+    },
+    assemblyShadeRules := {
+      val shadePackage = "cognite.shaded"
+      Seq(
+        ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
+        ShadeRule.rename("com.cognite.sdk.scala.**" -> s"$shadePackage.sdk.scala.@1").inAll,
+        ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
+        ShadeRule.rename("fs2.**" -> s"$shadePackage.fs2.@1").inAll,
+        ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
+        ShadeRule.rename("org.typelevel.jawn.**" -> s"$shadePackage.org.typelevel.jawn.@1").inAll,
+        ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
+        ShadeRule.rename("sttp.client3.**" -> s"$shadePackage.sttp.client3.@1").inAll
+      )
+    },
+    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
+  )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 
