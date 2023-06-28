@@ -79,4 +79,4 @@ jobs:
         run: |
           ./secrets/decrypt.sh secrets/gpg-key-password.gpg secrets/gpg-key-password
           export GPG_KEY_PASSWORD=$(cat secrets/gpg-key-password)
-          sbt -Dsbt.log.noformat=true +fatJar/publishSigned sonatypeReleaseAll
+          sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +publishSigned sonatypeReleaseAll
