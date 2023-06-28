@@ -69,7 +69,7 @@ jobs:
         run: |
           LIB_PACKAGE="library/package"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
-            LIB_PACKAGE="+assembly"
+            LIB_PACKAGE="+fatJarShaded/assembly"
           fi
           sbt -Dsbt.log.noformat=true "set library/test := {}" $LIB_PACKAGE performancebench/docker:stage
       - name: Deploy JAR
