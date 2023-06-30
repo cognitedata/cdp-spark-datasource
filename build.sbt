@@ -99,7 +99,7 @@ lazy val macroSub = (project in file("macro"))
   )
 
 lazy val library = (project in file("."))
-  .dependsOn(macroSub)
+  .dependsOn(macroSub % "compile-internal, test-internal")
   .enablePlugins(BuildInfoPlugin)
   .settings(
     buildInfoUsePackageAsPath := true,
