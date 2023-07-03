@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cognite.spark.v1.SparkSchemaHelper.fromRow
+import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.DataSet
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}

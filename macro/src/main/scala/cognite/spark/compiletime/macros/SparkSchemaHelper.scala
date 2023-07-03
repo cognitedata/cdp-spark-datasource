@@ -1,10 +1,12 @@
-package cognite.spark.v1
+package cognite.spark.compiletime.macros
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 import com.cognite.sdk.scala.common.{NonNullableSetter, Setter}
 
 import scala.reflect.macros.blackbox.Context
+
+import cognite.spark.v1.OptionalField
 
 class SparkSchemaHelperImpl(val c: Context) {
   def asRow[T: c.WeakTypeTag](x: c.Expr[T]): c.Expr[Row] = {
@@ -36,9 +38,9 @@ class SparkSchemaHelperImpl(val c: Context) {
         } else if (isPrimitive(valueType)) {
           q"$baseExpr"
         } else if (valueType <:< typeOf[Seq[Any]]) {
-          q"$baseExpr.map(a => cognite.spark.v1.SparkSchemaHelper.asRow(a))"
+          q"$baseExpr.map(a => cognite.spark.compiletime.macros.SparkSchemaHelper.asRow(a))"
         } else {
-          q"cognite.spark.v1.SparkSchemaHelper.asRow($baseExpr)"
+          q"cognite.spark.compiletime.macros.SparkSchemaHelper.asRow($baseExpr)"
         }
       })
 
@@ -188,11 +190,17 @@ class SparkSchemaHelperImpl(val c: Context) {
     c.Expr[T](fromRowRecurse(weakTypeOf[T], row))
   }
   // scalastyle:on
+
+  def structType[T: c.WeakTypeTag](): c.Tree = {
+    import c.universe._
+
+    q"implicitly[StructTypeEncoder[${weakTypeOf[T]}]].structType()"
+  }
 }
 
 object SparkSchemaHelper {
-  def structType[T]()(implicit encoder: StructTypeEncoder[T]): StructType =
-    encoder.structType()
+  def structType[T](): StructType =
+    macro SparkSchemaHelperImpl.structType[T]
 
   def asRow[T](x: T): Row = macro SparkSchemaHelperImpl.asRow[T]
   def fromRow[T](row: Row): T = macro SparkSchemaHelperImpl.fromRow[T]

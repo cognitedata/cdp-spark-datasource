@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cognite.spark.v1.SparkSchemaHelper._
+import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.v1.{GenericClient, ThreeDRevision}
 import fs2.Stream
 import org.apache.spark.sql.sources.Filter
@@ -24,6 +24,8 @@ final case class ModelRevisionItem(
 
 class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(val sqlContext: SQLContext)
     extends SdkV1Relation[ThreeDRevision, Long](config, "3dmodelrevision") {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   override def schema: StructType = structType[ThreeDRevision]()
 
   override def toRow(t: ThreeDRevision): Row = asRow(t)

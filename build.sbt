@@ -84,8 +84,20 @@ lazy val commonSettings = Seq(
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60")
 )
 
+lazy val structType = (project in file("struct_type"))
+  .settings(
+    commonSettings,
+    name := "cdf-spark-datasource-struct-type",
+    crossScalaVersions := supportedScalaVersions,
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-core" % "2.9.0",
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
+    ),
+  )
+
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
 lazy val macroSub = (project in file("macro"))
+  .dependsOn(structType)
   .settings(
     commonSettings,
     crossScalaVersions := supportedScalaVersions,
@@ -99,7 +111,7 @@ lazy val macroSub = (project in file("macro"))
   )
 
 lazy val library = (project in file("."))
-  .dependsOn(macroSub)
+  .dependsOn(structType, macroSub % Provided)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     buildInfoUsePackageAsPath := true,
@@ -142,8 +154,6 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.log4s" %% "log4s" % log4sVersion
     ),
-    Compile / packageBin / mappings ++= (macroSub / Compile / packageBin / mappings).value,
-    Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
     coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
     buildInfoPackage := "cognite.spark.cdf_spark_datasource"

@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{WithExternalIdGeneric, WithId}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Events
@@ -17,7 +17,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Event, Long](config, "events")
     with InsertableRelation
     with WritableRelation {
-
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -90,6 +90,8 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: Event): Long = a.id
 }
 object EventsRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val upsertSchema: StructType = structType[EventsUpsertSchema]()
   val insertSchema: StructType = structType[EventsInsertSchema]()
   val readSchema: StructType = structType[EventsReadSchema]()

@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
-import cognite.spark.v1.SparkSchemaHelper._
+import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Assets
@@ -20,6 +20,8 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
     extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
     with InsertableRelation
     with WritableRelation {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
@@ -114,6 +116,8 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
 }
 
 object AssetsRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val upsertSchema: StructType = structType[AssetsUpsertSchema]()
   val insertSchema: StructType = structType[AssetsInsertSchema]()
   val readSchema: StructType = structType[AssetsReadSchema]()
