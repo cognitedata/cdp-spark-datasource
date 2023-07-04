@@ -5,7 +5,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import SparkSchemaHelper._
+import cognite.spark.compiletime.macros.SparkSchemaHelper._
 
 final case class TestTypeBasic(a: Int, b: Double, c: Byte, d: Float, x: Map[String, String], g: Long, f: Seq[Long], s: String)
 final case class TestTypeOption(a: Option[Int], b: Option[Double], c: Option[Byte],
@@ -14,6 +14,8 @@ final case class TestTypeOption(a: Option[Int], b: Option[Double], c: Option[Byt
 final case class TestTypeOptionalField(a: OptionalField[Int], b: OptionalField[Double], c: OptionalField[Byte])
 
 class SparkSchemaHelperTest extends FlatSpec with ParallelTestExecution with Matchers {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   "SparkSchemaHelper structType" should "generate StructType from basic case class" in {
     structType[TestTypeBasic]() should be (StructType(Seq(
       StructField("a", DataTypes.IntegerType, false),

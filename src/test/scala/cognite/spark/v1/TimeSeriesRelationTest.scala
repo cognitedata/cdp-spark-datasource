@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import cognite.spark.compiletime.macros.SparkSchemaHelper
+
 import com.cognite.sdk.scala.common.CdpApiException
 import io.scalaland.chimney.dsl._
 import org.apache.spark.SparkException
