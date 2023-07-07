@@ -79,7 +79,7 @@ object FlexibleDataModelRelationUtils {
       propertyDefMap: Map[String, ViewPropertyDefinition],
       source: SourceReference,
       instanceSpace: Option[String],
-      ignoreNullFields: Boolean = true,
+      ignoreNullFields: Boolean = true
   ): Either[CdfSparkException, Vector[NodeOrEdgeCreate]] =
     rows.toVector.traverse { row =>
       for {
