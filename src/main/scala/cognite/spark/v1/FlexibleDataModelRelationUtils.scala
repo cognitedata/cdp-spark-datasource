@@ -228,7 +228,7 @@ object FlexibleDataModelRelationUtils {
       edgeNodeTypeRelation: Option[DirectRelationReference],
       startNodeRelation: Option[DirectRelationReference],
       endNodeRelation: Option[DirectRelationReference],
-      props: Vector[(String, InstancePropertyValue)],
+      props: Vector[(String, Option[InstancePropertyValue])],
       row: Row): Either[CdfSparkException, NodeOrEdgeCreate] =
     (edgeNodeTypeRelation, startNodeRelation, endNodeRelation) match {
       case (Some(edgeType), Some(startNode), Some(endNode)) =>
@@ -484,11 +484,11 @@ object FlexibleDataModelRelationUtils {
       propertyDefMap: Map[String, ViewPropertyDefinition],
       schema: StructType,
       instanceSpace: Option[String],
-      row: Row): Either[CdfSparkException, Vector[(String, InstancePropertyValue)]] =
+      row: Row): Either[CdfSparkException, Vector[(String, Option[InstancePropertyValue])]] =
     propertyDefMap.toVector.flatTraverse {
       case (propName, propDef) =>
         propertyDefinitionToInstancePropertyValue(row, schema, propName, propDef, instanceSpace).map {
-          case Some(t) => Vector(propName -> t)
+          case Some(t) => Vector(propName -> Some(t))
           case None => Vector.empty
         }
     }
