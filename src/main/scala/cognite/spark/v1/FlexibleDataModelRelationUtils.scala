@@ -556,7 +556,7 @@ object FlexibleDataModelRelationUtils {
               propertyName,
               corePropDef,
               instanceSpace)
-          case t if t.isList => toInstantPropertyValueOfList(row, schema, propertyName, corePropDef)
+          case t if t.isList => toInstancePropertyValueOfList(row, schema, propertyName, corePropDef)
           case _ => toInstancePropertyValueOfNonList(row, schema, propertyName, corePropDef)
         }
       case _: PropertyDefinition.ConnectionDefinition =>
@@ -596,7 +596,7 @@ object FlexibleDataModelRelationUtils {
   private val timezoneId: ZoneId = ZoneId.of("UTC")
 
   // scalastyle:off cyclomatic.complexity method.length
-  private def toInstantPropertyValueOfList(
+  private def toInstancePropertyValueOfList(
       row: Row,
       schema: StructType,
       propertyName: String,
