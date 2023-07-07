@@ -1131,15 +1131,15 @@ class FlexibleDataModelCorePropertyRelationTest
                     Some(Seq(EdgeOrNodeData(
                       viewRef,
                       Some(Map(
-                        "forEqualsFilter" -> InstancePropertyValue.String("str1"),
-                        "forInFilter" -> InstancePropertyValue.String("str1"),
-                        "forGteFilter" -> InstancePropertyValue.Int32(1),
-                        "forGtFilter" -> InstancePropertyValue.Int32(2),
-                        "forLteFilter" -> InstancePropertyValue.Int64(2),
-                        "forLtFilter" -> InstancePropertyValue.Int64(3),
-                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
+                        "forEqualsFilter" -> Some(InstancePropertyValue.String("str1")),
+                        "forInFilter" -> Some(InstancePropertyValue.String("str1")),
+                        "forGteFilter" -> Some(InstancePropertyValue.Int32(1)),
+                        "forGtFilter" -> Some(InstancePropertyValue.Int32(2)),
+                        "forLteFilter" -> Some(InstancePropertyValue.Int64(2)),
+                        "forLtFilter" -> Some(InstancePropertyValue.Int64(3)),
+                        "forOrFilter1" -> Some(InstancePropertyValue.Float64(5.1)),
+                        "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
+                        "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now()))
                       ))
                     )))
                   ),
@@ -1149,18 +1149,18 @@ class FlexibleDataModelCorePropertyRelationTest
                     Some(Seq(EdgeOrNodeData(
                       viewRef,
                       Some(Map(
-                        "forEqualsFilter" -> InstancePropertyValue.String("str2"),
-                        "forInFilter" -> InstancePropertyValue.String("str2"),
-                        "forGteFilter" -> InstancePropertyValue.Int32(5),
-                        "forGtFilter" -> InstancePropertyValue.Int32(2),
-                        "forLteFilter" -> InstancePropertyValue.Int64(1),
-                        "forLtFilter" -> InstancePropertyValue.Int64(-1),
-                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now()),
-                        "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
+                        "forEqualsFilter" -> Some(InstancePropertyValue.String("str2")),
+                        "forInFilter" -> Some(InstancePropertyValue.String("str2")),
+                        "forGteFilter" -> Some(InstancePropertyValue.Int32(5)),
+                        "forGtFilter" -> Some(InstancePropertyValue.Int32(2)),
+                        "forLteFilter" -> Some(InstancePropertyValue.Int64(1)),
+                        "forLtFilter" -> Some(InstancePropertyValue.Int64(-1)),
+                        "forOrFilter1" -> Some(InstancePropertyValue.Float64(5.1)),
+                        "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
+                        "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now())),
+                        "forIsNullFilter" -> Some(InstancePropertyValue.Object(Json.fromJsonObject(
                           JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
-                      ))
+                      )))
                     )))
                   )
                 ),

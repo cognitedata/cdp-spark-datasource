@@ -407,7 +407,7 @@ object FDMTestUtils {
   ) =
     EdgeOrNodeData(
       source = containerRef,
-      properties = Some(instancePropertyValues)
+      properties = Some(instancePropertyValues.mapValues(Some(_)))
     )
   // scalastyle:off cyclomatic.complexity
   private def propertyDefaultValueForPropertyType(

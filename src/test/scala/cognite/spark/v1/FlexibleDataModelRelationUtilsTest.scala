@@ -1815,7 +1815,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     val nextWeek = LocalDate.now().plusDays(7)
 
     propertyMap.keys.map { prop =>
-      props(prop) match {
+      props(prop).get match {
         case t: InstancePropertyValue.Timestamp =>
           justBeforeNow.isBefore(t.value.toLocalDateTime)
         case ts: InstancePropertyValue.TimestampList =>
