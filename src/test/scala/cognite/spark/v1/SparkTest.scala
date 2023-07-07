@@ -26,6 +26,7 @@ object WriteTest extends Tag("WriteTest")
 
 trait SparkTest {
   import CdpConnector.ioRuntime
+  import natchez.Trace.Implicits.noop
 
   implicit def single[A](
       implicit c: ClassTag[OptionalField[A]],

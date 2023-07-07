@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.Id
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.WithRequiredExternalId
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Relationships
@@ -19,7 +19,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[RelationshipsReadSchema, String](config, "relationships")
     with InsertableRelation
     with WritableRelation {
-
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[RelationshipsReadSchema]()
 
   override def toRow(a: RelationshipsReadSchema): Row = asRow(a)
@@ -141,6 +141,8 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object RelationshipsRelation {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val insertSchema: StructType = structType[RelationshipsInsertSchema]()
   val readSchema: StructType = structType[RelationshipsReadSchema]()
   val deleteSchema: StructType = structType[RelationshipsDeleteSchema]()

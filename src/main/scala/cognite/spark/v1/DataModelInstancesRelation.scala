@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.compiletime.macros.SparkSchemaHelper
 import cognite.spark.v1.DataModelInstancesHelper._
 import com.cognite.sdk.scala.common.{
   CdpApiException,
