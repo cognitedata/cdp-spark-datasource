@@ -592,6 +592,7 @@ object FlexibleDataModelRelationUtils {
     : Either[Throwable, RowInstancePropertyValue] =
     Try(schema.fieldIndex(propertyName)) match {
       case Failure(_) => Right(RowInstancePropertyValue.NotPresent)
+      case Success(i) if i >= row.length => Right(RowInstancePropertyValue.NotPresent)
       case Success(i) if row.isNullAt(i) =>
         if (nullable) {
           Right(RowInstancePropertyValue.IsNull)
