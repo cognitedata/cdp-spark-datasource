@@ -340,15 +340,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "intProp" -> Some(InstancePropertyValue.Int32(5)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -391,13 +391,13 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -444,15 +444,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "intProp" -> InstancePropertyValue.Int32(1),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "intProp" -> Some(InstancePropertyValue.Int32(1)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -713,15 +713,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "intProp" -> InstancePropertyValue.Int32(2),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "intProp" -> Some(InstancePropertyValue.Int32(2)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -781,13 +781,13 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -855,15 +855,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "intProp" -> InstancePropertyValue.Int32(2),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "intProp" -> Some(InstancePropertyValue.Int32(2)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -978,15 +978,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "intProp" -> Some(InstancePropertyValue.Int32(5)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -1029,13 +1029,13 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -1082,15 +1082,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "intProp" -> InstancePropertyValue.Int32(1),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "intProp" -> Some(InstancePropertyValue.Int32(1)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -1154,15 +1154,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "intProp" -> Some(InstancePropertyValue.Int32(5)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -1223,13 +1223,13 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -1298,15 +1298,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "intProp" -> Some(InstancePropertyValue.Int32(5)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
 
@@ -1526,21 +1526,21 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId3") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "intProp" -> InstancePropertyValue.Int32(2),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "intProp" -> Some(InstancePropertyValue.Int32(2)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
     (extIdPropsMap("extId3") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp3"),
-        "intProp" -> InstancePropertyValue.Int32(3),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(3.1, 3.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp3")),
+        "intProp" -> Some(InstancePropertyValue.Int32(3)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(3.1, 3.2)))
       ))
   }
 
@@ -1615,18 +1615,18 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId3") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
     (extIdPropsMap("extId3") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp3"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(3.1, 3.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp3")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(3.1, 3.2)))
       ))
   }
 
@@ -1709,21 +1709,21 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId3") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp1"),
-        "doubleListProp" -> InstancePropertyValue.Float64List(List(1.1, 1.2)),
-        "floatListProp" -> InstancePropertyValue.Float32List(List(2.1F))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp2"),
-        "intProp" -> InstancePropertyValue.Int32(5),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(2.1, 2.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "intProp" -> Some(InstancePropertyValue.Int32(5)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
     (extIdPropsMap("extId3") should contain).theSameElementsAs(
       Map(
-        "stringProp" -> InstancePropertyValue.String("stringProp3"),
-        "intProp" -> InstancePropertyValue.Int32(6),
-        "doubleListProp" -> InstancePropertyValue.Float64List(Seq(3.1, 3.2))
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp3")),
+        "intProp" -> Some(InstancePropertyValue.Int32(6)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(3.1, 3.2)))
       ))
   }
 
