@@ -499,14 +499,14 @@ object FlexibleDataModelRelationUtils {
     propertyDefMap.toVector.flatTraverse {
       case (propName, propDef) =>
         propertyDefinitionToInstancePropertyValue(row, schema, propName, propDef, instanceSpace).map {
-          case RowInstancePropertyValue.Present(t) => Vector(propName -> Some(t))
-          case RowInstancePropertyValue.IsNull =>
+          case FieldSpecified(t) => Vector(propName -> Some(t))
+          case FieldNull =>
             if (ignoreNullFields) {
               Vector.empty
             } else {
               Vector(propName -> None)
             }
-          case RowInstancePropertyValue.NotPresent => Vector.empty
+          case FieldNotSpecified => Vector.empty
         }
     }
 
@@ -531,21 +531,13 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  sealed trait RowInstancePropertyValue
-
-  object RowInstancePropertyValue {
-    case object NotPresent extends RowInstancePropertyValue
-    case object IsNull extends RowInstancePropertyValue
-    case class Present(value: InstancePropertyValue) extends RowInstancePropertyValue
-  }
-
   // scalastyle:off cyclomatic.complexity method.length
   private def propertyDefinitionToInstancePropertyValue(
       row: Row,
       schema: StructType,
       propertyName: String,
       propDef: ViewPropertyDefinition,
-      instanceSpace: Option[String]): Either[CdfSparkException, RowInstancePropertyValue] = {
+      instanceSpace: Option[String]): Either[CdfSparkException, OptionalField[InstancePropertyValue]] = {
     val instancePropertyValueResult = propDef match {
       case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
         corePropDef.`type` match {
@@ -589,17 +581,17 @@ object FlexibleDataModelRelationUtils {
 
   private def lookupFieldInRow(row: Row, schema: StructType, propertyName: String, nullable: Boolean)(
       get: => Int => Either[Throwable, InstancePropertyValue])
-    : Either[Throwable, RowInstancePropertyValue] =
+    : Either[Throwable, OptionalField[InstancePropertyValue]] =
     Try(schema.fieldIndex(propertyName)) match {
-      case Failure(_) => Right(RowInstancePropertyValue.NotPresent)
-      case Success(i) if i >= row.length => Right(RowInstancePropertyValue.NotPresent)
+      case Failure(_) => Right(FieldNotSpecified)
+      case Success(i) if i >= row.length => Right(FieldNotSpecified)
       case Success(i) if row.isNullAt(i) =>
         if (nullable) {
-          Right(RowInstancePropertyValue.IsNull)
+          Right(FieldNull)
         } else {
           Left(new CdfSparkException(s"'$propertyName' cannot be null"))
         }
-      case Success(i) => get(i).map(RowInstancePropertyValue.Present)
+      case Success(i) => get(i).map(FieldSpecified(_))
     }
 
   // scalastyle:off cyclomatic.complexity method.length
@@ -607,7 +599,7 @@ object FlexibleDataModelRelationUtils {
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: CorePropertyDefinition): Either[Throwable, RowInstancePropertyValue] =
+      propDef: CorePropertyDefinition): Either[Throwable, OptionalField[InstancePropertyValue]] =
     lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
       propDef.`type` match {
         case p: TextProperty if p.isList =>
@@ -664,7 +656,7 @@ object FlexibleDataModelRelationUtils {
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: CorePropertyDefinition): Either[Throwable, RowInstancePropertyValue] =
+      propDef: CorePropertyDefinition): Either[Throwable, OptionalField[InstancePropertyValue]] =
     lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
       propDef.`type` match {
         case p: TextProperty if !p.isList =>
@@ -707,7 +699,7 @@ object FlexibleDataModelRelationUtils {
       schema: StructType,
       propertyName: String,
       propDef: CorePropertyDefinition,
-      defaultSpace: Option[String]): Either[Throwable, RowInstancePropertyValue] = {
+      defaultSpace: Option[String]): Either[Throwable, OptionalField[InstancePropertyValue]] = {
     val nullable = propDef.nullable.getOrElse(true)
     lookupFieldInRow(row, schema, propertyName, nullable) { _ =>
       extractDirectRelation(propertyName, "Direct Node Relation", schema, defaultSpace, row)
