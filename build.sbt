@@ -184,32 +184,6 @@ lazy val performancebench = (project in file("performancebench"))
     ),
   )
 
-lazy val cdfdump = (project in file("cdf_dump"))
-  .enablePlugins(AssemblyPlugin, BuildInfoPlugin, JavaAppPackaging, UniversalPlugin)
-  .dependsOn(library)
-  .settings(
-    commonSettings,
-    publish / skip := true,
-    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
-    buildInfoPackage := "cognite.spark.cdfdump",
-    assembly / assemblyJarName := "cdf_dump.jar",
-    assembly / assemblyMergeStrategy := {
-      case n if n.contains("services") || n.startsWith("reference.conf") || n.endsWith(".conf") => MergeStrategy.concat
-      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-      case x => MergeStrategy.first
-    },
-    name := "cdf_dump",
-    fork := true,
-    libraryDependencies ++= Seq(
-      "org.rogach" %% "scallop" % "4.0.1",
-      "org.log4s" %% "log4s" % log4sVersion,
-      "org.apache.spark" %% "spark-core" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-    ),
-  )
-
 lazy val fatJarShaded = project
   .enablePlugins(AssemblyPlugin)
   .dependsOn(library)
