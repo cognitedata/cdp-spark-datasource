@@ -560,18 +560,10 @@ object FlexibleDataModelRelationUtils {
           case _ => toInstancePropertyValueOfNonList(row, schema, propertyName, corePropDef)
         }
       case _: PropertyDefinition.ConnectionDefinition =>
-        val fieldIndex = Try(schema.fieldIndex(propertyName))
-        fieldIndex match {
-          case Success(i) =>
-            if (row.isNullAt(i)) {
-              Right(RowInstancePropertyValue.IsNull)
-            } else {
-              extractDirectRelation(propertyName, "Connection Reference", schema, instanceSpace, row)
-                .map(_.asJson)
-                .map(InstancePropertyValue.Object)
-                .map(RowInstancePropertyValue.Present)
-            }
-          case Failure(_) => Right(RowInstancePropertyValue.NotPresent)
+        lookupFieldInRow(row, schema, propertyName, true) { _ =>
+          extractDirectRelation(propertyName, "Connection Reference", schema, instanceSpace, row)
+            .map(_.asJson)
+            .map(InstancePropertyValue.Object)
         }
     }
 
@@ -595,131 +587,118 @@ object FlexibleDataModelRelationUtils {
 
   private val timezoneId: ZoneId = ZoneId.of("UTC")
 
+  private def lookupFieldInRow(row: Row, schema: StructType, propertyName: String, nullable: Boolean)(
+      get: => Int => Either[Throwable, InstancePropertyValue])
+    : Either[Throwable, RowInstancePropertyValue] =
+    Try(schema.fieldIndex(propertyName)) match {
+      case Failure(_) => Right(RowInstancePropertyValue.NotPresent)
+      case Success(i) if row.isNullAt(i) =>
+        if (nullable) {
+          Right(RowInstancePropertyValue.IsNull)
+        } else {
+          Left(new CdfSparkException(s"'$propertyName' cannot be null"))
+        }
+      case Success(i) => get(i).map(RowInstancePropertyValue.Present)
+    }
+
   // scalastyle:off cyclomatic.complexity method.length
   private def toInstancePropertyValueOfList(
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: CorePropertyDefinition): Either[Throwable, RowInstancePropertyValue] = {
-    val nullable = propDef.nullable.getOrElse(true)
-    Try(schema.fieldIndex(propertyName)) match {
-      case Failure(_) => Right(RowInstancePropertyValue.NotPresent)
-      case Success(i) =>
-        if (row.isNullAt(i)) {
-          if (nullable) {
-            Right(RowInstancePropertyValue.IsNull)
-          } else {
-            Left(new CdfSparkException(s"'$propertyName' cannot be null"))
-          }
-        } else {
-          val propVal = propDef.`type` match {
-            case p: TextProperty if p.isList =>
-              val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              Try(InstancePropertyValue.StringList(skipNulls(strSeq).map(String.valueOf))).toEither
-            case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) if p.isList =>
-              val boolSeq = Try(row.getSeq[Boolean](i)).getOrElse(row.getAs[Array[Boolean]](i).toSeq)
-              Try(InstancePropertyValue.BooleanList(boolSeq)).toEither
-            case p @ PrimitiveProperty(PrimitivePropType.Float32, _) if p.isList =>
-              val floatSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              tryAsFloatSeq(floatSeq, propertyName)
-                .map(InstancePropertyValue.Float32List)
-            case p @ PrimitiveProperty(PrimitivePropType.Float64, _) if p.isList =>
-              val doubleSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              tryAsDoubleSeq(doubleSeq, propertyName)
-                .map(InstancePropertyValue.Float64List)
-            case p @ PrimitiveProperty(PrimitivePropType.Int32, _) if p.isList =>
-              val intSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              tryAsIntSeq(intSeq, propertyName)
-                .map(InstancePropertyValue.Int32List)
-            case p @ PrimitiveProperty(PrimitivePropType.Int64, _) if p.isList =>
-              val longSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              tryAsLongSeq(longSeq, propertyName)
-                .map(InstancePropertyValue.Int64List)
-            case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) if p.isList =>
-              val tsSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              tryAsTimestamps(tsSeq, propertyName).map(InstancePropertyValue.TimestampList)
-            case p @ PrimitiveProperty(PrimitivePropType.Date, _) if p.isList =>
-              val dateSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              tryAsDates(dateSeq, propertyName).map(InstancePropertyValue.DateList)
-            case p @ PrimitiveProperty(PrimitivePropType.Json, _) if p.isList =>
-              val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
-              skipNulls(strSeq).toVector
-                .traverse(io.circe.parser.parse)
-                .map(InstancePropertyValue.ObjectList.apply)
-                .leftMap(e =>
-                  new CdfSparkException(
-                    s"Error parsing value of field '$propertyName' as a list of json objects: ${e.getMessage}"))
-            case p: TimeSeriesReference if p.isList =>
-              val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              Try(InstancePropertyValue.TimeSeriesReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
-            case p: FileReference if p.isList =>
-              val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              Try(InstancePropertyValue.FileReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
-            case p: SequenceReference if p.isList =>
-              val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
-              Try(InstancePropertyValue.SequenceReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
-            case t => Left(new CdfSparkException(s"Unhandled list type: ${t.toString}"))
-          }
-          propVal.map(RowInstancePropertyValue.Present)
-        }
+      propDef: CorePropertyDefinition): Either[Throwable, RowInstancePropertyValue] =
+    lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
+      propDef.`type` match {
+        case p: TextProperty if p.isList =>
+          val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          Try(InstancePropertyValue.StringList(skipNulls(strSeq).map(String.valueOf))).toEither
+        case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) if p.isList =>
+          val boolSeq = Try(row.getSeq[Boolean](i)).getOrElse(row.getAs[Array[Boolean]](i).toSeq)
+          Try(InstancePropertyValue.BooleanList(boolSeq)).toEither
+        case p @ PrimitiveProperty(PrimitivePropType.Float32, _) if p.isList =>
+          val floatSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          tryAsFloatSeq(floatSeq, propertyName)
+            .map(InstancePropertyValue.Float32List)
+        case p @ PrimitiveProperty(PrimitivePropType.Float64, _) if p.isList =>
+          val doubleSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          tryAsDoubleSeq(doubleSeq, propertyName)
+            .map(InstancePropertyValue.Float64List)
+        case p @ PrimitiveProperty(PrimitivePropType.Int32, _) if p.isList =>
+          val intSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          tryAsIntSeq(intSeq, propertyName)
+            .map(InstancePropertyValue.Int32List)
+        case p @ PrimitiveProperty(PrimitivePropType.Int64, _) if p.isList =>
+          val longSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          tryAsLongSeq(longSeq, propertyName)
+            .map(InstancePropertyValue.Int64List)
+        case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) if p.isList =>
+          val tsSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          tryAsTimestamps(tsSeq, propertyName).map(InstancePropertyValue.TimestampList)
+        case p @ PrimitiveProperty(PrimitivePropType.Date, _) if p.isList =>
+          val dateSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          tryAsDates(dateSeq, propertyName).map(InstancePropertyValue.DateList)
+        case p @ PrimitiveProperty(PrimitivePropType.Json, _) if p.isList =>
+          val strSeq = Try(row.getSeq[String](i)).getOrElse(row.getAs[Array[String]](i).toSeq)
+          skipNulls(strSeq).toVector
+            .traverse(io.circe.parser.parse)
+            .map(InstancePropertyValue.ObjectList.apply)
+            .leftMap(e =>
+              new CdfSparkException(
+                s"Error parsing value of field '$propertyName' as a list of json objects: ${e.getMessage}"))
+        case p: TimeSeriesReference if p.isList =>
+          val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          Try(InstancePropertyValue.TimeSeriesReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
+        case p: FileReference if p.isList =>
+          val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          Try(InstancePropertyValue.FileReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
+        case p: SequenceReference if p.isList =>
+          val strSeq = Try(row.getSeq[Any](i)).getOrElse(row.getAs[Array[Any]](i).toSeq)
+          Try(InstancePropertyValue.SequenceReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
+        case t => Left(new CdfSparkException(s"Unhandled list type: ${t.toString}"))
+      }
     }
-  }
-  // scalastyle:on cyclomatic.complexity method.length
 
   // scalastyle:off cyclomatic.complexity method.length
   private def toInstancePropertyValueOfNonList(
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: CorePropertyDefinition): Either[Throwable, RowInstancePropertyValue] = {
-    val nullable = propDef.nullable.getOrElse(true)
-    Try(schema.fieldIndex(propertyName)) match {
-      case Failure(_) => Right(RowInstancePropertyValue.NotPresent)
-      case Success(i) =>
-        if (row.isNullAt(i)) {
-          if (nullable) {
-            Right(RowInstancePropertyValue.IsNull)
-          } else {
-            Left(new CdfSparkException(s"'$propertyName' cannot be null"))
-          }
-        } else {
-          val propVal = propDef.`type` match {
-            case p: TextProperty if !p.isList =>
-              Try(InstancePropertyValue.String(String.valueOf(row.get(i)))).toEither
-            case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) if !p.isList =>
-              Try(InstancePropertyValue.Boolean(row.getBoolean(i))).toEither
-            case p @ PrimitiveProperty(PrimitivePropType.Float32, _) if !p.isList =>
-              tryAsFloat(row.get(i), propertyName).map(InstancePropertyValue.Float32)
-            case p @ PrimitiveProperty(PrimitivePropType.Float64, _) if !p.isList =>
-              tryAsDouble(row.get(i), propertyName).map(InstancePropertyValue.Float64)
-            case p @ PrimitiveProperty(PrimitivePropType.Int32, _) if !p.isList =>
-              tryAsInt(row.get(i), propertyName).map(InstancePropertyValue.Int32)
-            case p @ PrimitiveProperty(PrimitivePropType.Int64, _) if !p.isList =>
-              tryAsLong(row.get(i), propertyName).map(InstancePropertyValue.Int64)
-            case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) if !p.isList =>
-              tryAsTimestamp(row.get(i), propertyName).map(InstancePropertyValue.Timestamp.apply)
-            case p @ PrimitiveProperty(PrimitivePropType.Date, _) if !p.isList =>
-              tryAsDate(row.get(i), propertyName).map(InstancePropertyValue.Date.apply)
-            case p @ PrimitiveProperty(PrimitivePropType.Json, _) if !p.isList =>
-              io.circe.parser
-                .parse(row
-                  .getString(i))
-                .map(InstancePropertyValue.Object.apply)
-                .leftMap(e =>
-                  new CdfSparkException(
-                    s"Error parsing value of field '$propertyName' as a json object: ${e.getMessage}"))
-            case p: TimeSeriesReference if !p.isList =>
-              Try(InstancePropertyValue.TimeSeriesReference(String.valueOf(row.get(i)))).toEither
-            case p: FileReference if !p.isList =>
-              Try(InstancePropertyValue.FileReference(String.valueOf(row.get(i)))).toEither
-            case p: SequenceReference if !p.isList =>
-              Try(InstancePropertyValue.SequenceReference(String.valueOf(row.get(i)))).toEither
-            case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
-          }
-          propVal.map(RowInstancePropertyValue.Present)
-        }
+      propDef: CorePropertyDefinition): Either[Throwable, RowInstancePropertyValue] =
+    lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
+      propDef.`type` match {
+        case p: TextProperty if !p.isList =>
+          Try(InstancePropertyValue.String(String.valueOf(row.get(i)))).toEither
+        case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) if !p.isList =>
+          Try(InstancePropertyValue.Boolean(row.getBoolean(i))).toEither
+        case p @ PrimitiveProperty(PrimitivePropType.Float32, _) if !p.isList =>
+          tryAsFloat(row.get(i), propertyName).map(InstancePropertyValue.Float32)
+        case p @ PrimitiveProperty(PrimitivePropType.Float64, _) if !p.isList =>
+          tryAsDouble(row.get(i), propertyName).map(InstancePropertyValue.Float64)
+        case p @ PrimitiveProperty(PrimitivePropType.Int32, _) if !p.isList =>
+          tryAsInt(row.get(i), propertyName).map(InstancePropertyValue.Int32)
+        case p @ PrimitiveProperty(PrimitivePropType.Int64, _) if !p.isList =>
+          tryAsLong(row.get(i), propertyName).map(InstancePropertyValue.Int64)
+        case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) if !p.isList =>
+          tryAsTimestamp(row.get(i), propertyName).map(InstancePropertyValue.Timestamp.apply)
+        case p @ PrimitiveProperty(PrimitivePropType.Date, _) if !p.isList =>
+          tryAsDate(row.get(i), propertyName).map(InstancePropertyValue.Date.apply)
+        case p @ PrimitiveProperty(PrimitivePropType.Json, _) if !p.isList =>
+          io.circe.parser
+            .parse(row
+              .getString(i))
+            .map(InstancePropertyValue.Object.apply)
+            .leftMap(e =>
+              new CdfSparkException(
+                s"Error parsing value of field '$propertyName' as a json object: ${e.getMessage}"))
+        case p: TimeSeriesReference if !p.isList =>
+          Try(InstancePropertyValue.TimeSeriesReference(String.valueOf(row.get(i)))).toEither
+        case p: FileReference if !p.isList =>
+          Try(InstancePropertyValue.FileReference(String.valueOf(row.get(i)))).toEither
+        case p: SequenceReference if !p.isList =>
+          Try(InstancePropertyValue.SequenceReference(String.valueOf(row.get(i)))).toEither
+        case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
+      }
     }
-  }
   // scalastyle:on cyclomatic.complexity method.length
 
   private def directNodeRelationToInstancePropertyValue(
@@ -727,23 +706,12 @@ object FlexibleDataModelRelationUtils {
       schema: StructType,
       propertyName: String,
       propDef: CorePropertyDefinition,
-      defaultSpace: Option[String]): Either[CdfSparkException, RowInstancePropertyValue] = {
+      defaultSpace: Option[String]): Either[Throwable, RowInstancePropertyValue] = {
     val nullable = propDef.nullable.getOrElse(true)
-    Try(schema.fieldIndex(propertyName)) match {
-      case Failure(_) => Right(RowInstancePropertyValue.NotPresent)
-      case Success(i) =>
-        if (row.isNullAt(i)) {
-          if (nullable) {
-            Right(RowInstancePropertyValue.IsNull)
-          } else {
-            Left(new CdfSparkException(s"'$propertyName' cannot be null"))
-          }
-        } else {
-          extractDirectRelation(propertyName, "Direct Node Relation", schema, defaultSpace, row)
-            .map(_.asJson)
-            .map(InstancePropertyValue.Object)
-            .map(RowInstancePropertyValue.Present)
-        }
+    lookupFieldInRow(row, schema, propertyName, nullable) { _ =>
+      extractDirectRelation(propertyName, "Direct Node Relation", schema, defaultSpace, row)
+        .map(_.asJson)
+        .map(InstancePropertyValue.Object)
     }
   }
 
