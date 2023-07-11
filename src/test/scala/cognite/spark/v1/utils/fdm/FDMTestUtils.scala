@@ -1,22 +1,8 @@
 package cognite.spark.v1.utils.fdm
 
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
-  ContainerPropertyDefinition,
-  ViewCorePropertyDefinition
-}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
-  DirectNodeRelationProperty,
-  FileReference,
-  PrimitiveProperty,
-  SequenceReference,
-  TextProperty,
-  TimeSeriesReference
-}
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  PrimitivePropType,
-  PropertyDefaultValue,
-  PropertyType
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers._
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
@@ -24,6 +10,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstancePropertyV
 import io.circe.{Json, JsonObject}
 
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
+import scala.annotation.nowarn
 import scala.util.Random
 
 object FDMTestUtils {
@@ -401,6 +388,8 @@ object FDMTestUtils {
     }
   // scalastyle:on cyclomatic.complexity
 
+  // Scala 2.13 deprecates mapValues in favor of _.view.mapValues, but scala 2.12 does not have that.
+  @nowarn("cat=deprecation")
   private def toInstanceData(
       containerRef: ContainerReference,
       instancePropertyValues: Map[String, InstancePropertyValue]
