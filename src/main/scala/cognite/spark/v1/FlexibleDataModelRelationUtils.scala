@@ -584,7 +584,7 @@ object FlexibleDataModelRelationUtils {
     : Either[Throwable, OptionalField[InstancePropertyValue]] =
     Try(schema.fieldIndex(propertyName)) match {
       case Failure(_) => Right(FieldNotSpecified)
-      case Success(i) if i >= row.length => Right(FieldNotSpecified)
+      case Success(i) if i >= row.length || i < 0 => Right(FieldNotSpecified)
       case Success(i) if row.isNullAt(i) =>
         if (nullable) {
           Right(FieldNull)
