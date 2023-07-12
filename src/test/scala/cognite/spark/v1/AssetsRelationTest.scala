@@ -344,34 +344,37 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           s"""
              |select struct(
                |'$assetExternalId' as externalId,
-               |'asset name' as name,
-               |null as parentId,
-               |null as parentExternalId,
+               |'asset multi name' as name,
+               |cast(null as bigint) as parentId,
+               |cast(null as string) as parentExternalId,
                |'asset description' as description,
-               |null as metadata,
+               |cast(null as map<string,string>) as metadata,
                |'$assetsTestSource' as source,
-               |10 as id,
-               |0 as createdTime,
-               |0 as lastUpdatedTime,
-               |null as rootId,
-               |null as aggregates,
-               |array('scala-sdk-relationships-test-label1') as labels,
-               |$testDataSetId as dataSetId
+               |cast(null as bigint) as id,
+               |cast(null as timestamp) as createdTime,
+               |cast(null as timestamp) as lastUpdatedTime,
+               |cast(null as bigint) as rootId,
+               |cast(null as struct<childCount:bigint, path:array<string>,depth:bigint>) as aggregates,
+               |$testDataSetId as dataSetId,
+               |array('scala-sdk-relationships-test-label1') as labels
              |) as a,
              |struct(
-               |'$eventExternalId' as externalId,
-               |$testDataSetId as dataSetId,
-               |0 as startTime,
-               |100 as endTime,
-               |'type' as type,
-               |'subtype' as subtype,
+               |cast(null as bigint) as id,
+               |cast(0 as timestamp) as startTime,
+               |cast(100 as timestamp) as endTime,
                |'event description' as description,
-               |null as metadata,
-               |array() as assetIds,
-               |null as source
+               |'event multi type' as type,
+               |'subtype' as subtype,
+               |cast(null as map<string,string>) as metadata,
+               |cast(array() as array<bigint>) as assetIds,
+               |cast(null as string) as source,
+               |'$eventExternalId' as externalId,
+               |cast(null as timestamp) as createdTime,
+               |cast(null as timestamp) as lastUpdatedTime,
+               |$testDataSetId as dataSetId
              |) as e
       """.stripMargin)
-        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
+        .select("a", "e")
         .write
         .insertInto("createAssetsAndEvents")
 
@@ -380,13 +383,13 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
       assert(eventsCreated == 1)
 
-      val Array(createdAsset) = retryWhile[Array[Row]](
-        spark.sql(s"select * from createAssetsAndEvents where source = '$assetsTestSource'").collect(),
-        rows => rows.length < 1)
+      val createdAsset = writeClient.assets.retrieveByExternalId(assetExternalId).unsafeRunSync()
+      createdAsset.name shouldBe "asset multi name"
 
-      createdAsset.getAs[String]("name") shouldBe "asset name"
-      createdAsset.getAs[Long]("dataSetId") shouldBe testDataSetId
-      createdAsset.getAs[String]("externalId") shouldBe assetExternalId
+      val createdEvent = writeClient.events.retrieveByExternalId(eventExternalId).unsafeRunSync()
+      createdEvent.`type` shouldBe Some("event multi type")
+
+
     } finally {
       try {
         writeClient.assets.deleteByExternalId(assetExternalId).unsafeRunSync()

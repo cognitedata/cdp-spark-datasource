@@ -129,7 +129,9 @@ class DefaultSource
     val config = parseRelationConfig(parameters, sqlContext)
 
     resourceType match {
-      case MultiSpec(_) => throw new NotImplementedException("Multiple types")
+      case MultiSpec(MultiSpec(types)) => new MultiRelation(config, types.map { case (name, relationType) =>
+        name -> createRelation(sqlContext, parameters + ("type" -> relationType), schema)
+      })(sqlContext)
       case "datapoints" =>
         new NumericDataPointsRelationV1(config)(sqlContext)
       case "stringdatapoints" =>
