@@ -229,6 +229,38 @@ class DefaultSource
         .map(MultiSpec(_))
   }
 
+  private def createSingleWritableRelation(
+      resourceType: String,
+      config: RelationConfig,
+      parameters: Map[String, String],
+      sqlContext: SQLContext) = resourceType match {
+    case "events" =>
+      new EventsRelation(config)(sqlContext)
+    case "timeseries" =>
+      new TimeSeriesRelation(config)(sqlContext)
+    case "assets" =>
+      new AssetsRelation(config)(sqlContext)
+    case "files" =>
+      new FilesRelation(config)(sqlContext)
+    case "sequences" =>
+      new SequencesRelation(config)(sqlContext)
+    case "labels" =>
+      new LabelsRelation(config)(sqlContext)
+    case "sequencerows" =>
+      createSequenceRows(parameters, config, sqlContext)
+    case "relationships" =>
+      new RelationshipsRelation(config)(sqlContext)
+    case "datasets" =>
+      new DataSetsRelation(config)(sqlContext)
+    case "datamodelinstances" =>
+      createDataModelInstances(parameters, config, sqlContext)
+    case FlexibleDataModelRelationFactory.ResourceType =>
+      createFlexibleDataModelRelation(parameters, config, sqlContext)
+    case "welldatalayer" =>
+      createWellDataLayer(parameters, config, sqlContext)
+    case _ => sys.error(s"Resource type $resourceType does not support save()")
+  }
+
   /**
     * Create a spark relation for writing.
     */
@@ -270,48 +302,26 @@ class DefaultSource
       relation
     } else {
       val relation = resourceType match {
-        case MultiSpec(MultiSpec(types)) =>
-          new MultiRelation(
-            config,
-            types.map {
-              case (name, relationType) =>
-                val generalParams = parameters.filterKeys(k => !k.contains(':'))
-                val prefix = name + ':'
-                val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
-                  case (k, v) => k.stripPrefix(prefix) -> v
-                }
-                name -> createRelation(
-                  sqlContext,
-                  mode,
-                  generalParams ++ specificParams + ("type" -> relationType),
-                  data)
-            }
-          )(sqlContext)
-        case "events" =>
-          new EventsRelation(config)(sqlContext)
-        case "timeseries" =>
-          new TimeSeriesRelation(config)(sqlContext)
-        case "assets" =>
-          new AssetsRelation(config)(sqlContext)
-        case "files" =>
-          new FilesRelation(config)(sqlContext)
-        case "sequences" =>
-          new SequencesRelation(config)(sqlContext)
-        case "labels" =>
-          new LabelsRelation(config)(sqlContext)
-        case "sequencerows" =>
-          createSequenceRows(parameters, config, sqlContext)
-        case "relationships" =>
-          new RelationshipsRelation(config)(sqlContext)
-        case "datasets" =>
-          new DataSetsRelation(config)(sqlContext)
-        case "datamodelinstances" =>
-          createDataModelInstances(parameters, config, sqlContext)
-        case FlexibleDataModelRelationFactory.ResourceType =>
-          createFlexibleDataModelRelation(parameters, config, sqlContext)
-        case "welldatalayer" =>
-          createWellDataLayer(parameters, config, sqlContext)
-        case _ => sys.error(s"Resource type $resourceType does not support save()")
+        case MultiSpec(MultiSpec(types)) => new MultiRelation(
+          config,
+          types.map {
+            case (name, relationType) =>
+              val generalParams = parameters.filterKeys(k => !k.contains(':'))
+              val prefix = name + ':'
+              val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
+                case (k, v) => k.stripPrefix(prefix) -> v
+              }
+              val newParams = generalParams ++ specificParams + ("type" -> relationType)
+              val newConfig = parseRelationConfig(newParams, sqlContext)
+              name -> createSingleWritableRelation(
+                relationType,
+                newConfig,
+                newParams,
+                sqlContext
+              )
+          }
+        )(sqlContext)
+        case _ => createSingleWritableRelation(resourceType, config, parameters, sqlContext)
       }
       val batchSizeDefault = relation match {
         case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
