@@ -329,14 +329,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val assetExternalId = s"assets-test-create-${shortRandomString()}"
     val eventExternalId = s"events-test-create-${shortRandomString()}"
     val metricsPrefix = s"assetsAndEvents.test.create.${shortRandomString()}"
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .useOIDCWrite
-      .option("type", "a:assets,e:events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
-    df.createOrReplaceTempView("createAssetsAndEvents")
     cleanupAssets(assetsTestSource)
     try {
       spark
@@ -375,7 +367,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
              |) as e
       """.stripMargin)
         .write
-        .insertInto("createAssetsAndEvents")
+        .format("cognite.spark.v1")
+        .useOIDCWrite
+        .option("type", "a:assets,e:events")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .save()
 
       val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
       assert(assetsCreated == 1)

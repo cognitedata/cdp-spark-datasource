@@ -9,16 +9,22 @@ class MultiRelation(config: RelationConfig, relations: Map[String, BaseRelation]
     val sqlContext: SQLContext)
     extends BaseRelation
     with InsertableRelation
+    with WritableRelation
     with Serializable {
   override def insert(data: DataFrame, overwrite: Boolean): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
       import CdpConnector._
       val batches =
         rows.grouped(config.batchSize.getOrElse(cognite.spark.v1.Constants.DefaultBatchSize)).toVector
-      batches.parTraverse_(getFromRowsAndCreate).unsafeRunSync()
+      batches.parTraverse_(insert).unsafeRunSync()
     })
 
-  private def getFromRowsAndCreate(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
+  override val schema: StructType = StructType(relations.map {
+    case (name, rel) =>
+      StructField(name, rel.schema, nullable = false)
+  }.toSeq)
+
+  override def insert(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
     case (name, relation: WritableRelation) =>
       val rs = rows.map(row => {
         row.getAs[Row](name)
@@ -26,9 +32,30 @@ class MultiRelation(config: RelationConfig, relations: Map[String, BaseRelation]
       relation.insert(rs)
     case _ => throw new CdfSparkException("Relation is not writable")
   }
+  override def upsert(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
+    case (name, relation: WritableRelation) =>
+      val rs = rows.map(row => {
+        row.getAs[Row](name)
+      })
+      relation.upsert(rs)
+    case _ => throw new CdfSparkException("Relation is not writable")
+  }
 
-  override val schema: StructType = StructType(relations.map {
-    case (name, rel) =>
-      StructField(name, rel.schema, nullable = false)
-  }.toSeq)
+  override def update(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
+    case (name, relation: WritableRelation) =>
+      val rs = rows.map(row => {
+        row.getAs[Row](name)
+      })
+      relation.update(rs)
+    case _ => throw new CdfSparkException("Relation is not writable")
+  }
+
+  override def delete(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
+    case (name, relation: WritableRelation) =>
+      val rs = rows.map(row => {
+        row.getAs[Row](name)
+      })
+      relation.delete(rs)
+    case _ => throw new CdfSparkException("Relation is not writable")
+  }
 }

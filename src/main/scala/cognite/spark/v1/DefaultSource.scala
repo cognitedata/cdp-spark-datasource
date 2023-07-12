@@ -17,7 +17,6 @@ import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
-import jdk.jshell.spi.ExecutionControl.NotImplementedException
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
@@ -271,7 +270,23 @@ class DefaultSource
       relation
     } else {
       val relation = resourceType match {
-        case MultiSpec(_) => throw new NotImplementedException("Multiple types")
+        case MultiSpec(MultiSpec(types)) =>
+          new MultiRelation(
+            config,
+            types.map {
+              case (name, relationType) =>
+                val generalParams = parameters.filterKeys(k => !k.contains(':'))
+                val prefix = name + ':'
+                val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
+                  case (k, v) => k.stripPrefix(prefix) -> v
+                }
+                name -> createRelation(
+                  sqlContext,
+                  mode,
+                  generalParams ++ specificParams + ("type" -> relationType),
+                  data)
+            }
+          )(sqlContext)
         case "events" =>
           new EventsRelation(config)(sqlContext)
         case "timeseries" =>
