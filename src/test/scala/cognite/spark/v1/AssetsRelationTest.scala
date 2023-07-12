@@ -374,7 +374,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                |$testDataSetId as dataSetId
              |) as e
       """.stripMargin)
-        .select("a", "e")
         .write
         .insertInto("createAssetsAndEvents")
 

@@ -24,8 +24,6 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 import sttp.client3.SttpBackend
 import sttp.model.Uri
 
-import scala.util.Try
-
 class DefaultSource
     extends RelationProvider
     with CreatableRelationProvider
@@ -127,11 +125,23 @@ class DefaultSource
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
 
     val config = parseRelationConfig(parameters, sqlContext)
-
     resourceType match {
-      case MultiSpec(MultiSpec(types)) => new MultiRelation(config, types.map { case (name, relationType) =>
-        name -> createRelation(sqlContext, parameters + ("type" -> relationType), schema)
-      })(sqlContext)
+      case MultiSpec(MultiSpec(types)) =>
+        new MultiRelation(
+          config,
+          types.map {
+            case (name, relationType) =>
+              val generalParams = parameters.filterKeys(k => !k.contains(':'))
+              val prefix = name + ':'
+              val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
+                case (k, v) => k.stripPrefix(prefix) -> v
+              }
+              name -> createRelation(
+                sqlContext,
+                generalParams ++ specificParams + ("type" -> relationType),
+                schema)
+          }
+        )(sqlContext)
       case "datapoints" =>
         new NumericDataPointsRelationV1(config)(sqlContext)
       case "stringdatapoints" =>
@@ -204,19 +214,20 @@ class DefaultSource
     }
   }
 
-  case class MultiSpec(val types: Map[String, String])
+  case class MultiSpec(types: Map[String, String])
   object MultiSpec {
     def unapply(input: String): Option[MultiSpec] =
-      Try {
-        input.split(',').map { part =>
-          val parts = part.split(':')
-          if (parts.length == 2) {
-            parts.head -> parts.tail.head
-          } else {
-            throw new Exception("Bad")
+      input
+        .split(',')
+        .toVector
+        .traverse { part =>
+          part.split(':') match {
+            case Array(name, tp) => Some(name -> tp)
+            case _ => None
           }
         }
-      }.toOption.map(_.toMap).flatMap(m => if (m.nonEmpty) Some(m) else None).map(MultiSpec(_))
+        .map(_.toMap)
+        .map(MultiSpec(_))
   }
 
   /**
