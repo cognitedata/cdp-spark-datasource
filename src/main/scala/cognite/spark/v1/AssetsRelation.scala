@@ -66,10 +66,9 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
       _.into[AssetCreate]
         .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
         .transform)
-    val x = client.assets
+    client.assets
       .create(assets)
       .flatTap(_ => incMetrics(itemsCreated, assets.size)) *> IO.unit
-    x
   }
 
   private def isUpdateEmpty(u: AssetUpdate): Boolean = u == AssetUpdate()
