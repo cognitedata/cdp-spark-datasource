@@ -302,25 +302,26 @@ class DefaultSource
       relation
     } else {
       val relation = resourceType match {
-        case MultiSpec(MultiSpec(types)) => new MultiRelation(
-          config,
-          types.map {
-            case (name, relationType) =>
-              val generalParams = parameters.filterKeys(k => !k.contains(':'))
-              val prefix = name + ':'
-              val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
-                case (k, v) => k.stripPrefix(prefix) -> v
-              }
-              val newParams = generalParams ++ specificParams + ("type" -> relationType)
-              val newConfig = parseRelationConfig(newParams, sqlContext)
-              name -> createSingleWritableRelation(
-                relationType,
-                newConfig,
-                newParams,
-                sqlContext
-              )
-          }
-        )(sqlContext)
+        case MultiSpec(MultiSpec(types)) =>
+          new MultiRelation(
+            config,
+            types.map {
+              case (name, relationType) =>
+                val generalParams = parameters.filterKeys(k => !k.contains(':'))
+                val prefix = name + ':'
+                val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
+                  case (k, v) => k.stripPrefix(prefix) -> v
+                }
+                val newParams = generalParams ++ specificParams + ("type" -> relationType)
+                val newConfig = parseRelationConfig(newParams, sqlContext)
+                name -> createSingleWritableRelation(
+                  relationType,
+                  newConfig,
+                  newParams,
+                  sqlContext
+                )
+            }
+          )(sqlContext)
         case _ => createSingleWritableRelation(resourceType, config, parameters, sqlContext)
       }
       val batchSizeDefault = relation match {
