@@ -3,7 +3,12 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationFactory.{ConnectionConfig, DataModelConnectionConfig, DataModelViewConfig, ViewCorePropertyConfig}
+import cognite.spark.v1.FlexibleDataModelRelationFactory.{
+  ConnectionConfig,
+  DataModelConnectionConfig,
+  DataModelViewConfig,
+  ViewCorePropertyConfig
+}
 import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
@@ -292,7 +297,8 @@ class DefaultSource
                 val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
                   case (k, v) => k.stripPrefix(prefix) -> v
                 }
-                val newParams = CaseInsensitiveMap(generalParams ++ specificParams + ("type" -> relationType))
+                val newParams =
+                  CaseInsensitiveMap(generalParams ++ specificParams + ("type" -> relationType))
                 val newConfig = parseRelationConfig(newParams, sqlContext)
                 name -> createSingleWritableRelation(
                   relationType,
