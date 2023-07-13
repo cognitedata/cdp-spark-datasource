@@ -5,7 +5,9 @@ import cats.implicits.catsSyntaxParallelTraverse_
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation}
 import org.apache.spark.sql.types.{StructField, StructType}
-class MultiRelation(config: RelationConfig, relations: Map[String, BaseRelation with WritableRelation])(
+class MultiRelation(
+    config: RelationConfig,
+    relations: Map[String, BaseRelation with WritableRelation with Serializable])(
     val sqlContext: SQLContext)
     extends BaseRelation
     with InsertableRelation
