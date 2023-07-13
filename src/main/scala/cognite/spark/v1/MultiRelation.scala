@@ -26,34 +26,19 @@ class MultiRelation(
       StructField(name, rel.schema, nullable = false)
   }.toSeq)
 
-  override def insert(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
-    case (name, relation) =>
-      val rs = rows.map(row => {
-        row.getAs[Row](name)
-      })
-      relation.insert(rs)
-  }
-  override def upsert(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
-    case (name, relation) =>
-      val rs = rows.map(row => {
-        row.getAs[Row](name)
-      })
-      relation.upsert(rs)
-  }
+  private def eachStructField(
+      rows: Seq[Row],
+      action: (WritableRelation, Seq[Row]) => IO[Unit]): IO[Unit] =
+    relations.toVector.parTraverse_ {
+      case (name, relation) =>
+        val rs = rows.map(row => {
+          row.getAs[Row](name)
+        })
+        action(relation, rs)
+    }
 
-  override def update(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
-    case (name, relation) =>
-      val rs = rows.map(row => {
-        row.getAs[Row](name)
-      })
-      relation.update(rs)
-  }
-
-  override def delete(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
-    case (name, relation) =>
-      val rs = rows.map(row => {
-        row.getAs[Row](name)
-      })
-      relation.delete(rs)
-  }
+  override def insert(rows: Seq[Row]): IO[Unit] = eachStructField(rows, _.insert(_))
+  override def upsert(rows: Seq[Row]): IO[Unit] = eachStructField(rows, _.upsert(_))
+  override def update(rows: Seq[Row]): IO[Unit] = eachStructField(rows, _.update(_))
+  override def delete(rows: Seq[Row]): IO[Unit] = eachStructField(rows, _.delete(_))
 }
