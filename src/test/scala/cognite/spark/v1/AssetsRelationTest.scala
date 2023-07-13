@@ -336,34 +336,21 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
           s"""
              |select struct(
                |'$assetExternalId' as externalId,
-               |'asset multi name' as name,
-               |cast(null as bigint) as parentId,
-               |cast(null as string) as parentExternalId,
-               |'asset description' as description,
-               |cast(null as map<string,string>) as metadata,
-               |'$assetsTestSource' as source,
-               |cast(null as bigint) as id,
-               |cast(null as timestamp) as createdTime,
-               |cast(null as timestamp) as lastUpdatedTime,
-               |cast(null as bigint) as rootId,
-               |cast(null as struct<childCount:bigint, path:array<string>,depth:bigint>) as aggregates,
                |$testDataSetId as dataSetId,
+               |'asset multi name' as name,
+               |'asset description' as description,
+               |'$assetsTestSource' as source,
                |array('scala-sdk-relationships-test-label1') as labels
              |) as a,
              |struct(
-               |cast(null as bigint) as id,
+               |'$eventExternalId' as externalId,
+               |$testDataSetId as dataSetId,
                |cast(0 as timestamp) as startTime,
                |cast(100 as timestamp) as endTime,
                |'event description' as description,
                |'event multi type' as type,
                |'subtype' as subtype,
-               |cast(null as map<string,string>) as metadata,
-               |cast(array() as array<bigint>) as assetIds,
-               |cast(null as string) as source,
-               |'$eventExternalId' as externalId,
-               |cast(null as timestamp) as createdTime,
-               |cast(null as timestamp) as lastUpdatedTime,
-               |$testDataSetId as dataSetId
+               |array() as assetIds
              |) as e
       """.stripMargin)
         .write
