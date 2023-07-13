@@ -251,8 +251,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
               Seq(EdgeOrNodeData(
                 sourceReference,
                 Some(Map(
-                  "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
-                  "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
+                  "stringProp1" -> Some(InstancePropertyValue.String("stringProp1Val")),
+                  "stringProp2" -> Some(InstancePropertyValue.String("stringProp2Val"))))
               ))
             )
           ),
@@ -263,8 +263,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
               Seq(EdgeOrNodeData(
                 sourceReference,
                 Some(Map(
-                  "stringProp1" -> InstancePropertyValue.String("stringProp1Val"),
-                  "stringProp2" -> InstancePropertyValue.String("stringProp2Val")))
+                  "stringProp1" -> Some(InstancePropertyValue.String("stringProp1Val")),
+                  "stringProp2" -> Some(InstancePropertyValue.String("stringProp2Val"))))
               ))
             )
           )
@@ -288,7 +288,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
             Some(
               Seq(EdgeOrNodeData(
                 sourceReference,
-                Some(Map("stringProp1" -> InstancePropertyValue.String("stringProp1StartNode")))
+                Some(Map("stringProp1" -> Some(InstancePropertyValue.String("stringProp1StartNode"))))
               ))
             )
           ),
@@ -298,7 +298,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
             Some(
               Seq(EdgeOrNodeData(
                 sourceReference,
-                Some(Map("stringProp1" -> InstancePropertyValue.String("stringProp1EndNode")))
+                Some(Map("stringProp1" -> Some(InstancePropertyValue.String("stringProp1EndNode"))))
               ))
             )
           )
@@ -333,16 +333,16 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       propName: String,
       propType: PropertyType,
       directNodeReference: DirectRelationReference
-  ): InstancePropertyValue =
+  ): Option[InstancePropertyValue] =
     propType match {
       case d: DirectNodeRelationProperty =>
         val ref = d.container.map(_ => directNodeReference)
-        InstancePropertyValue.ViewDirectNodeRelation(value = ref)
+        Some(InstancePropertyValue.ViewDirectNodeRelation(value = ref))
       case p =>
         if (p.isList) {
-          listContainerPropToInstanceProperty(propName, p)
+          Some(listContainerPropToInstanceProperty(propName, p))
         } else {
-          nonListContainerPropToInstanceProperty(propName, p)
+          Some(nonListContainerPropToInstanceProperty(propName, p))
         }
     }
 
