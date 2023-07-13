@@ -219,30 +219,30 @@ class DefaultSource
       parameters: Map[String, String],
       sqlContext: SQLContext) = resourceType match {
     case "events" =>
-      new EventsRelation(config)(sqlContext)
+      Some(new EventsRelation(config)(sqlContext))
     case "timeseries" =>
-      new TimeSeriesRelation(config)(sqlContext)
+      Some(new TimeSeriesRelation(config)(sqlContext))
     case "assets" =>
-      new AssetsRelation(config)(sqlContext)
+      Some(new AssetsRelation(config)(sqlContext))
     case "files" =>
-      new FilesRelation(config)(sqlContext)
+      Some(new FilesRelation(config)(sqlContext))
     case "sequences" =>
-      new SequencesRelation(config)(sqlContext)
+      Some(new SequencesRelation(config)(sqlContext))
     case "labels" =>
-      new LabelsRelation(config)(sqlContext)
+      Some(new LabelsRelation(config)(sqlContext))
     case "sequencerows" =>
-      createSequenceRows(parameters, config, sqlContext)
+      Some(createSequenceRows(parameters, config, sqlContext))
     case "relationships" =>
-      new RelationshipsRelation(config)(sqlContext)
+      Some(new RelationshipsRelation(config)(sqlContext))
     case "datasets" =>
-      new DataSetsRelation(config)(sqlContext)
+      Some(new DataSetsRelation(config)(sqlContext))
     case "datamodelinstances" =>
-      createDataModelInstances(parameters, config, sqlContext)
+      Some(createDataModelInstances(parameters, config, sqlContext))
     case FlexibleDataModelRelationFactory.ResourceType =>
-      createFlexibleDataModelRelation(parameters, config, sqlContext)
+      Some(createFlexibleDataModelRelation(parameters, config, sqlContext))
     case "welldatalayer" =>
-      createWellDataLayer(parameters, config, sqlContext)
-    case _ => sys.error(s"Resource type $resourceType does not support save()")
+      Some(createWellDataLayer(parameters, config, sqlContext))
+    case _ => None
   }
 
   /**
@@ -303,10 +303,12 @@ class DefaultSource
                   newConfig,
                   newParams,
                   sqlContext
-                )
+                ).getOrElse(sys.error(s"Resource type $resourceType does not support multiple outputs"))
             }
           )(sqlContext)
-        case _ => createSingleWritableRelation(resourceType, config, parameters, sqlContext)
+        case _ =>
+          createSingleWritableRelation(resourceType, config, parameters, sqlContext).getOrElse(
+            sys.error(s"Resource type $resourceType does not support save()"))
       }
       val batchSizeDefault = relation match {
         case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
