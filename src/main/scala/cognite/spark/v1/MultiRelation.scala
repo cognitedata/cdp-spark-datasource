@@ -5,7 +5,7 @@ import cats.implicits.catsSyntaxParallelTraverse_
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation}
 import org.apache.spark.sql.types.{StructField, StructType}
-class MultiRelation(config: RelationConfig, relations: Map[String, BaseRelation])(
+class MultiRelation(config: RelationConfig, relations: Map[String, BaseRelation with WritableRelation])(
     val sqlContext: SQLContext)
     extends BaseRelation
     with InsertableRelation
@@ -25,37 +25,33 @@ class MultiRelation(config: RelationConfig, relations: Map[String, BaseRelation]
   }.toSeq)
 
   override def insert(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
-    case (name, relation: WritableRelation) =>
+    case (name, relation) =>
       val rs = rows.map(row => {
         row.getAs[Row](name)
       })
       relation.insert(rs)
-    case _ => throw new CdfSparkException("Relation is not writable")
   }
   override def upsert(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
-    case (name, relation: WritableRelation) =>
+    case (name, relation) =>
       val rs = rows.map(row => {
         row.getAs[Row](name)
       })
       relation.upsert(rs)
-    case _ => throw new CdfSparkException("Relation is not writable")
   }
 
   override def update(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
-    case (name, relation: WritableRelation) =>
+    case (name, relation) =>
       val rs = rows.map(row => {
         row.getAs[Row](name)
       })
       relation.update(rs)
-    case _ => throw new CdfSparkException("Relation is not writable")
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = relations.toVector.parTraverse_ {
-    case (name, relation: WritableRelation) =>
+    case (name, relation) =>
       val rs = rows.map(row => {
         row.getAs[Row](name)
       })
       relation.delete(rs)
-    case _ => throw new CdfSparkException("Relation is not writable")
   }
 }

@@ -125,22 +125,6 @@ class DefaultSource
 
     val config = parseRelationConfig(parameters, sqlContext)
     resourceType match {
-      case MultiSpec(MultiSpec(types)) =>
-        new MultiRelation(
-          config,
-          types.map {
-            case (name, relationType) =>
-              val generalParams = parameters.filterKeys(k => !k.contains(':'))
-              val prefix = name + ':'
-              val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
-                case (k, v) => k.stripPrefix(prefix) -> v
-              }
-              name -> createRelation(
-                sqlContext,
-                generalParams ++ specificParams + ("type" -> relationType),
-                schema)
-          }
-        )(sqlContext)
       case "datapoints" =>
         new NumericDataPointsRelationV1(config)(sqlContext)
       case "stringdatapoints" =>
