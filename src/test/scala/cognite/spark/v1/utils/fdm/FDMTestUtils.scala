@@ -10,7 +10,6 @@ import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstancePropertyV
 import io.circe.{Json, JsonObject}
 
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
-import scala.annotation.nowarn
 import scala.util.Random
 
 object FDMTestUtils {
