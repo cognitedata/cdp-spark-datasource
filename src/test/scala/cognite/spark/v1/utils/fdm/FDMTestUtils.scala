@@ -388,15 +388,13 @@ object FDMTestUtils {
     }
   // scalastyle:on cyclomatic.complexity
 
-  // Scala 2.13 deprecates mapValues in favor of _.view.mapValues, but scala 2.12 does not have that.
-  @nowarn("cat=deprecation")
   private def toInstanceData(
       containerRef: ContainerReference,
       instancePropertyValues: Map[String, InstancePropertyValue]
   ) =
     EdgeOrNodeData(
       source = containerRef,
-      properties = Some(instancePropertyValues.mapValues(Some(_)).toMap)
+      properties = Some(instancePropertyValues.map { case (k, v) => k -> Some(v) }.toMap)
     )
   // scalastyle:off cyclomatic.complexity
   private def propertyDefaultValueForPropertyType(
