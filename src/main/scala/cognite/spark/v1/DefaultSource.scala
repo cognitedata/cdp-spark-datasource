@@ -3,12 +3,7 @@ package cognite.spark.v1
 import cats.Apply
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationFactory.{
-  ConnectionConfig,
-  DataModelConnectionConfig,
-  DataModelViewConfig,
-  ViewCorePropertyConfig
-}
+import cognite.spark.v1.FlexibleDataModelRelationFactory.{ConnectionConfig, DataModelConnectionConfig, DataModelViewConfig, ViewCorePropertyConfig}
 import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
@@ -17,6 +12,7 @@ import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
+import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
@@ -296,7 +292,7 @@ class DefaultSource
                 val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
                   case (k, v) => k.stripPrefix(prefix) -> v
                 }
-                val newParams = generalParams ++ specificParams + ("type" -> relationType)
+                val newParams = CaseInsensitiveMap(generalParams ++ specificParams + ("type" -> relationType))
                 val newConfig = parseRelationConfig(newParams, sqlContext)
                 name -> createSingleWritableRelation(
                   relationType,
