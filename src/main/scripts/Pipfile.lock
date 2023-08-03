@@ -22,7 +22,7 @@
                 "sha256:92d6037539857d8206b8f6ae472e8b77db8058fec5937a1ef3f54304089edbb9"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==2023.7.22" 
+            "version": "==2023.7.22"
         },
         "cffi": {
             "hashes": [
