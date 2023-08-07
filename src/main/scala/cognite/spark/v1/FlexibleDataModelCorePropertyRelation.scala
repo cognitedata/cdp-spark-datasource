@@ -245,15 +245,22 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       propDefMap: Map[String, ViewPropertyDefinition],
       instanceSpace: Option[String]) = {
     val nodesOrEdges = intendedUsage match {
-      case Usage.Node => createNodes(rows, schema, propDefMap, source, instanceSpace)
-      case Usage.Edge => createEdges(rows, schema, propDefMap, source, instanceSpace)
-      case Usage.All => createNodesOrEdges(rows, schema, propDefMap, source, instanceSpace)
+      case Usage.Node =>
+        createNodes(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
+      case Usage.Edge =>
+        createEdges(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
+      case Usage.All =>
+        createNodesOrEdges(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
     }
     nodesOrEdges match {
       case Right(items) if items.nonEmpty =>
         val instanceCreate = InstanceCreate(
           items = items,
-          replace = Some(true)
+          replace = Some(false),
+          // These options need to made dynamic by moving to frontend
+          // https://cognitedata.slack.com/archives/C03G11UNHBJ/p1678971213050319
+          autoCreateStartNodes = Some(true),
+          autoCreateEndNodes = Some(true)
         )
         client.instances.createItems(instanceCreate)
       case Right(_) => IO.pure(Vector.empty)
@@ -274,7 +281,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Right(items) if items.nonEmpty =>
         val instanceCreate = InstanceCreate(
           items = items,
-          replace = Some(true),
+          replace = Some(false),
           // These options need to made dynamic by moving to frontend
           // https://cognitedata.slack.com/archives/C03G11UNHBJ/p1678971213050319
           autoCreateStartNodes = Some(true),

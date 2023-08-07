@@ -6,25 +6,28 @@ val scala212 = "2.12.15"
 val scala213 = "2.13.8"
 val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.1"
-val circeVersion = "0.14.1"
+val circeVersion = "0.14.5"
 val sttpVersion = "3.5.2"
 val Specs2Version = "4.6.0"
-val artifactory = "https://cognite.jfrog.io/cognite/"
-val cogniteSdkVersion = "2.5.14"
+val cogniteSdkVersion = "2.7.724"
 
 val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
+
+sonatypeProfileName := "com.cognite" // default is same as organization and leads to 404 on sonatypeReleaseAll
 
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
 ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
 
+lazy val patchVersion = scala.io.Source.fromFile("patch_version.txt").mkString.trim
+
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "2.5.6-SNAPSHOT",
-  isSnapshot := true,
+  version := "3.0." + patchVersion,
+  isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
@@ -35,8 +38,7 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
   resolvers ++= Seq(
-    "libs-release".at(artifactory + "libs-release/"),
-    Resolver.sonatypeRepo("snapshots")
+    Resolver.sonatypeRepo("releases")
   ),
   developers := List(
     Developer(
@@ -68,13 +70,13 @@ lazy val commonSettings = Seq(
   pomIncludeRepository := { _ => false },
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
-    else Some("releases" at nexus + "service/local/staging/deploy/maven2")
+    if (isSnapshot.value) { Some("snapshots" at nexus + "content/repositories/snapshots") }
+    else { Some("releases" at nexus + "service/local/staging/deploy/maven2") }
   },
   publishMavenStyle := true,
   pgpPassphrase := {
-    if (gpgPass.isDefined) gpgPass.map(_.toCharArray)
-    else None
+    if (gpgPass.isDefined) { gpgPass.map(_.toCharArray) }
+    else { None }
   },
   Test / fork := true,
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
@@ -83,8 +85,20 @@ lazy val commonSettings = Seq(
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60")
 )
 
+lazy val structType = (project in file("struct_type"))
+  .settings(
+    commonSettings,
+    name := "cdf-spark-datasource-struct-type",
+    crossScalaVersions := supportedScalaVersions,
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-core" % "2.9.0",
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
+    ),
+  )
+
 // Based on https://www.scala-sbt.org/1.0/docs/Macro-Projects.html#Defining+the+Project+Relationships
 lazy val macroSub = (project in file("macro"))
+  .dependsOn(structType)
   .settings(
     commonSettings,
     crossScalaVersions := supportedScalaVersions,
@@ -98,12 +112,12 @@ lazy val macroSub = (project in file("macro"))
   )
 
 lazy val library = (project in file("."))
-  .dependsOn(macroSub)
+  .dependsOn(structType, macroSub % Provided)
   .enablePlugins(BuildInfoPlugin)
   .settings(
+    buildInfoUsePackageAsPath := true,
     commonSettings,
     name := "cdf-spark-datasource",
-    assembly / assemblyJarName := s"${normalizedName.value}-${version.value}-jar-with-dependencies.jar",
     scalastyleFailOnWarning := true,
     scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
@@ -130,7 +144,7 @@ lazy val library = (project in file("."))
       "io.circe" %% "circe-generic" % circeVersion
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
-      "io.circe" %% "circe-generic-extras" % circeVersion
+      "io.circe" %% "circe-generic-extras" % "0.14.3"
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
       "org.scalatest" %% "scalatest" % "3.0.8" % Test,
@@ -141,29 +155,9 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.log4s" %% "log4s" % log4sVersion
     ),
-    assemblyMergeStrategy := {
-      case PathList("META-INF", _@_*) => MergeStrategy.discard
-      case _ => MergeStrategy.first
-    },
-    assemblyShadeRules := {
-      val shadePackage = "cognite.shaded"
-      Seq(
-        ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
-        ShadeRule.rename("com.cognite.sdk.scala.**" -> s"$shadePackage.sdk.scala.@1").inAll,
-        ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
-        ShadeRule.rename("fs2.**" -> s"$shadePackage.fs2.@1").inAll,
-        ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
-        ShadeRule.rename("org.typelevel.jawn.**" -> s"$shadePackage.org.typelevel.jawn.@1").inAll,
-        ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
-        ShadeRule.rename("sttp.client3.**" -> s"$shadePackage.sttp.client3.@1").inAll
-      )
-    },
-    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
-    Compile / packageBin / mappings ++= (macroSub / Compile / packageBin / mappings).value,
-    Compile / packageSrc / mappings ++= (macroSub / Compile / packageSrc / mappings).value,
     coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
-    buildInfoPackage := "cognite.spark"
+    buildInfoPackage := "cognite.spark.cdf_spark_datasource"
   )
 
 lazy val performancebench = (project in file("performancebench"))
@@ -191,37 +185,33 @@ lazy val performancebench = (project in file("performancebench"))
     ),
   )
 
-lazy val cdfdump = (project in file("cdf_dump"))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, UniversalPlugin)
+lazy val fatJarShaded = project
+  .enablePlugins(AssemblyPlugin)
   .dependsOn(library)
   .settings(
     commonSettings,
-    publish / skip := true,
-    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
-    buildInfoPackage := "cognite.spark.cdfdump",
-    assembly / assemblyJarName := "cdf_dump.jar",
-    assembly / assemblyMergeStrategy := {
-      case n if n.contains("services") || n.startsWith("reference.conf") || n.endsWith(".conf") => MergeStrategy.concat
-      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-      case x => MergeStrategy.first
+    name := "cdf-spark-datasource-fatjar",
+    Compile / packageBin := assembly.value,
+    assembly / assemblyJarName := s"${normalizedName.value}-${version.value}-jar-with-dependencies.jar",
+    assemblyMergeStrategy := {
+      case PathList("META-INF", _@_*) => MergeStrategy.discard
+      case _ => MergeStrategy.first
     },
-    name := "cdf_dump",
-    fork := true,
-    libraryDependencies ++= Seq(
-      "org.rogach" %% "scallop" % "4.0.1",
-      "org.log4s" %% "log4s" % log4sVersion,
-      "org.apache.spark" %% "spark-core" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-    ),
+    assemblyShadeRules := {
+      val shadePackage = "cognite.shaded"
+      Seq(
+        ShadeRule.rename("cats.**" -> s"$shadePackage.cats.@1").inAll,
+        ShadeRule.rename("com.cognite.sdk.scala.**" -> s"$shadePackage.sdk.scala.@1").inAll,
+        ShadeRule.rename("com.google.protobuf.**" -> s"$shadePackage.com.google.protobuf.@1").inAll,
+        ShadeRule.rename("fs2.**" -> s"$shadePackage.fs2.@1").inAll,
+        ShadeRule.rename("io.circe.**" -> s"$shadePackage.io.circe.@1").inAll,
+        ShadeRule.rename("org.typelevel.jawn.**" -> s"$shadePackage.org.typelevel.jawn.@1").inAll,
+        ShadeRule.rename("shapeless.**" -> s"$shadePackage.shapeless.@1").inAll,
+        ShadeRule.rename("sttp.client3.**" -> s"$shadePackage.sttp.client3.@1").inAll
+      )
+    },
+    assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
   )
-
-lazy val fatJar = project.settings(
-  commonSettings,
-  name := "cdf-spark-datasource",
-  Compile / packageBin := (library / assembly).value
-)
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 

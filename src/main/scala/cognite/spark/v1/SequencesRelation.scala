@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{SetValue, Setter, WithExternalId, WithId}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.SequencesResource
@@ -21,6 +21,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[SequenceReadSchema, Long](config, "sequences")
     with InsertableRelation
     with WritableRelation {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -214,6 +215,8 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object SequenceRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val upsertSchema: StructType = structType[SequenceUpsertSchema]()
   val insertSchema: StructType = structType[SequenceInsertSchema]()
   val readSchema: StructType = structType[SequenceReadSchema]()

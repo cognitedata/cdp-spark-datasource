@@ -7,7 +7,7 @@ import fs2.{Chunk, Stream}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import cognite.spark.v1.SparkSchemaHelper.asRow
+import cognite.spark.compiletime.macros.SparkSchemaHelper.asRow
 import sttp.client3._
 
 import scala.concurrent.duration._

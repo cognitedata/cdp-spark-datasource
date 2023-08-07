@@ -24,6 +24,7 @@ class SequencesRelationTest
     .format("cognite.spark.v1")
     .useOIDCWrite
     .option("type", "sequences")
+    .option("partitions", 200)
     .load()
   sequencesSourceDf.createOrReplaceTempView("sequences")
 
@@ -431,6 +432,7 @@ class SequencesRelationTest
       .option("onconflict", conflictMode)
       .option("collectMetrics", metricsPrefix.isDefined)
       .option("metricsPrefix", metricsPrefix.getOrElse(""))
+      .option("partitions", "200")
       .save()
 
     val checkedAssets = processedTree.filter(_.externalId.isDefined)

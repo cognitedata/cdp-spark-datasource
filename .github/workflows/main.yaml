@@ -8,12 +8,14 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - run: |
           git rev-list --count --first-parent HEAD > patch_version.txt
-      - uses: olafurpg/setup-scala@v13
+      - uses: coursier/setup-action@v1
+        with:
+          jvm: adopt:8
       - name: Set variables
         run: |
           IMAGE_REVISION=$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)
@@ -47,6 +49,13 @@ jobs:
             TEST="+test"
           fi
           sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage $TEST coverageReport
+      - name: Upload Test Report
+        uses: actions/upload-artifact@v3
+        if: always() # always run even if the previous step fails
+        with:
+          name: junit-test-results
+          path: 'target/test-reports/**/*.xml'
+          retention-days: 1
       - name: Upload report to codecov.io
         uses: codecov/codecov-action@v1
         with:
@@ -54,9 +63,9 @@ jobs:
           fail_ci_if_error: false
       - name: Build JAR file
         run: |
-          LIB_PACKAGE="library/package"
+          LIB_PACKAGE="+library/package"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
-            LIB_PACKAGE="+assembly"
+            LIB_PACKAGE="+fatJarShaded/assembly"
           fi
           sbt -Dsbt.log.noformat=true "set library/test := {}" $LIB_PACKAGE performancebench/docker:stage
       - name: Deploy JAR
@@ -66,4 +75,4 @@ jobs:
         run: |
           ./secrets/decrypt.sh secrets/gpg-key-password.gpg secrets/gpg-key-password
           export GPG_KEY_PASSWORD=$(cat secrets/gpg-key-password)
-          sbt -Dsbt.log.noformat=true +fatJar/publishSigned
+          sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +structType/publishSigned +publishSigned sonatypeReleaseAll

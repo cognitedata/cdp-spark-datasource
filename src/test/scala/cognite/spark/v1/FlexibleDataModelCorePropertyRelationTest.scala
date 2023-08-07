@@ -8,6 +8,7 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRel
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers.{ContainerDefinition, ContainerId, ContainerReference}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.NodeDeletionRequest
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
@@ -25,38 +26,38 @@ class FlexibleDataModelCorePropertyRelationTest
     with SparkTest
     with FlexibleDataModelsTestBase {
 
-  private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList"
-  private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList"
-  private val containerEdgesListAndNonListExternalId = "sparkDsTestContainerEdgesListAndNonList"
+  private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList2"
+  private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList2"
+  private val containerEdgesListAndNonListExternalId = "sparkDsTestContainerEdgesListAndNonList2"
 
-  private val containerAllNonListExternalId = "sparkDsTestContainerAllNonList"
-  private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList"
-  private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList"
+  private val containerAllNonListExternalId = "sparkDsTestContainerAllNonList2"
+  private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList2"
+  private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList2"
 
-  private val containerAllListExternalId = "sparkDsTestContainerAllList"
-  private val containerNodesListExternalId = "sparkDsTestContainerNodesList"
-  private val containerEdgesListExternalId = "sparkDsTestContainerEdgesList"
+  private val containerAllListExternalId = "sparkDsTestContainerAllList2"
+  private val containerNodesListExternalId = "sparkDsTestContainerNodesList2"
+  private val containerEdgesListExternalId = "sparkDsTestContainerEdgesList2"
 
-  private val viewAllListAndNonListExternalId = "sparkDsTestViewAllListAndNonList"
-  private val viewNodesListAndNonListExternalId = "sparkDsTestViewNodesListAndNonList"
-  private val viewEdgesListAndNonListExternalId = "sparkDsTestViewEdgesListAndNonList"
+  private val viewAllListAndNonListExternalId = "sparkDsTestViewAllListAndNonList2"
+  private val viewNodesListAndNonListExternalId = "sparkDsTestViewNodesListAndNonList2"
+  private val viewEdgesListAndNonListExternalId = "sparkDsTestViewEdgesListAndNonList2"
 
-  private val viewAllNonListExternalId = "sparkDsTestViewAllNonList"
-  private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList"
-  private val viewEdgesNonListExternalId = "sparkDsTestViewEdgesNonList"
+  private val viewAllNonListExternalId = "sparkDsTestViewAllNonList2"
+  private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList2"
+  private val viewEdgesNonListExternalId = "sparkDsTestViewEdgesNonList2"
 
-  private val viewAllListExternalId = "sparkDsTestViewAllList"
-  private val viewNodesListExternalId = "sparkDsTestViewNodesList"
-  private val viewEdgesListExternalId = "sparkDsTestViewEdgesList"
+  private val viewAllListExternalId = "sparkDsTestViewAllList2"
+  private val viewNodesListExternalId = "sparkDsTestViewNodesList2"
+  private val viewEdgesListExternalId = "sparkDsTestViewEdgesList2"
 
-  private val containerAllNumericProps = "sparkDsTestContainerNumericProps"
-  private val viewAllNumericProps = "sparkDsTestViewNumericProps"
+  private val containerAllNumericProps = "sparkDsTestContainerNumericProps2"
+  private val viewAllNumericProps = "sparkDsTestViewNumericProps2"
 
-  private val containerFilterByProps = "sparkDsTestContainerFilterByProps"
-  private val viewFilterByProps = "sparkDsTestViewFilterByProps"
+  private val containerFilterByProps = "sparkDsTestContainerFilterByProps2"
+  private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
 
-  private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes"
-  private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes"
+  private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
+  private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
@@ -513,10 +514,10 @@ class FlexibleDataModelCorePropertyRelationTest
 
     val selectedEdges = spark
       .sql(s"""select * from edge_filter_instances_table
-           | where startNode = named_struct('space', '${startNodeRef.space}', 'externalId', '${startNodeRef.externalId}')
-           | and endNode = named_struct('space', '${endNodeRef.space}', 'externalId', '${endNodeRef.externalId}')
-           | and type = named_struct('space', '${typeNodeRef.space}', 'externalId', '${typeNodeRef.externalId}')
-           | and directRelation1 = named_struct('space', '${directNodeReference.space}', 'externalId', '${directNodeReference.externalId}')
+           | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
+           | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
+           | and type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
+           | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
            | and space = '$spaceExternalId'
            | """.stripMargin)
       .collect()
@@ -664,7 +665,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .collect()
 
     rows.isEmpty shouldBe false
-    toExternalIds(rows).toVector shouldBe Vector("sparkDsTestViewStartAndEndNodesInsertNonListStartNode")
+    toExternalIds(rows).toVector shouldBe Vector(s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
     toPropVal(rows, "stringProp1").toVector shouldBe Vector("stringProp1Val")
     toPropVal(rows, "stringProp2").toVector shouldBe Vector("stringProp2Val")
   }
@@ -692,6 +693,166 @@ class FlexibleDataModelCorePropertyRelationTest
 
     result shouldBe Success(())
     getUpsertedMetricsCountForModel(testDataModelExternalId, viewVersion) shouldBe 1
+  }
+
+  it should "leave unmentioned properties alone" in {
+    val externalId = s"sparkDsTestNodePropsTest-${shortRandomString()}"
+    try {
+      // First, create a random node
+      val insertDf = spark
+        .sql(s"""
+             |select
+             |'${externalId}' as externalId,
+             |'stringProp1Val' as stringProp1,
+             |'stringProp2Val' as stringProp2
+             |""".stripMargin)
+      val insertResult = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          insertDf
+        )
+      }
+      insertResult shouldBe Success(())
+      // Now, update one of the values
+      val updateDf = spark
+        .sql(
+          s"""
+             |select
+             |'${externalId}' as externalId,
+             |'updatedProp1Val' as stringProp1
+             |""".stripMargin)
+      val updateResult = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          updateDf
+        )
+      }
+      updateResult shouldBe Success(())
+      // Fetch the updated instance
+      val instance = client.instances.retrieveByExternalIds(
+        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+        sources = Some(Seq(InstanceSource(ViewReference(
+          space = spaceExternalId,
+          externalId = viewStartNodeAndEndNodesExternalId,
+          version = viewVersion
+        ))))
+      ).unsafeRunSync().items.head
+      val props = instance.properties.get.get(spaceExternalId)
+        .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
+      // Check the properties
+      props.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1Val"))
+      props.get("stringProp2") shouldBe Some(InstancePropertyValue.String("stringProp2Val"))
+    } finally {
+      val _ = client.instances.delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId))).unsafeRunSync()
+    }
+  }
+
+  it should "handle nulls according to ignoreNullFields" in {
+    val externalId = s"sparkDsTestNullProps-${shortRandomString()}"
+    try {
+      // First, create a random node
+      val insertDf = spark
+        .sql(
+          s"""
+             |select
+             |'${externalId}' as externalId,
+             |'stringProp1Val' as stringProp1,
+             |'stringProp2Val' as stringProp2
+             |""".stripMargin)
+      val insertResult = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          insertDf
+        )
+      }
+      insertResult shouldBe Success(())
+      // Now, update one of the values with a null, but ignoreNullFields
+      val updateDf1 = spark
+        .sql(
+          s"""
+             |select
+             |'${externalId}' as externalId,
+             |'updatedProp1Val' as stringProp1,
+             |null as stringProp2
+             |""".stripMargin)
+      val updateResult1 = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          updateDf1,
+          ignoreNullFields=true
+        )
+      }
+      updateResult1 shouldBe Success(())
+
+      // Fetch the updated instance
+      val instance1 = client.instances.retrieveByExternalIds(
+        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+        sources = Some(Seq(InstanceSource(ViewReference(
+          space = spaceExternalId,
+          externalId = viewStartNodeAndEndNodesExternalId,
+          version = viewVersion
+        ))))
+      ).unsafeRunSync().items.head
+      val props1 = instance1.properties.get.get(spaceExternalId)
+        .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
+      // Check the properties
+      props1.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1Val"))
+      props1.get("stringProp2") shouldBe Some(InstancePropertyValue.String("stringProp2Val"))
+
+      // Update the value with null, and don't ignoreNullFields
+      val updateDf2 = spark
+        .sql(
+          s"""
+             |select
+             |'${externalId}' as externalId,
+             |'updatedProp1ValAgain' as stringProp1,
+             |null as stringProp2
+             |""".stripMargin)
+      val updateResult2 = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          updateDf2,
+          ignoreNullFields = false
+        )
+      }
+      updateResult2 shouldBe Success(())
+      // Fetch the updated instance
+      val instance = client.instances.retrieveByExternalIds(
+        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+        sources = Some(Seq(InstanceSource(ViewReference(
+          space = spaceExternalId,
+          externalId = viewStartNodeAndEndNodesExternalId,
+          version = viewVersion
+        ))))
+      ).unsafeRunSync().items.head
+      val props2 = instance.properties.get.get(spaceExternalId)
+        .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
+      // Check the properties
+      props2.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1ValAgain"))
+      props2.get("stringProp2") shouldBe None
+    } finally {
+      val _ = client.instances.delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId))).unsafeRunSync()
+    }
   }
 
   // This should be kept as ignored
@@ -970,15 +1131,15 @@ class FlexibleDataModelCorePropertyRelationTest
                     Some(Seq(EdgeOrNodeData(
                       viewRef,
                       Some(Map(
-                        "forEqualsFilter" -> InstancePropertyValue.String("str1"),
-                        "forInFilter" -> InstancePropertyValue.String("str1"),
-                        "forGteFilter" -> InstancePropertyValue.Int32(1),
-                        "forGtFilter" -> InstancePropertyValue.Int32(2),
-                        "forLteFilter" -> InstancePropertyValue.Int64(2),
-                        "forLtFilter" -> InstancePropertyValue.Int64(3),
-                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
+                        "forEqualsFilter" -> Some(InstancePropertyValue.String("str1")),
+                        "forInFilter" -> Some(InstancePropertyValue.String("str1")),
+                        "forGteFilter" -> Some(InstancePropertyValue.Int32(1)),
+                        "forGtFilter" -> Some(InstancePropertyValue.Int32(2)),
+                        "forLteFilter" -> Some(InstancePropertyValue.Int64(2)),
+                        "forLtFilter" -> Some(InstancePropertyValue.Int64(3)),
+                        "forOrFilter1" -> Some(InstancePropertyValue.Float64(5.1)),
+                        "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
+                        "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now()))
                       ))
                     )))
                   ),
@@ -988,18 +1149,18 @@ class FlexibleDataModelCorePropertyRelationTest
                     Some(Seq(EdgeOrNodeData(
                       viewRef,
                       Some(Map(
-                        "forEqualsFilter" -> InstancePropertyValue.String("str2"),
-                        "forInFilter" -> InstancePropertyValue.String("str2"),
-                        "forGteFilter" -> InstancePropertyValue.Int32(5),
-                        "forGtFilter" -> InstancePropertyValue.Int32(2),
-                        "forLteFilter" -> InstancePropertyValue.Int64(1),
-                        "forLtFilter" -> InstancePropertyValue.Int64(-1),
-                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now()),
-                        "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
+                        "forEqualsFilter" -> Some(InstancePropertyValue.String("str2")),
+                        "forInFilter" -> Some(InstancePropertyValue.String("str2")),
+                        "forGteFilter" -> Some(InstancePropertyValue.Int32(5)),
+                        "forGtFilter" -> Some(InstancePropertyValue.Int32(2)),
+                        "forLteFilter" -> Some(InstancePropertyValue.Int64(1)),
+                        "forLtFilter" -> Some(InstancePropertyValue.Int64(-1)),
+                        "forOrFilter1" -> Some(InstancePropertyValue.Float64(5.1)),
+                        "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
+                        "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now())),
+                        "forIsNullFilter" -> Some(InstancePropertyValue.Object(Json.fromJsonObject(
                           JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
-                      ))
+                      )))
                     )))
                   )
                 ),
@@ -1110,7 +1271,8 @@ class FlexibleDataModelCorePropertyRelationTest
       viewExternalId: String,
       instanceSpace: Option[String],
       df: DataFrame,
-      onConflict: String = "upsert"): Unit =
+      onConflict: String = "upsert",
+      ignoreNullFields: Boolean = true): Unit =
     df.write
       .format("cognite.spark.v1")
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -1128,6 +1290,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("onconflict", onConflict)
       .option("collectMetrics", true)
       .option("metricsPrefix", s"$modelExternalId-$modelVersion")
+      .option("ignoreNullFields", ignoreNullFields)
       .save()
 
   private def getUpsertedMetricsCountForModel(modelSpace: String, modelExternalId: String): Long =

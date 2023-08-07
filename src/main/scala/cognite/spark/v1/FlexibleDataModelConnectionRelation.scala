@@ -10,6 +10,7 @@ import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceFilterRequest, InstanceType}
 import fs2.Stream
+import io.circe.Json
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -56,7 +57,9 @@ private[spark] class FlexibleDataModelConnectionRelation(
           .flatMap { instances =>
             val instanceCreate = InstanceCreate(
               items = instances,
-              replace = Some(true)
+              replace = Some(false),
+              autoCreateStartNodes = Some(true),
+              autoCreateEndNodes = Some(true)
             )
             client.instances.createItems(instanceCreate)
           }
@@ -82,7 +85,6 @@ private[spark] class FlexibleDataModelConnectionRelation(
     } else {
       selectedColumns
     }
-
     val instanceFilters = extractFilters(filters) match {
       case Right(v) => v
       case Left(err) => throw err
@@ -107,8 +109,10 @@ private[spark] class FlexibleDataModelConnectionRelation(
   private def extractFilters(filters: Array[Filter]): Either[CdfSparkException, FilterDefinition] = {
     val edgeTypeFilter = FilterDefinition.Equals(
       property = Vector("edge", "type"),
-      value = FilterValueDefinition.StringList(
-        Vector(connectionConfig.edgeTypeSpace, connectionConfig.edgeTypeExternalId))
+      value = FilterValueDefinition.Object(
+        Json.obj(
+          "space" -> Json.fromString(connectionConfig.edgeTypeSpace),
+          "externalId" -> Json.fromString(connectionConfig.edgeTypeExternalId)))
     )
 
     if (filters.isEmpty) {

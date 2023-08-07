@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import BuildInfo.BuildInfo
+import cognite.spark.cdf_spark_datasource.BuildInfo
 
 import scala.concurrent.duration._
 
@@ -15,7 +15,7 @@ object Constants {
   val DefaultDataPointsLimit = 100000
   val DefaultSequencesLimit = 10000
   val DefaultSequencesTotalColumnsLimit = 10000
-  val DefaultPartitions = 200
+  val DefaultPartitions = 10
   val DefaultDataPointsPartitions = 20
   val DefaultParallelismPerPartition = 10
   val DefaultInitialRetryDelay: FiniteDuration = 150.millis
