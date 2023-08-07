@@ -41,7 +41,7 @@ jobs:
           TEST_CLIENT_ID_BLUEFIELD: ${{ secrets.BLUEFIELD_CLIENT_ID_2 }}
           TEST_CLIENT_SECRET_BLUEFIELD: ${{ secrets.BLUEFIELD_CLIENT_SECRET_2 }}
           TEST_AAD_TENANT_BLUEFIELD: ${{ secrets.TEST_AAD_TENANT_BLUEFIELD_2 }}
-          TEST_PROJECT: "spark-datasource-bluefield-tests"
+          TEST_PROJECT: "spark-datasource-bluefield-tests" 
           TEST_CLUSTER: "bluefield.cognitedata.com" 
         run: |
           TEST="test +Test/compile"
