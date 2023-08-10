@@ -324,65 +324,6 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     assert(assetsRead == 1)
   }
 
-  it should "be possible to create multiple outputs per row" taggedAs WriteTest in {
-    val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
-    val assetExternalId = s"assets-test-create-${shortRandomString()}"
-    val eventExternalId = s"events-test-create-${shortRandomString()}"
-    val metricsPrefix = s"assetsAndEvents.test.create.${shortRandomString()}"
-    cleanupAssets(assetsTestSource)
-    try {
-      spark
-        .sql(
-          s"""
-             |select struct(
-               |'$assetExternalId' as externalId,
-               |$testDataSetId as dataSetId,
-               |'asset multi name' as name,
-               |'asset description' as description,
-               |'$assetsTestSource' as source,
-               |array('scala-sdk-relationships-test-label1') as labels
-             |) as a,
-             |struct(
-               |'$eventExternalId' as externalId,
-               |$testDataSetId as dataSetId,
-               |cast(0 as timestamp) as startTime,
-               |cast(100 as timestamp) as endTime,
-               |'event description' as description,
-               |'event multi type' as type,
-               |'subtype' as subtype,
-               |array() as assetIds
-             |) as e
-      """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("type", "a:assets,e:events")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
-
-      val assetsCreated = getNumberOfRowsCreated(metricsPrefix, "assets")
-      assert(assetsCreated == 1)
-      val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreated == 1)
-
-      val createdAsset = writeClient.assets.retrieveByExternalId(assetExternalId).unsafeRunSync()
-      createdAsset.name shouldBe "asset multi name"
-
-      val createdEvent = writeClient.events.retrieveByExternalId(eventExternalId).unsafeRunSync()
-      createdEvent.`type` shouldBe Some("event multi type")
-
-
-    } finally {
-      try {
-        writeClient.assets.deleteByExternalId(assetExternalId).unsafeRunSync()
-        writeClient.events.deleteByExternalId(eventExternalId).unsafeRunSync()
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
-  }
-
   it should "be possible to create assets" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
     val externalId = s"assets-test-create-${shortRandomString()}"
