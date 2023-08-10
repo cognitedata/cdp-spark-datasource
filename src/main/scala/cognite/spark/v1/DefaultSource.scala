@@ -247,6 +247,26 @@ class DefaultSource
   }
 
   /**
+    * Given parameters of the form name:key -> value for multiple outputs, extract the ones specific to 'name'
+    */
+  private def extractSpecificParams(
+      name: String,
+      relationType: String,
+      parameters: Map[String, String]): CaseInsensitiveMap[String] = {
+    var newParams: Map[String, String] = Map.empty
+    val prefix = name + ':'
+    for ((k, v) <- parameters) {
+      if (!k.contains(':')) {
+        newParams += k -> v
+      } else if (k.startsWith(prefix)) {
+        newParams += k.stripPrefix(prefix) -> v
+      }
+    }
+    newParams += "type" -> relationType
+    CaseInsensitiveMap(newParams)
+  }
+
+  /**
     * Create a spark relation for writing.
     */
   override def createRelation(
@@ -292,13 +312,7 @@ class DefaultSource
             config,
             types.map {
               case (name, relationType) =>
-                val generalParams = parameters.filterKeys(k => !k.contains(':'))
-                val prefix = name + ':'
-                val specificParams = parameters.filterKeys(k => k.startsWith(prefix)).map {
-                  case (k, v) => k.stripPrefix(prefix) -> v
-                }
-                val newParams =
-                  CaseInsensitiveMap(generalParams ++ specificParams + ("type" -> relationType))
+                val newParams = extractSpecificParams(name, relationType, parameters)
                 val newConfig = parseRelationConfig(newParams, sqlContext)
                 name -> createSingleWritableRelation(
                   relationType,
