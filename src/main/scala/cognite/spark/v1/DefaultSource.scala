@@ -17,6 +17,7 @@ import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
+import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
@@ -124,7 +125,6 @@ class DefaultSource
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
 
     val config = parseRelationConfig(parameters, sqlContext)
-
     resourceType match {
       case "datapoints" =>
         new NumericDataPointsRelationV1(config)(sqlContext)
@@ -198,6 +198,74 @@ class DefaultSource
     }
   }
 
+  case class MultiSpec(types: Map[String, String])
+  object MultiSpec {
+    def unapply(input: String): Option[MultiSpec] =
+      input
+        .split(',')
+        .toVector
+        .traverse { part =>
+          part.split(':') match {
+            case Array(name, tp) => Some(name -> tp)
+            case _ => None
+          }
+        }
+        .map(_.toMap)
+        .map(MultiSpec(_))
+  }
+
+  private def createSingleWritableRelation(
+      resourceType: String,
+      config: RelationConfig,
+      parameters: Map[String, String],
+      sqlContext: SQLContext) = resourceType match {
+    case "events" =>
+      Some(new EventsRelation(config)(sqlContext))
+    case "timeseries" =>
+      Some(new TimeSeriesRelation(config)(sqlContext))
+    case "assets" =>
+      Some(new AssetsRelation(config)(sqlContext))
+    case "files" =>
+      Some(new FilesRelation(config)(sqlContext))
+    case "sequences" =>
+      Some(new SequencesRelation(config)(sqlContext))
+    case "labels" =>
+      Some(new LabelsRelation(config)(sqlContext))
+    case "sequencerows" =>
+      Some(createSequenceRows(parameters, config, sqlContext))
+    case "relationships" =>
+      Some(new RelationshipsRelation(config)(sqlContext))
+    case "datasets" =>
+      Some(new DataSetsRelation(config)(sqlContext))
+    case "datamodelinstances" =>
+      Some(createDataModelInstances(parameters, config, sqlContext))
+    case FlexibleDataModelRelationFactory.ResourceType =>
+      Some(createFlexibleDataModelRelation(parameters, config, sqlContext))
+    case "welldatalayer" =>
+      Some(createWellDataLayer(parameters, config, sqlContext))
+    case _ => None
+  }
+
+  /**
+    * Given parameters of the form name:key -> value for multiple outputs, extract the ones specific to 'name'
+    */
+  private def extractSpecificParams(
+      name: String,
+      relationType: String,
+      parameters: Map[String, String]): CaseInsensitiveMap[String] = {
+    var newParams: Map[String, String] = Map.empty
+    val prefix = name + ':'
+    for ((k, v) <- parameters) {
+      if (!k.contains(':')) {
+        newParams += k -> v
+      } else if (k.startsWith(prefix)) {
+        newParams += k.stripPrefix(prefix) -> v
+      }
+    }
+    newParams += "type" -> relationType
+    CaseInsensitiveMap(newParams)
+  }
+
   /**
     * Create a spark relation for writing.
     */
@@ -239,31 +307,24 @@ class DefaultSource
       relation
     } else {
       val relation = resourceType match {
-        case "events" =>
-          new EventsRelation(config)(sqlContext)
-        case "timeseries" =>
-          new TimeSeriesRelation(config)(sqlContext)
-        case "assets" =>
-          new AssetsRelation(config)(sqlContext)
-        case "files" =>
-          new FilesRelation(config)(sqlContext)
-        case "sequences" =>
-          new SequencesRelation(config)(sqlContext)
-        case "labels" =>
-          new LabelsRelation(config)(sqlContext)
-        case "sequencerows" =>
-          createSequenceRows(parameters, config, sqlContext)
-        case "relationships" =>
-          new RelationshipsRelation(config)(sqlContext)
-        case "datasets" =>
-          new DataSetsRelation(config)(sqlContext)
-        case "datamodelinstances" =>
-          createDataModelInstances(parameters, config, sqlContext)
-        case FlexibleDataModelRelationFactory.ResourceType =>
-          createFlexibleDataModelRelation(parameters, config, sqlContext)
-        case "welldatalayer" =>
-          createWellDataLayer(parameters, config, sqlContext)
-        case _ => sys.error(s"Resource type $resourceType does not support save()")
+        case MultiSpec(MultiSpec(types)) =>
+          new MultiRelation(
+            config,
+            types.map {
+              case (name, relationType) =>
+                val newParams = extractSpecificParams(name, relationType, parameters)
+                val newConfig = parseRelationConfig(newParams, sqlContext)
+                name -> createSingleWritableRelation(
+                  relationType,
+                  newConfig,
+                  newParams,
+                  sqlContext
+                ).getOrElse(sys.error(s"Resource type $resourceType does not support multiple outputs"))
+            }
+          )(sqlContext)
+        case _ =>
+          createSingleWritableRelation(resourceType, config, parameters, sqlContext).getOrElse(
+            sys.error(s"Resource type $resourceType does not support save()"))
       }
       val batchSizeDefault = relation match {
         case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
