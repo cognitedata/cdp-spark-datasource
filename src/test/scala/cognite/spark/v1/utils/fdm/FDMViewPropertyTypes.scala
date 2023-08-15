@@ -2,7 +2,11 @@ package cognite.spark.v1.utils.fdm
 
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewCorePropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{
+  PrimitivePropType,
+  PropertyDefaultValue,
+  PropertyType
+}
 
 object FDMViewPropertyTypes {
 

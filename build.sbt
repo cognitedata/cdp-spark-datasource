@@ -8,6 +8,7 @@ val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.3"
 val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
+val natchezVersion = "0.3.1"
 val Specs2Version = "4.6.0"
 val cogniteSdkVersion = "2.7.757"
 
@@ -17,6 +18,8 @@ val log4sVersion = "1.8.2"
 sonatypeProfileName := "com.cognite" // default is same as organization and leads to 404 on sonatypeReleaseAll
 
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
+
+addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full)
 
 ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
 
@@ -153,7 +156,12 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.log4s" %% "log4s" % log4sVersion
+      "org.log4s" %% "log4s" % log4sVersion,
+      "org.tpolecat" %% "natchez-core" % natchezVersion,
+      "org.tpolecat" %% "natchez-noop" % natchezVersion,
+      "org.tpolecat" %% "natchez-opentelemetry" % natchezVersion,
+      "io.opentelemetry" % "opentelemetry-sdk" % "1.23.0",
+      "com.lightstep.opentelemetry" % "opentelemetry-launcher" % "1.22.0"
     ),
     coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),

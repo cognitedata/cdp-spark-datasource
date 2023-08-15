@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import cats.data.Validated.{Invalid, Valid}
-import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
   getIdFromMap,
@@ -123,13 +122,13 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     extends DataPointsRelationV1[DataPointsItem](config, "datapoints")(sqlContext)
     with WritableRelation {
   import PushdownUtilities.filtersToTimestampLimits
-  override def insert(rows: Seq[Row]): IO[Unit] =
+  override def insert(rows: Seq[Row]): TracedIO[Unit] =
     throw new CdfSparkException("Insert not supported for datapoints. Use upsert instead.")
 
-  override def upsert(rows: Seq[Row]): IO[Unit] =
+  override def upsert(rows: Seq[Row]): TracedIO[Unit] =
     throw new CdfSparkException("Use insert(DataFrame) instead.")
 
-  override def update(rows: Seq[Row]): IO[Unit] =
+  override def update(rows: Seq[Row]): TracedIO[Unit] =
     throw new CdfSparkException("Update not supported for datapoints. Use upsert instead.")
 
   override def schema: StructType =
@@ -152,9 +151,9 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     new GenericRow(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
   }
 
-  override def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
+  override def insertRowIterator(rows: Iterator[Row]): TracedIO[Unit] = {
     // we basically use Stream.fromIterator instead of Seq.grouped, because it's significantly more efficient
-    val dataPoints = Stream.fromIterator[IO](
+    val dataPoints = Stream.fromIterator[TracedIO](
       rows.map(r => fromRow[InsertDataPointsItem](r)),
       chunkSize = Constants.CreateDataPointsLimit
     )

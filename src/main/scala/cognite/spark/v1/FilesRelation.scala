@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.effect.IO
+import cats.implicits._
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
@@ -26,10 +26,10 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1InsertableRelation[FilesReadSchema, Long](config, "files")
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
-  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): TracedIO[Unit] = {
     val filesUpserts = rows.map(fromRow[FilesUpsertSchema](_))
     val files = filesUpserts.map(_.transformInto[FileCreate])
-    createOrUpdateByExternalId[File, FileUpdate, FileCreate, FileCreate, Option, Files[IO]](
+    createOrUpdateByExternalId[File, FileUpdate, FileCreate, FileCreate, Option, Files[TracedIO]](
       Set.empty,
       files,
       client.files,
@@ -54,7 +54,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     )
 
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[IO]): Seq[Stream[IO, FilesReadSchema]] = {
+      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, FilesReadSchema]] = {
     val (ids, filters) = pushdownToFilters(sparkFilters, filesFilterFromMap, FilesFilter())
     executeFilter(client.files, filters, ids, config.partitions, config.limitPerPartition).map(
       _.map(
@@ -63,7 +63,7 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
           .transform))
   }
 
-  override def insert(rows: Seq[Row]): IO[Unit] = {
+  override def insert(rows: Seq[Row]): TracedIO[Unit] = {
     val filesInsertions = rows.map(fromRow[FilesInsertSchema](_))
     val files = filesInsertions.map(
       _.into[FileCreate]
@@ -71,21 +71,21 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         .transform)
     client.files
       .create(files)
-      .flatTap(_ => incMetrics(itemsCreated, files.size)) *> IO.unit
+      .flatTap(_ => incMetrics(itemsCreated, files.size)) *> TracedIO.unit
   }
 
   private def isUpdateEmpty(u: FileUpdate): Boolean = u == FileUpdate()
 
-  override def update(rows: Seq[Row]): IO[Unit] = {
+  override def update(rows: Seq[Row]): TracedIO[Unit] = {
     val fileUpdates = rows.map(r => fromRow[FilesUpsertSchema](r))
-    updateByIdOrExternalId[FilesUpsertSchema, FileUpdate, Files[IO], File](
+    updateByIdOrExternalId[FilesUpsertSchema, FileUpdate, Files[TracedIO], File](
       fileUpdates,
       client.files,
       isUpdateEmpty
     )
   }
 
-  override def delete(rows: Seq[Row]): IO[Unit] = {
+  override def delete(rows: Seq[Row]): TracedIO[Unit] = {
     val deletes = rows.map(r => fromRow[DeleteItem](r))
     val ids = deletes.map(_.id)
     client.files
@@ -93,10 +93,10 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .flatTap(_ => incMetrics(itemsDeleted, ids.length))
   }
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = {
+  override def upsert(rows: Seq[Row]): TracedIO[Unit] = {
     val files = rows.map(fromRow[FilesUpsertSchema](_))
 
-    genericUpsert[File, FilesUpsertSchema, FileCreate, FileUpdate, Files[IO]](
+    genericUpsert[File, FilesUpsertSchema, FileCreate, FileUpdate, Files[TracedIO]](
       files,
       isUpdateEmpty,
       client.files,

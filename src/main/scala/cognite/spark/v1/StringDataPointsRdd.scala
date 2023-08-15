@@ -1,6 +1,5 @@
 package cognite.spark.v1
 
-import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities.filtersToTimestampLimits
 import com.cognite.sdk.scala.common.StringDataPoint
 import com.cognite.sdk.scala.v1._
@@ -19,7 +18,7 @@ final case class StringDataPointsRdd(
     toRow: StringDataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
   import CdpConnector.ioRuntime
-  @transient lazy val client: GenericClient[IO] =
+  @transient lazy val client: GenericClient[TracedIO] =
     CdpConnector.clientFromConfig(config)
 
   override def getPartitions: Array[Partition] = {
@@ -56,26 +55,29 @@ final case class StringDataPointsRdd(
 
     new InterruptibleIterator(
       context,
-      DataPointsRelationV1
-        .getAllDataPoints[StringDataPoint](
-          queryStrings,
-          config.batchSize.getOrElse(Constants.DefaultDataPointsLimit),
-          id,
-          lowerTimeLimit,
-          upperTimeLimit.plusMillis(1),
-          config.limitPerPartition)
-        .stream
-        .map { stringDataPoint =>
-          toRow(
-            StringDataPointsItem(
-              internalId,
-              externalId,
-              stringDataPoint.timestamp,
-              stringDataPoint.value
-            ))
-        }
-        .compile
-        .to(Seq)
+      config
+        .trace("compute.iterator")(
+          DataPointsRelationV1
+            .getAllDataPoints[StringDataPoint](
+              queryStrings,
+              config.batchSize.getOrElse(Constants.DefaultDataPointsLimit),
+              id,
+              lowerTimeLimit,
+              upperTimeLimit.plusMillis(1),
+              config.limitPerPartition)
+            .stream
+            .map { stringDataPoint =>
+              toRow(
+                StringDataPointsItem(
+                  internalId,
+                  externalId,
+                  stringDataPoint.timestamp,
+                  stringDataPoint.value
+                ))
+            }
+            .compile
+            .to(Seq)
+        )
         .unsafeRunSync()
         .iterator
     )

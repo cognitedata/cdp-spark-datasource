@@ -665,7 +665,8 @@ class FlexibleDataModelCorePropertyRelationTest
       .collect()
 
     rows.isEmpty shouldBe false
-    toExternalIds(rows).toVector shouldBe Vector(s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
+    toExternalIds(rows).toVector shouldBe Vector(
+      s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
     toPropVal(rows, "stringProp1").toVector shouldBe Vector("stringProp1Val")
     toPropVal(rows, "stringProp2").toVector shouldBe Vector("stringProp2Val")
   }
@@ -719,8 +720,7 @@ class FlexibleDataModelCorePropertyRelationTest
       insertResult shouldBe Success(())
       // Now, update one of the values
       val updateDf = spark
-        .sql(
-          s"""
+        .sql(s"""
              |select
              |'${externalId}' as externalId,
              |'updatedProp1Val' as stringProp1
@@ -737,21 +737,31 @@ class FlexibleDataModelCorePropertyRelationTest
       }
       updateResult shouldBe Success(())
       // Fetch the updated instance
-      val instance = client.instances.retrieveByExternalIds(
-        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
-        sources = Some(Seq(InstanceSource(ViewReference(
-          space = spaceExternalId,
-          externalId = viewStartNodeAndEndNodesExternalId,
-          version = viewVersion
-        ))))
-      ).unsafeRunSync().items.head
-      val props = instance.properties.get.get(spaceExternalId)
+      val instance = client.instances
+        .retrieveByExternalIds(
+          items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+          sources = Some(
+            Seq(
+              InstanceSource(
+                ViewReference(
+                  space = spaceExternalId,
+                  externalId = viewStartNodeAndEndNodesExternalId,
+                  version = viewVersion
+                ))))
+        )
+        .unsafeRunSync()
+        .items
+        .head
+      val props = instance.properties.get
+        .get(spaceExternalId)
         .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
       // Check the properties
       props.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1Val"))
       props.get("stringProp2") shouldBe Some(InstancePropertyValue.String("stringProp2Val"))
     } finally {
-      val _ = client.instances.delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId))).unsafeRunSync()
+      val _ = client.instances
+        .delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId)))
+        .unsafeRunSync()
     }
   }
 
@@ -760,8 +770,7 @@ class FlexibleDataModelCorePropertyRelationTest
     try {
       // First, create a random node
       val insertDf = spark
-        .sql(
-          s"""
+        .sql(s"""
              |select
              |'${externalId}' as externalId,
              |'stringProp1Val' as stringProp1,
@@ -780,8 +789,7 @@ class FlexibleDataModelCorePropertyRelationTest
       insertResult shouldBe Success(())
       // Now, update one of the values with a null, but ignoreNullFields
       val updateDf1 = spark
-        .sql(
-          s"""
+        .sql(s"""
              |select
              |'${externalId}' as externalId,
              |'updatedProp1Val' as stringProp1,
@@ -795,21 +803,29 @@ class FlexibleDataModelCorePropertyRelationTest
           viewExternalId = viewStartNodeAndEndNodesExternalId,
           instanceSpace = Some(spaceExternalId),
           updateDf1,
-          ignoreNullFields=true
+          ignoreNullFields = true
         )
       }
       updateResult1 shouldBe Success(())
 
       // Fetch the updated instance
-      val instance1 = client.instances.retrieveByExternalIds(
-        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
-        sources = Some(Seq(InstanceSource(ViewReference(
-          space = spaceExternalId,
-          externalId = viewStartNodeAndEndNodesExternalId,
-          version = viewVersion
-        ))))
-      ).unsafeRunSync().items.head
-      val props1 = instance1.properties.get.get(spaceExternalId)
+      val instance1 = client.instances
+        .retrieveByExternalIds(
+          items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+          sources = Some(
+            Seq(
+              InstanceSource(
+                ViewReference(
+                  space = spaceExternalId,
+                  externalId = viewStartNodeAndEndNodesExternalId,
+                  version = viewVersion
+                ))))
+        )
+        .unsafeRunSync()
+        .items
+        .head
+      val props1 = instance1.properties.get
+        .get(spaceExternalId)
         .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
       // Check the properties
       props1.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1Val"))
@@ -817,8 +833,7 @@ class FlexibleDataModelCorePropertyRelationTest
 
       // Update the value with null, and don't ignoreNullFields
       val updateDf2 = spark
-        .sql(
-          s"""
+        .sql(s"""
              |select
              |'${externalId}' as externalId,
              |'updatedProp1ValAgain' as stringProp1,
@@ -837,21 +852,31 @@ class FlexibleDataModelCorePropertyRelationTest
       }
       updateResult2 shouldBe Success(())
       // Fetch the updated instance
-      val instance = client.instances.retrieveByExternalIds(
-        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
-        sources = Some(Seq(InstanceSource(ViewReference(
-          space = spaceExternalId,
-          externalId = viewStartNodeAndEndNodesExternalId,
-          version = viewVersion
-        ))))
-      ).unsafeRunSync().items.head
-      val props2 = instance.properties.get.get(spaceExternalId)
+      val instance = client.instances
+        .retrieveByExternalIds(
+          items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+          sources = Some(
+            Seq(
+              InstanceSource(
+                ViewReference(
+                  space = spaceExternalId,
+                  externalId = viewStartNodeAndEndNodesExternalId,
+                  version = viewVersion
+                ))))
+        )
+        .unsafeRunSync()
+        .items
+        .head
+      val props2 = instance.properties.get
+        .get(spaceExternalId)
         .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
       // Check the properties
       props2.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1ValAgain"))
       props2.get("stringProp2") shouldBe None
     } finally {
-      val _ = client.instances.delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId))).unsafeRunSync()
+      val _ = client.instances
+        .delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId)))
+        .unsafeRunSync()
     }
   }
 
@@ -1159,8 +1184,8 @@ class FlexibleDataModelCorePropertyRelationTest
                         "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
                         "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now())),
                         "forIsNullFilter" -> Some(InstancePropertyValue.Object(Json.fromJsonObject(
-                          JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
-                      )))
+                          JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1)))))
+                      ))
                     )))
                   )
                 ),

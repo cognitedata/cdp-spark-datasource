@@ -1,12 +1,12 @@
 package cognite.spark.v1
 
-import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.v1.{ThreeDModel, ThreeDRevision}
+import natchez.noop.NoopSpan
 import org.scalatest.{FlatSpec, ParallelTestExecution}
 
 class ThreeDModelRevisionNodesRelationTest extends FlatSpec with ParallelTestExecution with SparkTest {
-  private def getSomeModelRevision: IO[(ThreeDModel, ThreeDRevision)] = {
+  private def getSomeModelRevision: TracedIO[(ThreeDModel, ThreeDRevision)] = {
     writeClient.threeDModels.list()
       .flatMap(model =>
         writeClient.threeDRevisions(model.id).list()
@@ -20,7 +20,7 @@ class ThreeDModelRevisionNodesRelationTest extends FlatSpec with ParallelTestExe
   }
 
   "ThreeDModelRevisionNodesRelationTest" should "pass a smoke test" taggedAs WriteTest in {
-    val (model, revision) = getSomeModelRevision.unsafeRunSync()
+    val (model, revision) = getSomeModelRevision.run(NoopSpan()).unsafeRunSync()
 
     val df = spark.read
       .format(DefaultSource.sparkFormatString)
