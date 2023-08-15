@@ -66,15 +66,17 @@ object CdpConnector {
         metricsPrefix =>
           new MetricsBackend[IO, Any](
             sttpBackend,
-            MetricsSource.getOrCreateCounter(metricsPrefix, "requests"),
-            status =>
-              if (status.code >= 400) {
-                Some(
-                  MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.${status.code}.response"))
-              } else {
-                None
-            },
-            Some(MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.response.failure"))
+            maybeStatus => {
+              IO.delay(MetricsSource.getOrCreateCounter(metricsPrefix, "requests").inc()) *>
+                (maybeStatus match {
+                  case None => IO.delay(
+                    MetricsSource.getOrCreateCounter(metricsPrefix, "requests.response.failure").inc()
+                  )
+                  case Some(status) if status.code >= 400 => IO.delay(
+                    MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.${status.code}.response").inc()
+                  )
+              })
+            }
         ))
     // this backend throttles when rate limiting from the serivce is encountered
     val makeQueueOf1 = for {
@@ -97,7 +99,11 @@ object CdpConnector {
       metricsPrefix =>
         new MetricsBackend[IO, Any](
           limitedBackend,
-          MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries")))
+          _ => IO.delay(
+            MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries").inc()
+          )
+        )
+    )
   }
 
   def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
