@@ -8,25 +8,37 @@ import sttp.client3.{Request, Response, SttpBackend}
 import sttp.model.StatusCode
 import sttp.monad.MonadError
 
+final case class RequestResponseInfo(
+    sttpRequestTags: Map[String, Any],
+    status: Option[StatusCode]
+) {}
+
+object RequestResponseInfo {
+  def create[T, R](request: Request[T, R], status: Option[StatusCode]): RequestResponseInfo =
+    RequestResponseInfo(request.tags, status)
+}
+
 class MetricsBackend[F[_]: Sync, +S](
     delegate: SttpBackend[F, S],
-    callback: Option[StatusCode] => F[Unit]
+    callback: RequestResponseInfo => F[Unit]
 ) extends SttpBackend[F, S] {
 
   override def send[T, R >: S with Effect[F]](
       request: Request[T, R]
-  ): F[Response[T]] =
+  ): F[Response[T]] = {
+    def cb = (status: Option[StatusCode]) => callback(RequestResponseInfo.create(request, status))
     delegate
       .send(request)
       .onError {
-        case cdpError: CdpApiException => callback(Some(StatusCode(cdpError.code)))
-        case SdkException(_, _, _, Some(code)) => callback(Some(StatusCode(code)))
+        case cdpError: CdpApiException => cb(Some(StatusCode(cdpError.code)))
+        case SdkException(_, _, _, Some(code)) => cb(Some(StatusCode(code)))
         case _ =>
-          callback(None)
+          cb(None)
       }
       .flatTap { response =>
-        callback(Some(response.code))
+        cb(Some(response.code))
       }
+  }
 
   override def close(): F[Unit] = delegate.close()
   override def responseMonad: MonadError[F] = delegate.responseMonad
