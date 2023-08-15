@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cognite.spark.compiletime.macros.SparkSchemaHelper
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.EventCreate

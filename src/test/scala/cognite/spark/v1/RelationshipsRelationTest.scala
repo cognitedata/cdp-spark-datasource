@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cognite.spark.v1.CdpConnector.ioRuntime
-import cognite.spark.v1.SparkSchemaHelper.fromRow
+import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.{CogniteExternalId, RelationshipCreate}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.{DataFrame, Row}

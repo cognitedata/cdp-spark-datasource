@@ -3,7 +3,6 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.effect.unsafe.{IORuntime, IORuntimeConfig}
-import com.cognite.sdk.scala.common.Items
 import com.cognite.sdk.scala.sttp.{
   BackpressureThrottleBackend,
   GzipBackend,
@@ -22,11 +21,6 @@ import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-
-final case class Data[A](data: A)
-final case class CdpApiErrorPayload(code: Int, message: String)
-final case class Error[A](error: A)
-final case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
 
 object CdpConnector {
   @transient private val logger = getLogger
@@ -107,6 +101,7 @@ object CdpConnector {
   }
 
   def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
+    import natchez.Trace.Implicits.noop // TODO: add tracing
     val metricsPrefix = if (config.collectMetrics) {
       Some(config.metricsPrefix)
     } else {
@@ -134,7 +129,4 @@ object CdpConnector {
       cdfVersion = cdfVersion
     )
   }
-
-  type DataItems[A] = Data[Items[A]]
-  type CdpApiError = Error[CdpApiErrorPayload]
 }
