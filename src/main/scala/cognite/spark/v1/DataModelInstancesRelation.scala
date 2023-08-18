@@ -114,7 +114,7 @@ class DataModelInstanceRelation(
       }
     }
 
-  def insert(rows: Seq[Row]): IO[Unit] =
+  override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException(
       "Create (abort) is not supported for data model instances. Use upsert instead.")
 
@@ -296,7 +296,7 @@ class DataModelInstanceRelation(
     }
   }
 
-  def update(rows: Seq[Row]): IO[Unit] =
+  override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
 
   def getIndexedPropertyList(rSchema: StructType): Array[(Int, String, DataModelPropertyDefinition)] =
