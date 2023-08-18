@@ -20,7 +20,6 @@ import io.circe.parser.parse
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
-import sttp.client3.SttpBackend
 import sttp.model.Uri
 
 class DefaultSource
@@ -350,8 +349,7 @@ object DefaultSource {
         s"`$onConflictName` not a valid subtrees option. Valid options are: $validOptions"))
   }
 
-  private[v1] def parseAuth(parameters: Map[String, String])(
-      implicit backend: SttpBackend[IO, Any]): Option[CdfSparkAuth] = {
+  private[v1] def parseAuth(parameters: Map[String, String]): Option[CdfSparkAuth] = {
     val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
     val scopes: List[String] = parameters.get("scopes") match {
@@ -403,10 +401,6 @@ object DefaultSource {
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
-
-    //This backend is used only for auth, so we should not retry as much as maxRetries config
-    implicit val authBackend: SttpBackend[IO, Any] =
-      CdpConnector.retryingSttpBackend(5, maxRetryDelaySeconds)
 
     val auth = parseAuth(parameters) match {
       case Some(x) => x
