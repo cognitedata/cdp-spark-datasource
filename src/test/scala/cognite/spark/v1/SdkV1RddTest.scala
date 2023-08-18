@@ -10,6 +10,7 @@ import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 import cognite.spark.compiletime.macros.SparkSchemaHelper.asRow
 import sttp.client3._
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 import scala.concurrent.duration._
 
 class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
@@ -112,5 +113,41 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
 
     assert(rdd.partitions.length == 1)
     assert(rdd.compute(CdfPartition(0), TaskContext.get()).size == nStreams * nItemsPerStream * 3) // * 3 because we duplicate the allStreams 3 times
+  }
+
+  it should "hopefully be serializable" in {
+    val nStreams = 50
+    val nItemsPerStream = 1000
+    val rdd = new SdkV1Rdd[Event, Long](
+      spark.sparkContext,
+      DefaultSource
+        .parseRelationConfig(Map(
+          "tokenUri" -> OIDCWrite.tokenUri,
+          "clientId" -> OIDCWrite.clientId,
+          "clientSecret" -> OIDCWrite.clientSecret,
+          "project" -> OIDCWrite.project,
+          "scopes" -> OIDCWrite.scopes
+        ), spark.sqlContext)
+        .copy(parallelismPerPartition = nStreams * 3),
+      (e: Event, _: Option[Int]) => asRow(e),
+      (e: Event) => e.id,
+      (_: GenericClient[IO], _: Option[Int], _: Int) => {
+        val allStreams = generateStreams(nStreams, nItemsPerStream)
+        allStreams ++ allStreams ++ allStreams
+      },
+      deduplicateRows = false
+    )
+    val bytes = {
+      val bs = new ByteArrayOutputStream();
+      val os = new ObjectOutputStream(bs)
+      os.writeObject(rdd)
+      os.close()
+      bs.toByteArray
+    }
+    val rdd2 = new ObjectInputStream(new ByteArrayInputStream(bytes)).readObject
+      .asInstanceOf[SdkV1Rdd[Event, Long]]
+    assert(rdd.config.equals(rdd2.config))
+    assert(rdd.deduplicateRows.equals(rdd2.deduplicateRows))
+    assert(rdd.partitions.sameElements(rdd2.partitions))
   }
 }
