@@ -29,7 +29,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .option("metricsPrefix", metricsPrefix)
       .load()
 
-  val externalIdPrefix = s"sparktest-${shortRandomString()}-"
+  val externalIdPrefix = s"sparktest-${shortRandomString()}"
 
   private val assetExtId1 = s"$externalIdPrefix-asset1"
   private val assetExtId2 = s"$externalIdPrefix-asset2"
