@@ -103,10 +103,12 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
   } yield ()
 
   private def deleteResources(): IO[Unit] = for {
-    _ <- writeClient.relationships.deleteByExternalIds(relationshipsToCreate.map(r => r.externalId))
+    // deleted by a test for deletion
+    //_ <- writeClient.relationships.deleteByExternalIds(relationshipsToCreate.map(r => r.externalId))
     _ <- writeClient.events.deleteByExternalId(eventExtId1)
     _ <- writeClient.assets.deleteByExternalIds(Seq(assetExtId1, assetExtId2))
     _ <- writeClient.labels.deleteByExternalIds(labelList.map(l => l.externalId))
+    // datasets are not deletable
   } yield ()
 
   it should "be able to read a relationship" taggedAs ReadTest in {
