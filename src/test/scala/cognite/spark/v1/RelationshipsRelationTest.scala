@@ -34,7 +34,8 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
   private val assetExtId1 = s"$externalIdPrefix-asset1"
   private val assetExtId2 = s"$externalIdPrefix-asset2"
   private val eventExtId1 = s"$externalIdPrefix-event1"
-  private val labelList = Seq(CogniteExternalId(s"$externalIdPrefix-label"))
+  private val labelExtId1 = s"$externalIdPrefix-label"
+  private val labelList = Seq(CogniteExternalId(labelExtId1))
   private var dataSetId = -1L
 
   override def beforeAll(): Unit = {
@@ -390,12 +391,12 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
   it should "handle pushdown filters on labels" taggedAs (ReadTest) in {
     val countLabelsEqual = spark
       .sql(s"""select * from destinationRelationship
-         |where labels = array('scala-sdk-relationships-test-label1') and dataSetId = ${dataSetId}""".stripMargin)
+         |where labels = array('$labelExtId1') and dataSetId = ${dataSetId}""".stripMargin)
       .count()
     assert(countLabelsEqual == 2)
 
     val countLabelsIn = spark.sql(s"""select * from destinationRelationship
-         |where labels in(array('scala-sdk-relationships-test-label1'), NULL, array('madeUpLabel', 'someMore'))
+         |where labels in(array('$labelExtId1'), NULL, array('madeUpLabel', 'someMore'))
          | and dataSetId = ${dataSetId}""".stripMargin).count()
     assert(countLabelsIn == 2)
 
@@ -406,7 +407,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
 
   it should "handle and, or and in() in one query" taggedAs (ReadTest) in {
     val countRows = spark.sql(s"""select * from destinationRelationship
-         |where (sourceType = 'asset' or labels in(array('scala-sdk-relationships-test-label1'), NULL))
+         |where (sourceType = 'asset' or labels in(array('$labelExtId1'), NULL))
          | and dataSetId = ${dataSetId}""".stripMargin).count()
     assert(countRows == 4)
 
