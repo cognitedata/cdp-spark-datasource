@@ -8,6 +8,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 
+import java.io.{IOException, ObjectInputStream, ObjectOutputStream}
 import java.util.concurrent.{ArrayBlockingQueue, ConcurrentHashMap}
 
 final case class SdkV1Rdd[A, I](
@@ -23,6 +24,14 @@ final case class SdkV1Rdd[A, I](
   type EitherQueue = ArrayBlockingQueue[Either[Throwable, Chunk[A]]]
 
   @transient lazy val client: GenericClient[IO] = CdpConnector.clientFromConfig(config)
+
+  @throws(classOf[IOException])
+  private def writeObject(o: ObjectOutputStream): Unit =
+    throw new RuntimeException(s"rdd.writeObject called${o.hashCode()}")
+
+  @throws(classOf[IOException])
+  private def readObject(i: ObjectInputStream): Unit =
+    throw new RuntimeException(s"rdd.readObject called${i.hashCode()}")
 
   override def getPartitions: Array[Partition] = {
     val numberOfPartitions =
