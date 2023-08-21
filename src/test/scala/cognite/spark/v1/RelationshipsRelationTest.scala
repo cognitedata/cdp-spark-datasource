@@ -1,15 +1,17 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
-import com.cognite.sdk.scala.v1.{CogniteExternalId, RelationshipCreate}
+import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId, DataSetCreate, EventCreate, LabelCreate, RelationshipCreate}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.{DataFrame, Row}
-import org.scalatest.{FlatSpec, Inspectors, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Inspectors, Matchers}
 
 import java.time.Instant
 
-class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest with Inspectors {
+class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest with Inspectors
+  with BeforeAndAfterAll {
 
   val destinationDf: DataFrame = spark.read
     .format("cognite.spark.v1")
@@ -27,62 +29,84 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .option("metricsPrefix", metricsPrefix)
       .load()
 
-  val labelList = Seq(CogniteExternalId(externalId =
-    s"sparktest-label-${shortRandomString()}"))
-  val dataSetId = 86163806167772L
-  val assetExtId1 = s"sparktest-asset-${shortRandomString()}"
-  val assetExtId2 = s"sparktest-event-${shortRandomString()}"
-  val eventExtId1 = s"sparktest-event-${shortRandomString()}"
-  val externalIdPrefix = s"sparktest-relationship-b-${shortRandomString()}"
+  val externalIdPrefix = s"sparktest-${shortRandomString()}-"
 
-  def createResources(externalIdPrefix: String): Unit = {
-    writeClient.relationships
-      .create(
-        Seq(
-          RelationshipCreate(
-            externalId = s"${externalIdPrefix}-1",
-            sourceExternalId = assetExtId1,
-            sourceType = "asset",
-            targetExternalId = assetExtId2,
-            targetType = "asset",
-            confidence = Some(0.3),
-            startTime = Some(Instant.ofEpochMilli(1601565769000L)),
-            endTime = Some(Instant.ofEpochMilli(1603207369000L)),
-            dataSetId = Some(dataSetId)
-          ),
-          RelationshipCreate(
-            externalId = s"${externalIdPrefix}-2",
-            sourceExternalId = assetExtId2,
-            sourceType = "asset",
-            targetExternalId = assetExtId1,
-            targetType = "asset",
-            confidence = Some(0.7),
-            dataSetId = Some(dataSetId)
-          ),
-          RelationshipCreate(
-            externalId = s"${externalIdPrefix}-3",
-            sourceExternalId = assetExtId1,
-            sourceType = "asset",
-            targetExternalId = assetExtId2,
-            targetType = "asset",
-            labels = Some(labelList),
-            dataSetId = Some(dataSetId)
-          ),
-          RelationshipCreate(
-            externalId = s"${externalIdPrefix}-4",
-            sourceExternalId = eventExtId1,
-            sourceType = "event",
-            targetExternalId = assetExtId2,
-            targetType = "asset",
-            startTime = Some(Instant.ofEpochMilli(1604244169000L)),
-            labels = Some(labelList),
-            dataSetId = Some(dataSetId)
-          )
-        )
-      )
-      .unsafeRunSync()
-    ()
+  private val assetExtId1 = s"$externalIdPrefix-asset1"
+  private val assetExtId2 = s"$externalIdPrefix-asset2"
+  private val eventExtId1 = s"$externalIdPrefix-event1"
+  private val labelList = Seq(CogniteExternalId(s"$externalIdPrefix-label"))
+  private var dataSetId = -1L
+
+  override def beforeAll(): Unit = {
+    createResources().unsafeRunSync()
   }
+
+  override def afterAll(): Unit = {
+    deleteResources().unsafeRunSync()
+  }
+
+  private def relationshipsToCreate =
+    Seq(
+      RelationshipCreate(
+        externalId = s"${externalIdPrefix}-1",
+        sourceExternalId = assetExtId1,
+        sourceType = "asset",
+        targetExternalId = assetExtId2,
+        targetType = "asset",
+        confidence = Some(0.3),
+        startTime = Some(Instant.ofEpochMilli(1601565769000L)),
+        endTime = Some(Instant.ofEpochMilli(1603207369000L)),
+        dataSetId = Some(dataSetId)
+      ),
+      RelationshipCreate(
+        externalId = s"${externalIdPrefix}-2",
+        sourceExternalId = assetExtId2,
+        sourceType = "asset",
+        targetExternalId = assetExtId1,
+        targetType = "asset",
+        confidence = Some(0.7),
+        dataSetId = Some(dataSetId)
+      ),
+      RelationshipCreate(
+        externalId = s"${externalIdPrefix}-3",
+        sourceExternalId = assetExtId1,
+        sourceType = "asset",
+        targetExternalId = assetExtId2,
+        targetType = "asset",
+        labels = Some(labelList),
+        dataSetId = Some(dataSetId)
+      ),
+      RelationshipCreate(
+        externalId = s"${externalIdPrefix}-4",
+        sourceExternalId = eventExtId1,
+        sourceType = "event",
+        targetExternalId = assetExtId2,
+        targetType = "asset",
+        startTime = Some(Instant.ofEpochMilli(1604244169000L)),
+        labels = Some(labelList),
+        dataSetId = Some(dataSetId)
+      )
+    )
+
+  private def createResources(): IO[Unit] = for {
+    dataset <- writeClient.dataSets.create(Seq(DataSetCreate(writeProtected = false, name = Some("dataset"))))
+    _ = {this.dataSetId = dataset.head.id}
+    _ <- writeClient.labels.create(labelList.map(s => LabelCreate(name = "a label",
+      externalId = s.externalId)))
+    _ <- writeClient.assets.create(Seq(
+      AssetCreate("asset1", externalId = Some(assetExtId1)),
+      AssetCreate("asset2", externalId = Some(assetExtId2)),
+    ))
+    _ <- writeClient.events.create(Seq(EventCreate(externalId = Some(eventExtId1))))
+    _ <- writeClient.relationships.create(relationshipsToCreate)
+  } yield ()
+
+  private def deleteResources(): IO[Unit] = for {
+    _ <- writeClient.relationships.deleteByExternalIds(relationshipsToCreate.map(r => r.externalId))
+    _ <- writeClient.events.deleteByExternalId(eventExtId1)
+    _ <- writeClient.assets.deleteByExternalIds(Seq(assetExtId1, assetExtId2))
+    _ <- writeClient.labels.deleteByExternalIds(labelList.map(l => l.externalId))
+  } yield ()
 
   it should "be able to read a relationship" taggedAs ReadTest in {
     val externalId = s"sparktest-relationship-${shortRandomString()}"
@@ -150,10 +174,6 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
 
     assert(rows.length == 1)
     writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
-  }
-
-  it should "create some relationships up before filter tests" taggedAs ReadTest in {
-    createResources(externalIdPrefix)
   }
 
   it should "be able to update a relationship" taggedAs ReadTest in forAll(updateAndUpsert) {
