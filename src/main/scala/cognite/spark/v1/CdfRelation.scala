@@ -8,9 +8,10 @@ import io.scalaland.chimney.Transformer
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources.BaseRelation
 
-abstract class CdfRelation(config: RelationConfig, shortName: String)
+abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
     extends BaseRelation
     with Serializable {
+  protected val shortName: String = shortNameStr
   @transient lazy protected val itemsRead: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
   @transient lazy protected val itemsCreated: Counter =
