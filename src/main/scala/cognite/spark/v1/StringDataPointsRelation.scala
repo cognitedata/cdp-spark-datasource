@@ -43,7 +43,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update not supported for stringdatapoints. Please use upsert instead.")
 
-  def toRow(a: StringDataPointsItem): Row = asRow(a)
+  override def toRow(a: StringDataPointsItem): Row = asRow(a)
 
   override def schema: StructType =
     StructType(
@@ -54,7 +54,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
         StructField("value", StringType, nullable = false)
       ))
 
-  def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
+  override def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
     // we basically use Stream.fromIterator instead of Seq.grouped, because it's significantly more efficient
     val dataPoints = Stream.fromIterator[IO](
       rows.map(r => fromRow[StringDataPointsInsertItem](r)),
