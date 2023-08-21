@@ -28,7 +28,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .load()
 
   val labelList = Seq(CogniteExternalId(externalId =
-    s"sparktest-relationship-a-${shortRandomString()}"))
+    s"sparktest-label-${shortRandomString()}"))
   val dataSetId = 86163806167772L
   val assetExtId1 = s"sparktest-asset-${shortRandomString()}"
   val assetExtId2 = s"sparktest-event-${shortRandomString()}"
