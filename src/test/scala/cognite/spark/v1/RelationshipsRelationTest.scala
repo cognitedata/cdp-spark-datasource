@@ -27,11 +27,11 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .option("metricsPrefix", metricsPrefix)
       .load()
 
-  val labelList = Seq(CogniteExternalId(externalId = "scala-sdk-relationships-test-label1"))
+  val labelList = Seq(CogniteExternalId(externalId = s"sparktest-relatnioship-${shortRandomString()}"))
   val dataSetId = 86163806167772L
-  val assetExtId1 = "scala-sdk-relationships-test-asset1"
-  val assetExtId2 = "scala-sdk-relationships-test-asset2"
-  val eventExtId1 = "scala-sdk-relationships-test-event2"
+  val assetExtId1 = s"sparktest-asset-${shortRandomString()}"
+  val assetExtId2 = s"sparktest-event-${shortRandomString()}"
+  val eventExtId1 = s"sparktest-event-${shortRandomString()}"
   val externalIdPrefix = s"sparktest-relationship-${shortRandomString()}"
 
   def createResources(externalIdPrefix: String): Unit = {
