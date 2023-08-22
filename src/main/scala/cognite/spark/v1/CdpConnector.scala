@@ -16,6 +16,7 @@ import org.log4s._
 import sttp.client3.SttpBackend
 import sttp.client3.asynchttpclient.SttpClientBackendFactory
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import sttp.model.StatusCode
 
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.Executors
@@ -55,6 +56,30 @@ object CdpConnector {
   private val sttpBackend: SttpBackend[IO, Any] =
     new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
+  private def incMetrics(
+      metricsPrefix: String,
+      namePrefix: String,
+      maybeStatus: Option[StatusCode]): IO[Unit] =
+    IO.delay(MetricsSource.getOrCreateCounter(metricsPrefix, s"${namePrefix}requests").inc()) *>
+      (maybeStatus match {
+        case None =>
+          IO.delay(
+            MetricsSource
+              .getOrCreateCounter(metricsPrefix, s"${namePrefix}requests.response.failure")
+              .inc()
+          )
+        case Some(status) if status.code >= 400 =>
+          IO.delay(
+            MetricsSource
+              .getOrCreateCounter(
+                metricsPrefix,
+                s"${namePrefix}requests.${status.code}" +
+                  s".response")
+              .inc()
+          )
+        case _ => IO.unit
+      })
+
   def retryingSttpBackend(
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
@@ -65,16 +90,14 @@ object CdpConnector {
       metricsPrefix.fold(sttpBackend)(
         metricsPrefix =>
           new MetricsBackend[IO, Any](
-            sttpBackend,
-            MetricsSource.getOrCreateCounter(metricsPrefix, "requests"),
-            status =>
-              if (status.code >= 400) {
-                Some(
-                  MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.${status.code}.response"))
-              } else {
-                None
-            },
-            Some(MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.response.failure"))
+            sttpBackend, {
+              case RequestResponseInfo(tags, maybeStatus) =>
+                incMetrics(metricsPrefix, "", maybeStatus) *>
+                  tags
+                    .get(GenericClient.RESOURCE_TYPE_TAG)
+                    .map(service => incMetrics(metricsPrefix, service.toString, maybeStatus))
+                    .getOrElse(IO.unit)
+            }
         ))
     // this backend throttles when rate limiting from the serivce is encountered
     val makeQueueOf1 = for {
@@ -97,7 +120,12 @@ object CdpConnector {
       metricsPrefix =>
         new MetricsBackend[IO, Any](
           limitedBackend,
-          MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries")))
+          _ =>
+            IO.delay(
+              MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries").inc()
+          )
+      )
+    )
   }
 
   def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
