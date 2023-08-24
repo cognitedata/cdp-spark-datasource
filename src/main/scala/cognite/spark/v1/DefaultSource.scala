@@ -189,7 +189,7 @@ class DefaultSource
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
-        createDataModelInstances(parameters, config, sqlContext)
+        createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
       case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
@@ -258,7 +258,7 @@ class DefaultSource
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
-          createDataModelInstances(parameters, config, sqlContext)
+          createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
         case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
