@@ -53,6 +53,7 @@ class DefaultSource
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
   }
 
+  @deprecated
   private def createDataModelInstances(
       parameters: Map[String, String],
       config: RelationConfig,
