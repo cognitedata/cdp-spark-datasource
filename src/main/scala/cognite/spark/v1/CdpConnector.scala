@@ -95,7 +95,7 @@ object CdpConnector {
                 incMetrics(metricsPrefix, "", maybeStatus) *>
                   tags
                     .get(GenericClient.RESOURCE_TYPE_TAG)
-                    .map(service => incMetrics(metricsPrefix, service.toString, maybeStatus))
+                    .map(service => incMetrics(metricsPrefix, s"${service.toString}.", maybeStatus))
                     .getOrElse(IO.unit)
             }
         ))
