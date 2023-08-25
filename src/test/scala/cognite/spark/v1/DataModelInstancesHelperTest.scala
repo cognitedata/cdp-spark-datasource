@@ -5,6 +5,7 @@ import com.cognite.sdk.scala.v1.DirectRelationIdentifier
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
 
+@deprecated
 class DataModelInstancesHelperTest extends FlatSpec with Matchers {
   it should "use first colon as the separator for spaceExternalId and externalId when get Direct Relation Identifier" in {
     val externalId = "instance-1"
