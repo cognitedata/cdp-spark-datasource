@@ -53,7 +53,7 @@ class DefaultSource
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
   }
 
-  @deprecated
+  @deprecated("message", since = "0")
   private def createDataModelInstances(
       parameters: Map[String, String],
       config: RelationConfig,

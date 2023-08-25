@@ -30,7 +30,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import scala.annotation.nowarn
 
-@deprecated
+@deprecated("message", since = "0")
 class DataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
@@ -373,7 +373,7 @@ class DataModelInstanceRelation(
   }
 }
 
-@deprecated
+@deprecated("message", since = "0")
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
-@deprecated
+@deprecated("message", since = "0")
 final case class DataModelInstanceDeleteSchema(spaceExternalId: Option[String], externalId: String)

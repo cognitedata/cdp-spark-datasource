@@ -14,7 +14,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{DataType, DataTypes, StructType}
 
 // scalastyle:off cyclomatic.complexity
-@deprecated
+@deprecated("message", since = "0")
 object DataModelInstancesHelper {
   private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
 
