@@ -53,6 +53,7 @@ class DefaultSource
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
   }
 
+  @deprecated("message", since = "0")
   private def createDataModelInstances(
       parameters: Map[String, String],
       config: RelationConfig,
@@ -188,7 +189,7 @@ class DefaultSource
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
-        createDataModelInstances(parameters, config, sqlContext)
+        createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
       case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
@@ -257,7 +258,7 @@ class DefaultSource
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
-          createDataModelInstances(parameters, config, sqlContext)
+          createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
         case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
