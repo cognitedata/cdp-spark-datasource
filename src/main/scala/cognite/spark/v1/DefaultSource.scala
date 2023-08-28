@@ -277,17 +277,17 @@ class DefaultSource
       // And we will have to limit parallelism on each partition to low number, so the operation could
       // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
       // If the number of partitions is reasonable, we avoid the data shuffling
-      val (dataRepartitioned, numberOfPartitions) =
+      val dataRepartitioned =
         if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-          (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
+          data.repartition(idealNumberOfPartitions)
         } else {
-          (data, originalNumberOfPartitions)
+          data
         }
 
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector.ioRuntime
 
-        val maxParallelism = Math.max(1, config.partitions / numberOfPartitions)
+        val maxParallelism = config.parallelismPerPartition
         val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
         val operation: Seq[Row] => IO[Unit] = config.onConflict match {
