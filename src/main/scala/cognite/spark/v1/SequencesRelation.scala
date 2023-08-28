@@ -23,12 +23,10 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, SequenceReadSchema]] =
+      client: GenericClient[IO]): Seq[Stream[IO, SequenceReadSchema]] =
     // TODO: filters
     client.sequences
-      .listPartitions(numPartitions)
+      .listPartitions(config.partitions)
       .map(_.map(_.into[SequenceReadSchema].withFieldComputed(_.columns, _.columns.toList).transform))
 
   /*

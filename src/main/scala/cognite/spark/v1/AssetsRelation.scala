@@ -24,12 +24,10 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
 
   Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, AssetsReadSchema]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, AssetsReadSchema]] = {
     val (ids, filters) =
       pushdownToFilters(sparkFilters, assetsFilterFromMap, AssetsFilter(assetSubtreeIds = subtreeIds))
-    executeFilter(client.assets, filters, ids, numPartitions, limit)
+    executeFilter(client.assets, filters, ids, config.partitions, config.limitPerPartition)
       .map(
         _.map(
           _.into[AssetsReadSchema]

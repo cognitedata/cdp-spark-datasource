@@ -72,9 +72,8 @@ class RawTableRelation(
   }
 
   private def getStreams(filter: RawRowFilter, cursors: Vector[String])(
-      client: GenericClient[IO],
       limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, RawRow]] = {
+      numPartitions: Int)(client: GenericClient[IO]): Seq[Stream[IO, RawRow]] = {
     assert(numPartitions == cursors.length)
     val rawClient = client.rawRows(database, table)
     cursors.map(rawClient.filterOnePartition(filter, _, limit))
@@ -121,11 +120,11 @@ class RawTableRelation(
     val configWithLimit =
       config.copy(limitPerPartition = limit, partitions = numPartitions.getOrElse(config.partitions))
     @transient lazy val rowConverter = getRowConverter(schema)
-    val streams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, RawRow]] = {
+    val streams: GenericClient[IO] => Seq[Stream[IO, RawRow]] = {
       requestedKeys match {
         // Request individual keys from CDF, unless there are too many, as each key requires a request.
         case Some(keys) if keys.size < MaxKeysAllowedForFiltering =>
-          (client: GenericClient[IO], _: Option[Int], _: Int) =>
+          client: GenericClient[IO] =>
             Seq(getStreamByKeys(client, keys))
         case _ =>
           val partitionCursors =
@@ -135,7 +134,9 @@ class RawTableRelation(
               .getPartitionCursors(filter, configWithLimit.partitions)
               .unsafeRunSync()
               .toVector
-          getStreams(filter, partitionCursors)
+          getStreams(filter, partitionCursors)(
+            configWithLimit.limitPerPartition,
+            configWithLimit.partitions)
       }
     }
 

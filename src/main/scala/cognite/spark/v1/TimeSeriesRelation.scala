@@ -72,11 +72,9 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: TimeSeries): Long = a.id
 
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, TimeSeries]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, TimeSeries]] = {
     val (ids, filters) = pushdownToFilters(sparkFilters, timeSeriesFilterFromMap, TimeSeriesFilter())
-    executeFilter(client.timeSeries, filters, ids, numPartitions, limit)
+    executeFilter(client.timeSeries, filters, ids, config.partitions, config.limitPerPartition)
   }
 
   def timeSeriesFilterFromMap(m: Map[String, String]): TimeSeriesFilter =

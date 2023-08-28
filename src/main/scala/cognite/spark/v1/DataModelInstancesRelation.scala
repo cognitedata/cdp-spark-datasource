@@ -231,9 +231,7 @@ class DataModelInstanceRelation(
   // scalastyle:on method.length cyclomatic.complexity
 
   def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      @nowarn client: GenericClient[IO],
-      limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedDataModelInstance]] = {
+      @nowarn client: GenericClient[IO]): Seq[Stream[IO, ProjectedDataModelInstance]] = {
     val selectedPropsArray: Array[String] = if (selectedColumns.isEmpty) {
       schema.fields.map(_.name)
     } else {
@@ -258,19 +256,19 @@ class DataModelInstanceRelation(
       spaceExternalId = instanceSpaceExternalIdFilter,
       filter = filter,
       sort = None,
-      limit = limit,
+      limit = config.limitPerPartition,
       cursor = None
     )
 
     if (modelType == NodeType) {
       Seq(
         alphaClient.nodes
-          .queryStream(dmiQuery, limit)
+          .queryStream(dmiQuery, config.limitPerPartition)
           .map(r => toProjectedInstance(r, selectedPropsArray)))
     } else {
       Seq(
         alphaClient.edges
-          .queryStream(dmiQuery, limit)
+          .queryStream(dmiQuery, config.limitPerPartition)
           .map(r => toProjectedInstance(r, selectedPropsArray)))
     }
   }

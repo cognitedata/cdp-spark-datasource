@@ -17,7 +17,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
 
     val errorMessage = "Some exception"
 
-    val getStreams = (_: GenericClient[IO], _: Option[Int], _: Int) =>
+    val getStreams = (_: GenericClient[IO]) =>
       Seq(Stream.eval(IO.raiseError(com.cognite.sdk.scala.common.CdpApiException(
         uri"https://api.cognitedata.com/v1/",
         400,
@@ -76,7 +76,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
-      (_: GenericClient[IO], _: Option[Int], _: Int) => {
+      (_: GenericClient[IO]) => {
         val allStreams = generateStreams(nStreams, nItemsPerStream)
         // Duplicates should be filtered out, so appending streams shouldn't make any difference.
         allStreams ++ allStreams ++ allStreams
@@ -103,7 +103,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
-      (_: GenericClient[IO], _: Option[Int], _: Int) => {
+      (_: GenericClient[IO]) => {
         val allStreams = generateStreams(nStreams, nItemsPerStream)
         allStreams ++ allStreams ++ allStreams
       },

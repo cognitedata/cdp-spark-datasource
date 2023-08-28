@@ -21,9 +21,7 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: Label): String = a.externalId
 
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[fs2.Stream[IO, Label]] =
+      client: GenericClient[IO]): Seq[fs2.Stream[IO, Label]] =
     Seq(client.labels.filter(LabelsFilter()))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

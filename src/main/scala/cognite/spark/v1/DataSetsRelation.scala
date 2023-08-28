@@ -26,11 +26,9 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: DataSet): String = a.id.toString
 
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[fs2.Stream[IO, DataSet]] = {
+      client: GenericClient[IO]): Seq[fs2.Stream[IO, DataSet]] = {
     val (ids, filters) = pushdownToFilters(sparkFilters, dataSetFilterFromMap, DataSetFilter())
-    Seq(executeFilterOnePartition(client.dataSets, filters, ids, limit))
+    Seq(executeFilterOnePartition(client.dataSets, filters, ids, config.limitPerPartition))
   }
 
   private def dataSetFilterFromMap(m: Map[String, String]) =

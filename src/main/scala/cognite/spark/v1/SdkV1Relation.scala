@@ -30,10 +30,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] =
     sys.error(s"Resource type $shortName does not support writing.")
 
-  def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, A]]
+  def getStreams(filters: Array[Filter])(client: GenericClient[IO]): Seq[Stream[IO, A]]
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
