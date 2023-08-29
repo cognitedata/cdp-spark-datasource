@@ -185,7 +185,7 @@ trait SparkTest {
     val randomDelayScale = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
     val nextDelay = Random.nextInt(randomDelayScale.toInt).millis + exponentialDelay
     ioa.handleErrorWith {
-      case exception @ (_:RetryException | _: TimeoutException | _: IOException) =>
+      case exception @ (_: RetryException | _: TimeoutException | _: IOException) =>
         logger.warn(exception)("failed a request attempt")
         if (maxRetries > 0) {
           IO.sleep(initialDelay) >> retryWithBackoff(ioa, nextDelay.min(maxDelay), maxRetries - 1)
