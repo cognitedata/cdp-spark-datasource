@@ -28,7 +28,7 @@ class DataPointsRelationTest
   // VAL_23-TT-92533:X.Value has some null aggregate values
   val withMissingAggregatesId = 5662453767080168L
 
-  val bluefieldClient = getBlufieldClient()
+  val client = getTestClient()
 
   val destinationDf = spark.read
     .format(DefaultSource.sparkFormatString)
@@ -38,9 +38,9 @@ class DataPointsRelationTest
   destinationDf.createOrReplaceTempView("destinationDatapoints")
 
   override def beforeAll(): Unit = {
-    bluefieldClient.timeSeries.deleteByExternalId("emel", true).unsafeRunSync()
-    bluefieldClient.timeSeries.deleteByExternalId("emel2", true).unsafeRunSync()
-    bluefieldClient.timeSeries
+    client.timeSeries.deleteByExternalId("emel", true).unsafeRunSync()
+    client.timeSeries.deleteByExternalId("emel2", true).unsafeRunSync()
+    client.timeSeries
       .createOne(
         TimeSeriesCreate(
           externalId = Some("emel"),
@@ -48,7 +48,7 @@ class DataPointsRelationTest
           isString = false,
           isStep = false))
       .unsafeRunSync()
-    bluefieldClient.dataPoints
+    client.dataPoints
       .insert(
         id = CogniteExternalId("emel"),
         Seq(
@@ -62,7 +62,7 @@ class DataPointsRelationTest
       )
       .unsafeRunSync()
 
-    bluefieldClient.timeSeries
+    client.timeSeries
       .createOne(
         TimeSeriesCreate(
           externalId = Some("emel2"),
@@ -70,7 +70,7 @@ class DataPointsRelationTest
           isString = false,
           isStep = false))
       .unsafeRunSync()
-    bluefieldClient.dataPoints
+    client.dataPoints
       .insert(
         id = CogniteExternalId("emel2"),
         Seq(
@@ -83,17 +83,17 @@ class DataPointsRelationTest
       .unsafeRunSync()
   }
 
-  private val bluefieldDestinationDf = spark.read
+  private val testDestinationDf = spark.read
     .format(DefaultSource.sparkFormatString)
-    .option("baseUrl", "https://bluefield.cognitedata.com")
-    .option("tokenUri", bluefieldTokenUriStr)
-    .option("clientId", bluefieldClientId)
-    .option("clientSecret", bluefieldClientSecret)
-    .option("project", "extractor-bluefield-testing")
-    .option("scopes", "https://bluefield.cognitedata.com/.default")
+    .option("baseUrl", s"https://${testCluster}.cognitedata.com")
+    .option("tokenUri", testTokenUriStr)
+    .option("clientId", testClientId)
+    .option("clientSecret", testClientSecret)
+    .option("project", testProject)
+    .option("scopes", s"https://${testCluster}.cognitedata.com/.default")
     .option("type", "datapoints")
     .load()
-  bluefieldDestinationDf.createOrReplaceTempView("destinationDatapointsBluefield")
+  testDestinationDf.createOrReplaceTempView("destinationDatapointsTest")
 
   "DataPointsRelation" should "use our own schema for data points" taggedAs (ReadTest) in {
     val df = dataFrameReaderUsingOidc
@@ -1080,14 +1080,14 @@ class DataPointsRelationTest
   }
 
   it should "list datapoints in a day with inclusive start and exclusive end limits" taggedAs (ReadTest) in {
-    val res = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
         |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res.length shouldBe 3
     res.map(row => row.getDouble(1)).toSet shouldBe Set(0.2, 0.3, 0.4)
 
-    val res2 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res2 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
         |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
@@ -1096,14 +1096,14 @@ class DataPointsRelationTest
   }
 
   it should "list datapoints in a day with exclusive start and inclusive end limits" taggedAs (ReadTest) in {
-    val res3 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res3 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
         |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res3.length shouldBe 3
     res3.map(row => row.getDouble(1)).toSet shouldBe Set(0.3, 0.4, 0.5)
 
-    val res4 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res4 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
         |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
@@ -1112,14 +1112,14 @@ class DataPointsRelationTest
   }
 
   it should "list datapoints in a day with exclusive start and exclusive end limits" taggedAs (ReadTest) in {
-    val res5 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res5 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
         |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res5.length shouldBe 2
     res5.map(row => row.getDouble(1)).toSet shouldBe Set(0.3, 0.4)
 
-    val res6 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res6 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z') AND
         |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
@@ -1127,48 +1127,48 @@ class DataPointsRelationTest
   }
 
   it should "list datapoints only with start limit" taggedAs (ReadTest) in {
-    val res7 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res7 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
     res7.length shouldBe 4
     res7.map(row => row.getDouble(1)).toSet shouldBe Set(0.3, 0.4, 0.5, 0.6)
 
-    val res8 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res8 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp > TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
     res8.length shouldBe 2
 
-    val res9 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res9 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
     res9.length shouldBe 5
     res9.map(row => row.getDouble(1)).toSet shouldBe Set(0.2, 0.3, 0.4, 0.5, 0.6)
 
-    val res10 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res10 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp >= TO_TIMESTAMP('2022-09-01T00:00:00Z')""".stripMargin).collect()
     res10.length shouldBe 3
   }
 
   it should "list datapoints only with end limit" taggedAs (ReadTest) in {
-    val res11 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res11 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res11.length shouldBe 4
     res11.map(row => row.getDouble(1)).toSet shouldBe Set(0.1, 0.2, 0.3, 0.4)
 
-    val res12 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res12 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp < TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res12.length shouldBe 2
 
-    val res13 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res13 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel' AND
         |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res13.length shouldBe 5
     res13.map(row => row.getDouble(1)).toSet shouldBe Set(0.1, 0.2, 0.3, 0.4, 0.5)
 
-    val res14 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsBluefield dp
+    val res14 = spark.sql("""SELECT dp.timestamp, dp.value FROM destinationDatapointsTest dp
         |WHERE dp.externalId == 'emel2' AND
         |dp.timestamp <= TO_TIMESTAMP('2022-09-02T00:00:00Z')""".stripMargin).collect()
     res14.length shouldBe 3
@@ -1176,13 +1176,13 @@ class DataPointsRelationTest
 
   it should "fetch datapoints with negative epoch timestamps" in {
     val timeSeriesExtId = "dsNegativeDpTest"
-    bluefieldClient.timeSeries
+    client.timeSeries
       .filter(TimeSeriesFilter(externalIdPrefix = Some(timeSeriesExtId)), limit = Some(1))
       .compile
       .toList
       .flatMap {
         case Nil =>
-          bluefieldClient.timeSeries
+          client.timeSeries
             .createOne(
               TimeSeriesCreate(
                 externalId = Some(timeSeriesExtId),
@@ -1194,7 +1194,7 @@ class DataPointsRelationTest
       .unsafeRunSync()
       .head
 
-    (bluefieldClient.dataPoints
+    (client.dataPoints
       .insert(
         id = CogniteExternalId(timeSeriesExtId),
         dataPoints = Seq(
@@ -1205,12 +1205,12 @@ class DataPointsRelationTest
 
     val df = spark.read
       .format(DefaultSource.sparkFormatString)
-      .option("baseUrl", "https://bluefield.cognitedata.com")
-      .option("tokenUri", bluefieldTokenUriStr)
-      .option("clientId", bluefieldClientId)
-      .option("clientSecret", bluefieldClientSecret)
-      .option("project", "extractor-bluefield-testing")
-      .option("scopes", "https://bluefield.cognitedata.com/.default")
+      .option("baseUrl", s"https://${testCluster}.cognitedata.com")
+      .option("tokenUri", testTokenUriStr)
+      .option("clientId", testClientId)
+      .option("clientSecret", testClientSecret)
+      .option("project", testProject)
+      .option("scopes", s"https://${testCluster}.cognitedata.com/.default")
       .option("type", "datapoints")
       .load()
     df.createOrReplaceTempView("dps")

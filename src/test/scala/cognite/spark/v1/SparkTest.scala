@@ -41,15 +41,15 @@ trait SparkTest {
     }
 
   object OIDCWrite {
-    val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-    val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-    private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-    // TODO: allow customizing all parameters below via env vars
+    val clientId = sys.env("TEST_CLIENT_ID")
+    val clientSecret = sys.env("TEST_CLIENT_SECRET")
+    private val aadTenant = sys.env("TEST_AAD_TENANT")
     val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
-    val project = "jetfiretest2"
-    val scopes = "https://api.cognitedata.com/.default"
-    val audience = "https://api.cognitedata.com"
-    val baseUrl = "https://api.cognitedata.com"
+    val project = sys.env("TEST_PROJECT")
+    val cluster = sys.env("TEST_CLUSTER")
+    val scopes = s"https://${cluster}.cognitedata.com/.default"
+    val audience = s"https://${cluster}.cognitedata.com"
+    val baseUrl = s"https://${cluster}.cognitedata.com"
   }
 
   val writeCredentials = OAuth2.ClientCredentials(
@@ -149,28 +149,30 @@ trait SparkTest {
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
   spark.sparkContext.setLogLevel("OFF")
 
-  val bluefieldClientId: String = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-  val bluefieldClientSecret: String = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-  val bluefieldAADTenant: String = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-  val bluefieldTokenUriStr = s"https://login.microsoftonline.com/$bluefieldAADTenant/oauth2/v2.0/token"
-  val bluefieldTokenUri = uri"https://login.microsoftonline.com/$bluefieldAADTenant/oauth2/v2.0/token"
+  val testClientId: String = sys.env("TEST_CLIENT_ID")
+  val testClientSecret: String = sys.env("TEST_CLIENT_SECRET")
+  val testAADTenant: String = sys.env("TEST_AAD_TENANT")
+  val testCluster: String = sys.env("TEST_CLUSTER")
+  val testProject: String = sys.env("TEST_PROJECT")
+  val testTokenUri = uri"https://login.microsoftonline.com/$testAADTenant/oauth2/v2.0/token"
+  val testTokenUriStr = testTokenUri.toString()
 
-  def getBlufieldClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
+  def getTestClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
     implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
     val credentials = OAuth2.ClientCredentials(
-      tokenUri = bluefieldTokenUri,
-      clientId = bluefieldClientId,
-      clientSecret = bluefieldClientSecret,
-      scopes = List("https://bluefield.cognitedata.com/.default"),
-      cdfProjectName = "extractor-bluefield-testing"
+      tokenUri = testTokenUri,
+      clientId = testClientId,
+      clientSecret = testClientSecret,
+      scopes = List(s"https://${testCluster}.cognitedata.com/.default"),
+      cdfProjectName = testProject
     )
 
     val authProvider =
       OAuth2.ClientCredentialsProvider[IO](credentials).unsafeRunTimed(1.second).get
     new GenericClient[IO](
       applicationName = "CogniteScalaSDK-OAuth-Test",
-      projectName = "extractor-bluefield-testing",
-      baseUrl = "https://bluefield.cognitedata.com",
+      projectName = testProject,
+      baseUrl = s"https://${testCluster}.cognitedata.com",
       authProvider = authProvider,
       apiVersion = None,
       clientTag = None,
