@@ -11,9 +11,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row}
-
-import scala.annotation.nowarn
+import org.apache.spark.sql.Row
 
 abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName: String)
     extends CdfRelation(config, shortName)
@@ -25,10 +23,6 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   def toRow(a: A): Row
 
   def uniqueId(a: A): I
-
-  @nowarn
-  def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] =
-    sys.error(s"Resource type $shortName does not support writing.")
 
   def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
@@ -50,16 +44,6 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       uniqueId,
       getStreams(filters)
     )
-
-  def insert(data: DataFrame, @nowarn overwrite: Boolean): Unit =
-    data.foreachPartition((rows: Iterator[Row]) => {
-      import CdpConnector._
-      val batches =
-        rows.grouped(config.batchSize.getOrElse(cognite.spark.v1.Constants.DefaultBatchSize)).toVector
-      batches
-        .parTraverse_(getFromRowsAndCreate(_))
-        .unsafeRunSync()
-    })
 
   def toRow(item: A, requiredColumns: Array[String]): Row =
     if (requiredColumns.isEmpty) {
