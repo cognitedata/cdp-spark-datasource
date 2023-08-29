@@ -7,15 +7,15 @@ import com.cognite.sdk.scala.common.{WithExternalIdGeneric, WithId}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Events
 import fs2.Stream
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
+import scala.annotation.unused
 
 class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[Event, Long](config, "events")
-    with InsertableRelation
+    extends SdkV1InsertableRelation[Event, Long](config, "events")
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(sparkFilters: Array[Filter])(
@@ -73,7 +73,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client.events)
   }
 
-  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
     val events = rows.map(fromRow[EventCreate](_))
 
     createOrUpdateByExternalId[Event, EventUpdate, EventCreate, EventCreate, Option, Events[IO]](

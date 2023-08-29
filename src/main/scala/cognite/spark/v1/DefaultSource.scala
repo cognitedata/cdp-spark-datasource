@@ -290,15 +290,15 @@ class DefaultSource
         val maxParallelism = Math.max(1, config.partitions / numberOfPartitions)
         val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
-        val operation = config.onConflict match {
+        val operation: Seq[Row] => IO[Unit] = config.onConflict match {
           case OnConflictOption.Abort =>
-            relation.insert(_)
+            relation.insert
           case OnConflictOption.Upsert =>
-            relation.upsert(_)
+            relation.upsert
           case OnConflictOption.Update =>
-            relation.update(_)
+            relation.update
           case OnConflictOption.Delete =>
-            relation.delete(_)
+            relation.delete
         }
 
         batches
