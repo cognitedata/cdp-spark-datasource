@@ -56,7 +56,7 @@ trait SparkTest {
     scopes = List(OIDCWrite.scopes),
     OIDCWrite.project
   )
-  implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
+  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(5, 5)
 
   val writeAuthProvider =
     OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
