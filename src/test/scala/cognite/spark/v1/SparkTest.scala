@@ -7,6 +7,7 @@ import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Encoder, SparkSession}
+import org.log4s.getLogger
 import org.scalactic.{Prettifier, source}
 import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
@@ -27,6 +28,8 @@ object WriteTest extends Tag("WriteTest")
 trait SparkTest {
   import CdpConnector.ioRuntime
   import natchez.Trace.Implicits.noop
+
+  private def logger = getLogger
 
   implicit def single[A](
       implicit c: ClassTag[OptionalField[A]],
@@ -168,6 +171,10 @@ trait SparkTest {
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
+  class RetryException(private val message: String,
+                       private val cause: Throwable = None.orNull)
+    extends Exception(message, cause) {}
+
   // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](
       ioa: IO[A],
@@ -178,7 +185,8 @@ trait SparkTest {
     val randomDelayScale = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
     val nextDelay = Random.nextInt(randomDelayScale.toInt).millis + exponentialDelay
     ioa.handleErrorWith {
-      case exception @ (_: TimeoutException | _: IOException) =>
+      case exception @ (_: RetryException | _: TimeoutException | _: IOException) =>
+        logger.warn(exception)("failed a request attempt")
         if (maxRetries > 0) {
           IO.sleep(initialDelay) >> retryWithBackoff(ioa, nextDelay.min(maxDelay), maxRetries - 1)
         } else {
@@ -196,8 +204,8 @@ trait SparkTest {
       IO {
         val actionValue = action
         if (shouldRetry(actionValue)) {
-          throw new TimeoutException(
-            s"Retry timed out at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
+          throw new RetryException(
+            s"Retry needed at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
         }
         actionValue
       },
