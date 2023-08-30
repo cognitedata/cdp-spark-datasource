@@ -10,6 +10,7 @@ import scala.concurrent.duration.DurationInt
 import scala.util.Try
 import scala.util.control.NonFatal
 
+@deprecated("message", since = "0")
 class DataModelInstancesRelationTest
     extends FlatSpec
     with Matchers
