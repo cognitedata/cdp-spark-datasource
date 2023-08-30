@@ -30,6 +30,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import scala.annotation.nowarn
 
+@deprecated("message", since = "0")
 class DataModelInstanceRelation(
     config: RelationConfig,
     spaceExternalId: String,
@@ -114,7 +115,7 @@ class DataModelInstanceRelation(
       }
     }
 
-  def insert(rows: Seq[Row]): IO[Unit] =
+  override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException(
       "Create (abort) is not supported for data model instances. Use upsert instead.")
 
@@ -296,7 +297,7 @@ class DataModelInstanceRelation(
     }
   }
 
-  def update(rows: Seq[Row]): IO[Unit] =
+  override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")
 
   def getIndexedPropertyList(rSchema: StructType): Array[(Int, String, DataModelPropertyDefinition)] =
@@ -372,5 +373,7 @@ class DataModelInstanceRelation(
   }
 }
 
+@deprecated("message", since = "0")
 final case class ProjectedDataModelInstance(externalId: String, properties: Array[Any])
+@deprecated("message", since = "0")
 final case class DataModelInstanceDeleteSchema(spaceExternalId: Option[String], externalId: String)

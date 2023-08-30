@@ -20,7 +20,6 @@ import io.circe.parser.parse
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
-import sttp.client3.SttpBackend
 import sttp.model.Uri
 
 class DefaultSource
@@ -54,6 +53,7 @@ class DefaultSource
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
   }
 
+  @deprecated("message", since = "0")
   private def createDataModelInstances(
       parameters: Map[String, String],
       config: RelationConfig,
@@ -189,7 +189,7 @@ class DefaultSource
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
       case "datamodelinstances" =>
-        createDataModelInstances(parameters, config, sqlContext)
+        createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
       case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
@@ -258,7 +258,7 @@ class DefaultSource
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
         case "datamodelinstances" =>
-          createDataModelInstances(parameters, config, sqlContext)
+          createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
         case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
@@ -290,15 +290,15 @@ class DefaultSource
         val maxParallelism = Math.max(1, config.partitions / numberOfPartitions)
         val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
-        val operation = config.onConflict match {
+        val operation: Seq[Row] => IO[Unit] = config.onConflict match {
           case OnConflictOption.Abort =>
-            relation.insert(_)
+            relation.insert
           case OnConflictOption.Upsert =>
-            relation.upsert(_)
+            relation.upsert
           case OnConflictOption.Update =>
-            relation.update(_)
+            relation.update
           case OnConflictOption.Delete =>
-            relation.delete(_)
+            relation.delete
         }
 
         batches
@@ -350,8 +350,7 @@ object DefaultSource {
         s"`$onConflictName` not a valid subtrees option. Valid options are: $validOptions"))
   }
 
-  private[v1] def parseAuth(parameters: Map[String, String])(
-      implicit backend: SttpBackend[IO, Any]): Option[CdfSparkAuth] = {
+  private[v1] def parseAuth(parameters: Map[String, String]): Option[CdfSparkAuth] = {
     val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
     val scopes: List[String] = parameters.get("scopes") match {
@@ -403,10 +402,6 @@ object DefaultSource {
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
-
-    //This backend is used only for auth, so we should not retry as much as maxRetries config
-    implicit val authBackend: SttpBackend[IO, Any] =
-      CdpConnector.retryingSttpBackend(5, maxRetryDelaySeconds)
 
     val auth = parseAuth(parameters) match {
       case Some(x) => x

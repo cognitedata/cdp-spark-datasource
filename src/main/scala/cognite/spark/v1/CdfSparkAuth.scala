@@ -16,40 +16,24 @@ object CdfSparkAuth {
       IO(AuthProvider(auth))
   }
 
-  import CdpConnector.ioRuntime
-
-  final case class OAuth2ClientCredentials(credentials: OAuth2.ClientCredentials)(
-      implicit sttpBackend: SttpBackend[IO, Any])
-      extends CdfSparkAuth {
-    private val cacheToken = Some(
-      IO.pure(credentials.getAuth[IO]().attempt.map(_.toOption).unsafeRunSync()))
+  final case class OAuth2ClientCredentials(credentials: OAuth2.ClientCredentials) extends CdfSparkAuth {
 
     override def provider(
         implicit clock: Clock[IO],
         sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
-      OAuth2.ClientCredentialsProvider[IO](credentials, maybeCacheToken = cacheToken)
+      OAuth2.ClientCredentialsProvider[IO](credentials)
   }
 
-  final case class OAuth2Sessions(session: OAuth2.Session)(implicit sttpBackend: SttpBackend[IO, Any])
-      extends CdfSparkAuth {
+  final case class OAuth2Sessions(session: OAuth2.Session) extends CdfSparkAuth {
 
     private val refreshSecondsBeforeExpiration = 300L
-
-    private val cacheToken = Some(
-      IO.pure(
-        session
-          .getAuth[IO](refreshSecondsBeforeExpiration = refreshSecondsBeforeExpiration)
-          .attempt
-          .map(_.toOption)
-          .unsafeRunSync()))
 
     override def provider(
         implicit clock: Clock[IO],
         sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
       OAuth2.SessionProvider[IO](
         session,
-        refreshSecondsBeforeExpiration = refreshSecondsBeforeExpiration,
-        maybeCacheToken = cacheToken
+        refreshSecondsBeforeExpiration = refreshSecondsBeforeExpiration
       )
   }
 }

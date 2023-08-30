@@ -9,16 +9,16 @@ import com.cognite.sdk.scala.v1.resources.Assets
 import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
+import scala.annotation.unused
 
 class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]] = None)(
     val sqlContext: SQLContext)
-    extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
-    with InsertableRelation
+    extends SdkV1InsertableRelation[AssetsReadSchema, Long](config, "assets")
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
@@ -98,7 +98,7 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
     )
   }
 
-  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
     val assetsUpserts = rows.map(fromRow[AssetsUpsertSchema](_))
     val assets = assetsUpserts.map(_.transformInto[AssetCreate])
     createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, AssetCreate, Option, Assets[IO]](

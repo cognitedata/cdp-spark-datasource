@@ -245,9 +245,12 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       propDefMap: Map[String, ViewPropertyDefinition],
       instanceSpace: Option[String]) = {
     val nodesOrEdges = intendedUsage match {
-      case Usage.Node => createNodes(rows, schema, propDefMap, source, instanceSpace)
-      case Usage.Edge => createEdges(rows, schema, propDefMap, source, instanceSpace)
-      case Usage.All => createNodesOrEdges(rows, schema, propDefMap, source, instanceSpace)
+      case Usage.Node =>
+        createNodes(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
+      case Usage.Edge =>
+        createEdges(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
+      case Usage.All =>
+        createNodesOrEdges(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
     }
     nodesOrEdges match {
       case Right(items) if items.nonEmpty =>
