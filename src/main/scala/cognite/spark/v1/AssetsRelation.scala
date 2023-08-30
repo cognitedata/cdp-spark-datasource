@@ -2,24 +2,26 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
-import cognite.spark.v1.SparkSchemaHelper._
+import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Assets
 import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
+import scala.annotation.unused
 
 class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]] = None)(
     val sqlContext: SQLContext)
-    extends SdkV1Relation[AssetsReadSchema, Long](config, "assets")
-    with InsertableRelation
+    extends SdkV1InsertableRelation[AssetsReadSchema, Long](config, "assets")
     with WritableRelation {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO],
@@ -96,7 +98,7 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
     )
   }
 
-  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
     val assetsUpserts = rows.map(fromRow[AssetsUpsertSchema](_))
     val assets = assetsUpserts.map(_.transformInto[AssetCreate])
     createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, AssetCreate, Option, Assets[IO]](
@@ -114,6 +116,8 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
 }
 
 object AssetsRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val upsertSchema: StructType = structType[AssetsUpsertSchema]()
   val insertSchema: StructType = structType[AssetsInsertSchema]()
   val readSchema: StructType = structType[AssetsReadSchema]()

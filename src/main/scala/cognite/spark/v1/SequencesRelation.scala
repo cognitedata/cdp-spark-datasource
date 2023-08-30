@@ -3,24 +3,26 @@ package cognite.spark.v1
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{SetValue, Setter, WithExternalId, WithId}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.SequencesResource
 import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-import java.time.Instant
 
+import java.time.Instant
 import cognite.spark.v1.CdpConnector.ioRuntime
 
+import scala.annotation.unused
+
 class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[SequenceReadSchema, Long](config, "sequences")
-    with InsertableRelation
+    extends SdkV1InsertableRelation[SequenceReadSchema, Long](config, "sequences")
     with WritableRelation {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO],
       limit: Option[Int],
@@ -186,7 +188,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   // scalastyle:off method.length
-  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
     val sequences =
       rows
         .map(fromRow[SequenceUpsertSchema](_))
@@ -214,6 +216,8 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object SequenceRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val upsertSchema: StructType = structType[SequenceUpsertSchema]()
   val insertSchema: StructType = structType[SequenceInsertSchema]()
   val readSchema: StructType = structType[SequenceReadSchema]()

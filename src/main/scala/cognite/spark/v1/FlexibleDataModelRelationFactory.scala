@@ -6,6 +6,7 @@ import cats.implicits._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ConnectionDefinition
+import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelViewReference
 import com.cognite.sdk.scala.v1.fdm.views.{ViewDefinition, ViewReference}
 import org.apache.spark.sql.SQLContext
 
@@ -86,7 +87,7 @@ object FlexibleDataModelRelationFactory {
         case _ => IO.pure(None)
       }
       .flatMap {
-        case Some(vc: ViewDefinition) =>
+        case Some(vc: DataModelViewReference) =>
           IO.delay(
             new FlexibleDataModelCorePropertyRelation(
               config,

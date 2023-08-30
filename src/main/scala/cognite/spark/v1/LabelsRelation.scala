@@ -1,9 +1,9 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cognite.spark.v1.SparkSchemaHelper._
+import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.v1.{GenericClient, Label, LabelCreate, LabelsFilter}
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -11,9 +11,8 @@ import java.time.Instant
 
 class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Label, String](config, "labels")
-    with InsertableRelation
     with WritableRelation {
-
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[Label]()
 
   override def toRow(a: Label): Row = asRow(a)
@@ -48,6 +47,8 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 }
 
 object LabelsRelation {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val insertSchema: StructType = structType[LabelInsertSchema]()
   val readSchema: StructType = structType[LabelReadSchema]()
   val deleteSchema: StructType = structType[LabelDeleteSchema]()

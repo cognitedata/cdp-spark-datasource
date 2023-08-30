@@ -10,8 +10,6 @@ import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskCon
 
 import java.util.concurrent.{ArrayBlockingQueue, ConcurrentHashMap}
 
-final case class CdfPartition(index: Int) extends Partition
-
 final case class SdkV1Rdd[A, I](
     @transient override val sparkContext: SparkContext,
     config: RelationConfig,

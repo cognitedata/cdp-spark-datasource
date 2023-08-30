@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
-import cognite.spark.v1.SparkSchemaHelper._
+import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.Files
 import com.cognite.sdk.scala.v1.{
@@ -16,17 +16,16 @@ import com.cognite.sdk.scala.v1.{
 import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
 
 class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[FilesReadSchema, Long](config, "files")
-    with InsertableRelation
+    extends SdkV1InsertableRelation[FilesReadSchema, Long](config, "files")
     with WritableRelation {
-
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val filesUpserts = rows.map(fromRow[FilesUpsertSchema](_))
     val files = filesUpserts.map(_.transformInto[FileCreate])
@@ -113,6 +112,8 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: FilesReadSchema): Long = a.id
 }
 object FilesRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val upsertSchema: StructType = structType[FilesUpsertSchema]()
   val insertSchema: StructType = structType[FilesInsertSchema]()
   val readSchema: StructType = structType[FilesReadSchema]()

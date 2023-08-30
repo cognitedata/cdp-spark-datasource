@@ -21,7 +21,7 @@ sealed case class Max(value: Instant) extends Limit
 
 final case class AggregationFilter(aggregation: String)
 
-import cognite.spark.v1.SparkSchemaHelper.fromRow
+import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
 
 abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String)(
     override val sqlContext: SQLContext)

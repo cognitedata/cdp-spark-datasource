@@ -8,7 +8,7 @@ import cognite.spark.v1.PushdownUtilities.{
   pushdownToParameters,
   toPushdownFilterExpression
 }
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
 import fs2.Stream
@@ -152,7 +152,7 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
     new GenericRow(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
   }
 
-  def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
+  override def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
     // we basically use Stream.fromIterator instead of Seq.grouped, because it's significantly more efficient
     val dataPoints = Stream.fromIterator[IO](
       rows.map(r => fromRow[InsertDataPointsItem](r)),
@@ -223,6 +223,8 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
 }
 
 object NumericDataPointsRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val upsertSchema: StructType = structType[InsertDataPointsItem]()
   val readSchema: StructType = structType[DataPointsItem]()
   val insertSchema: StructType = structType[InsertDataPointsItem]()

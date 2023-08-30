@@ -3,6 +3,7 @@
   "extends": [
     "local>cognitedata/renovate-config-public"
   ],
+  "rebaseWhen": "conflicted",
   "packageRules": [
     {
       "matchDatasources": ["maven", "sbt-package"],
