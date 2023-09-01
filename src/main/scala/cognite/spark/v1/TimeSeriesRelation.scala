@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
-import cognite.spark.v1.SparkSchemaHelper._
+import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
@@ -15,9 +15,9 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
-    with WritableRelation
-    with InsertableRelation {
+    extends SdkV1InsertableRelation[TimeSeries, Long](config, "timeseries")
+    with WritableRelation {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def insert(rows: Seq[Row]): IO[Unit] =
     getFromRowsAndCreate(rows, doUpsert = false)
 
@@ -92,6 +92,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     )
 }
 object TimeSeriesRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]()
   val insertSchema: StructType = structType[TimeSeriesInsertSchema]()
   val readSchema: StructType = structType[TimeSeriesReadSchema]()

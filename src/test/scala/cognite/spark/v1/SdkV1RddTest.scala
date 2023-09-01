@@ -7,7 +7,7 @@ import fs2.{Chunk, Stream}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import cognite.spark.v1.SparkSchemaHelper.asRow
+import cognite.spark.compiletime.macros.SparkSchemaHelper.asRow
 import sttp.client3._
 
 import scala.concurrent.duration._
@@ -30,11 +30,9 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val toRow = (_: String, _: Option[Int]) => Row.empty
     val uniqueId = (_: String) => "1"
 
-    implicit val implicitBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(3, 5)
-
     val sdkRdd = {
       val relationConfig = getDefaultConfig(
-        CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials)(implicitBackend),
+        CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials),
         readOidcCredentials.cdfProjectName
       )
       SdkV1Rdd[String, String](

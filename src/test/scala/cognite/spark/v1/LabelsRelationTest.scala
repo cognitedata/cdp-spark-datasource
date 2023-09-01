@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cognite.spark.v1.CdpConnector.ioRuntime
-import cognite.spark.v1.SparkSchemaHelper.fromRow
+import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, Label, LabelCreate, LabelsFilter}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}

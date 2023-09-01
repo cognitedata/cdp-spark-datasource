@@ -2,12 +2,12 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities.{executeFilterOnePartition, pushdownToFilters, timeRange}
-import cognite.spark.v1.SparkSchemaHelper._
+import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.DataSets
 import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, DataSetFilter, DataSetUpdate, GenericClient}
 import io.scalaland.chimney.Transformer
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -15,9 +15,9 @@ import java.time.Instant
 
 class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[DataSet, String](config, "datasets")
-    with InsertableRelation
     with WritableRelation {
 
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[DataSet]()
 
   override def toRow(a: DataSet): Row = asRow(a)
@@ -71,6 +71,8 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     throw new CdfSparkException("Delete is not supported for data sets.")
 }
 object DataSetsRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
   val upsertSchema: StructType = structType[DataSetsUpsertSchema]()
   val insertSchema: StructType = structType[DataSetsInsertSchema]()
   val readSchema: StructType = structType[DataSetsReadSchema]()

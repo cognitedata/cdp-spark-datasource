@@ -3,7 +3,6 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.effect.unsafe.{IORuntime, IORuntimeConfig}
-import com.cognite.sdk.scala.common.Items
 import com.cognite.sdk.scala.sttp.{
   BackpressureThrottleBackend,
   GzipBackend,
@@ -17,16 +16,12 @@ import org.log4s._
 import sttp.client3.SttpBackend
 import sttp.client3.asynchttpclient.SttpClientBackendFactory
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
+import sttp.model.StatusCode
 
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-
-final case class Data[A](data: A)
-final case class CdpApiErrorPayload(code: Int, message: String)
-final case class Error[A](error: A)
-final case class Login(user: String, loggedIn: Boolean, project: String, projectId: Long)
 
 object CdpConnector {
   @transient private val logger = getLogger
@@ -61,6 +56,30 @@ object CdpConnector {
   private val sttpBackend: SttpBackend[IO, Any] =
     new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
+  private def incMetrics(
+      metricsPrefix: String,
+      namePrefix: String,
+      maybeStatus: Option[StatusCode]): IO[Unit] =
+    IO.delay(MetricsSource.getOrCreateCounter(metricsPrefix, s"${namePrefix}requests").inc()) *>
+      (maybeStatus match {
+        case None =>
+          IO.delay(
+            MetricsSource
+              .getOrCreateCounter(metricsPrefix, s"${namePrefix}requests.response.failure")
+              .inc()
+          )
+        case Some(status) if status.code >= 400 =>
+          IO.delay(
+            MetricsSource
+              .getOrCreateCounter(
+                metricsPrefix,
+                s"${namePrefix}requests.${status.code}" +
+                  s".response")
+              .inc()
+          )
+        case _ => IO.unit
+      })
+
   def retryingSttpBackend(
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
@@ -71,16 +90,14 @@ object CdpConnector {
       metricsPrefix.fold(sttpBackend)(
         metricsPrefix =>
           new MetricsBackend[IO, Any](
-            sttpBackend,
-            MetricsSource.getOrCreateCounter(metricsPrefix, "requests"),
-            status =>
-              if (status.code >= 400) {
-                Some(
-                  MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.${status.code}.response"))
-              } else {
-                None
-            },
-            Some(MetricsSource.getOrCreateCounter(metricsPrefix, s"requests.response.failure"))
+            sttpBackend, {
+              case RequestResponseInfo(tags, maybeStatus) =>
+                incMetrics(metricsPrefix, "", maybeStatus) *>
+                  tags
+                    .get(GenericClient.RESOURCE_TYPE_TAG)
+                    .map(service => incMetrics(metricsPrefix, s"${service.toString}.", maybeStatus))
+                    .getOrElse(IO.unit)
+            }
         ))
     // this backend throttles when rate limiting from the serivce is encountered
     val makeQueueOf1 = for {
@@ -103,10 +120,16 @@ object CdpConnector {
       metricsPrefix =>
         new MetricsBackend[IO, Any](
           limitedBackend,
-          MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries")))
+          _ =>
+            IO.delay(
+              MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries").inc()
+          )
+      )
+    )
   }
 
   def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
+    import natchez.Trace.Implicits.noop // TODO: add tracing
     val metricsPrefix = if (config.collectMetrics) {
       Some(config.metricsPrefix)
     } else {
@@ -134,7 +157,4 @@ object CdpConnector {
       cdfVersion = cdfVersion
     )
   }
-
-  type DataItems[A] = Data[Items[A]]
-  type CdpApiError = Error[CdpApiErrorPayload]
 }

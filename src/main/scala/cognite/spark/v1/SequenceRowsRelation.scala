@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.compiletime.macros.SparkSchemaHelper
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
@@ -199,19 +200,19 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     (columns.map(_._2), parseRow)
   }
 
-  def delete(rows: Seq[Row]): IO[Unit] = {
+  override def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[SequenceRowDeleteSchema](r))
     client.sequenceRows
       .delete(sequenceId, deletes.map(_.rowNumber))
       .flatTap(_ => incMetrics(itemsDeleted, rows.length))
   }
-  def insert(rows: Seq[Row]): IO[Unit] =
+  override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Insert not supported for sequencerows. Use upsert instead.")
 
-  def update(rows: Seq[Row]): IO[Unit] =
+  override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update not supported for sequencerows. Use upsert instead.")
 
-  def upsert(rows: Seq[Row]): IO[Unit] =
+  override def upsert(rows: Seq[Row]): IO[Unit] =
     if (rows.isEmpty) {
       IO.unit
     } else {

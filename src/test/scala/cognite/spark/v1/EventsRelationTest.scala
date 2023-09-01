@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cognite.spark.compiletime.macros.SparkSchemaHelper
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.EventCreate
@@ -101,9 +102,9 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val df = getBaseReader(metricsPrefix)
       .where("dataSetId = 86163806167772 or externalId = 'null-id-events65847147385304'")
 
-    assert(df.count() == 22)
+    assert(df.count() == 27)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 22)
+    assert(eventsRead == 27)
   }
 
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {

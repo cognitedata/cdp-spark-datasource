@@ -67,9 +67,9 @@ jobs:
           fail_ci_if_error: false
       - name: Build JAR file
         run: |
-          LIB_PACKAGE="library/package"
+          LIB_PACKAGE="+library/package"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
-            LIB_PACKAGE="+assembly"
+            LIB_PACKAGE="+fatJarShaded/assembly"
           fi
           sbt -Dsbt.log.noformat=true "set library/test := {}" $LIB_PACKAGE performancebench/docker:stage
       - name: Deploy JAR
@@ -79,4 +79,4 @@ jobs:
         run: |
           ./secrets/decrypt.sh secrets/gpg-key-password.gpg secrets/gpg-key-password
           export GPG_KEY_PASSWORD=$(cat secrets/gpg-key-password)
-          sbt -Dsbt.log.noformat=true +fatJar/publishSigned sonatypeReleaseAll
+          sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +structType/publishSigned +publishSigned sonatypeReleaseAll

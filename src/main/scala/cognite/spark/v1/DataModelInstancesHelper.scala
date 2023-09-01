@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cognite.spark.v1.SparkSchemaHelper.fromRow
+import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
 
 import java.time.{Instant, LocalDate, LocalDateTime, OffsetDateTime, ZoneId, ZonedDateTime}
 import com.cognite.sdk.scala.v1.DataModelType.NodeType
@@ -14,6 +14,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{DataType, DataTypes, StructType}
 
 // scalastyle:off cyclomatic.complexity
+@deprecated("message", since = "0")
 object DataModelInstancesHelper {
   private def unknownPropertyTypeMessage(a: Any) = s"Unknown property type $a."
 

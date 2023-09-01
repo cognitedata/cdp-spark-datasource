@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cognite.spark.v1.CdpConnector.ioRuntime
-import cognite.spark.v1.SparkSchemaHelper.fromRow
+import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
 import org.apache.spark.sql.{DataFrame, Row}
@@ -1110,10 +1110,11 @@ class AssetHierarchyBuilderTest
     ingest(key, grandkids, batchSize = 1000, metricsPrefix = Some(s"ingest.tree.grandkids.$key"))
 
     getNumberOfRowsCreated(s"ingest.tree.grandkids.$key", "assethierarchy") shouldBe 1100
+    // 1 for access token
     // 2 for fetching root parents (for validation)
     // 2 for fetching the roots
     // 2 for creating the roots
-    getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 6
+    getNumberOfRequests(s"ingest.tree.grandkids.$key") shouldBe 7
 
     val grandkidsUpdate = (1 to 1100).map(
       k =>
@@ -1129,10 +1130,11 @@ class AssetHierarchyBuilderTest
     ingest(key, grandkidsUpdate, batchSize = 1000, metricsPrefix = Some(s"ingest.tree.grandkidsU.$key"))
 
     getNumberOfRowsUpdated(s"ingest.tree.grandkidsU.$key", "assethierarchy") shouldBe 1100
+    // 1 for access token
     // 2 for fetching root parents (for validation)
     // 2 for fetching the roots
     // 2 for updating the roots
-    getNumberOfRequests(s"ingest.tree.grandkidsU.$key") shouldBe 6
+    getNumberOfRequests(s"ingest.tree.grandkidsU.$key") shouldBe 7
 
     cleanDB(key)
   }

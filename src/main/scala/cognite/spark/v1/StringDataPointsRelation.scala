@@ -6,7 +6,7 @@ import cognite.spark.v1.PushdownUtilities.{
   pushdownToParameters,
   toPushdownFilterExpression
 }
-import cognite.spark.v1.SparkSchemaHelper.{asRow, fromRow, structType}
+import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.StringDataPoint
 import fs2.Stream
 import org.apache.spark.rdd.RDD
@@ -43,7 +43,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
   override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update not supported for stringdatapoints. Please use upsert instead.")
 
-  def toRow(a: StringDataPointsItem): Row = asRow(a)
+  override def toRow(a: StringDataPointsItem): Row = asRow(a)
 
   override def schema: StructType =
     StructType(
@@ -54,7 +54,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
         StructField("value", StringType, nullable = false)
       ))
 
-  def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
+  override def insertRowIterator(rows: Iterator[Row]): IO[Unit] = {
     // we basically use Stream.fromIterator instead of Seq.grouped, because it's significantly more efficient
     val dataPoints = Stream.fromIterator[IO](
       rows.map(r => fromRow[StringDataPointsInsertItem](r)),
@@ -100,6 +100,7 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
 }
 
 object StringDataPointsRelation extends UpsertSchema {
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   // We should use StringDataPointsItem here, but doing that gives the error: "constructor Timestamp encapsulates
   // multiple overloaded alternatives and cannot be treated as a method. Consider invoking
   // `<offending symbol>.asTerm.alternatives` and manually picking the required method" in StructTypeEncoder, probably
