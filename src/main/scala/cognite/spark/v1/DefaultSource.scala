@@ -21,6 +21,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 import sttp.model.Uri
+import scala.reflect.classTag
 
 class DefaultSource
     extends RelationProvider
@@ -292,6 +293,7 @@ class DefaultSource
 }
 
 object DefaultSource {
+  val sparkFormatString: String = classTag[DefaultSource].runtimeClass.getCanonicalName
 
   private def toBoolean(
       parameters: Map[String, String],

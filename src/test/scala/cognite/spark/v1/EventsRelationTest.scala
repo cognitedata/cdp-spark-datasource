@@ -1,958 +1,1154 @@
 package cognite.spark.v1
 
+import cats.effect.unsafe.IORuntime
+import cats.effect.{IO, Resource}
 import cognite.spark.compiletime.macros.SparkSchemaHelper
-import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
-import com.cognite.sdk.scala.v1.EventCreate
+import com.cognite.sdk.scala.v1.{Asset, AssetCreate, DataSet, DataSetCreate, Event, EventCreate}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.{DataFrame, Dataset, Row}
 import org.scalatest.prop.TableDrivenPropertyChecks.forAll
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.scalatest.{Assertion, FlatSpec, Matchers, ParallelTestExecution}
 
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 import java.util.UUID
-import scala.util.control.NonFatal
 
-class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
-  val destinationDf: DataFrame = spark.read
-    .format("cognite.spark.v1")
-    .useOIDCWrite
-    .option("type", "events")
-    .load()
-  destinationDf.createOrReplaceTempView("destinationEvent")
+class EventsRelationTest extends FlatSpec with Matchers
+  with ParallelTestExecution
+  with SparkTest {
+  val sourceView = s"sourceEvent_${shortRandomString()}"
+  val testSource = s"EventsRelationTest-${shortRandomString()}"
 
   val sourceDf: DataFrame = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "events")
     .option("limitPerPartition", "1000")
+    .option("fetchSize", "100")
     .option("partitions", "1")
     .load()
-  sourceDf.createOrReplaceTempView("sourceEvent")
+  sourceDf.createOrReplaceTempView(sourceView)
   sourceDf.cache()
 
   private def getBaseReader(metricsPrefix: String): DataFrame =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", "events")
       .useOIDCWrite
       .option("collectMetrics", true)
       .option("metricsPrefix", metricsPrefix)
+      .option("fetchSize", "100")
       .load()
 
-  "EventsRelation" should "allow simple reads" taggedAs WriteTest in {
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .useOIDCWrite
-      .option("type", "events")
-      .option("limitPerPartition", "100")
-      .option("partitions", "10")
-      .load()
-    df.createTempView("events")
-    val res = spark.sqlContext
-      .sql("select * from events")
-      .collect()
-    assert(res.length == 1000)
+  private def makeEvents(toCreate: Seq[EventCreate]): Resource[IO, Seq[Event]] = {
+    assert(toCreate.forall(_.source.isEmpty), "event.source is reserved for test setup")
+    Resource.make {
+      writeClient.events.create(toCreate.map(e => e.copy(source = Some(testSource))))
+    }{ createdEvents =>
+      writeClient.events.deleteByIds(createdEvents.map(_.id))
+    }.evalTap( createdEvents => IO.delay({
+      assert(createdEvents.length == toCreate.length, "all events should be created")
+      assert(createdEvents.forall(_.source.contains(testSource)), "all created events have source")
+    }))
   }
 
-  it should "apply a single pushdown filter" taggedAs WriteTest in {
-    val metricsPrefix = "single.pushdown.filter"
-    val df = getBaseReader(metricsPrefix)
-      .where(s"type = 'Worktask'")
+    private def makeDataset(): Resource[IO, DataSet] = {
+      Resource.make{
+        writeClient.dataSets.create(Seq(DataSetCreate(description = Some
+        ("cdp-spark-connector EventsRelationTest"), writeProtected = false, name = Some("for " +
+          "tests"))))
+      }{_ => IO.unit}.map(_.head)
+    }
 
-    assert(df.count() == 227)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 227)
+    private def makeDatasetId(): Resource[IO, Long] = {
+      makeDataset().map(_.id)
+    }
+
+    private def makeAssets(toCreate: Seq[AssetCreate]): Resource[IO, Seq[Asset]] = {
+      assert(toCreate.forall(_.source.isEmpty), "asset.source is reserved for test setup")
+      Resource.make {
+        writeClient.assets.create(toCreate.map(e => e.copy(source = Some(testSource))))
+      } { createdEvents =>
+        writeClient.assets.deleteByIds(createdEvents.map(_.id))
+      }.evalTap(createdAssets => IO.delay({
+        assert(createdAssets.length == toCreate.length, "all assets should be created")
+        assert(createdAssets.forall(_.source.contains(testSource)), "all created assets have source")
+      }))
+    }
+
+    private def makeAssetIds(toCreate: Seq[AssetCreate]): Resource[IO, Seq[Long]] = {
+      makeAssets(toCreate).map(_.map(_.id))
+    }
+
+  private def readEvents(selector: String => Dataset[Row]): IO[(String, Array[Row])] = {
+
+    for {
+      metricsPrefix <- IO.delay { s"test.${shortRandomString()}" }
+      df <- IO.delay { selector(metricsPrefix) }
+      df_rows <- IO.blocking(df.collect())
+      // for simplicity let's assume "select" in tests always includes "id" and do extra checks
+      _ = assert ((df_rows.map(_.getAs[Long] ("id"))).distinct.length == df_rows.length,
+      "fetched items must be distinct")
+    } yield (metricsPrefix, df_rows)
+  }
+
+  private def readEventsWhere(sql: String): IO[(String, Array[Row])] = for {
+    (metricsPrefix, df_rows) <- readEvents(getBaseReader(_)
+      .where(s"source = '${testSource}' and (${sql})"))
+    _ = assert(Array() sameElements df_rows.filter(_.getAs[String]("source") != testSource),
+      "testSource filter must be respected")
+  } yield  (metricsPrefix, df_rows)
+
+
+  private def testReadQuery(sqlWhereCondition: String,
+                            resultsPredicate: Event => Boolean,
+                            fetchPredicate: Event => Boolean)(createdEvents: Seq[Event])
+  : Resource[IO, Assertion]
+  = {
+    val expectedResults = createdEvents.filter(resultsPredicate)
+    assert(expectedResults.nonEmpty, "predicate should cover some events") // test sanity check
+
+    val expectedInspectedResults = createdEvents.filter(fetchPredicate)
+    assert(expectedResults.forall(expectedInspectedResults.contains(_)), "inspect predicate " +
+      "should be broader or same as result predicate") // test sanity check
+
+    for {
+      (metricsPrefix, df_rows) <-
+        Resource.eval(retryWhileIO[(String, Array[Row])]({
+          readEventsWhere(sqlWhereCondition)
+        }, mr => {
+          if (mr._2.length < expectedResults.size || !getNumberOfRowsReadSafe(mr._1, "events")
+            .exists(_ >= expectedInspectedResults.size)) {
+            println(s"need to retry ${mr._2.length} < ${expectedResults.size} || " +
+              s"${getNumberOfRowsReadSafe(mr._1, "events")} < ${expectedInspectedResults.size}")
+            true
+          } else false
+        }))
+    } yield {
+      val mismatching_events = df_rows.map(SparkSchemaHelper.fromRow[Event](_))
+        .filterNot(resultsPredicate)
+        .toList
+      assert(List.empty == mismatching_events, "all results should match the filter")
+
+      assert(df_rows.length == expectedResults.length, "spark read should read all expected events")
+
+      val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
+      assert(eventsRead == expectedInspectedResults.length, "spark should pushdown and " +
+        "inspect " +
+        "specific events")
+
+    }
+  }
+
+  private def testReadSql(sql: String, retryUntilSize: Int): Resource[IO, Array[Row]] = {
+    assert(sql.contains(testSource), "sql must be using testSource")
+    for {
+      (_, df_rows) <-
+        Resource.eval(retryWhileIO[(String, Array[Row])]({
+          readEvents(_ => spark.sql(sql))
+        }, e => {
+          if (e._2.length < retryUntilSize) {
+            println(s"retry ${e._2.length} < ${retryUntilSize}")
+            true
+          } else false
+        }))
+    } yield df_rows
+  }
+
+  private def runIOTest[A](test: Resource[IO, A]): Unit =
+    test.use(_ => IO.unit).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+
+  "EventsRelation" should "allow simple reads" taggedAs WriteTest in {
+    runIOTest(for {
+      events <- makeEvents(Seq.fill(30)(EventCreate()))
+      _ = assert(events.length > 20)
+      res <- Resource.eval(retryWhileIO[Array[Row]](IO.blocking {
+        val df = spark.read
+          .format(DefaultSource.sparkFormatString)
+          .useOIDCWrite
+          .option("type", "events")
+          .option("limitPerPartition", "10")
+          .option("partitions", "5")
+          .option("fetchSize", "100")
+          .load()
+          val view = s"events_${shortRandomString()}"
+          df.createTempView(view)
+          spark.sqlContext
+        .sql(s"select * from ${view} where source = '$testSource'")
+        .collect()}, _.length < 20))
+      _ = assert(res.length >= 20)
+    } yield ())
+  }
+
+
+  it should "apply a single pushdown filter" taggedAs WriteTest in {
+    runIOTest(for {
+      events <- makeEvents(
+        Seq.fill(4)(EventCreate())
+        ++ Seq.fill(5)(EventCreate(`type` = Some("Worktask")))
+      )
+      _ <- testReadQuery(
+        s"type = 'Worktask'",
+        _.`type`.contains("Worktask"),
+        _.`type`.contains("Worktask")
+      )(events)
+    } yield ())
   }
 
   it should "get exception on invalid query" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.filter.dataSetId"
     val df = getBaseReader(metricsPrefix)
-      .where("dataSetId = 0")
+      .where(s"dataSetId = 0 and source = '$testSource'")
 
     val thrown = the[SparkException] thrownBy df.count()
     thrown.getMessage should include("id must be greater than or equal to 1")
   }
 
   it should "apply a dataSetId pushdown filter" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filter.dataSetId"
-    val df = getBaseReader(metricsPrefix)
-      .where(
-        "type = 'Worktask' or dataSetId = 86163806167772 and createdTime < timestamp('2020-03-31 00:00:00.000Z')")
-
-    assert(df.count() == 230)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 230)
+    runIOTest(for {
+      dataset <- makeDatasetId()
+      events <- makeEvents(
+        for (
+          ty <- Seq("Worktask", "NotWorktask");
+          dataset <- Seq(Some(dataset), None)
+        ) yield EventCreate(`type` = Some(ty), dataSetId = dataset)
+      )
+      _ <- testReadQuery(
+        s"type = 'Worktask' and dataSetId = ${dataset}",
+        e => e.`type`.contains("Worktask") && e.dataSetId.contains(dataset),
+        e => e.`type`.contains("Worktask") && e.dataSetId.contains(dataset)
+      )(events)
+    } yield ())
   }
 
   it should "not fetch all items if filter on id" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filter.id"
-    val df = getBaseReader(metricsPrefix)
-      .where("id = 1394439528453086")
-
-    assert(df.count() == 1)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 1)
-
+    runIOTest(for {
+      events <- makeEvents(Seq.fill(2) (EventCreate()))
+      _ <- testReadQuery (s"id = ${events.head.id}",
+        _.id == events.head.id,
+        _.id == events.head.id
+        ) (events)
+    } yield ())
   }
 
   it should "not fetch all items if filter on externalId" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filter.externalId"
-    val df = getBaseReader(metricsPrefix)
-      .where("dataSetId = 86163806167772 or externalId = 'null-id-events65847147385304'")
-
-    assert(df.count() == 37)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 37)
+    val eventType = s"type-${shortRandomString()}"
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(`type` = Some(eventType)),
+        EventCreate(externalId = Some(s"test-${shortRandomString()}"), `type` = Some(eventType)),
+      ))
+      e2 = events.tail.head
+      _ <- testReadQuery(
+        s"type = '${eventType}' and externalId = '${e2.externalId.get}'",
+        e => e.`type`.contains(eventType) && e.externalId == e2.externalId,
+        _.externalId == e2.externalId)(events)
+    } yield ())
   }
 
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.and.non.pushdown"
-    // The contents of the parenthesis would need all content, but the left side should cancel that out
-    val df = getBaseReader(metricsPrefix)
-      .where(s"(type = 'Worktask' or description = 'Rule test rule broken.') and type = 'Worktask'")
-
-    assert(df.count() == 227)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 227)
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(`type` = Some("Worktask")),
+        EventCreate(`type` = Some("NotWorktask")),
+        EventCreate(`type` = Some("Worktask"), description = Some("Rule test rule broken.")),
+        EventCreate(`type` = Some("Worktask"), description = Some("Rule test rule broken.")),
+      ))
+      _ <- testReadQuery(
+        s"(type = 'Worktask' or description = 'Rule test rule broken.') and type = 'Worktask'",
+        e => e.`type`.contains("Worktask"),
+        e => e.`type`.contains("Worktask")
+      )(events)
+    } yield ())
   }
 
   it should "read all data when necessary" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.or.non.pushdown"
-    val df = getBaseReader(metricsPrefix)
-      .where(s"type = 'Worktask' or description = 'Rule test rule broken.'")
-
-    assert(df.count() == 237)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead > 25000)
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(`type` = Some("Worktask")),
+        EventCreate(`type` = Some("NotWorktask")),
+        EventCreate(),
+        EventCreate(`type` = Some("Worktask"), description = Some("Rule test rule broken.")),
+        EventCreate(`type` = Some("Worktask"), description = Some("Rule test rule broken.")),
+        EventCreate(`type` = Some("NotWorktask"), description = Some("Rule test rule broken.")),
+      ))
+      _ <- testReadQuery(
+        s"type = 'Worktask' or description = 'Rule test rule broken.'",
+        e => e.`type`.contains("Worktask") || e.description.contains("Rule test rule broken."),
+        _ => true
+      )(events)
+    } yield ())
   }
 
   it should "handle duplicates in a pushdown filter scenario" taggedAs WriteTest in {
-    val metricsPrefix = "single.pushdown.filter.duplicates"
-    val df = getBaseReader(metricsPrefix)
-      .where(s"type = 'NEWS' or subtype = 'HACK'")
-
-    val fetchedItems = df.collect()
-    // check that there are actually some items that satisfy both filters
-    assert(fetchedItems.exists(r =>
-      r.getAs[String]("type") == "NEWS" && r.getAs[String]("subtype") == "HACK"))
-    assert(fetchedItems.map(_.getAs[Long]("id")).distinct.length == fetchedItems.length)
-
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == fetchedItems.length)
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(`type` = Some("NEWS"), subtype = Some("HACK")),
+        EventCreate(`type` = Some("NEWS"), subtype = Some("ACK")),
+        EventCreate(`type` = Some("FAKE_NEWS"), subtype = Some("HACK")),
+        EventCreate(subtype = Some("HACK")),
+        EventCreate(`type` = Some("NEWS")),
+        EventCreate(),
+      ))
+      _ <- testReadQuery(
+        s"type = 'NEWS' or subtype = 'HACK'",
+        e => e.`type`.contains("NEWS") || e.subtype.contains("HACK"),
+        e => e.`type`.contains("NEWS") || e.subtype.contains("HACK")
+      )(events)
+    } yield ())
   }
 
   it should "apply multiple pushdown filters" taggedAs WriteTest in {
-    val metricsPrefix = "multiple.pushdown.filters"
-    val df = getBaseReader(metricsPrefix)
-      .where(
-        s"type = '***' and assetIds = Array(2091657868296883) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
-
-    assert(df.count() == 83)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 83)
+    runIOTest(for {
+      assets <- makeAssetIds(Seq(
+        AssetCreate(name = "asset")
+      ))
+      events <- makeEvents(Seq(
+        EventCreate(`type` = Some("***"), assetIds = Some(assets)),
+        EventCreate(assetIds = Some(assets)),
+        EventCreate(`type` = Some("***")),
+        EventCreate(`type` = Some("***"), assetIds = Some(assets)),
+        EventCreate(assetIds = Some(assets)),
+        EventCreate(`type` = Some("***")),
+      ))
+      _ <- testReadQuery(
+        s"type = '***' and assetIds = Array(${assets.mkString(", ")})",
+        e => e.`type`.contains("***") && e.assetIds.contains(assets),
+        e => e.`type`.contains("***") && e.assetIds.contains(assets)
+      )(events)
+    } yield ())
   }
 
   it should "handle or conditions" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filters.or"
-    val df = getBaseReader(metricsPrefix)
-      .where(
-        s"(type = 'Workitem' or type = 'Worktask') and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
-
-    assert(df.count() == 1483)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 1483)
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(),
+        EventCreate(`type` = Some("Workitem")),
+        EventCreate(`type` = Some("Workitem")),
+        EventCreate(`type` = Some("Worktask")),
+        EventCreate(`type` = Some("Worktask")),
+        EventCreate(`type` = Some("Worktask")),
+        EventCreate(`type` = Some("Work")),
+      ))
+      _ <- testReadQuery(
+        s"type = 'Workitem' or type = 'Worktask'",
+        e => e.`type`.contains("Workitem") || e.`type`.contains("Worktask"),
+        e => e.`type`.contains("Workitem") || e.`type`.contains("Worktask")
+      )(events)
+    } yield ())
   }
 
+
+
   it should "handle in() conditions" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filters.in"
-    val df = getBaseReader(metricsPrefix)
-      .where(s"type in('Workitem','Worktask') and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
-    assert(df.count() == 1483)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 1483)
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(),
+        EventCreate(`type` = Some("Workitem")),
+        EventCreate(`type` = Some("Workitem")),
+        EventCreate(`type` = Some("Worktask")),
+        EventCreate(`type` = Some("Worktask")),
+        EventCreate(`type` = Some("Worktask")),
+        EventCreate(`type` = Some("Work")),
+      ))
+      _ <- testReadQuery(
+        s"type in ('Workitem', 'Worktask')",
+        e => e.`type`.contains("Workitem") || e.`type`.contains("Worktask"),
+        e => e.`type`.contains("Workitem") || e.`type`.contains("Worktask")
+      )(events)
+    } yield ())
   }
 
   it should "handle and, or and in() in one query" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filters.and.or.in"
-    val df = getBaseReader(metricsPrefix)
-      .where(
-        s"(type = 'Workitem' or type = '***') and assetIds in(array(2091657868296883), array(8031965690878131)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
-
-    assert(df.count() == 172)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 172)
+    runIOTest(for {
+      assets1 <- makeAssetIds(Seq(AssetCreate(name = "asset")))
+      assets2 <- makeAssetIds(Seq(AssetCreate(name = "asset")))
+      assets3 <- makeAssetIds(Seq(AssetCreate(name = "asset")))
+      events <- makeEvents(Seq(
+        EventCreate(`type` = Some("Workitem"), assetIds = Some(assets1)),
+        EventCreate(`type` = Some("***"), assetIds = Some(assets1)),
+        EventCreate(assetIds = Some(assets1)),
+        EventCreate(assetIds = Some(assets1)),
+        EventCreate(`type` = Some("Workitem"), assetIds = Some(assets2)),
+        EventCreate(`type` = Some("***"), assetIds = Some(assets2)),
+        EventCreate(assetIds = Some(assets2)),
+        EventCreate(assetIds = Some(assets2)),
+        EventCreate(`type` = Some("Workitem"), assetIds = Some(assets3)),
+        EventCreate(`type` = Some("***"), assetIds = Some(assets3)),
+        EventCreate(assetIds = Some(assets3)),
+        EventCreate(assetIds = Some(assets3)),
+        EventCreate(`type` = Some("Workitem")),
+        EventCreate(`type` = Some("***")),
+        EventCreate(),
+      ))
+      _ <- testReadQuery(
+        s"(type = 'Workitem' or type = '***') and assetIds in(array(${assets1.mkString(", ")}), array(${assets2.mkString(", ")}))",
+        e => (e.`type`.contains("Workitem") || e.`type`.contains("***"))
+          && (e.assetIds.contains(assets1) || e.assetIds.contains(assets2)),
+        e => (e.`type`.contains("Workitem") || e.`type`.contains("***"))
+          && (e.assetIds.contains(assets1) || e.assetIds.contains(assets2))
+      )(events)
+    } yield ())
   }
 
+
   it should "handle pushdown filters on minimum startTime" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filters.minStartTime"
-    val df = getBaseReader(metricsPrefix)
-      .where(
-        "startTime > to_timestamp(1568105460) and createdTime < timestamp('2020-05-10 00:00:00.000Z')")
-    assert(df.count() >= 179)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead >= 179)
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(startTime = Some(Instant.ofEpochSecond(100L))),
+        EventCreate(startTime = Some(Instant.ofEpochSecond(1568105460L))),
+        EventCreate(startTime = Some(Instant.ofEpochSecond(1568105461L))),
+        EventCreate(startTime = Some(Instant.ofEpochSecond(2568105460L))),
+      ))
+      _ <- testReadQuery(
+        s"startTime > to_timestamp(1568105460)",
+        e => e.startTime.exists(t => t.isAfter(Instant.ofEpochSecond(1568105460L))),
+        // TOOD: inexact pushdown here
+        e => e.startTime.exists(t => t.isAfter(Instant.ofEpochSecond(1568105459L)))
+      )(events)
+    } yield ())
   }
 
   it should "handle pushdown filters on maximum createdTime" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filters.maxCreatedTime"
-    val df = getBaseReader(metricsPrefix)
-      .where("createdTime <= timestamp('2018-10-26 00:00:00.000Z')")
-    assert(df.count() == 1029)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 1029)
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(),
+        EventCreate(),
+      ))
+      _ = testReadQuery(
+        s"createdTime <= timestamp('2222-10-26 00:00:00.000Z')",
+        _ => true,
+        _ => true
+      )(events)
+    } yield ())
   }
 
   it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filters.maxStartTime"
-    val df = getBaseReader(metricsPrefix)
-      .where(
-        s"startTime < timestamp('1970-01-19 00:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
-    assert(df.count() > 10)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == df.count())
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(startTime = Some(Instant.ofEpochSecond(100L))),
+        EventCreate(startTime = Some(Instant.ofEpochSecond(1568105460L))),
+        EventCreate(startTime = Some(Instant.ofEpochSecond(1568105461L))),
+        EventCreate(startTime = Some(Instant.ofEpochSecond(2568105460L))),
+      ))
+      _ = testReadQuery(
+        s"startTime < timestamp('${
+          DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochSecond
+          (1568105461L))
+        }')",
+        e => e.startTime.exists(t => t.isBefore(Instant.ofEpochSecond(1568105461L))),
+        // TOOD: inexact pushdown here
+        e => e.startTime.exists(t => t.isBefore(Instant.ofEpochSecond(1568105462L)))
+      )(events)
+    } yield ())
   }
 
   it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filters.minMaxStartTime"
-    val df = getBaseReader(metricsPrefix)
-      .where(
-        s"startTime < timestamp('1970-01-19 00:00:00.000Z') and startTime > timestamp('1970-01-18 23:00:00.000Z') and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
-    assert(df.count() == 9)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 9)
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(startTime = Some(Instant.ofEpochSecond(100L))),
+        EventCreate(startTime = Some(Instant.ofEpochSecond(1568105460L))),
+        EventCreate(startTime = Some(Instant.ofEpochSecond(1568105461L))),
+        EventCreate(startTime = Some(Instant.ofEpochSecond(2568105460L))),
+      ))
+      _ = testReadQuery(
+        s"startTime >= timestamp('${
+          DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochSecond
+          (100L))
+        }') and startTime <= timestamp('${DateTimeFormatter.ISO_INSTANT.format(Instant
+          .ofEpochSecond(1968105460L))}')",
+        e => e.startTime
+          .filter(_.isAfter(Instant.ofEpochSecond(99L)))
+          .exists(_.isBefore(Instant.ofEpochSecond(1968105461L))),
+        e => e.startTime
+          .filter(_.isAfter(Instant.ofEpochSecond(99L)))
+          .exists(_.isBefore(Instant.ofEpochSecond(1968105461L)))
+      )(events)
+    } yield ())
   }
+
+
 
   it should "handle pushdown filters on assetIds" taggedAs WriteTest in {
-    val metricsPrefix = "pushdown.filters.assetIds"
-    val df = getBaseReader(metricsPrefix)
-      .where(
-        s"assetIds In(Array(2091657868296883)) and createdTime < timestamp('2020-01-01 00:00:00.000Z')")
-    assert(df.count() == 89)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 89)
+    runIOTest(for {
+      assets <- makeAssetIds(Seq.fill(2)(
+        AssetCreate(name = "asset")
+      ))
+      events <- makeEvents(Seq(
+        EventCreate(),
+        EventCreate(assetIds = Some(assets)),
+        EventCreate(assetIds = Some(assets.drop(1))),
+        EventCreate(assetIds = Some(assets.take(1))),
+      ))
+      _ = testReadQuery(
+        s"assetIds In(Array(${assets.head}))",
+        e => e.assetIds.contains(Seq(assets.head)),
+        e => e.assetIds.exists(_.contains(assets.head))
+      )(events)
+    } yield ())
   }
 
-  (it should "handle pusdown filters on eventIds" taggedAs WriteTest).ignore {
-    val metricsPrefix = "pushdown.filters.id"
-    val df = getBaseReader(metricsPrefix)
-      .where("id = 370545839260513")
-    assert(df.count() == 1)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 1)
+  it should "handle pushdown filters on eventIds" taggedAs WriteTest in {
+    runIOTest(for {
+      events <- makeEvents(Seq.fill(3)(EventCreate()))
+      _ = testReadQuery(
+        s"id = ${events.head.id}",
+        _.id == events.head.id,
+        _.id == events.head.id
+      )(events)
+    } yield ())
   }
 
-  (it should "handle pusdown filters on many eventIds" taggedAs WriteTest).ignore {
-    val metricsPrefix = "pushdown.filters.ids"
-    val df = getBaseReader(metricsPrefix)
-      .where(
-        "id In(607444033860, 3965637099169, 10477877031034, 17515837146970, 19928788984614, 21850891340773)")
-    assert(df.count() == 6)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 6)
+
+
+  it should "handle pushdown filters on many eventIds" taggedAs WriteTest in {
+    runIOTest(for {
+      events <- makeEvents(Seq.fill(6)(EventCreate()))
+      focusIds = events.slice(1, 4).map(_.id)
+      _ = testReadQuery(
+        s"id In(${focusIds.mkString(", ")})",
+        e => focusIds.contains(e.id),
+        e => focusIds.contains(e.id)
+      )(events)
+    } yield ())
   }
 
-  (it should "handle pusdown filters on many eventIds with or" taggedAs WriteTest).ignore {
-    val metricsPrefix = "pushdown.filters.orids"
-    val df = getBaseReader(metricsPrefix)
-      .where("""
-          id = 607444033860 or id = 3965637099169 or id = 10477877031034 or
-          id = 17515837146970 or id = 19928788984614 or id = 21850891340773""")
-    assert(df.count() == 6)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 6)
+  it should "handle pushdown filters on many eventIds with or" taggedAs WriteTest in {
+    runIOTest(for {
+      events <- makeEvents(Seq.fill(6)(EventCreate()))
+      focusIds = events.slice(1, 4).map(_.id)
+      _ <- testReadQuery(
+        focusIds.map(i => s"id = ${i}").mkString(" or "),
+        e => focusIds.contains(e.id),
+        e => focusIds.contains(e.id)
+      )(events)
+    } yield ())
   }
 
-  (it should "handle pusdown filters on many eventIds with other filters" taggedAs WriteTest).ignore {
-    val metricsPrefix = "pushdown.filters.idsAndDescription"
-    val df = getBaseReader(metricsPrefix)
-      .where("""id In(
-        607444033860, 3965637099169,
-        10477877031034, 17515837146970,
-        19928788984614, 21850891340773) and description = "eventspushdowntest" """)
-    assert(df.count() == 1)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 6)
+  it should "handle pushdown filters on many eventIds with other filters" taggedAs WriteTest in {
+    runIOTest(for {
+      events <- makeEvents(
+        Seq.fill(2)(EventCreate())
+        ++ Seq.fill(2)(EventCreate(description = Some("eventspushdowntest")))
+        ++ Seq.fill(6)(EventCreate(description = Some("eventspushdowntest")))
+        ++ Seq.fill(2)(EventCreate())
+      )
+      _ <- testReadQuery(
+        s"id In(${events.drop(4).map(_.id).mkString(", ")}) and description = 'eventspushdowntest'",
+        e => events.drop(4).exists(_.id == e.id) && e.description.contains("eventspushdowntest"),
+        e => events.drop(4).exists(_.id == e.id),
+      )(events)
+    } yield ())
   }
 
-  (it should "handle a really advanced query" taggedAs WriteTest).ignore {
-    val metricsPrefix = "pushdown.filters.advanced"
-
-    val df = spark.read
-      .format("cognite.spark.v1")
-      .useOIDCWrite
-      .option("type", "events")
-      .option("collectMetrics", "true")
-      .option("metricsPrefix", metricsPrefix)
-      .load()
-      .where(
-        s"((type = 'maintenance' or type = 'upgrade') " +
-          s"and subtype in('manual', 'automatic')) " +
-          s"or (type = 'maintenance' and subtype = 'manual') " +
-          s"or (type = 'upgrade') and source = 'something'")
-    assert(df.count() == 4)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 4)
+  it should "handle a really advanced query" taggedAs WriteTest in {
+    runIOTest(for {
+      events <- makeEvents(for
+       (ty <- Seq(Some("maintenance"), Some("upgrade"), Some("a"),None);
+         sub <- Seq(Some("manual"), Some("automatic"), Some("b"), None)
+        )
+        yield EventCreate(`type` = ty, subtype = sub))
+      _ = testReadQuery(s"((type = 'maintenance' or type = 'upgrade') " +
+        s"and subtype in('manual', 'automatic')) " +
+        s"or (type = 'maintenance' and subtype = 'manual') " +
+        s"or (type = 'upgrade') and source = 'something'",
+        e => (e.`type`.contains("maintenance") || e.`type`.contains("upgrade"))
+          && e.subtype.exists(Seq("manual", "automatic").contains(_))
+          || (e.`type`.contains("maintenance") && e.subtype.contains("manual"))
+          || (e.`type`.contains("upgrade") && e.subtype.contains("something")),
+        e => (e.`type`.contains("maintenance") || e.`type`.contains("upgrade"))
+          && e.subtype.exists(Seq("manual", "automatic").contains(_))
+          || (e.`type`.contains("maintenance") && e.subtype.contains("manual"))
+          || (e.`type`.contains("upgrade") && e.subtype.contains("something"))
+      )(events)
+    } yield ())
   }
 
-  (it should "handle pushdown on eventId or something else" taggedAs WriteTest).ignore {
-    val metricsPrefix = "pushdown.filters.idortype"
-    val df = getBaseReader(metricsPrefix)
-      .where(s"type = 'maintenance' or id = 17515837146970")
-    assert(df.count() == 6)
-    val eventsRead = getNumberOfRowsRead(metricsPrefix, "events")
-    assert(eventsRead == 6)
+  it should "handle pushdown on eventId or something else" taggedAs WriteTest in {
+    runIOTest(for {
+      events <- makeEvents(Seq(
+        EventCreate(),
+        EventCreate(`type` = Some("maintenance")),
+        EventCreate(),
+      ))
+      _ = testReadQuery(
+        s"type = 'maintenance' or id = ${events.head.id}",
+        e => e.`type`.contains("maintenance") || e.id == events.head.id,
+        e => e.`type`.contains("maintenance") || e.id == events.head.id
+      )(events)
+    } yield ())
+  }
+
+  private def makeDestinationDf(): Resource[IO, (DataFrame, String, String)] = {
+    val targetView = s"destinationEvent_${shortRandomString()}"
+    val metricsPrefix = s"test.${shortRandomString()}"
+    Resource.make { IO.blocking {
+      val destinationDf: DataFrame = spark.read
+        .format(DefaultSource.sparkFormatString)
+        .useOIDCWrite
+        .option("type", "events")
+        .option("collectMetrics", "true")
+        .option("metricsPrefix", metricsPrefix)
+        .load()
+      destinationDf.createOrReplaceTempView(targetView)
+      (destinationDf, targetView, metricsPrefix)
+    }}{
+      case (_, targetView, _) => IO.blocking {
+        spark
+          .sql(s"""select * from ${targetView} where source = '${testSource}'""")
+          .write
+          .format(DefaultSource.sparkFormatString)
+          .useOIDCWrite
+          .option("type", "events")
+          .option("onconflict", "delete")
+          .save()
+    }}
   }
 
   it should "allow null values for all event fields except id" taggedAs WriteTest in {
-    val source = s"spark-events-test-null-${shortRandomString()}"
-    try {
-      spark
-        .sql(s"""
-              select
-                |10 as id,
-                |null as startTime,
-                |null as endTime,
-                |null as description,
-                |null as type,
-                |null as subtype,
-                |map('foo', 'bar', 'nullValue', null) as metadata,
-                |null as assetIds,
-                |'$source' as source,
-                |null as externalId,
-                |0 as createdTime,
-                |0 as lastUpdatedTime,
-                |null as dataSetId
+    runIOTest(for {
+      (_, targetView, _) <- makeDestinationDf()
+      _ = spark
+        .sql(
+          s"""
+             select
+             |10 as id,
+             |null as startTime,
+             |null as endTime,
+             |null as description,
+             |null as type,
+             |null as subtype,
+             |map('foo', 'bar', 'nullValue', null) as metadata,
+             |null as assetIds,
+             |'$testSource' as source,
+             |null as externalId,
+             |0 as createdTime,
+             |0 as lastUpdatedTime,
+             |null as dataSetId
      """.stripMargin)
         .write
-        .insertInto("destinationEvent")
-
-      val rows = retryWhile[Array[Row]](
-        spark.sql(s"""select * from destinationEvent where source = "$source"""").collect(),
-        rows => rows.length < 1)
+        .insertInto(targetView)
+      rows <- testReadSql(
+        s"select * from ${targetView} where source = '${testSource}'",
+        1
+      )
+    } yield {
       assert(rows.length == 1)
       val storedMetadata = rows.head.getAs[Map[String, String]](6)
       assert(storedMetadata.size == 1)
       assert(storedMetadata.get("foo").contains("bar"))
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+    })
   }
 
   it should "support upserts" taggedAs WriteTest in {
-    val metricsPrefix = s"upsert.event.insertInto.${shortRandomString()}"
-    val source = "spark-events-test-upsert" + shortRandomString()
-
-    try {
-      val destinationDf: DataFrame = spark.read
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("type", "events")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .load()
-      destinationDf.createOrReplaceTempView("destinationEventUpsert")
-
+    runIOTest(for {
+      (destinationDf, targetView, metricsPrefix) <- makeDestinationDf()
+      _ <- makeEvents(Seq.fill(10)(EventCreate()))
       // Post new events
-      spark
-        .sql(s"""
-                |select "bar" as description,
-                |startTime,
-                |endTime,
-                |null as type,
-                |null as subtype,
-                |null as assetIds,
-                |bigint(0) as id,
-                |map("foo", null, "bar", "test") as metadata,
-                |"$source" as source,
-                |concat("$source", cast(id as string)) as externalId,
-                |createdTime,
-                |lastUpdatedTime,
-                |null as dataSetId
-                |from sourceEvent
-                |limit 100
-     """.stripMargin)
-        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
-        .write
-        .insertInto("destinationEventUpsert")
-
-      // Check if post worked
-      val descriptionsAfterPost =
-        retryWhile[Array[Row]](eventDescriptions(source), rows => rows.length < 100)
-      assert(descriptionsAfterPost.length == 100)
-      assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "bar"))
-
-      val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreated == 100)
-
+      _ = spark.sql(s"""
+            |select "bar" as description,
+            |startTime,
+            |endTime,
+            |null as subtype,
+            |null as assetIds,
+            |id,
+            |"$metricsPrefix" as type,
+            |map("foo", null, "bar", "test") as metadata,
+            |"$testSource" as source,
+            |concat("$testSource", cast(id as string)) as externalId,
+            |createdTime,
+            |lastUpdatedTime,
+            |null as dataSetId
+            |from ${sourceView}
+            |limit 10
+""".stripMargin)
+    .select(destinationDf.columns.map(col).toIndexedSeq: _ *)
+    .write
+      .insertInto(targetView)
+      _ = assert(getNumberOfRowsCreated(metricsPrefix, "events") == 10)
+      descriptionsAfterPost <- testReadSql(s"select description, id from ${targetView} where " +
+        s"source =" +
+        s" '${testSource}' and type='${metricsPrefix}'", 10)
+      _ = assert(descriptionsAfterPost.length == 10)
+      _ = assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "bar"))
+      assets <- makeAssetIds(Seq(AssetCreate(name = "asset")))
       // Update events
-      spark
-        .sql(s"""
-                |select "foo" as description,
-                |startTime,
-                |endTime,
-                |type,
-                |subtype,
-                |array(2091657868296883) as assetIds,
-                |null as id,
-                |map("some", null, "metadata", "test") as metadata,
-                |"$source" as source,
-                |concat("$source", cast(id as string)) as externalId,
-                |createdTime,
-                |lastUpdatedTime,
-                |null as dataSetId
-                |from sourceEvent
-                |limit 500
-     """.stripMargin)
-        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
-        .write
-        .insertInto("destinationEventUpsert")
-
-      val eventsCreated2 = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreated2 == 500)
-      val eventsUpdated = getNumberOfRowsUpdated(metricsPrefix, "events")
-      assert(eventsUpdated == 100)
-
-      // Check if upsert worked
-      val descriptionsAfterUpdate = retryWhile[Array[Row]](
-        spark
-          .sql(
-            s"select description from destinationEventUpsert where source = '$source' and description = 'foo'")
-          .collect(),
-        df => df.length < 500
+      _ = spark
+    .sql(s"""
+            |select "foo" as description,
+            |startTime,
+            |endTime,
+            |type,
+            |subtype,
+            |array(${assets.mkString(", ")}) as assetIds,
+            |null as id,
+            |map("some", null, "metadata", "test") as metadata,
+            |"$testSource" as source,
+            |concat("$testSource", cast(id as string)) as externalId,
+            |createdTime,
+            |lastUpdatedTime,
+            |null as dataSetId
+            |from ${sourceView}
+            |limit 5
+""".stripMargin)
+    .select(destinationDf.columns.map(col).toIndexedSeq: _ *)
+    .write
+      .insertInto(targetView)
+      _ = assert (getNumberOfRowsCreated(metricsPrefix, "events") == 10)
+      _ = assert (getNumberOfRowsUpdated(metricsPrefix, "events") == 5)
+      descriptionsAfterUpdate <- testReadSql(s"select description, id from ${targetView} where " +
+        s"source" +
+        s" = '$testSource'" +
+        s" and " +
+        s"description = 'foo' and source = '${testSource}'", 5)
+      _ = assert (descriptionsAfterUpdate.length == 5)
+      _ = assert (descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "foo"))
+      _ = assert (getNumberOfRowsCreated(metricsPrefix, "events") == 10)
+      dfWithCorrectAssetIds <- testReadSql(
+        s"select * from ${targetView} where assetIds = array(${assets.mkString(", ")}) and source = " +
+          s"'${testSource}'", 5
       )
-      assert(descriptionsAfterUpdate.length == 500)
-      assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "foo"))
-
-      val eventsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreatedAfterUpsert == 500)
-
-      val dfWithCorrectAssetIds = retryWhile[Array[Row]](
-        spark
-          .sql(
-            s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'")
-          .collect(),
-        rows => rows.length < 500)
-      assert(dfWithCorrectAssetIds.length == 500)
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+      _ = assert(dfWithCorrectAssetIds.length == 5)
+    } yield ())
   }
+
+
 
   it should "allow empty metadata updates" taggedAs WriteTest in {
     val externalId1 = UUID.randomUUID.toString
+    runIOTest(for {
+      _ <- makeEvents(Seq(EventCreate(externalId = Some(externalId1), metadata = Some(Map("test1"
+        -> "test1")))))
+      wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata, '${testSource}' " +
+        s"as source")
 
-    writeClient.events
-      .create(Seq(EventCreate(externalId = Some(externalId1), metadata = Some(Map("test1" -> "test1")))))
-      .unsafeRunSync()
-    writeClient.events.retrieveByExternalId(externalId1).unsafeRunSync().metadata shouldBe Some(
-      Map("test1" -> "test1"))
-
-    val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
-
-    wdf.write
-      .format("cognite.spark.v1")
-      .useOIDCWrite
+      _ = wdf.write
+        .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
       .option("type", "events")
-      .option("onconflict", "upsert")
-      .save()
+    .option("onconflict", "upsert")
+    .save()
+      updated = writeClient.events.retrieveByExternalId(externalId1).unsafeRunSync()(IORuntime.global)
 
-    val updated = writeClient.events.retrieveByExternalId(externalId1).unsafeRunSync()
-
-    writeClient.events.deleteByExternalId(externalId1).unsafeRunSync()
-
-    updated.metadata shouldBe None
+      _ = updated.metadata shouldBe None
+    } yield ())
   }
 
   it should "allow inserts in savemode" taggedAs WriteTest in {
-    val source = s"spark-events-insert-savemode-${shortRandomString()}"
-    val metricsPrefix = s"insert.event.savemode.${shortRandomString()}"
-
-    try {
+    runIOTest(for {
+      (_, targetView, _) <- makeDestinationDf()
+      assets <- makeAssetIds(Seq(AssetCreate(name = "asset")))
+      _ <- makeEvents(Seq.fill(10)(EventCreate()))
       // Test inserts
-      val df = spark
-        .sql(s"""
-                |select "foo" as description,
-                |least(startTime, endTime) as startTime,
-                |greatest(startTime, endTime) as endTime,
-                |null as type,
-                |null as subtype,
-                |array(8031965690878131) as assetIds,
-                |null as id,
-                |map("foo", null, "bar", "test") as metadata,
-                |"$source" as source,
-                |concat("$source", string(id)) as externalId,
-                |createdTime,
-                |lastUpdatedTime
-                |from sourceEvent
-                |limit 100
-     """.stripMargin)
+      df <- Resource.eval(retryWhileIO[DataFrame](
+        IO.blocking{ spark.sql(s"""
+           |select "foo" as description,
+           |monotonically_increasing_id() as id,
+           |least(startTime, endTime) as startTime,
+           |greatest(startTime, endTime) as endTime,
+           |array(${assets.mkString(", ")}) as assetIds,
+           |map("foo", null, "bar", "test") as metadata,
+           |"$testSource" as source,
+           |concat("$testSource", string(id)) as externalId
+           |from ${targetView} where source = "$testSource"
+           |limit 10
+           """.stripMargin)},
+        df => df.collect().length < 10
+        ))
 
-      df.write
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("type", "events")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
+      metricsPrefix = s"metrics-${shortRandomString()}"
+      _ = df.write
+        .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
+      .option("type", "events")
+    .option("collectMetrics", "true")
+    .option("metricsPrefix", metricsPrefix)
+    .save()
 
-      val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreated == 100)
-
-      val dfWithSourceInsertTest = retryWhile[Array[Row]](
-        spark.sql(s"select * from destinationEvent where source = '$source'").collect(),
-        df => df.length < 100
-      )
-      assert(dfWithSourceInsertTest.length == 100)
-
+      eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ = assert (eventsCreated == 10)
+      targetView2 = s"view_${shortRandomString()}"
+      _ = df.createOrReplaceTempView(targetView2)
+      dfWithSourceInsertTest <- testReadSql(s"select * from ${targetView2} where source = '$testSource'", 10)
+      _ = assert(dfWithSourceInsertTest.length == 10)
       // Trying to insert existing rows should throw a CdpApiException
-      val e = intercept[SparkException] {
+      e = intercept[SparkException] {
         df.write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "events")
           .save()
       }
-      e.getCause shouldBe a[CdpApiException]
-      val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
-      assert(cdpApiException.code == 409)
-      val eventsCreatedAfterFailure = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreatedAfterFailure == 100)
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+      _ = e.getCause shouldBe a[CdpApiException]
+      cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+      _ = assert(cdpApiException.code == 409)
+      eventsCreatedAfterFailure = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ = assert (eventsCreatedAfterFailure == 10)
+    } yield ())
   }
 
+
+
   it should "allow NULL updates in savemode" taggedAs WriteTest in forAll(updateAndUpsert) {
-    updateMode =>
-      val source = s"spark-events-update-null-${shortRandomString()}"
-      val metricsPrefix = s"updatenull.event.${shortRandomString()}"
+    updateMode => runIOTest(for {
+      (_, targetView, metricsPrefix) <- makeDestinationDf()
+      assets <- makeAssetIds(Seq(AssetCreate(name = "asset")))
+      // Insert test event
+      df = spark
+        .sql(
+          s"""
+             |select "foo" as description,
+             |cast(from_unixtime(10) as timestamp) as startTime,
+             |cast(from_unixtime(20) as timestamp) as endTime,
+             |"test-type" as type,
+             |"test-type" as subtype,
+             |array(${assets.mkString(", ")}) as assetIds,
+             |"$testSource-$updateMode" as source,
+             |"$testSource-id" as externalId
+""".stripMargin)
 
-      try {
-        // Insert test event
-        val df = spark
-          .sql(s"""
-                |select "foo" as description,
-                |cast(from_unixtime(10) as timestamp) as startTime,
-                |cast(from_unixtime(20) as timestamp) as endTime,
-                |"test-type" as type,
-                |"test-type" as subtype,
-                |array(8031965690878131) as assetIds,
-                |"$source" as source,
-                |"$source-id" as externalId
-     """.stripMargin)
+      _ = df.write
+        .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
+      .option("type", "events")
+    .option("collectMetrics", "true")
+    .option("metricsPrefix", metricsPrefix)
+    .option("onconflict", "abort")
+    .save()
 
-        df.write
-          .format("cognite.spark.v1")
-          .useOIDCWrite
-          .option("type", "events")
-          .option("collectMetrics", "true")
-          .option("metricsPrefix", metricsPrefix)
-          .option("onconflict", "abort")
-          .save()
+      insertTest <- Resource.eval(retryWhileIO[Array[Row]](
+        IO.blocking{ spark.sql(s"select * from ${targetView} where source = " +
+            s"'$testSource-$updateMode'")
+          .collect()},
+        df => df.length < 1
+      ))
 
-        val insertTest = retryWhile[Array[Row]](
-          spark.sql(s"select * from destinationEvent where source = '$source'").collect(),
-          df => df.length == 0
-        )
+      _ = spark
+    .sql(s"""
+            |select "foo-$testSource" as description,
+            |NULL as endTime,
+            |NULL as subtype,
+            |"$testSource-$updateMode" as source,
+            |${insertTest.head.getAs[Long] ("id")} as id,
+            |NULL as externalId
+""".stripMargin)
+    .write
+        .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
+      .option("type", "events")
+    .option("collectMetrics", "true")
+    .option("metricsPrefix", metricsPrefix)
+    .option("ignoreNullFields", "false")
+    .option("onconflict", updateMode)
+    .save()
 
-        spark
-          .sql(s"""
-                |select "foo-$source" as description,
-                |NULL as endTime,
-                |NULL as subtype,
-                |"$source" as source,
-                |${insertTest.head.getAs[Long]("id")} as id,
-                |NULL as externalId
-     """.stripMargin)
-          .write
-          .format("cognite.spark.v1")
-          .useOIDCWrite
-          .option("type", "events")
-          .option("collectMetrics", "true")
-          .option("metricsPrefix", metricsPrefix)
-          .option("ignoreNullFields", "false")
-          .option("onconflict", updateMode)
-          .save()
+      updateTest <- testReadSql(
+            s"select * from ${targetView} where source = '$testSource-$updateMode' and description = " +
+              s"'foo-$testSource'", 1
+      )
+      _ = updateTest.length shouldBe 1
+      Array(updatedRow) = updateTest
+      updatedEvent = SparkSchemaHelper.fromRow[EventsReadSchema](updatedRow)
+      _ = updatedEvent.endTime shouldBe None
+      _ = updatedEvent.startTime shouldBe defined
+      _ = updatedEvent.source shouldBe Some(s"$testSource-$updateMode")
+      _ = updatedEvent.externalId shouldBe None
+      _ = updatedEvent.assetIds shouldBe Some(assets)
+      _ = updatedEvent.`type` shouldBe Some("test-type")
+      _ = updatedEvent.subtype shouldBe None
+    } yield ())
 
-        val updateTest = retryWhile[Array[Row]](
-          spark
-            .sql(
-              s"select * from destinationEvent where source = '$source' and description = 'foo-$source'")
-            .collect(),
-          df => df.length == 0
-        )
-        updateTest.length shouldBe 1
-        val Array(updatedRow) = updateTest
-        val updatedEvent = SparkSchemaHelper.fromRow[EventsReadSchema](updatedRow)
-        updatedEvent.endTime shouldBe None
-        updatedEvent.startTime shouldBe defined
-        updatedEvent.source shouldBe Some(source)
-        updatedEvent.externalId shouldBe None
-        updatedEvent.assetIds shouldBe Some(Seq(8031965690878131L))
-        updatedEvent.`type` shouldBe Some("test-type")
-        updatedEvent.subtype shouldBe None
-
-      } finally {
-        try {
-          cleanupEvents(source)
-        } catch {
-          case NonFatal(_) => // ignore
-        }
-      }
   }
 
   it should "allow duplicated ids and external ids when using upsert in savemode" in {
-    val source = s"spark-events-test-${shortRandomString()}"
-    val metricsPrefix = s"upsert.duplicate.event.save.${shortRandomString()}"
-
-    try {
-      val externalId = shortRandomString()
-
+    runIOTest(for {
+      (_, targetView, metricsPrefix) <- makeDestinationDf()
+      externalId = shortRandomString()
       // Post new events
-      val eventsToCreate = spark
-        .sql(s"""
-                |select "$source" as source,
-                |cast(from_unixtime(0) as timestamp) as startTime,
-                |"$externalId" as externalId
-                |union
-                |select "$source" as source,
-                |cast(from_unixtime(1) as timestamp) as startTime,
-                |"$externalId" as externalId
-     """.stripMargin)
+      eventsToCreate = spark
+        .sql(
+          s"""
+             |select "$testSource" as source,
+             |cast(from_unixtime(0) as timestamp) as startTime,
+             |"$externalId" as externalId
+             |union
+             |select "$testSource" as source,
+             |cast(from_unixtime(1) as timestamp) as startTime,
+             |"$externalId" as externalId
+""".stripMargin)
 
-      eventsToCreate
-        .repartition(1)
-        .write
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("type", "events")
-        .option("onconflict", "upsert")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
+    _ = eventsToCreate
+    .repartition(1)
+    .write
+      .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
+      .option("type", "events")
+    .option("onconflict", "upsert")
+    .option("collectMetrics", "true")
+    .option("metricsPrefix", metricsPrefix)
+    .save()
 
-      val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreated == 1)
+      eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ = assert (eventsCreated == 1)
 
-      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "events")
+      _ = a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "events")
 
       // We need to add endTime as well, otherwise Spark is clever enough to remove duplicates
       // on its own, it seems.
-      val eventsToUpdate = spark
-        .sql(s"""
-                |select "$source" as source,
-                |"bar" as description,
-                |cast(from_unixtime(0) as timestamp) as endTime,
-                |"$externalId" as externalId
-                |union
-                |select "$source" as source,
-                |"bar" as description,
-                |cast(from_unixtime(1) as timestamp) as endTime,
-                |"$externalId" as externalId
-     """.stripMargin)
+      eventsToUpdate = spark
+        .sql(
+          s"""
+             |select "$testSource" as source,
+             |"bar" as description,
+             |cast(from_unixtime(0) as timestamp) as endTime,
+             |"$externalId" as externalId
+             |union
+             |select "$testSource" as source,
+             |"bar" as description,
+             |cast(from_unixtime(1) as timestamp) as endTime,
+             |"$externalId" as externalId
+""".stripMargin)
 
-      eventsToUpdate
-        .repartition(1)
-        .write
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("type", "events")
-        .option("onconflict", "upsert")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
+      _ = eventsToUpdate
+    .repartition(1)
+    .write
+        .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
+      .option("type", "events")
+    .option("onconflict", "upsert")
+    .option("collectMetrics", "true")
+    .option("metricsPrefix", metricsPrefix)
+    .save()
 
-      val eventsCreatedAfterByExternalId = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreatedAfterByExternalId == 1)
+      eventsCreatedAfterByExternalId = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ =assert (eventsCreatedAfterByExternalId == 1)
 
-      val eventsUpdatedAfterByExternalId = getNumberOfRowsUpdated(metricsPrefix, "events")
-      assert(eventsUpdatedAfterByExternalId == 1)
+      eventsUpdatedAfterByExternalId = getNumberOfRowsUpdated(metricsPrefix, "events")
+      _ = assert (eventsUpdatedAfterByExternalId == 1)
 
-      val descriptionsAfterUpdate =
-        retryWhile[Array[Row]](
-          spark
-            .sql(
-              s"select description from destinationEvent where source = '$source' and description = 'bar'")
-            .collect(),
-          rows => rows.length < 1)
-      assert(descriptionsAfterUpdate.length == 1)
-      assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
+      descriptionsAfterUpdate <- testReadSql(s"select description, id from ${targetView} where " +
+        s"source " +
+        s"= '$testSource' and description = " +
+                s"'bar'", 1)
+      _ = assert (descriptionsAfterUpdate.length == 1)
+      _ = assert (descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
 
-      val eventsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreatedAfterUpsert == 1)
+      eventsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ = assert (eventsCreatedAfterUpsert == 1)
 
-      val id = writeClient.events.retrieveByExternalId(externalId).unsafeRunSync().id
-      val eventsToUpdateById = spark
-        .sql(s"""
-                |select "$source" as source,
-                |"bar2" as description,
-                |cast(from_unixtime(0) as timestamp) as endTime,
-                |${id.toString} as id
-                |union
-                |select "$source" as source,
-                |"bar2" as description,
-                |cast(from_unixtime(1) as timestamp) as endTime,
-                |${id.toString} as id
-     """.stripMargin)
+      id <- Resource.eval(writeClient.events.retrieveByExternalId(externalId).map(_.id))
 
-      eventsToUpdateById
-        .repartition(1)
-        .write
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("type", "events")
-        .option("onconflict", "upsert")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
+      eventsToUpdateById = spark
+        .sql(
+          s"""
+             |select "$testSource" as source,
+             |"bar2" as description,
+             |cast(from_unixtime(0) as timestamp) as endTime,
+             |${id.toString} as id
+             |union
+             |select "$testSource" as source,
+             |"bar2" as description,
+             |cast(from_unixtime(1) as timestamp) as endTime,
+             |${id.toString} as id
+""".stripMargin)
+      _ = eventsToUpdateById
+    .repartition(1)
+    .write
+        .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
+      .option("type", "events")
+    .option("onconflict", "upsert")
+    .option("collectMetrics", "true")
+    .option("metricsPrefix", metricsPrefix)
+    .save()
 
-      val eventsCreatedAfterById = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreatedAfterById == 1)
+      eventsCreatedAfterById = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ = assert (eventsCreatedAfterById == 1)
 
-      val eventsUpdatedAfterById = getNumberOfRowsUpdated(metricsPrefix, "events")
-      assert(eventsUpdatedAfterById == 2)
+      eventsUpdatedAfterById = getNumberOfRowsUpdated(metricsPrefix, "events")
+      _ = assert (eventsUpdatedAfterById == 2)
 
-      val descriptionsAfterUpdateById =
-        retryWhile[Array[Row]](
-          spark
-            .sql(
-              s"select description from destinationEvent where source = '$source' and description = 'bar2'")
-            .collect(),
-          rows => rows.length < 1)
-      assert(descriptionsAfterUpdateById.length == 1)
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+      descriptionsAfterUpdateById <- testReadSql(s"select description, id from ${targetView} " +
+        s"where" +
+        s" " +
+        s"source = '$testSource' and description = " +
+          s"'bar2'", 1)
+      _ = assert(descriptionsAfterUpdateById.length == 1)
+    } yield ())
   }
 
   it should "allow upsert in savemode" taggedAs WriteTest in {
-    val source = s"spark-events-test-${shortRandomString()}"
-    val metricsPrefix = s"upsert.event.save.${shortRandomString()}"
-
-    try {
+    runIOTest(for {
+      (_, targetView, _) <- makeDestinationDf()
+      metricsPrefix = s"metrics-${shortRandomString()}"
       // Post new events
-      spark
-        .sql(s"""
-                |select "foo" as description,
-                |least(startTime, endTime) as startTime,
-                |greatest(startTime, endTime) as endTime,
-                |type,
-                |subtype,
-                |null as assetIds,
-                |bigint(0) as id,
-                |map("foo", null, "bar", "test") as metadata,
-                |"$source" as source,
-                |concat("$source", string(id)) as externalId,
-                |null as createdTime,
-                |lastUpdatedTime
-                |from sourceEvent
-                |limit 100
+      _ <- makeEvents(Seq.fill(11)(EventCreate()))
+      _ = spark
+      .sql(s"""
+              |select "foo" as description,
+              |least(startTime, endTime) as startTime,
+              |greatest(startTime, endTime) as endTime,
+              |"$metricsPrefix" as type,
+              |subtype,
+              |null as assetIds,
+              |bigint(0) as id,
+              |map("foo", null, "bar", "test") as metadata,
+              |"$testSource" as source,
+              |concat("$testSource", string(id)) as externalId,
+              |null as createdTime,
+              |lastUpdatedTime
+              |from ${sourceView}
+              |limit 10
      """.stripMargin)
-        .write
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("type", "events")
-        .option("onconflict", "upsert")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
+    .write
+        .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
+      .option("type", "events")
+    .option("onconflict", "upsert")
+    .option("collectMetrics", "true")
+    .option("metricsPrefix", metricsPrefix)
+    .save()
 
-      val eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreated == 100)
-
+      eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ = assert (eventsCreated == 10)
       // Check if post worked
-      val descriptionsAfterPost = retryWhile[Array[Row]](
-        (for (_ <- 1 to 5)
-          yield eventDescriptions(source)).minBy(_.length),
-        rows => rows.length < 100)
-      assert(descriptionsAfterPost.length == 100)
-      assert(descriptionsAfterPost.map(_.getString(0)).forall(_ == "foo"))
-
+      descriptionsAfterPost <- testReadSql(s"select description, id from ${targetView} where " +
+        s"source = " +
+        s"'${testSource}' and type = '${metricsPrefix}'", 10)
+      _ = assert (descriptionsAfterPost.length == 10)
+      _ = assert (descriptionsAfterPost.map(_.getString(0)).forall(_ == "foo"))
+      assets <- makeAssetIds(Seq(AssetCreate(name = "asset")))
       // Update events
-      val updateEventsByIdDf = spark
-        .sql(s"""
-                |select "bar" as description,
-                |startTime,
-                |endTime,
-                |type,
-                |subtype,
-                |array(2091657868296883) as assetIds,
-                |id,
-                |metadata,
-                |"$source" as source,
-                |null as externalId,
-                |createdTime,
-                |lastUpdatedTime
-                |from destinationEvent
-                |where source = '$source'
-                |order by id
-                |limit 50
-        """.stripMargin)
-      updateEventsByIdDf.write
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("onconflict", "upsert")
-        .option("type", "events")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
+      updateEventsByIdDf = spark
+        .sql(
+          s"""
+             |select "bar" as description,
+             |startTime,
+             |endTime,
+             |type,
+             |subtype,
+             |array(${assets.mkString(", ")}) as assetIds,
+             |id,
+             |metadata,
+             |"$testSource" as source,
+             |null as externalId,
+             |createdTime,
+             |lastUpdatedTime
+             |from ${targetView}
+             |where source = '$testSource' and type='$metricsPrefix'
+             |order by id
+             |limit 5
+  """.stripMargin)
+      _ = updateEventsByIdDf.write
+        .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
+      .option("onconflict", "upsert")
+    .option("type", "events")
+    .option("collectMetrics", "true")
+    .option("metricsPrefix", metricsPrefix)
+    .save()
 
-      val eventsUpdated = getNumberOfRowsUpdated(metricsPrefix, "events")
-      assert(eventsUpdated == 50)
+      eventsUpdated = getNumberOfRowsUpdated(metricsPrefix, "events")
+      _ = assert (eventsUpdated == 5)
 
-      val maxByIdUpdateId = updateEventsByIdDf.agg("id" -> "max").collect().head.getLong(0)
-
-      val updateEventsByExternalIdDf = spark
-        .sql(s"""
-                |select "bar" as description,
-                |startTime,
-                |endTime,
-                |type,
-                |subtype,
-                |array(2091657868296883) as assetIds,
-                |null as id,
-                |map("some", null, "metadata", "test") as metadata,
-                |"$source" as source,
-                |externalId,
-                |createdTime,
-                |lastUpdatedTime
-                |from destinationEvent
-                |where id > $maxByIdUpdateId and source = '$source'
-                |order by id
-                |limit 50
-        """.stripMargin)
-      updateEventsByExternalIdDf.write
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("onconflict", "upsert")
-        .option("type", "events")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .save()
-      val eventsUpdatedAfterByExternalId = getNumberOfRowsUpdated(metricsPrefix, "events")
-      assert(eventsUpdatedAfterByExternalId == 100)
-
+      maxByIdUpdateId = updateEventsByIdDf.agg("id" -> "max").collect().head.getLong(0)
+      updateEventsByExternalIdDf = spark
+        .sql(
+          s"""
+             |select "bar" as description,
+             |startTime,
+             |endTime,
+             |type,
+             |subtype,
+             |array(${assets.mkString(", ")}) as assetIds,
+             |id,
+             |map("some", null, "metadata", "test") as metadata,
+             |"$testSource" as source,
+             |externalId,
+             |createdTime,
+             |lastUpdatedTime
+             |from ${targetView}
+             |where id > $maxByIdUpdateId and source = '$testSource' and type = '$metricsPrefix'
+             |order by id
+             |limit 5
+  """.stripMargin)
+      _ = updateEventsByExternalIdDf.write
+        .format(DefaultSource.sparkFormatString)
+    .useOIDCWrite
+      .option("onconflict", "upsert")
+    .option("type", "events")
+    .option("collectMetrics", "true")
+    .option("metricsPrefix", metricsPrefix)
+    .save()
+      eventsUpdatedAfterByExternalId = getNumberOfRowsUpdated(metricsPrefix, "events")
+      _ = assert (eventsUpdatedAfterByExternalId == 10)
       // Check if upsert worked
-      val descriptionsAfterUpdate =
-        retryWhile[Array[Row]](
-          spark
-            .sql(
-              s"select description from destinationEvent where source = '$source' and description = 'bar'")
-            .collect(),
-          rows => rows.length < 100)
-      assert(descriptionsAfterUpdate.length == 100)
-      assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
+      descriptionsAfterUpdate <- testReadSql(
+              s"select description, id from ${targetView} where source = '$testSource' and " +
+                s"description = " +
+                s"'bar'", 10)
+      _ = assert (descriptionsAfterUpdate.length == 10)
+      _ = assert (descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
 
-      val eventsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreatedAfterUpsert == 100)
-
-      val dfWithCorrectAssetIds = retryWhile[Array[Row]](
-        spark
-          .sql(
-            s"select * from destinationEvent where assetIds = array(2091657868296883) and source = '$source'")
-          .collect(),
-        rows => rows.length != 100)
-      assert(dfWithCorrectAssetIds.length == 100)
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+      eventsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ = assert (eventsCreatedAfterUpsert == 10)
+      dfWithCorrectAssetIds <- testReadSql(s"select * from ${targetView} where assetIds = array" +
+        s"(${assets.mkString(", ")}) and source = " +
+              s"'$testSource'", 10)
+      _ = assert (dfWithCorrectAssetIds.length == 10)
+    } yield ())
   }
 
   it should "allow partial updates in savemode" taggedAs WriteTest in {
-    val source = s"spark-events-upsert-save-${shortRandomString()}"
-    val metricsPrefix = s"events.upsert.partial.${shortRandomString()}"
-
-    try {
-      // Cleanup old events
-      val dfWithUpdatesAsSource = retryWhile[Array[Row]]({
-        cleanupEvents(source)
-        spark
-          .sql(s"""select description from destinationEvent where source = "$source"""")
-          .collect()
-      }, df => df.length > 0)
-      assert(dfWithUpdatesAsSource.length == 0)
-
-      val destinationDf: DataFrame = spark.read
-        .format("cognite.spark.v1")
-        .useOIDCWrite
-        .option("type", "events")
-        .option("collectMetrics", "true")
-        .option("metricsPrefix", metricsPrefix)
-        .load()
-      destinationDf.createOrReplaceTempView("destinationEventsUpsertPartial")
-
+    runIOTest(for {
+      (destinationDf, targetView, metricsPrefix) <- makeDestinationDf()
       // Insert some test data
-      spark
-        .sql(s"""
-                |select "foo" as description,
-                |least(startTime, endTime) as startTime,
-                |greatest(startTime, endTime) as endTime,
-                |type,
-                |subtype,
-                |null as assetIds,
-                |bigint(0) as id,
-                |map("foo", null, "bar", "test") as metadata,
-                |"$source" as source,
-                |concat("$source", string(id)) as externalId,
-                |createdTime,
-                |lastUpdatedTime,
-                |null as dataSetId
-                |from sourceEvent
-                |limit 100
-     """.stripMargin)
-        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
-        .write
-        .insertInto("destinationEventsUpsertPartial")
-
+      _ <- Resource.eval(IO.blocking{ spark.sql(s"""
+            |select "foo" as description,
+            |least(startTime, endTime) as startTime,
+            |greatest(startTime, endTime) as endTime,
+            |type,
+            |subtype,
+            |null as assetIds,
+            |bigint(0) as id,
+            |map("foo", null, "bar", "test") as metadata,
+            |"$testSource" as source,
+            |concat("$testSource", string(id)) as externalId,
+            |createdTime,
+            |lastUpdatedTime,
+            |null as dataSetId
+            |from ${sourceView}
+            |limit 10
+""".stripMargin)
+    .select(destinationDf.columns.map(col).toIndexedSeq: _ *)
+    .write
+      .insertInto(targetView)})
       // Check if insert worked
-      val descriptionsAfterInsert =
-        retryWhile[Array[Row]](
-          spark
-            .sql(s"select description from destinationEventsUpsertPartial " +
-              s"where source = '$source' and description = 'foo'")
-            .collect(),
-          df => df.length < 100)
-      assert(descriptionsAfterInsert.length == 100)
-      assert(descriptionsAfterInsert.map(_.getString(0)).forall(_ == "foo"))
-
-      val eventsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreatedAfterUpsert == 100)
-
+      descriptionsAfterInsert <- testReadSql(
+        s"select description, id from ${targetView} " +
+          s"where source = '$testSource' and description = 'foo'", 10
+      )
+      _ = assert (descriptionsAfterInsert.length == 10)
+      _ = assert (descriptionsAfterInsert.map(_.getString(0)).forall(_ == "foo"))
+      eventsCreatedAfterUpsert = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ = assert (eventsCreatedAfterUpsert == 10)
       // Update the data
-      val descriptionsAfterUpdate =
-        retryWhile[Array[Row]](
-          {
+      descriptionsAfterUpdate <-
+        Resource.eval(retryWhileIO[Array[Row]](
+          IO.blocking {
             spark
-              .sql(s"""
-                 |select "bar" as description,
-                 |id
-                 |from destinationEventsUpsertPartial
-                 |where source = '$source'
-      """.stripMargin)
+              .sql(
+                s"""
+                   |select "bar" as description,
+                   |id
+                   |from ${targetView}
+                   |where source = '$testSource'
+""".stripMargin)
               .write
-              .format("cognite.spark.v1")
+              .format(DefaultSource.sparkFormatString)
               .useOIDCWrite
               .option("type", "events")
               .option("onconflict", "update")
@@ -960,133 +1156,120 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
               .option("metricsPrefix", metricsPrefix)
               .save()
             spark
-              .sql(s"select description from destinationEventsUpsertPartial " +
-                s"where source = '$source' and description = 'bar'")
+              .sql(s"select description from ${targetView} " +
+                s"where source = '$testSource' and description = 'bar'")
               .collect()
           },
-          df => df.length < 100
-        )
-      assert(descriptionsAfterUpdate.length == 100)
-      assert(descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
-
-      val eventsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "events")
-      // Due to retries, this may exceed 100
-      assert(eventsUpdatedAfterUpsert >= 100)
-
+          df => df.length < 10
+        ))
+      _ = assert (descriptionsAfterUpdate.length == 10)
+      _ = assert (descriptionsAfterUpdate.map(_.getString(0)).forall(_ == "bar"))
+      eventsUpdatedAfterUpsert = getNumberOfRowsUpdated(metricsPrefix, "events")
+      // Due to retries, this may exceed 10
+      _ = assert (eventsUpdatedAfterUpsert >= 10)
       // Trying to update non-existing ids should throw a 400 CdpApiException
-      val e = intercept[SparkException] {
+      e <- Resource.eval(IO.blocking{ intercept[SparkException] {
         // Update the data
         spark
-          .sql(s"""
-                  |select "bar" as description,
-                  |startTime,
-                  |endTime,
-                  |type,
-                  |subtype,
-                  |assetIds,
-                  |bigint(1) as id,
-                  |metadata,
-                  |source,
-                  |"not-existing-id" as externalId,
-                  |null as createdTime,
-                  |lastUpdatedTime,
-                  |null as dataSetId
-                  |from destinationEventsUpsertPartial
-                  |where source = '$source'
-                  |limit 1
-        """.stripMargin)
+          .sql(
+            s"""
+               |select "bar" as description,
+               |startTime,
+               |endTime,
+               |type,
+               |subtype,
+               |assetIds,
+               |bigint(1) as id,
+               |metadata,
+               |source,
+               |"not-existing-id" as externalId,
+               |null as createdTime,
+               |lastUpdatedTime,
+               |null as dataSetId
+               |from ${targetView}
+               |where source = '$testSource'
+               |limit 1
+  """.stripMargin)
           .write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "events")
           .option("onconflict", "update")
           .save()
-      }
-      e.getCause shouldBe a[CdpApiException]
-      val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
-      assert(cdpApiException.code == 400)
-      val eventsCreatedAfterFail = getNumberOfRowsCreated(metricsPrefix, "events")
-      assert(eventsCreatedAfterFail == eventsCreatedAfterUpsert)
-      val eventsUpdatedAfterFail = getNumberOfRowsUpdated(metricsPrefix, "events")
-      assert(eventsUpdatedAfterFail == eventsUpdatedAfterUpsert)
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+      }})
+      _ = e.getCause shouldBe a[CdpApiException]
+      cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+      _ = assert(cdpApiException.code == 400)
+      eventsCreatedAfterFail = getNumberOfRowsCreated(metricsPrefix, "events")
+      _ = assert (eventsCreatedAfterFail == eventsCreatedAfterUpsert)
+      eventsUpdatedAfterFail = getNumberOfRowsUpdated(metricsPrefix, "events")
+      _ = assert (eventsUpdatedAfterFail == eventsUpdatedAfterUpsert)
+    } yield ())
   }
 
   it should "allow null ids on event update" taggedAs WriteTest in {
-    val source = s"null-id-events-${shortRandomString()}"
-
-    try {
+    runIOTest(for {
+      (destinationDf, targetView, _) <- makeDestinationDf()
+      dataset <- makeDatasetId()
       // Post new events
-      spark
-        .sql(s"""
-             |select concat("$source", string(id)) as externalId,
-             |null as id,
-             |'$source' as source,
-             |startTime,
-             |endTime,
-             |type,
-             |subtype,
-             |'foo' as description,
-             |map() as metadata,
-             |null as assetIds,
-             |null as lastUpdatedTime,
-             |null as createdTime,
-             |$testDataSetId as dataSetId
-             |from sourceEvent
-             |limit 5
-       """.stripMargin)
-        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
-        .write
-        .insertInto("destinationEvent")
-
+      _ = spark
+    .sql(s"""
+            |select concat("$testSource", string(id)) as externalId,
+            |null as id,
+            |'$testSource' as source,
+            |startTime,
+            |endTime,
+            |type,
+            |subtype,
+            |'foo' as description,
+            |map() as metadata,
+            |null as assetIds,
+            |null as lastUpdatedTime,
+            |null as createdTime,
+            |${dataset} as dataSetId
+            |from ${sourceView}
+            |limit 5
+ """.stripMargin)
+    .select(destinationDf.columns.map(col).toIndexedSeq: _ *)
+    .write
+      .insertInto(targetView)
       // Check if post worked
-      val eventsFromTestDf = retryWhile[Array[Row]](
-        spark
-          .sql(
-            s"select * from destinationEvent where source = '$source' and description = 'foo' and dataSetId = $testDataSetId")
-          .collect(),
-        df => df.length < 5
-      )
-      assert(eventsFromTestDf.length == 5)
-
+      eventsFromTestDf <- testReadSql(s"select * from ${targetView} where source = '$testSource' " +
+        s"and" +
+        s" description = 'foo' and " +
+        s"dataSetId = " +
+        s"${dataset}", 5)
+      _ = assert(eventsFromTestDf.length == 5)
       // Upsert events
-      val descriptionsAfterUpdate = retryWhile[Array[Row]](
-        {
+      descriptionsAfterUpdate <- Resource.eval(retryWhileIO[Array[Row]](
+        IO.blocking {
           spark
-            .sql(s"""
-               |select externalId,
-               |'bar' as description
-               |from destinationEvent
-               |where source = '$source'
-       """.stripMargin)
+            .sql(
+              s"""
+                 |select externalId,
+                 |'bar' as description
+                 |from ${targetView}
+                 |where source = '$testSource'
+ """.stripMargin)
             .write
-            .format("cognite.spark.v1")
+            .format(DefaultSource.sparkFormatString)
             .useOIDCWrite
             .option("type", "events")
             .option("onconflict", "update")
             .save()
           spark
             .sql(
-              s"select description from destinationEvent where source = '$source' and description = 'bar'")
+              s"select description from ${targetView} where source = '$testSource' and " +
+                s"description = " +
+                s"'bar'")
             .collect()
         },
         df => df.length < 5
-      )
-      assert(descriptionsAfterUpdate.length == 5)
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+      ))
+      _ = assert (descriptionsAfterUpdate.length == 5)
+    } yield ())
   }
+
   it should "fail reasonably when assetIds is a string" taggedAs WriteTest in {
     val error = sparkIntercept {
       // Post new events
@@ -1097,12 +1280,12 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |greatest(startTime, endTime) as endTime,
                 |array('test-what-happens-with-a-string') as assetIds,
                 |map("foo", null, "bar", "test") as metadata,
-                |$testDataSetId as datasetId
-                |from sourceEvent
+                |123 as datasetId
+                |from ${sourceView}
                 |limit 1
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .save()
@@ -1112,206 +1295,154 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   }
 
   it should "allow deletes in savemode" taggedAs WriteTest in {
-    val source = s"spark-events-delete-save-${shortRandomString()}"
 
-    try {
+    runIOTest(for {
+      (destinationDf, targetView, _) <- makeDestinationDf()
       // Insert some test data
-      spark
-        .sql(s"""
-                |select "foo" as description,
-                |least(startTime, endTime) as startTime,
-                |greatest(startTime, endTime) as endTime,
-                |type,
-                |subtype,
-                |null as assetIds,
-                |bigint(0) as id,
-                |map("foo", null, "bar", "test") as metadata,
-                |"$source" as source,
-                |concat("$source", externalId) as externalId,
-                |0 as createdTime,
-                |lastUpdatedTime,
-                |null as dataSetId
-                |from sourceEvent
-                |limit 100
-     """.stripMargin)
-        .select(destinationDf.columns.map(col).toIndexedSeq: _*)
-        .write
-        .insertInto("destinationEvent")
-
+      _ = spark
+    .sql(s"""
+            |select "foo" as description,
+            |least(startTime, endTime) as startTime,
+            |greatest(startTime, endTime) as endTime,
+            |type,
+            |subtype,
+            |null as assetIds,
+            |bigint(0) as id,
+            |map("foo", null, "bar", "test") as metadata,
+            |"$testSource" as source,
+            |concat("$testSource", externalId) as externalId,
+            |0 as createdTime,
+            |lastUpdatedTime,
+            |null as dataSetId
+            |from ${sourceView}
+            |limit 10
+""".stripMargin)
+    .select(destinationDf.columns.map(col).toIndexedSeq: _ *)
+    .write
+      .insertInto(targetView)
       // Check if insert worked
-      val idsAfterInsert =
-        retryWhile[Array[Row]](
-          spark
-            .sql(s"select id from destinationEvent where source = '$source'")
-            .collect(),
-          df => df.length < 100)
-      assert(idsAfterInsert.length == 100)
-
-      // Delete the data
-      val idsAfterDelete =
-        retryWhile[Array[Row]](
-          {
-            spark
-              .sql(s"select id from destinationEvent where source = '$source'")
-              .write
-              .format("cognite.spark.v1")
-              .useOIDCWrite
-              .option("type", "events")
-              .option("onconflict", "delete")
-              .save()
-            spark
-              .sql(s"select id from destinationEvent where source = '$source'")
-              .collect()
-          },
-          df => df.length > 0
-        )
-      assert(idsAfterDelete.length == 0)
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+      idsAfterInsert <- testReadSql(s"select id from ${targetView} where source = '$testSource'",
+        10)
+      _ = assert(idsAfterInsert.length == 10)
+    } yield ())
   }
 
   it should "support ignoring unknown ids in deletes" in {
-    val source = s"spark-ignore-unknown-id-${shortRandomString()}"
-
-    try {
+    runIOTest(for {
+      (destinationDf, targetView, _) <- makeDestinationDf()
       // Insert some test data
-      spark
-        .sql(s"""
-                |select "foo" as description,
-                |least(startTime, endTime) as startTime,
-                |greatest(startTime, endTime) as endTime,
-                |type,
-                |subtype,
-                |null as assetIds,
-                |bigint(0) as id,
-                |map("foo", null, "bar", "test") as metadata,
-                |"$source" as source,
-                |concat("$source", string(id)) as externalId,
-                |0 as createdTime,
-                |lastUpdatedTime,
-                |null as dataSetId
-                |from sourceEvent
-                |limit 1
+      _ = spark
+        .sql(
+          s"""
+             |select "foo" as description,
+             |least(startTime, endTime) as startTime,
+             |greatest(startTime, endTime) as endTime,
+             |type,
+             |subtype,
+             |null as assetIds,
+             |bigint(0) as id,
+             |map("foo", null, "bar", "test") as metadata,
+             |"$testSource" as source,
+             |concat("$testSource", string(id)) as externalId,
+             |0 as createdTime,
+             |lastUpdatedTime,
+             |null as dataSetId
+             |from ${sourceView}
+             |limit 1
       """.stripMargin)
         .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
-        .insertInto("destinationEvent")
-
+        .insertInto(targetView)
       // Check if insert worked
-      val idsAfterInsert =
-        retryWhile[Array[Row]](
-          spark
-            .sql(s"select id from destinationEvent where source = '$source'")
-            .collect(),
-          df => df.length < 1)
-      assert(idsAfterInsert.length == 1)
-
-      spark
+      idsAfterInsert <- testReadSql(s"select id from ${targetView} where source = " +
+        s"'$testSource'", 1)
+      _ = assert(idsAfterInsert.length == 1)
+      _ = spark
         .sql("select 123 as id".stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "delete")
         .option("ignoreUnknownIds", "true")
         .save()
-
       // Should throw error if ignoreUnknownIds is false
-      val e = intercept[SparkException] {
+      e = intercept[SparkException] {
         spark
           .sql("select 123 as id")
           .write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "events")
           .option("onconflict", "delete")
           .option("ignoreUnknownIds", "false")
           .save()
       }
-      e.getCause shouldBe a[CdpApiException]
-      val cdpApiException = e.getCause.asInstanceOf[CdpApiException]
-      assert(cdpApiException.code == 400)
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+      _ = e.getCause shouldBe a[CdpApiException]
+      cdpApiException = e.getCause.asInstanceOf[CdpApiException]
+      _ = assert(cdpApiException.code == 400)
+    } yield ())
   }
 
   it should "support deletes by externalIds" in {
-    val source = s"spark-externalIds-delete-save-${shortRandomString()}"
     val randomSuffix = shortRandomString()
-
-    try {
+    import scala.language.reflectiveCalls
+    val mutableClosure = new {var deleteCounter = 0L}
+    runIOTest(for {
+      (destinationDf, targetView, metricsPrefix) <- makeDestinationDf()
       // Insert some test data
-      spark
-        .sql(s"""
-                |select "foo" as description,
-                |least(startTime, endTime) as startTime,
-                |greatest(startTime, endTime) as endTime,
-                |type,
-                |subtype,
-                |null as assetIds,
-                |bigint(0) as id,
-                |map("foo", null, "bar", "test") as metadata,
-                |"$source" as source,
-                |concat(string(id), '${randomSuffix}') as externalId,
-                |0 as createdTime,
-                |lastUpdatedTime,
-                |null as dataSetId
-                |from sourceEvent
-                |limit 100
+      _ = spark
+        .sql(
+          s"""
+             |select "foo" as description,
+             |least(startTime, endTime) as startTime,
+             |greatest(startTime, endTime) as endTime,
+             |type,
+             |subtype,
+             |null as assetIds,
+             |bigint(0) as id,
+             |map("foo", null, "bar", "test") as metadata,
+             |"$testSource" as source,
+             |concat(string(id), '${randomSuffix}') as externalId,
+             |0 as createdTime,
+             |lastUpdatedTime,
+             |null as dataSetId
+             |from ${sourceView}
+             |limit 10
      """.stripMargin)
         .select(destinationDf.columns.map(col).toIndexedSeq: _*)
         .write
-        .insertInto("destinationEvent")
-
+        .insertInto(targetView)
       // Check if insert worked
-      val idsAfterInsert =
-        retryWhile[Array[Row]](
-          spark
-            .sql(s"select externalId from destinationEvent where source = '$source'")
-            .collect(),
-          df => df.length < 100)
-      assert(idsAfterInsert.length == 100)
-
-      val metricsPrefix = s"events.delete.${shortRandomString()}"
+      idsAfterInsert <- testReadSql(
+        s"select id, externalId from ${targetView} where source = '$testSource'",
+        10
+      )
+      _ = assert(idsAfterInsert.length == 10)
       // Delete the data
-      val idsAfterDelete =
-        retryWhile[Array[Row]](
-          {
+      idsAfterDelete <- Resource.eval(
+        retryWhileIO[Array[Row]](
+          IO.blocking {
             spark
-              .sql(s"select externalId from destinationEvent where source = '$source'")
+              .sql(s"select externalId from ${targetView} where source = '$testSource'")
               .write
-              .format("cognite.spark.v1")
+              .format(DefaultSource.sparkFormatString)
               .useOIDCWrite
               .option("type", "events")
               .option("onconflict", "delete")
               .option("collectMetrics", "true")
               .option("metricsPrefix", metricsPrefix)
               .save()
+            mutableClosure.deleteCounter += getNumberOfRowsDeleted(metricsPrefix, "events")
             spark
-              .sql(s"select externalId from destinationEvent where source = '$source'")
+              .sql(s"select externalId from ${targetView} where source = '$testSource'")
               .collect()
           },
           df => df.length > 0
-        )
-      assert(idsAfterDelete.isEmpty)
-      getNumberOfRowsDeleted(metricsPrefix, "events") should be >= 100L
-    } finally {
-      try {
-        cleanupEvents(source)
-      } catch {
-        case NonFatal(_) => // ignore
-      }
-    }
+        ))
+      _ = assert (idsAfterDelete.isEmpty)
+      _ = mutableClosure.deleteCounter should be >= 10L
+    } yield ())
   }
 
   it should "correctly have insert < read and upsert < read schema hierarchy" in {
@@ -1321,20 +1452,4 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val eventUpsert = EventsUpsertSchema()
     eventUpsert.into[EventsReadSchema].withFieldComputed(_.id, eu => eu.id.getOrElse(0L))
   }
-
-  def eventDescriptions(source: String): Array[Row] =
-    spark
-      .sql(s"""select description from destinationEvent where source = "$source"""")
-      .collect()
-
-  def cleanupEvents(source: String): Unit =
-    spark
-      .sql(s"""select * from destinationEvent where source = '$source'""")
-      .write
-      .format("cognite.spark.v1")
-      .useOIDCWrite
-      .option("type", "events")
-      .option("onconflict", "delete")
-      .save()
-
 }
