@@ -7,7 +7,7 @@ import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.DataSets
 import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, DataSetFilter, DataSetUpdate, GenericClient}
 import io.scalaland.chimney.Transformer
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -15,7 +15,6 @@ import java.time.Instant
 
 class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[DataSet, String](config, "datasets")
-    with InsertableRelation
     with WritableRelation {
 
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._

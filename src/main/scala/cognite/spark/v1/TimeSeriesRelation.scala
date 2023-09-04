@@ -15,9 +15,8 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[TimeSeries, Long](config, "timeseries")
-    with WritableRelation
-    with InsertableRelation {
+    extends SdkV1InsertableRelation[TimeSeries, Long](config, "timeseries")
+    with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def insert(rows: Seq[Row]): IO[Unit] =
     getFromRowsAndCreate(rows, doUpsert = false)
