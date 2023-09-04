@@ -13,8 +13,6 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
-import scala.annotation.nowarn
-
 case class SequenceRowWithId(id: CogniteId, sequenceRow: SequenceRow)
 
 class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)
@@ -70,10 +68,8 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       .toList
   )
 
-  def getStreams(filters: Seq[SequenceRowFilter], expectedColumns: Array[String])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      @nowarn numPartitions: Int): Seq[Stream[IO, ProjectedSequenceRow]] =
+  def getStreams(filters: Seq[SequenceRowFilter], expectedColumns: Array[String])(limit: Option[Int])(
+      client: GenericClient[IO]): Seq[Stream[IO, ProjectedSequenceRow]] =
     filters.toVector.map { filter =>
       val requestedColumns =
         if (expectedColumns.isEmpty) {
@@ -257,7 +253,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         })
       },
       (r: ProjectedSequenceRow) => r.rowNumber,
-      getStreams(filters, columns.filter(_ != "rowNumber"))
+      getStreams(filters, columns.filter(_ != "rowNumber"))(configWithLimit.limitPerPartition)
     )
   }
 

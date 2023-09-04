@@ -15,7 +15,7 @@ final case class SdkV1Rdd[A, I](
     config: RelationConfig,
     toRow: (A, Option[Int]) => Row,
     uniqueId: A => I,
-    getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]],
+    getStreams: GenericClient[IO] => Seq[Stream[IO, A]],
     deduplicateRows: Boolean = true)
     extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
@@ -26,7 +26,7 @@ final case class SdkV1Rdd[A, I](
 
   override def getPartitions: Array[Partition] = {
     val numberOfPartitions =
-      getStreams(client, config.limitPerPartition, config.partitions)
+      getStreams(client)
         .grouped(config.parallelismPerPartition)
         .length
     0.until(numberOfPartitions).toArray.map(CdfPartition)
@@ -47,7 +47,7 @@ final case class SdkV1Rdd[A, I](
       }
     }
 
-    val streams = getStreams(client, config.limitPerPartition, config.partitions)
+    val streams = getStreams(client)
       .map(_.interruptWhen(shouldStop))
     val groupedStreams = streams.grouped(config.parallelismPerPartition).toSeq
     val currentStreamsAsSingleStream = groupedStreams(split.index).reduce(_.merge(_))

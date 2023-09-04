@@ -33,8 +33,6 @@ class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(val sq
   override def uniqueId(a: ThreeDRevision): Long = a.id
 
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ThreeDRevision]] =
-    Seq(client.threeDRevisions(modelId).list(limit))
+      client: GenericClient[IO]): Seq[Stream[IO, ThreeDRevision]] =
+    Seq(client.threeDRevisions(modelId).list(config.limitPerPartition))
 }
