@@ -26,15 +26,13 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: RelationshipsReadSchema): String = a.externalId
 
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, RelationshipsReadSchema]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, RelationshipsReadSchema]] = {
     val (ids, filters) =
       pushdownToFilters(sparkFilters, relationshipsFilterFromMap, RelationshipsFilter())
 
     // TODO: support parallel retrival using partitions
     Seq(
-      executeFilterOnePartition(client.relationships, filters, ids, limit)
+      executeFilterOnePartition(client.relationships, filters, ids, config.limitPerPartition)
         .map(relationshipToRelationshipReadSchema))
   }
 

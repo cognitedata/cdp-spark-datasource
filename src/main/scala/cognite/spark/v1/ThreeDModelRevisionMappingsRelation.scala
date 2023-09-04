@@ -20,8 +20,6 @@ class ThreeDModelRevisionMappingsRelation(config: RelationConfig, modelId: Long,
   override def uniqueId(a: ThreeDAssetMapping): String = a.nodeId.toString + a.assetId.toString
 
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ThreeDAssetMapping]] =
-    Seq(client.threeDAssetMappings(modelId, revisionId).list(limit))
+      client: GenericClient[IO]): Seq[Stream[IO, ThreeDAssetMapping]] =
+    Seq(client.threeDAssetMappings(modelId, revisionId).list(config.limitPerPartition))
 }
