@@ -21,7 +21,7 @@ class DataSetsRelationTest
   val id = 86163806167772L
 
   val dataSetDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "datasets")
     .load()
@@ -49,7 +49,7 @@ class DataSetsRelationTest
          |$id as id
          |""".stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "datasets")
       .option("onconflict", "update")

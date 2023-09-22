@@ -123,7 +123,7 @@ trait SparkTest {
 
   def dataFrameReaderUsingOidc: DataFrameReader =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("tokenUri", readTokenUri)
       .option("clientId", readClientId)
       .option("clientSecret", readClientSecret)

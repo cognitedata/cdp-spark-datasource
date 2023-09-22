@@ -31,7 +31,7 @@ class DataPointsRelationTest
   val bluefieldClient = getBlufieldClient()
 
   val destinationDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "datapoints")
     .load()
@@ -84,7 +84,7 @@ class DataPointsRelationTest
   }
 
   private val bluefieldDestinationDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .option("baseUrl", "https://bluefield.cognitedata.com")
     .option("tokenUri", bluefieldTokenUriStr)
     .option("clientId", bluefieldClientId)
@@ -362,14 +362,14 @@ class DataPointsRelationTest
     sourceTimeSeriesDf.createOrReplaceTempView("sourceTimeSeries")
 
     val destinationTimeSeriesDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
 
     val destinationDataPointsDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "datapoints")
       .option("collectMetrics", "true")
@@ -470,7 +470,7 @@ class DataPointsRelationTest
     sourceTimeSeriesDf.createOrReplaceTempView("sourceTimeSeries")
 
     val destinationTimeSeriesDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .load()
@@ -538,14 +538,14 @@ class DataPointsRelationTest
     val tsName = s"dps-insert1-${shortRandomString()}"
 
     val destinationTimeSeriesDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .load()
     destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
 
     val destinationDataPointsDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "datapoints")
       .load()
@@ -559,7 +559,7 @@ class DataPointsRelationTest
            |false as isString
      """.stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "upsert")
@@ -600,7 +600,7 @@ class DataPointsRelationTest
              |null as granularity
         """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "upsert")
@@ -621,7 +621,7 @@ class DataPointsRelationTest
              |null as granularity
       """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "upsert")
@@ -642,7 +642,7 @@ class DataPointsRelationTest
              |null as granularity
       """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "upsert")
@@ -657,7 +657,7 @@ class DataPointsRelationTest
     val tsName2 = s"dps-insert2-${shortRandomString()}"
 
     val destinationTimeSeriesDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .load()
@@ -678,7 +678,7 @@ class DataPointsRelationTest
              |false as isString
      """.stripMargin))
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "upsert")
@@ -768,7 +768,7 @@ class DataPointsRelationTest
                 |to_timestamp(1509900000) as inclusiveBegin
       """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "delete")
@@ -788,7 +788,7 @@ class DataPointsRelationTest
                 |to_timestamp(1509900000) as inclusiveBegin
       """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "delete")
@@ -807,7 +807,7 @@ class DataPointsRelationTest
                 |to_timestamp(1509900000) as inclusiveEnd
       """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "delete")
@@ -826,7 +826,7 @@ class DataPointsRelationTest
                 |to_timestamp(1509900000) as inclusiveBegin
       """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "datapoints")
         .option("onconflict", "delete")
@@ -841,7 +841,7 @@ class DataPointsRelationTest
     val tsName = s"dps-delete1-${shortRandomString()}"
 
     val destinationTimeSeriesDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .load()
@@ -855,7 +855,7 @@ class DataPointsRelationTest
            |false as isString
      """.stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "upsert")
@@ -887,7 +887,7 @@ class DataPointsRelationTest
            |3.0 as value
         """.stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "datapoints")
       .option("onconflict", "upsert")
@@ -920,7 +920,7 @@ class DataPointsRelationTest
            |to_timestamp(1509500060) as exclusiveEnd
          """.stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "datapoints")
       .option("onconflict", "delete")
@@ -962,7 +962,7 @@ class DataPointsRelationTest
     val tsName = s"future${shortRandomString()}"
 
     val destinationTimeSeriesDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .load()
@@ -980,7 +980,7 @@ class DataPointsRelationTest
               |$testDataSetId as dataSetId
      """.stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .save()
@@ -1010,7 +1010,7 @@ class DataPointsRelationTest
     points
       .toDF("externalId", "timestamp", "value")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "datapoints")
       .option("onconflict", "upsert")
@@ -1039,7 +1039,7 @@ class DataPointsRelationTest
     spark
       .sql(s"""select * from destinationTimeSeries where unit = '$testUnit'""")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "delete")
@@ -1060,7 +1060,7 @@ class DataPointsRelationTest
     val metricsPrefix = "datapoints.bigtable.dont.give.up.please"
 
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("apiKey", jetfiretest2ApiKey)
       .option("type", "datapoints")
       .option("collectMetrics", "true")
@@ -1205,7 +1205,7 @@ class DataPointsRelationTest
       ) *> IO.sleep(2.seconds)).unsafeRunSync()
 
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", bluefieldTokenUriStr)
       .option("clientId", bluefieldClientId)

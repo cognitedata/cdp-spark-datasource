@@ -21,7 +21,7 @@ class SequencesRelationTest
   import spark.implicits._
 
   private val sequencesSourceDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "sequences")
     .option("partitions", 200)
@@ -79,7 +79,7 @@ class SequencesRelationTest
          |       ) as columns
          |""".stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", "abort")
@@ -214,7 +214,7 @@ class SequencesRelationTest
               |       ) as columns
               |""".stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", "upsert")
@@ -273,7 +273,7 @@ class SequencesRelationTest
               |'xD' as name,
               |'lol' as description""".stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", "update")
@@ -327,7 +327,7 @@ class SequencesRelationTest
              |   )
              |) as columns""".stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "sequences")
         .option("onconflict", "update")
@@ -400,7 +400,7 @@ class SequencesRelationTest
         spark
           .sql(s"select id from sequences where externalId = 'externalId-$key'")
           .write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "sequences")
           .option("onconflict", "delete")
@@ -426,7 +426,7 @@ class SequencesRelationTest
       .parallelize(processedTree)
       .toDF()
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", conflictMode)

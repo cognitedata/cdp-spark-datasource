@@ -16,7 +16,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
   sourceDf.createOrReplaceTempView("sourceFiles")
 
   val destinationDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "files")
     .load()
@@ -104,7 +104,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
                 |'externalId-$source' as externalId
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "files")
         .option("collectMetrics", "true")
@@ -128,7 +128,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
                 |'updatedById-externalId-$source' as externalId
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "update")
@@ -154,7 +154,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
                 |'updatedByExternalId-$source' as source
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "update")
@@ -196,7 +196,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
              |null as mimeType
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "upsert")
@@ -220,7 +220,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
              |'upserted-$source' as source
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "upsert")
@@ -265,7 +265,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
                 |'externalId-$source' as externalId
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "files")
         .save()
@@ -279,7 +279,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
       spark
         .sql(s"select ${rows.head.getLong(0)} as id")
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "files")
         .option("onconflict", "delete")
@@ -320,7 +320,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
               |'${filesTestSource}' as source,
               |array('scala-sdk-relationships-test-label2') as labels""".stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .option("type", "files")
         .useOIDCWrite
         .save()
@@ -361,7 +361,7 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
     spark
       .sql(s"""select id from files where source = '$source'""")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "files")
       .option("onconflict", "delete")

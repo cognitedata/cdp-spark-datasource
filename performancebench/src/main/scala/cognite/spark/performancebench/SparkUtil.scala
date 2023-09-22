@@ -9,12 +9,12 @@ trait SparkUtil {
 
   def read(): DataFrameReader =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("apiKey", cogniteApiKey)
 
   def write(df: DataFrame): DataFrameWriter[Row] =
     df.write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("apiKey", cogniteApiKey)
 }
 
