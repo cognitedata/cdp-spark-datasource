@@ -44,9 +44,12 @@ trait SparkTest {
     val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
     val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
     private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    // TODO: allow customizing all parameters below via env vars
     val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
     val project = "jetfiretest2"
     val scopes = "https://api.cognitedata.com/.default"
+    val audience = "https://api.cognitedata.com"
+    val baseUrl = "https://api.cognitedata.com"
   }
 
   val writeCredentials = OAuth2.ClientCredentials(
@@ -54,7 +57,8 @@ trait SparkTest {
     clientId = OIDCWrite.clientId,
     clientSecret = OIDCWrite.clientSecret,
     scopes = List(OIDCWrite.scopes),
-    OIDCWrite.project
+    audience = Some(OIDCWrite.audience),
+    cdfProjectName = OIDCWrite.project,
   )
   implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(5, 5)
 
@@ -63,7 +67,7 @@ trait SparkTest {
   val writeClient: GenericClient[IO] = new GenericClient(
     applicationName = "jetfire-test",
     projectName = writeCredentials.cdfProjectName,
-    baseUrl = s"https://api.cognitedata.com",
+    baseUrl = OIDCWrite.baseUrl,
     authProvider = writeAuthProvider,
     apiVersion = None,
     clientTag = None,
@@ -77,6 +81,8 @@ trait SparkTest {
         .option("clientSecret", OIDCWrite.clientSecret)
         .option("project", OIDCWrite.project)
         .option("scopes", OIDCWrite.scopes)
+        .option("audience", OIDCWrite.audience)
+        .option("baseUrl", OIDCWrite.baseUrl)
   }
 
   implicit class DataFrameReaderHelper(df: DataFrameReader) {
@@ -86,6 +92,8 @@ trait SparkTest {
         .option("clientSecret", OIDCWrite.clientSecret)
         .option("project", OIDCWrite.project)
         .option("scopes", OIDCWrite.scopes)
+        .option("audience", OIDCWrite.audience)
+        .option("baseUrl", OIDCWrite.baseUrl)
   }
 
   private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
