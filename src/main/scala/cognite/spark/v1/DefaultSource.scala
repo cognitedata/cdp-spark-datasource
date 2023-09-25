@@ -55,25 +55,6 @@ class DefaultSource
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
   }
 
-  @deprecated("message", since = "0")
-  private def createDataModelInstances(
-      parameters: Map[String, String],
-      config: RelationConfig,
-      sqlContext: SQLContext) = {
-    val spaceExternalId =
-      parameters.getOrElse("spaceExternalId", sys.error("spaceExternalId must be specified"))
-    val modelExternalId =
-      parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
-    val instanceSpaceExternalId =
-      parameters.get("instanceSpaceExternalId")
-    new DataModelInstanceRelation(
-      config,
-      spaceExternalId,
-      modelExternalId,
-      instanceSpaceExternalId
-    )(sqlContext)
-  }
-
   private def createWellDataLayer(
       parameters: Map[String, String],
       config: RelationConfig,
@@ -190,8 +171,6 @@ class DefaultSource
         new RelationshipsRelation(config)(sqlContext)
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
-      case "datamodelinstances" =>
-        createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
       case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
@@ -259,8 +238,6 @@ class DefaultSource
           new RelationshipsRelation(config)(sqlContext)
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
-        case "datamodelinstances" =>
-          createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
         case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
