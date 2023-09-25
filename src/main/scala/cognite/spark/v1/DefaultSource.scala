@@ -384,7 +384,7 @@ object DefaultSource {
       case Some(x) => x
       case None =>
         sys.error(
-          s"Either apiKey, authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
+          s"Either authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
             .mkString(", ")}")
     }
     val projectName =

@@ -15,7 +15,6 @@ class DefaultSourceTest extends WordSpec with Matchers {
       val fullParams = Map(
         "authTicket" -> "value-AuthTicket",
         "bearerToken" -> "value-BearerToken",
-        "apiKey" -> "value-ApiKey",
         "scopes" -> "value-Scopes",
         "audience" -> "value-Audience",
         "tokenUri" -> "value-TokenUri",
@@ -35,7 +34,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
       }
 
       "work for bearerToken" in {
-        val params = fullParams.filter { case (key, _) => !Set("authTicket", "apiKey").contains(key) }
+        val params = fullParams.filter { case (key, _) => !Set("authTicket").contains(key) }
         DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.Static(BearerTokenAuth("value-BearerToken"))
         )
@@ -44,7 +43,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
       "work for session and use baseUrl from input params if it exists" in {
         val params =
           fullParams.filter {
-            case (key, _) => !Set("authTicket", "apiKey", "bearerToken").contains(key)
+            case (key, _) => !Set("authTicket", "bearerToken").contains(key)
           }
         DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2Sessions(OAuth2
@@ -55,7 +54,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
       "work for session and use default baseUrl if it does not exist in input params" in {
         val params =
           fullParams.filter {
-            case (key, _) => !Set("authTicket", "apiKey", "bearerToken", "baseUrl").contains(key)
+            case (key, _) => !Set("authTicket", "bearerToken", "baseUrl").contains(key)
           }
         DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2Sessions(
@@ -67,7 +66,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
       "work for clientCredential" in {
         val params =
           fullParams.filter {
-            case (key, _) => !Set("authTicket", "apiKey", "bearerToken", "sessionKey").contains(key)
+            case (key, _) => !Set("authTicket", "bearerToken", "sessionKey").contains(key)
           }
         DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2ClientCredentials(
