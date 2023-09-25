@@ -211,7 +211,7 @@ trait SparkTest {
     retryWithBackoff(
       for {
         actionValue <- action
-        _ = IO.delay { if (shouldRetry(actionValue)) {
+        _ <- IO.delay { if (shouldRetry(actionValue)) {
           throw new RetryException(
             s"Retry needed at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
         } }
