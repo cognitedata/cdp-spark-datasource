@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.v1.{GenericClient, Label, LabelCreate, LabelsFilter}
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -11,7 +11,6 @@ import java.time.Instant
 
 class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[Label, String](config, "labels")
-    with InsertableRelation
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[Label]()
@@ -21,9 +20,7 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: Label): String = a.externalId
 
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[fs2.Stream[IO, Label]] =
+      client: GenericClient[IO]): Seq[fs2.Stream[IO, Label]] =
     Seq(client.labels.filter(LabelsFilter()))
 
   override def insert(rows: Seq[Row]): IO[Unit] = {

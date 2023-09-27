@@ -15,7 +15,7 @@ final case class SdkV1Rdd[A, I](
     config: RelationConfig,
     toRow: (A, Option[Int]) => Row,
     uniqueId: A => I,
-    getStreams: (GenericClient[IO], Option[Int], Int) => Seq[Stream[IO, A]],
+    getStreams: GenericClient[IO] => Seq[Stream[IO, A]],
     deduplicateRows: Boolean = true)
     extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
@@ -24,12 +24,20 @@ final case class SdkV1Rdd[A, I](
 
   @transient lazy val client: GenericClient[IO] = CdpConnector.clientFromConfig(config)
 
+  private def getNumberOfSparkPartitions(cdfStreams: Seq[Stream[IO, A]]): Int =
+    Math.min(config.sparkPartitions, cdfStreams.length)
+
   override def getPartitions: Array[Partition] = {
-    val numberOfPartitions =
-      getStreams(client, config.limitPerPartition, config.partitions)
-        .grouped(config.parallelismPerPartition)
-        .length
-    0.until(numberOfPartitions).toArray.map(CdfPartition)
+    val numPartitions = getNumberOfSparkPartitions(getStreams(client))
+    0.until(numPartitions).toArray.map(CdfPartition)
+  }
+
+  private def getSinglePartitionStream(streams: Seq[Stream[IO, A]], index: Int): Stream[IO, A] = {
+    val nPartitions = getNumberOfSparkPartitions(streams)
+    streams
+      .grouped(nPartitions) // group into chunks up to nPartitions in size each
+      .flatMap(x => x.slice(index, index + 1)) // select at most one element from each
+      .reduce(_.merge(_)) // combine into single stream
   }
 
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
@@ -47,10 +55,9 @@ final case class SdkV1Rdd[A, I](
       }
     }
 
-    val streams = getStreams(client, config.limitPerPartition, config.partitions)
+    val streams = getStreams(client)
       .map(_.interruptWhen(shouldStop))
-    val groupedStreams = streams.grouped(config.parallelismPerPartition).toSeq
-    val currentStreamsAsSingleStream = groupedStreams(split.index).reduce(_.merge(_))
+    val currentStreamsAsSingleStream = getSinglePartitionStream(streams, split.index)
 
     val processChunk = if (deduplicateRows) {
       val processedIds = new ConcurrentHashMap[I, Unit]

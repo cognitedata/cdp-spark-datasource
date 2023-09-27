@@ -5,10 +5,10 @@ on: ["push"]
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 80
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: |
@@ -38,7 +38,6 @@ jobs:
           ./secrets/decrypt.sh secrets/secring.asc.gpg ~/.sbt/gpg/secring.asc
       - name: Run tests
         env:
-          TEST_API_KEY_WRITE: ${{ secrets.TEST_API_KEY_WRITE }}
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
           TEST_OIDC_READ_CLIENT_SECRET: ${{ secrets.TEST_OIDC_READ_CLIENT_SECRET }}
           TEST_OIDC_READ_TENANT: ${{ secrets.TEST_OIDC_READ_TENANT }}
@@ -61,7 +60,7 @@ jobs:
           path: 'target/test-reports/**/*.xml'
           retention-days: 1
       - name: Upload report to codecov.io
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false

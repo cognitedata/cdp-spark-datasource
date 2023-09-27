@@ -755,6 +755,106 @@ class FlexibleDataModelCorePropertyRelationTest
     }
   }
 
+  it should "handle nulls according to ignoreNullFields" in {
+    val externalId = s"sparkDsTestNullProps-${shortRandomString()}"
+    try {
+      // First, create a random node
+      val insertDf = spark
+        .sql(
+          s"""
+             |select
+             |'${externalId}' as externalId,
+             |'stringProp1Val' as stringProp1,
+             |'stringProp2Val' as stringProp2
+             |""".stripMargin)
+      val insertResult = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          insertDf
+        )
+      }
+      insertResult shouldBe Success(())
+      // Now, update one of the values with a null, but ignoreNullFields
+      val updateDf1 = spark
+        .sql(
+          s"""
+             |select
+             |'${externalId}' as externalId,
+             |'updatedProp1Val' as stringProp1,
+             |null as stringProp2
+             |""".stripMargin)
+      val updateResult1 = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          updateDf1,
+          ignoreNullFields=true
+        )
+      }
+      updateResult1 shouldBe Success(())
+
+      // Fetch the updated instance
+      val instance1 = client.instances.retrieveByExternalIds(
+        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+        sources = Some(Seq(InstanceSource(ViewReference(
+          space = spaceExternalId,
+          externalId = viewStartNodeAndEndNodesExternalId,
+          version = viewVersion
+        ))))
+      ).unsafeRunSync().items.head
+      val props1 = instance1.properties.get.get(spaceExternalId)
+        .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
+      // Check the properties
+      props1.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1Val"))
+      props1.get("stringProp2") shouldBe Some(InstancePropertyValue.String("stringProp2Val"))
+
+      // Update the value with null, and don't ignoreNullFields
+      val updateDf2 = spark
+        .sql(
+          s"""
+             |select
+             |'${externalId}' as externalId,
+             |'updatedProp1ValAgain' as stringProp1,
+             |null as stringProp2
+             |""".stripMargin)
+      val updateResult2 = Try {
+        insertRowsToModel(
+          modelSpace = spaceExternalId,
+          modelExternalId = testDataModelExternalId,
+          modelVersion = viewVersion,
+          viewExternalId = viewStartNodeAndEndNodesExternalId,
+          instanceSpace = Some(spaceExternalId),
+          updateDf2,
+          ignoreNullFields = false
+        )
+      }
+      updateResult2 shouldBe Success(())
+      // Fetch the updated instance
+      val instance = client.instances.retrieveByExternalIds(
+        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+        sources = Some(Seq(InstanceSource(ViewReference(
+          space = spaceExternalId,
+          externalId = viewStartNodeAndEndNodesExternalId,
+          version = viewVersion
+        ))))
+      ).unsafeRunSync().items.head
+      val props2 = instance.properties.get.get(spaceExternalId)
+        .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
+      // Check the properties
+      props2.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1ValAgain"))
+      props2.get("stringProp2") shouldBe None
+    } finally {
+      val _ = client.instances.delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId))).unsafeRunSync()
+    }
+  }
+
   // This should be kept as ignored
   ignore should "delete containers and views used for testing" in {
     client.containers
@@ -1031,15 +1131,15 @@ class FlexibleDataModelCorePropertyRelationTest
                     Some(Seq(EdgeOrNodeData(
                       viewRef,
                       Some(Map(
-                        "forEqualsFilter" -> InstancePropertyValue.String("str1"),
-                        "forInFilter" -> InstancePropertyValue.String("str1"),
-                        "forGteFilter" -> InstancePropertyValue.Int32(1),
-                        "forGtFilter" -> InstancePropertyValue.Int32(2),
-                        "forLteFilter" -> InstancePropertyValue.Int64(2),
-                        "forLtFilter" -> InstancePropertyValue.Int64(3),
-                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now())
+                        "forEqualsFilter" -> Some(InstancePropertyValue.String("str1")),
+                        "forInFilter" -> Some(InstancePropertyValue.String("str1")),
+                        "forGteFilter" -> Some(InstancePropertyValue.Int32(1)),
+                        "forGtFilter" -> Some(InstancePropertyValue.Int32(2)),
+                        "forLteFilter" -> Some(InstancePropertyValue.Int64(2)),
+                        "forLtFilter" -> Some(InstancePropertyValue.Int64(3)),
+                        "forOrFilter1" -> Some(InstancePropertyValue.Float64(5.1)),
+                        "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
+                        "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now()))
                       ))
                     )))
                   ),
@@ -1049,18 +1149,18 @@ class FlexibleDataModelCorePropertyRelationTest
                     Some(Seq(EdgeOrNodeData(
                       viewRef,
                       Some(Map(
-                        "forEqualsFilter" -> InstancePropertyValue.String("str2"),
-                        "forInFilter" -> InstancePropertyValue.String("str2"),
-                        "forGteFilter" -> InstancePropertyValue.Int32(5),
-                        "forGtFilter" -> InstancePropertyValue.Int32(2),
-                        "forLteFilter" -> InstancePropertyValue.Int64(1),
-                        "forLtFilter" -> InstancePropertyValue.Int64(-1),
-                        "forOrFilter1" -> InstancePropertyValue.Float64(5.1),
-                        "forOrFilter2" -> InstancePropertyValue.Float64(6.1),
-                        "forIsNotNullFilter" -> InstancePropertyValue.Date(LocalDate.now()),
-                        "forIsNullFilter" -> InstancePropertyValue.Object(Json.fromJsonObject(
+                        "forEqualsFilter" -> Some(InstancePropertyValue.String("str2")),
+                        "forInFilter" -> Some(InstancePropertyValue.String("str2")),
+                        "forGteFilter" -> Some(InstancePropertyValue.Int32(5)),
+                        "forGtFilter" -> Some(InstancePropertyValue.Int32(2)),
+                        "forLteFilter" -> Some(InstancePropertyValue.Int64(1)),
+                        "forLtFilter" -> Some(InstancePropertyValue.Int64(-1)),
+                        "forOrFilter1" -> Some(InstancePropertyValue.Float64(5.1)),
+                        "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
+                        "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now())),
+                        "forIsNullFilter" -> Some(InstancePropertyValue.Object(Json.fromJsonObject(
                           JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
-                      ))
+                      )))
                     )))
                   )
                 ),
@@ -1171,7 +1271,8 @@ class FlexibleDataModelCorePropertyRelationTest
       viewExternalId: String,
       instanceSpace: Option[String],
       df: DataFrame,
-      onConflict: String = "upsert"): Unit =
+      onConflict: String = "upsert",
+      ignoreNullFields: Boolean = true): Unit =
     df.write
       .format("cognite.spark.v1")
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -1189,6 +1290,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("onconflict", onConflict)
       .option("collectMetrics", true)
       .option("metricsPrefix", s"$modelExternalId-$modelVersion")
+      .option("ignoreNullFields", ignoreNullFields)
       .save()
 
   private def getUpsertedMetricsCountForModel(modelSpace: String, modelExternalId: String): Long =

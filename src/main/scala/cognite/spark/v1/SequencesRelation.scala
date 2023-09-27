@@ -10,25 +10,24 @@ import com.cognite.sdk.scala.v1.resources.SequencesResource
 import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-import java.time.Instant
 
+import java.time.Instant
 import cognite.spark.v1.CdpConnector.ioRuntime
 
+import scala.annotation.unused
+
 class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[SequenceReadSchema, Long](config, "sequences")
-    with InsertableRelation
+    extends SdkV1InsertableRelation[SequenceReadSchema, Long](config, "sequences")
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, SequenceReadSchema]] =
+      client: GenericClient[IO]): Seq[Stream[IO, SequenceReadSchema]] =
     // TODO: filters
     client.sequences
-      .listPartitions(numPartitions)
+      .listPartitions(config.partitions)
       .map(_.map(_.into[SequenceReadSchema].withFieldComputed(_.columns, _.columns.toList).transform))
 
   /*
@@ -187,7 +186,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   // scalastyle:off method.length
-  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
     val sequences =
       rows
         .map(fromRow[SequenceUpsertSchema](_))

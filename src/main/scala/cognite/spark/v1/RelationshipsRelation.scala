@@ -9,7 +9,7 @@ import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Relationships
 import fs2.Stream
 import io.scalaland.chimney.Transformer
-import org.apache.spark.sql.sources.{Filter, InsertableRelation}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -17,7 +17,6 @@ import java.time.Instant
 
 class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1Relation[RelationshipsReadSchema, String](config, "relationships")
-    with InsertableRelation
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[RelationshipsReadSchema]()
@@ -27,15 +26,13 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: RelationshipsReadSchema): String = a.externalId
 
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, RelationshipsReadSchema]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, RelationshipsReadSchema]] = {
     val (ids, filters) =
       pushdownToFilters(sparkFilters, relationshipsFilterFromMap, RelationshipsFilter())
 
     // TODO: support parallel retrival using partitions
     Seq(
-      executeFilterOnePartition(client.relationships, filters, ids, limit)
+      executeFilterOnePartition(client.relationships, filters, ids, config.limitPerPartition)
         .map(relationshipToRelationshipReadSchema))
   }
 
@@ -137,7 +134,6 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       case (_, None) => Some(ConfidenceRange(min = Some(minConfidence.get.toDouble), max = None))
       case _ => Some(ConfidenceRange(min = None, max = Some(maxConfidence.get.toDouble)))
     }
-
 }
 
 object RelationshipsRelation {

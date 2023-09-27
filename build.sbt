@@ -1,14 +1,15 @@
 import com.typesafe.sbt.packager.docker.Cmd
+import sbtassembly.AssemblyPlugin.autoImport._
 import sbtassembly.MergeStrategy
 
 val scala212 = "2.12.15"
 val scala213 = "2.13.8"
 val supportedScalaVersions = List(scala212, scala213)
-val sparkVersion = "3.3.1"
-val circeVersion = "0.14.5"
+val sparkVersion = "3.3.3"
+val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
 val Specs2Version = "4.6.0"
-val cogniteSdkVersion = "2.7.723"
+val cogniteSdkVersion = "2.7.756"
 
 val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
@@ -69,13 +70,13 @@ lazy val commonSettings = Seq(
   pomIncludeRepository := { _ => false },
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
-    else Some("releases" at nexus + "service/local/staging/deploy/maven2")
+    if (isSnapshot.value) { Some("snapshots" at nexus + "content/repositories/snapshots") }
+    else { Some("releases" at nexus + "service/local/staging/deploy/maven2") }
   },
   publishMavenStyle := true,
   pgpPassphrase := {
-    if (gpgPass.isDefined) gpgPass.map(_.toCharArray)
-    else None
+    if (gpgPass.isDefined) { gpgPass.map(_.toCharArray) }
+    else { None }
   },
   Test / fork := true,
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),

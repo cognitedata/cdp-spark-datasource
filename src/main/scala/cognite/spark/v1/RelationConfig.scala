@@ -7,7 +7,7 @@ final case class RelationConfig(
     projectName: String,
     batchSize: Option[Int],
     limitPerPartition: Option[Int],
-    partitions: Int,
+    partitions: Int, // number of CDF partitions
     maxRetries: Int,
     maxRetryDelaySeconds: Int,
     collectMetrics: Boolean,
@@ -16,7 +16,7 @@ final case class RelationConfig(
     baseUrl: String,
     onConflict: OnConflictOption,
     applicationId: String,
-    parallelismPerPartition: Int,
+    parallelismPerPartition: Int, // max parallelism of CDF operations (per Spark partition)
     ignoreUnknownIds: Boolean,
     deleteMissingAssets: Boolean,
     subtrees: AssetSubtreeOption,

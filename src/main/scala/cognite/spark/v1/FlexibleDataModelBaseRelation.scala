@@ -43,9 +43,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     )
 
   def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]]
+      client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]]
 
   protected def toRow(a: ProjectedFlexibleDataModelInstance): Row = {
     if (config.collectMetrics) {

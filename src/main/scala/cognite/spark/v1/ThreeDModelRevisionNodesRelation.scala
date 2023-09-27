@@ -20,8 +20,6 @@ class ThreeDModelRevisionNodesRelation(config: RelationConfig, modelId: Long, re
   override def uniqueId(a: ThreeDNode): Long = a.id
 
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ThreeDNode]] =
-    Seq(client.threeDNodes(modelId, revisionId).list(limit))
+      client: GenericClient[IO]): Seq[Stream[IO, ThreeDNode]] =
+    Seq(client.threeDNodes(modelId, revisionId).list(config.limitPerPartition))
 }

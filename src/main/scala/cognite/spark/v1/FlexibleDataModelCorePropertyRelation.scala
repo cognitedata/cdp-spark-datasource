@@ -101,9 +101,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
 
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
@@ -122,7 +120,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         instanceType = Some(instanceType),
         filter = instanceFilter,
         sort = None,
-        limit = limit,
+        limit = config.limitPerPartition,
         cursor = None,
         sources = viewReference.map(r => Vector(InstanceSource(r))),
         includeTyping = Some(true)
@@ -131,7 +129,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
 
     filterRequests.distinct.map { fr =>
       client.instances
-        .filterStream(fr, limit)
+        .filterStream(fr, config.limitPerPartition)
         .map(toProjectedInstance(_, selectedInstanceProps))
     }
   }
@@ -245,9 +243,12 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       propDefMap: Map[String, ViewPropertyDefinition],
       instanceSpace: Option[String]) = {
     val nodesOrEdges = intendedUsage match {
-      case Usage.Node => createNodes(rows, schema, propDefMap, source, instanceSpace)
-      case Usage.Edge => createEdges(rows, schema, propDefMap, source, instanceSpace)
-      case Usage.All => createNodesOrEdges(rows, schema, propDefMap, source, instanceSpace)
+      case Usage.Node =>
+        createNodes(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
+      case Usage.Edge =>
+        createEdges(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
+      case Usage.All =>
+        createNodesOrEdges(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
     }
     nodesOrEdges match {
       case Right(items) if items.nonEmpty =>

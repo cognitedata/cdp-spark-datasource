@@ -5,17 +5,15 @@ import org.apache.spark.sql.{DataFrame, DataFrameReader, DataFrameWriter, Row, S
 
 trait SparkUtil {
   val spark = SparkUtil.spark
-  val cogniteApiKey = sys.env.getOrElse("COGNITE_API_KEY", throw new CdfSparkException("'COGNITE_API_KEY' is not set"))
+  val cogniteAuthOptions = sys.env.getOrElse("SOME_COGNITE_OIDC_VARS", throw new CdfSparkException("TODO: Auth vars aren't set or handled"))
 
   def read(): DataFrameReader =
     spark.read
       .format("cognite.spark.v1")
-      .option("apiKey", cogniteApiKey)
 
   def write(df: DataFrame): DataFrameWriter[Row] =
     df.write
       .format("cognite.spark.v1")
-      .option("apiKey", cogniteApiKey)
 }
 
 object SparkUtil {

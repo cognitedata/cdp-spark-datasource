@@ -20,7 +20,6 @@ import io.circe.parser.parse
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
-import sttp.client3.SttpBackend
 import sttp.model.Uri
 
 class DefaultSource
@@ -52,24 +51,6 @@ class DefaultSource
         )
 
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
-  }
-
-  private def createDataModelInstances(
-      parameters: Map[String, String],
-      config: RelationConfig,
-      sqlContext: SQLContext) = {
-    val spaceExternalId =
-      parameters.getOrElse("spaceExternalId", sys.error("spaceExternalId must be specified"))
-    val modelExternalId =
-      parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
-    val instanceSpaceExternalId =
-      parameters.get("instanceSpaceExternalId")
-    new DataModelInstanceRelation(
-      config,
-      spaceExternalId,
-      modelExternalId,
-      instanceSpaceExternalId
-    )(sqlContext)
   }
 
   private def createWellDataLayer(
@@ -188,8 +169,6 @@ class DefaultSource
         new RelationshipsRelation(config)(sqlContext)
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
-      case "datamodelinstances" =>
-        createDataModelInstances(parameters, config, sqlContext)
       case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
@@ -257,8 +236,6 @@ class DefaultSource
           new RelationshipsRelation(config)(sqlContext)
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
-        case "datamodelinstances" =>
-          createDataModelInstances(parameters, config, sqlContext)
         case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
@@ -277,28 +254,28 @@ class DefaultSource
       // And we will have to limit parallelism on each partition to low number, so the operation could
       // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
       // If the number of partitions is reasonable, we avoid the data shuffling
-      val (dataRepartitioned, numberOfPartitions) =
+      val dataRepartitioned =
         if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-          (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
+          data.repartition(idealNumberOfPartitions)
         } else {
-          (data, originalNumberOfPartitions)
+          data
         }
 
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector.ioRuntime
 
-        val maxParallelism = Math.max(1, config.partitions / numberOfPartitions)
+        val maxParallelism = config.parallelismPerPartition
         val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
-        val operation = config.onConflict match {
+        val operation: Seq[Row] => IO[Unit] = config.onConflict match {
           case OnConflictOption.Abort =>
-            relation.insert(_)
+            relation.insert
           case OnConflictOption.Upsert =>
-            relation.upsert(_)
+            relation.upsert
           case OnConflictOption.Update =>
-            relation.update(_)
+            relation.update
           case OnConflictOption.Delete =>
-            relation.delete(_)
+            relation.delete
         }
 
         batches
@@ -350,8 +327,7 @@ object DefaultSource {
         s"`$onConflictName` not a valid subtrees option. Valid options are: $validOptions"))
   }
 
-  private[v1] def parseAuth(parameters: Map[String, String])(
-      implicit backend: SttpBackend[IO, Any]): Option[CdfSparkAuth] = {
+  private[v1] def parseAuth(parameters: Map[String, String]): Option[CdfSparkAuth] = {
     val authTicket = parameters.get("authTicket").map(ticket => TicketAuth(ticket))
     val bearerToken = parameters.get("bearerToken").map(bearerToken => BearerTokenAuth(bearerToken))
     val scopes: List[String] = parameters.get("scopes") match {
@@ -404,15 +380,11 @@ object DefaultSource {
     val clientTag = parameters.get("clientTag")
     val applicationName = parameters.get("applicationName")
 
-    //This backend is used only for auth, so we should not retry as much as maxRetries config
-    implicit val authBackend: SttpBackend[IO, Any] =
-      CdpConnector.retryingSttpBackend(5, maxRetryDelaySeconds)
-
     val auth = parseAuth(parameters) match {
       case Some(x) => x
       case None =>
         sys.error(
-          s"Either apiKey, authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
+          s"Either authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
             .mkString(", ")}")
     }
     val projectName =

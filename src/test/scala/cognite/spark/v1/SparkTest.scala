@@ -7,6 +7,7 @@ import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Encoder, SparkSession}
+import org.log4s.getLogger
 import org.scalactic.{Prettifier, source}
 import org.scalatest.prop.TableDrivenPropertyChecks.Table
 import org.scalatest.prop.TableFor1
@@ -28,6 +29,8 @@ trait SparkTest {
   import CdpConnector.ioRuntime
   import natchez.Trace.Implicits.noop
 
+  private def logger = getLogger
+
   implicit def single[A](
       implicit c: ClassTag[OptionalField[A]],
       inner: Encoder[Option[A]]): Encoder[OptionalField[A]] =
@@ -41,9 +44,12 @@ trait SparkTest {
     val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
     val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
     private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    // TODO: allow customizing all parameters below via env vars
     val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
     val project = "jetfiretest2"
     val scopes = "https://api.cognitedata.com/.default"
+    val audience = "https://api.cognitedata.com"
+    val baseUrl = "https://api.cognitedata.com"
   }
 
   val writeCredentials = OAuth2.ClientCredentials(
@@ -51,16 +57,17 @@ trait SparkTest {
     clientId = OIDCWrite.clientId,
     clientSecret = OIDCWrite.clientSecret,
     scopes = List(OIDCWrite.scopes),
-    OIDCWrite.project
+    audience = Some(OIDCWrite.audience),
+    cdfProjectName = OIDCWrite.project,
   )
-  implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
+  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(5, 5)
 
   val writeAuthProvider =
     OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
   val writeClient: GenericClient[IO] = new GenericClient(
     applicationName = "jetfire-test",
     projectName = writeCredentials.cdfProjectName,
-    baseUrl = s"https://api.cognitedata.com",
+    baseUrl = OIDCWrite.baseUrl,
     authProvider = writeAuthProvider,
     apiVersion = None,
     clientTag = None,
@@ -74,6 +81,8 @@ trait SparkTest {
         .option("clientSecret", OIDCWrite.clientSecret)
         .option("project", OIDCWrite.project)
         .option("scopes", OIDCWrite.scopes)
+        .option("audience", OIDCWrite.audience)
+        .option("baseUrl", OIDCWrite.baseUrl)
   }
 
   implicit class DataFrameReaderHelper(df: DataFrameReader) {
@@ -83,6 +92,8 @@ trait SparkTest {
         .option("clientSecret", OIDCWrite.clientSecret)
         .option("project", OIDCWrite.project)
         .option("scopes", OIDCWrite.scopes)
+        .option("audience", OIDCWrite.audience)
+        .option("baseUrl", OIDCWrite.baseUrl)
   }
 
   private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
@@ -118,9 +129,6 @@ trait SparkTest {
       .option("clientSecret", readClientSecret)
       .option("project", "publicdata")
       .option("scopes", "https://api.cognitedata.com/.default")
-
-  // not needed to run tests, only for replicating some problems specific to this tenant
-  lazy val jetfiretest2ApiKey = System.getenv("TEST_APU_KEY_JETFIRETEST2")
 
   val testDataSetId = 86163806167772L
 
@@ -168,6 +176,10 @@ trait SparkTest {
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
+  class RetryException(private val message: String,
+                       private val cause: Throwable = None.orNull)
+    extends Exception(message, cause) {}
+
   // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](
       ioa: IO[A],
@@ -178,7 +190,8 @@ trait SparkTest {
     val randomDelayScale = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
     val nextDelay = Random.nextInt(randomDelayScale.toInt).millis + exponentialDelay
     ioa.handleErrorWith {
-      case exception @ (_: TimeoutException | _: IOException) =>
+      case exception @ (_: RetryException | _: TimeoutException | _: IOException) =>
+        logger.warn(exception)("failed a request attempt")
         if (maxRetries > 0) {
           IO.sleep(initialDelay) >> retryWithBackoff(ioa, nextDelay.min(maxDelay), maxRetries - 1)
         } else {
@@ -196,8 +209,8 @@ trait SparkTest {
       IO {
         val actionValue = action
         if (shouldRetry(actionValue)) {
-          throw new TimeoutException(
-            s"Retry timed out at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
+          throw new RetryException(
+            s"Retry needed at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
         }
         actionValue
       },

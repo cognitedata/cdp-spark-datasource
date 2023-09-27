@@ -57,7 +57,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
           .flatMap { instances =>
             val instanceCreate = InstanceCreate(
               items = instances,
-              replace = Some(true),
+              replace = Some(false),
               autoCreateStartNodes = Some(true),
               autoCreateEndNodes = Some(true)
             )
@@ -77,9 +77,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
     }
 
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[IO],
-      limit: Option[Int],
-      numPartitions: Int): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedFields = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
@@ -94,7 +92,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
       instanceType = Some(InstanceType.Edge),
       filter = Some(instanceFilters),
       sort = None,
-      limit = limit,
+      limit = config.limitPerPartition,
       cursor = None,
       sources = None,
       includeTyping = Some(true)
@@ -102,7 +100,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
 
     Vector(
       client.instances
-        .filterStream(filterReq, limit)
+        .filterStream(filterReq, config.limitPerPartition)
         .map(toProjectedInstance(_, selectedFields)))
   }
 
