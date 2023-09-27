@@ -6,7 +6,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder
 import fs2.{Chunk, Stream}
 import org.log4s._
 
-import java.util.concurrent.{ArrayBlockingQueue, Executors, TimeUnit}
+import java.util.concurrent.{ArrayBlockingQueue, Executors}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
@@ -89,27 +89,20 @@ object StreamIterator {
         if (nextItems.hasNext) {
           true
         } else {
-          // First fetch any already queued items without waiting.
-          // This is to ensure hasNext is fast and doesn't wait once f.isCompleted is true.
-          // fs2 Stream.PartiallyAppliedFromIterator getNextChunk can call .hasNext multiple times
-          // in a row even after it starts returning false, so wait times may accumulate if
-          // we don't have a fast-path for f.isCompleted
-          // Note that we may enter this point multiple times after f.isCompleted if there's
-          // long accumulated queue, we need to keep polling with no timeout to eventually
-          // fetch everything.
-          nextItems = iteratorFromQueue(0L)
+          nextItems = iteratorFromQueue()
           // The queue might be empty even if all streams have not yet been completely drained.
           // We keep polling the queue until new data is enqueued, or the stream is complete.
           while (nextItems.isEmpty && !f.isCompleted) {
-            nextItems = iteratorFromQueue(10L)
+            Thread.sleep(1)
+            nextItems = iteratorFromQueue()
           }
           nextItems.hasNext
         }
 
       override def next(): A = nextItems.next()
 
-      def iteratorFromQueue(pollTimeoutSeconds: Long): Iterator[A] =
-        Option(queue.poll(pollTimeoutSeconds, TimeUnit.SECONDS))
+      def iteratorFromQueue(): Iterator[A] =
+        Option(queue.poll())
           .map {
             case Right(value) => value.iterator
             case Left(err) => throw err

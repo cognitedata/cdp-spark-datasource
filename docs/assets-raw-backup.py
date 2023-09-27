@@ -7,12 +7,10 @@ from pyspark.sql.dataframe import DataFrame
 # initialize Spark and a few helper functions
 spark = SparkSession.builder.config("spark.jars.packages","com.cognite.spark.datasource:cdf-spark-datasource_2.12:1.4.29").getOrCreate()
 
-apikey = os.environ['COGNITE_API_KEY']
 baseUrl = "https://greenfield.cognitedata.com"
 
 def cdfData(**options):
 	reader = spark.read.format("cognite.spark.v1")
-	reader.option("apiKey", apikey)
 	reader.option("maxRetryDelay", 5) # fail faster during testing
 	reader.option("baseUrl", baseUrl)
 	for k in options:

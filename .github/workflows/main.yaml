@@ -38,7 +38,6 @@ jobs:
           ./secrets/decrypt.sh secrets/secring.asc.gpg ~/.sbt/gpg/secring.asc
       - name: Run tests
         env:
-          TEST_API_KEY_WRITE: ${{ secrets.TEST_API_KEY_WRITE }}
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
           TEST_OIDC_READ_CLIENT_SECRET: ${{ secrets.TEST_OIDC_READ_CLIENT_SECRET }}
           TEST_OIDC_READ_TENANT: ${{ secrets.TEST_OIDC_READ_TENANT }}

@@ -10,9 +10,8 @@ from cognite import CogniteClient
 class GenerateThreeDData:
     @classmethod
     def __init__(cls):
-        cls.apiKey = os.environ["TEST_API_KEY_WRITE"]
         cls.project = os.environ["PROJECT"]
-        cls.client = CogniteClient(cls.apiKey, cls.project)
+        cls.client = CogniteClient(cls.project)
         cls.random_model = "model_{}".format(random.randint(0, sys.maxsize))
 
     def create_model(self):

@@ -82,8 +82,8 @@ Then, try it out!
 
 ```python
 df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", "your-api-key")
   .option("type", "assets")
+  # add .options to configure access like OIDC tokens options
   .load()
 df.count
 ```
@@ -100,9 +100,8 @@ The common options are:
 
 |    Option     |                                                                                                                                                    Description                                                                                                                                                    |                  Required                  |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `apiKey`      | The CDF [API key](https://doc.cognitedata.com/dev/guides/iam/authentication.html#api-keys) for authorization.                                                                                                                                                                                                     | Yes, if you don't specify a `bearerToken` or the options for the `native tokens`. |
-| `bearerToken` | The CDF [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify an `apiKey` or the options for the `native tokens`. |
-| `project`     | The CDF project. By default it's inferred from the API key.                                                                                                                                                                                                                                                       |                                            |
+| `bearerToken` | The CDF [token](https://doc.cognitedata.com/dev/guides/iam/authentication.html#tokens) for authorization.                                                                                                                                                                                                         | Yes, if you don't specify options for the `native tokens`. |
+| `project`     | The CDF project.                                                                                                                                                                                                                                                      |                                            |
 | `type`        | The Cognite Data Fusion resource type. See below for more [resource type examples](#examples-by-resource-types).                                                                                                                                                                                                  | Yes                                        |
 | `maxRetries`  | The maximum number of retries to be made when a request fails. Default: 10                                                                                                                                                                                                                                        |                                            |
 | `maxRetryDelay` | The maximum number of seconds to wait between retrying requests. Default: 30                                                                                                                                                                                                                                        |                                            |
@@ -130,7 +129,7 @@ To autenticate using OIDC tokens set all of these options:
 
 ### Read data
 
-To read from CDF resource types, you need to specify: an **API-key** or a **bearertoken** and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
+To read from CDF resource types, you need to specify: a **bearertoken** and the **resource type** you want to read from. To read from a table you also need to specify the database and table names.
 
 #### Filter pushdown
 
@@ -164,7 +163,7 @@ You can write to CDF with:
 **`.insertInto()`**
 
 To write to a resource using the insert into pattern, you'll need to register a DataFrame that was read from
-the resource, as a temporary view. You also need write access to the project and resources. In the examples below, replace  `myApiKey` with your own API key.
+the resource, as a temporary view. You also need write access to the project and resources. In the examples below, also add access options.
 
 Your schema must match that of the target exactly. To ensure this, copy the schema from the DataFrame you read into with `sourceDf.select(destinationDf.columns.map(col):_*)`. See the [time series example below](#time-series).
 
@@ -179,7 +178,7 @@ For files, `insertInto()` only supports updating existing files.
 
 **`.save()`**
 
-We currently support writing with `.save()` for assets, events, and time series. You'll need to provide an API key and the resource type you want to write to. You can also use `.option("onconflict", value)` to specify the desired behavior when rows in your Dataframe are present in CDF.
+We currently support writing with `.save()` for assets, events, and time series. You can also use `.option("onconflict", value)` to specify the desired behavior when rows in your Dataframe are present in CDF.
 
 The valid options for onconflict are:
 
@@ -213,7 +212,7 @@ See an example of using `.save()` under [Events below](#events).
 
 We currently support deleting with `.save()` for assets, events and time series.
 
-You need to provide an API key and specify the resource type, and then specify `delete` as the `onconflict` option like this: `.option("onconflict", "delete")`.
+You need to specify the resource type, and then specify `delete` as the `onconflict` option like this: `.option("onconflict", "delete")`.
 
 See an example for using `.save()` to delete under [Time Series below](#time-series).
 
@@ -305,14 +304,12 @@ assetHierarchyDataFrame.printSchema()
 // Insert the assets with the asset hierarchy builder
 assetHierarchyDataFrame.write
   .format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("type", "assethierarchy")
   .save()
 
 // Have a look at your new asset hierarchy
 spark.read
   .format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("type", "assets")
   .load()
   .where("source = 'manual_input'")
@@ -324,7 +321,6 @@ spark
   .parallelize(Seq(Seq("root_asset", "", "manual_input", "root_asset", Some("This is the root asset"), None)))
   .toDF(assetHierarchySchema)
   .format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("type", "assethierarchy")
   .option("deleteMissingAssets", "true")
   .save()
@@ -351,14 +347,12 @@ assetHierarchyDataFrame.printSchema()
 # Insert the assets with the asset hierarchy builder
 assetHierarchyDataFrame.write \
     .format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "assethierarchy") \
     .save()
 
 # Have a look at your new asset hierarchy
 spark.read \
   .format("cognite.spark.v1") \
-  .option("apiKey", myApiKey) \
   .option("type", "assets") \
   .load() \
   .where("source = 'manual_input'") \
@@ -371,7 +365,6 @@ spark \
     .toDF(assetHierarchySchema) \
     .write \
     .format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "assethierarchy") \
     .option("deleteMissingAssets", "true") \
     .save()
@@ -608,7 +601,6 @@ Learn more about assets [here](https://doc.cognitedata.com/dev/concepts/resource
 
 // Read assets from your project into a DataFrame
 val df = spark.read.format("cognite.spark.v1")
- .option("apiKey", "myApiKey")
  .option("type", "assets")
  .load()
 
@@ -641,7 +633,6 @@ spark
 
 # Read assets from your project into a DataFrame
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "assets") \
     .load()
 
@@ -674,7 +665,6 @@ Learn more about time series [here](https://doc.cognitedata.com/dev/concepts/res
 
 // Get all the time series from your project
 val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("type", "timeseries")
   .load()
 df.createTempView("timeseries")
@@ -694,7 +684,6 @@ timeSeriesDf.select(df.columns.map(col):_*)
 timeSeriesDf
   .write
   .format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("type", "timeseries")
   .option("onconflict", "delete")
   .save()
@@ -705,7 +694,6 @@ timeSeriesDf
 
 # Get all the time series from your project
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "timeseries") \
     .load()
 
@@ -726,7 +714,6 @@ timeSeriesDf.select(df.columns.map(col)) \
 timeSeriesDf \
     .write \
     .format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "timeseries") \
     .option("onconflict", "delete") \
     .save()
@@ -749,7 +736,6 @@ To read numerical data points from CDF, use the `.option("type", "datapoints")` 
 
 // Get the datapoints from publicdata
 val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", "publicdataApiKey")
   .option("type", "datapoints")
   .load()
 
@@ -768,7 +754,6 @@ s"and aggregation = 'min' and granularity = '1d'")
 ```python
 # Get the datapoints from publicdata
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "datapoints") \
     .load()
 
@@ -796,7 +781,6 @@ To read string data points from CDF, provide the `.option("type", "stringdatapoi
 
 // Get the datapoints from publicdata
 val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", "publicdataApiKey")
   .option("type", "stringdatapoints")
   .load()
 
@@ -813,7 +797,6 @@ val timeseries = spark.sql(s"select * from stringdatapoints where id = $timeseri
 
 # Get the datapoints from publicdata
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "stringdatapoints") \
     .load()
 
@@ -834,7 +817,6 @@ Learn more about events [here](https://doc.cognitedata.com/dev/concepts/resource
 
 // Read events from `publicdata`
 val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", "publicdataApiKey")
   .option("type", "events")
   .load()
 
@@ -842,13 +824,11 @@ val df = spark.read.format("cognite.spark.v1")
 import org.apache.spark.sql.functions._
 df.withColumn("source", lit("publicdata"))
   .write.format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("onconflict", "abort")
   .save()
 
 // Get a reference to the events in your project
 val myProjectDf = spark.read.format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("type", "events")
   .load()
 myProjectDf.createTempView("events")
@@ -861,7 +841,6 @@ spark.sql("""
  |where source = 'publicdata'
 """.stripMargin)
 .write.format("cognite.spark.v1")
-.option("apiKey", "myApiKey")
 .option("onconflict", "update")
 .save()
 ```
@@ -871,7 +850,6 @@ spark.sql("""
 
 # Read events from `publicdata`
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "events") \
     .load()
 
@@ -879,14 +857,12 @@ df = spark.read.format("cognite.spark.v1") \
 from pyspark.sql.functions import lit
 df.withColumn("source", lit("publicdata")) \
     .write.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "events") \
     .option("onconflict", "abort") \
     .save()
 
 # Get a reference to the events in your project
 myProjectDf = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "events") \
     .load()
 myProjectDf.createTempView("events")
@@ -898,7 +874,6 @@ spark.sql(
     " from events" \
     " where source = 'publicdata'") \
     .write.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("onconflict", "update") \
     .save()
 ```
@@ -910,7 +885,6 @@ Learn more about files [here](https://doc.cognitedata.com/dev/concepts/resource_
 ```scala
 // Read files metadata from publicdata
 val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("type", "files")
   .load()
 
@@ -926,7 +900,6 @@ spark.sql(s"""
       |'example-name' as name,
       |'text' as source""")
   .write.format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("type", "files")
   .option("onconflict", "abort")
   .save()
@@ -960,7 +933,6 @@ spark.sql(s"""
 
 # Read files metadata from publicdata
 df = spark.read.format("cognite.spark.v1") \
-  .option("apiKey", myApiKey) \
   .option("type", "files") \
   .load()
 
@@ -975,7 +947,6 @@ spark.sql(
     " 'example-name' as name," \
     " 'text' as source") \
   .write.format("cognite.spark.v1") \
-  .option("apiKey", "myApiKey") \
   .option("type", "files") \
   .option("onconflict", "abort") \
   .save()
@@ -994,7 +965,6 @@ Note that the Open Industrial Data project does not have any 3D models. To test 
 ```scala
 // Read 3D models metadata from a project with 3D models and revisions
 val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", "apiKeyToProjectWith3dModels")
   .option("type", "3dmodels")
   .load()
 
@@ -1006,7 +976,6 @@ df.show()
 
 # Read 3D models metadata from a project with 3D models and revisions
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", "apiKeyToProjectWith3dModels") \
     .option("type", "3dmodels") \
     .load()
 
@@ -1022,7 +991,6 @@ Learn more about sequences [here](https://docs.cognite.com/dev/concepts/resource
 
 // List all sequences
 val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", myApiKey)
   .option("type", "sequences")
   .load()
 
@@ -1041,7 +1009,6 @@ spark.sql("""
  |) as columns
 """.stripMargin)
 .write.format("cognite.spark.v1")
-.option("apiKey", myApiKey)
 .option("type", "sequences")
 .option("onconflict", "abort")
 .save()
@@ -1052,7 +1019,6 @@ spark.sql("""
 
 # List all sequences
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "sequences") \
     .load()
 
@@ -1070,7 +1036,6 @@ spark.sql(
     "   )" \
     " ) as columns") \
     .write.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "sequences") \
     .option("onconflict", "abort") \
     .save()
@@ -1089,7 +1054,6 @@ One of two additional options must be specified:
 
 // Read sequence rows
 val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", myApiKey)
   .option("type", "sequencerows")
   .option("id", sequenceId) // or you can use the "externalId" option
   .load()
@@ -1101,7 +1065,6 @@ import org.apache.spark.sql.functions.lit
 df
   .withColumn("externalId", lit("my-sequence")) // Required when writing to support writing to multiple sequences
   .write.format("cognite.spark.v1")
-  .option("apiKey", myApiKey)
   .option("type", "sequencerows")
   .option("onconflict", "upsert")
   .option("externalId", "my-sequence")
@@ -1113,7 +1076,6 @@ df
 
 # Read sequence rows
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "sequencerows") \
     .option("id", sequenceId) \
     .load()
@@ -1123,7 +1085,6 @@ from pyspark.sql.functions import lit
 df \
     .withColumn("externalId", "my-sequence") \  # Required when writing to support writing to multiple sequences
     .write.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "sequencerows") \
     .option("onconflict", "upsert") \
     .option("externalId", "my-sequence") \
@@ -1144,7 +1105,6 @@ internal id.
 
 # Read labels
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "labels") \
     .load()
 
@@ -1157,7 +1117,6 @@ spark.sql(
     " 'new-label' as name," \
     " 'text' as description") \
   .write.format("cognite.spark.v1") \
-  .option("apiKey", "myApiKey") \
   .option("type", "labels") \
   .save()
 ```
@@ -1178,7 +1137,6 @@ with the same external id. `externalId`, `sourceExternalId`, `sourceType`, `targ
 // Read relationships
 df = spark.read
   .format("cognite.spark.v1")
-  .option("apiKey", myApiKey)
   .option("type", "relationships")
   .load()
 
@@ -1200,7 +1158,6 @@ spark
   .write
   .format("cognite.spark.v1")
   .option("type", "relationships")
-  .option("apiKey", myApiKey)
   .save() 
 ```
 
@@ -1208,7 +1165,6 @@ spark
 # Python Example
 
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "relationships") \
     .load()
 
@@ -1217,7 +1173,6 @@ df.show()
 
 # Get a reference to the relationships in your project
 myProjectDf = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "relationships") \
     .load()
 myProjectDf.createTempView("relationships")
@@ -1235,7 +1190,6 @@ spark.sql(
       cast(from_unixtime(0) as timestamp) as startTime, \
       cast(from_unixtime(1) as timestamp) as endTime") \
   .write.format("cognite.spark.v1") \
-  .option("apiKey", "myApiKey") \
   .option("type", "relationships") \
   .option("onconflict", "abort") \
   .save()
@@ -1253,7 +1207,6 @@ Note that data sets can be read, created and updated, but not deleted.
 
 # Read data sets
 df = spark.read.format("cognite.spark.v1") \
-    .option("apiKey", myApiKey) \
     .option("type", "datasets") \
     .load()
 
@@ -1268,7 +1221,6 @@ spark.sql(
     " null as metadata") \
     " true as writeProtected") \
   .write.format("cognite.spark.v1") \
-  .option("apiKey", "myApiKey") \
   .option("type", "datasets") \
   .save()
 ```
@@ -1524,7 +1476,6 @@ Optionally, you can have Spark infer the DataFrame schema with the following opt
 
 ```scala
 val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", "myApiKey")
   .option("type", "raw")
   .option("database", "database-name") // a RAW database from your project
   .option("table", "table-name") // name of a table in "database-name"
@@ -1541,7 +1492,6 @@ spark.sql("""insert into tablename values ("key", "values")""")
 # database-name -> a RAW database from your project
 # table-name -> name of a table in "database-name"
 df = spark.read.format("cognite.spark.v1") \
-  .option("apiKey", myApiKey) \
   .option("type", "raw") \
   .option("database", "database-name") \
   .option("table", "table-name") \
@@ -1570,8 +1520,6 @@ The project runs read-only integration tests against the Open Industrial Data pr
 https://hub.cognite.com/open-industrial-data-211 to get a Client Secret and store it in the `TEST_OIDC_READ_CLIENT_SECRET` environment variable along with
 `TEST_OIDC_READ_CLIENT_ID` and `TEST_OIDC_READ_TENANT`. The value of Client ID and Tenant ID can be found [here](https://hub.cognite.com/open-industrial-data-211/openid-connect-on-open-industrial-data-993)
 
-To run the write integration tests, you'll also need to set the `TEST_API_KEY_WRITE` environment variable to an API key for a project where you have write access.
-
 If you are using the SBT shell in IntelliJ or similar and want to get it to pick up environment variables
 from a file, you can create a file in this directory named `.env` containing environment variables, one
 per line, of the format `ENVIRONMENT_VARIABLE_NAME=value`.
@@ -1581,7 +1529,7 @@ See [sbt-dotenv](https://github.com/mefellows/sbt-dotenv) for more information.
 
 1. First run `sbt compile` to generate Scala sources for protobuf.
 
-2. If you have set `TEST_API_KEY_WRITE`, run the Python files `scripts/createThreeDData.py` and `scripts/createFilesMetaData.py` (You need to install the cognite-sdk-python and set the `PROJECT` and `TEST_API_KEY_WRITE` environment variables).
+2. Run the Python files `scripts/createThreeDData.py` and `scripts/createFilesMetaData.py` (You need to install the cognite-sdk-python and set the `PROJECT` environment variables).
 
 This uploads a 3D model to your project that you can use for testing.
 
@@ -1608,13 +1556,11 @@ To **skip the read/write tests in assembly**, add `test in assembly := {}` to bu
 To download the spark data source, simply add the Maven coordinates for the package using the
 `--packages` flag.
 
-Get an API-key for the Open Industrial Data project at https://openindustrialdata.com and run the following commands (replace \<release\> with the release you'd like, for example 1.2.0):
-
+Get access for the Open Industrial Data project at https://openindustrialdata.com and run the following commands (replace \<release\> with the release you'd like, for example 1.2.0).
+See also https://hub.cognite.com/open-industrial-data-211/openid-connect-on-open-industrial-data-993 for OIDC access setup
 ``` cmd
 $> spark-shell --packages com.cognite.spark.datasource:cdf-spark-datasource_2.11:<latest-release>
-scala> val apiKey="secret-key-you-have"
 scala> val df = spark.read.format("cognite.spark.v1")
-  .option("apiKey", apiKey)
   .option("batchSize", "1000")
   .option("limitPerPartition", "1000")
   .option("type", "assets")
