@@ -7,13 +7,12 @@ from cognite.client import CogniteClient
 class AssetTypeGenerator:
     @classmethod
     def __init__(cls):
-        cls.apiKey = os.environ["TEST_API_KEY_WRITE"]
         cls.project = os.environ["PROJECT"]
-        cls.client = CogniteClient(cls.apiKey, cls.project)
+        cls.client = CogniteClient(cls.project)
 
     def create_asset_type(self):
         header = {
-            'Content-Type': 'application/json', 'API-key': self.apiKey
+            'Content-Type': 'application/json'
         }
 
         req_body = {

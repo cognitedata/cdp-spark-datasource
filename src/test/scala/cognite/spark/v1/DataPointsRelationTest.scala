@@ -1061,7 +1061,6 @@ class DataPointsRelationTest
 
     val df = spark.read
       .format(DefaultSource.sparkFormatString)
-      .option("apiKey", jetfiretest2ApiKey)
       .option("type", "datapoints")
       .option("collectMetrics", "true")
       .option("metricsPrefix", metricsPrefix)
