@@ -202,21 +202,26 @@ trait SparkTest {
   }
   // scalastyle:on cyclomatic.complexity
 
-  def retryWhile[A](action: => A, shouldRetry: A => Boolean)(
+  def retryWhileIO[A](action: IO[A], shouldRetry: A => Boolean)(
       implicit prettifier: Prettifier,
-      pos: source.Position): A =
+      pos: source.Position): IO[A] =
     retryWithBackoff(
-      IO {
-        val actionValue = action
-        if (shouldRetry(actionValue)) {
+      for {
+        actionValue <- action
+        _ <- IO.delay { if (shouldRetry(actionValue)) {
           throw new RetryException(
             s"Retry needed at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
-        }
-        actionValue
-      },
+        } }
+      } yield actionValue,
       1.second,
       20
-    ).unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
+    )
+
+  def retryWhile[A](action: => A, shouldRetry: A => Boolean)(
+    implicit prettifier: Prettifier,
+    pos: source.Position): A =
+    retryWhileIO(IO.unit.map(_ => action), shouldRetry)
+      .unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
 
   val updateAndUpsert: TableFor1[String] = Table(heading = "mode", "upsert", "update")
 
