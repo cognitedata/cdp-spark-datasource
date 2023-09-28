@@ -250,6 +250,11 @@ trait SparkTest {
       rawEnsureParent = false
     )
 
+  private def getCounterSafe(metricName: String): Option[Long] =
+    Option(MetricsSource.metricsMap
+      .get(metricName))
+      .map(_.value.getCount)
+
   private def getCounter(metricName: String): Long =
     MetricsSource.metricsMap
       .get(metricName)
@@ -258,6 +263,9 @@ trait SparkTest {
 
   def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.read")
+
+  def getNumberOfRowsReadSafe(metricsPrefix: String, resourceType: String): Option[Long] =
+    getCounterSafe(s"$metricsPrefix.$resourceType.read")
 
   def getNumberOfRowsCreated(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.created")
