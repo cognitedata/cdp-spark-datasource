@@ -16,7 +16,7 @@ class AssetHierarchyBuilderTest
   import spark.implicits._
 
   private val assetsSourceDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "assets")
     .load()
@@ -48,7 +48,7 @@ class AssetHierarchyBuilderTest
       .parallelize(processedTree)
       .toDF()
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assethierarchy")
       .option("collectMetrics", metricsPrefix.isDefined)
@@ -291,7 +291,7 @@ class AssetHierarchyBuilderTest
           |       "my-test-asset" as name
           |""".stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
@@ -311,7 +311,7 @@ class AssetHierarchyBuilderTest
           |       "my-test-asset" as name
           |""".stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
@@ -331,7 +331,7 @@ class AssetHierarchyBuilderTest
           |       "my-test-asset" as name
           |""".stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
@@ -350,7 +350,7 @@ class AssetHierarchyBuilderTest
           |       "my-test-asset" as name
           |""".stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assethierarchy")
         .save()
@@ -807,7 +807,7 @@ class AssetHierarchyBuilderTest
     spark
       .sql(s"select id from assets where externalId = 'dad$key'")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assethierarchy")
       .option("onconflict", "delete")

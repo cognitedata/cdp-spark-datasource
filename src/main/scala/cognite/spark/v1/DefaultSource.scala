@@ -23,6 +23,8 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 import sttp.model.Uri
 import scala.reflect.classTag
 
+import scala.reflect.classTag
+
 class DefaultSource
     extends RelationProvider
     with CreatableRelationProvider

@@ -790,8 +790,6 @@ class EventsRelationTest extends FlatSpec with Matchers
     } yield ())
   }
 
-
-
   it should "allow NULL updates in savemode" taggedAs WriteTest in forAll(updateAndUpsert) {
     updateMode => runIOTest(for {
       (_, targetView, metricsPrefix) <- makeDestinationDf()
@@ -860,7 +858,6 @@ class EventsRelationTest extends FlatSpec with Matchers
       _ = updatedEvent.`type` shouldBe Some("test-type")
       _ = updatedEvent.subtype shouldBe None
     } yield ())
-
   }
 
   it should "allow duplicated ids and external ids when using upsert in savemode" in {

@@ -14,7 +14,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
   with BeforeAndAfterAll {
 
   val destinationDf: DataFrame = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "relationships")
     .load()
@@ -22,7 +22,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
 
   private def getBaseReader(metricsPrefix: String): DataFrame =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", "relationships")
       .useOIDCWrite
       .option("collectMetrics", true)
@@ -129,7 +129,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .unsafeRunSync()
 
     val rows = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "relationships")
       .load()
@@ -162,13 +162,13 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
            | cast(from_unixtime(0) as timestamp) as startTime,
            | cast(from_unixtime(1) as timestamp) as endTime""".stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", "relationships")
       .useOIDCWrite
       .save()
 
     val rows = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "relationships")
       .load()
@@ -207,7 +207,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
            | cast(from_unixtime(0) as timestamp) as startTime,
            | cast(from_unixtime(1) as timestamp) as endTime""".stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .option("type", "relationships")
         .useOIDCWrite
         .option("onconflict", updateMode)
@@ -243,7 +243,7 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
            | cast(from_unixtime(0) as timestamp) as startTime,
            | cast(from_unixtime(1) as timestamp) as endTime""".stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", "relationships")
       .useOIDCWrite
       .option("onconflict", "upsert")
@@ -424,14 +424,14 @@ class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest wi
       .sql(
         s"select externalId from destinationRelationship where externalId in('${externalIdPrefix}-1','${externalIdPrefix}-2','${externalIdPrefix}-3', '${externalIdPrefix}-4')")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "relationships")
       .option("onconflict", "delete")
       .save()
 
     val rows = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "relationships")
       .load()
