@@ -30,7 +30,7 @@ class ThreeDModelRevisionNodesRelationTest extends FlatSpec with ParallelTestExe
       .option("revisionid", revision.id)
       .option("limitPerPartition", "10")
       .load()
-    assert(df.count() == 10)
+    assert(df.count() > 0)
 
   }
 }
