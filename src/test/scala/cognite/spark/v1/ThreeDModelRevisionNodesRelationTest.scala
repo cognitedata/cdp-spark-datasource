@@ -21,6 +21,7 @@ class ThreeDModelRevisionNodesRelationTest extends FlatSpec with ParallelTestExe
 
   "ThreeDModelRevisionNodesRelationTest" should "pass a smoke test" taggedAs WriteTest in {
     val (model, revision) = getSomeModelRevision.unsafeRunSync()
+    assert("" == s"${model} => ${revision}")
 
     val df = spark.read
       .format(DefaultSource.sparkFormatString)
