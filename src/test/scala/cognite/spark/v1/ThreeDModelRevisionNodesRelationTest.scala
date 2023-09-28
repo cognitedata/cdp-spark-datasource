@@ -23,7 +23,7 @@ class ThreeDModelRevisionNodesRelationTest extends FlatSpec with ParallelTestExe
     val (model, revision) = getSomeModelRevision.unsafeRunSync()
 
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "3dmodelrevisionnodes")
       .option("modelid", model.id)

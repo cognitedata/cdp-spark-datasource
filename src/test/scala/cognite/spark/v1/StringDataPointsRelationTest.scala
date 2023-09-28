@@ -22,14 +22,14 @@ class StringDataPointsRelationTest
   sourceTimeSeriesDf.createOrReplaceTempView("sourceTimeSeries")
 
   val destinationTimeSeriesDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "timeseries")
     .load()
   destinationTimeSeriesDf.createOrReplaceTempView("destinationTimeSeries")
 
   val destinationStringDataPointsDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "stringdatapoints")
     .option("collectMetrics", "true")
@@ -209,7 +209,7 @@ class StringDataPointsRelationTest
     val tsName = s"stringdatapoints-${randomSuffix}"
 
     val stringDataPointsInsertDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "stringdatapoints")
       .option("collectMetrics", "true")
@@ -317,7 +317,7 @@ class StringDataPointsRelationTest
 
   it should "be possible to delete string data points" taggedAs WriteTest in {
     val destinationDataPointsDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "stringdatapoints")
       .load()
@@ -326,7 +326,7 @@ class StringDataPointsRelationTest
     val tsName = s"dps-delete1-${shortRandomString()}"
 
     val destinationTimeSeriesDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .load()
@@ -340,7 +340,7 @@ class StringDataPointsRelationTest
            |true as isString
      """.stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "upsert")
@@ -372,7 +372,7 @@ class StringDataPointsRelationTest
            |'c' as value
         """.stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "stringdatapoints")
       .option("onconflict", "upsert")
@@ -405,7 +405,7 @@ class StringDataPointsRelationTest
            |to_timestamp(1509500060) as exclusiveEnd
          """.stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "stringdatapoints")
       .option("onconflict", "delete")
