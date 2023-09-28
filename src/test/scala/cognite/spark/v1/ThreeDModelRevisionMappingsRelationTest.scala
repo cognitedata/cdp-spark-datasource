@@ -12,7 +12,7 @@ class ThreeDModelRevisionMappingsRelationTest
     val revision = writeClient.threeDRevisions(model.id).list().compile.toList.unsafeRunSync().head
 
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "3dmodelrevisionmappings")
       .option("modelid", model.id)

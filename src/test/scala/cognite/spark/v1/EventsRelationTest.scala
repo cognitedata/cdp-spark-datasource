@@ -16,14 +16,14 @@ import scala.util.control.NonFatal
 
 class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val destinationDf: DataFrame = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "events")
     .load()
   destinationDf.createOrReplaceTempView("destinationEvent")
 
   val sourceDf: DataFrame = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "events")
     .option("limitPerPartition", "1000")
@@ -34,7 +34,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   private def getBaseReader(metricsPrefix: String): DataFrame =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", "events")
       .useOIDCWrite
       .option("collectMetrics", true)
@@ -43,7 +43,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   "EventsRelation" should "allow simple reads" taggedAs WriteTest in {
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "events")
       .option("limitPerPartition", "100")
@@ -280,7 +280,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = "pushdown.filters.advanced"
 
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "events")
       .option("collectMetrics", "true")
@@ -350,7 +350,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     try {
       val destinationDf: DataFrame = spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .option("collectMetrics", "true")
@@ -460,7 +460,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
 
     wdf.write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "events")
       .option("onconflict", "upsert")
@@ -498,7 +498,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
 
       df.write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .option("collectMetrics", "true")
@@ -517,7 +517,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       // Trying to insert existing rows should throw a CdpApiException
       val e = intercept[SparkException] {
         df.write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "events")
           .save()
@@ -556,7 +556,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
      """.stripMargin)
 
         df.write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "events")
           .option("collectMetrics", "true")
@@ -579,7 +579,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |NULL as externalId
      """.stripMargin)
           .write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "events")
           .option("collectMetrics", "true")
@@ -637,7 +637,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       eventsToCreate
         .repartition(1)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "upsert")
@@ -668,7 +668,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       eventsToUpdate
         .repartition(1)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "upsert")
@@ -712,7 +712,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       eventsToUpdateById
         .repartition(1)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "upsert")
@@ -767,7 +767,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |limit 100
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "upsert")
@@ -807,7 +807,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |limit 50
         """.stripMargin)
       updateEventsByIdDf.write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("onconflict", "upsert")
         .option("type", "events")
@@ -840,7 +840,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |limit 50
         """.stripMargin)
       updateEventsByExternalIdDf.write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("onconflict", "upsert")
         .option("type", "events")
@@ -895,7 +895,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(dfWithUpdatesAsSource.length == 0)
 
       val destinationDf: DataFrame = spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .option("collectMetrics", "true")
@@ -952,7 +952,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                  |where source = '$source'
       """.stripMargin)
               .write
-              .format("cognite.spark.v1")
+              .format(DefaultSource.sparkFormatString)
               .useOIDCWrite
               .option("type", "events")
               .option("onconflict", "update")
@@ -996,7 +996,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                   |limit 1
         """.stripMargin)
           .write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "events")
           .option("onconflict", "update")
@@ -1066,7 +1066,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                |where source = '$source'
        """.stripMargin)
             .write
-            .format("cognite.spark.v1")
+            .format(DefaultSource.sparkFormatString)
             .useOIDCWrite
             .option("type", "events")
             .option("onconflict", "update")
@@ -1102,7 +1102,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |limit 1
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .save()
@@ -1154,7 +1154,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
             spark
               .sql(s"select id from destinationEvent where source = '$source'")
               .write
-              .format("cognite.spark.v1")
+              .format(DefaultSource.sparkFormatString)
               .useOIDCWrite
               .option("type", "events")
               .option("onconflict", "delete")
@@ -1214,7 +1214,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       spark
         .sql("select 123 as id".stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "events")
         .option("onconflict", "delete")
@@ -1226,7 +1226,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         spark
           .sql("select 123 as id")
           .write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "events")
           .option("onconflict", "delete")
@@ -1290,7 +1290,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
             spark
               .sql(s"select externalId from destinationEvent where source = '$source'")
               .write
-              .format("cognite.spark.v1")
+              .format(DefaultSource.sparkFormatString)
               .useOIDCWrite
               .option("type", "events")
               .option("onconflict", "delete")
@@ -1331,7 +1331,7 @@ class EventsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     spark
       .sql(s"""select * from destinationEvent where source = '$source'""")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "events")
       .option("onconflict", "delete")

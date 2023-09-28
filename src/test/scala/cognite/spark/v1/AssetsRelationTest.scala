@@ -22,7 +22,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   sourceDf.createOrReplaceTempView("sourceAssets")
 
   val destinationDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "assets")
     .load()
@@ -82,7 +82,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
            |$testDataSetId as dataSetId,
            |array('scala-sdk-relationships-test-label2') as labels""".stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", "assets")
       .useOIDCWrite
       .save()
@@ -161,7 +161,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "support pushdown filters on source" taggedAs WriteTest in {
     val metricsPrefix = s"pushdown.assets.source.${shortRandomString()}"
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .option("collectMetrics", "true")
@@ -257,7 +257,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "handle duplicates in a pushdown filter scenario" taggedAs ReadTest in {
     val metricsPrefix = s"pushdown.assets.duplicates.${shortRandomString()}"
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .option("collectMetrics", "true")
@@ -329,7 +329,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val externalId = s"assets-test-create-${shortRandomString()}"
     val metricsPrefix = s"assets.test.create.${shortRandomString()}"
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .option("collectMetrics", "true")
@@ -395,7 +395,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |bigint(10) as id
       """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assets")
         .option("onconflict", "abort")
@@ -418,7 +418,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "be possible to copy assets from one tenant to another" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-copy-${shortRandomString()}"
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .load()
@@ -464,7 +464,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val metricsPrefix = s"assets.upsert.test.${shortRandomString()}"
 
     val destinationDf: DataFrame = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .option("collectMetrics", "true")
@@ -586,7 +586,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "allow partial updates" taggedAs WriteTest in {
     val sourceDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .load()
@@ -597,7 +597,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       """.stripMargin)
 
     wdf.write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .option("onconflict", "update")
@@ -621,7 +621,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
 
     wdf.write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .option("onconflict", "update")
@@ -636,7 +636,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "throw proper exception on invalid onconflict options" taggedAs WriteTest in {
     val sourceDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .load()
@@ -648,7 +648,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
     assertThrows[CdfSparkIllegalArgumentException] {
       wdf.write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assets")
         .option("onconflict", "does-not-exists")
@@ -659,7 +659,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
   it should "support some more partial updates" taggedAs WriteTest in {
     val source = s"spark-assets-test-partial-${shortRandomString()}"
     val destinationDf: DataFrame = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .option("collectMetrics", "false")
@@ -709,7 +709,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                |where source = '$source'
      """.stripMargin)
             .write
-            .format("cognite.spark.v1")
+            .format(DefaultSource.sparkFormatString)
             .useOIDCWrite
             .option("type", "assets")
             .option("onconflict", "update")
@@ -779,7 +779,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                |where source = '$source'
      """.stripMargin)
             .write
-            .format("cognite.spark.v1")
+            .format(DefaultSource.sparkFormatString)
             .useOIDCWrite
             .option("type", "assets")
             .option("onconflict", "update")
@@ -824,7 +824,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |null dataSetId
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assets")
         .option("onconflict", "upsert")
@@ -839,7 +839,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                |'bar' as description
      """.stripMargin)
             .write
-            .format("cognite.spark.v1")
+            .format(DefaultSource.sparkFormatString)
             .useOIDCWrite
             .option("type", "assets")
             .option("onconflict", "upsert")
@@ -884,7 +884,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |null dataSetId
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assets")
         .option("onconflict", "upsert")
@@ -899,7 +899,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                |'updated-name' as name
      """.stripMargin)
             .write
-            .format("cognite.spark.v1")
+            .format(DefaultSource.sparkFormatString)
             .useOIDCWrite
             .option("type", "assets")
             .option("onconflict", "upsert")
@@ -946,7 +946,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                 |null dataSetId
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assets")
         .option("onconflict", "upsert")
@@ -964,7 +964,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
                |'updated-$newExternalId' as externalId
      """.stripMargin)
             .write
-            .format("cognite.spark.v1")
+            .format(DefaultSource.sparkFormatString)
             .useOIDCWrite
             .option("type", "assets")
             .option("onconflict", "upsert")
@@ -1043,7 +1043,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
             spark
               .sql(s"select id from destinationAssets where source = '$source'")
               .write
-              .format("cognite.spark.v1")
+              .format(DefaultSource.sparkFormatString)
               .useOIDCWrite
               .option("type", "assets")
               .option("onconflict", "delete")
@@ -1072,7 +1072,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     spark
       .sql("select 1234 as id")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .option("onconflict", "delete")
@@ -1084,7 +1084,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       spark
         .sql("select 1234 as id")
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "assets")
         .option("onconflict", "delete")
@@ -1141,7 +1141,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
             spark
               .sql(s"select externalId from destinationAssets where source = '$source'")
               .write
-              .format("cognite.spark.v1")
+              .format(DefaultSource.sparkFormatString)
               .useOIDCWrite
               .option("type", "assets")
               .option("onconflict", "delete")
@@ -1170,7 +1170,7 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
     spark
       .sql(s"""select id from destinationAssets where source = '$source'""")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "assets")
       .option("onconflict", "delete")
