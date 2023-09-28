@@ -1198,7 +1198,7 @@ class FlexibleDataModelCorePropertyRelationTest
       df: DataFrame,
       onConflict: String = "upsert"): Unit =
     df.write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
@@ -1223,7 +1223,7 @@ class FlexibleDataModelCorePropertyRelationTest
       viewVersion: String,
       instanceSpaceExternalId: String): DataFrame =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
@@ -1247,7 +1247,7 @@ class FlexibleDataModelCorePropertyRelationTest
       viewExternalId: String,
       instanceSpace: Option[String]): DataFrame =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
@@ -1274,7 +1274,7 @@ class FlexibleDataModelCorePropertyRelationTest
       onConflict: String = "upsert",
       ignoreNullFields: Boolean = true): Unit =
     df.write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)

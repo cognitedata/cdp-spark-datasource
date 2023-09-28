@@ -157,7 +157,7 @@ class RawTableRelationTest
     val limit = 100L
     val partitions = 10L
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("limitPerPartition", limit)
@@ -179,7 +179,7 @@ class RawTableRelationTest
       inferSchema: Boolean = true,
       metricsPrefix: Option[String] = None): DataFrame = {
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("partitions", 1)
@@ -335,7 +335,7 @@ class RawTableRelationTest
     val inferSchemaLimit = 1L
     val partitions = 10L
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("database", database)
@@ -358,7 +358,7 @@ class RawTableRelationTest
 
   "lastUpdatedTime" should "insert data without error" taggedAs (WriteTest) in {
     val destinationDf = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
@@ -380,7 +380,7 @@ class RawTableRelationTest
 
   it should "test that lastUpdatedTime filters are handled correctly" taggedAs (ReadTest) in {
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
@@ -400,7 +400,7 @@ class RawTableRelationTest
     val partitions = 10L
 
     val df = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("metricsPrefix", metricsPrefix)
@@ -427,7 +427,7 @@ class RawTableRelationTest
   it should "handle various numbers of partitions" taggedAs (ReadTest) in {
     for (partitions <- Seq("1", "5", "10", "20")) {
       val df = spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "raw")
         .option("database", "testdb")
@@ -442,7 +442,7 @@ class RawTableRelationTest
 
   it should "read individual columns successfully" taggedAs (ReadTest) in {
     val dfArray = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
@@ -483,7 +483,7 @@ class RawTableRelationTest
          |  ) as value
          |""".stripMargin)
     val destination = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .schema(source.schema)
       .useOIDCWrite
       .option("type", "raw")
@@ -498,7 +498,7 @@ class RawTableRelationTest
 
     try {
       val df = spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "raw")
         .option("database", database)
@@ -552,7 +552,7 @@ class RawTableRelationTest
            |  123 as something
            |""".stripMargin)
       val destination = spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .schema(source.schema)
         .useOIDCWrite
         .option("type", "raw")
@@ -577,7 +577,7 @@ class RawTableRelationTest
 
   it should "be able to duplicate a table with a large number of columns(384)" taggedAs WriteTest in {
     val source = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
@@ -587,7 +587,7 @@ class RawTableRelationTest
       .load()
 
     val dest = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .schema(source.schema)
       .useOIDCWrite
       .option("type", "raw")
@@ -608,7 +608,7 @@ class RawTableRelationTest
 
   it should "be treated as a 'select *' when the column names combined, exceeds the character limit of 200" taggedAs WriteTest in {
     val source = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("database", "testdb")
@@ -618,7 +618,7 @@ class RawTableRelationTest
       .load()
 
     val dest = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .schema(source.schema)
       .useOIDCWrite
       .option("type", "raw")
@@ -715,7 +715,7 @@ class RawTableRelationTest
 
   it should "fail reasonably when table does not exist" in {
     val source = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("database", "datybasy")

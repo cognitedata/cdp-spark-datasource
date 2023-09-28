@@ -14,7 +14,7 @@ class LabelsRelationTest
     with Inspectors {
   val datasetLabels: String = "spark-ds-labels-test"
   val destinationDf: DataFrame = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "labels")
     .load()
@@ -43,7 +43,7 @@ class LabelsRelationTest
       .unsafeRunSync()
 
     val rows = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "labels")
       .load()
@@ -70,7 +70,7 @@ class LabelsRelationTest
            |'$name' as name, '$description' as description,
            |$dsId as dataSetId""".stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", "labels")
       .useOIDCWrite
       .save()
@@ -103,7 +103,7 @@ class LabelsRelationTest
     spark
       .sql(s"select externalId from destinationLabel where externalId = '$externalId'")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "labels")
       .option("onconflict", "delete")
