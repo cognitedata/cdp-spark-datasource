@@ -19,7 +19,7 @@ class ThreeDModelRevisionNodesRelationTest extends FlatSpec with ParallelTestExe
       .map(_.head)
   }
 
-  ("ThreeDModelRevisionNodesRelationTest" should "pass a smoke test" taggedAs WriteTest).ignore {
+  "ThreeDModelRevisionNodesRelationTest" should "pass a smoke test" taggedAs WriteTest in {
     val (model, revision) = getSomeModelRevision.unsafeRunSync()
 
     val df = spark.read
