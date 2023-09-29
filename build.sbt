@@ -11,7 +11,7 @@ val sttpVersion = "3.5.2"
 val Specs2Version = "4.20.2"
 val cogniteSdkVersion = "2.7.758"
 
-val prometheusVersion = "0.15.0"
+val prometheusVersion = "0.16.0"
 val log4sVersion = "1.8.2"
 
 sonatypeProfileName := "com.cognite" // default is same as organization and leads to 404 on sonatypeReleaseAll
