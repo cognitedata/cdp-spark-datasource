@@ -44,9 +44,12 @@ trait SparkTest {
     val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
     val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
     private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
+    // TODO: allow customizing all parameters below via env vars
     val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
     val project = "jetfiretest2"
     val scopes = "https://api.cognitedata.com/.default"
+    val audience = "https://api.cognitedata.com"
+    val baseUrl = "https://api.cognitedata.com"
   }
 
   val writeCredentials = OAuth2.ClientCredentials(
@@ -54,7 +57,8 @@ trait SparkTest {
     clientId = OIDCWrite.clientId,
     clientSecret = OIDCWrite.clientSecret,
     scopes = List(OIDCWrite.scopes),
-    OIDCWrite.project
+    audience = Some(OIDCWrite.audience),
+    cdfProjectName = OIDCWrite.project,
   )
   implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(5, 5)
 
@@ -63,7 +67,7 @@ trait SparkTest {
   val writeClient: GenericClient[IO] = new GenericClient(
     applicationName = "jetfire-test",
     projectName = writeCredentials.cdfProjectName,
-    baseUrl = s"https://api.cognitedata.com",
+    baseUrl = OIDCWrite.baseUrl,
     authProvider = writeAuthProvider,
     apiVersion = None,
     clientTag = None,
@@ -77,6 +81,8 @@ trait SparkTest {
         .option("clientSecret", OIDCWrite.clientSecret)
         .option("project", OIDCWrite.project)
         .option("scopes", OIDCWrite.scopes)
+        .option("audience", OIDCWrite.audience)
+        .option("baseUrl", OIDCWrite.baseUrl)
   }
 
   implicit class DataFrameReaderHelper(df: DataFrameReader) {
@@ -86,6 +92,8 @@ trait SparkTest {
         .option("clientSecret", OIDCWrite.clientSecret)
         .option("project", OIDCWrite.project)
         .option("scopes", OIDCWrite.scopes)
+        .option("audience", OIDCWrite.audience)
+        .option("baseUrl", OIDCWrite.baseUrl)
   }
 
   private val readClientId = System.getenv("TEST_OIDC_READ_CLIENT_ID")
@@ -115,15 +123,12 @@ trait SparkTest {
 
   def dataFrameReaderUsingOidc: DataFrameReader =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("tokenUri", readTokenUri)
       .option("clientId", readClientId)
       .option("clientSecret", readClientSecret)
       .option("project", "publicdata")
       .option("scopes", "https://api.cognitedata.com/.default")
-
-  // not needed to run tests, only for replicating some problems specific to this tenant
-  lazy val jetfiretest2ApiKey = System.getenv("TEST_APU_KEY_JETFIRETEST2")
 
   val testDataSetId = 86163806167772L
 
@@ -197,21 +202,26 @@ trait SparkTest {
   }
   // scalastyle:on cyclomatic.complexity
 
-  def retryWhile[A](action: => A, shouldRetry: A => Boolean)(
+  def retryWhileIO[A](action: IO[A], shouldRetry: A => Boolean)(
       implicit prettifier: Prettifier,
-      pos: source.Position): A =
+      pos: source.Position): IO[A] =
     retryWithBackoff(
-      IO {
-        val actionValue = action
-        if (shouldRetry(actionValue)) {
+      for {
+        actionValue <- action
+        _ <- IO.delay { if (shouldRetry(actionValue)) {
           throw new RetryException(
             s"Retry needed at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
-        }
-        actionValue
-      },
+        } }
+      } yield actionValue,
       1.second,
       20
-    ).unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
+    )
+
+  def retryWhile[A](action: => A, shouldRetry: A => Boolean)(
+    implicit prettifier: Prettifier,
+    pos: source.Position): A =
+    retryWhileIO(IO.unit.map(_ => action), shouldRetry)
+      .unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
 
   val updateAndUpsert: TableFor1[String] = Table(heading = "mode", "upsert", "update")
 
@@ -240,6 +250,11 @@ trait SparkTest {
       rawEnsureParent = false
     )
 
+  private def getCounterSafe(metricName: String): Option[Long] =
+    Option(MetricsSource.metricsMap
+      .get(metricName))
+      .map(_.value.getCount)
+
   private def getCounter(metricName: String): Long =
     MetricsSource.metricsMap
       .get(metricName)
@@ -248,6 +263,9 @@ trait SparkTest {
 
   def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.read")
+
+  def getNumberOfRowsReadSafe(metricsPrefix: String, resourceType: String): Option[Long] =
+    getCounterSafe(s"$metricsPrefix.$resourceType.read")
 
   def getNumberOfRowsCreated(metricsPrefix: String, resourceType: String): Long =
     getCounter(s"$metricsPrefix.$resourceType.created")

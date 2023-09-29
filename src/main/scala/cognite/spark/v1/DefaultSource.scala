@@ -22,6 +22,8 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 import sttp.model.Uri
 
+import scala.reflect.classTag
+
 class DefaultSource
     extends RelationProvider
     with CreatableRelationProvider
@@ -51,25 +53,6 @@ class DefaultSource
         )
 
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
-  }
-
-  @deprecated("message", since = "0")
-  private def createDataModelInstances(
-      parameters: Map[String, String],
-      config: RelationConfig,
-      sqlContext: SQLContext) = {
-    val spaceExternalId =
-      parameters.getOrElse("spaceExternalId", sys.error("spaceExternalId must be specified"))
-    val modelExternalId =
-      parameters.getOrElse("modelExternalId", sys.error("modelExternalId must be specified"))
-    val instanceSpaceExternalId =
-      parameters.get("instanceSpaceExternalId")
-    new DataModelInstanceRelation(
-      config,
-      spaceExternalId,
-      modelExternalId,
-      instanceSpaceExternalId
-    )(sqlContext)
   }
 
   private def createWellDataLayer(
@@ -188,8 +171,6 @@ class DefaultSource
         new RelationshipsRelation(config)(sqlContext)
       case "datasets" =>
         new DataSetsRelation(config)(sqlContext)
-      case "datamodelinstances" =>
-        createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
       case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
@@ -257,8 +238,6 @@ class DefaultSource
           new RelationshipsRelation(config)(sqlContext)
         case "datasets" =>
           new DataSetsRelation(config)(sqlContext)
-        case "datamodelinstances" =>
-          createDataModelInstances(parameters, config, sqlContext): @annotation.nowarn
         case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
@@ -277,17 +256,17 @@ class DefaultSource
       // And we will have to limit parallelism on each partition to low number, so the operation could
       // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
       // If the number of partitions is reasonable, we avoid the data shuffling
-      val (dataRepartitioned, numberOfPartitions) =
+      val dataRepartitioned =
         if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-          (data.repartition(idealNumberOfPartitions), idealNumberOfPartitions)
+          data.repartition(idealNumberOfPartitions)
         } else {
-          (data, originalNumberOfPartitions)
+          data
         }
 
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector.ioRuntime
 
-        val maxParallelism = Math.max(1, config.partitions / numberOfPartitions)
+        val maxParallelism = config.parallelismPerPartition
         val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
         val operation: Seq[Row] => IO[Unit] = config.onConflict match {
@@ -315,6 +294,7 @@ class DefaultSource
 }
 
 object DefaultSource {
+  val sparkFormatString: String = classTag[DefaultSource].runtimeClass.getCanonicalName
 
   private def toBoolean(
       parameters: Map[String, String],
@@ -407,7 +387,7 @@ object DefaultSource {
       case Some(x) => x
       case None =>
         sys.error(
-          s"Either apiKey, authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
+          s"Either authTicket, clientCredentials, session or bearerToken is required. Only these options were provided: ${parameters.keys
             .mkString(", ")}")
     }
     val projectName =
