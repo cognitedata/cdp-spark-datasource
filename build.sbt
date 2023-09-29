@@ -9,7 +9,7 @@ val sparkVersion = "3.3.3"
 val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
 val Specs2Version = "4.20.2"
-val cogniteSdkVersion = "2.7.757"
+val cogniteSdkVersion = "2.7.758"
 
 val prometheusVersion = "0.15.0"
 val log4sVersion = "1.8.2"
