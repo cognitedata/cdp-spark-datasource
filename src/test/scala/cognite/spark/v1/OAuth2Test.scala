@@ -10,7 +10,7 @@ class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with 
   it should "authenticate using client credentials" in {
     val df = (
       spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .option("baseUrl", "https://bluefield.cognitedata.com")
         .option("type", "timeseries")
         .option("tokenUri", tokenUri)
@@ -31,7 +31,7 @@ class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with 
 
     val df = (
       spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .option("baseUrl", "https://api.cognitedata.com")
         .option("type", "assets")
         .option("tokenUri", "https://login.aize.io/oauth/token")
@@ -49,7 +49,7 @@ class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with 
     intercept[Exception] {
       val df = (
         spark.read
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .option("baseUrl", "https://bluefield.cognitedata.com")
           .option("type", "timeseries")
           .option("tokenUri", tokenUri)
@@ -66,7 +66,7 @@ class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with 
   it should "throw SparkException when using invalid client credentials" in {
     val df = (
       spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .option("baseUrl", "https://bluefield.cognitedata.com")
         .option("type", "timeseries")
         .option("tokenUri", tokenUri)

@@ -390,7 +390,7 @@ class FlexibleDataModelConnectionRelationTest
       df: DataFrame,
       onConflict: String = "upsert"): Unit =
     df.write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
@@ -407,7 +407,7 @@ class FlexibleDataModelConnectionRelationTest
 
   private def readRows(edgeSpace: String, edgeExternalId: String): DataFrame =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
@@ -428,7 +428,7 @@ class FlexibleDataModelConnectionRelationTest
       edgeTypeSpace: String,
       edgeTypeExternalId: String): DataFrame =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)
@@ -455,7 +455,7 @@ class FlexibleDataModelConnectionRelationTest
       df: DataFrame,
       onConflict: String = "upsert"): Unit =
     df.write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", "https://bluefield.cognitedata.com")
       .option("tokenUri", tokenUri)

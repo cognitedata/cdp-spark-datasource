@@ -8,10 +8,10 @@ val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.3"
 val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
-val Specs2Version = "4.6.0"
-val cogniteSdkVersion = "2.7.756"
+val Specs2Version = "4.20.2"
+val cogniteSdkVersion = "2.7.757"
 
-val prometheusVersion = "0.15.0"
+val prometheusVersion = "0.16.0"
 val log4sVersion = "1.8.2"
 
 sonatypeProfileName := "com.cognite" // default is same as organization and leads to 404 on sonatypeReleaseAll

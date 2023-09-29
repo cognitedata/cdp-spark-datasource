@@ -26,7 +26,7 @@ class TimeSeriesRelationTest
   sourceDf.createOrReplaceTempView("sourceTimeSeries")
 
   val destinationDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "timeseries")
     .load()
@@ -175,7 +175,7 @@ class TimeSeriesRelationTest
 
     try {
       val df = spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "timeseries")
         .option("collectMetrics", "true")
@@ -289,7 +289,7 @@ class TimeSeriesRelationTest
 
     try {
       val df = spark.read
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "timeseries")
         .option("collectMetrics", "true")
@@ -316,7 +316,7 @@ class TimeSeriesRelationTest
                 |limit 7
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "timeseries")
         .option("collectMetrics", "true")
@@ -338,7 +338,7 @@ class TimeSeriesRelationTest
       // Trying to insert existing rows should throw a CdpApiException
       val insertError = intercept[SparkException] {
         dfWithDescriptionInsertTest.write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "timeseries")
           .option("collectMetrics", "true")
@@ -387,7 +387,7 @@ class TimeSeriesRelationTest
                 |limit 5
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "timeseries")
         .option("collectMetrics", "true")
@@ -421,7 +421,7 @@ class TimeSeriesRelationTest
                 |where unit = '$partialUpdateUnit'
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "timeseries")
         .option("onconflict", "update")
@@ -444,7 +444,7 @@ class TimeSeriesRelationTest
                 |where unit = '$partialUpdateUnit'
      """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "timeseries")
         .option("onconflict", "update")
@@ -484,7 +484,7 @@ class TimeSeriesRelationTest
                   |where unit = '$partialUpdateUnit'
      """.stripMargin)
           .write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "timeseries")
           .option("onconflict", "update")
@@ -537,7 +537,7 @@ class TimeSeriesRelationTest
         .parallelize(insertData)
         .toDF()
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "timeseries")
         .option("collectMetrics", "true")
@@ -585,7 +585,7 @@ class TimeSeriesRelationTest
       existingTimeSeriesDf
         .union(nonExistingTimeSeriesDf)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "timeseries")
         .option("onconflict", "upsert")
@@ -668,7 +668,7 @@ class TimeSeriesRelationTest
                   |where unit = '$updateTestUnit'
      """.stripMargin)
             .write
-            .format("cognite.spark.v1")
+            .format(DefaultSource.sparkFormatString)
             .useOIDCWrite
             .option("type", "timeseries")
             .option("onconflict", "update")
@@ -708,7 +708,7 @@ class TimeSeriesRelationTest
                 |"id_$testUnit" as externalId
                 """.stripMargin)
         df.write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "timeseries")
           .option("collectMetrics", "true")
@@ -729,7 +729,7 @@ class TimeSeriesRelationTest
                 |"$testUnit" as unit
      """.stripMargin)
           .write
-          .format("cognite.spark.v1")
+          .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
           .option("type", "timeseries")
           .option("collectMetrics", "true")
@@ -768,7 +768,7 @@ class TimeSeriesRelationTest
               |select 1234567890123 as id
         """.stripMargin)
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "delete")
@@ -782,7 +782,7 @@ class TimeSeriesRelationTest
                 |select 1234567890123 as id
         """.stripMargin)
         .write
-        .format("cognite.spark.v1")
+        .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "timeseries")
         .option("onconflict", "delete")
@@ -840,7 +840,7 @@ class TimeSeriesRelationTest
             spark
               .sql(s"select externalId from destinationTimeSeries where unit = '$deleteUnit'")
               .write
-              .format("cognite.spark.v1")
+              .format(DefaultSource.sparkFormatString)
               .useOIDCWrite
               .option("type", "timeseries")
               .option("onconflict", "delete")
@@ -870,7 +870,7 @@ class TimeSeriesRelationTest
     spark
       .sql(s"""select * from destinationTimeSeries where unit = '$unit'""")
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "timeseries")
       .option("onconflict", "delete")

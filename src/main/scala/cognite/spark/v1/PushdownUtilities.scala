@@ -121,10 +121,12 @@ object PushdownUtilities {
           "Unexpected error, seems that Spark query optimizer is misbehaving. Please contact support@cognite.com and tell them.")
       case EqualTo(colName, value) => PushdownFilter(colName, toStr(value))
       case EqualNullSafe(colName, value) => PushdownFilter(colName, toStr(value))
+      // TODO: GreaterThan -> min conversion broadens the condition here
       case GreaterThan(colName, value) =>
         PushdownFilter("min" + colName.capitalize, toStr(value))
       case GreaterThanOrEqual(colName, value) =>
         PushdownFilter("min" + colName.capitalize, toStr(value))
+      // TODO: LessThan -> max conversion broadens the condition here
       case LessThan(colName, value) =>
         PushdownFilter("max" + colName.capitalize, toStr(value))
       case LessThanOrEqual(colName, value) =>

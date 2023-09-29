@@ -10,7 +10,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
   import spark.implicits._
 
   private val sequencesSourceDf = spark.read
-    .format("cognite.spark.v1")
+    .format(DefaultSource.sparkFormatString)
     .useOIDCWrite
     .option("type", "sequences")
     .load()
@@ -90,7 +90,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     allColumns(0).get(3) shouldBe 1.1
 
     val sparkReadResult = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "sequencerows")
       .option("externalId", sequenceId)
@@ -154,7 +154,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
     allColumns(0).get(3) shouldBe 1.1
 
     val sparkReadResult = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "sequencerows")
       .option("externalId", sequenceId)
@@ -350,7 +350,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
   private def testPushdown(sequenceId: String, query: String, shouldBeExact: Boolean = false) = {
     val prefix = shortRandomString()
     val sparkReadResult = spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "sequencerows")
       .option("externalId", sequenceId)
@@ -454,7 +454,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
   def createRowsRelation(externalId: String): DataFrame =
     spark.read
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "sequencerows")
       .option("externalId", externalId)
@@ -462,7 +462,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
 
   def insertRows(seqId: String, df: DataFrame, onconflict: String = "upsert"): Unit =
     df.write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .option("type", "sequencerows")
       .useOIDCWrite
       .option("externalId", seqId)
@@ -486,7 +486,7 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       .parallelize(processedTree)
       .toDF()
       .write
-      .format("cognite.spark.v1")
+      .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "sequences")
       .option("onconflict", conflictMode)
