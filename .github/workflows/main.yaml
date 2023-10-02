@@ -36,6 +36,9 @@ jobs:
           mkdir -p ~/.sbt/gpg
           ./secrets/decrypt.sh secrets/pubring.asc.gpg ~/.sbt/gpg/pubring.asc
           ./secrets/decrypt.sh secrets/secring.asc.gpg ~/.sbt/gpg/secring.asc
+          
+          ./secrets/decrypt.sh secrets/gpg-key-password.gpg secrets/gpg-key-password
+          exit 1
       - name: Run tests
         env:
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
