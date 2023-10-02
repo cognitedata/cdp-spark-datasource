@@ -9,11 +9,11 @@ val sparkVersion = "3.3.3"
 val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
-val Specs2Version = "4.6.0"
-val cogniteSdkVersion = "2.7.757"
+val Specs2Version = "4.20.2"
+val cogniteSdkVersion = "2.7.758"
 
-val prometheusVersion = "0.15.0"
-val log4sVersion = "1.8.2"
+val prometheusVersion = "0.16.0"
+val log4sVersion = "1.10.0"
 
 sonatypeProfileName := "com.cognite" // default is same as organization and leads to 404 on sonatypeReleaseAll
 
@@ -143,7 +143,7 @@ lazy val library = (project in file("."))
         exclude("org.typelevel", "cats-effect_2.13")
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
-      "org.slf4j" % "slf4j-api" % "1.7.16" % Provided,
+      "org.slf4j" % "slf4j-api" % "2.0.9" % Provided,
       "io.circe" %% "circe-generic" % circeVersion
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
