@@ -1,8 +1,11 @@
 package cognite.spark.v1
 
+import cats.data.Kleisli
 import cats.effect.IO
 import com.cognite.sdk.scala.common.OAuth2
 import com.cognite.sdk.scala.v1._
+import natchez.Kernel
+import natchez.noop.NoopEntrypoint
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
@@ -60,11 +63,20 @@ trait SparkTest {
     audience = Some(OIDCWrite.audience),
     cdfProjectName = OIDCWrite.project,
   )
-  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(5, 5)
+  implicit val sttpBackend: SttpBackend[TracedIO, Any] =
+    NoopEntrypoint[IO]()
+      .root("sttpBackend")
+      .use(CdpConnector.retryingSttpBackend(5, 5).run)
+      .unsafeRunSync()
 
-  val writeAuthProvider =
-    OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
-  val writeClient: GenericClient[IO] = new GenericClient(
+  val writeAuthProvider = {
+    NoopEntrypoint[IO]()
+      .root("auth")
+      .use(OAuth2.ClientCredentialsProvider[TracedIO](writeCredentials).run)
+      .unsafeRunTimed(1.second)
+      .get
+  }
+  val writeClient: GenericClient[TracedIO] = new GenericClient(
     applicationName = "jetfire-test",
     projectName = writeCredentials.cdfProjectName,
     baseUrl = OIDCWrite.baseUrl,
@@ -176,9 +188,8 @@ trait SparkTest {
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
-  class RetryException(private val message: String,
-                       private val cause: Throwable = None.orNull)
-    extends Exception(message, cause) {}
+  class RetryException(private val message: String, private val cause: Throwable = None.orNull)
+      extends Exception(message, cause) {}
 
   // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](
@@ -217,6 +228,14 @@ trait SparkTest {
       20
     )
 
+  def retryWhileTracedIO[A](action: TracedIO[A], shouldRetry: A => Boolean)(
+    implicit prettifier: Prettifier,
+    pos: source.Position): TracedIO[A] = {
+    Kleisli(span =>
+      retryWhileIO(action.run(span), shouldRetry)
+    )
+  }
+
   def retryWhile[A](action: => A, shouldRetry: A => Boolean)(
     implicit prettifier: Prettifier,
     pos: source.Position): A =
@@ -247,7 +266,9 @@ trait SparkTest {
       deleteMissingAssets = false,
       subtrees = AssetSubtreeOption.Ingest,
       ignoreNullFields = true,
-      rawEnsureParent = false
+      rawEnsureParent = false,
+      new NoopEntrypoint,
+      new Kernel(Map.empty)
     )
 
   private def getCounterSafe(metricName: String): Option[Long] =

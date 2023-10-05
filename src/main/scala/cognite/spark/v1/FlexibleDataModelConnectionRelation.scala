@@ -40,10 +40,11 @@ private[spark] class FlexibleDataModelConnectionRelation(
 
   override def schema: StructType = connectionInstanceSchema
 
-  override def upsert(rows: Seq[Row]): IO[Unit] =
+  override def upsert(rows: Seq[Row]): TracedIO[Unit] =
     rows.headOption match {
       case Some(firstRow) =>
-        IO.fromEither(
+        TracedIO
+          .fromEither(
             createConnectionInstances(
               DirectRelationReference(
                 space = connectionConfig.edgeTypeSpace,
@@ -67,17 +68,18 @@ private[spark] class FlexibleDataModelConnectionRelation(
       case None => incMetrics(itemsUpserted, 0)
     }
 
-  override def delete(rows: Seq[Row]): IO[Unit] =
+  override def delete(rows: Seq[Row]): TracedIO[Unit] =
     rows.headOption match {
       case Some(firstRow) =>
-        IO.fromEither(createEdgeDeleteData(firstRow.schema, rows, instanceSpace))
+        TracedIO
+          .fromEither(createEdgeDeleteData(firstRow.schema, rows, instanceSpace))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case None => incMetrics(itemsDeleted, 0)
     }
 
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, ProjectedFlexibleDataModelInstance]] = {
     val selectedFields = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
@@ -122,14 +124,14 @@ private[spark] class FlexibleDataModelConnectionRelation(
     }
   }
 
-  override def update(rows: Seq[Row]): IO[Unit] =
-    IO.raiseError[Unit](
-      new CdfSparkException(
-        "Update is not supported for flexible data model connection instances. Use upsert instead."))
+  override def update(rows: Seq[Row]): TracedIO[Unit] =
+    TracedIO.liftIO(
+      IO.raiseError[Unit](new CdfSparkException(
+        "Update is not supported for flexible data model connection instances. Use upsert instead.")))
 
-  override def insert(rows: Seq[Row]): IO[Unit] =
-    IO.raiseError[Unit](
-      new CdfSparkException(
-        "Create is not supported for flexible data model connection instances. Use upsert instead."))
+  override def insert(rows: Seq[Row]): TracedIO[Unit] =
+    TracedIO.liftIO(
+      IO.raiseError[Unit](new CdfSparkException(
+        "Create is not supported for flexible data model connection instances. Use upsert instead.")))
   // scalastyle:on cyclomatic.complexity
 }

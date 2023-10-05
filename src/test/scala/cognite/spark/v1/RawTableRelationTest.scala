@@ -1,9 +1,11 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{RawDatabase, RawRow, RawTable}
 import io.circe.Json
+import natchez.noop.NoopEntrypoint
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
@@ -123,16 +125,31 @@ class RawTableRelationTest
       ("with-number-empty-str", dataWithEmptyStringInDoubleField),
       ("with-boolean-empty-str", dataWithEmptyStringInBooleanField)
     )
-    if (!writeClient.rawDatabases.list().compile.toVector.unsafeRunSync().exists(_.name == db)) {
-      writeClient.rawDatabases.createOne(RawDatabase(db)).unsafeRunSync()
+    if (!NoopEntrypoint[IO]()
+        .root("raw")
+        .use(writeClient.rawDatabases.list().compile.toVector.run)
+        .unsafeRunSync()
+        .exists(_.name == db)) {
+      NoopEntrypoint[IO]()
+        .root("raw")
+        .use(writeClient.rawDatabases.createOne(RawDatabase(db)).run)
+        .unsafeRunSync()
     }
-    writeClient.rawTables(db).list().compile.toVector.unsafeRunSync().map(_.name).foreach {
-      writeClient.rawTables(db).deleteById(_).unsafeRunSync()
-    }
-    writeClient.rawTables(db).create(tables.map(t => RawTable(t._1))).unsafeRunSync()
+    NoopEntrypoint[IO]()
+      .root("raw")
+      .use(writeClient.rawTables(db).list().compile.toVector.run)
+      .unsafeRunSync()
+      .map(_.name)
+      .foreach { id =>
+        NoopEntrypoint[IO]().root("raw").use(writeClient.rawTables(db).deleteById(id).run).unsafeRunSync()
+      }
+    NoopEntrypoint[IO]()
+      .root("raw")
+      .use(writeClient.rawTables(db).create(tables.map(t => RawTable(t._1))).run)
+      .unsafeRunSync()
 
     for ((n, data) <- tables) {
-      writeClient.rawRows(db, n).create(data).unsafeRunSync()
+      NoopEntrypoint[IO]().root("raw").use(writeClient.rawRows(db, n).create(data).run).unsafeRunSync()
     }
   }
 
@@ -463,7 +480,10 @@ class RawTableRelationTest
     val table = "struct-test"
 
     try {
-      writeClient.rawTables(database).createOne(RawTable(table)).unsafeRunSync()
+      NoopEntrypoint[IO]()
+        .root("raw")
+        .use(writeClient.rawTables(database).createOne(RawTable(table)).run)
+        .unsafeRunSync()
     } catch {
       case e: CdpApiException if e.code == 400 => // Ignore if already exists
     }
@@ -529,7 +549,10 @@ class RawTableRelationTest
       structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
       structInArray.toSeq.loneElement shouldBe 123L
     } finally {
-      writeClient.rawRows(database, table).deleteById(key).unsafeRunSync()
+      NoopEntrypoint[IO]()
+        .root("raw")
+        .use(writeClient.rawRows(database, table).deleteById(key).run)
+        .unsafeRunSync()
     }
   }
 
@@ -539,7 +562,10 @@ class RawTableRelationTest
 
     // remove the DB to be sure
     try {
-      writeClient.rawTables(database).deleteById(table).unsafeRunSync()
+      NoopEntrypoint[IO]()
+        .root("raw")
+        .use(writeClient.rawTables(database).deleteById(table).run)
+        .unsafeRunSync()
     } catch {
       case _: CdpApiException => () // Ignore
     }
@@ -568,7 +594,10 @@ class RawTableRelationTest
 
     } finally {
       try {
-        writeClient.rawTables(database).deleteById(table).unsafeRunSync()
+        NoopEntrypoint[IO]()
+          .root("raw")
+          .use(writeClient.rawTables(database).deleteById(table).run)
+          .unsafeRunSync()
       } catch {
         case _: CdpApiException => () // Ignore
       }

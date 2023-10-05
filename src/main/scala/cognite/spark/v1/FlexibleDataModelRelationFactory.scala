@@ -1,13 +1,13 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import cats.implicits._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ConnectionDefinition
-import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelViewReference
+import com.cognite.sdk.scala.v1.fdm.datamodels.DataModel
 import com.cognite.sdk.scala.v1.fdm.views.{ViewDefinition, ViewReference}
+import natchez.Span
 import org.apache.spark.sql.SQLContext
 
 sealed trait FlexibleDataModelRelationFactory
@@ -62,16 +62,16 @@ object FlexibleDataModelRelationFactory {
       config: RelationConfig,
       sqlContext: SQLContext,
       dataModelConfig: DataModelConfig
-  ): FlexibleDataModelBaseRelation =
+  ): TracedIO[FlexibleDataModelBaseRelation] =
     (dataModelConfig match {
       case vc: DataModelViewConfig => createCorePropertyRelationForDataModel(config, sqlContext, vc)
       case cc: DataModelConnectionConfig => createConnectionRelationForDataModel(config, sqlContext, cc)
-    }).unsafeRunSync()
+    }).map(x => x)
 
   private def createCorePropertyRelationForDataModel(
       config: RelationConfig,
       sqlContext: SQLContext,
-      modelViewConfig: DataModelViewConfig): IO[FlexibleDataModelCorePropertyRelation] = {
+      modelViewConfig: DataModelViewConfig): TracedIO[FlexibleDataModelCorePropertyRelation] = {
     val client = CdpConnector.clientFromConfig(config)
     fetchInlinedDataModel(client, modelViewConfig)
       .map { models =>
@@ -81,74 +81,79 @@ object FlexibleDataModelRelationFactory {
           case _ => false
         }
       }
-      .flatMap {
-        case Some(vc: ViewDefinition) => IO.pure(Some(vc))
+      .flatMap[Option[ViewDefinition], Span[IO]] {
+        case Some(vc: ViewDefinition) => TracedIO.pure(Some(vc))
         case Some(vr: ViewReference) => fetchViewWithAllProps(client, vr).map(_.headOption)
-        case _ => IO.pure(None)
+        case _ => TracedIO.pure(None)
       }
-      .flatMap {
-        case Some(vc: DataModelViewReference) =>
-          IO.delay(
-            new FlexibleDataModelCorePropertyRelation(
+      .flatMap[FlexibleDataModelCorePropertyRelation, Span[IO]] {
+        case Some(vc: ViewDefinition) =>
+          TracedIO.liftIO(
+            IO.delay(new FlexibleDataModelCorePropertyRelation(
               config,
               corePropConfig = ViewCorePropertyConfig(
                 intendedUsage = vc.usedFor,
                 viewReference = Some(vc.toSourceReference),
                 instanceSpace = modelViewConfig.instanceSpace
               )
-            )(sqlContext)
-          )
+            )(sqlContext)))
         case None =>
-          IO.raiseError(
-            new CdfSparkIllegalArgumentException(s"""
+          TracedIO.liftIO(IO.raiseError(new CdfSparkIllegalArgumentException(s"""
               |Could not find a view with externalId: '${modelViewConfig.viewExternalId}' in the specified data model
               | with (space: '${modelViewConfig.modelSpace}', externalId: '${modelViewConfig.modelExternalId}',
               | version: '${modelViewConfig.modelVersion}')
-              |""".stripMargin)
-          )
+              |""".stripMargin)))
       }
   }
 
   private def createConnectionRelationForDataModel(
       config: RelationConfig,
       sqlContext: SQLContext,
-      modelConnectionConfig: DataModelConnectionConfig): IO[FlexibleDataModelConnectionRelation] = {
+      modelConnectionConfig: DataModelConnectionConfig)
+    : TracedIO[FlexibleDataModelConnectionRelation] = {
     val client = CdpConnector.clientFromConfig(config)
-    fetchInlinedDataModel(client, modelConnectionConfig)
-      .flatMap {
-        _.flatMap(_.views.getOrElse(Seq.empty)).toVector
-          .flatTraverse {
+    val fetch: TracedIO[Seq[DataModel]] = fetchInlinedDataModel(client, modelConnectionConfig)
+    fetch
+      .flatMap { x =>
+        x.flatMap(_.views.getOrElse(Seq.empty))
+          .toVector
+          .flatTraverse[TracedIO, ConnectionDefinition] {
             case vc: ViewDefinition if vc.externalId == modelConnectionConfig.viewExternalId =>
-              IO.delay(
-                filterConnectionDefinition(vc, modelConnectionConfig.connectionPropertyName).toVector)
+              TracedIO
+                .liftIO(IO.delay(
+                  filterConnectionDefinition(vc, modelConnectionConfig.connectionPropertyName).toVector))
+                .map(x => x)
             case vr: ViewReference if vr.externalId == modelConnectionConfig.viewExternalId =>
-              fetchViewWithAllProps(client, vr).map(
-                _.headOption
+              fetchViewWithAllProps(client, vr)
+                .map(_.headOption
                   .flatMap(filterConnectionDefinition(_, modelConnectionConfig.connectionPropertyName))
                   .toVector)
-            case _ => IO.pure(Vector.empty)
+                .map(x => x)
+            case _ => TracedIO.pure(Vector.empty)
           }
           .map(_.headOption)
       }
       .flatMap {
         case Some(cDef) =>
-          IO.delay(
-            new FlexibleDataModelConnectionRelation(
-              config,
-              ConnectionConfig(
-                edgeTypeSpace = cDef.`type`.space,
-                edgeTypeExternalId = cDef.`type`.externalId,
-                instanceSpace = modelConnectionConfig.instanceSpace)
-            )(sqlContext))
+          TracedIO.liftIO(
+            IO.delay(
+              new FlexibleDataModelConnectionRelation(
+                config,
+                ConnectionConfig(
+                  edgeTypeSpace = cDef.`type`.space,
+                  edgeTypeExternalId = cDef.`type`.externalId,
+                  instanceSpace = modelConnectionConfig.instanceSpace)
+              )(sqlContext)))
         case _ =>
-          IO.raiseError(
-            new CdfSparkIllegalArgumentException(s"""
+          TracedIO.liftIO(
+            IO.raiseError(
+              new CdfSparkIllegalArgumentException(s"""
               |Could not find a connection definition property named: '${modelConnectionConfig.connectionPropertyName}'
               | in the data model with (space: '${modelConnectionConfig.modelSpace}',
               | externalId: '${modelConnectionConfig.modelExternalId}',
               | version: '${modelConnectionConfig.modelVersion}')
               |""".stripMargin)
-          )
+            ))
       }
   }
 
@@ -159,7 +164,9 @@ object FlexibleDataModelRelationFactory {
       case (name, p: ConnectionDefinition) if name == connectionPropertyName => p
     }
 
-  private def fetchInlinedDataModel(client: GenericClient[IO], modelViewConfig: DataModelViewConfig) =
+  private def fetchInlinedDataModel(
+      client: GenericClient[TracedIO],
+      modelViewConfig: DataModelViewConfig): TracedIO[Seq[DataModel]] =
     client.dataModelsV3
       .retrieveItems(
         Seq(
@@ -172,8 +179,8 @@ object FlexibleDataModelRelationFactory {
       )
 
   private def fetchInlinedDataModel(
-      client: GenericClient[IO],
-      modelConnectionConfig: DataModelConnectionConfig) =
+      client: GenericClient[TracedIO],
+      modelConnectionConfig: DataModelConnectionConfig): TracedIO[Seq[DataModel]] =
     client.dataModelsV3
       .retrieveItems(
         Seq(
@@ -186,8 +193,8 @@ object FlexibleDataModelRelationFactory {
       )
 
   private def fetchViewWithAllProps(
-      client: GenericClient[IO],
-      vr: ViewReference): IO[Seq[ViewDefinition]] =
+      client: GenericClient[TracedIO],
+      vr: ViewReference): TracedIO[Seq[ViewDefinition]] =
     client.views
       .retrieveItems(
         Seq(

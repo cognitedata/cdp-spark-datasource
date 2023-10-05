@@ -1,5 +1,8 @@
 package cognite.spark.v1
 
+import cats.effect.IO
+import natchez.{EntryPoint, Kernel, Span}
+
 final case class RelationConfig(
     auth: CdfSparkAuth,
     clientTag: Option[String],
@@ -21,11 +24,22 @@ final case class RelationConfig(
     deleteMissingAssets: Boolean,
     subtrees: AssetSubtreeOption,
     ignoreNullFields: Boolean,
-    rawEnsureParent: Boolean
+    rawEnsureParent: Boolean,
+    tracingEntryPoint: EntryPoint[IO],
+    tracingParent: Kernel
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */
   def sparkPartitions: Int = Math.max(1, partitions / parallelismPerPartition)
+
+  def traceS[B](name: String)(f: Span[IO] => IO[B]): IO[B] =
+    tracingEntryPoint.continueOrElseRoot(name, tracingParent).use(f)
+
+  def trace[B](name: String)(f: TracedIO[B]): IO[B] =
+    traceS(name)(f.run)
+
+  def tracePure[B](name: String)(f: Span[IO] => B): IO[B] =
+    traceS(name)(span => IO.delay(f(span)))
 }
 
 sealed trait OnConflictOption extends Serializable

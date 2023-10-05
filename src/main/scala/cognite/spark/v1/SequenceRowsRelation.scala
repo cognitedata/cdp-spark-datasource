@@ -1,6 +1,5 @@
 package cognite.spark.v1
 
-import cats.effect.IO
 import cats.implicits._
 import cognite.spark.compiletime.macros.SparkSchemaHelper
 import com.cognite.sdk.scala.common.CdpApiException
@@ -22,13 +21,14 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   import CdpConnector._
   import SequenceRowsRelation._
 
-  val sequenceInfo: Sequence = (sequenceId match {
-    case CogniteExternalId(externalId) => client.sequences.retrieveByExternalId(externalId)
-    case CogniteInternalId(id) => client.sequences.retrieveById(id)
-  }).adaptError {
+  val sequenceInfo: Sequence = config
+    .trace("sequenceInfo")((sequenceId match {
+      case CogniteExternalId(externalId) => client.sequences.retrieveByExternalId(externalId)
+      case CogniteInternalId(id) => client.sequences.retrieveById(id)
+    }).adaptError {
       case e: CdpApiException =>
         new CdfSparkException(s"Could not resolve schema of sequence $sequenceId.", e)
-    }
+    })
     .unsafeRunSync()
 
   private val columnsWithoutExternalId =
@@ -69,7 +69,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   )
 
   def getStreams(filters: Seq[SequenceRowFilter], expectedColumns: Array[String])(limit: Option[Int])(
-      client: GenericClient[IO]): Seq[Stream[IO, ProjectedSequenceRow]] =
+      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, ProjectedSequenceRow]] =
     filters.toVector.map { filter =>
       val requestedColumns =
         if (expectedColumns.isEmpty) {
@@ -196,21 +196,21 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
     (columns.map(_._2), parseRow)
   }
 
-  override def delete(rows: Seq[Row]): IO[Unit] = {
+  override def delete(rows: Seq[Row]): TracedIO[Unit] = {
     val deletes = rows.map(r => SparkSchemaHelper.fromRow[SequenceRowDeleteSchema](r))
     client.sequenceRows
       .delete(sequenceId, deletes.map(_.rowNumber))
       .flatTap(_ => incMetrics(itemsDeleted, rows.length))
   }
-  override def insert(rows: Seq[Row]): IO[Unit] =
+  override def insert(rows: Seq[Row]): TracedIO[Unit] =
     throw new CdfSparkException("Insert not supported for sequencerows. Use upsert instead.")
 
-  override def update(rows: Seq[Row]): IO[Unit] =
+  override def update(rows: Seq[Row]): TracedIO[Unit] =
     throw new CdfSparkException("Update not supported for sequencerows. Use upsert instead.")
 
-  override def upsert(rows: Seq[Row]): IO[Unit] =
+  override def upsert(rows: Seq[Row]): TracedIO[Unit] =
     if (rows.isEmpty) {
-      IO.unit
+      TracedIO.unit
     } else {
       val (columns, fromRowFn) = fromRow(rows.head.schema)
       val columnSeq = columns.toIndexedSeq
@@ -226,7 +226,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
               .insert(cogniteId, columnSeq, rows.map(_.sequenceRow))
               .flatTap(_ => incMetrics(itemsCreated, rows.length))
 
-        } *> IO.unit
+        } *> TracedIO.unit
     }
 
   private def readRows(
