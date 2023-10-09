@@ -66,7 +66,7 @@ trait SparkTest {
   implicit val sttpBackend: SttpBackend[TracedIO, Any] =
     NoopEntrypoint[IO]()
       .root("sttpBackend")
-      .use(CdpConnector.retryingSttpBackend(5, 5).run)
+      .use(CdpConnector.retryingSttpBackend(15, 30).run)
       .unsafeRunSync()
 
   val writeAuthProvider = {
