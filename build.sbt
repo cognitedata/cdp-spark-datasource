@@ -160,7 +160,7 @@ lazy val library = (project in file("."))
       "org.tpolecat" %% "natchez-core" % natchezVersion,
       "org.tpolecat" %% "natchez-noop" % natchezVersion,
       "org.tpolecat" %% "natchez-opentelemetry" % natchezVersion,
-      "io.opentelemetry" % "opentelemetry-sdk" % "1.23.0",
+      "io.opentelemetry" % "opentelemetry-sdk" % "1.31.0",
       "com.lightstep.opentelemetry" % "opentelemetry-launcher" % "1.22.0"
     ),
     coverageExcludedPackages := "com.cognite.data.*",
