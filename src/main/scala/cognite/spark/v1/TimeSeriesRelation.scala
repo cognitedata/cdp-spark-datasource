@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
@@ -17,32 +18,26 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     extends SdkV1InsertableRelation[TimeSeries, Long](config, "timeseries")
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
-  override def insert(rows: Seq[Row]): TracedIO[Unit] =
+  override def insert(rows: Seq[Row]): IO[Unit] =
     getFromRowsAndCreate(rows, doUpsert = false)
 
   private def isUpdateEmpty(u: TimeSeriesUpdate): Boolean = u == TimeSeriesUpdate()
 
-  // scalastyle:off
-  override def update(rows: Seq[Row]): TracedIO[Unit] = {
+  override def update(rows: Seq[Row]): IO[Unit] = {
     val timeSeriesUpdates = rows.map(r => fromRow[TimeSeriesUpsertSchema](r))
-    updateByIdOrExternalId[
-      TimeSeriesUpsertSchema,
-      TimeSeriesUpdate,
-      TimeSeriesResource[TracedIO],
-      TimeSeries](
+    updateByIdOrExternalId[TimeSeriesUpsertSchema, TimeSeriesUpdate, TimeSeriesResource[IO], TimeSeries](
       timeSeriesUpdates,
       client.timeSeries,
       isUpdateEmpty
     )
   }
-  // scalastyle:on
 
-  override def delete(rows: Seq[Row]): TracedIO[Unit] = {
+  override def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(fromRow[DeleteItemByCogniteId](_))
     deleteWithIgnoreUnknownIds(client.timeSeries, deletes.map(_.toCogniteId), config.ignoreUnknownIds)
   }
 
-  override def upsert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
     val timeSeries = rows.map(fromRow[TimeSeriesUpsertSchema](_))
     // scalastyle:off no.whitespace.after.left.bracket
     genericUpsert[
@@ -50,14 +45,14 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       TimeSeriesUpsertSchema,
       TimeSeriesCreate,
       TimeSeriesUpdate,
-      TimeSeriesResource[TracedIO]](
+      TimeSeriesResource[IO]](
       timeSeries,
       isUpdateEmpty,
       client.timeSeries
     )
   }
 
-  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): TracedIO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
     val timeSeriesSeq = rows.map(fromRow[TimeSeriesCreate](_))
 
     createOrUpdateByExternalId[
@@ -66,7 +61,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       TimeSeriesCreate,
       TimeSeriesCreate,
       Option,
-      TimeSeriesResource[TracedIO]](Set.empty, timeSeriesSeq, client.timeSeries, doUpsert = doUpsert)
+      TimeSeriesResource[IO]](Set.empty, timeSeriesSeq, client.timeSeries, doUpsert = doUpsert)
   }
 
   override def schema: StructType = structType[TimeSeries]()
@@ -76,7 +71,7 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: TimeSeries): Long = a.id
 
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, TimeSeries]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, TimeSeries]] = {
     val (ids, filters) = pushdownToFilters(sparkFilters, timeSeriesFilterFromMap, TimeSeriesFilter())
     executeFilter(client.timeSeries, filters, ids, config.partitions, config.limitPerPartition)
   }

@@ -40,21 +40,19 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   private val viewReference = corePropConfig.viewReference
   private val instanceSpace = corePropConfig.instanceSpace
 
-  private val (allProperties, propertySchema) = config
-    .trace("retrieveAllViewPropsAndSchema")(
-      retrieveAllViewPropsAndSchema
-        .map(_.getOrElse {
-          (
-            Map.empty[String, ViewPropertyDefinition],
-            DataTypes.createStructType(usageBasedSchemaAttributes(intendedUsage))
-          )
-        }))
+  private val (allProperties, propertySchema) = retrieveAllViewPropsAndSchema
     .unsafeRunSync()
+    .getOrElse {
+      (
+        Map.empty[String, ViewPropertyDefinition],
+        DataTypes.createStructType(usageBasedSchemaAttributes(intendedUsage))
+      )
+    }
 
   override def schema: StructType = propertySchema
 
   // scalastyle:off cyclomatic.complexity
-  override def upsert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
     val firstRow = rows.headOption
     (firstRow, viewReference) match {
       case (Some(fr), Some(viewRef)) =>
@@ -71,21 +69,19 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   }
   // scalastyle:on cyclomatic.complexity
 
-  override def insert(rows: Seq[Row]): TracedIO[Unit] =
-    TracedIO.liftIO(
-      IO.raiseError[Unit](new CdfSparkException(
-        "Create is not supported for flexible data model instances. Use upsert instead.")))
+  override def insert(rows: Seq[Row]): IO[Unit] =
+    IO.raiseError[Unit](
+      new CdfSparkException(
+        "Create is not supported for flexible data model instances. Use upsert instead."))
 
-  override def delete(rows: Seq[Row]): TracedIO[Unit] =
+  override def delete(rows: Seq[Row]): IO[Unit] =
     (rows.headOption, intendedUsage) match {
       case (Some(firstRow), Usage.Node) =>
-        TracedIO
-          .fromEither(createNodeDeleteData(firstRow.schema, rows, instanceSpace))
+        IO.fromEither(createNodeDeleteData(firstRow.schema, rows, instanceSpace))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case (Some(firstRow), Usage.Edge) =>
-        TracedIO
-          .fromEither(createEdgeDeleteData(firstRow.schema, rows, instanceSpace))
+        IO.fromEither(createEdgeDeleteData(firstRow.schema, rows, instanceSpace))
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case (Some(firstRow), Usage.All) =>
@@ -94,20 +90,18 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
             createEdgeDeleteData(firstRow.schema, rows, instanceSpace)
               .map(edges => nodes ++ edges)
           }
-        TracedIO
-          .fromEither(nodeOrEdgeDeleteData)
+        IO.fromEither(nodeOrEdgeDeleteData)
           .flatMap(client.instances.delete)
           .flatMap(results => incMetrics(itemsDeleted, results.length))
       case (None, _) => incMetrics(itemsDeleted, 0)
     }
 
-  override def update(rows: Seq[Row]): TracedIO[Unit] =
-    TracedIO.liftIO(
-      IO.raiseError[Unit](
-        new CdfSparkException("Update is not supported for data model instances. Use upsert instead.")))
+  override def update(rows: Seq[Row]): IO[Unit] =
+    IO.raiseError[Unit](
+      new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
 
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, ProjectedFlexibleDataModelInstance]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
@@ -211,7 +205,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
 
   private def retrieveAllViewPropsAndSchema
-    : TracedIO[Option[(Map[String, ViewPropertyDefinition], StructType)]] =
+    : IO[Option[(Map[String, ViewPropertyDefinition], StructType)]] =
     corePropConfig.viewReference.flatTraverse { viewRef =>
       client.views
         .retrieveItems(
@@ -224,21 +218,21 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         .map(_.headOption)
         .flatMap {
           case None =>
-            TracedIO.liftIO(IO.raiseError(new CdfSparkIllegalArgumentException(s"""
+            IO.raiseError(new CdfSparkIllegalArgumentException(s"""
                  |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}')
-                 |""".stripMargin)))
+                 |""".stripMargin))
           case Some(viewDef)
               if compatibleUsageTypes(viewUsage = viewDef.usedFor, intendedUsage = intendedUsage) =>
-            TracedIO.delay(
+            IO.delay(
               Some((
                 viewDef.properties,
                 deriveViewPropertySchemaWithUsageSpecificAttributes(viewDef.usedFor, viewDef.properties)
               )))
           case Some(viewDef) =>
-            TracedIO.liftIO(IO.raiseError(new CdfSparkIllegalArgumentException(s"""
+            IO.raiseError(new CdfSparkIllegalArgumentException(s"""
                | View with (space: '${viewDef.space}', externalId: '${viewDef.externalId}', version: '${viewDef.version}')
                | is not compatible with '${intendedUsage.productPrefix}s'
-               |""".stripMargin)))
+               |""".stripMargin))
         }
     }
 
@@ -267,15 +261,15 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           autoCreateEndNodes = Some(true)
         )
         client.instances.createItems(instanceCreate)
-      case Right(_) => TracedIO.pure(Vector.empty)
-      case Left(err) => TracedIO.liftIO(IO.raiseError(err))
+      case Right(_) => IO.pure(Vector.empty)
+      case Left(err) => IO.raiseError(err)
     }
   }
 
   private def upsertNodesOrEdges(
       instanceSpace: Option[String],
       rows: Seq[Row],
-      schema: StructType): TracedIO[Seq[SlimNodeOrEdge]] = {
+      schema: StructType): IO[Seq[SlimNodeOrEdge]] = {
     val nodesOrEdges = intendedUsage match {
       case Usage.Node => createNodes(rows, schema, instanceSpace)
       case Usage.Edge => createEdges(rows, schema, instanceSpace)
@@ -292,8 +286,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           autoCreateEndNodes = Some(true)
         )
         client.instances.createItems(instanceCreate)
-      case Right(_) => TracedIO.pure(Vector.empty)
-      case Left(err) => TracedIO.liftIO(IO.raiseError(err))
+      case Right(_) => IO.pure(Vector.empty)
+      case Left(err) => IO.raiseError(err)
     }
   }
 

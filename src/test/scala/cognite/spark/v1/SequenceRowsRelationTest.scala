@@ -1,10 +1,8 @@
 package cognite.spark.v1
 
-import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.v1.{Sequence, SequenceColumnCreate}
 import io.scalaland.chimney.dsl._
-import natchez.noop.NoopEntrypoint
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 
@@ -497,12 +495,8 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
       .save()
 
     val checkedAssets = processedTree.filter(_.externalId.isDefined)
-    val storedCheckedAssets = {
-      NoopEntrypoint[IO]()
-        .root("getassets")
-        .use(writeClient.sequences.retrieveByExternalIds(checkedAssets.map(_.externalId.get)).run)
-        .unsafeRunSync()
-    }
+    val storedCheckedAssets =
+      writeClient.sequences.retrieveByExternalIds(checkedAssets.map(_.externalId.get)).unsafeRunSync()
 
     // check that the sequences are inserted correctly, before failing on long retries
     for ((inserted, stored) <- checkedAssets.zip(storedCheckedAssets)) {
@@ -520,9 +514,6 @@ class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestE
   }
 
   def cleanupSequence(key: String, ids: String*): Unit =
-    NoopEntrypoint[IO]()
-      .root("cleanup")
-      .use(writeClient.sequences.deleteByExternalIds(ids.map(id => s"${id}_$key")).run)
-      .unsafeRunSync()
+    writeClient.sequences.deleteByExternalIds(ids.map(id => s"${id}_$key")).unsafeRunSync()
 
 }

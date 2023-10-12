@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{fromRow, structType}
@@ -75,11 +76,13 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  def delete(data: DataFrame): TracedIO[Unit] =
-    SparkF(data).foreachPartition((rows: Iterator[Row]) => {
+  import CdpConnector.ioRuntime
+
+  def delete(data: DataFrame): Unit =
+    data.foreachPartition((rows: Iterator[Row]) => {
       val deletes = rows.map(r => fromRow[DeleteItemByCogniteId](r))
       Stream
-        .fromIterator[TracedIO](deletes, chunkSize = batchSize)
+        .fromIterator[IO](deletes, chunkSize = batchSize)
         .chunks
         .parEvalMapUnordered(config.parallelismPerPartition) { chunk =>
           client.assets
@@ -91,13 +94,15 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         }
         .compile
         .drain
+        .unsafeRunSync()
     })
 
-  def buildFromDf(data: DataFrame): TracedIO[Unit] =
+  def buildFromDf(data: DataFrame): Unit =
     // Do not use .collect to run the builder on one of the executors and not on the driver
-    SparkF(data.repartition(numPartitions = 1))
+    data
+      .repartition(numPartitions = 1)
       .foreachPartition((rows: Iterator[Row]) => {
-        build(rows)
+        build(rows).unsafeRunSync()
       })
 
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
@@ -105,7 +110,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
   private val deleteMissingAssets = config.deleteMissingAssets
   private val subtreeMode = config.subtrees
 
-  def build(data: Iterator[Row]): TracedIO[Unit] = {
+  def build(data: Iterator[Row]): IO[Unit] = {
     val sourceTree = data.map(r => fromRow[AssetsIngestSchema](r)).toArray
 
     val subtrees =
@@ -141,7 +146,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     } yield ()
   }
 
-  def validateSubtreeRoots(roots: Vector[AssetsIngestSchema]): TracedIO[Unit] =
+  def validateSubtreeRoots(roots: Vector[AssetsIngestSchema]): IO[Unit] =
     // check that all `parentExternalId`s exist
     batchedOperation[String, Asset](
       roots.map(_.parentExternalId).filter(_.nonEmpty).distinct,
@@ -161,7 +166,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           })
     ).void
 
-  def buildSubtrees(trees: Vector[AssetSubtree]): TracedIO[Unit] =
+  def buildSubtrees(trees: Vector[AssetSubtree]): IO[Unit] =
     for {
       // fetch existing roots and update or insert them first
       cdfRoots <- fetchCdfAssets(trees.map(_.root.externalId))
@@ -179,7 +184,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       _ <- update(toUpdate)
     } yield ()
 
-  def insert(toInsert: Seq[AssetsIngestSchema]): TracedIO[Vector[Asset]] = {
+  def insert(toInsert: Seq[AssetsIngestSchema]): IO[Vector[Asset]] = {
     val assetCreatesToInsert = toInsert.map(toAssetCreate)
     // Traverse batches in order to ensure writing parents first
     assetCreatesToInsert
@@ -193,7 +198,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       .map(_.flatten)
   }
 
-  def deleteMissingChildren(trees: Vector[AssetSubtree], deleteMissingAssets: Boolean): TracedIO[Unit] =
+  def deleteMissingChildren(trees: Vector[AssetSubtree], deleteMissingAssets: Boolean): IO[Unit] =
     if (deleteMissingAssets) {
       val ingestedNodeSet = trees.flatMap(_.allNodes).map(_.externalId).toSet
       // list all subtrees of the tree root and filter those which are not in the ingested set
@@ -207,7 +212,6 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
               .map(asset => CogniteInternalId(asset.id))
               .compile
               .toVector
-              .map(x => x)
         )
         _ <- batchedOperation[CogniteInternalId, Nothing](
           idsToDelete,
@@ -219,10 +223,10 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         )
       } yield ()
     } else {
-      TracedIO.unit
+      IO.unit
     }
 
-  def update(toUpdate: Vector[AssetsIngestSchema]): TracedIO[Unit] =
+  def update(toUpdate: Vector[AssetsIngestSchema]): IO[Unit] =
     batchedOperation[AssetsIngestSchema, Asset](
       toUpdate,
       updateBatch => {
@@ -232,7 +236,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       }
     ).void
 
-  def fetchCdfAssets(sourceRootExternalIds: Vector[String]): TracedIO[Map[String, Asset]] =
+  def fetchCdfAssets(sourceRootExternalIds: Vector[String]): IO[Map[String, Asset]] =
     batchedOperation[String, Asset](
       sourceRootExternalIds,
       batch =>
@@ -242,7 +246,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def upsertRoots( // scalastyle:off
       newRoots: Vector[AssetsIngestSchema],
-      sourceRoots: Map[String, Asset]): TracedIO[Vector[Asset]] = {
+      sourceRoots: Map[String, Asset]): IO[Vector[Asset]] = {
 
     // Assets without corresponding source root will be created
     val (toCreate, toUpdate, toIgnore) = nodesToInsertUpdate(newRoots, sourceRoots)
@@ -392,18 +396,18 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   private def batchedOperation[I, R](
       list: Vector[I],
-      op: Vector[I] => TracedIO[Seq[R]],
-      batchSize: Int = this.batchSize): TracedIO[Vector[R]] =
+      op: Vector[I] => IO[Seq[R]],
+      batchSize: Int = this.batchSize): IO[Vector[R]] =
     if (list.nonEmpty) {
       Stream
-        .fromIterator[TracedIO](list.iterator, chunkSize = batchSize)
+        .fromIterator[IO](list.iterator, chunkSize = batchSize)
         .chunks
         .parEvalMapUnordered(config.parallelismPerPartition)(chunk => op(chunk.toVector).map(Chunk.seq))
         .flatMap(Stream.chunk)
         .compile
         .toVector
     } else {
-      TracedIO.pure(Vector.empty)
+      IO.pure(Vector.empty)
     }
 }
 

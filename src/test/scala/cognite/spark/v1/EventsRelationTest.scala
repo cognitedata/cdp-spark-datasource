@@ -6,7 +6,6 @@ import cognite.spark.compiletime.macros.SparkSchemaHelper
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{Asset, AssetCreate, DataSet, DataSetCreate, Event, EventCreate}
 import io.scalaland.chimney.dsl._
-import natchez.noop.NoopSpan
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.{DataFrame, Dataset, Row}
@@ -44,59 +43,59 @@ class EventsRelationTest extends FlatSpec with Matchers
       .option("fetchSize", "100")
       .load()
 
-  private def makeEvents(toCreate: Seq[EventCreate]): Resource[TracedIO, Seq[Event]] = {
+  private def makeEvents(toCreate: Seq[EventCreate]): Resource[IO, Seq[Event]] = {
     assert(toCreate.forall(_.source.isEmpty), "event.source is reserved for test setup")
     Resource.make {
       writeClient.events.create(toCreate.map(e => e.copy(source = Some(testSource))))
     }{ createdEvents =>
       writeClient.events.deleteByIds(createdEvents.map(_.id))
-    }.evalTap( createdEvents => TracedIO.delay({
+    }.evalTap( createdEvents => IO.delay({
       assert(createdEvents.length == toCreate.length, "all events should be created")
       assert(createdEvents.forall(_.source.contains(testSource)), "all created events have source")
     }))
   }
 
-    private def makeDataset(): Resource[TracedIO, DataSet] = {
+    private def makeDataset(): Resource[IO, DataSet] = {
       Resource.make{
         writeClient.dataSets.create(Seq(DataSetCreate(description = Some
         ("cdp-spark-connector EventsRelationTest"), writeProtected = false, name = Some("for " +
           "tests"))))
-      }{_ => TracedIO.unit}.map(_.head)
+      }{_ => IO.unit}.map(_.head)
     }
 
-    private def makeDatasetId(): Resource[TracedIO, Long] = {
+    private def makeDatasetId(): Resource[IO, Long] = {
       makeDataset().map(_.id)
     }
 
-    private def makeAssets(toCreate: Seq[AssetCreate]): Resource[TracedIO, Seq[Asset]] = {
+    private def makeAssets(toCreate: Seq[AssetCreate]): Resource[IO, Seq[Asset]] = {
       assert(toCreate.forall(_.source.isEmpty), "asset.source is reserved for test setup")
       Resource.make {
         writeClient.assets.create(toCreate.map(e => e.copy(source = Some(testSource))))
       } { createdEvents =>
         writeClient.assets.deleteByIds(createdEvents.map(_.id))
-      }.evalTap(createdAssets => TracedIO.delay({
+      }.evalTap(createdAssets => IO.delay({
         assert(createdAssets.length == toCreate.length, "all assets should be created")
         assert(createdAssets.forall(_.source.contains(testSource)), "all created assets have source")
       }))
     }
 
-    private def makeAssetIds(toCreate: Seq[AssetCreate]): Resource[TracedIO, Seq[Long]] = {
+    private def makeAssetIds(toCreate: Seq[AssetCreate]): Resource[IO, Seq[Long]] = {
       makeAssets(toCreate).map(_.map(_.id))
     }
 
-  private def readEvents(selector: String => Dataset[Row]): TracedIO[(String, Array[Row])] = {
+  private def readEvents(selector: String => Dataset[Row]): IO[(String, Array[Row])] = {
 
     for {
-      metricsPrefix <- TracedIO.unit.map(_ => s"test.${shortRandomString()}")
-      df <- TracedIO.delay { selector(metricsPrefix) }
-      df_rows <- TracedIO.liftIO(IO.blocking(df.collect()))
+      metricsPrefix <- IO.delay { s"test.${shortRandomString()}" }
+      df <- IO.delay { selector(metricsPrefix) }
+      df_rows <- IO.blocking(df.collect())
       // for simplicity let's assume "select" in tests always includes "id" and do extra checks
       _ = assert ((df_rows.map(_.getAs[Long] ("id"))).distinct.length == df_rows.length,
       "fetched items must be distinct")
     } yield (metricsPrefix, df_rows)
   }
 
-  private def readEventsWhere(sql: String): TracedIO[(String, Array[Row])] = for {
+  private def readEventsWhere(sql: String): IO[(String, Array[Row])] = for {
     (metricsPrefix, df_rows) <- readEvents(getBaseReader(_)
       .where(s"source = '${testSource}' and (${sql})"))
     _ = assert(Array() sameElements df_rows.filter(_.getAs[String]("source") != testSource),
@@ -107,7 +106,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   private def testReadQuery(sqlWhereCondition: String,
                             resultsPredicate: Event => Boolean,
                             fetchPredicate: Event => Boolean)(createdEvents: Seq[Event])
-  : Resource[TracedIO, Assertion]
+  : Resource[IO, Assertion]
   = {
     val expectedResults = createdEvents.filter(resultsPredicate)
     assert(expectedResults.nonEmpty, "predicate should cover some events") // test sanity check
@@ -118,7 +117,7 @@ class EventsRelationTest extends FlatSpec with Matchers
 
     for {
       (metricsPrefix, df_rows) <-
-        Resource.eval(retryWhileTracedIO[(String, Array[Row])]({
+        Resource.eval(retryWhileIO[(String, Array[Row])]({
           readEventsWhere(sqlWhereCondition)
         }, mr => {
           if (mr._2.length < expectedResults.size || !getNumberOfRowsReadSafe(mr._1, "events")
@@ -144,11 +143,11 @@ class EventsRelationTest extends FlatSpec with Matchers
     }
   }
 
-  private def testReadSql(sql: String, retryUntilSize: Int): Resource[TracedIO, Array[Row]] = {
+  private def testReadSql(sql: String, retryUntilSize: Int): Resource[IO, Array[Row]] = {
     assert(sql.contains(testSource), "sql must be using testSource")
     for {
       (_, df_rows) <-
-        Resource.eval(retryWhileTracedIO[(String, Array[Row])]({
+        Resource.eval(retryWhileIO[(String, Array[Row])]({
           readEvents(_ => spark.sql(sql))
         }, e => {
           if (e._2.length < retryUntilSize) {
@@ -159,14 +158,14 @@ class EventsRelationTest extends FlatSpec with Matchers
     } yield df_rows
   }
 
-  private def runTracedIOTest[A](test: Resource[TracedIO, A]): Unit =
-    test.use(_ => TracedIO.unit).run(NoopSpan()).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+  private def runIOTest[A](test: Resource[IO, A]): Unit =
+    test.use(_ => IO.unit).unsafeRunSync()(cats.effect.unsafe.implicits.global)
 
   "EventsRelation" should "allow simple reads" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq.fill(30)(EventCreate()))
       _ = assert(events.length > 20)
-      res <- Resource.eval(retryWhileTracedIO[Array[Row]](TracedIO.liftIO(IO.blocking {
+      res <- Resource.eval(retryWhileIO[Array[Row]](IO.blocking {
         val df = spark.read
           .format(DefaultSource.sparkFormatString)
           .useOIDCWrite
@@ -179,14 +178,14 @@ class EventsRelationTest extends FlatSpec with Matchers
           df.createTempView(view)
           spark.sqlContext
         .sql(s"select * from ${view} where source = '$testSource'")
-        .collect()}), _.length < 20))
+        .collect()}, _.length < 20))
       _ = assert(res.length >= 20)
     } yield ())
   }
 
 
   it should "apply a single pushdown filter" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(
         Seq.fill(4)(EventCreate())
         ++ Seq.fill(5)(EventCreate(`type` = Some("Worktask")))
@@ -209,7 +208,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "apply a dataSetId pushdown filter" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       dataset <- makeDatasetId()
       events <- makeEvents(
         for (
@@ -226,7 +225,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "not fetch all items if filter on id" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq.fill(2) (EventCreate()))
       _ <- testReadQuery (s"id = ${events.head.id}",
         _.id == events.head.id,
@@ -237,7 +236,7 @@ class EventsRelationTest extends FlatSpec with Matchers
 
   it should "not fetch all items if filter on externalId" taggedAs WriteTest in {
     val eventType = s"type-${shortRandomString()}"
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(`type` = Some(eventType)),
         EventCreate(externalId = Some(s"test-${shortRandomString()}"), `type` = Some(eventType)),
@@ -251,7 +250,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "apply pushdown filters when non pushdown columns are ANDed" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(`type` = Some("Worktask")),
         EventCreate(`type` = Some("NotWorktask")),
@@ -267,7 +266,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "read all data when necessary" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(`type` = Some("Worktask")),
         EventCreate(`type` = Some("NotWorktask")),
@@ -285,7 +284,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle duplicates in a pushdown filter scenario" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(`type` = Some("NEWS"), subtype = Some("HACK")),
         EventCreate(`type` = Some("NEWS"), subtype = Some("ACK")),
@@ -303,7 +302,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "apply multiple pushdown filters" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       assets <- makeAssetIds(Seq(
         AssetCreate(name = "asset")
       ))
@@ -324,7 +323,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle or conditions" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(),
         EventCreate(`type` = Some("Workitem")),
@@ -345,7 +344,7 @@ class EventsRelationTest extends FlatSpec with Matchers
 
 
   it should "handle in() conditions" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(),
         EventCreate(`type` = Some("Workitem")),
@@ -364,7 +363,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle and, or and in() in one query" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       assets1 <- makeAssetIds(Seq(AssetCreate(name = "asset")))
       assets2 <- makeAssetIds(Seq(AssetCreate(name = "asset")))
       assets3 <- makeAssetIds(Seq(AssetCreate(name = "asset")))
@@ -397,7 +396,7 @@ class EventsRelationTest extends FlatSpec with Matchers
 
 
   it should "handle pushdown filters on minimum startTime" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(startTime = Some(Instant.ofEpochSecond(100L))),
         EventCreate(startTime = Some(Instant.ofEpochSecond(1568105460L))),
@@ -414,7 +413,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle pushdown filters on maximum createdTime" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(),
         EventCreate(),
@@ -428,7 +427,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle pushdown filters on maximum startTime" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(startTime = Some(Instant.ofEpochSecond(100L))),
         EventCreate(startTime = Some(Instant.ofEpochSecond(1568105460L))),
@@ -448,7 +447,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle pushdown filters on minimum and maximum startTime" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(startTime = Some(Instant.ofEpochSecond(100L))),
         EventCreate(startTime = Some(Instant.ofEpochSecond(1568105460L))),
@@ -474,7 +473,7 @@ class EventsRelationTest extends FlatSpec with Matchers
 
 
   it should "handle pushdown filters on assetIds" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       assets <- makeAssetIds(Seq.fill(2)(
         AssetCreate(name = "asset")
       ))
@@ -493,7 +492,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle pushdown filters on eventIds" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq.fill(3)(EventCreate()))
       _ = testReadQuery(
         s"id = ${events.head.id}",
@@ -506,7 +505,7 @@ class EventsRelationTest extends FlatSpec with Matchers
 
 
   it should "handle pushdown filters on many eventIds" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq.fill(6)(EventCreate()))
       focusIds = events.slice(1, 4).map(_.id)
       _ = testReadQuery(
@@ -518,7 +517,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle pushdown filters on many eventIds with or" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq.fill(6)(EventCreate()))
       focusIds = events.slice(1, 4).map(_.id)
       _ <- testReadQuery(
@@ -530,7 +529,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle pushdown filters on many eventIds with other filters" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(
         Seq.fill(2)(EventCreate())
         ++ Seq.fill(2)(EventCreate(description = Some("eventspushdowntest")))
@@ -546,7 +545,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle a really advanced query" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(for
        (ty <- Seq(Some("maintenance"), Some("upgrade"), Some("a"),None);
          sub <- Seq(Some("manual"), Some("automatic"), Some("b"), None)
@@ -569,7 +568,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "handle pushdown on eventId or something else" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       events <- makeEvents(Seq(
         EventCreate(),
         EventCreate(`type` = Some("maintenance")),
@@ -583,10 +582,10 @@ class EventsRelationTest extends FlatSpec with Matchers
     } yield ())
   }
 
-  private def makeDestinationDf(): Resource[TracedIO, (DataFrame, String, String)] = {
+  private def makeDestinationDf(): Resource[IO, (DataFrame, String, String)] = {
     val targetView = s"destinationEvent_${shortRandomString()}"
     val metricsPrefix = s"test.${shortRandomString()}"
-    Resource.make { TracedIO.liftIO(IO.blocking {
+    Resource.make { IO.blocking {
       val destinationDf: DataFrame = spark.read
         .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
@@ -596,8 +595,8 @@ class EventsRelationTest extends FlatSpec with Matchers
         .load()
       destinationDf.createOrReplaceTempView(targetView)
       (destinationDf, targetView, metricsPrefix)
-    })}{
-      case (_, targetView, _) => TracedIO.liftIO(IO.blocking {
+    }}{
+      case (_, targetView, _) => IO.blocking {
         spark
           .sql(s"""select * from ${targetView} where source = '${testSource}'""")
           .write
@@ -606,11 +605,11 @@ class EventsRelationTest extends FlatSpec with Matchers
           .option("type", "events")
           .option("onconflict", "delete")
           .save()
-    })}
+    }}
   }
 
   it should "allow null values for all event fields except id" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       (_, targetView, _) <- makeDestinationDf()
       _ = spark
         .sql(
@@ -645,7 +644,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "support upserts" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       (destinationDf, targetView, metricsPrefix) <- makeDestinationDf()
       _ <- makeEvents(Seq.fill(10)(EventCreate()))
       // Post new events
@@ -720,7 +719,7 @@ class EventsRelationTest extends FlatSpec with Matchers
 
   it should "allow empty metadata updates" taggedAs WriteTest in {
     val externalId1 = UUID.randomUUID.toString
-    runTracedIOTest(for {
+    runIOTest(for {
       _ <- makeEvents(Seq(EventCreate(externalId = Some(externalId1), metadata = Some(Map("test1"
         -> "test1")))))
       wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata, '${testSource}' " +
@@ -732,20 +731,20 @@ class EventsRelationTest extends FlatSpec with Matchers
       .option("type", "events")
     .option("onconflict", "upsert")
     .save()
-      updated = writeClient.events.retrieveByExternalId(externalId1).run(NoopSpan()).unsafeRunSync()(IORuntime.global)
+      updated = writeClient.events.retrieveByExternalId(externalId1).unsafeRunSync()(IORuntime.global)
 
       _ = updated.metadata shouldBe None
     } yield ())
   }
 
   it should "allow inserts in savemode" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       (_, targetView, _) <- makeDestinationDf()
       assets <- makeAssetIds(Seq(AssetCreate(name = "asset")))
       _ <- makeEvents(Seq.fill(10)(EventCreate()))
       // Test inserts
-      df <- Resource.eval(retryWhileTracedIO[DataFrame](
-        TracedIO.liftIO(IO.blocking{ spark.sql(s"""
+      df <- Resource.eval(retryWhileIO[DataFrame](
+        IO.blocking{ spark.sql(s"""
            |select "foo" as description,
            |monotonically_increasing_id() as id,
            |least(startTime, endTime) as startTime,
@@ -756,7 +755,7 @@ class EventsRelationTest extends FlatSpec with Matchers
            |concat("$testSource", string(id)) as externalId
            |from ${targetView} where source = "$testSource"
            |limit 10
-           """.stripMargin)}),
+           """.stripMargin)},
         df => df.collect().length < 10
         ))
 
@@ -792,7 +791,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "allow NULL updates in savemode" taggedAs WriteTest in forAll(updateAndUpsert) {
-    updateMode => runTracedIOTest(for {
+    updateMode => runIOTest(for {
       (_, targetView, metricsPrefix) <- makeDestinationDf()
       assets <- makeAssetIds(Seq(AssetCreate(name = "asset")))
       // Insert test event
@@ -818,10 +817,10 @@ class EventsRelationTest extends FlatSpec with Matchers
     .option("onconflict", "abort")
     .save()
 
-      insertTest <- Resource.eval(retryWhileTracedIO[Array[Row]](
-        TracedIO.liftIO(IO.blocking{ spark.sql(s"select * from ${targetView} where source = " +
+      insertTest <- Resource.eval(retryWhileIO[Array[Row]](
+        IO.blocking{ spark.sql(s"select * from ${targetView} where source = " +
             s"'$testSource-$updateMode'")
-          .collect()}),
+          .collect()},
         df => df.length < 1
       ))
 
@@ -862,7 +861,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "allow duplicated ids and external ids when using upsert in savemode" in {
-    runTracedIOTest(for {
+    runIOTest(for {
       (_, targetView, metricsPrefix) <- makeDestinationDf()
       externalId = shortRandomString()
       // Post new events
@@ -979,7 +978,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "allow upsert in savemode" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       (_, targetView, _) <- makeDestinationDf()
       metricsPrefix = s"metrics-${shortRandomString()}"
       // Post new events
@@ -1101,10 +1100,10 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "allow partial updates in savemode" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       (destinationDf, targetView, metricsPrefix) <- makeDestinationDf()
       // Insert some test data
-      _ <- Resource.eval(TracedIO.liftIO(IO.blocking{ spark.sql(s"""
+      _ <- Resource.eval(IO.blocking{ spark.sql(s"""
             |select "foo" as description,
             |least(startTime, endTime) as startTime,
             |greatest(startTime, endTime) as endTime,
@@ -1123,7 +1122,7 @@ class EventsRelationTest extends FlatSpec with Matchers
 """.stripMargin)
     .select(destinationDf.columns.map(col).toIndexedSeq: _ *)
     .write
-      .insertInto(targetView)}))
+      .insertInto(targetView)})
       // Check if insert worked
       descriptionsAfterInsert <- testReadSql(
         s"select description, id from ${targetView} " +
@@ -1135,8 +1134,8 @@ class EventsRelationTest extends FlatSpec with Matchers
       _ = assert (eventsCreatedAfterUpsert == 10)
       // Update the data
       descriptionsAfterUpdate <-
-        Resource.eval(retryWhileTracedIO[Array[Row]](
-          TracedIO.liftIO(IO.blocking {
+        Resource.eval(retryWhileIO[Array[Row]](
+          IO.blocking {
             spark
               .sql(
                 s"""
@@ -1157,7 +1156,7 @@ class EventsRelationTest extends FlatSpec with Matchers
               .sql(s"select description from ${targetView} " +
                 s"where source = '$testSource' and description = 'bar'")
               .collect()
-          }),
+          },
           df => df.length < 10
         ))
       _ = assert (descriptionsAfterUpdate.length == 10)
@@ -1166,7 +1165,7 @@ class EventsRelationTest extends FlatSpec with Matchers
       // Due to retries, this may exceed 10
       _ = assert (eventsUpdatedAfterUpsert >= 10)
       // Trying to update non-existing ids should throw a 400 CdpApiException
-      e <- Resource.eval(TracedIO.liftIO(IO.blocking{ intercept[SparkException] {
+      e <- Resource.eval(IO.blocking{ intercept[SparkException] {
         // Update the data
         spark
           .sql(
@@ -1194,7 +1193,7 @@ class EventsRelationTest extends FlatSpec with Matchers
           .option("type", "events")
           .option("onconflict", "update")
           .save()
-      }}))
+      }})
       _ = e.getCause shouldBe a[CdpApiException]
       cdpApiException = e.getCause.asInstanceOf[CdpApiException]
       _ = assert(cdpApiException.code == 400)
@@ -1206,7 +1205,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "allow null ids on event update" taggedAs WriteTest in {
-    runTracedIOTest(for {
+    runIOTest(for {
       (destinationDf, targetView, _) <- makeDestinationDf()
       dataset <- makeDatasetId()
       // Post new events
@@ -1239,8 +1238,8 @@ class EventsRelationTest extends FlatSpec with Matchers
         s"${dataset}", 5)
       _ = assert(eventsFromTestDf.length == 5)
       // Upsert events
-      descriptionsAfterUpdate <- Resource.eval(retryWhileTracedIO[Array[Row]](
-        TracedIO.liftIO(IO.blocking {
+      descriptionsAfterUpdate <- Resource.eval(retryWhileIO[Array[Row]](
+        IO.blocking {
           spark
             .sql(
               s"""
@@ -1261,7 +1260,7 @@ class EventsRelationTest extends FlatSpec with Matchers
                 s"description = " +
                 s"'bar'")
             .collect()
-        }),
+        },
         df => df.length < 5
       ))
       _ = assert (descriptionsAfterUpdate.length == 5)
@@ -1293,7 +1292,8 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "allow deletes in savemode" taggedAs WriteTest in {
-    runTracedIOTest(for {
+
+    runIOTest(for {
       (destinationDf, targetView, _) <- makeDestinationDf()
       // Insert some test data
       _ = spark
@@ -1325,7 +1325,7 @@ class EventsRelationTest extends FlatSpec with Matchers
   }
 
   it should "support ignoring unknown ids in deletes" in {
-    runTracedIOTest(for {
+    runIOTest(for {
       (destinationDf, targetView, _) <- makeDestinationDf()
       // Insert some test data
       _ = spark
@@ -1385,7 +1385,7 @@ class EventsRelationTest extends FlatSpec with Matchers
     val randomSuffix = shortRandomString()
     import scala.language.reflectiveCalls
     val mutableClosure = new {var deleteCounter = 0L}
-    runTracedIOTest(for {
+    runIOTest(for {
       (destinationDf, targetView, metricsPrefix) <- makeDestinationDf()
       // Insert some test data
       _ = spark
@@ -1418,8 +1418,8 @@ class EventsRelationTest extends FlatSpec with Matchers
       _ = assert(idsAfterInsert.length == 10)
       // Delete the data
       idsAfterDelete <- Resource.eval(
-        retryWhileTracedIO[Array[Row]](
-          TracedIO.liftIO(IO.blocking {
+        retryWhileIO[Array[Row]](
+          IO.blocking {
             spark
               .sql(s"select externalId from ${targetView} where source = '$testSource'")
               .write
@@ -1434,7 +1434,7 @@ class EventsRelationTest extends FlatSpec with Matchers
             spark
               .sql(s"select externalId from ${targetView} where source = '$testSource'")
               .collect()
-          }),
+          },
           df => df.length > 0
         ))
       _ = assert (idsAfterDelete.isEmpty)

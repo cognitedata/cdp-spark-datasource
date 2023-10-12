@@ -5,27 +5,23 @@ import com.cognite.sdk.scala.common.{Auth, AuthProvider, OAuth2}
 import sttp.client3.SttpBackend
 
 sealed trait CdfSparkAuth extends Serializable {
-  def provider(
-      implicit clock: Clock[TracedIO],
-      sttpBackend: SttpBackend[TracedIO, Any]): TracedIO[AuthProvider[TracedIO]]
+  def provider(implicit clock: Clock[IO], sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]]
 }
 
 object CdfSparkAuth {
   final case class Static(auth: Auth) extends CdfSparkAuth {
     override def provider(
-        implicit clock: Clock[TracedIO],
-        sttpBackend: SttpBackend[TracedIO, Any]): TracedIO[AuthProvider[TracedIO]] =
-      TracedIO.liftIO(IO(AuthProvider[TracedIO](auth)))
+        implicit clock: Clock[IO],
+        sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
+      IO(AuthProvider(auth))
   }
 
   final case class OAuth2ClientCredentials(credentials: OAuth2.ClientCredentials) extends CdfSparkAuth {
 
     override def provider(
-        implicit clock: Clock[TracedIO],
-        sttpBackend: SttpBackend[TracedIO, Any]): TracedIO[AuthProvider[TracedIO]] =
-      OAuth2
-        .ClientCredentialsProvider[TracedIO](credentials)
-        .map(x => x)
+        implicit clock: Clock[IO],
+        sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
+      OAuth2.ClientCredentialsProvider[IO](credentials)
   }
 
   final case class OAuth2Sessions(session: OAuth2.Session) extends CdfSparkAuth {
@@ -33,13 +29,11 @@ object CdfSparkAuth {
     private val refreshSecondsBeforeExpiration = 300L
 
     override def provider(
-        implicit clock: Clock[TracedIO],
-        sttpBackend: SttpBackend[TracedIO, Any]): TracedIO[AuthProvider[TracedIO]] =
-      OAuth2
-        .SessionProvider[TracedIO](
-          session,
-          refreshSecondsBeforeExpiration = refreshSecondsBeforeExpiration
-        )
-        .map(x => x)
+        implicit clock: Clock[IO],
+        sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
+      OAuth2.SessionProvider[IO](
+        session,
+        refreshSecondsBeforeExpiration = refreshSecondsBeforeExpiration
+      )
   }
 }
