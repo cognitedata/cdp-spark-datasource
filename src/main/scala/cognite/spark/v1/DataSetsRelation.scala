@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.implicits._
+import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities.{executeFilterOnePartition, pushdownToFilters, timeRange}
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
@@ -25,7 +25,7 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: DataSet): String = a.id.toString
 
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[TracedIO]): Seq[fs2.Stream[TracedIO, DataSet]] = {
+      client: GenericClient[IO]): Seq[fs2.Stream[IO, DataSet]] = {
     val (ids, filters) = pushdownToFilters(sparkFilters, dataSetFilterFromMap, DataSetFilter())
     Seq(executeFilterOnePartition(client.dataSets, filters, ids, config.limitPerPartition))
   }
@@ -38,16 +38,16 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       writeProtected = m.get("writeProtected").map(_.toBoolean)
     )
 
-  override def insert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def insert(rows: Seq[Row]): IO[Unit] = {
     val dataSetCreates = rows.map(fromRow[DataSetCreate](_))
     client.dataSets
       .create(dataSetCreates)
-      .flatTap(_ => incMetrics(itemsCreated, dataSetCreates.length)) *> TracedIO.unit
+      .flatTap(_ => incMetrics(itemsCreated, dataSetCreates.length)) *> IO.unit
   }
 
-  override def upsert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
     val dataSets = rows.map(fromRow[DataSetsUpsertSchema](_))
-    genericUpsert[DataSet, DataSetsUpsertSchema, DataSetCreate, DataSetUpdate, DataSets[TracedIO]](
+    genericUpsert[DataSet, DataSetsUpsertSchema, DataSetCreate, DataSetUpdate, DataSets[IO]](
       dataSets,
       isUpdateEmpty,
       client.dataSets,
@@ -57,15 +57,15 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   private def isUpdateEmpty(u: DataSetUpdate): Boolean = u == DataSetUpdate()
 
-  override def update(rows: Seq[Row]): TracedIO[Unit] = {
+  override def update(rows: Seq[Row]): IO[Unit] = {
     val dataSetsUpdates = rows.map(fromRow[DataSetsUpsertSchema](_))
-    updateByIdOrExternalId[DataSetsUpsertSchema, DataSetUpdate, DataSets[TracedIO], DataSet](
+    updateByIdOrExternalId[DataSetsUpsertSchema, DataSetUpdate, DataSets[IO], DataSet](
       dataSetsUpdates,
       client.dataSets,
       isUpdateEmpty)
   }
 
-  override def delete(rows: Seq[Row]): TracedIO[Unit] =
+  override def delete(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Delete is not supported for data sets.")
 }
 object DataSetsRelation extends UpsertSchema {

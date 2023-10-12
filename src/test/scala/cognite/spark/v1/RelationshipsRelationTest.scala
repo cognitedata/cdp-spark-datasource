@@ -3,27 +3,15 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
-import com.cognite.sdk.scala.v1.{
-  AssetCreate,
-  CogniteExternalId,
-  DataSetCreate,
-  EventCreate,
-  LabelCreate,
-  RelationshipCreate
-}
-import natchez.noop.NoopEntrypoint
+import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId, DataSetCreate, EventCreate, LabelCreate, RelationshipCreate}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Inspectors, Matchers}
 
 import java.time.Instant
 
-class RelationshipsRelationTest
-    extends FlatSpec
-    with Matchers
-    with SparkTest
-    with Inspectors
-    with BeforeAndAfterAll {
+class RelationshipsRelationTest extends FlatSpec with Matchers with SparkTest with Inspectors
+  with BeforeAndAfterAll {
 
   val destinationDf: DataFrame = spark.read
     .format(DefaultSource.sparkFormatString)
@@ -50,11 +38,13 @@ class RelationshipsRelationTest
   private val labelList = Seq(CogniteExternalId(labelExtId1))
   private var dataSetId = -1L
 
-  override def beforeAll(): Unit =
-    NoopEntrypoint[IO]().root("create").use(createResources().run).unsafeRunSync()
+  override def beforeAll(): Unit = {
+    createResources().unsafeRunSync()
+  }
 
-  override def afterAll(): Unit =
-    NoopEntrypoint[IO]().root("cleanup").use(deleteResources().run).unsafeRunSync()
+  override def afterAll(): Unit = {
+    deleteResources().unsafeRunSync()
+  }
 
   private def relationshipsToCreate =
     Seq(
@@ -99,50 +89,43 @@ class RelationshipsRelationTest
       )
     )
 
-  private def createResources(): TracedIO[Unit] =
-    for {
-      dataset <- writeClient.dataSets.create(
-        Seq(DataSetCreate(writeProtected = false, name = Some("dataset"))))
-      _ = { this.dataSetId = dataset.head.id }
-      _ <- writeClient.labels.create(labelList.map(s =>
-        LabelCreate(name = "a label", externalId = s.externalId)))
-      _ <- writeClient.assets.create(
-        Seq(
-          AssetCreate("asset1", externalId = Some(assetExtId1)),
-          AssetCreate("asset2", externalId = Some(assetExtId2)),
-        ))
-      _ <- writeClient.events.create(Seq(EventCreate(externalId = Some(eventExtId1))))
-      _ <- writeClient.relationships.create(relationshipsToCreate)
-    } yield ()
+  private def createResources(): IO[Unit] = for {
+    dataset <- writeClient.dataSets.create(Seq(DataSetCreate(writeProtected = false, name = Some("dataset"))))
+    _ = {this.dataSetId = dataset.head.id}
+    _ <- writeClient.labels.create(labelList.map(s => LabelCreate(name = "a label",
+      externalId = s.externalId)))
+    _ <- writeClient.assets.create(Seq(
+      AssetCreate("asset1", externalId = Some(assetExtId1)),
+      AssetCreate("asset2", externalId = Some(assetExtId2)),
+    ))
+    _ <- writeClient.events.create(Seq(EventCreate(externalId = Some(eventExtId1))))
+    _ <- writeClient.relationships.create(relationshipsToCreate)
+  } yield ()
 
-  private def deleteResources(): TracedIO[Unit] =
-    for {
-      // deleted by a test for deletion
-      //_ <- writeClient.relationships.deleteByExternalIds(relationshipsToCreate.map(r => r.externalId))
-      _ <- writeClient.events.deleteByExternalId(eventExtId1)
-      _ <- writeClient.assets.deleteByExternalIds(Seq(assetExtId1, assetExtId2))
-      _ <- writeClient.labels.deleteByExternalIds(labelList.map(l => l.externalId))
-      // datasets are not deletable
-    } yield ()
+  private def deleteResources(): IO[Unit] = for {
+    // deleted by a test for deletion
+    //_ <- writeClient.relationships.deleteByExternalIds(relationshipsToCreate.map(r => r.externalId))
+    _ <- writeClient.events.deleteByExternalId(eventExtId1)
+    _ <- writeClient.assets.deleteByExternalIds(Seq(assetExtId1, assetExtId2))
+    _ <- writeClient.labels.deleteByExternalIds(labelList.map(l => l.externalId))
+    // datasets are not deletable
+  } yield ()
 
   it should "be able to read a relationship" taggedAs ReadTest in {
     val externalId = s"sparktest-relationship-${shortRandomString()}"
-    NoopEntrypoint[IO]()
-      .root("relationships")
-      .use(
-        writeClient.relationships
-          .create(
-            Seq(RelationshipCreate(
-              externalId = externalId,
-              sourceExternalId = assetExtId1,
-              sourceType = "asset",
-              targetExternalId = assetExtId2,
-              targetType = "asset",
-              labels = Some(labelList),
-              dataSetId = Some(dataSetId)
-            ))
-          )
-          .run)
+    writeClient.relationships
+      .create(
+        Seq(
+          RelationshipCreate(
+            externalId = externalId,
+            sourceExternalId = assetExtId1,
+            sourceType = "asset",
+            targetExternalId = assetExtId2,
+            targetType = "asset",
+            labels = Some(labelList),
+            dataSetId = Some(dataSetId)
+          ))
+      )
       .unsafeRunSync()
 
     val rows = spark.read
@@ -162,10 +145,7 @@ class RelationshipsRelationTest
     assert(relationship.targetType == "asset")
     assert(relationship.labels.isDefined && relationship.labels.get.head == labelList.head.externalId)
 
-    NoopEntrypoint[IO]()
-      .root("relationships")
-      .use(writeClient.relationships.deleteByExternalId(externalId).run)
-      .unsafeRunSync()
+    writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to write a relationship" taggedAs WriteTest in {
@@ -196,31 +176,24 @@ class RelationshipsRelationTest
       .collect()
 
     assert(rows.length == 1)
-    NoopEntrypoint[IO]()
-      .root("relationships")
-      .use(writeClient.relationships.deleteByExternalId(externalId).run)
-      .unsafeRunSync()
+    writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to update a relationship" taggedAs ReadTest in forAll(updateAndUpsert) {
     updateMode =>
       val externalId = s"relationship-update-${shortRandomString()}"
-      NoopEntrypoint[IO]()
-        .root("relationships")
-        .use(
-          writeClient.relationships
-            .create(
-              Seq(RelationshipCreate(
-                externalId = externalId,
-                sourceExternalId = assetExtId1,
-                sourceType = "asset",
-                targetExternalId = assetExtId2,
-                targetType = "asset",
-                labels = Some(labelList),
-                dataSetId = Some(dataSetId)
-              ))
-            )
-            .run)
+      writeClient.relationships
+        .create(
+          Seq(RelationshipCreate(
+            externalId = externalId,
+            sourceExternalId = assetExtId1,
+            sourceType = "asset",
+            targetExternalId = assetExtId2,
+            targetType = "asset",
+            labels = Some(labelList),
+            dataSetId = Some(dataSetId)
+          ))
+        )
         .unsafeRunSync()
 
       spark
@@ -254,10 +227,7 @@ class RelationshipsRelationTest
       assert(relationship.sourceType == "asset")
       assert(relationship.targetType == "event")
 
-      NoopEntrypoint[IO]()
-        .root("relationships")
-        .use(writeClient.relationships.deleteByExternalId(externalId).run)
-        .unsafeRunSync()
+      writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to upsert a relationship" taggedAs ReadTest in {
@@ -293,10 +263,7 @@ class RelationshipsRelationTest
     assert(relationship.confidence.get == 0.6)
     assert(relationship.targetType == "asset")
 
-    NoopEntrypoint[IO]()
-      .root("relationships")
-      .use(writeClient.relationships.deleteByExternalId(externalId).run)
-      .unsafeRunSync()
+    writeClient.relationships.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "support pushdown filters with nulls" taggedAs ReadTest in {

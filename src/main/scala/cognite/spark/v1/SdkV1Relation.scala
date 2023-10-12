@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1._
@@ -23,7 +24,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
 
   def uniqueId(a: A): I
 
-  def getStreams(filters: Array[Filter])(client: GenericClient[TracedIO]): Seq[Stream[TracedIO, A]]
+  def getStreams(filters: Array[Filter])(client: GenericClient[IO]): Seq[Stream[IO, A]]
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
@@ -55,12 +56,12 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   def updateByIdOrExternalId[
       P <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       U <: WithSetExternalId,
-      T <: UpdateById[R, U, TracedIO] with UpdateByExternalId[R, U, TracedIO],
+      T <: UpdateById[R, U, IO] with UpdateByExternalId[R, U, IO],
       R <: ToUpdate[U] with WithId[Long]](
       updates: Seq[P],
       resource: T,
       isUpdateEmpty: U => Boolean
-  )(implicit transform: Transformer[P, U]): TracedIO[Unit] = {
+  )(implicit transform: Transformer[P, U]): IO[Unit] = {
     if (!updates.forall(u => u.id.isDefined || u.getExternalId.isDefined)) {
       throw new CdfSparkException("Update requires an id or externalId to be set for each row.")
     }
@@ -73,12 +74,12 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
           case (_, update) => !isUpdateEmpty(update)
         }
         .toMap
-    val updateIds = if (updatesById.isEmpty) { TracedIO.unit } else {
+    val updateIds = if (updatesById.isEmpty) { IO.unit } else {
       resource
         .updateById(updatesById)
         .flatMap(_ => incMetrics(itemsUpdated, updatesById.size))
     }
-    val updateExternalIds = if (updatesByExternalId.isEmpty) { TracedIO.unit } else {
+    val updateExternalIds = if (updatesByExternalId.isEmpty) { IO.unit } else {
       val updatesByExternalIdMap = updatesByExternalId
         .map(u => u.getExternalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
         .toMap
@@ -98,19 +99,19 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       C <: WithGetExternalId,
       S <: WithExternalIdGeneric[ExternalIdF],
       ExternalIdF[_],
-      T <: UpdateByExternalId[R, U, TracedIO] with Create[R, C, TracedIO]](
+      T <: UpdateByExternalId[R, U, IO] with Create[R, C, IO]](
       existingExternalIds: Set[String],
       resourceCreates: Seq[S],
       resource: T,
       doUpsert: Boolean)(
       implicit transformToUpdate: Transformer[S, U],
       transformToCreate: Transformer[S, C]
-  ): TracedIO[Unit] = {
+  ): IO[Unit] = {
     val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
       p => p.getExternalId.exists(id => existingExternalIds.contains(id))
     )
     val create = if (resourcesToCreate.isEmpty) {
-      TracedIO.unit
+      IO.unit
     } else {
       resource
         .create(resourcesToCreate.map(_.transformInto[C]))
@@ -126,7 +127,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         }
     }
     val update = if (resourcesToUpdate.isEmpty) {
-      TracedIO.unit
+      IO.unit
     } else {
       resource
         .updateByExternalId(
@@ -141,9 +142,9 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
   }
 
   def deleteWithIgnoreUnknownIds(
-      resource: DeleteByCogniteIds[TracedIO],
+      resource: DeleteByCogniteIds[IO],
       ids: Seq[CogniteId],
-      ignoreUnknownIds: Boolean = config.ignoreUnknownIds): TracedIO[Unit] =
+      ignoreUnknownIds: Boolean = config.ignoreUnknownIds): IO[Unit] =
     resource
       .delete(ids, ignoreUnknownIds)
       .flatTap(_ => incMetrics(itemsDeleted, ids.length))
@@ -158,16 +159,13 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       // The ItemUpdate type
       Up <: WithSetExternalId,
       // The resource type (client.<resource>)
-      Re <: UpdateById[R, Up, TracedIO] with UpdateByExternalId[R, Up, TracedIO] with Create[
-        R,
-        C,
-        TracedIO]](
+      Re <: UpdateById[R, Up, IO] with UpdateByExternalId[R, Up, IO] with Create[R, C, IO]](
       items: Seq[U],
       isUpdateEmpty: Up => Boolean,
       resource: Re,
       mustBeUpdate: U => Boolean = (_: U) => false)(
       implicit transformToUpdate: Transformer[U, Up],
-      transformToCreate: Transformer[U, C]): TracedIO[Unit] = {
+      transformToCreate: Transformer[U, C]): IO[Unit] = {
 
     val (itemsWithId, itemsWithoutId) = items.partition(r => r.id.exists(_ > 0) || mustBeUpdate(r))
 

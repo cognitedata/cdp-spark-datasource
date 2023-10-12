@@ -1,7 +1,7 @@
 package cognite.spark.v1.wdl
 
-import cats.implicits._
-import cognite.spark.v1.{CdfRelation, CdfSparkException, RelationConfig, TracedIO, WritableRelation}
+import cats.effect.IO
+import cognite.spark.v1.{CdfRelation, CdfSparkException, RelationConfig, WritableRelation}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.TableScan
 import org.apache.spark.sql.types.{DataType, StructType}
@@ -22,21 +22,19 @@ class WellDataLayerRelation(
     cachedSchema.getOrElse(
       throw new CdfSparkException("Failed to decode well-data-layer schema into StructType"))
 
-  private lazy val cachedSchema: Option[StructType] =
-    config.trace("getSchema")(getSchema).unsafeRunSync()
+  private lazy val cachedSchema: Option[StructType] = getSchema
 
-  private def getSchema: TracedIO[Option[StructType]] =
-    client.wdl
-      .getSchema(model)
-      .map(schemaAsString =>
-        DataType.fromJson(schemaAsString) match {
-          case s: StructType => Some(s)
-          case _ => None
-      })
+  private def getSchema: Option[StructType] = {
+    val schemaAsString = client.wdl.getSchema(model).unsafeRunSync()
+    DataType.fromJson(schemaAsString) match {
+      case s: StructType => Some(s)
+      case _ => None
+    }
+  }
 
-  override def insert(rows: Seq[Row]): TracedIO[Unit] = upsert(rows)
+  override def insert(rows: Seq[Row]): IO[Unit] = upsert(rows)
 
-  override def upsert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
     val jsonObjects = rows.map(row => {
       val rowJson = RowToJson.toJsonObject(row, schema, None)
       if (rowJson.isEmpty) {
@@ -50,10 +48,10 @@ class WellDataLayerRelation(
     client.wdl.setItems(url, jsonObjects).flatTap(_ => incMetrics(itemsCreated, jsonObjects.size))
   }
 
-  override def update(rows: Seq[Row]): TracedIO[Unit] =
+  override def update(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Update is not supported for WDL. Use upsert instead.")
 
-  override def delete(rows: Seq[Row]): TracedIO[Unit] = TracedIO.unit
+  override def delete(rows: Seq[Row]): IO[Unit] = IO.unit
 
   override def buildScan(): RDD[Row] =
     new WellDataLayerRDD(

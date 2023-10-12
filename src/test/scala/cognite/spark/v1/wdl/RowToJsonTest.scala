@@ -185,8 +185,7 @@ class RowToJsonTest extends FlatSpec with Matchers with ParallelTestExecution {
     val error = intercept[CdfSparkException] {
       RowToJson.toJson(inputRow, targetSchema)
     }
-    error.getMessage should include(
-      "Field `age` with expected type `DoubleType` contains invalid value: `[23.0]`.")
+    error.getMessage should include("Field `age` with expected type `DoubleType` contains invalid value: `[23.0]`.")
   }
 
   it should "give good error message when required value is None" in {

@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
-import cats.{Apply, Functor}
+import cats.Apply
+import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelRelationFactory.{
   ConnectionConfig,
@@ -16,11 +17,9 @@ import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
-import natchez.{Kernel, Trace}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
-import org.typelevel.ci.CIString
 import sttp.model.Uri
 
 import scala.reflect.classTag
@@ -77,15 +76,13 @@ class DefaultSource
       extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
     val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
 
-    import CdpConnector.ioRuntime
-    config
-      .trace("create dms relation")(
-        corePropertyRelation
-          .orElse(dataModelBasedConnectionRelation)
-          .orElse(dataModelBasedCorePropertyRelation)
-          .orElse(connectionRelation)
-          .getOrElse(throw new CdfSparkException(
-            s"""
+    corePropertyRelation
+      .orElse(dataModelBasedConnectionRelation)
+      .orElse(dataModelBasedCorePropertyRelation)
+      .orElse(connectionRelation)
+      .getOrElse(
+        throw new CdfSparkException(
+          s"""
              |Invalid combination of arguments!
              |
              | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
@@ -96,8 +93,7 @@ class DefaultSource
              | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', viewExternalId', 'connectionPropertyName')
              | with optional 'instanceSpace' for data model based  ConnectionRelation,
              |""".stripMargin
-          )))
-      .unsafeRunSync()
+        ))
   }
 
   /**
@@ -195,14 +191,12 @@ class DefaultSource
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
     if (resourceType == "assethierarchy") {
       val relation = new AssetHierarchyBuilder(config)(sqlContext)
-      config
-        .trace("assetHierarchy")(config.onConflict match {
-          case OnConflictOption.Delete =>
-            relation.delete(data)
-          case _ =>
-            relation.buildFromDf(data)
-        })
-        .unsafeRunSync()(CdpConnector.ioRuntime)
+      config.onConflict match {
+        case OnConflictOption.Delete =>
+          relation.delete(data)
+        case _ =>
+          relation.buildFromDf(data)
+      }
       relation
     } else if (resourceType == "datapoints" || resourceType == "stringdatapoints") {
       val relation = resourceType match {
@@ -214,13 +208,11 @@ class DefaultSource
       if (config.onConflict == OnConflictOption.Delete) {
         // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
         val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
-        import CdpConnector.ioRuntime
-        config
-          .trace("delete datapoints")(SparkF(data).foreachPartition((rows: Iterator[Row]) => {
-            val batches = rows.grouped(batchSize).toVector
-            batches.parTraverse_(relation.delete)
-          }))
-          .unsafeRunSync()
+        data.foreachPartition((rows: Iterator[Row]) => {
+          import CdpConnector.ioRuntime
+          val batches = rows.grouped(batchSize).toVector
+          batches.parTraverse_(relation.delete).unsafeRunSync()
+        })
       } else {
         // datapoints need special handling of dataframes and batches
         relation.insert(data, overwrite = true)
@@ -271,40 +263,38 @@ class DefaultSource
           data
         }
 
-      import CdpConnector.ioRuntime
-      config
-        .trace("apply operation")(SparkF(dataRepartitioned).foreachPartition((rows: Iterator[Row]) => {
+      dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
+        import CdpConnector.ioRuntime
 
-          val maxParallelism = config.parallelismPerPartition
-          val batches = Stream.fromIterator[TracedIO](rows, chunkSize = batchSize).chunks
+        val maxParallelism = config.parallelismPerPartition
+        val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
-          val operation: Seq[Row] => TracedIO[Unit] = config.onConflict match {
-            case OnConflictOption.Abort =>
-              relation.insert
-            case OnConflictOption.Upsert =>
-              relation.upsert
-            case OnConflictOption.Update =>
-              relation.update
-            case OnConflictOption.Delete =>
-              relation.delete
+        val operation: Seq[Row] => IO[Unit] = config.onConflict match {
+          case OnConflictOption.Abort =>
+            relation.insert
+          case OnConflictOption.Upsert =>
+            relation.upsert
+          case OnConflictOption.Update =>
+            relation.update
+          case OnConflictOption.Delete =>
+            relation.delete
+        }
+
+        batches
+          .parEvalMapUnordered(maxParallelism) { chunk =>
+            operation(chunk.toVector)
           }
-
-          batches
-            .parEvalMapUnordered(maxParallelism) { chunk =>
-              operation(chunk.toVector)
-            }
-            .compile
-            .drain
-        }) *> TracedIO.pure(relation))
-        .unsafeRunSync()
+          .compile
+          .drain
+          .unsafeRunSync()
+      })
+      relation
     }
   }
 }
 
 object DefaultSource {
   val sparkFormatString: String = classTag[DefaultSource].runtimeClass.getCanonicalName
-
-  val TRACING_PARAMETER_PREFIX: String = "com.cognite.tracing.parameter."
 
   private def toBoolean(
       parameters: Map[String, String],
@@ -383,19 +373,6 @@ object DefaultSource {
       .orElse(session)
       .orElse(clientCredentials)
   }
-
-  def extractTracingHeadersKernel(parameters: Map[String, String]): Kernel =
-    new Kernel(
-      parameters.toSeq
-        .filter(_._1.startsWith(TRACING_PARAMETER_PREFIX))
-        .map(kv => (CIString(kv._1.substring(TRACING_PARAMETER_PREFIX.length)), kv._2))
-        .toMap)
-
-  def saveTracingHeaders(knl: Kernel): Seq[(String, String)] =
-    knl.toHeaders.toList.map(kv => (TRACING_PARAMETER_PREFIX + kv._1, kv._2))
-
-  def saveTracingHeaders[F[_]: Functor: Trace](): F[Seq[(String, String)]] =
-    Trace[F].kernel.map(saveTracingHeaders(_))
 
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
     val maxRetries = toPositiveInt(parameters, "maxRetries")
@@ -477,9 +454,7 @@ object DefaultSource {
       deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
       subtrees = subtreesOption,
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
-      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
-      CdpConnector.tracingEntryPoint,
-      extractTracingHeadersKernel(parameters)
+      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true)
     )
   }
 
@@ -546,7 +521,6 @@ object DefaultSource {
         parameters.get("edgeTypeExternalId")
       )(ConnectionConfig(_, _, instanceSpace))
       .map(FlexibleDataModelRelationFactory.connectionRelation(config, sqlContext, _))
-      .map(TracedIO.pure)
   }
 
   private def extractCorePropertyRelation(
@@ -576,5 +550,4 @@ object DefaultSource {
           )
         )
       }
-      .map(TracedIO.pure)
 }

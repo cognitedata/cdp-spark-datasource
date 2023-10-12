@@ -1,6 +1,7 @@
 package cognite.spark.v1.wdl
 
-import cognite.spark.v1.{CdfPartition, CdfSparkException, CdpConnector, RelationConfig, TracedIO}
+import cats.effect.IO
+import cognite.spark.v1.{CdfPartition, CdfSparkException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.common.ItemsWithCursor
 import com.cognite.sdk.scala.v1.GenericClient
 import io.circe.JsonObject
@@ -19,18 +20,14 @@ class WellDataLayerRDD(
 ) extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
 
-  @transient lazy val client: GenericClient[TracedIO] = CdpConnector.clientFromConfig(config)
+  @transient lazy val client: GenericClient[IO] = CdpConnector.clientFromConfig(config)
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] =
     if (model.retrieve.isGet) {
-      val response = config
-        .trace("compute")(
-          client.wdl
-            .listItemsWithGet(model.retrieve.url)
-        )
-        .unsafeRunSync()
+      val response: IO[ItemsWithCursor[JsonObject]] = client.wdl.listItemsWithGet(model.retrieve.url)
+      val responseUnwrapped = response.unsafeRunSync()
 
-      val rows = response.items.map(jsonObject =>
+      val rows = responseUnwrapped.items.map(jsonObject =>
         JsonObjectToRow.toRow(jsonObject, schema) match {
           case Some(row) => row
           case None => throw new CdfSparkException("Got null as top level row.")
@@ -78,22 +75,19 @@ class WellDataLayerRDD(
     if (itemsWithCursor.items.nonEmpty) {
       processItems(itemsWithCursor)
     } else if (isFirstQuery || itemsWithCursor.nextCursor.nonEmpty) {
-      val response = config
-        .trace("wdl.computeNext")(
-          client.wdl
-            .listItemsWithPost(
-              model.retrieve.url,
-              cursor = itemsWithCursor.nextCursor,
-              limit = config.batchSize,
-              transformBody = jb => model.retrieve.transformBody(jb)
-            )
+      val response: IO[ItemsWithCursor[JsonObject]] =
+        client.wdl.listItemsWithPost(
+          model.retrieve.url,
+          cursor = itemsWithCursor.nextCursor,
+          limit = config.batchSize,
+          transformBody = jb => model.retrieve.transformBody(jb)
         )
-        .unsafeRunSync()
+      val responseUnwrapped = response.unsafeRunSync()
 
-      processItems(response) match {
+      processItems(responseUnwrapped) match {
         case Some(value) => Some(value)
         case None =>
-          if (response.nextCursor.nonEmpty) {
+          if (responseUnwrapped.nextCursor.nonEmpty) {
             throw new CdfSparkException("Got empty items and non-empty nextCursor from WDL.")
           } else {
             None

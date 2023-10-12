@@ -1,11 +1,9 @@
 package cognite.spark.v1
 
 import cats.data.NonEmptyList
-import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.v1.{SequenceColumnCreate, SequenceCreate}
 import io.scalaland.chimney.dsl._
-import natchez.noop.NoopEntrypoint
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
@@ -87,11 +85,7 @@ class SequencesRelationTest
       .option("onconflict", "abort")
       .save()
 
-    val sequence =
-      NoopEntrypoint[IO]()
-        .root("getsequences")
-        .use(writeClient.sequences.retrieveByExternalId(s"$id").run)
-        .unsafeRunSync()
+    val sequence = writeClient.sequences.retrieveByExternalId(s"$id").unsafeRunSync()
     sequence.name shouldBe Some("c seq")
     sequence.description shouldBe Some("Sequence C detailed description")
     sequence.assetId shouldBe None
@@ -151,13 +145,7 @@ class SequencesRelationTest
         .collect(),
       rows => rows.length != 1)
 
-    val colHead =
-      NoopEntrypoint[IO]()
-        .root("getsequences")
-        .use(writeClient.sequences.retrieveByExternalId(s"$id").run)
-        .unsafeRunSync()
-        .columns
-        .head
+    val colHead = writeClient.sequences.retrieveByExternalId(s"$id").unsafeRunSync().columns.head
     colHead.name shouldBe Some("col2")
     colHead.description shouldBe Some("col2 description")
     colHead.metadata shouldBe Some(Map("foo2" -> "bar2"))
@@ -232,17 +220,9 @@ class SequencesRelationTest
       .option("onconflict", "upsert")
       .save()
 
-    val sequence1 =
-      NoopEntrypoint[IO]()
-        .root("getsequences")
-        .use(writeClient.sequences.retrieveByExternalId(id).run)
-        .unsafeRunSync()
+    val sequence1 = writeClient.sequences.retrieveByExternalId(id).unsafeRunSync()
     val columns1 = sequence1.columns
-    val sequence2 =
-      NoopEntrypoint[IO]()
-        .root("getsequences")
-        .use(writeClient.sequences.retrieveByExternalId(s"$id-2").run)
-        .unsafeRunSync()
+    val sequence2 = writeClient.sequences.retrieveByExternalId(s"$id-2").unsafeRunSync()
     val columns2 = sequence2.columns
 
     sequence1.name shouldBe Some("seq name1")
@@ -299,12 +279,7 @@ class SequencesRelationTest
       .option("onconflict", "update")
       .save()
 
-    val sequence = {
-      NoopEntrypoint[IO]()
-        .root("getsequences")
-        .use(writeClient.sequences.retrieveByExternalId(id).run)
-        .unsafeRunSync()
-    }
+    val sequence = writeClient.sequences.retrieveByExternalId(id).unsafeRunSync()
     val columns = sequence.columns
 
     sequence.name shouldBe Some("xD")
@@ -409,20 +384,16 @@ class SequencesRelationTest
 
   it should "delete sequence" in {
     val key = UUID.randomUUID().toString
-    NoopEntrypoint[IO]()
-      .root("writesequences")
-      .use(
-        writeClient.sequences
-          .createOne(SequenceCreate(
-            Some(s"name-${key}"),
-            Some("description"),
-            None,
-            Some(s"externalId-$key"),
-            None,
-            NonEmptyList.fromListUnsafe(
-              List(SequenceColumnCreate(Some("col1"), "col1", None, "STRING", None)))
-          ))
-          .run)
+    writeClient.sequences
+      .createOne(SequenceCreate(
+        Some(s"name-${key}"),
+        Some("description"),
+        None,
+        Some(s"externalId-$key"),
+        None,
+        NonEmptyList.fromListUnsafe(
+          List(SequenceColumnCreate(Some("col1"), "col1", None, "STRING", None)))
+      ))
       .unsafeRunSync()
     val idsAfterDelete = retryWhile[Array[Row]](
       {
@@ -466,10 +437,7 @@ class SequencesRelationTest
 
     val checkedAssets = processedTree.filter(_.externalId.isDefined)
     val storedCheckedAssets =
-      NoopEntrypoint[IO]()
-        .root("getsequences")
-        .use(writeClient.sequences.retrieveByExternalIds(checkedAssets.map(_.externalId.get)).run)
-        .unsafeRunSync()
+      writeClient.sequences.retrieveByExternalIds(checkedAssets.map(_.externalId.get)).unsafeRunSync()
 
     // check that the sequences are inserted correctly, before failing on long retries
     for ((inserted, stored) <- checkedAssets.zip(storedCheckedAssets)) {
@@ -487,9 +455,6 @@ class SequencesRelationTest
   }
 
   def cleanupSequences(ids: Seq[String]): Unit =
-    NoopEntrypoint[IO]()
-      .root("deletesequences")
-      .use(writeClient.sequences.deleteByExternalIds(ids).run)
-      .unsafeRunSync()
+    writeClient.sequences.deleteByExternalIds(ids).unsafeRunSync()
 
 }

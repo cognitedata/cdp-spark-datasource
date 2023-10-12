@@ -34,17 +34,21 @@ trait DataFrameMatcher extends Matchers {
         } else {
           MatchResult(
             matches = false,
-            s"Actual dataframe ${dataFrame.collect().mkString("Array(", ", ", ")")} is different from expected: [${expectedDataFrame
-              .collect()
-              .mkString("Array(", ", ", ")")}]",
+            s"Actual dataframe ${dataFrame.collect().mkString("Array(", ", ", ")")} is different from expected: [${
+              expectedDataFrame
+                .collect()
+                .mkString("Array(", ", ", ")")
+            }]",
             ""
           )
         }
       } else {
         MatchResult(
           matches = false,
-          s"Actual dataframe columns [${dataFrame.columns.sorted.mkString("Array(", ", ", ")")}] is different from expected: [${expectedDataFrame.columns.sorted
-            .mkString("Array(", ", ", ")")}]",
+          s"Actual dataframe columns [${dataFrame.columns.sorted.mkString("Array(", ", ", ")")}] is different from expected: [${
+            expectedDataFrame.columns.sorted
+              .mkString("Array(", ", ", ")")
+          }]",
           ""
         )
       }

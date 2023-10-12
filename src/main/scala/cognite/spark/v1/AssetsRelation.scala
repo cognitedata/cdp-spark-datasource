@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.implicits._
+import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common._
@@ -24,7 +24,7 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
 
   Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, AssetsReadSchema]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, AssetsReadSchema]] = {
     val (ids, filters) =
       pushdownToFilters(sparkFilters, assetsFilterFromMap, AssetsFilter(assetSubtreeIds = subtreeIds))
     executeFilter(client.assets, filters, ids, config.partitions, config.limitPerPartition)
@@ -58,7 +58,7 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
       assetSubtreeIds = subtreeIds
     )
 
-  override def insert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def insert(rows: Seq[Row]): IO[Unit] = {
     val assetsInsertions = rows.map(fromRow[AssetsInsertSchema](_))
     val assets = assetsInsertions.map(
       _.into[AssetCreate]
@@ -66,29 +66,29 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
         .transform)
     client.assets
       .create(assets)
-      .flatTap(_ => incMetrics(itemsCreated, assets.size)) *> TracedIO.unit
+      .flatTap(_ => incMetrics(itemsCreated, assets.size)) *> IO.unit
   }
 
   private def isUpdateEmpty(u: AssetUpdate): Boolean = u == AssetUpdate()
 
-  override def update(rows: Seq[Row]): TracedIO[Unit] = {
+  override def update(rows: Seq[Row]): IO[Unit] = {
     val assetUpdates = rows.map(r => fromRow[AssetsUpsertSchema](r))
 
-    updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate, Assets[TracedIO], Asset](
+    updateByIdOrExternalId[AssetsUpsertSchema, AssetUpdate, Assets[IO], Asset](
       assetUpdates,
       client.assets,
       isUpdateEmpty
     )
   }
 
-  override def delete(rows: Seq[Row]): TracedIO[Unit] = {
+  override def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(fromRow[DeleteItemByCogniteId](_))
     deleteWithIgnoreUnknownIds(client.assets, deletes.map(_.toCogniteId), config.ignoreUnknownIds)
   }
 
-  override def upsert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
     val assets = rows.map(fromRow[AssetsUpsertSchema](_))
-    genericUpsert[Asset, AssetsUpsertSchema, AssetCreate, AssetUpdate, Assets[TracedIO]](
+    genericUpsert[Asset, AssetsUpsertSchema, AssetCreate, AssetUpdate, Assets[IO]](
       assets,
       isUpdateEmpty,
       client.assets,
@@ -96,10 +96,10 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
     )
   }
 
-  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): TracedIO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
     val assetsUpserts = rows.map(fromRow[AssetsUpsertSchema](_))
     val assets = assetsUpserts.map(_.transformInto[AssetCreate])
-    createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, AssetCreate, Option, Assets[TracedIO]](
+    createOrUpdateByExternalId[Asset, AssetUpdate, AssetCreate, AssetCreate, Option, Assets[IO]](
       Set.empty,
       assets,
       client.assets,

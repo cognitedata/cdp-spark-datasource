@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import com.cognite.sdk.scala.v1._
 import fs2.{Chunk, Pull}
 import org.apache.spark.rdd.RDD
@@ -36,7 +37,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
 
   def toRow(requiredColumns: Array[String])(item: A): Row
 
-  def delete(rows: Seq[Row]): TracedIO[Unit] = {
+  def delete(rows: Seq[Row]): IO[Unit] = {
     val deleteRanges =
       rows
         .map(fromRow[DeleteDataPointsItem](_))
@@ -49,22 +50,14 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
     val partitionCols =
       data.schema.fieldNames.filter(f => f.equalsIgnoreCase("id") || f.equalsIgnoreCase("externalId"))
     import org.apache.spark.sql.functions.col
-    config
-      .tracePure("insert")(
-        commonSpan =>
-          data
-            .repartition(partitions, partitionCols.map(col).toIndexedSeq: _*)
-            .foreachPartition(
-              (rows: Iterator[Row]) =>
-                TracedIO
-                  .child(commonSpan, "partition")(
-                    insertRowIterator(rows)
-                  )
-                  .unsafeRunSync()))
-      .unsafeRunSync()
+    data
+      .repartition(partitions, partitionCols.map(col).toIndexedSeq: _*)
+      .foreachPartition((rows: Iterator[Row]) => {
+        insertRowIterator(rows).unsafeRunSync()
+      })
   }
 
-  def insertRowIterator(rows: Iterator[Row]): TracedIO[Unit]
+  def insertRowIterator(rows: Iterator[Row]): IO[Unit]
 
   override def buildScan(): RDD[Row] = buildScan(Array.empty, Array.empty)
 
@@ -157,12 +150,12 @@ object DataPointsRelationV1 {
     }
 
   def getAllDataPoints[R](
-      queryMethod: (CogniteId, Instant, Instant, Int) => TracedIO[(Option[Instant], Seq[R])],
+      queryMethod: (CogniteId, Instant, Instant, Int) => IO[(Option[Instant], Seq[R])],
       batchSize: Int,
       id: CogniteId,
       lowerLimit: Instant,
       upperLimit: Instant,
-      nPointsRemaining: Option[Int] = None): Pull[TracedIO, R, Unit] =
+      nPointsRemaining: Option[Int] = None): Pull[IO, R, Unit] =
     if (lowerLimit.toEpochMilli >= upperLimit.toEpochMilli || nPointsRemaining.exists(_ <= 0)) {
       Pull.done
     } else {

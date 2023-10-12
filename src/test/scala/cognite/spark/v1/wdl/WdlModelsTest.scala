@@ -1,8 +1,6 @@
 package cognite.spark.v1.wdl
 
-import cats.effect.IO
 import cognite.spark.v1.{CdfSparkException, SparkTest}
-import natchez.noop.NoopEntrypoint
 import org.scalatest.{FlatSpec, Matchers}
 
 class WdlModelsTest extends FlatSpec with Matchers with SparkTest {
@@ -58,17 +56,10 @@ class WdlModelsTest extends FlatSpec with Matchers with SparkTest {
     import cognite.spark.v1.CdpConnector._
     for (model <- WdlModels.models) {
       model.ingest match {
-        case Some(k) =>
-          NoopEntrypoint[IO]()
-            .root("getschema")
-            .use(writeClient.wdl.getSchema(k.schemaName).run)
-            .unsafeRunSync()
+        case Some(k) => writeClient.wdl.getSchema(k.schemaName).unsafeRunSync()
         case None =>
       }
-      NoopEntrypoint[IO]()
-        .root("getschema")
-        .use(writeClient.wdl.getSchema(model.retrieve.schemaName).run)
-        .unsafeRunSync()
+      writeClient.wdl.getSchema(model.retrieve.schemaName).unsafeRunSync()
     }
   }
 }
