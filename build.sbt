@@ -160,31 +160,6 @@ lazy val library = (project in file("."))
     buildInfoPackage := "cognite.spark.cdf_spark_datasource"
   )
 
-lazy val performancebench = (project in file("performancebench"))
-  .enablePlugins(JavaAppPackaging, UniversalPlugin, DockerPlugin)
-  .dependsOn(library)
-  .settings(
-    commonSettings,
-    publish / skip := true,
-    name := "cdf-spark-performance-bench",
-    fork := true,
-    libraryDependencies ++= Seq(
-      "io.prometheus" % "simpleclient" % prometheusVersion,
-      "io.prometheus" % "simpleclient_httpserver" % prometheusVersion,
-      "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
-      "org.log4s" %% "log4s" % log4sVersion,
-      "org.apache.spark" %% "spark-core" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-    ),
-    dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",
-    dockerCommands ++= Seq(
-      Cmd("ENV", s"JAVA_MAIN_CLASS=${(Compile / mainClass).value.get}"),
-      Cmd("ENV", "JAVA_APP_DIR=/opt/docker/lib")
-    ),
-  )
-
 lazy val fatJarShaded = project
   .enablePlugins(AssemblyPlugin)
   .dependsOn(library)
