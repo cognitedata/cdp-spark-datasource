@@ -24,19 +24,18 @@ abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
   @transient lazy protected val itemsUpserted: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.upserted")
 
-  @transient lazy val client: GenericClient[TracedIO] =
+  @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
-  @transient lazy val alphaClient: GenericClient[TracedIO] =
+  @transient lazy val alphaClient: GenericClient[IO] =
     CdpConnector.clientFromConfig(config, Some("alpha"))
 
-  def incMetrics(counter: Counter, count: Int): TracedIO[Unit] =
-    TracedIO.liftIO(
-      IO(
-        if (config.collectMetrics) {
-          counter.inc(count.toLong)
-        }
-      ))
+  def incMetrics(counter: Counter, count: Int): IO[Unit] =
+    IO(
+      if (config.collectMetrics) {
+        counter.inc(count.toLong)
+      }
+    )
 
   // Needed for labels property when transforming from UpsertSchema to Update
   implicit def seqStrToCogIdSetter

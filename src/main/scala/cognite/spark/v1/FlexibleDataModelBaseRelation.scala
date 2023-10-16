@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import com.cognite.sdk.scala.v1.GenericClient
@@ -42,7 +43,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     )
 
   def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, ProjectedFlexibleDataModelInstance]]
+      client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]]
 
   protected def toRow(a: ProjectedFlexibleDataModelInstance): Row = {
     if (config.collectMetrics) {

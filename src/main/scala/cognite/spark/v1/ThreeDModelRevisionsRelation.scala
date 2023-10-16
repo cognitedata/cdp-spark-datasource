@@ -1,5 +1,6 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.v1.{GenericClient, ThreeDRevision}
 import fs2.Stream
@@ -32,6 +33,6 @@ class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(val sq
   override def uniqueId(a: ThreeDRevision): Long = a.id
 
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, ThreeDRevision]] =
+      client: GenericClient[IO]): Seq[Stream[IO, ThreeDRevision]] =
     Seq(client.threeDRevisions(modelId).list(config.limitPerPartition))
 }

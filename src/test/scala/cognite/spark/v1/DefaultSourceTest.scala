@@ -3,15 +3,12 @@ package cognite.spark.v1
 import cats.effect.IO
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId}
-import natchez.noop.NoopEntrypoint
 import org.scalatest.{Matchers, WordSpec}
 import sttp.client3.{SttpBackend, UriContext}
 
 class DefaultSourceTest extends WordSpec with Matchers {
 
-  implicit val backend: SttpBackend[TracedIO, Any] = {
-    NoopEntrypoint[IO]().root("backend").use(CdpConnector.retryingSttpBackend(3, 5).run)
-  }.unsafeRunSync()(CdpConnector.ioRuntime)
+  implicit val backend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(3, 5)
 
   "DefaultSource" should {
     "parseAuth and fall back in order" should {
@@ -105,16 +102,13 @@ class DefaultSourceTest extends WordSpec with Matchers {
         DefaultSource.parseCogniteIds("\"[123,456]\"") shouldBe List(CogniteExternalId("[123,456]"))
       }
       "parse arrays according to their contents" in {
-        DefaultSource.parseCogniteIds("""[123, "123"]""") shouldBe List(
-          CogniteInternalId(123),
-          CogniteExternalId("123"))
+        DefaultSource.parseCogniteIds("""[123, "123"]""") shouldBe List(CogniteInternalId(123), CogniteExternalId("123"))
       }
       "parse other valid json as externalId" in {
-        DefaultSource.parseCogniteIds("""{"key": 123}""") shouldBe List(
-          CogniteExternalId("""{"key": 123}"""))
-        DefaultSource.parseCogniteIds("""[123, "123", {"abc": 0} ]""") shouldBe List(
-          CogniteExternalId("""[123, "123", {"abc": 0} ]"""))
+        DefaultSource.parseCogniteIds("""{"key": 123}""") shouldBe List(CogniteExternalId("""{"key": 123}"""))
+        DefaultSource.parseCogniteIds("""[123, "123", {"abc": 0} ]""") shouldBe List(CogniteExternalId("""[123, "123", {"abc": 0} ]"""))
       }
     }
   }
 }
+

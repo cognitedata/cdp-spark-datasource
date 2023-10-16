@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cats.Id
-import cats.implicits._
+import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.WithRequiredExternalId
@@ -26,7 +26,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: RelationshipsReadSchema): String = a.externalId
 
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, RelationshipsReadSchema]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, RelationshipsReadSchema]] = {
     val (ids, filters) =
       pushdownToFilters(sparkFilters, relationshipsFilterFromMap, RelationshipsFilter())
 
@@ -53,15 +53,15 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       createdTime = timeRange(m, "createdTime")
     )
 
-  override def insert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def insert(rows: Seq[Row]): IO[Unit] = {
     val relationships =
       rows.map(fromRow[RelationshipsInsertSchema](_)).map(relationshipInsertSchemaToRelationshipCreate)
     client.relationships
       .create(relationships)
-      .flatTap(_ => incMetrics(itemsCreated, relationships.length)) *> TracedIO.unit
+      .flatTap(_ => incMetrics(itemsCreated, relationships.length)) *> IO.unit
   }
 
-  override def delete(rows: Seq[Row]): TracedIO[Unit] = {
+  override def delete(rows: Seq[Row]): IO[Unit] = {
     val relationshipIds = rows.map(fromRow[RelationshipsDeleteSchema](_)).map(_.externalId)
     client.relationships
       .deleteByExternalIds(relationshipIds)
@@ -69,7 +69,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   // scalastyle:off no.whitespace.after.left.bracket method.length
-  override def upsert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
     val relationships = rows.map(fromRow[RelationshipsUpsertSchema](_))
     createOrUpdateByExternalId[
       Relationship,
@@ -77,10 +77,10 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       RelationshipCreate,
       RelationshipsUpsertSchema,
       Id,
-      Relationships[TracedIO]](Set.empty, relationships, client.relationships, doUpsert = true)
+      Relationships[IO]](Set.empty, relationships, client.relationships, doUpsert = true)
   }
 
-  override def update(rows: Seq[Row]): TracedIO[Unit] = {
+  override def update(rows: Seq[Row]): IO[Unit] = {
     val relationshipsUpdates = rows.map(fromRow[RelationshipsUpsertSchema](_))
     createOrUpdateByExternalId[
       Relationship,
@@ -88,7 +88,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       RelationshipCreate,
       RelationshipsUpsertSchema,
       Id,
-      Relationships[TracedIO]](
+      Relationships[IO]](
       relationshipsUpdates.map(_.externalId).toSet,
       relationshipsUpdates,
       client.relationships,

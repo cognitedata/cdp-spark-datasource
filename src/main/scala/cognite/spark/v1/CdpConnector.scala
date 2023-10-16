@@ -1,11 +1,8 @@
 package cognite.spark.v1
 
-import cats.data.Kleisli
 import cats.effect.IO
-import cats.effect.kernel.Sync
 import cats.effect.std.Queue
 import cats.effect.unsafe.{IORuntime, IORuntimeConfig}
-import cats.implicits._
 import com.cognite.sdk.scala.sttp.{
   BackpressureThrottleBackend,
   GzipBackend,
@@ -14,10 +11,6 @@ import com.cognite.sdk.scala.sttp.{
 }
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
-import com.lightstep.opentelemetry.launcher.{OpenTelemetryConfiguration, Propagator}
-import natchez.noop.NoopEntrypoint
-import natchez.{EntryPoint, Span}
-import natchez.opentelemetry.OpenTelemetry
 import org.apache.spark.datasource.MetricsSource
 import org.log4s._
 import sttp.client3.SttpBackend
@@ -60,47 +53,23 @@ object CdpConnector {
     () => (),
     IORuntimeConfig()
   )
-  @transient lazy val tracingEntryPoint: EntryPoint[IO] = {
-    sys.env.get("OTEL_COLLECTOR_URL") match {
-      case Some(collectorUrl) => {
-        val serviceName = sys.env.getOrElse("OTEL_SERVICE_NAME", "cdf-spark-connector")
-        val serviceVersion = sys.env.getOrElse("OTEL_SERVICE_VERSION", "latest")
-        val otel = OpenTelemetryConfiguration.newBuilder
-          .setServiceName(serviceName)
-          .setServiceVersion(serviceVersion)
-          .setTracesEndpoint(collectorUrl)
-          // setPropagator is actually addPropagator
-          .setPropagator(Propagator.BAGGAGE)
-          .setPropagator(Propagator.TRACE_CONTEXT)
-          .buildOpenTelemetry()
-          .getOpenTelemetrySdk
-        OpenTelemetry.entryPointFor(otel)(Sync[IO]).unsafeRunSync()
-      }
-      case _ => {
-        logger.info("OTEL_COLLECTOR_URL isn't set, using no-op tracing")
-        NoopEntrypoint[IO]()
-      }
-    }
-  }
-  private val sttpBackend: SttpBackend[TracedIO, Any] = {
-    new GzipBackend[TracedIO, Any](
-      AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
-  }
+  private val sttpBackend: SttpBackend[IO, Any] =
+    new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
   private def incMetrics(
       metricsPrefix: String,
       namePrefix: String,
-      maybeStatus: Option[StatusCode]): TracedIO[Unit] =
-    TracedIO.delay(MetricsSource.getOrCreateCounter(metricsPrefix, s"${namePrefix}requests").inc()) *>
+      maybeStatus: Option[StatusCode]): IO[Unit] =
+    IO.delay(MetricsSource.getOrCreateCounter(metricsPrefix, s"${namePrefix}requests").inc()) *>
       (maybeStatus match {
         case None =>
-          TracedIO.delay(
+          IO.delay(
             MetricsSource
               .getOrCreateCounter(metricsPrefix, s"${namePrefix}requests.response.failure")
               .inc()
           )
         case Some(status) if status.code >= 400 =>
-          TracedIO.delay(
+          IO.delay(
             MetricsSource
               .getOrCreateCounter(
                 metricsPrefix,
@@ -108,7 +77,7 @@ object CdpConnector {
                   s".response")
               .inc()
           )
-        case _ => TracedIO.unit
+        case _ => IO.unit
       })
 
   def retryingSttpBackend(
@@ -116,52 +85,51 @@ object CdpConnector {
       maxRetryDelaySeconds: Int,
       maxParallelRequests: Int = Constants.DefaultParallelismPerPartition,
       metricsPrefix: Option[String] = None
-  ): TracedIO[SttpBackend[TracedIO, Any]] = {
+  ): SttpBackend[IO, Any] = {
     val metricsBackend =
       metricsPrefix.fold(sttpBackend)(
         metricsPrefix =>
-          new MetricsBackend[TracedIO, Any](
+          new MetricsBackend[IO, Any](
             sttpBackend, {
               case RequestResponseInfo(tags, maybeStatus) =>
                 incMetrics(metricsPrefix, "", maybeStatus) *>
                   tags
                     .get(GenericClient.RESOURCE_TYPE_TAG)
                     .map(service => incMetrics(metricsPrefix, s"${service.toString}.", maybeStatus))
-                    .getOrElse(TracedIO.unit)
+                    .getOrElse(IO.unit)
             }
         ))
     // this backend throttles when rate limiting from the serivce is encountered
-    val makeQueueOf1 = (for {
+    val makeQueueOf1 = for {
       queue <- Queue.bounded[IO, Unit](1)
       _ <- queue.offer(())
-    } yield queue).unsafeRunSync().mapK(Kleisli.liftK[IO, Span[IO]])
+    } yield queue
     val throttledBackend =
-      new BackpressureThrottleBackend[TracedIO, Any](metricsBackend, makeQueueOf1, 800.milliseconds)
-    val retryingBackend: SttpBackend[TracedIO, Any] = new RetryingBackend[TracedIO, Any](
+      new BackpressureThrottleBackend[IO, Any](
+        metricsBackend,
+        makeQueueOf1.unsafeRunSync(),
+        800.milliseconds)
+    val retryingBackend = new RetryingBackend[IO, Any](
       throttledBackend,
       maxRetries = maxRetries,
       maxRetryDelay = maxRetryDelaySeconds.seconds)
     // limit the number of concurrent requests
-    val limitedBackend: TracedIO[SttpBackend[TracedIO, Any]] =
-      RateLimitingBackend[TracedIO, Any](retryingBackend, maxParallelRequests)
-        .map(x => x)
+    val limitedBackend: SttpBackend[IO, Any] =
+      RateLimitingBackend[Any](retryingBackend, maxParallelRequests)
     metricsPrefix.fold(limitedBackend)(
       metricsPrefix =>
-        limitedBackend.map(
-          limitedBackend =>
-            new MetricsBackend[TracedIO, Any](
-              limitedBackend,
-              _ =>
-                TracedIO.delay(
-                  MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries").inc()
-              )
-          ))
+        new MetricsBackend[IO, Any](
+          limitedBackend,
+          _ =>
+            IO.delay(
+              MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries").inc()
+          )
+      )
     )
   }
 
-  def clientFromConfig(
-      config: RelationConfig,
-      cdfVersion: Option[String] = None): GenericClient[TracedIO] = {
+  def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
+    import natchez.Trace.Implicits.noop // TODO: add tracing
     val metricsPrefix = if (config.collectMetrics) {
       Some(config.metricsPrefix)
     } else {
@@ -169,29 +137,16 @@ object CdpConnector {
     }
 
     //Use separate backend for auth, so we should not retry as much as maxRetries config
-    val authSttpBackend = config
-      .trace("create retryingSttpBackend for auth")(
-        retryingSttpBackend(
-          5,
-          config.maxRetryDelaySeconds,
-          config.parallelismPerPartition,
-          metricsPrefix)
-      )
-      .unsafeRunSync()
-    val authProvider = tracingEntryPoint
-      .root("authSttpBackend")
-      .use(span => config.auth.provider(implicitly, authSttpBackend).run(span))
-      .unsafeRunSync()
+    val authSttpBackend =
+      retryingSttpBackend(5, config.maxRetryDelaySeconds, config.parallelismPerPartition, metricsPrefix)
+    val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunSync()
 
-    implicit val sttpBackend: SttpBackend[TracedIO, Any] =
-      config
-        .trace("create retryingSttpBackend")(
-          retryingSttpBackend(
-            config.maxRetries,
-            config.maxRetryDelaySeconds,
-            config.parallelismPerPartition,
-            metricsPrefix))
-        .unsafeRunSync()
+    implicit val sttpBackend: SttpBackend[IO, Any] =
+      retryingSttpBackend(
+        config.maxRetries,
+        config.maxRetryDelaySeconds,
+        config.parallelismPerPartition,
+        metricsPrefix)
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,

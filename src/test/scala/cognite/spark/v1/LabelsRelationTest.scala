@@ -1,10 +1,8 @@
 package cognite.spark.v1
 
-import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, Label, LabelCreate, LabelsFilter}
-import natchez.noop.NoopEntrypoint
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Inspectors, Matchers, ParallelTestExecution}
 
@@ -23,20 +21,12 @@ class LabelsRelationTest
   destinationDf.createOrReplaceTempView("destinationLabel")
 
   val ds: Seq[DataSet] =
-    NoopEntrypoint[IO]()
-      .root("datasets")
-      .use(
-        writeClient.dataSets
-          .retrieveByExternalIds(Seq(datasetLabels), ignoreUnknownIds = true)
-          .run)
+    writeClient.dataSets
+      .retrieveByExternalIds(Seq(datasetLabels), ignoreUnknownIds = true)
       .unsafeRunSync()
   val dsId: Long = if (ds.isEmpty) {
-    NoopEntrypoint[IO]()
-      .root("datasets")
-      .use(
-        writeClient.dataSets
-          .createOne(DataSetCreate(externalId = Some(datasetLabels), name = Some(datasetLabels)))
-          .run)
+    writeClient.dataSets
+      .createOne(DataSetCreate(externalId = Some(datasetLabels), name = Some(datasetLabels)))
       .unsafeRunSync()
       .id
   } else {
@@ -48,12 +38,8 @@ class LabelsRelationTest
     val name = "test-read"
     val description = "Created by test for spark data source"
 
-    NoopEntrypoint[IO]()
-      .root("labels")
-      .use(
-        writeClient.labels
-          .create(Seq(LabelCreate(externalId, name, Some(description), dataSetId = Some(dsId))))
-          .run)
+    writeClient.labels
+      .create(Seq(LabelCreate(externalId, name, Some(description), dataSetId = Some(dsId))))
       .unsafeRunSync()
 
     val rows = spark.read
@@ -71,10 +57,7 @@ class LabelsRelationTest
     assert(label.description.contains(description))
     assert(label.dataSetId.contains(dsId))
 
-    NoopEntrypoint[IO]()
-      .root("datasets")
-      .use(writeClient.labels.deleteByExternalId(externalId).run)
-      .unsafeRunSync()
+    writeClient.labels.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to write a label" taggedAs (WriteTest) in {
@@ -92,16 +75,11 @@ class LabelsRelationTest
       .useOIDCWrite
       .save()
 
-    val labels =
-      NoopEntrypoint[IO]()
-        .root("labels")
-        .use(
-          writeClient.labels
-            .filter(LabelsFilter(externalIdPrefix = Some(externalId)))
-            .compile
-            .toList
-            .run)
-        .unsafeRunSync()
+    val labels = writeClient.labels
+      .filter(LabelsFilter(externalIdPrefix = Some(externalId)))
+      .compile
+      .toList
+      .unsafeRunSync()
 
     assert(labels.length == 1)
 
@@ -112,10 +90,7 @@ class LabelsRelationTest
     assert(label.description.contains(description))
     assert(label.dataSetId.contains(dsId))
 
-    NoopEntrypoint[IO]()
-      .root("labels")
-      .use(writeClient.labels.deleteByExternalId(externalId).run)
-      .unsafeRunSync()
+    writeClient.labels.deleteByExternalId(externalId).unsafeRunSync()
   }
 
   it should "be able to delete a label" taggedAs (WriteTest) in {
@@ -123,10 +98,7 @@ class LabelsRelationTest
     val name = "test-delete"
     val description = "Created by test for spark data source"
 
-    NoopEntrypoint[IO]()
-      .root("labels")
-      .use(writeClient.labels.create(Seq(LabelCreate(externalId, name, Some(description)))).run)
-      .unsafeRunSync()
+    writeClient.labels.create(Seq(LabelCreate(externalId, name, Some(description)))).unsafeRunSync()
 
     spark
       .sql(s"select externalId from destinationLabel where externalId = '$externalId'")
@@ -137,11 +109,7 @@ class LabelsRelationTest
       .option("onconflict", "delete")
       .save()
 
-    val labels =
-      NoopEntrypoint[IO]()
-        .root("datasets")
-        .use(writeClient.labels.filter(LabelsFilter(Some(externalId))).compile.toList.run)
-        .unsafeRunSync()
+    val labels = writeClient.labels.filter(LabelsFilter(Some(externalId))).compile.toList.unsafeRunSync()
     assert(labels.isEmpty)
   }
 }

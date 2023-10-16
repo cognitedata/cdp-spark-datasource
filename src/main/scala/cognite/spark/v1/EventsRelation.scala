@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.implicits._
+import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{WithExternalIdGeneric, WithId}
@@ -19,7 +19,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, Event]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, Event]] = {
     val (ids, filters) = pushdownToFilters(sparkFilters, eventsFilterFromMap, EventsFilter())
 
     executeFilter(client.events, filters, ids, config.partitions, config.limitPerPartition)
@@ -39,42 +39,42 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       externalIdPrefix = m.get("externalIdPrefix")
     )
 
-  override def insert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def insert(rows: Seq[Row]): IO[Unit] = {
     val events = rows.map(fromRow[EventCreate](_))
     client.events
       .create(events)
-      .flatTap(_ => incMetrics(itemsCreated, events.size)) *> TracedIO.unit
+      .flatTap(_ => incMetrics(itemsCreated, events.size)) *> IO.unit
   }
 
   private def isUpdateEmpty(u: EventUpdate): Boolean = u.equals(EventUpdate())
 
-  override def update(rows: Seq[Row]): TracedIO[Unit] = {
+  override def update(rows: Seq[Row]): IO[Unit] = {
     val eventUpdates = rows.map(r => fromRow[EventsUpsertSchema](r))
-    updateByIdOrExternalId[EventsUpsertSchema, EventUpdate, Events[TracedIO], Event](
+    updateByIdOrExternalId[EventsUpsertSchema, EventUpdate, Events[IO], Event](
       eventUpdates,
       client.events,
       isUpdateEmpty
     )
   }
 
-  override def delete(rows: Seq[Row]): TracedIO[Unit] = {
+  override def delete(rows: Seq[Row]): IO[Unit] = {
     val deletes = rows.map(fromRow[DeleteItemByCogniteId](_))
     deleteWithIgnoreUnknownIds(client.events, deletes.map(_.toCogniteId), config.ignoreUnknownIds)
   }
 
-  override def upsert(rows: Seq[Row]): TracedIO[Unit] = {
+  override def upsert(rows: Seq[Row]): IO[Unit] = {
     val events = rows.map(fromRow[EventsUpsertSchema](_))
 
-    genericUpsert[Event, EventsUpsertSchema, EventCreate, EventUpdate, Events[TracedIO]](
+    genericUpsert[Event, EventsUpsertSchema, EventCreate, EventUpdate, Events[IO]](
       events,
       isUpdateEmpty,
       client.events)
   }
 
-  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): TracedIO[Unit] = {
+  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
     val events = rows.map(fromRow[EventCreate](_))
 
-    createOrUpdateByExternalId[Event, EventUpdate, EventCreate, EventCreate, Option, Events[TracedIO]](
+    createOrUpdateByExternalId[Event, EventUpdate, EventCreate, EventCreate, Option, Events[IO]](
       Set.empty,
       events,
       client.events,

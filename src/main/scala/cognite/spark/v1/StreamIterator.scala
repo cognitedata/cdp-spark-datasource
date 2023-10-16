@@ -4,7 +4,6 @@ import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import fs2.{Chunk, Stream}
-import natchez.Span
 import org.log4s._
 
 import java.util.concurrent.{ArrayBlockingQueue, Executors}
@@ -20,13 +19,8 @@ object StreamIterator {
     .setDaemon(true)
     .build()
 
-  // scalastyle:off
-  def apply[A](
-      stream: Stream[TracedIO, A],
-      queueBufferSize: Int,
-      processChunk: Option[Chunk[A] => Chunk[A]])(
-      implicit IORuntime: IORuntime,
-      parentSpan: Span[IO]): Iterator[A] = {
+  def apply[A](stream: Stream[IO, A], queueBufferSize: Int, processChunk: Option[Chunk[A] => Chunk[A]])(
+      implicit IORuntime: IORuntime): Iterator[A] = {
     // This pool will be used for draining the queue
     // Draining needs to have a separate pool to continuously drain the queue
     // while another thread pool fills the queue with data from CDF
@@ -40,24 +34,17 @@ object StreamIterator {
 
     val putOnQueueStream =
       enqueueStreamResults(stream, queue, queueBufferSize, processChunk)
-        .handleErrorWith(
-          e =>
-            Stream.eval(TracedIO.liftIO(IO.blocking(queue.put(Left(e))))) ++ Stream.eval(TracedIO
-              .liftIO(IO.blocking {
-                if (!drainPool.isShutdown) {
-                  drainPool.shutdownNow()
-                }
-              })))
+        .handleErrorWith(e =>
+          Stream.eval(IO.blocking(queue.put(Left(e)))) ++ Stream.eval(IO.blocking {
+            if (!drainPool.isShutdown) {
+              drainPool.shutdownNow()
+            }
+          }))
 
     // Continuously read the stream data into the queue on a separate thread pool
     val streamsToQueue: Future[Unit] = Future {
       try {
-        parentSpan
-          .span("drain")
-          .use(
-            putOnQueueStream.compile.drain.run
-          )
-          .unsafeRunSync()
+        putOnQueueStream.compile.drain.unsafeRunSync()
       } catch {
         case _: InterruptedException =>
         // Ignore this, as it means there was an exception thrown while draining the
@@ -74,20 +61,19 @@ object StreamIterator {
 
     queueIterator(queue, streamsToQueue)
   }
-  // scalastyle:on
 
   // We avoid draining all streams from CDF completely and then building the Iterator,
   // by using a blocking EitherQueue.
   def enqueueStreamResults[A](
-      stream: Stream[TracedIO, A],
+      stream: Stream[IO, A],
       queue: EitherQueue[A],
       queueBufferSize: Int,
-      processChunk: Option[Chunk[A] => Chunk[A]]): Stream[TracedIO, Unit] =
+      processChunk: Option[Chunk[A] => Chunk[A]]): Stream[IO, Unit] =
     stream.chunks.parEvalMapUnordered(queueBufferSize) { chunk =>
-      TracedIO.liftIO(IO.blocking {
+      IO.blocking {
         val processedChunk = processChunk.map(f => f(chunk)).getOrElse(chunk)
         queue.put(Right(processedChunk))
-      })
+      }
     }
 
   @SuppressWarnings(
