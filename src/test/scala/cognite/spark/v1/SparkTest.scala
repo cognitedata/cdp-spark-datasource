@@ -58,7 +58,6 @@ trait SparkTest {
     clientSecret = OIDCWrite.clientSecret,
     scopes = List(OIDCWrite.scopes),
     audience = Some(OIDCWrite.audience),
-    cdfProjectName = OIDCWrite.project,
   )
   implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(15, 30)
 
@@ -66,7 +65,7 @@ trait SparkTest {
     OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
   val writeClient: GenericClient[IO] = new GenericClient(
     applicationName = "jetfire-test",
-    projectName = writeCredentials.cdfProjectName,
+    projectName = OIDCWrite.project,
     baseUrl = OIDCWrite.baseUrl,
     authProvider = writeAuthProvider,
     apiVersion = None,
@@ -100,6 +99,7 @@ trait SparkTest {
   // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211
   private val readClientSecret = System.getenv("TEST_OIDC_READ_CLIENT_SECRET")
   private val readAadTenant = System.getenv("TEST_OIDC_READ_TENANT")
+  val readProject = System.getenv("TEST_OIDC_READ_PROJECT")
 
   assert(
     readClientId != null && !readClientId.isEmpty,
@@ -110,6 +110,9 @@ trait SparkTest {
   assert(
     readAadTenant != null && !readAadTenant.isEmpty,
     "Environment variable \"TEST_OIDC_READ_TENANT\" was not set")
+  assert(
+    readProject != null && !readProject.isEmpty,
+    "Environment variable \"TEST_OIDC_READ_PROJECT\" was not set")
 
   private val readTokenUri = s"https://login.microsoftonline.com/$readAadTenant/oauth2/v2.0/token"
 
@@ -117,8 +120,7 @@ trait SparkTest {
     tokenUri = uri"$readTokenUri",
     clientId = readClientId,
     clientSecret = readClientSecret,
-    scopes = List("https://api.cognitedata.com/.default"),
-    cdfProjectName = "publicdata"
+    scopes = List("https://api.cognitedata.com/.default")
   )
 
   def dataFrameReaderUsingOidc: DataFrameReader =
@@ -127,7 +129,7 @@ trait SparkTest {
       .option("tokenUri", readTokenUri)
       .option("clientId", readClientId)
       .option("clientSecret", readClientSecret)
-      .option("project", "publicdata")
+      .option("project", readProject)
       .option("scopes", "https://api.cognitedata.com/.default")
 
   val testDataSetId = 86163806167772L
@@ -157,8 +159,7 @@ trait SparkTest {
       tokenUri = bluefieldTokenUri,
       clientId = bluefieldClientId,
       clientSecret = bluefieldClientSecret,
-      scopes = List("https://bluefield.cognitedata.com/.default"),
-      cdfProjectName = "extractor-bluefield-testing"
+      scopes = List("https://bluefield.cognitedata.com/.default")
     )
 
     val authProvider =
