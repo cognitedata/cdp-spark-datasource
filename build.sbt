@@ -2,9 +2,8 @@ import com.typesafe.sbt.packager.docker.Cmd
 import sbtassembly.AssemblyPlugin.autoImport._
 import sbtassembly.MergeStrategy
 
-val scala212 = "2.12.15"
 val scala213 = "2.13.8"
-val supportedScalaVersions = List(scala212, scala213)
+val supportedScalaVersions = List(scala213)
 val sparkVersion = "3.3.3"
 val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
@@ -26,12 +25,12 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.2." + patchVersion,
+  version := "3.3." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
-  scalaVersion := scala212, // default to Scala 2.12
+  scalaVersion := scala213, // default to Scala 2.13
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
