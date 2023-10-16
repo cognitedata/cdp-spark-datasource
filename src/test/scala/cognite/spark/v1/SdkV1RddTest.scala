@@ -33,7 +33,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val sdkRdd = {
       val relationConfig = getDefaultConfig(
         CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials),
-        readOidcCredentials.cdfProjectName
+        readProject
       )
       SdkV1Rdd[String, String](
         spark.sparkContext,
