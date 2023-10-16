@@ -346,12 +346,7 @@ object DefaultSource {
       }
       clientId <- parameters.get("clientId")
       clientSecret <- parameters.get("clientSecret")
-      clientCredentials = OAuth2.ClientCredentials(
-        tokenUri,
-        clientId,
-        clientSecret,
-        scopes,
-        audience)
+      clientCredentials = OAuth2.ClientCredentials(tokenUri, clientId, clientSecret, scopes, audience)
     } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 
     val session = for {
