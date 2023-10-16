@@ -180,12 +180,12 @@
         },
         "cognite-sdk": {
             "hashes": [
-                "sha256:58d2db688890806b583d68e69374e99bc8cd33686159024b96d9792fe88b5064",
-                "sha256:a1372d845915e4b9f55ebfe75bcc3045464a53d4d0335062051c21250194d61c"
+                "sha256:f1c504031b9372253e7d6a78d03754c3df48887b363f63ee1a5f45628d1b2877",
+                "sha256:f2c1bc6553e8a1856494bf0807c55b1505d0b90d9ab15e7b655cf5a8f600a4aa"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8' and python_version < '4.0'",
-            "version": "==6.30.1"
+            "version": "==6.33.1"
         },
         "cryptography": {
             "hashes": [
