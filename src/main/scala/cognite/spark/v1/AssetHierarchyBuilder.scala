@@ -80,7 +80,9 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   def delete(data: DataFrame): Unit =
     data.foreachPartition((rows: Iterator[Row]) => {
-      val deletes = rows.map(r => fromRow[DeleteItemByCogniteId](r))
+      val deletes = rows
+        .map(fromRow[DeleteItemByCogniteId](_))
+        .filter(_ != null)
       Stream
         .fromIterator[IO](deletes, chunkSize = batchSize)
         .chunks
