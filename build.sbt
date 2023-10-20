@@ -190,4 +190,4 @@ lazy val fatJarShaded = project
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 
-javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
+javaOptions ++= Seq("-Xms512M", "-Xmx2048M")
