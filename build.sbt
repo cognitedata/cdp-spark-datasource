@@ -190,4 +190,4 @@ lazy val fatJarShaded = project
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 
-javaOptions ++= Seq("-Xms512M", "-Xmx2048M")
+javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED", "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED", "--add-exports=java.base/sun.util.calendar=ALL-UNNAMED")
