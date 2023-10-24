@@ -20,7 +20,7 @@ jobs:
         run: |
           IMAGE_REVISION=$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)
           BUILD_DATE=$(date +%Y-%m-%dT%H%M)
-          echo 'JAVA_TOOL_OPTIONS="--add-exports=java.base/sun.nio.ch=ALL-UNNAMED --add-exports=java.base/sun.util.calendar=ALL-UNNAMED"' >> $GITHUB_ENV
+          echo 'JAVA_TOOL_OPTIONS="--add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-exports=java.base/sun.util.calendar=ALL-UNNAMED"' >> $GITHUB_ENV
 
           echo "DOCKER_IMAGE_NAME=eu.gcr.io/cognitedata/cdf-spark-performance-bench" >> $GITHUB_ENV
           echo "DOCKER_IMAGE_TAG=$BUILD_DATE-$IMAGE_REVISION" >> $GITHUB_ENV
