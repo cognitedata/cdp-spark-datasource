@@ -24,26 +24,6 @@ class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with 
 
     assert(df.take(1).length > 0)
   }
-  //TODO enable when we get a new set of Aize credentials
-  ignore should "authenticate using client credentials in Aize" in {
-    val aizeClientId = sys.env("AIZE_CLIENT_ID")
-    val aizeClientSecret = sys.env("AIZE_CLIENT_SECRET")
-
-    val df = (
-      spark.read
-        .format(DefaultSource.sparkFormatString)
-        .option("baseUrl", "https://api.cognitedata.com")
-        .option("type", "assets")
-        .option("tokenUri", "https://login.aize.io/oauth/token")
-        .option("clientId", aizeClientId)
-        .option("clientSecret", aizeClientSecret)
-        .option("project", "aize")
-        .option("audience", "https://twindata.io/cdf/T101014843")
-        .option("limitPerPartition", "100")
-        .load()
-      )
-    assert(df.take(1).length > 0)
-  }
 
   it should "throw InvalidAuthentication when project is not provided" in {
     intercept[Exception] {
