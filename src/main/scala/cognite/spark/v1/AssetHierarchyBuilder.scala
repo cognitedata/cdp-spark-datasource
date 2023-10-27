@@ -90,7 +90,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
               .deleteRecursive(ids.map(_.toCogniteId), recursive = true, ignoreUnknownIds = true)
               .flatTap(_ => incMetrics(itemsDeleted, ids.size))
               .map(Seq(_)),
-          batchSize = batchSize,
+          batchSize = batchSize
         ).void.unsafeRunSync()
       })
 
