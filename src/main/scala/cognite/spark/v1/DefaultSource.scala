@@ -399,7 +399,7 @@ object DefaultSource {
     val collectTestMetrics = toBoolean(parameters, "collectTestMetrics")
 
     val enableSinglePartitionDeleteAssetHierarchy =
-      toBoolean(parameters, "enableSinglePartitionDeleteHierarchy")
+      toBoolean(parameters, "enableSinglePartitionDeleteHierarchy", defaultValue = false)
 
     val saveMode = parseSaveMode(parameters)
     val parallelismPerPartition = {
