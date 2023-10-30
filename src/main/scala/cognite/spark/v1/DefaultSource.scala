@@ -398,6 +398,9 @@ object DefaultSource {
     val collectMetrics = toBoolean(parameters, "collectMetrics")
     val collectTestMetrics = toBoolean(parameters, "collectTestMetrics")
 
+    val enableSinglePartitionDeleteAssetHierarchy =
+      toBoolean(parameters, "enableSinglePartitionDeleteHierarchy", defaultValue = false)
+
     val saveMode = parseSaveMode(parameters)
     val parallelismPerPartition = {
       toPositiveInt(parameters, "parallelismPerPartition").getOrElse(
@@ -447,7 +450,8 @@ object DefaultSource {
       deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
       subtrees = subtreesOption,
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
-      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true)
+      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
+      enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy
     )
   }
 

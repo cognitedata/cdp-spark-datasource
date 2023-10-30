@@ -78,8 +78,14 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   import CdpConnector.ioRuntime
 
-  def delete(data: DataFrame): Unit =
-    data.foreachPartition((rows: Iterator[Row]) => {
+  def delete(data: DataFrame): Unit = {
+    val partitionedData = if (config.enableSinglePartitionDeleteAssetHierarchy) {
+      data.repartition(numPartitions = 1)
+    } else {
+      data
+    }
+
+    partitionedData.foreachPartition((rows: Iterator[Row]) => {
       val deletes = rows.map(r => fromRow[DeleteItemByCogniteId](r))
       Stream
         .fromIterator[IO](deletes, chunkSize = batchSize)
@@ -96,6 +102,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         .drain
         .unsafeRunSync()
     })
+  }
 
   def buildFromDf(data: DataFrame): Unit =
     // Do not use .collect to run the builder on one of the executors and not on the driver
