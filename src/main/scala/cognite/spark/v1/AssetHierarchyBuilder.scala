@@ -78,7 +78,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   import CdpConnector.ioRuntime
 
-  def delete(data: DataFrame): Unit = {
+  def delete(data: DataFrame): Unit =
     if (config.enableSinglePartitionDeleteAssetHierarchy) {
       data
         .repartition(numPartitions = 1)
@@ -113,7 +113,6 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           .unsafeRunSync()
       })
     }
-  }
 
   def buildFromDf(data: DataFrame): Unit =
     // Do not use .collect to run the builder on one of the executors and not on the driver
