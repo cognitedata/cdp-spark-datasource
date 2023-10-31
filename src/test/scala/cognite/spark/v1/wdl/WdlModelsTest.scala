@@ -3,6 +3,7 @@ package cognite.spark.v1.wdl
 import cognite.spark.v1.{CdfSparkException, SparkTest}
 import org.scalatest.{FlatSpec, Matchers}
 
+@deprecated("wdl support is deprecated", since = "0")
 class WdlModelsTest extends FlatSpec with Matchers with SparkTest {
   it should "get from ingestion name" in {
     val wellSource = WdlModels.fromIngestionSchemaName("NptIngestion")
