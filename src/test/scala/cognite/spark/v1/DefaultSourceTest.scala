@@ -75,6 +75,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
               "value-ClientId",
               "value-ClientSecret",
               List("value-Scopes"),
+              "value-Project",
               Some("value-Audience")))
         )
       }

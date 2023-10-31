@@ -12,6 +12,7 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
 
 import scala.collection.AbstractIterator
 
+@deprecated("wdl support is deprecated", since = "0")
 class WellDataLayerRDD(
     @transient override val sparkContext: SparkContext,
     val schema: StructType,

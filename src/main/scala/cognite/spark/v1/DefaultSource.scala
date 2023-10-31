@@ -55,6 +55,7 @@ class DefaultSource
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
   }
 
+  @deprecated("wdl support is deprecated", since = "0")
   private def createWellDataLayer(
       parameters: Map[String, String],
       config: RelationConfig,
@@ -174,7 +175,7 @@ class DefaultSource
       case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case "welldatalayer" =>
-        createWellDataLayer(parameters, config, sqlContext)
+        createWellDataLayer(parameters, config, sqlContext): @annotation.nowarn
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -241,7 +242,7 @@ class DefaultSource
         case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
         case "welldatalayer" =>
-          createWellDataLayer(parameters, config, sqlContext)
+          createWellDataLayer(parameters, config, sqlContext): @annotation.nowarn
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {
@@ -346,7 +347,14 @@ object DefaultSource {
       }
       clientId <- parameters.get("clientId")
       clientSecret <- parameters.get("clientSecret")
-      clientCredentials = OAuth2.ClientCredentials(tokenUri, clientId, clientSecret, scopes, audience)
+      project <- parameters.get("project")
+      clientCredentials = OAuth2.ClientCredentials(
+        tokenUri,
+        clientId,
+        clientSecret,
+        scopes,
+        project,
+        audience)
     } yield CdfSparkAuth.OAuth2ClientCredentials(clientCredentials)
 
     val session = for {

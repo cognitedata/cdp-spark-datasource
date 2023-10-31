@@ -3,17 +3,20 @@ package cognite.spark.v1.wdl
 import cognite.spark.v1.CdfSparkException
 import io.circe.{Json, JsonObject}
 
+@deprecated("wdl support is deprecated", since = "0")
 case class WdlModel(
     shortName: String,
     ingest: Option[WdlIngestDefinition],
     retrieve: WdlRetrieveDefinition
 )
 
+@deprecated("wdl support is deprecated", since = "0")
 case class WdlIngestDefinition(
     schemaName: String,
     url: String
 )
 
+@deprecated("wdl support is deprecated", since = "0")
 case class WdlRetrieveDefinition(
     schemaName: String,
     url: String,
@@ -21,6 +24,7 @@ case class WdlRetrieveDefinition(
     transformBody: JsonObject => JsonObject = it => it
 )
 
+@deprecated("wdl support is deprecated", since = "0")
 object WdlModels {
   val models: Seq[WdlModel] = Seq(
     WdlModel(
