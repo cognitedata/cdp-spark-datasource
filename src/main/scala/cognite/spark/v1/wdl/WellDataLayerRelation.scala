@@ -7,6 +7,7 @@ import org.apache.spark.sql.sources.TableScan
 import org.apache.spark.sql.types.{DataType, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+@deprecated("wdl support is deprecated", since = "0")
 class WellDataLayerRelation(
     config: RelationConfig,
     model: String
