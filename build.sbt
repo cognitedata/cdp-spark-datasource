@@ -1,6 +1,8 @@
 import com.typesafe.sbt.packager.docker.Cmd
 import sbtassembly.AssemblyPlugin.autoImport._
 import sbtassembly.MergeStrategy
+import scala.xml.{Node => XmlNode, NodeSeq => XmlNodeSeq, _}
+import scala.xml.transform.{RewriteRule, RuleTransformer}
 
 val scala212 = "2.12.15"
 val scala213 = "2.13.8"
@@ -26,7 +28,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.3." + patchVersion,
+  version := "3.4." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -35,7 +37,6 @@ lazy val commonSettings = Seq(
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
-  libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("releases")
@@ -91,6 +92,7 @@ lazy val structType = (project in file("struct_type"))
     name := "cdf-spark-datasource-struct-type",
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
+      "io.scalaland" %% "chimney" % "0.6.1",
       "org.typelevel" %% "cats-core" % "2.9.0",
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
     ),
@@ -186,6 +188,24 @@ lazy val fatJarShaded = project
       )
     },
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
+    pomPostProcess := { (node: XmlNode) =>
+      new RuleTransformer(new RewriteRule {
+        override def transform(node: XmlNode): XmlNodeSeq = node match {
+          case e: Elem if e.label == "dependency"
+                          && e.child.filter(_.label == "groupId").flatMap(_.text).mkString == "com.cognite.spark.datasource"
+                          && e.child.filter(_.label == "artifactId").flatMap(_.text).mkString.startsWith("cdf-spark-datasource") =>
+            // Omit library artifact from pom's dependencies.
+            // All sbt-assembly settings are kept here and we can't depend on
+            //   Compile / packageBin := (library / assembly).value
+            // as it would try to run sbt-assembly on library too and it doesn't have
+            // all the configuration.
+            // Otoh library itself should remain pure non-fatjar library and know nothing about sbt-assembly.
+            // There could be other ways to achieve the same effect, so far this one is found and it is simple enough.
+            Seq()
+          case _ => node
+        }
+      }).transform(node).head
+    }
   )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
