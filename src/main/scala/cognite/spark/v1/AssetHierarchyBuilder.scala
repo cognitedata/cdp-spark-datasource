@@ -78,31 +78,26 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   import CdpConnector.ioRuntime
 
-  def delete(data: DataFrame): Unit = {
-    val partitionedData = if (config.enableSinglePartitionDeleteAssetHierarchy) {
-      data.repartition(numPartitions = 1)
-    } else {
-      data
-    }
-
-    partitionedData.foreachPartition((rows: Iterator[Row]) => {
-      val deletes = rows.map(r => fromRow[DeleteItemByCogniteId](r))
-      Stream
-        .fromIterator[IO](deletes, chunkSize = batchSize)
-        .chunks
-        .parEvalMapUnordered(config.parallelismPerPartition) { chunk =>
-          client.assets
-            .deleteRecursive(
-              chunk.toVector.map(_.toCogniteId),
-              recursive = true,
-              ignoreUnknownIds = true)
-            .flatTap(_ => incMetrics(itemsDeleted, chunk.size))
-        }
-        .compile
-        .drain
-        .unsafeRunSync()
-    })
-  }
+  def delete(data: DataFrame): Unit =
+    data
+      .repartition(numPartitions = 1)
+      .foreachPartition((rows: Iterator[Row]) => {
+        val deletes = rows.map(r => fromRow[DeleteItemByCogniteId](r))
+        Stream
+          .fromIterator[IO](deletes, chunkSize = batchSize)
+          .chunks
+          .parEvalMapUnordered(config.parallelismPerPartition) { chunk =>
+            client.assets
+              .deleteRecursive(
+                chunk.toVector.map(_.toCogniteId),
+                recursive = true,
+                ignoreUnknownIds = true)
+              .flatTap(_ => incMetrics(itemsDeleted, chunk.size))
+          }
+          .compile
+          .drain
+          .unsafeRunSync()
+      })
 
   def buildFromDf(data: DataFrame): Unit =
     // Do not use .collect to run the builder on one of the executors and not on the driver
