@@ -21,7 +21,8 @@ final case class RelationConfig(
     deleteMissingAssets: Boolean,
     subtrees: AssetSubtreeOption,
     ignoreNullFields: Boolean,
-    rawEnsureParent: Boolean
+    rawEnsureParent: Boolean,
+    useSinglePartition: Boolean // a flag for helping to test NPEs by moving the data frame to a single partition
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */
