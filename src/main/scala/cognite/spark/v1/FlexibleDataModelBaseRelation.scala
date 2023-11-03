@@ -34,11 +34,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     with WritableRelation {
 
   override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    SdkV1Rdd[ProjectedFlexibleDataModelInstance, String](
+    SdkV1Rdd[ProjectedFlexibleDataModelInstance, (String, String)](
       sqlContext.sparkContext,
       config,
       (item: ProjectedFlexibleDataModelInstance, _) => toRow(item),
-      _.externalId,
+      instance => (instance.space, instance.externalId),
       getStreams(filters, selectedColumns)
     )
 
@@ -201,7 +201,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("spaceExternalId") => n.space
             case s if s.equalsIgnoreCase("externalId") => n.externalId
             case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
-          }
+          },
+          space = n.space
         )
       case e: InstanceDefinition.EdgeDefinition =>
         ProjectedFlexibleDataModelInstance(
@@ -214,7 +215,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("endNode") => Array(e.endNode.space, e.endNode.externalId)
             case s if s.equalsIgnoreCase("type") => Array(e.`type`.space, e.`type`.externalId)
             case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
-          }
+          },
+          space = e.space
         )
     }
   }
@@ -485,5 +487,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
 }
 
 object FlexibleDataModelBaseRelation {
-  final case class ProjectedFlexibleDataModelInstance(externalId: String, properties: Array[Any])
+  final case class ProjectedFlexibleDataModelInstance(
+      space: String,
+      externalId: String,
+      properties: Array[Any])
 }
