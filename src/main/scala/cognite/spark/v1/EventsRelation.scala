@@ -20,7 +20,8 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO]): Seq[Stream[IO, Event]] = {
-    val (ids, filters) = pushdownToFilters(sparkFilters, eventsFilterFromMap, EventsFilter())
+    val (ids, filters) =
+      pushdownToFilters(sparkFilters, f => eventsFilterFromMap(f.fieldValues), EventsFilter())
 
     executeFilter(client.events, filters, ids, config.partitions, config.limitPerPartition)
   }

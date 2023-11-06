@@ -26,7 +26,8 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO]): Seq[fs2.Stream[IO, DataSet]] = {
-    val (ids, filters) = pushdownToFilters(sparkFilters, dataSetFilterFromMap, DataSetFilter())
+    val (ids, filters) =
+      pushdownToFilters(sparkFilters, f => dataSetFilterFromMap(f.fieldValues), DataSetFilter())
     Seq(executeFilterOnePartition(client.dataSets, filters, ids, config.limitPerPartition))
   }
 
