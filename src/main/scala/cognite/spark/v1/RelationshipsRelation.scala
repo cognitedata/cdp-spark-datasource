@@ -28,7 +28,10 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO]): Seq[Stream[IO, RelationshipsReadSchema]] = {
     val (ids, filters) =
-      pushdownToFilters(sparkFilters, relationshipsFilterFromMap, RelationshipsFilter())
+      pushdownToFilters(
+        sparkFilters,
+        f => relationshipsFilterFromMap(f.fieldValues),
+        RelationshipsFilter())
 
     // TODO: support parallel retrival using partitions
     Seq(

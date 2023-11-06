@@ -34,27 +34,51 @@ final case class DeleteItemByCogniteId(
   }
 }
 
+final case class SimpleAndEqualsFilter(fieldValues: Map[String, String]) {
+  def and(other: SimpleAndEqualsFilter): SimpleAndEqualsFilter =
+    SimpleAndEqualsFilter(fieldValues ++ other.fieldValues)
+}
+
+object SimpleAndEqualsFilter {
+  def singleton(tuple: (String, String)): SimpleAndEqualsFilter =
+    SimpleAndEqualsFilter(Map(tuple))
+  def singleton(key: String, value: String): SimpleAndEqualsFilter =
+    singleton((key, value))
+
+}
+
+final case class SimpleOrFilter(filters: Seq[SimpleAndEqualsFilter]) {
+  def isJustTrue: Boolean = filters.isEmpty
+}
+
+object SimpleOrFilter {
+  def alwaysTrue: SimpleOrFilter = SimpleOrFilter(Seq.empty)
+  def singleton(filter: SimpleAndEqualsFilter): SimpleOrFilter =
+    SimpleOrFilter(Seq(filter))
+}
+
 sealed trait PushdownExpression
 final case class PushdownFilter(fieldName: String, value: String) extends PushdownExpression
 final case class PushdownAnd(left: PushdownExpression, right: PushdownExpression)
     extends PushdownExpression
-final case class PushdownFilters(filters: Seq[PushdownExpression]) extends PushdownExpression
+final case class PushdownUnion(filters: Seq[PushdownExpression]) extends PushdownExpression
 final case class NoPushdown() extends PushdownExpression
 
 object PushdownUtilities {
   def pushdownToFilters[F](
       sparkFilters: Array[Filter],
-      mapping: Map[String, String] => F,
+      mapping: SimpleAndEqualsFilter => F,
       allFilter: F): (Vector[CogniteId], Vector[F]) = {
     val pushdownFilterExpression = toPushdownFilterExpression(sparkFilters)
-    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression).toVector
+    val filtersAsMaps = pushdownToSimpleOr(pushdownFilterExpression).filters.toVector
     val (idFilterMaps, filterMaps) =
-      filtersAsMaps.partition(m => m.contains("id") || m.contains("externalId"))
+      filtersAsMaps.partition(m => m.fieldValues.contains("id") || m.fieldValues.contains("externalId"))
     val ids = idFilterMaps.map(
       m =>
-        m.get("id")
+        m.fieldValues
+          .get("id")
           .map(id => CogniteInternalId(id.toLong))
-          .getOrElse(CogniteExternalId(m("externalId"))))
+          .getOrElse(CogniteExternalId(m.fieldValues("externalId"))))
     val filters = filterMaps.map(mapping)
     val shouldGetAll = filters.contains(allFilter) || (filters.isEmpty && ids.isEmpty)
     if (shouldGetAll) {
@@ -64,27 +88,30 @@ object PushdownUtilities {
     }
   }
 
-  def pushdownToParameters(p: PushdownExpression): Seq[Map[String, String]] =
+  def pushdownToSimpleOr(p: PushdownExpression): SimpleOrFilter =
     p match {
       case PushdownAnd(left, right) =>
-        handleAnd(pushdownToParameters(left), pushdownToParameters(right))
-      case PushdownFilter(field, value) => Seq(Map[String, String](field -> value))
-      case PushdownFilters(filters) => filters.flatMap(pushdownToParameters)
-      case NoPushdown() => Seq()
+        handleAnd(pushdownToSimpleOr(left), pushdownToSimpleOr(right))
+      case PushdownFilter(field, value) =>
+        SimpleOrFilter.singleton(
+          SimpleAndEqualsFilter.singleton(field -> value)
+        )
+      case PushdownUnion(filters) =>
+        SimpleOrFilter(filters.flatMap(pushdownToSimpleOr(_).filters))
+      case NoPushdown() => SimpleOrFilter.alwaysTrue
     }
 
-  def handleAnd(
-      left: Seq[Map[String, String]],
-      right: Seq[Map[String, String]]): Seq[Map[String, String]] =
-    if (left.isEmpty) {
+  def handleAnd(left: SimpleOrFilter, right: SimpleOrFilter): SimpleOrFilter =
+    if (left.isJustTrue) {
       right
-    } else if (right.isEmpty) {
+    } else if (right.isJustTrue) {
       left
-    } else {
-      for {
-        l <- left
-        r <- right
-      } yield l ++ r
+    } else { // try each left-right item combination
+      val filters = for {
+        l <- left.filters
+        r <- right.filters
+      } yield l.and(r)
+      SimpleOrFilter(filters)
     }
 
   def toPushdownFilterExpression(filters: Array[Filter]): PushdownExpression =
@@ -134,7 +161,7 @@ object PushdownUtilities {
       case StringStartsWith(colName, value) =>
         PushdownFilter(colName + "Prefix", value)
       case In(colName, values) =>
-        PushdownFilters(
+        PushdownUnion(
           // X in (null, Y) will result in `NULL`, which is treated like false.
           // X AND NULL is NULL (like with false)
           // true OR NULL is true (like with false)
@@ -146,7 +173,7 @@ object PushdownUtilities {
             .toIndexedSeq
         )
       case And(f1, f2) => PushdownAnd(getFilter(f1), getFilter(f2))
-      case Or(f1, f2) => PushdownFilters(Seq(getFilter(f1), getFilter(f2)))
+      case Or(f1, f2) => PushdownUnion(Seq(getFilter(f1), getFilter(f2)))
       case _ => NoPushdown()
     }
   }
@@ -158,7 +185,7 @@ object PushdownUtilities {
       case PushdownAnd(left, right) =>
         shouldGetAll(left, fieldsWithPushdownFilter) && shouldGetAll(right, fieldsWithPushdownFilter)
       case PushdownFilter(field, _) => !fieldsWithPushdownFilter.contains(field)
-      case PushdownFilters(filters) =>
+      case PushdownUnion(filters) =>
         filters
           .map(shouldGetAll(_, fieldsWithPushdownFilter))
           .exists(identity)
@@ -260,6 +287,9 @@ object PushdownUtilities {
     m.get("id")
       .map(id => CogniteInternalId(id.toLong))
       .orElse(m.get("externalId").map(CogniteExternalId(_)))
+
+  def getIdFromAndFilter(f: SimpleAndEqualsFilter): Option[CogniteId] =
+    getIdFromMap(f.fieldValues)
 
   def mergeStreams[T, F[_]: Concurrent](streams: Seq[Stream[F, T]]): Stream[F, T] =
     streams.reduceOption(_.merge(_)).getOrElse(Stream.empty)
