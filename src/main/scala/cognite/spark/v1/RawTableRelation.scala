@@ -34,7 +34,7 @@ class RawTableRelation(
 
   private val MaxKeysAllowedForFiltering = 10000L
 
-  @transient lazy val client: GenericClient[IO] =
+  @transient lazy val client: GenericClient[TracedIO] =
     CdpConnector.clientFromConfig(config)
 
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
@@ -47,39 +47,44 @@ class RawTableRelation(
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
-      val rdd =
-        readRows(
-          limit = inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
-          numPartitions = Some(1),
-          filter = RawRowFilter(),
-          requestedKeys = None,
-          schema = None,
-          collectMetrics = collectSchemaInferenceMetrics,
-          collectTestMetrics = false
-        )
-
-      import sqlContext.sparkSession.implicits._
-      val df = sqlContext.createDataFrame(rdd, defaultSchema)
-      val jsonDf =
-        renameColumns(sqlContext.sparkSession.read.json(df.select($"columns").as[String]))
-      StructType(
-        StructField("key", DataTypes.StringType, nullable = false)
-          +: StructField(lastUpdatedTimeColName, DataTypes.TimestampType, nullable = true)
-          +: jsonDf.schema.fields)
+      config.trace("inferSchema")(getInferredScheme()).unsafeRunSync()
     } else {
       defaultSchema
     }
   }
 
+  private def getInferredScheme(): TracedIO[StructType] = {
+    import sqlContext.sparkSession.implicits._
+    for {
+      rdd <- readRows(
+        limit = inferSchemaLimit.orElse(Some(Constants.DefaultInferSchemaLimit)),
+        numPartitions = Some(1),
+        filter = RawRowFilter(),
+        requestedKeys = None,
+        schema = None,
+        collectMetrics = collectSchemaInferenceMetrics,
+        collectTestMetrics = false
+      )
+      df = sqlContext.createDataFrame(rdd, defaultSchema)
+      jsonDf = renameColumns(sqlContext.sparkSession.read.json(df.select($"columns").as[String]))
+    } yield
+      StructType(
+        StructField("key", DataTypes.StringType, nullable = false)
+          +: StructField(lastUpdatedTimeColName, DataTypes.TimestampType, nullable = true)
+          +: jsonDf.schema.fields)
+  }
+
   private def getStreams(filter: RawRowFilter, cursors: Vector[String])(
       limit: Option[Int],
-      numPartitions: Int)(client: GenericClient[IO]): Seq[Stream[IO, RawRow]] = {
+      numPartitions: Int)(client: GenericClient[TracedIO]): Seq[Stream[TracedIO, RawRow]] = {
     assert(numPartitions == cursors.length)
     val rawClient = client.rawRows(database, table)
     cursors.map(rawClient.filterOnePartition(filter, _, limit))
   }
 
-  private def getStreamByKeys(client: GenericClient[IO], keys: Set[String]): Stream[IO, RawRow] = {
+  private def getStreamByKeys(
+      client: GenericClient[TracedIO],
+      keys: Set[String]): Stream[TracedIO, RawRow] = {
     val rawClient = client.rawRows(database, table)
     Stream
       .emits(keys.toSeq)
@@ -117,15 +122,15 @@ class RawTableRelation(
       requestedKeys: Option[Set[String]],
       schema: Option[StructType],
       collectMetrics: Boolean = config.collectMetrics,
-      collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
+      collectTestMetrics: Boolean = config.collectTestMetrics): TracedIO[RDD[Row]] = {
     val configWithLimit =
       config.copy(limitPerPartition = limit, partitions = numPartitions.getOrElse(config.partitions))
     @transient lazy val rowConverter = getRowConverter(schema)
-    val streams: GenericClient[IO] => Seq[Stream[IO, RawRow]] = {
+    val streams: GenericClient[TracedIO] => Seq[Stream[TracedIO, RawRow]] = {
       requestedKeys match {
         // Request individual keys from CDF, unless there are too many, as each key requires a request.
         case Some(keys) if keys.size < MaxKeysAllowedForFiltering =>
-          client: GenericClient[IO] =>
+          client: GenericClient[TracedIO] =>
             Seq(getStreamByKeys(client, keys))
         case _ =>
           val partitionCursors =
@@ -133,34 +138,40 @@ class RawTableRelation(
               .clientFromConfig(config)
               .rawRows(database, table)
               .getPartitionCursors(filter, configWithLimit.partitions)
-              .unsafeRunSync()
-              .toVector
-          getStreams(filter, partitionCursors)(
-            configWithLimit.limitPerPartition,
-            configWithLimit.partitions)
+              .map(_.toVector)
+          config
+            .trace("getCursors")(
+              partitionCursors.map(
+                cursors =>
+                  getStreams(filter, cursors)(
+                    configWithLimit.limitPerPartition,
+                    configWithLimit.partitions)(_))
+            )
+            .unsafeRunSync()
       }
     }
 
-    SdkV1Rdd[RawRow, String](
-      sqlContext.sparkContext,
-      configWithLimit,
-      (item: RawRow, partitionIndex: Option[Int]) => {
-        if (collectMetrics) {
-          rowsRead.inc()
-        }
-        if (collectTestMetrics) {
-          @transient lazy val partitionSize =
-            MetricsSource.getOrCreateCounter(
-              config.metricsPrefix,
-              s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
-          partitionSize.inc()
-        }
-        rowConverter(item)
-      },
-      (r: RawRow) => r.key,
-      streams,
-      deduplicateRows = true // if false we might end up with 429 when trying to update assets with multiple same request
-    )
+    TracedIO.delay(
+      SdkV1Rdd[RawRow, String](
+        sqlContext.sparkContext,
+        configWithLimit,
+        (item: RawRow, partitionIndex: Option[Int]) => {
+          if (collectMetrics) {
+            rowsRead.inc()
+          }
+          if (collectTestMetrics) {
+            @transient lazy val partitionSize =
+              MetricsSource.getOrCreateCounter(
+                config.metricsPrefix,
+                s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
+            partitionSize.inc()
+          }
+          rowConverter(item)
+        },
+        (r: RawRow) => r.key,
+        streams,
+        deduplicateRows = true // if false we might end up with 429 when trying to update assets with multiple same request
+      ))
   }
   // scalastyle:on method.length
 
@@ -189,13 +200,16 @@ class RawTableRelation(
       Some(schema)
     }
 
-    val rdd =
-      readRows(config.limitPerPartition, None, rawRowFilter, requestedKeys, jsonSchema)
-
-    rdd.map(row => {
-      val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
-      new GenericRow(filteredCols)
-    })
+    config
+      .trace("buildScan")(
+        for {
+          rdd <- readRows(config.limitPerPartition, None, rawRowFilter, requestedKeys, jsonSchema)
+        } yield
+          rdd.map(row => {
+            val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
+            new GenericRow(filteredCols): Row
+          }))
+      .unsafeRunSync()
   }
 
   private def filterOr(or: Or): Option[Set[String]] =
@@ -254,33 +268,33 @@ class RawTableRelation(
     )
   }
 
-  override def insert(df: DataFrame, overwrite: scala.Boolean): scala.Unit = {
+  override def insert(df: DataFrame, overwrite: Boolean): Unit = {
     if (!df.columns.contains("key")) {
       throw new CdfSparkIllegalArgumentException(
         "The dataframe used for insertion must have a \"key\" column.")
     }
-
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df.drop(lastUpdatedTimeColName))
-    dfWithUnRenamedKeyColumns.foreachPartition((rows: Iterator[Row]) => {
-      val batches = rows.grouped(batchSize).toVector
-      batches
-        .parTraverse_(postRows(columnNames, _))
-        .unsafeRunSync()
-    })
+    config
+      .trace("insert")(SparkF(dfWithUnRenamedKeyColumns).foreachPartition((rows: Iterator[Row]) => {
+        val batches = rows.grouped(batchSize).toVector
+        batches
+          .parTraverse_(postRows(columnNames, _))
+      }))
+      .unsafeRunSync()
   }
 
-  private def postRows(nonKeyColumnNames: Array[String], rows: Seq[Row]): IO[Unit] = {
+  private def postRows(nonKeyColumnNames: Array[String], rows: Seq[Row]): TracedIO[Unit] = {
     val items = RawJsonConverter.rowsToRawItems(nonKeyColumnNames, temporaryKeyName, rows)
 
     client
       .rawRows(database, table)
       .createItems(Items(items.map(_.toCreate).toVector), ensureParent = config.rawEnsureParent)
       .flatTap { _ =>
-        IO {
+        TracedIO.liftIO(IO {
           if (config.collectMetrics) {
             rowsCreated.inc(rows.length.toLong)
           }
-        }
+        })
       }
   }
 }

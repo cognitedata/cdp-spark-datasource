@@ -1,11 +1,13 @@
 package cognite.spark.v1
 
+import cats.data.Kleisli
 import cats.effect.IO
 import cats.implicits._
 import com.cognite.sdk.scala.common.{DataPoint => SdkDataPoint}
 import com.cognite.sdk.scala.v1._
 import fs2.concurrent.SignallingRef
 import fs2.{Chunk, Stream}
+import natchez.{Span, Trace}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -65,7 +67,7 @@ final case class NumericDataPointsRdd(
 ) extends RDD[Row](sparkContext, Nil) {
   import CdpConnector._
 
-  @transient lazy val client: GenericClient[IO] =
+  @transient lazy val client: GenericClient[TracedIO] =
     CdpConnector.clientFromConfig(config)
 
   private val (lowerTimeLimit, upperTimeLimit) = timestampLimits
@@ -185,7 +187,7 @@ final case class NumericDataPointsRdd(
       id: CogniteId,
       start: Instant,
       end: Instant,
-      granularities: List[Granularity] = granularitiesToTry): IO[Option[Seq[Range]]] =
+      granularities: List[Granularity] = granularitiesToTry): TracedIO[Option[Seq[Range]]] =
     granularities match {
       case Nil =>
         throw new RuntimeException(
@@ -210,16 +212,16 @@ final case class NumericDataPointsRdd(
               if (counts.length == maxPointsPerAggregationRange) {
                 // we have probably ran out of the limit of 10k partitions,
                 // so we'll refuse this granularity
-                IO.pure(None)
+                TracedIO.liftIO(IO.pure(None))
               } else if (counts.map(_.value).max > partitionSize && moreGranular.nonEmpty) {
                 smallEnoughRanges(id, start, end, moreGranular)
                   .map(_.orElse(rangesFromCounts))
               } else {
-                IO.pure(rangesFromCounts)
+                TracedIO.liftIO(IO.pure(rangesFromCounts))
               }
             case None =>
               // can't rely on aggregates for this range so page through it
-              IO.pure(Some(Seq(DataPointsRange(id, start, end, None))))
+              TracedIO.liftIO(IO.pure(Some(Seq(DataPointsRange(id, start, end, None)))))
           }
         }
     }
@@ -244,7 +246,7 @@ final case class NumericDataPointsRdd(
   private def getFirstAndLastConcurrentlyById(
       ids: Vector[CogniteId],
       start: Instant,
-      end: Instant): IO[Vector[(CogniteId, Option[Instant], Option[Instant])]] = {
+      end: Instant): TracedIO[Vector[(CogniteId, Option[Instant], Option[Instant])]] = {
     // Filter conversions before this function assume the end limit is inclusive, we add 1 milliseconds
     // since it is in fact exclusive in the data points API.
     val exclusiveEnd = end.plusMillis(1)
@@ -316,19 +318,19 @@ final case class NumericDataPointsRdd(
     buckets.zipWithIndex.map { case (bucket, index) => bucket.copy(index = index) }.toVector
   }
 
-  private def buckets(
-      firstLatest: Stream[IO, (CogniteId, Option[Instant], Option[Instant])]): IO[Seq[Bucket]] = {
+  private def buckets(firstLatest: Stream[TracedIO, (CogniteId, Option[Instant], Option[Instant])])
+    : TracedIO[Seq[Bucket]] = {
 
     val ranges = firstLatest
-      .parEvalMapUnordered(50) {
+      .parEvalMapUnordered[TracedIO, Seq[Range]](50) {
         case (id, Some(first), Some(latest)) =>
           if (latest >= first) {
             smallEnoughRanges(id, first, latest).map(
               _.getOrElse(sys.error(s"Too many datapoints even for the highest granularity.")))
           } else {
-            IO.pure(Seq(DataPointsRange(id, first, latest.plusMillis(1), Some(1))))
+            TracedIO.liftIO(IO.pure(Seq(DataPointsRange(id, first, latest.plusMillis(1), Some(1)))))
           }
-        case _ => IO.pure(Seq.empty)
+        case _ => TracedIO.liftIO(IO.pure(Seq.empty))
       }
       .map(Stream.emits)
       .flatten
@@ -339,13 +341,13 @@ final case class NumericDataPointsRdd(
   private def aggregationBuckets(
       aggregations: Seq[AggregationFilter],
       granularity: Granularity,
-      firstLatest: Stream[IO, (CogniteId, Option[Instant], Option[Instant])]
-  ): IO[Vector[Bucket]] = {
+      firstLatest: Stream[TracedIO, (CogniteId, Option[Instant], Option[Instant])]
+  ): TracedIO[Vector[Bucket]] = {
     val granularityMillis =
       granularity.unit.getDuration.multipliedBy(granularity.amount).toMillis.toDouble
     // TODO: make sure we have a test that covers more than 10000 units
     firstLatest
-      .parEvalMapUnordered(50) {
+      .parEvalMapUnordered[TracedIO, Seq[AggregationRange]](50) {
         case (id, Some(first), Some(latest)) =>
           val aggStart = Instant.ofEpochMilli(floorToNearest(first.toEpochMilli, granularityMillis))
           val aggEnd = Instant
@@ -367,8 +369,8 @@ final case class NumericDataPointsRdd(
               .between(rangeStart, rangeEnd)
               .toMillis / granularity.unit.getDuration.toMillis
           } yield AggregationRange(id, rangeStart, rangeEnd, Some(nPoints), granularity, a.aggregation)
-          IO(ranges)
-        case _ => IO(Seq.empty)
+          TracedIO.liftIO(IO(ranges))
+        case _ => TracedIO.liftIO(IO(Seq.empty))
       }
       .map(Stream.emits)
       .flatten
@@ -380,7 +382,7 @@ final case class NumericDataPointsRdd(
   override def getPartitions: Array[Partition] = {
     val firstLatest = Stream
       .emits(ids)
-      .covary[IO]
+      .covary[TracedIO]
       .chunkLimit(100)
       .parEvalMapUnordered(50) { chunk =>
         getFirstAndLastConcurrentlyById(chunk.toVector, lowerTimeLimit, upperTimeLimit)
@@ -393,8 +395,10 @@ final case class NumericDataPointsRdd(
         .map(g => aggregationBuckets(aggregations.toIndexedSeq, g, firstLatest))
         .parFlatSequence
     }
-    partitions
-      .map(_.toArray[Partition])
+    config
+      .trace("getpartitions")(
+        partitions
+          .map(_.toArray[Partition]))
       .unsafeRunSync()
   }
 
@@ -487,7 +491,7 @@ final case class NumericDataPointsRdd(
     new GenericRow(array)
   }
 
-  private def maybeLimitStream[A](stream: Stream[IO, A]) =
+  private def maybeLimitStream[A](stream: Stream[TracedIO, A]) =
     config.limitPerPartition match {
       case Some(limit) => stream.take(limit.toLong)
       case None => stream
@@ -496,52 +500,66 @@ final case class NumericDataPointsRdd(
   @SuppressWarnings(Array("scalafix:DisableSyntax.asInstanceOf"))
   override def compute(_split: Partition, context: TaskContext): Iterator[Row] = {
     val bucket = _split.asInstanceOf[Bucket]
-    val maxParallelism = scala.math.max(bucket.ranges.size, 500)
-
-    // See comments in SdkV1Rdd.compute for an explanation.
-    val shouldStop = SignallingRef[IO, Boolean](false).unsafeRunSync()
-    Option(context).foreach { ctx =>
-      ctx.addTaskCompletionListener[Unit] { _ =>
-        shouldStop.set(true).unsafeRunSync()
-      }
-    }
-
-    val stream: Stream[IO, Stream[IO, Row]] = Stream
-      .emits(bucket.ranges.toVector)
-      .covary[IO]
-      // We use Int.MaxValue because we want this to be limited only by the parallelism
-      // offered by the runtime environment (execution contexts etc.)
-      // which is similar to what parJoin does: parJoinUnbounded = parJoin(Int.MaxValue)
-      // As of 2020-04-03 there is no parEvalMapUnorderedUnbounded (which is a mouthful).
-      // In fact: parEvalMapUnordered = map(o => Stream.eval(f(o))).parJoin(maxConcurrent)
-      .parEvalMapUnordered(Int.MaxValue) {
-        case r: DataPointsRange => IO(maybeLimitStream(queryDataPointsRange(r)))
-        case r: AggregationRange =>
-          queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
-            .map { queryResponse =>
-              val dataPointsAggregates =
-                queryResponse.map {
-                  case (key, dataPointsResponse) =>
-                    key -> dataPointsResponse.flatMap(_.datapoints.map(aggregationDataPointToRow(r, _)))
-                }
-              dataPointsAggregates.get(r.aggregation) match {
-                case Some(dataPoints) =>
-                  increaseReadMetrics(dataPoints.size)
-                  maybeLimitStream(Stream.chunk(Chunk.seq(dataPoints)).covary[IO])
-                case None => Stream.chunk(Chunk.empty[Row]).covary[IO]
-              }
-            }
-        case _ => IO(Stream.chunk(Chunk.empty[Row]).covary[IO])
-      }
-
-    val it = StreamIterator(
-      stream.parJoin(maxParallelism).interruptWhen(shouldStop),
-      maxParallelism,
-      None
-    )
-
-    Option(context)
-      .map(ctx => new InterruptibleIterator(ctx, it))
-      .getOrElse(it)
+    config.trace("compute")(computeImpl(bucket, context)).unsafeRunSync()
   }
+
+  // scalastyle:off
+  private def computeImpl(bucket: Bucket, context: TaskContext): TracedIO[Iterator[Row]] =
+    for {
+      // See comments in SdkV1Rdd.compute for an explanation.
+      shouldStop <- SignallingRef[TracedIO, Boolean](false)
+      _ <- Trace[TracedIO].span("setStop")(Kleisli { span =>
+        IO.pure(Option(context).foreach { ctx =>
+          ctx.addTaskCompletionListener[Unit] { _ =>
+            shouldStop.set(true).run(span).unsafeRunSync()
+          }
+        })
+      })
+
+      stream: Stream[TracedIO, Stream[TracedIO, Row]] = Stream
+        .emits(bucket.ranges.toVector)
+        .covary[TracedIO]
+        // We use Int.MaxValue because we want this to be limited only by the parallelism
+        // offered by the runtime environment (execution contexts etc.)
+        // which is similar to what parJoin does: parJoinUnbounded = parJoin(Int.MaxValue)
+        // As of 2020-04-03 there is no parEvalMapUnorderedUnbounded (which is a mouthful).
+        // In fact: parEvalMapUnordered = map(o => Stream.eval(f(o))).parJoin(maxConcurrent)
+        .parEvalMapUnordered(Int.MaxValue) {
+          case r: DataPointsRange => TracedIO.liftIO(IO(maybeLimitStream(queryDataPointsRange(r))))
+          case r: AggregationRange =>
+            queryAggregates(r.id, r.start, r.end, r.granularity.toString, Seq(r.aggregation), 10000)
+              .map { queryResponse =>
+                val dataPointsAggregates =
+                  queryResponse.map {
+                    case (key, dataPointsResponse) =>
+                      key -> dataPointsResponse.flatMap(
+                        _.datapoints.map(aggregationDataPointToRow(r, _)))
+                  }
+                dataPointsAggregates.get(r.aggregation) match {
+                  case Some(dataPoints) =>
+                    increaseReadMetrics(dataPoints.size)
+                    maybeLimitStream(Stream.chunk(Chunk.seq(dataPoints)).covary[TracedIO])
+                  case None => Stream.chunk(Chunk.empty[Row]).covary[TracedIO]
+                }
+              }
+          case _ => TracedIO.liftIO(IO(Stream.chunk(Chunk.empty[Row]).covary[TracedIO]))
+        }
+
+      maxParallelism = scala.math.max(bucket.ranges.size, 500)
+      it <- Kleisli { parentSpan: Span[IO] =>
+        {
+          implicit val span: Span[IO] = parentSpan
+          IO.delay(
+            StreamIterator(
+              stream.parJoin(maxParallelism).interruptWhen(shouldStop),
+              maxParallelism,
+              None
+            ))
+        }
+      }
+    } yield
+      Option(context)
+        .map(ctx => new InterruptibleIterator(ctx, it))
+        .getOrElse(it)
+  // scalastyle:on
 }

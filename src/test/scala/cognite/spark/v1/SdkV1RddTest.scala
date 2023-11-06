@@ -17,15 +17,16 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
 
     val errorMessage = "Some exception"
 
-    val getStreams = (_: GenericClient[IO]) =>
-      Seq(Stream.eval(IO.raiseError(com.cognite.sdk.scala.common.CdpApiException(
+    val getStreams = (_: GenericClient[TracedIO]) =>
+      Seq(Stream.eval(TracedIO.liftIO(
+        IO.raiseError(CdpApiException(
         uri"https://api.cognitedata.com/v1/",
         400,
         errorMessage,
         None,
         None,
         None,
-        None))))
+        None)))))
 
     val toRow = (_: String, _: Option[Int]) => Row.empty
     val uniqueId = (_: String) => "1"
@@ -53,10 +54,11 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
   private def generateStreams(nStreams: Int, nItemsPerStream: Int) =
     0.until(nStreams).map { i =>
       Stream.evalUnChunk {
-        IO.sleep((scala.math.random() * 300).millis) *> IO(Chunk.seq(1.to(nItemsPerStream).map { j =>
+        TracedIO.liftIO(IO.sleep((scala.math.random() * 300).millis) *> IO(Chunk.seq(1.to(nItemsPerStream)
+          .map { j =>
           val id = (i * nItemsPerStream + j).toLong
           Event(id = id)
-        }))
+        })))
       }
     }
 
@@ -76,7 +78,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
-      (_: GenericClient[IO]) => {
+      (_: GenericClient[TracedIO]) => {
         val allStreams = generateStreams(nStreams, nItemsPerStream)
         // Duplicates should be filtered out, so appending streams shouldn't make any difference.
         allStreams ++ allStreams ++ allStreams
@@ -103,7 +105,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
-      (_: GenericClient[IO]) => {
+      (_: GenericClient[TracedIO]) => {
         val allStreams = generateStreams(nStreams, nItemsPerStream)
         allStreams ++ allStreams ++ allStreams
       },
