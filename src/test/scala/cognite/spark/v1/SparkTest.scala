@@ -58,6 +58,7 @@ trait SparkTest {
     clientSecret = OIDCWrite.clientSecret,
     scopes = List(OIDCWrite.scopes),
     audience = Some(OIDCWrite.audience),
+    cdfProjectName = OIDCWrite.project,
   )
   implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(15, 30)
 
@@ -120,7 +121,8 @@ trait SparkTest {
     tokenUri = uri"$readTokenUri",
     clientId = readClientId,
     clientSecret = readClientSecret,
-    scopes = List("https://api.cognitedata.com/.default")
+    scopes = List("https://api.cognitedata.com/.default"),
+    cdfProjectName = readProject
   )
 
   def dataFrameReaderUsingOidc: DataFrameReader =
@@ -159,7 +161,8 @@ trait SparkTest {
       tokenUri = bluefieldTokenUri,
       clientId = bluefieldClientId,
       clientSecret = bluefieldClientSecret,
-      scopes = List("https://bluefield.cognitedata.com/.default")
+      scopes = List("https://bluefield.cognitedata.com/.default"),
+      cdfProjectName = "extractor-bluefield-testing"
     )
 
     val authProvider =
