@@ -5,6 +5,7 @@ import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
+@deprecated("wdl support is deprecated", since = "0")
 object JsonObjectToRow {
   implicit class RequiredOption[T](optionValue: Option[T]) {
     def orThrow(structFieldName: String, nullable: Boolean, dataType: DataType): Option[T] =

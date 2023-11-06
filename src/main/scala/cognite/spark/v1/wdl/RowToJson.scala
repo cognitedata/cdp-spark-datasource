@@ -14,6 +14,7 @@ import java.time.{Instant, LocalDate}
 import scala.collection.mutable
 
 // sscalastyle:off
+@deprecated("wdl support is deprecated", since = "0")
 object RowToJson {
 
   /**
