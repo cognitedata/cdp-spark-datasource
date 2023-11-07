@@ -55,7 +55,8 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[TracedIO]): Seq[Stream[TracedIO, FilesReadSchema]] = {
-    val (ids, filters) = pushdownToFilters(sparkFilters, filesFilterFromMap, FilesFilter())
+    val (ids, filters) =
+      pushdownToFilters(sparkFilters, f => filesFilterFromMap(f.fieldValues), FilesFilter())
     executeFilter(client.files, filters, ids, config.partitions, config.limitPerPartition).map(
       _.map(
         _.into[FilesReadSchema]

@@ -3,8 +3,8 @@ package cognite.spark.v1
 import cats.data.Validated.{Invalid, Valid}
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
-  getIdFromMap,
-  pushdownToParameters,
+  getIdFromAndFilter,
+  pushdownToSimpleOr,
   toPushdownFilterExpression
 }
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
@@ -182,8 +182,8 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val timestampLimits = filtersToTimestampLimits(filters, "timestamp")
-    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-    val ids = filtersAsMaps.flatMap(getIdFromMap).distinct
+    val filtersAsMaps = pushdownToSimpleOr(pushdownFilterExpression).filters
+    val ids = filtersAsMaps.flatMap(getIdFromAndFilter).distinct
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
     if (ids.isEmpty) {
