@@ -22,7 +22,7 @@ final case class RelationConfig(
     subtrees: AssetSubtreeOption,
     ignoreNullFields: Boolean,
     rawEnsureParent: Boolean,
-    enableSinglePartitionDeleteAssetHierarchy: Boolean // flag to test whether single partition helps avoid NPE in asset hierarchy builder
+    useSinglePartition: Boolean // a flag for helping to test NPEs by moving the data frame to a single partition
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */

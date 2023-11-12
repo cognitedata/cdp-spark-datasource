@@ -252,7 +252,7 @@ trait SparkTest {
       subtrees = AssetSubtreeOption.Ingest,
       ignoreNullFields = true,
       rawEnsureParent = false,
-      enableSinglePartitionDeleteAssetHierarchy = false
+      useSinglePartition = false
     )
 
   private def getCounterSafe(metricName: String): Option[Long] =
