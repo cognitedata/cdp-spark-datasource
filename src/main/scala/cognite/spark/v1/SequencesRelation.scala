@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.PushdownUtilities.{executeFilter, pushdownToFilters}
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{SetValue, Setter, WithExternalId, WithId}
 import com.cognite.sdk.scala.v1._
@@ -24,11 +25,19 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO]): Seq[Stream[IO, SequenceReadSchema]] =
-    // TODO: filters
-    client.sequences
-      .listPartitions(config.partitions)
+      client: GenericClient[IO]): Seq[Stream[IO, SequenceReadSchema]] = {
+    val (ids, filters) =
+      pushdownToFilters(filters, f => sequencesFilterFromMap(f.fieldValues), SequenceFilter())
+
+    executeFilter(client.sequences, filters, ids, config.partitions, config.limitPerPartition)
       .map(_.map(_.into[SequenceReadSchema].withFieldComputed(_.columns, _.columns.toList).transform))
+  }
+
+  private def sequencesFilterFromMap(m: Map[String, String]) =
+    // TODO: handle more filters
+    SequenceFilter(
+      externalIdPrefix = m.get("externalIdPrefix")
+    )
 
   /*
      Sequence API does not support more than 200 columns per sequence,
