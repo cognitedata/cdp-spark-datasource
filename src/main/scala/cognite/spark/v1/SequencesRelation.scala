@@ -33,7 +33,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .map(_.map(_.into[SequenceReadSchema].withFieldComputed(_.columns, _.columns.toList).transform))
   }
 
-  private def sequencesFilterFromMap(m: Map[String, String]) =
+  private def sequencesFilterFromMap(m: Map[String, String]): SequenceFilter =
     // TODO: handle more filters
     SequenceFilter(
       externalIdPrefix = m.get("externalIdPrefix")
