@@ -36,7 +36,8 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   private def sequencesFilterFromMap(m: Map[String, String]): SequenceFilter =
     // TODO: handle more filters
     SequenceFilter(
-      externalIdPrefix = m.get("externalIdPrefix")
+      externalIdPrefix = m.get("externalIdPrefix"),
+      name = m.get("name")
     )
 
   /*
