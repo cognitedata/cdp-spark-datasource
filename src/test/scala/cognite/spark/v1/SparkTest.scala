@@ -43,8 +43,11 @@ trait SparkTest {
   object OIDCWrite {
     val clientId = sys.env("TEST_CLIENT_ID")
     val clientSecret = sys.env("TEST_CLIENT_SECRET")
-    private val aadTenant = sys.env("TEST_AAD_TENANT")
-    val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+    val tokenUri: String = sys.env.get("TEST_TOKEN_URL")
+      .orElse(
+        sys.env.get("TEST_AAD_TENANT")
+          .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
+      .getOrElse("https://sometokenurl")
     val project = sys.env("TEST_PROJECT")
     val cluster = sys.env("TEST_CLUSTER")
     val scopes = s"https://${cluster}.cognitedata.com/.default"
@@ -151,11 +154,14 @@ trait SparkTest {
 
   val testClientId: String = sys.env("TEST_CLIENT_ID")
   val testClientSecret: String = sys.env("TEST_CLIENT_SECRET")
-  val testAADTenant: String = sys.env("TEST_AAD_TENANT")
   val testCluster: String = sys.env("TEST_CLUSTER")
   val testProject: String = sys.env("TEST_PROJECT")
-  val testTokenUri = uri"https://login.microsoftonline.com/$testAADTenant/oauth2/v2.0/token"
-  val testTokenUriStr = testTokenUri.toString()
+  val testTokenUriStr: String = sys.env.get("TEST_TOKEN_URL")
+    .orElse(
+      sys.env.get("TEST_AAD_TENANT")
+        .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
+    .getOrElse("https://sometokenurl")
+  val testTokenUri = uri"$testTokenUriStr"
 
   def getTestClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
     implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()

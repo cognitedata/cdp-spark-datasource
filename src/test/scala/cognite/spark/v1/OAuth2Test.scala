@@ -5,10 +5,13 @@ import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
 class OAuth2Test extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
   val clientId = sys.env("TEST_CLIENT_ID")
   val clientSecret = sys.env("TEST_CLIENT_SECRET")
-  val aadTenant = sys.env("TEST_AAD_TENANT")
   val cluster = sys.env("TEST_CLUSTER")
   val project = sys.env("TEST_PROJECT")
-  val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
+  val tokenUri: String = sys.env.get("TEST_TOKEN_URL")
+    .orElse(
+      sys.env.get("TEST_AAD_TENANT")
+        .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
+    .getOrElse("https://sometokenurl")
   it should "authenticate using client credentials" in {
     val df = (
       spark.read
