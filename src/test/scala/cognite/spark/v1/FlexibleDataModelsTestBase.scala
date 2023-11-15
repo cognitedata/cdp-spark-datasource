@@ -30,11 +30,17 @@ import scala.util.Random
 
 trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
 
-  protected val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-  protected val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-  protected val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-  protected val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
-  protected val client: GenericClient[IO] = getBlufieldClient()
+  protected val clientId = sys.env("TEST_CLIENT_ID")
+  protected val clientSecret = sys.env("TEST_CLIENT_SECRET")
+  protected val aadTenant = sys.env("TEST_AAD_TENANT")
+  protected val cluster = sys.env("TEST_CLUSTER")
+  protected val project = sys.env("TEST_PROJECT")
+  protected val tokenUri: String = sys.env.get("TEST_TOKEN_URL")
+    .orElse(
+      sys.env.get("TEST_AAD_TENANT")
+        .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
+    .getOrElse("https://sometokenurl")
+  protected val client: GenericClient[IO] = getTestClient()
 
   protected val spaceExternalId = "testSpaceForSparkDatasource"
 
