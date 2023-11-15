@@ -41,15 +41,15 @@ trait SparkTest {
     }
 
   object OIDCWrite {
-    val clientId = sys.env("TEST_CLIENT_ID")
-    val clientSecret = sys.env("TEST_CLIENT_SECRET")
-    val tokenUri: String = sys.env.get("TEST_TOKEN_URL")
+    val clientId = sys.env("TEST_CLIENT_ID2")
+    val clientSecret = sys.env("TEST_CLIENT_SECRET2")
+    val tokenUri: String = sys.env.get("TEST_TOKEN_URL2")
       .orElse(
-        sys.env.get("TEST_AAD_TENANT")
+        sys.env.get("TEST_AAD_TENANT2")
           .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
       .getOrElse("https://sometokenurl")
-    val project = sys.env("TEST_PROJECT")
-    val cluster = sys.env("TEST_CLUSTER")
+    val project = sys.env("TEST_PROJECT2")
+    val cluster = sys.env("TEST_CLUSTER2")
     val scopes = s"https://${cluster}.cognitedata.com/.default"
     val audience = s"https://${cluster}.cognitedata.com"
     val baseUrl = s"https://${cluster}.cognitedata.com"
