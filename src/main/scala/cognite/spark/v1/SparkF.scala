@@ -9,7 +9,7 @@ final case class DataFrameF(df: DataFrame) {
   def foreachPartition(f: Iterator[Row] => TracedIO[Unit]): TracedIO[Unit] = {
     import CdpConnector.ioRuntime
     Trace[TracedIO].span("foreachPartition")(Kleisli { commonSpan =>
-      IO.delay {
+      IO.blocking {
         df.foreachPartition(
           f.andThen(
             op =>
