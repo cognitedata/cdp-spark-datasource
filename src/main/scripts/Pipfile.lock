@@ -180,12 +180,12 @@
         },
         "cognite-sdk": {
             "hashes": [
-                "sha256:08d5bc31f8f9623e3d0636180ec65863d88fc718685f0bd197e764e11e6d80d0",
-                "sha256:8e15897ec0a57f568840fe6d5a9a626ad9f673b956f8317c8a14434e3c4a9b9a"
+                "sha256:1a8eaca868019bcd2b3c792331e88f3e5d017ce3197115c3b85a44fa71f9c2d5",
+                "sha256:3d7ff4d01d3bd777aa26b77dab4a8486c6522796e9756099f65d81c3956499f9"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8' and python_version < '4.0'",
-            "version": "==7.2.1"
+            "version": "==7.3.3"
         },
         "cryptography": {
             "hashes": [
@@ -218,11 +218,11 @@
         },
         "idna": {
             "hashes": [
-                "sha256:814f528e8dead7d329833b91c5faa87d60bf71824cd12a7530b5526063d02cb4",
-                "sha256:90b77e79eaa3eba6de819a0c442c0b4ceefc341a7a2ab77d7562bf49f425c5c2"
+                "sha256:9ecdbbd083b06798ae1e86adcbfe8ab1479cf864e4ee30fe4e46a003d12491ca",
+                "sha256:c05567e9c24a6b9faaa835c4821bad0590fbb9d5779e7caa6e1cc4978e7eb24f"
             ],
             "markers": "python_version >= '3.5'",
-            "version": "==3.4"
+            "version": "==3.6"
         },
         "msal": {
             "hashes": [
