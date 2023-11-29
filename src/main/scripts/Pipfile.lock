@@ -187,7 +187,7 @@
             "markers": "python_version >= '3.8' and python_version < '4.0'",
             "version": "==7.3.3"
         },
-        "cryptography":  {
+        "cryptography": {
             "hashes": [
                 "sha256:068bc551698c234742c40049e46840843f3d98ad7ce265fd2bd4ec0d11306596",
                 "sha256:0f27acb55a4e77b9be8d550d762b0513ef3fc658cd3eb15110ebbcbd626db12c",
