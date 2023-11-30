@@ -1,7 +1,9 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import io.scalaland.chimney.dsl._
+import natchez.noop.NoopEntrypoint
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
@@ -118,7 +120,11 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
 
       assert(getNumberOfRowsCreated(metricsPrefix, "files") == 1)
 
-      val id = writeClient.files.retrieveByExternalId(s"externalId-$source").unsafeRunSync().id
+      val id = NoopEntrypoint[IO]()
+        .root("getfiles")
+        .use(writeClient.files.retrieveByExternalId(s"externalId-$source").run)
+        .unsafeRunSync()
+        .id
 
       //Update using id
       spark
@@ -202,7 +208,13 @@ class FilesRelationTest extends FlatSpec with Matchers with ParallelTestExecutio
         .option("onconflict", "upsert")
         .save()
 
-      val id = writeClient.files.retrieveByExternalId(s"externalId-$source").unsafeRunSync().id
+      val id = {
+        NoopEntrypoint[IO]()
+          .root("getfiles")
+          .use(writeClient.files.retrieveByExternalId(s"externalId-$source").run)
+          .unsafeRunSync()
+          .id
+      }
 
       val insertWithUpsertIds =
         retryWhile[Array[Row]](

@@ -1,9 +1,11 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.compiletime.macros.SparkSchemaHelper.fromRow
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
+import natchez.noop.NoopEntrypoint
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
@@ -60,11 +62,15 @@ class AssetHierarchyBuilderTest
   }
 
   private def cleanDB(key: String) =
-    writeClient.assets
-      .deleteRecursive(
-        Seq(s"dad$key", s"dad2$key", s"unusedZero$key", s"son$key").map(CogniteExternalId(_)),
-        true,
-        true)
+    NoopEntrypoint[IO]()
+      .root("cleandb")
+      .use(
+        writeClient.assets
+          .deleteRecursive(
+            Seq(s"dad$key", s"dad2$key", s"unusedZero$key", s"son$key").map(CogniteExternalId(_)),
+            true,
+            true)
+          .run)
       .unsafeRunSync()
 
   it should "throw an error when everything is ignored" in {

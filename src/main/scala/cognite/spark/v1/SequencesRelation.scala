@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import cats.data.NonEmptyList
-import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{executeFilter, pushdownToFilters}
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
@@ -16,8 +15,6 @@ import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
-import cognite.spark.v1.CdpConnector.ioRuntime
-
 import scala.annotation.unused
 
 class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
@@ -25,7 +22,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(sparkFilters: Array[Filter])(
-      client: GenericClient[IO]): Seq[Stream[IO, SequenceReadSchema]] = {
+      client: GenericClient[TracedIO]): Seq[Stream[TracedIO, SequenceReadSchema]] = {
     val (ids, filters) =
       pushdownToFilters(sparkFilters, f => sequencesFilterFromMap(f.fieldValues), SequenceFilter())
 
@@ -63,7 +60,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     groupedSequences
   }
 
-  override def insert(rows: Seq[Row]): IO[Unit] = {
+  override def insert(rows: Seq[Row]): TracedIO[Unit] = {
     val sequences = rows.map { row =>
       val s = fromRow[SequenceInsertSchema](row)
       SequenceCreate(
@@ -94,50 +91,55 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   private def isUpdateEmpty(u: SequenceUpdate): Boolean = u == SequenceUpdate()
 
   private def getExistingSequenceColumnsByIds(
-      sequenceUpdates: Seq[SequenceUpsertSchema]): Map[Option[Long], Seq[(String, String)]] = {
+      sequenceUpdates: Seq[SequenceUpsertSchema]): TracedIO[Map[Option[Long], Seq[(String, String)]]] = {
     val ids = sequenceUpdates.filter(_.id.nonEmpty).flatMap(_.id.toList)
     if (ids.nonEmpty) {
       client.sequences
         .retrieveByIds(ids, ignoreUnknownIds = true)
-        .unsafeRunSync()
-        .map(s => Some(s.id) -> s.columns.toList.map(c => (c.externalId.getOrElse(""), c.valueType)))
-        .toMap
+        .map(_.map(s =>
+          Some(s.id) -> s.columns.toList.map(c => (c.externalId.getOrElse(""), c.valueType))).toMap)
     } else {
-      Map()
+      TracedIO.pure(Map())
     }
   }
 
-  private def getExistingSequenceColumnsByExternalIds(
-      sequenceUpdates: Seq[SequenceUpsertSchema]): Map[Option[String], Seq[(String, String)]] = {
+  private def getExistingSequenceColumnsByExternalIds(sequenceUpdates: Seq[SequenceUpsertSchema])
+    : TracedIO[Map[Option[String], Seq[(String, String)]]] = {
     val externalIds = sequenceUpdates
       .filter(s => s.id.isEmpty && s.externalId.toOption.nonEmpty)
       .flatMap(_.externalId.toOption.toList)
     if (externalIds.nonEmpty) {
       client.sequences
         .retrieveByExternalIds(externalIds, ignoreUnknownIds = true)
-        .unsafeRunSync()
-        .collect {
-          case s if s.externalId.nonEmpty =>
-            s.externalId -> s.columns.toList.map(c => (c.externalId.getOrElse(""), c.valueType))
-        }
-        .toMap
+        .map(
+          _.collect {
+            case s if s.externalId.nonEmpty =>
+              s.externalId -> s.columns.toList.map(c => (c.externalId.getOrElse(""), c.valueType))
+          }.toMap
+        )
     } else {
-      Map()
+      TracedIO.pure(Map())
     }
   }
 
-  override def update(rows: Seq[Row]): IO[Unit] = {
+  // scalastyle:off
+  override def update(rows: Seq[Row]): TracedIO[Unit] = {
     val sequenceUpdates = rows.map(r => fromRow[SequenceUpsertSchema](r))
-    implicit val toUpdate = transformerUpsertToUpdate(sequenceUpdates)
-
-    updateByIdOrExternalId[SequenceUpsertSchema, SequenceUpdate, SequencesResource[IO], Sequence](
-      sequenceUpdates,
-      client.sequences,
-      isUpdateEmpty
-    )
+    transformerUpsertToUpdate(sequenceUpdates).flatMap(
+      toUpdate =>
+        updateByIdOrExternalId[
+          SequenceUpsertSchema,
+          SequenceUpdate,
+          SequencesResource[TracedIO],
+          Sequence](
+          sequenceUpdates,
+          client.sequences,
+          isUpdateEmpty
+        )(toUpdate))
   }
+  // scalastyle:on
 
-  override def delete(rows: Seq[Row]): IO[Unit] = {
+  override def delete(rows: Seq[Row]): TracedIO[Unit] = {
     val deletes = rows.map(r => fromRow[DeleteItem](r))
     val ids = deletes.map(_.id)
     client.sequences
@@ -154,66 +156,71 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       )
       .buildTransformer
 
-  private def transformerUpsertToUpdate(sequences: Seq[SequenceUpsertSchema]) = {
-    val existingSeqs: Map[Option[Long], Seq[(String, String)]] = getExistingSequenceColumnsByIds(
-      sequences)
-    val existingSeqsWithExtId: Map[Option[String], Seq[(String, String)]] =
-      getExistingSequenceColumnsByExternalIds(sequences)
-    Transformer
-      .define[SequenceUpsertSchema, SequenceUpdate]
-      .withFieldComputed(
-        _.columns,
-        x =>
-          x.getSequenceColumnsUpdate(
-            existingSeqs
-              .getOrElse(x.id, existingSeqsWithExtId.getOrElse(x.externalId.toOption, Seq()))
-              .toSet)
-      )
-      .buildTransformer
-  }
+  private def transformerUpsertToUpdate(sequences: Seq[SequenceUpsertSchema]) =
+    for {
+      existingSeqs <- getExistingSequenceColumnsByIds(sequences)
+      existingSeqsWithExtId <- getExistingSequenceColumnsByExternalIds(sequences)
+    } yield
+      Transformer
+        .define[SequenceUpsertSchema, SequenceUpdate]
+        .withFieldComputed(
+          _.columns,
+          x =>
+            x.getSequenceColumnsUpdate(
+              existingSeqs
+                .getOrElse(x.id, existingSeqsWithExtId.getOrElse(x.externalId.toOption, Seq()))
+                .toSet)
+        )
+        .buildTransformer
 
-  override def upsert(rows: Seq[Row]): IO[Unit] = {
-    val sequences = rows.map(fromRow[SequenceUpsertSchema](_))
+  override def upsert(rows: Seq[Row]): TracedIO[Unit] =
+    for {
+      sequences <- TracedIO.delay(rows.map(fromRow[SequenceUpsertSchema](_)))
 
-    implicit val toCreate = transformerUpsertToCreate()
+      toCreate = transformerUpsertToCreate()
 
-    implicit val toUpdate = transformerUpsertToUpdate(sequences)
+      toUpdate <- transformerUpsertToUpdate(sequences)
 
-    val groupedSequences: Seq[Vector[SequenceUpsertSchema]] = splitSequences[SequenceUpsertSchema](
-      sequences,
-      (s: SequenceUpsertSchema) => s.columns.map(_.size).getOrElse(0))
+      groupedSequences: Seq[Vector[SequenceUpsertSchema]] = splitSequences[SequenceUpsertSchema](
+        sequences,
+        (s: SequenceUpsertSchema) => s.columns.map(_.size).getOrElse(0))
 
-    // scalastyle:off no.whitespace.after.left.bracket
-    groupedSequences.toList.traverse_ { sequencesToCreate =>
-      genericUpsert[
-        Sequence,
-        SequenceUpsertSchema,
-        SequenceCreate,
-        SequenceUpdate,
-        SequencesResource[IO]](sequencesToCreate, isUpdateEmpty, client.sequences)
-    }
-    // scalastyle:on no.whitespace.after.left.bracket
-  }
+      // scalastyle:off no.whitespace.after.left.bracket
+      _ <- groupedSequences.toList.traverse_ { sequencesToCreate =>
+        genericUpsert[
+          Sequence,
+          SequenceUpsertSchema,
+          SequenceCreate,
+          SequenceUpdate,
+          SequencesResource[TracedIO]](sequencesToCreate, isUpdateEmpty, client.sequences)(
+          toUpdate,
+          toCreate)
+      }
+      // scalastyle:on no.whitespace.after.left.bracket
+    } yield ()
 
   // scalastyle:off method.length
-  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
-    val sequences =
-      rows
-        .map(fromRow[SequenceUpsertSchema](_))
+  override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): TracedIO[Unit] =
+    for {
+      sequences <- TracedIO.delay(
+        rows
+          .map(fromRow[SequenceUpsertSchema](_)))
 
-    implicit val toCreate = transformerUpsertToCreate()
+      toCreate = transformerUpsertToCreate()
 
-    implicit val toUpdate = transformerUpsertToUpdate(sequences)
+      toUpdate <- transformerUpsertToUpdate(sequences)
 
-    // scalastyle:off no.whitespace.after.left.bracket
-    createOrUpdateByExternalId[
-      Sequence,
-      SequenceUpdate,
-      SequenceCreate,
-      SequenceUpsertSchema,
-      OptionalField,
-      SequencesResource[IO]](Set.empty, sequences, client.sequences, doUpsert = true)
-  }
+      // scalastyle:off no.whitespace.after.left.bracket
+      _ <- createOrUpdateByExternalId[
+        Sequence,
+        SequenceUpdate,
+        SequenceCreate,
+        SequenceUpsertSchema,
+        OptionalField,
+        SequencesResource[TracedIO]](Set.empty, sequences, client.sequences, doUpsert = true)(
+        toUpdate,
+        toCreate)
+    } yield ()
   // scalastyle:off method.length
 
   override def schema: StructType = structType[SequenceReadSchema]()

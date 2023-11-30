@@ -1,11 +1,36 @@
 package cognite.spark
 
+import cats.data.Kleisli
+import cats.effect.IO
 import com.cognite.sdk.scala.common.{NonNullableSetter, SdkException, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1.{SequenceColumn, SequenceColumnCreate}
 import io.scalaland.chimney.Transformer
+import natchez.Span
 
 // scalastyle:off
 package object v1 {
+  type TracedIO[A] = Kleisli[IO, Span[IO], A]
+  object TracedIO {
+    def fromEither[A](exceptionOrValue: Either[Throwable, A]): TracedIO[A] =
+      liftIO(IO.fromEither[A](exceptionOrValue))
+
+    def liftIO[A](value: IO[A]): TracedIO[A] = Kleisli.liftF(value)
+
+    def unit: TracedIO[Unit] = Kleisli.liftF(IO.unit)
+
+    def pure[A](a: A): TracedIO[A] = Kleisli.liftF(IO.pure(a))
+
+    def delay[A](a: A): TracedIO[A] = Kleisli.liftF(IO.delay(a))
+
+    def childPure[B](parent: Span[IO], name: String)(f: Span[IO] => B): IO[B] =
+      child(parent, name)(Kleisli { span =>
+        IO.delay(f(span))
+      })
+
+    def child[B](parent: Span[IO], name: String)(f: TracedIO[B]): IO[B] =
+      parent.span(name).use(f.run)
+  }
+
   @SuppressWarnings(
     Array(
       "org.wartremover.warts.Null",

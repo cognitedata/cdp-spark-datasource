@@ -1,9 +1,11 @@
 package cognite.spark.v1
 
+import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.AssetCreate
 import io.scalaland.chimney.dsl._
+import natchez.noop.NoopEntrypoint
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Row}
@@ -72,8 +74,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "support pushdown filters on labels" taggedAs WriteTest in {
     val assetsTestSource = s"assets-relation-test-create-${shortRandomString()}"
-    writeClient.assets
-      .deleteByExternalId("asset_with_label_spark_datasource", ignoreUnknownIds = true)
+    NoopEntrypoint[IO]()
+      .root("write")
+      .use(
+        writeClient.assets
+          .deleteByExternalId("asset_with_label_spark_datasource", ignoreUnknownIds = true)
+          .run)
       .unsafeRunSync()
     spark
       .sql(s"""select 'asset_with_label_spark_datasource' as externalId,
@@ -371,7 +377,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       createdAsset.getAs[String]("externalId") shouldBe externalId
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
+        NoopEntrypoint[IO]()
+          .root("assets")
+          .use(writeClient.assets.deleteByExternalId(externalId).run)
+          .unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -407,7 +416,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(assetsCreated == 1)
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
+        NoopEntrypoint[IO]()
+          .root("assets")
+          .use(writeClient.assets.deleteByExternalId(externalId).run)
+          .unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -606,18 +618,24 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
 
   it should "allow empty metadata updates" taggedAs WriteTest in {
     val externalId1 = UUID.randomUUID.toString
-
-    writeClient.assets
-      .create(
-        Seq(
-          AssetCreate(
-            name = externalId1,
-            externalId = Some(externalId1),
-            metadata = Some(Map("test1" -> "test1")))))
+    NoopEntrypoint[IO]()
+      .root("assets")
+      .use(
+        writeClient.assets
+          .create(
+            Seq(
+              AssetCreate(
+                name = externalId1,
+                externalId = Some(externalId1),
+                metadata = Some(Map("test1" -> "test1")))))
+          .run)
       .unsafeRunSync()
-
-    writeClient.assets.retrieveByExternalId(externalId1).unsafeRunSync().metadata shouldBe Some(
-      Map("test1" -> "test1"))
+    NoopEntrypoint[IO]()
+      .root("assets")
+      .use(writeClient.assets.retrieveByExternalId(externalId1).run)
+      .unsafeRunSync()
+      .metadata shouldBe
+      Some(Map("test1" -> "test1"))
     val wdf = spark.sql(s"select '$externalId1' as externalId, map() as metadata")
 
     wdf.write
@@ -627,9 +645,15 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       .option("onconflict", "update")
       .save()
 
-    val updated = writeClient.assets.retrieveByExternalId(externalId1).unsafeRunSync()
-
-    writeClient.assets.deleteByExternalId(externalId1).unsafeRunSync()
+    val updated =
+      NoopEntrypoint[IO]()
+        .root("assets")
+        .use(writeClient.assets.retrieveByExternalId(externalId1).run)
+        .unsafeRunSync()
+    NoopEntrypoint[IO]()
+      .root("assets")
+      .use(writeClient.assets.deleteByExternalId(externalId1).run)
+      .unsafeRunSync()
 
     updated.metadata shouldBe Some(Map())
   }
@@ -854,7 +878,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
+        NoopEntrypoint[IO]()
+          .root("assets")
+          .use(writeClient.assets.deleteByExternalId(externalId).run)
+          .unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -914,7 +941,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
+        NoopEntrypoint[IO]()
+          .root("assets")
+          .use(writeClient.assets.deleteByExternalId(externalId).run)
+          .unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
@@ -952,7 +982,12 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .option("onconflict", "upsert")
         .save()
 
-      val id = writeClient.assets.retrieveByExternalId(externalId).unsafeRunSync().id
+      val id =
+        NoopEntrypoint[IO]()
+          .root("assets")
+          .use(writeClient.assets.retrieveByExternalId(externalId).run)
+          .unsafeRunSync()
+          .id
 
       // Check if update worked
       val descriptionsAfterUpsert = retryWhile[Array[Row]](
@@ -979,7 +1014,10 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
       try {
-        writeClient.assets.deleteByExternalId(externalId).unsafeRunSync()
+        NoopEntrypoint[IO]()
+          .root("assets")
+          .use(writeClient.assets.deleteByExternalId(externalId).run)
+          .unsafeRunSync()
       } catch {
         case NonFatal(_) => // ignore
       }
