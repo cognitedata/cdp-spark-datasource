@@ -404,7 +404,7 @@ object DefaultSource {
     val maxRetryDelaySeconds = toPositiveInt(parameters, "maxRetryDelay")
       .getOrElse(Constants.DefaultMaxRetryDelaySeconds)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
-    val clientTag = parameters.get("clientTag")
+    val clientTag = "spark-datasource-18450-4"
     val applicationName = parameters.get("applicationName")
 
     val auth = parseAuth(parameters) match {
