@@ -171,7 +171,8 @@ class RawTableRelationTest
           (i.toString -> Json.fromString("value"))).toMap
         )
       )),
-      TestTable("MegaColumnTableDuplicate2", Seq.empty) // used for writes
+      TestTable("MegaColumnTableDuplicate2", Seq.empty), // used for writes
+      TestTable("struct-test", Seq.empty) // used for writes
     )
   )
 
@@ -533,13 +534,6 @@ class RawTableRelationTest
 
   it should "write nested struct values" in {
     val database = testData.dbName
-    val table = "struct-test"
-
-    try {
-      writeClient.rawTables(database).createOne(RawTable(table)).unsafeRunSync()
-    } catch {
-      case e: CdpApiException if e.code == 400 => // Ignore if already exists
-    }
 
     val key = shortRandomString()
     val tempView = "struct_test_" + shortRandomString()
@@ -561,7 +555,7 @@ class RawTableRelationTest
       .useOIDCWrite
       .option("type", "raw")
       .option("database", database)
-      .option("table", table)
+      .option("table", "struct-test")
       .load()
     destination.createTempView(tempView)
     source
@@ -569,41 +563,37 @@ class RawTableRelationTest
       .write
       .insertInto(tempView)
 
-    try {
-      val df = spark.read
-        .format(DefaultSource.sparkFormatString)
-        .useOIDCWrite
-        .option("type", "raw")
-        .option("database", database)
-        .option("table", table)
-        .option("inferSchema", true)
-        .load()
-        .where(s"key = '$key'")
+    val df = spark.read
+      .format(DefaultSource.sparkFormatString)
+      .useOIDCWrite
+      .option("type", "raw")
+      .option("database", database)
+      .option("table", "struct-test")
+      .option("inferSchema", true)
+      .load()
+      .where(s"key = '$key'")
 
-      assert(df.count() == 1)
-      val row = df.first()
+    assert(df.count() == 1)
+    val row = df.first()
 
-      val struct = row.getStruct(row.fieldIndex("value"))
+    val struct = row.getStruct(row.fieldIndex("value"))
 
-      assert(struct.getAs[Long]("long") == 123L)
-      assert(struct.getAs[String]("string") == "foo")
-      assert(struct.getAs[String]("null") == null)
-      assert(struct.getAs[Row]("namedstruct").getAs[String]("message") == "asd")
+    assert(struct.getAs[Long]("long") == 123L)
+    assert(struct.getAs[String]("string") == "foo")
+    assert(struct.getAs[String]("null") == null)
+    assert(struct.getAs[Row]("namedstruct").getAs[String]("message") == "asd")
 
-      val nestedStruct = struct.getStruct(struct.fieldIndex("struct"))
-      assert(nestedStruct.schema != null)
-      nestedStruct.schema.fieldNames.toSeq.loneElement shouldBe "foo"
-      nestedStruct.toSeq.loneElement shouldBe 123L
+    val nestedStruct = struct.getStruct(struct.fieldIndex("struct"))
+    assert(nestedStruct.schema != null)
+    nestedStruct.schema.fieldNames.toSeq.loneElement shouldBe "foo"
+    nestedStruct.toSeq.loneElement shouldBe 123L
 
-      val arrayOfStruct = struct.getSeq[Row](struct.fieldIndex("array_of_struct"))
-      val structInArray = arrayOfStruct.loneElement
+    val arrayOfStruct = struct.getSeq[Row](struct.fieldIndex("array_of_struct"))
+    val structInArray = arrayOfStruct.loneElement
 
-      assert(structInArray.schema != null)
-      structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
-      structInArray.toSeq.loneElement shouldBe 123L
-    } finally {
-      writeClient.rawRows(database, table).deleteById(key).unsafeRunSync()
-    }
+    assert(structInArray.schema != null)
+    structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
+    structInArray.toSeq.loneElement shouldBe 123L
   }
 
   it should "create the table with ensureParent option" in {
