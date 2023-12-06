@@ -115,7 +115,7 @@ object CdpConnector {
       maxRetryDelay = maxRetryDelaySeconds.seconds)
     // limit the number of concurrent requests
     val limitedBackend: SttpBackend[IO, Any] =
-      RateLimitingBackend[Any](retryingBackend, maxParallelRequests)
+      RateLimitingBackend[IO, Any](retryingBackend, maxParallelRequests).unsafeRunSync()
     metricsPrefix.fold(limitedBackend)(
       metricsPrefix =>
         new MetricsBackend[IO, Any](
