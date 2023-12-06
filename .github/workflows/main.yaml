@@ -48,7 +48,8 @@ jobs:
           AIZE_CLIENT_ID: ${{ secrets.AIZE_CLIENT_ID }}
           AIZE_CLIENT_SECRET: ${{ secrets.AIZE_CLIENT_SECRET }}
         run: |
-          env | grep TEST_CLIENT_ID_BLUEFIELD | sed -e 's/\(.\)/\1 /g'
+          env | grep TEST_OIDC_READ_CLIENT_ID | sed -e 's/\(.\)/\1 /g'
+          env | grep TEST_OIDC_READ_TENANT | sed -e 's/\(.\)/\1 /g'
           exit 1
           TEST="test +Test/compile"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
