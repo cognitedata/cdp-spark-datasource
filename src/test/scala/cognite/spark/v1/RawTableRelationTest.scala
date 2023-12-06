@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.implicits.toTraverseOps
+import cats.implicits._
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{RawDatabase, RawRow, RawTable}
@@ -155,7 +155,7 @@ class RawTableRelationTest
           "sourceId" -> s"test id $i",
           "subtype" -> "past",
           "type" -> "test type"
-        ).mapValues(Json.fromString))
+        ).map { case (k, v) => (k, Json.fromString(v)) })
       })),
       TestTable("bigTable", (1 to 1000).map(i =>
         RawRow(i.toString, Map("i" -> Json.fromString("exist")))
