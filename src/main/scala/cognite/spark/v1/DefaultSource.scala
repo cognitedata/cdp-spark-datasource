@@ -9,7 +9,6 @@ import cognite.spark.v1.FlexibleDataModelRelationFactory.{
   DataModelViewConfig,
   ViewCorePropertyConfig
 }
-import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
@@ -53,17 +52,6 @@ class DefaultSource
         )
 
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
-  }
-
-  @deprecated("wdl support is deprecated", since = "0")
-  private def createWellDataLayer(
-      parameters: Map[String, String],
-      config: RelationConfig,
-      sqlContext: SQLContext
-  ): WellDataLayerRelation = {
-    val model =
-      parameters.getOrElse("wdlDataType", throw new CdfSparkException("wdlDataType must be specified"))
-    new WellDataLayerRelation(config, model)(sqlContext)
   }
 
   private def createFlexibleDataModelRelation(
@@ -174,8 +162,6 @@ class DefaultSource
         new DataSetsRelation(config)(sqlContext)
       case FlexibleDataModelRelationFactory.ResourceType =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
-      case "welldatalayer" =>
-        createWellDataLayer(parameters, config, sqlContext): @annotation.nowarn
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -241,8 +227,6 @@ class DefaultSource
           new DataSetsRelation(config)(sqlContext)
         case FlexibleDataModelRelationFactory.ResourceType =>
           createFlexibleDataModelRelation(parameters, config, sqlContext)
-        case "welldatalayer" =>
-          createWellDataLayer(parameters, config, sqlContext): @annotation.nowarn
         case _ => sys.error(s"Resource type $resourceType does not support save()")
       }
       val batchSizeDefault = relation match {
