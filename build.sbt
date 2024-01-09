@@ -10,7 +10,7 @@ val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.3"
 val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
-val Specs2Version = "4.20.3"
+val Specs2Version = "4.20.4"
 val cogniteSdkVersion = "2.15.782"
 
 val prometheusVersion = "0.16.0"
