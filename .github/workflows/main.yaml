@@ -33,6 +33,8 @@ jobs:
           #./secrets/decrypt.sh secrets/credentials.sbt.gpg ~/.sbt/1.0/credentials.sbt
 
           mkdir -p ~/.sbt/gpg
+          echo '${{ secrets.SONATYPE_OSSRH_GPG_PUBLIC_KEY }}' > public.key
+          gpg --import public.key
           echo '${{ secrets.SONATYPE_OSSRH_GPG_PRIVATE_KEY }}' > private.key
           gpg --import private.key
           #./secrets/decrypt.sh secrets/pubring.asc.gpg ~/.sbt/gpg/pubring.asc
