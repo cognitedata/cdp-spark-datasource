@@ -39,6 +39,7 @@ jobs:
           mkdir -p ~/.gnupg/private-keys-v1.d/
           echo '${{ secrets.SONATYPE_OSSRH_GPG_PRIVATE_KEY }}' > ~/.gnupg/private-keys-v1.d/private.key
           gpg --list-secret-keys
+          gpg -a --export-secret-keys > ~/.sbt/gpg/secring.asc 
       - name: Run tests
         env:
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
