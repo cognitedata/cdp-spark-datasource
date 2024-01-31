@@ -39,12 +39,12 @@ jobs:
           mkdir -p ~/.sbt/gpg
           echo "$GPG_PUBLIC_KEY" > public.key
           gpg --import public.key
-          echo "$GPG_PRIVATE_KEY" > private.key
-          gpg --verbose --import private.key
+          #echo "$GPG_PRIVATE_KEY" > private.key
+          #gpg --verbose --import private.key
           mkdir -p ~/.gnupg/private-keys-v1.d/
           echo "$GPG_PRIVATE_KEY" > ~/.gnupg/private-keys-v1.d/private.key
           gpg --verbose --list-secret-keys
-          gpg -a --export-secret-keys > ~/.sbt/gpg/secring.asc 
+          gpg --verbose -a --export-secret-keys > ~/.sbt/gpg/secring.asc 
       - name: Run tests
         env:
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
