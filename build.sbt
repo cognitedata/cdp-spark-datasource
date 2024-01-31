@@ -22,7 +22,7 @@ lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
 ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
 
-lazy val patchVersion = scala.io.Source.fromFile("patch_version.txt").mkString.trim
+lazy val patchVersion = scala.io.Source.fromFile("patch_version.txt").mkString.trim + "-SNAPSHOT"
 
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
