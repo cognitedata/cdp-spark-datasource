@@ -39,8 +39,8 @@ jobs:
           mkdir -p ~/.sbt/gpg
           echo "$GPG_PUBLIC_KEY" > public.key
           gpg --import public.key
-          echo "$GPG_PRIVATE_KEY" > private.key
-          gpg --verbose --batch --import-options import-show --import private.key
+          echo "$GPG_PRIVATE_KEY" > private.key.asc
+          gpg --verbose --batch --import-options import-show --import private.key.asc
           mkdir -p ~/.gnupg/private-keys-v1.d/
           echo "$GPG_PRIVATE_KEY" > ~/.gnupg/private-keys-v1.d/private.key
           gpg --verbose --list-secret-keys
