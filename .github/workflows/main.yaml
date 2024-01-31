@@ -6,6 +6,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     timeout-minutes: 80
+    environment: ${{ github.ref == 'refs/heads/master' && 'CD' || 'CI' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -23,19 +24,6 @@ jobs:
 
           echo "DOCKER_IMAGE_NAME=eu.gcr.io/cognitedata/cdf-spark-performance-bench" >> $GITHUB_ENV
           echo "DOCKER_IMAGE_TAG=$BUILD_DATE-$IMAGE_REVISION" >> $GITHUB_ENV
-      - name: Install SBT config and credentials
-        env:
-          SECRETS_KEY: ${{ secrets.SECRETS_KEY }}
-        run: |
-          mkdir -p ~/.sbt
-          ./secrets/decrypt.sh secrets/repositories.gpg ~/.sbt/repositories
-
-          mkdir -p ~/.sbt/1.0
-          ./secrets/decrypt.sh secrets/credentials.sbt.gpg ~/.sbt/1.0/credentials.sbt
-
-          mkdir -p ~/.sbt/gpg
-          ./secrets/decrypt.sh secrets/pubring.asc.gpg ~/.sbt/gpg/pubring.asc
-          ./secrets/decrypt.sh secrets/secring.asc.gpg ~/.sbt/gpg/secring.asc
       - name: Run tests
         env:
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
@@ -78,9 +66,6 @@ jobs:
           fi
       - name: Deploy JAR
         if: github.ref == 'refs/heads/master'
-        env:
-          SECRETS_KEY: ${{ secrets.SECRETS_KEY }}
         run: |
-          ./secrets/decrypt.sh secrets/gpg-key-password.gpg secrets/gpg-key-password
-          export GPG_KEY_PASSWORD=$(cat secrets/gpg-key-password)
+          export GPG_KEY_PASSWORD=${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
           sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +structType/publishSigned +publishSigned sonatypeReleaseAll
