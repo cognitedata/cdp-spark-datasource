@@ -25,6 +25,9 @@ jobs:
           echo "DOCKER_IMAGE_NAME=eu.gcr.io/cognitedata/cdf-spark-performance-bench" >> $GITHUB_ENV
           echo "DOCKER_IMAGE_TAG=$BUILD_DATE-$IMAGE_REVISION" >> $GITHUB_ENV
       - name: Install SBT config and credentials
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PRIVATE_KEY }}
+          GPG_PUBLIC_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PUBLIC_KEY }}
         run: |
           set -x
           mkdir -p ~/.sbt
@@ -34,10 +37,12 @@ jobs:
           #./secrets/decrypt.sh secrets/credentials.sbt.gpg ~/.sbt/1.0/credentials.sbt
 
           mkdir -p ~/.sbt/gpg
-          echo '${{ secrets.SONATYPE_OSSRH_GPG_PUBLIC_KEY }}' > public.key
+          echo "$GPG_PUBLIC_KEY" > public.key
           gpg --import public.key
+          echo "$GPG_PRIVATE_KEY" > private.key
+          gpg --import private.key --verbose
           mkdir -p ~/.gnupg/private-keys-v1.d/
-          echo '${{ secrets.SONATYPE_OSSRH_GPG_PRIVATE_KEY }}' > ~/.gnupg/private-keys-v1.d/private.key
+          echo "$GPG_PRIVATE_KEY" > ~/.gnupg/private-keys-v1.d/private.key
           gpg --verbose --list-secret-keys
           gpg -a --export-secret-keys > ~/.sbt/gpg/secring.asc 
       - name: Run tests
