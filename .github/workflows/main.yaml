@@ -26,6 +26,7 @@ jobs:
           echo "DOCKER_IMAGE_TAG=$BUILD_DATE-$IMAGE_REVISION" >> $GITHUB_ENV
       - name: Install SBT config and credentials
         run: |
+          set -x
           mkdir -p ~/.sbt
           #./secrets/decrypt.sh secrets/repositories.gpg ~/.sbt/repositories
 
