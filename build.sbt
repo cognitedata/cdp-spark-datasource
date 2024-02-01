@@ -73,6 +73,7 @@ lazy val commonSettings = Seq(
     else { Some("releases" at nexus + "service/local/staging/deploy/maven2") }
   },
   publishMavenStyle := true,
+  pgpPassphrase := None,
   Test / fork := true,
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
   // Yell at tests that take longer than 120 seconds to finish.
