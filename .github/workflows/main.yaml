@@ -41,8 +41,8 @@ jobs:
           echo "$GPG_PUBLIC_KEY" > public.key
           gpg --import public.key
           echo "$GPG_PRIVATE_KEY" > private.key
-          echo "$GPG_PRIVATE_KEY_PASSPHRASE" | gpg --verbose --batch --import-options import-show --import private.key
-          echo "$GPG_PRIVATE_KEY_PASSPHRASE" | gpg --verbose --batch -a --export-secret-keys > ~/.sbt/gpg/secring.asc
+          gpg --verbose --batch --import-options import-show --import private.key
+          echo "$GPG_PRIVATE_KEY_PASSPHRASE" | gpg --verbose --batch -a --export-secret-keys --pinentry-mode loopback > ~/.sbt/gpg/secring.asc
       - name: Run tests
         env:
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
