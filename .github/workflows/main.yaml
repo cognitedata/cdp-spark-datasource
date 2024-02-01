@@ -42,6 +42,7 @@ jobs:
       - name: Install SBT config and credentials
         env:
           GPG_PRIVATE_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PRIVATE_KEY }}
+          GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
           GPG_PUBLIC_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PUBLIC_KEY }}
         run: |
           set -x
@@ -54,8 +55,8 @@ jobs:
           mkdir -p ~/.sbt/gpg
           echo "$GPG_PUBLIC_KEY" > public.key
           gpg --import public.key
-          echo "$GPG_PRIVATE_KEY" > private.key.asc
-          gpg --verbose --batch --import-options import-show --import private.key.asc
+          echo "$GPG_PRIVATE_KEY" > private.key
+          echo "$GPG_PRIVATE_KEY_PASSPHRASE" | gpg --verbose --batch --import-options import-show --import private.key
           mkdir -p ~/.gnupg/private-keys-v1.d/
           echo "$GPG_PRIVATE_KEY" > ~/.gnupg/private-keys-v1.d/private.key
           gpg --verbose --list-secret-keys
