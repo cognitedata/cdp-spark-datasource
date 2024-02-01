@@ -85,5 +85,7 @@ jobs:
           fi
       - name: Deploy JAR
         #if: github.ref == 'refs/heads/master'
+        env:
+          GPG_KEY_PASSWORD: ${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
         run: |
           sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +structType/publishSigned +publishSigned sonatypeReleaseAll
