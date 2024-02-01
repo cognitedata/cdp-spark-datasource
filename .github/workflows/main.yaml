@@ -38,14 +38,7 @@ jobs:
           #./secrets/decrypt.sh secrets/credentials.sbt.gpg ~/.sbt/1.0/credentials.sbt
 
           mkdir -p ~/.sbt/gpg
-          echo "$GPG_PUBLIC_KEY" > public.key
-          gpg --import public.key
-          echo "$GPG_PRIVATE_KEY" > private.key
-          echo "$GPG_PRIVATE_KEY_PASSPHRASE" | gpg --verbose --batch --import-options import-show --import private.key
-          mkdir -p ~/.gnupg/private-keys-v1.d/
-          echo "$GPG_PRIVATE_KEY" > ~/.gnupg/private-keys-v1.d/private.key
-          gpg --verbose --list-secret-keys
-          gpg --verbose -a --export-secret-keys > ~/.sbt/gpg/secring.asc 
+          echo "$GPG_PRIVATE_LEY" > ~/.sbt/gpg/secring.asc 
       - name: Run tests
         env:
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
@@ -87,7 +80,8 @@ jobs:
             LIB_PACKAGE="+fatJarShaded/assembly"
           fi
       - name: Deploy JAR
+        env:
+          GPG_KEY_PASSWORD: ${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
         #if: github.ref == 'refs/heads/master'
         run: |
-          export GPG_KEY_PASSWORD=${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
           sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +structType/publishSigned +publishSigned sonatypeReleaseAll
