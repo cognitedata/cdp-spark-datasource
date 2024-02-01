@@ -18,8 +18,6 @@ val log4sVersion = "1.10.0"
 
 sonatypeProfileName := "com.cognite" // default is same as organization and leads to 404 on sonatypeReleaseAll
 
-lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
-
 ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
 
 lazy val patchVersion = scala.io.Source.fromFile("patch_version.txt").mkString.trim + "-SNAPSHOT"
@@ -75,10 +73,6 @@ lazy val commonSettings = Seq(
     else { Some("releases" at nexus + "service/local/staging/deploy/maven2") }
   },
   publishMavenStyle := true,
-  pgpPassphrase := {
-    if (gpgPass.isDefined) { gpgPass.map(_.toCharArray) }
-    else { None }
-  },
   Test / fork := true,
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
   // Yell at tests that take longer than 120 seconds to finish.
