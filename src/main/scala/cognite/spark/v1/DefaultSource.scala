@@ -241,12 +241,18 @@ class DefaultSource
       // And we will have to limit parallelism on each partition to low number, so the operation could
       // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
       // If the number of partitions is reasonable, we avoid the data shuffling
-      val dataRepartitioned =
-        if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-          data.repartition(idealNumberOfPartitions)
-        } else {
-          data
-        }
+      val dataRepartitioned = resourceType match {
+        case FlexibleDataModelRelationFactory.ResourceType =>
+          // We use coalesce and not repartition as we know we will only reduce the number of partitions (or keep it
+          // the same, and coalesce is cheaper than repartition).
+          data.coalesce(1)
+        case _ =>
+          if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
+            data.repartition(idealNumberOfPartitions)
+          } else {
+            data
+          }
+      }
 
       dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
         import CdpConnector.ioRuntime
