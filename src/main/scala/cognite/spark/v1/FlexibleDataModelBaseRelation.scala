@@ -57,35 +57,63 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   }
 
   // scalastyle:off cyclomatic.complexity
-  private def extractInstancePropertyValue: InstancePropertyValue => Any = {
-    case InstancePropertyValue.String(value) => value
-    case InstancePropertyValue.Int32(value) => value
-    case InstancePropertyValue.Int64(value) => value
-    case InstancePropertyValue.Float32(value) => value
-    case InstancePropertyValue.Float64(value) => value
-    case InstancePropertyValue.Boolean(value) => value
-    case InstancePropertyValue.Date(value) => java.sql.Date.valueOf(value)
-    case InstancePropertyValue.Timestamp(value) => java.sql.Timestamp.from(value.toInstant)
-    case InstancePropertyValue.Object(value) => value.noSpaces
-    case InstancePropertyValue.ViewDirectNodeRelation(value) =>
-      value.map(r => Array(r.space, r.externalId)).orNull
-    case InstancePropertyValue.StringList(value) => value
-    case InstancePropertyValue.BooleanList(value) => value
-    case InstancePropertyValue.Int32List(value) => value
-    case InstancePropertyValue.Int64List(value) => value
-    case InstancePropertyValue.Float32List(value) => value
-    case InstancePropertyValue.Float64List(value) => value
-    case InstancePropertyValue.DateList(value) => value.map(v => java.sql.Date.valueOf(v))
-    case InstancePropertyValue.TimestampList(value) =>
-      value.map(v => java.sql.Timestamp.from(v.toInstant))
-    case InstancePropertyValue.ObjectList(value) => value.map(_.noSpaces)
-    case InstancePropertyValue.TimeSeriesReference(value) => value
-    case InstancePropertyValue.FileReference(value) => value
-    case InstancePropertyValue.SequenceReference(value) => value
-    case InstancePropertyValue.TimeSeriesReferenceList(value) => value
-    case InstancePropertyValue.FileReferenceList(value) => value
-    case InstancePropertyValue.SequenceReferenceList(value) => value
+  private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any = {
+    val propType = schema.apply(key).dataType
+    (propType, value) match {
+      case (IntegerType, InstancePropertyValue.Float64(v)) => v.toInt
+      case (IntegerType, InstancePropertyValue.Int64(v)) => v.toInt
+      case (IntegerType, InstancePropertyValue.Float32(v)) => v.toInt
+      case (LongType, InstancePropertyValue.Int32(v)) => v.toLong
+      case (LongType, InstancePropertyValue.Float32(v)) => v.toLong
+      case (LongType, InstancePropertyValue.Float64(v)) => v.toLong
+      case (DoubleType, InstancePropertyValue.Int32(v)) => v.toDouble
+      case (DoubleType, InstancePropertyValue.Int64(v)) => v.toDouble
+      case (DoubleType, InstancePropertyValue.Float32(v)) => v.toDouble
+      case (FloatType, InstancePropertyValue.Float64(v)) => v.toFloat
+      case (FloatType, InstancePropertyValue.Int32(v)) => v.toFloat
+      case (FloatType, InstancePropertyValue.Int64(v)) => v.toFloat
+      case (ArrayType(IntegerType, _), InstancePropertyValue.Float64List(v)) => v.map(_.toInt)
+      case (ArrayType(IntegerType, _), InstancePropertyValue.Int64List(v)) => v.map(_.toInt)
+      case (ArrayType(IntegerType, _), InstancePropertyValue.Float32List(v)) => v.map(_.toInt)
+      case (ArrayType(LongType, _), InstancePropertyValue.Int32List(v)) => v.map(_.toLong)
+      case (ArrayType(LongType, _), InstancePropertyValue.Float32List(v)) => v.map(_.toLong)
+      case (ArrayType(LongType, _), InstancePropertyValue.Float64List(v)) => v.map(_.toLong)
+      case (ArrayType(DoubleType, _), InstancePropertyValue.Int32List(v)) => v.map(_.toDouble)
+      case (ArrayType(DoubleType, _), InstancePropertyValue.Int64List(v)) => v.map(_.toDouble)
+      case (ArrayType(DoubleType, _), InstancePropertyValue.Float32List(v)) => v.map(_.toDouble)
+      case (ArrayType(FloatType, _), InstancePropertyValue.Float64List(v)) => v.map(_.toFloat)
+      case (ArrayType(FloatType, _), InstancePropertyValue.Int32List(v)) => v.map(_.toFloat)
+      case (ArrayType(FloatType, _), InstancePropertyValue.Int64List(v)) => v.map(_.toFloat)
+      case (_, InstancePropertyValue.Int64(v)) => v
+      case (_, InstancePropertyValue.Float64(v)) => v
+      case (_, InstancePropertyValue.Float32(v)) => v
+      case (_, InstancePropertyValue.Int32(value)) => value
+      case (_, InstancePropertyValue.Int32List(value)) => value
+      case (_, InstancePropertyValue.Int64List(value)) => value
+      case (_, InstancePropertyValue.Float32List(value)) => value
+      case (_, InstancePropertyValue.Float64List(value)) => value
+      case (_, InstancePropertyValue.String(value)) => value
+      case (_, InstancePropertyValue.Boolean(value)) => value
+      case (_, InstancePropertyValue.Date(value)) => java.sql.Date.valueOf(value)
+      case (_, InstancePropertyValue.Timestamp(value)) => java.sql.Timestamp.from(value.toInstant)
+      case (_, InstancePropertyValue.Object(value)) => value.noSpaces
+      case (_, InstancePropertyValue.ViewDirectNodeRelation(value)) =>
+        value.map(r => Array(r.space, r.externalId)).orNull
+      case (_, InstancePropertyValue.StringList(value)) => value
+      case (_, InstancePropertyValue.BooleanList(value)) => value
+      case (_, InstancePropertyValue.DateList(value)) => value.map(v => java.sql.Date.valueOf(v))
+      case (_, InstancePropertyValue.TimestampList(value)) =>
+        value.map(v => java.sql.Timestamp.from(v.toInstant))
+      case (_, InstancePropertyValue.ObjectList(value)) => value.map(_.noSpaces)
+      case (_, InstancePropertyValue.TimeSeriesReference(value)) => value
+      case (_, InstancePropertyValue.FileReference(value)) => value
+      case (_, InstancePropertyValue.SequenceReference(value)) => value
+      case (_, InstancePropertyValue.TimeSeriesReferenceList(value)) => value
+      case (_, InstancePropertyValue.FileReferenceList(value)) => value
+      case (_, InstancePropertyValue.SequenceReferenceList(value)) => value
+    }
   }
+
   // scalastyle:on cyclomatic.complexity
 
   // scalastyle:off cyclomatic.complexity method.length
@@ -234,7 +262,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     // Merging all the properties without considering the space & view/container externalId
     // At the time of this impl there is no requirement to consider properties with same name
     // in different view/containers
-    val allAvailablePropValues =
+
+    val allAvailablePropValues: Map[String, InstancePropertyValue] =
       i.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
     i match {
       case n: InstanceDefinition.NodeDefinition =>
@@ -244,7 +273,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("space") => n.space
             case s if s.equalsIgnoreCase("spaceExternalId") => n.space
             case s if s.equalsIgnoreCase("externalId") => n.externalId
-            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
+            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(p, it)).orNull
           },
           space = n.space
         )
@@ -258,7 +287,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("startNode") => Array(e.startNode.space, e.startNode.externalId)
             case s if s.equalsIgnoreCase("endNode") => Array(e.endNode.space, e.endNode.externalId)
             case s if s.equalsIgnoreCase("type") => Array(e.`type`.space, e.`type`.externalId)
-            case p => allAvailablePropValues.get(p).map(extractInstancePropertyValue).orNull
+            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(p, it)).orNull
           },
           space = e.space
         )
