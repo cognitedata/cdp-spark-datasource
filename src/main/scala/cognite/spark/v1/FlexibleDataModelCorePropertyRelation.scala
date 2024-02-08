@@ -1,19 +1,15 @@
 package cognite.spark.v1
 
 import cats.Apply
-import cats.effect.IO
+import cats.effect.{Async, IO}
 import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{
-  createEdgeDeleteData,
-  createEdges,
-  createNodeDeleteData,
-  createNodes,
-  createNodesOrEdges
-}
+import cognite.spark.v1.FlexibleDataModelRelationUtils._
+import com.cognite.sdk.scala.common.ItemsWithCursor
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
@@ -108,31 +104,55 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       selectedColumns
     }
 
-    val instanceFilter = viewReference
-      .map(usageBasedPropertyFilter(intendedUsage, filters, _))
-      .getOrElse(usageBasedAttributeFilter(intendedUsage, filters)) match {
-      case Right(filters) => filters
-      case Left(err) => throw err
-    }
+    val syncRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
+      // TODO: use the instance filter ?
+      val hasData: Option[HasData] = viewReference.map { viewRef =>
+        HasData(List(viewRef))
+      }
+      val tableExpression = instanceType match {
+        case InstanceType.Edge => TableExpression(edges = Some(EdgeTableExpression(filter = hasData)))
+        case InstanceType.Node => TableExpression(nodes = Some(NodesTableExpression(filter = hasData)))
+      }
+      val sourceReference: Seq[SourceSelector] = viewReference
+        .map(
+          r =>
+            SourceSelector(
+              source = r,
+              properties = selectedInstanceProps.filter(p =>
+                p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")))
+        .toList
 
-    val filterRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
-      InstanceFilterRequest(
-        instanceType = Some(instanceType),
-        filter = instanceFilter,
-        sort = None,
-        limit = config.limitPerPartition,
-        cursor = None,
-        sources = viewReference.map(r => Vector(InstanceSource(r))),
-        includeTyping = Some(true)
-      )
+      InstanceSyncRequest(
+        `with` = Map("sync" -> tableExpression),
+        cursors = None,
+        select = Map("sync" -> SelectExpression(sources = sourceReference)))
     }
-
-    filterRequests.distinct.map { fr =>
-      client.instances
-        .filterStream(fr, config.limitPerPartition)
-        .map(toProjectedInstance(_, selectedInstanceProps))
+    syncRequests.distinct.map { sr =>
+      syncOut(sr).map(toProjectedInstance(_, selectedInstanceProps))
     }
   }
+
+  private def syncOut(syncRequest: InstanceSyncRequest)(
+      implicit F: Async[IO]): Stream[IO, InstanceDefinition] =
+    Stream.eval {
+      syncWithCursor(syncRequest).map { sr =>
+        val items = sr.items
+        val nextCursor = sr.nextCursor
+
+        val next = (nextCursor, items.nonEmpty) match {
+          case (Some(cursor), true) => syncOut(syncRequest.copy(cursors = Some(Map("sync" -> cursor))))
+          case _ => fs2.Stream.empty
+        }
+        fs2.Stream.emits(items) ++ next
+      }
+    }.flatten
+
+  private def syncWithCursor(syncRequest: InstanceSyncRequest): IO[ItemsWithCursor[InstanceDefinition]] =
+    client.instances.syncRequest(syncRequest).map { sr =>
+      val itemDefinitions = sr.items.getOrElse(Map.empty).get("sync").getOrElse(Vector.empty)
+      val nextCursor = sr.nextCursor.getOrElse(Map.empty).get("sync")
+      ItemsWithCursor(itemDefinitions, nextCursor)
+    }
 
   private def usageBasedAttributeFilter(
       usage: Usage,
