@@ -56,7 +56,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     })
   }
 
-  // scalastyle:off cyclomatic.complexity
+  // scalastyle:off method.length
   private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any = {
     val propType = schema.apply(key).dataType
     (propType, value) match {
