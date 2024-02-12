@@ -133,6 +133,7 @@ class TimeSeriesRelationTest
                 |isString,
                 |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
                 |'$insertNoNameUnit' as unit,
+                |null as unitExternalId,
                 |null as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,
