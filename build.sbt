@@ -11,7 +11,7 @@ val sparkVersion = "3.3.3"
 val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.17.788"
+val cogniteSdkVersion = "2.17.789"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -38,9 +38,7 @@ lazy val commonSettings = Seq(
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
-  resolvers ++= Seq(
-    Resolver.sonatypeRepo("releases")
-  ),
+  resolvers ++= Resolver.sonatypeOssRepos("releases"),
   developers := List(
     Developer(
       id = "wjoel",
