@@ -129,7 +129,6 @@ object CdpConnector {
   }
 
   def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
-    import natchez.Trace.Implicits.noop // TODO: add tracing
     val metricsPrefix = if (config.collectMetrics) {
       Some(config.metricsPrefix)
     } else {
@@ -141,12 +140,17 @@ object CdpConnector {
       retryingSttpBackend(5, config.maxRetryDelaySeconds, config.parallelismPerPartition, metricsPrefix)
     val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunSync()
 
-    implicit val sttpBackend: SttpBackend[IO, Any] =
-      retryingSttpBackend(
-        config.maxRetries,
-        config.maxRetryDelaySeconds,
-        config.parallelismPerPartition,
-        metricsPrefix)
+    import natchez.Trace.Implicits.noop // TODO: add full tracing
+    implicit val sttpBackend: SttpBackend[IO, Any] = {
+      new FixedTraceSttpBackend(
+        retryingSttpBackend(
+          config.maxRetries,
+          config.maxRetryDelaySeconds,
+          config.parallelismPerPartition,
+          metricsPrefix),
+        config.tracingParent)
+    }
+
     new GenericClient(
       applicationName = config.applicationName.getOrElse(Constants.SparkDatasourceVersion),
       projectName = config.projectName,
