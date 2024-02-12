@@ -10,6 +10,7 @@ val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.3"
 val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
+val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
 val cogniteSdkVersion = "2.17.789"
 
@@ -28,7 +29,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.6." + patchVersion,
+  version := "3.7." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -153,7 +154,9 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.log4s" %% "log4s" % log4sVersion
+      "org.log4s" %% "log4s" % log4sVersion,
+      "org.tpolecat" %% "natchez-core" % natchezVersion,
+      "org.tpolecat" %% "natchez-noop" % natchezVersion,
     ),
     coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
