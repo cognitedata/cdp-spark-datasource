@@ -53,14 +53,14 @@ class DefaultSource
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
-    val coreSyncPropertyRelation = extractSyncRelation(parameters, config, sqlContext)
+    val corePropertySyncRelation = extractCorePropertySyncRelation(parameters, config, sqlContext)
     val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext)
     val dataModelBasedConnectionRelation =
       extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
     val dataModelBasedCorePropertyRelation =
       extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
     val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
-    coreSyncPropertyRelation
+    corePropertySyncRelation
       .orElse(corePropertyRelation)
       .orElse(dataModelBasedConnectionRelation)
       .orElse(dataModelBasedCorePropertyRelation)
@@ -70,7 +70,9 @@ class DefaultSource
           s"""
              |Invalid combination of arguments!
              |
-             | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
+             | Expecting 'instanceType' and 'cursor' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
+             | 'instanceSpace') for CorePropertySyncRelation,
+             | or expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
              | 'instanceSpace') for CorePropertyRelation,
              | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') with optional 'instanceSpace' for ConnectionRelation,
              | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'viewExternalId') with optional
@@ -508,7 +510,7 @@ object DefaultSource {
       .map(FlexibleDataModelRelationFactory.connectionRelation(config, sqlContext, _))
   }
 
-  private def extractSyncRelation(
+  private def extractCorePropertySyncRelation(
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext) =
@@ -528,7 +530,7 @@ object DefaultSource {
             parameters.get("viewExternalId"),
             parameters.get("viewVersion"),
           )(ViewReference.apply)
-        FlexibleDataModelRelationFactory.coreSyncPropertyRelation(
+        FlexibleDataModelRelationFactory.corePropertySyncRelation(
           config = config,
           sqlContext = sqlContext,
           viewCorePropConfig = ViewSyncCorePropertyConfig(

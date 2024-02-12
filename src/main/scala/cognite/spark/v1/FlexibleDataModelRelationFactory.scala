@@ -59,7 +59,7 @@ object FlexibleDataModelRelationFactory {
       viewCorePropConfig: ViewCorePropertyConfig): FlexibleDataModelCorePropertyRelation =
     new FlexibleDataModelCorePropertyRelation(config, viewCorePropConfig)(sqlContext)
 
-  def coreSyncPropertyRelation(
+  def corePropertySyncRelation(
       config: RelationConfig,
       sqlContext: SQLContext,
       viewCorePropConfig: ViewSyncCorePropertyConfig): FlexibleDataModelCorePropertySyncRelation =
