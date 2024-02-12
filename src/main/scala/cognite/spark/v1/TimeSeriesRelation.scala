@@ -87,7 +87,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       dataSetIds = m.get("dataSetId").map(idsFromStringifiedArray(_).map(CogniteInternalId(_))),
       externalIdPrefix = m.get("externalIdPrefix"),
       createdTime = timeRange(m, "createdTime"),
-      lastUpdatedTime = timeRange(m, "lastUpdatedTime")
+      lastUpdatedTime = timeRange(m, "lastUpdatedTime"),
+      unitExternalId = m.get("unitExternalId")
     )
 }
 object TimeSeriesRelation extends UpsertSchema {
@@ -109,7 +110,8 @@ final case class TimeSeriesUpsertSchema(
     securityCategories: Option[Seq[Long]] = None,
     isStep: Option[Boolean] = None,
     isString: Option[Boolean] = None,
-    dataSetId: OptionalField[Long] = FieldNotSpecified
+    dataSetId: OptionalField[Long] = FieldNotSpecified,
+    unitExternalId: OptionalField[String] = FieldNotSpecified
 ) extends WithNullableExtenalId
     with WithId[Option[Long]]
 
@@ -133,7 +135,8 @@ final case class TimeSeriesInsertSchema(
     isStep: Boolean = false,
     description: Option[String] = None,
     securityCategories: Option[Seq[Long]] = None,
-    dataSetId: Option[Long] = None
+    dataSetId: Option[Long] = None,
+    unitExternalId: Option[String] = None
 )
 
 final case class TimeSeriesReadSchema(
@@ -149,5 +152,6 @@ final case class TimeSeriesReadSchema(
     externalId: Option[String] = None,
     createdTime: Instant = Instant.ofEpochMilli(0),
     lastUpdatedTime: Instant = Instant.ofEpochMilli(0),
-    dataSetId: Option[Long] = None
+    dataSetId: Option[Long] = None,
+    unitExternalId: Option[String] = None
 )
