@@ -33,7 +33,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 private[spark] class FlexibleDataModelCorePropertyRelation(
     config: RelationConfig,
     corePropConfig: ViewCorePropertyConfig)(val sqlContext: SQLContext)
-    extends FlexibleDataModelBaseRelation(config, sqlContext)  {
+    extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 
   protected val intendedUsage = corePropConfig.intendedUsage

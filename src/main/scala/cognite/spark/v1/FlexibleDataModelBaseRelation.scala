@@ -5,7 +5,10 @@ import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{ComparableFilterValue, SeqFilterValue}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
+  ComparableFilterValue,
+  SeqFilterValue
+}
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
@@ -27,7 +30,8 @@ import scala.util.Try
 
 abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext: SQLContext)
     extends CdfRelation(config, FlexibleDataModelRelationFactory.ResourceType)
-    with PrunedFilteredScan with WritableRelation {
+    with PrunedFilteredScan
+    with WritableRelation {
 
   override def buildScan(selectedColumns: Array[String], filters: Array[Filter]): RDD[Row] =
     SdkV1Rdd[ProjectedFlexibleDataModelInstance, (String, String)](
