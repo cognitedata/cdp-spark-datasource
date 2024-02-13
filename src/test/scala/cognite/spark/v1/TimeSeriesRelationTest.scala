@@ -639,6 +639,7 @@ class TimeSeriesRelationTest
                    |name,
                    |map() as metadata,
                    |'$updateTestUnit' as unit,
+                   |null as unitExternalId,
                    |assetId,
                    |isStep,
                    |securityCategories,
