@@ -196,6 +196,7 @@ class TimeSeriesRelationTest
                 |isString,
                 |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
                 |'$insertTestUnit' as unit,
+                |null as unitExternalId
                 |null as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,
@@ -306,6 +307,7 @@ class TimeSeriesRelationTest
                 |concat('TEST_', name) as name,
                 |map("foo", null, "bar", "test") as metadata,
                 |'$abortUnit' as unit,
+                |null as unitExternalId
                 |NULL as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,
@@ -377,6 +379,7 @@ class TimeSeriesRelationTest
                 |concat('TEST_', name) as name,
                 |map("foo", null, "bar", "test") as metadata,
                 |'$partialUpdateUnit' as unit,
+                |null as unitExternalId
                 |NULL as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,
@@ -705,6 +708,7 @@ class TimeSeriesRelationTest
                 |false as isString,
                 |'name-$testUnit' name,
                 |'$testUnit' as unit,
+                |null as unitExternalId
                 |false as isStep,
                 |"id_$testUnit" as externalId
                 """.stripMargin)
@@ -809,6 +813,7 @@ class TimeSeriesRelationTest
                 |isString,
                 |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
                 |'$deleteUnit' as unit,
+                |null as unitExternalId
                 |null as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,
