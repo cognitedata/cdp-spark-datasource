@@ -29,7 +29,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.8." + patchVersion,
+  version := "3.9." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -39,9 +39,7 @@ lazy val commonSettings = Seq(
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
-  resolvers ++= Seq(
-    Resolver.sonatypeRepo("releases")
-  ),
+  resolvers ++= Resolver.sonatypeOssRepos("releases"),
   developers := List(
     Developer(
       id = "wjoel",
