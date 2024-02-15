@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import com.cognite.sdk.scala.common.OAuth2
 import com.cognite.sdk.scala.v1._
+import natchez.Kernel
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
@@ -260,7 +261,8 @@ trait SparkTest {
       subtrees = AssetSubtreeOption.Ingest,
       ignoreNullFields = true,
       rawEnsureParent = false,
-      enableSinglePartitionDeleteAssetHierarchy = false
+      enableSinglePartitionDeleteAssetHierarchy = false,
+      new Kernel(Map.empty)
     )
 
   private def getCounterSafe(metricName: String): Option[Long] =

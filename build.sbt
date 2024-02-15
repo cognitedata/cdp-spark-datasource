@@ -10,8 +10,9 @@ val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.3"
 val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
+val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.16.786"
+val cogniteSdkVersion = "2.17.789"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -24,11 +25,17 @@ ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0
 
 lazy val patchVersion = scala.io.Source.fromFile("patch_version.txt").mkString.trim
 
+credentials += Credentials("Sonatype Nexus Repository Manager",
+  "oss.sonatype.org",
+  System.getenv("SONATYPE_USERNAME"),
+  System.getenv("SONATYPE_PASSWORD"),
+)
+
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.6." + patchVersion,
+  version := "3.10." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -38,9 +45,7 @@ lazy val commonSettings = Seq(
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
-  resolvers ++= Seq(
-    Resolver.sonatypeRepo("releases")
-  ),
+  resolvers ++= Resolver.sonatypeOssRepos("releases"),
   developers := List(
     Developer(
       id = "wjoel",
@@ -155,7 +160,9 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.log4s" %% "log4s" % log4sVersion
+      "org.log4s" %% "log4s" % log4sVersion,
+      "org.tpolecat" %% "natchez-core" % natchezVersion,
+      "org.tpolecat" %% "natchez-noop" % natchezVersion,
     ),
     coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
