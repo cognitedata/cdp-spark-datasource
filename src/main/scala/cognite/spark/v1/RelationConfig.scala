@@ -1,5 +1,7 @@
 package cognite.spark.v1
 
+import natchez.Kernel
+
 final case class RelationConfig(
     auth: CdfSparkAuth,
     clientTag: Option[String],
@@ -22,7 +24,8 @@ final case class RelationConfig(
     subtrees: AssetSubtreeOption,
     ignoreNullFields: Boolean,
     rawEnsureParent: Boolean,
-    enableSinglePartitionDeleteAssetHierarchy: Boolean // flag to test whether single partition helps avoid NPE in asset hierarchy builder
+    enableSinglePartitionDeleteAssetHierarchy: Boolean, // flag to test whether single partition helps avoid NPE in asset hierarchy builder
+    tracingParent: Kernel
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */

@@ -1,0 +1,14 @@
+name: 'All hands on deck'
+on:
+  schedule:
+    - cron: '0 8 * * *'
+
+jobs:
+  invite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: mr-celo/stale-invite@4d29c05856f0ce4e45daa096333eecffd633c93b # v1.3
+        with:
+          reviewers: 'silvavelosa,mr-celo,dmivankov'
+          days-until-stale: 2
+          comment: 'This pull request seems a bit stale.. Shall we invite more to the party?'
