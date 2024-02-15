@@ -55,7 +55,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
               source = r,
               properties = selectedInstanceProps.filter(p =>
                 p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")))
-        .toList
+        .toIndexedSeq
 
       InstanceSyncRequest(
         `with` = Map("sync" -> tableExpression),
