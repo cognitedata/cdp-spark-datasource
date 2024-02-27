@@ -461,7 +461,8 @@ object DefaultSource {
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
       rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
       enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy,
-      extractTracingHeadersKernel(parameters)
+      tracingParent = extractTracingHeadersKernel(parameters),
+      useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false)
     )
   }
 
