@@ -80,6 +80,15 @@ object CdpConnector {
         case _ => IO.unit
       })
 
+  def throttlingSttpBackend(sttpBackend: SttpBackend[IO, Any]): SttpBackend[IO, Any] = {
+    // this backend throttles all requests when rate limiting from the service is encountered
+    val makeQueueOf1 = for {
+      queue <- Queue.bounded[IO, Unit](1)
+      _ <- queue.offer(())
+    } yield queue
+    new BackpressureThrottleBackend[IO, Any](sttpBackend, makeQueueOf1.unsafeRunSync(), 800.milliseconds)
+  }
+
   def retryingSttpBackend(
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
@@ -104,15 +113,7 @@ object CdpConnector {
       if (!useSharedThrottle) {
         metricsBackend
       } else {
-        // this backend throttles all requests when rate limiting from the service is encountered
-        val makeQueueOf1 = for {
-          queue <- Queue.bounded[IO, Unit](1)
-          _ <- queue.offer(())
-        } yield queue
-        new BackpressureThrottleBackend[IO, Any](
-          metricsBackend,
-          makeQueueOf1.unsafeRunSync(),
-          800.milliseconds)
+        throttlingSttpBackend(metricsBackend)
       }
     val retryingBackend = new RetryingBackend[IO, Any](
       throttledBackend,
