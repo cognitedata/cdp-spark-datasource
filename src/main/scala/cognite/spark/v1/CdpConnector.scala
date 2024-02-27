@@ -101,8 +101,9 @@ object CdpConnector {
             }
         ))
     val throttledBackend =
-      if (!useSharedThrottle) metricsBackend
-      else {
+      if (!useSharedThrottle) {
+        metricsBackend
+      } else {
         // this backend throttles all requests when rate limiting from the service is encountered
         val makeQueueOf1 = for {
           queue <- Queue.bounded[IO, Unit](1)
