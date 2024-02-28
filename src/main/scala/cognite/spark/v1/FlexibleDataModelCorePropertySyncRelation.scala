@@ -13,6 +13,7 @@ import com.cognite.sdk.scala.v1.fdm.instances._
 import fs2.Stream
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types.{DataTypes, StructField}
 
 /**
   * Flexible Data Model Relation for syncing Nodes or Edges with properties
@@ -22,6 +23,7 @@ import org.apache.spark.sql.sources._
   * @param sqlContext sql context
   */
 private[spark] class FlexibleDataModelCorePropertySyncRelation(
+    cursor: String,
     config: RelationConfig,
     corePropConfig: ViewSyncCorePropertyConfig)(sqlContext: SQLContext)
     extends FlexibleDataModelCorePropertyRelation(
@@ -31,6 +33,11 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         corePropConfig.viewReference,
         corePropConfig.instanceSpace)
     )(sqlContext) {
+
+  protected override def metadataAttributes(): Array[StructField] =
+    Array(
+      DataTypes.createStructField("metadata.cursor", DataTypes.StringType, true)
+    )
 
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
@@ -54,31 +61,40 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
             SourceSelector(
               source = r,
               properties = selectedInstanceProps.toIndexedSeq.filter(p =>
-                p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")))
+                p != "metadata.cursor" && p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")
+          ))
         .toSeq
+
+      val initialCursor = if (cursor.nonEmpty) {
+        Some(Map("sync" -> cursor))
+      } else {
+        None
+      }
 
       InstanceSyncRequest(
         `with` = Map("sync" -> tableExpression),
-        cursors = None,
+        cursors = initialCursor,
         select = Map("sync" -> SelectExpression(sources = sourceReference)))
     }
     syncRequests.distinct.map { sr =>
-      syncOut(sr).map(toProjectedInstance(_, selectedInstanceProps))
+      syncOut(sr, selectedColumns)
     }
   }
 
-  private def syncOut(syncRequest: InstanceSyncRequest)(
-      implicit F: Async[IO]): Stream[IO, InstanceDefinition] =
+  private def syncOut(syncRequest: InstanceSyncRequest, selectedProps: Array[String])(
+      implicit F: Async[IO]): Stream[IO, ProjectedFlexibleDataModelInstance] =
     Stream.eval {
       syncWithCursor(syncRequest).map { sr =>
         val items = sr.items
         val nextCursor = sr.nextCursor
-
         val next = (nextCursor, items.nonEmpty) match {
-          case (Some(cursor), true) => syncOut(syncRequest.copy(cursors = Some(Map("sync" -> cursor))))
+          case (Some(cursor), true) =>
+            syncOut(syncRequest.copy(cursors = Some(Map("sync" -> cursor))), selectedProps)
           case _ => fs2.Stream.empty
         }
-        fs2.Stream.emits(items) ++ next
+
+        val projected = items.map(toProjectedInstance(_, nextCursor, selectedProps))
+        fs2.Stream.emits(projected) ++ next
       }
     }.flatten
 

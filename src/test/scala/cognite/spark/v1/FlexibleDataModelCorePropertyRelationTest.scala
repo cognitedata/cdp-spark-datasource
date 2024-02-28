@@ -426,7 +426,7 @@ class FlexibleDataModelCorePropertyRelationTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewNodes.externalId,
       viewVersion = viewNodes.version,
-      cursor = "empty"
+      cursor = ""
     )
 
     val readEdgesDf = readRows(
@@ -442,7 +442,7 @@ class FlexibleDataModelCorePropertyRelationTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      cursor = "empty"
+      cursor = ""
     )
 
     val readAllDf = readRows(
@@ -575,7 +575,7 @@ class FlexibleDataModelCorePropertyRelationTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = view.externalId,
       viewVersion = view.version,
-      cursor = "empty"
+      cursor = ""
     )
 
     readDf.createTempView(s"instance_filter_table")

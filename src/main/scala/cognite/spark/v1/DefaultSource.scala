@@ -556,6 +556,7 @@ object DefaultSource {
             parameters.get("viewVersion")
           )(ViewReference.apply)
         FlexibleDataModelRelationFactory.corePropertySyncRelation(
+          usageAndCursor._2,
           config = config,
           sqlContext = sqlContext,
           viewCorePropConfig = ViewSyncCorePropertyConfig(

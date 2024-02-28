@@ -130,7 +130,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     filterRequests.distinct.map { fr =>
       client.instances
         .filterStream(fr, config.limitPerPartition)
-        .map(toProjectedInstance(_, selectedInstanceProps))
+        .map(toProjectedInstance(_, None, selectedInstanceProps))
     }
   }
 
