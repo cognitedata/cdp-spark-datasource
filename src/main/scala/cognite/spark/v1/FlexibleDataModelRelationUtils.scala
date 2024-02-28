@@ -27,7 +27,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
 }
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{ArrayType, DoubleType, FloatType, IntegerType, LongType, StructType}
 
 import java.time._
 import scala.util.{Failure, Success, Try}
@@ -489,6 +489,68 @@ object FlexibleDataModelRelationUtils {
             |in data row: ${rowToString(row)}
             |""".stripMargin))
     }
+
+  // scalastyle:off method.length
+  // scalastyle:off cyclomatic.complexity
+  private[spark] def extractInstancePropertyValue(
+      schema: StructType,
+      key: String,
+      value: InstancePropertyValue): Any = {
+    val propType = schema.apply(key).dataType
+    (propType, value) match {
+      case (IntegerType, InstancePropertyValue.Float64(v)) => v.toInt
+      case (IntegerType, InstancePropertyValue.Int64(v)) => v.toInt
+      case (IntegerType, InstancePropertyValue.Float32(v)) => v.toInt
+      case (LongType, InstancePropertyValue.Int32(v)) => v.toLong
+      case (LongType, InstancePropertyValue.Float32(v)) => v.toLong
+      case (LongType, InstancePropertyValue.Float64(v)) => v.toLong
+      case (DoubleType, InstancePropertyValue.Int32(v)) => v.toDouble
+      case (DoubleType, InstancePropertyValue.Int64(v)) => v.toDouble
+      case (DoubleType, InstancePropertyValue.Float32(v)) => v.toDouble
+      case (FloatType, InstancePropertyValue.Float64(v)) => v.toFloat
+      case (FloatType, InstancePropertyValue.Int32(v)) => v.toFloat
+      case (FloatType, InstancePropertyValue.Int64(v)) => v.toFloat
+      case (ArrayType(IntegerType, _), InstancePropertyValue.Float64List(v)) => v.map(_.toInt)
+      case (ArrayType(IntegerType, _), InstancePropertyValue.Int64List(v)) => v.map(_.toInt)
+      case (ArrayType(IntegerType, _), InstancePropertyValue.Float32List(v)) => v.map(_.toInt)
+      case (ArrayType(LongType, _), InstancePropertyValue.Int32List(v)) => v.map(_.toLong)
+      case (ArrayType(LongType, _), InstancePropertyValue.Float32List(v)) => v.map(_.toLong)
+      case (ArrayType(LongType, _), InstancePropertyValue.Float64List(v)) => v.map(_.toLong)
+      case (ArrayType(DoubleType, _), InstancePropertyValue.Int32List(v)) => v.map(_.toDouble)
+      case (ArrayType(DoubleType, _), InstancePropertyValue.Int64List(v)) => v.map(_.toDouble)
+      case (ArrayType(DoubleType, _), InstancePropertyValue.Float32List(v)) => v.map(_.toDouble)
+      case (ArrayType(FloatType, _), InstancePropertyValue.Float64List(v)) => v.map(_.toFloat)
+      case (ArrayType(FloatType, _), InstancePropertyValue.Int32List(v)) => v.map(_.toFloat)
+      case (ArrayType(FloatType, _), InstancePropertyValue.Int64List(v)) => v.map(_.toFloat)
+      case (_, InstancePropertyValue.Int64(v)) => v
+      case (_, InstancePropertyValue.Float64(v)) => v
+      case (_, InstancePropertyValue.Float32(v)) => v
+      case (_, InstancePropertyValue.Int32(value)) => value
+      case (_, InstancePropertyValue.Int32List(value)) => value
+      case (_, InstancePropertyValue.Int64List(value)) => value
+      case (_, InstancePropertyValue.Float32List(value)) => value
+      case (_, InstancePropertyValue.Float64List(value)) => value
+      case (_, InstancePropertyValue.String(value)) => value
+      case (_, InstancePropertyValue.Boolean(value)) => value
+      case (_, InstancePropertyValue.Date(value)) => java.sql.Date.valueOf(value)
+      case (_, InstancePropertyValue.Timestamp(value)) => java.sql.Timestamp.from(value.toInstant)
+      case (_, InstancePropertyValue.Object(value)) => value.noSpaces
+      case (_, InstancePropertyValue.ViewDirectNodeRelation(value)) =>
+        value.map(r => Array(r.space, r.externalId)).orNull
+      case (_, InstancePropertyValue.StringList(value)) => value
+      case (_, InstancePropertyValue.BooleanList(value)) => value
+      case (_, InstancePropertyValue.DateList(value)) => value.map(v => java.sql.Date.valueOf(v))
+      case (_, InstancePropertyValue.TimestampList(value)) =>
+        value.map(v => java.sql.Timestamp.from(v.toInstant))
+      case (_, InstancePropertyValue.ObjectList(value)) => value.map(_.noSpaces)
+      case (_, InstancePropertyValue.TimeSeriesReference(value)) => value
+      case (_, InstancePropertyValue.FileReference(value)) => value
+      case (_, InstancePropertyValue.SequenceReference(value)) => value
+      case (_, InstancePropertyValue.TimeSeriesReferenceList(value)) => value
+      case (_, InstancePropertyValue.FileReferenceList(value)) => value
+      case (_, InstancePropertyValue.SequenceReferenceList(value)) => value
+    }
+  }
 
   private def extractInstancePropertyValues(
       propertyDefMap: Map[String, ViewPropertyDefinition],
