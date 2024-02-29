@@ -8,6 +8,7 @@ import cognite.spark.v1.FlexibleDataModelRelationFactory.{
 }
 import com.cognite.sdk.scala.common.ItemsWithCursor
 import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
 import com.cognite.sdk.scala.v1.fdm.instances._
 import fs2.Stream
@@ -42,6 +43,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       DataTypes.createStructField("metadata.deletedTime", DataTypes.LongType, true)
     )
 
+  // scalastyle:off cyclomatic.complexity
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
@@ -50,39 +52,40 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       selectedColumns
     }
 
-    val syncRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
-      val hasData: Option[HasData] = viewReference.map { viewRef =>
-        HasData(List(viewRef))
-      }
-      val tableExpression = instanceType match {
-        case InstanceType.Edge => TableExpression(edges = Some(EdgeTableExpression(filter = hasData)))
-        case InstanceType.Node => TableExpression(nodes = Some(NodesTableExpression(filter = hasData)))
-      }
-      val sourceReference: Seq[SourceSelector] = viewReference
-        .map(
-          r =>
-            SourceSelector(
-              source = r,
-              properties = selectedInstanceProps.toIndexedSeq.filter(p =>
-                !p.startsWith("metadata.") && p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")
-          ))
-        .toSeq
-
-      val initialCursor = if (cursor.nonEmpty) {
-        Some(Map("sync" -> cursor))
-      } else {
-        None
-      }
-
-      InstanceSyncRequest(
-        `with` = Map("sync" -> tableExpression),
-        cursors = initialCursor,
-        select = Map("sync" -> SelectExpression(sources = sourceReference)))
+    val hasData: Option[HasData] = viewReference.map { viewRef =>
+      HasData(List(viewRef))
     }
-    syncRequests.distinct.map { sr =>
-      syncOut(sr, selectedColumns)
+
+    val tableExpression = intendedUsage match {
+      case Usage.Edge => TableExpression(edges = Some(EdgeTableExpression(filter = hasData)))
+      case Usage.Node => TableExpression(nodes = Some(NodesTableExpression(filter = hasData)))
+      case Usage.All => throw new CdfSparkIllegalArgumentException("Cannot sync both nodes and edges")
     }
+
+    val sourceReference: Seq[SourceSelector] = viewReference
+      .map(
+        r =>
+          SourceSelector(
+            source = r,
+            properties = selectedInstanceProps.toIndexedSeq.filter(p =>
+              !p.startsWith("metadata.") && p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")
+        ))
+      .toSeq
+
+    val initialCursor = if (cursor.nonEmpty) {
+      Some(Map("sync" -> cursor))
+    } else {
+      None
+    }
+
+    val instanceSyncRequest = InstanceSyncRequest(
+      `with` = Map("sync" -> tableExpression),
+      cursors = initialCursor,
+      select = Map("sync" -> SelectExpression(sources = sourceReference)))
+
+    Seq(syncOut(instanceSyncRequest, selectedColumns))
   }
+  // scalastyle:on cyclomatic.complexity
 
   private def syncOut(syncRequest: InstanceSyncRequest, selectedProps: Array[String])(
       implicit F: Async[IO]): Stream[IO, ProjectedFlexibleDataModelInstance] =
