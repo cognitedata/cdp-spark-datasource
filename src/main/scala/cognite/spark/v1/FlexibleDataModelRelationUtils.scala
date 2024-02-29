@@ -27,7 +27,15 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
 }
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{ArrayType, DoubleType, FloatType, IntegerType, LongType, StructType}
+import org.apache.spark.sql.types.{
+  ArrayType,
+  DoubleType,
+  FloatType,
+  IntegerType,
+  LongType,
+  StringType,
+  StructType
+}
 
 import java.time._
 import scala.util.{Failure, Success, Try}
@@ -498,6 +506,10 @@ object FlexibleDataModelRelationUtils {
       value: InstancePropertyValue): Any = {
     val propType = schema.apply(key).dataType
     (propType, value) match {
+      case (StringType, InstancePropertyValue.Date(v)) => v.toString
+      case (StringType, InstancePropertyValue.Timestamp(v)) => v.toString
+      case (ArrayType(StringType, _), InstancePropertyValue.TimestampList(v)) => v.map(_.toString)
+      case (ArrayType(StringType, _), InstancePropertyValue.DateList(v)) => v.map(_.toString)
       case (IntegerType, InstancePropertyValue.Float64(v)) => v.toInt
       case (IntegerType, InstancePropertyValue.Int64(v)) => v.toInt
       case (IntegerType, InstancePropertyValue.Float32(v)) => v.toInt
