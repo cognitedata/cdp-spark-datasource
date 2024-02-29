@@ -616,11 +616,11 @@ class FlexibleDataModelCorePropertyRelationTest
       cursor = ""
     )
 
-    syncDf.createTempView(s"sync_empty_cursor")
-    val syncedNodes = spark.sql("select * from sync_empty_cursor where longProp > 10L and longProp <= 50").collect()
+    syncDf.createTempView(s"sync_empty_cursor_with_filter")
+    val syncedNodes = spark.sql("select * from sync_empty_cursor_with_filter where longProp > 10L and longProp <= 50").collect()
     syncedNodes.length shouldBe 40
 
-    val syncedNodes2 = spark.sql("select * from sync_empty_cursor where " +
+    val syncedNodes2 = spark.sql("select * from sync_empty_cursor_with_filter where " +
       "`metadata.lastUpdatedTime` > 10L and " +
       "longProp > 0 and " +
       "`metadata.deletedTime` = 0").collect()
