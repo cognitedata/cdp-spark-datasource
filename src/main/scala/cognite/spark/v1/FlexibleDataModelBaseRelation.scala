@@ -297,12 +297,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     } ++ usageBasedSchemaAttributes(usage) ++ metadataAttributes()
     DataTypes.createStructType(fields.toArray)
   }
-  // scalastyle:on cyclomatic.complexity
 
-  protected def metadataAttributes(): Array[StructField] =
-    Array(
-      //DataTypes.createStructField("cursor", DataTypes.StringType, true),
-    )
+  protected def metadataAttributes(): Array[StructField] = Array.empty
 
   // schema fields for relation references and node/edge identifiers
   protected def usageBasedSchemaAttributes(usage: Usage): Array[StructField] =

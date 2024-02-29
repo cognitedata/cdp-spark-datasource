@@ -34,14 +34,13 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         corePropConfig.instanceSpace)
     )(sqlContext) {
 
-  protected override def metadataAttributes(): Array[StructField] = {
+  protected override def metadataAttributes(): Array[StructField] =
     Array(
       DataTypes.createStructField("metadata.cursor", DataTypes.StringType, true),
       DataTypes.createStructField("metadata.createdTime", DataTypes.LongType, true),
       DataTypes.createStructField("metadata.lastUpdatedTime", DataTypes.LongType, true),
       DataTypes.createStructField("metadata.deletedTime", DataTypes.LongType, true)
     )
-  }
 
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
