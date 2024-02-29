@@ -605,7 +605,30 @@ class FlexibleDataModelCorePropertyRelationTest
     syncedNextNodes.size shouldBe 10
   }
 
+  it should "respect filters in sync queries" in {
+    val (viewDefinition, _) = setupSyncTest.unsafeRunSync()
+    val view = viewDefinition.toSourceReference
+    val syncDf = syncRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      cursor = ""
+    )
+
+    syncDf.createTempView(s"sync_empty_cursor")
+    val syncedNodes = spark.sql("select * from sync_empty_cursor where longProp > 10L and longProp <= 50").collect()
+    syncedNodes.length shouldBe 40
+
+    val syncedNodes2 = spark.sql("select * from sync_empty_cursor where " +
+      "`metadata.lastUpdatedTime` > 10L and " +
+      "longProp > 0 and " +
+      "`metadata.deletedTime` = 0").collect()
+    syncedNodes2.length shouldBe 50
+  }
+
   it should "sync with old cursor " in {
+    // Let us see what happens when this cursor gets more than 3 days..
     val oldCursorValue = "\"Z0FBQUFBQmw0RjJXenpCbHl3Ny02MzRRN21lTEVkdm5hU3hpQTM4d05ERkwxV2xNSG5" +
       "wa2ltOHhXMXloWC05akN6TDEzWGExMkkwZlpocGVhdVZXSDBGMVpEdmIwSTlzVDhQQUVhOHBNV2pCNUFNMFBsREg" +
       "4WjlEU3RacFFMbS1MM3hZaGVkV3ZFcVhoUy13R0NlODEzaEhlZUhUbVoxeTZ3bWVCX0tnSWdXRkphcjJIS2hfemh" +
