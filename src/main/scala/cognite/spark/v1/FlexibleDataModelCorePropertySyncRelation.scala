@@ -38,6 +38,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
   protected override def metadataAttributes(): Array[StructField] =
     Array(
       DataTypes.createStructField("metadata.cursor", DataTypes.StringType, true),
+      DataTypes.createStructField("metadata.version", DataTypes.LongType, true),
       DataTypes.createStructField("metadata.createdTime", DataTypes.LongType, true),
       DataTypes.createStructField("metadata.lastUpdatedTime", DataTypes.LongType, true),
       DataTypes.createStructField("metadata.deletedTime", DataTypes.LongType, true)

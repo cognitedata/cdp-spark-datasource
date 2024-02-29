@@ -585,6 +585,8 @@ class FlexibleDataModelCorePropertyRelationTest
     lastUpdated should be >=  createdTime
     val deletedTime = lastRow.getLong(lastRow.schema.fieldIndex("metadata.deletedTime"))
     deletedTime shouldBe 0L
+    val version = lastRow.getLong(lastRow.schema.fieldIndex("metadata.version"))
+    version should be > 0L
 
     (syncedExternalIds should contain).allElementsOf(modifiedExternalIds)
 
