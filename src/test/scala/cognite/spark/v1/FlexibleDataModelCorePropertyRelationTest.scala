@@ -579,6 +579,13 @@ class FlexibleDataModelCorePropertyRelationTest
     val lastRow = syncedNodes.last
     val cursor = lastRow.getString(lastRow.schema.fieldIndex("metadata.cursor"))
 
+    val createdTime = lastRow.getLong(lastRow.schema.fieldIndex("metadata.createdTime"))
+    createdTime should be > 1L
+    val lastUpdated = lastRow.getLong(lastRow.schema.fieldIndex("metadata.lastUpdatedTime"))
+    lastUpdated should be >=  createdTime
+    val deletedTime = lastRow.getLong(lastRow.schema.fieldIndex("metadata.deletedTime"))
+    deletedTime shouldBe 0L
+
     (syncedExternalIds should contain).allElementsOf(modifiedExternalIds)
 
     val syncNext = syncRows(
