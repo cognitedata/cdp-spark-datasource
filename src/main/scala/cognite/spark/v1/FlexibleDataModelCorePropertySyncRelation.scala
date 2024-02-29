@@ -9,6 +9,7 @@ import cognite.spark.v1.FlexibleDataModelRelationFactory.{
 import com.cognite.sdk.scala.common.ItemsWithCursor
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
 import com.cognite.sdk.scala.v1.fdm.instances._
 import fs2.Stream
@@ -44,6 +45,16 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       DataTypes.createStructField("metadata.deletedTime", DataTypes.LongType, true)
     )
 
+  private def createSyncFilter(filters: Array[Filter], instanceType: InstanceType): FilterDefinition.And= {
+    val hasData: Option[HasData] = viewReference.map { viewRef =>
+      HasData(List(viewRef))
+    }
+    val requestFilters: Seq[FilterDefinition] = (filters.map {
+      toNodeOrEdgeAttributeFilter(instanceType, _).toOption
+    } ++ Array(hasData)).flatten.toSeq
+    FilterDefinition.And(requestFilters)
+  }
+
   // scalastyle:off cyclomatic.complexity
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
@@ -53,14 +64,18 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       selectedColumns
     }
 
-    val hasData: Option[HasData] = viewReference.map { viewRef =>
-      HasData(List(viewRef))
+    val instanceType = intendedUsage match {
+      case Usage.Edge => InstanceType.Edge
+      case Usage.Node => InstanceType.Node
+      case Usage.All => throw new CdfSparkIllegalArgumentException("Cannot sync both nodes and edges")
     }
 
-    val tableExpression = intendedUsage match {
-      case Usage.Edge => TableExpression(edges = Some(EdgeTableExpression(filter = hasData)))
-      case Usage.Node => TableExpression(nodes = Some(NodesTableExpression(filter = hasData)))
-      case Usage.All => throw new CdfSparkIllegalArgumentException("Cannot sync both nodes and edges")
+    val syncFilter = createSyncFilter(filters, instanceType)
+    val tableExpression = instanceType match {
+      case InstanceType.Edge =>
+        TableExpression(edges = Some(EdgeTableExpression(filter = Some(syncFilter))))
+      case InstanceType.Node =>
+        TableExpression(nodes = Some(NodesTableExpression(filter = Some(syncFilter))))
     }
 
     val sourceReference: Seq[SourceSelector] = viewReference

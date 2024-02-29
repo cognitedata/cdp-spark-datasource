@@ -625,8 +625,15 @@ class FlexibleDataModelCorePropertyRelationTest
     val syncedNodes2 = spark.sql("select * from sync_empty_cursor_with_filter where " +
       "`metadata.lastUpdatedTime` > 10L and " +
       "longProp > 0 and " +
+      "space = '" + spaceExternalId + "' and " +
       "`metadata.deletedTime` = 0").collect()
     syncedNodes2.length shouldBe 50
+
+    val syncedNodes3 = spark.sql("select * from sync_empty_cursor_with_filter where " +
+      "`metadata.lastUpdatedTime` > 10L and " +
+      "longProp > 0 and " +
+      "space = 'nonexistingspace'").collect()
+    syncedNodes3.length shouldBe 0
   }
 
   it should "sync with old cursor " in {
