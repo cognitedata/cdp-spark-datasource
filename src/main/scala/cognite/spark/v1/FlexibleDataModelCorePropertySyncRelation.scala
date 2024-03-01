@@ -85,7 +85,8 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     val instanceType = intendedUsage match {
       case Usage.Edge => InstanceType.Edge
       case Usage.Node => InstanceType.Node
-      case Usage.All => throw new CdfSparkIllegalArgumentException("Cannot sync both nodes and edges at the same time")
+      case Usage.All =>
+        throw new CdfSparkIllegalArgumentException("Cannot sync both nodes and edges at the same time")
     }
 
     val syncFilter = createSyncFilter(filters, instanceType)
