@@ -57,7 +57,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   }
 
   private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any =
-    FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema, key, value)
+    FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema.apply(key).dataType, value)
 
   // scalastyle:on cyclomatic.complexity
 

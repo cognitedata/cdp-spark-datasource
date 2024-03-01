@@ -29,6 +29,7 @@ import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{
   ArrayType,
+  DataType,
   DoubleType,
   FloatType,
   IntegerType,
@@ -501,10 +502,8 @@ object FlexibleDataModelRelationUtils {
   // scalastyle:off method.length
   // scalastyle:off cyclomatic.complexity
   private[spark] def extractInstancePropertyValue(
-      schema: StructType,
-      key: String,
-      value: InstancePropertyValue): Any = {
-    val propType = schema.apply(key).dataType
+      propType: DataType,
+      value: InstancePropertyValue): Any =
     (propType, value) match {
       case (StringType, InstancePropertyValue.Date(v)) => v.toString
       case (StringType, InstancePropertyValue.Timestamp(v)) => v.toString
@@ -562,7 +561,6 @@ object FlexibleDataModelRelationUtils {
       case (_, InstancePropertyValue.FileReferenceList(value)) => value
       case (_, InstancePropertyValue.SequenceReferenceList(value)) => value
     }
-  }
 
   private def extractInstancePropertyValues(
       propertyDefMap: Map[String, ViewPropertyDefinition],

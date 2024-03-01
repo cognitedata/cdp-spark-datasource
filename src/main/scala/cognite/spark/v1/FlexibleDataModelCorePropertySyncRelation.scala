@@ -45,7 +45,9 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       DataTypes.createStructField("metadata.deletedTime", DataTypes.LongType, true)
     )
 
-  private def createSyncFilter(filters: Array[Filter], instanceType: InstanceType): FilterDefinition.And= {
+  private def createSyncFilter(
+      filters: Array[Filter],
+      instanceType: InstanceType): FilterDefinition.And = {
     val hasData: Option[HasData] = viewReference.map { viewRef =>
       HasData(List(viewRef))
     }
