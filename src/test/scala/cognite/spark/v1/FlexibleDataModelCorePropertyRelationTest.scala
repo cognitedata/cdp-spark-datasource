@@ -579,13 +579,13 @@ class FlexibleDataModelCorePropertyRelationTest
     val lastRow = syncedNodes.last
     val cursor = lastRow.getString(lastRow.schema.fieldIndex("metadata.cursor"))
 
-    val createdTime = lastRow.getLong(lastRow.schema.fieldIndex("metadata.createdTime"))
+    val createdTime = lastRow.getLong(lastRow.schema.fieldIndex("node.createdTime"))
     createdTime should be > 1L
-    val lastUpdated = lastRow.getLong(lastRow.schema.fieldIndex("metadata.lastUpdatedTime"))
+    val lastUpdated = lastRow.getLong(lastRow.schema.fieldIndex("node.lastUpdatedTime"))
     lastUpdated should be >=  createdTime
-    val deletedTime = lastRow.getLong(lastRow.schema.fieldIndex("metadata.deletedTime"))
+    val deletedTime = lastRow.getLong(lastRow.schema.fieldIndex("node.deletedTime"))
     deletedTime shouldBe 0L
-    val version = lastRow.getLong(lastRow.schema.fieldIndex("metadata.version"))
+    val version = lastRow.getLong(lastRow.schema.fieldIndex("node.version"))
     version should be > 0L
 
     (syncedExternalIds should contain).allElementsOf(modifiedExternalIds)
@@ -599,12 +599,12 @@ class FlexibleDataModelCorePropertyRelationTest
 
     syncNext.createTempView(s"sync_next_cursor")
     var syncedNextNodes = spark.sql("select * from sync_next_cursor").collect()
-    syncedNextNodes.size shouldBe 0
+    syncedNextNodes.length shouldBe 0
 
     // Add 10 nodes and verify we can sync them out with same cursor
     setupInstancesForSync(viewDefinition.toSourceReference, 10).unsafeRunSync()
     syncedNextNodes = spark.sql("select * from sync_next_cursor").collect()
-    syncedNextNodes.size shouldBe 10
+    syncedNextNodes.length shouldBe 10
   }
 
   it should "respect filters in sync queries" in {
@@ -623,14 +623,14 @@ class FlexibleDataModelCorePropertyRelationTest
     syncedNodes.length shouldBe 40
 
     val syncedNodes2 = spark.sql("select * from sync_empty_cursor_with_filter where " +
-      "`metadata.lastUpdatedTime` > 10L and " +
+      "`node.lastUpdatedTime` > 10L and " +
       "longProp > 0 and " +
       "space = '" + spaceExternalId + "' and " +
-      "`metadata.deletedTime` = 0").collect()
+      "`node.deletedTime` = 0").collect()
     syncedNodes2.length shouldBe 50
 
     val syncedNodes3 = spark.sql("select * from sync_empty_cursor_with_filter where " +
-      "`metadata.lastUpdatedTime` > 10L and " +
+      "`node.lastUpdatedTime` > 10L and " +
       "longProp > 0 and " +
       "space = 'nonexistingspace'").collect()
     syncedNodes3.length shouldBe 0

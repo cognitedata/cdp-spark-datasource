@@ -220,10 +220,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("spaceExternalId") => n.space
             case s if s.equalsIgnoreCase("externalId") => n.externalId
             case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
-            case s if s.equalsIgnoreCase("metadata.version") => n.version.getOrElse(-1)
-            case s if s.equalsIgnoreCase("metadata.lastUpdatedTime") => n.lastUpdatedTime
-            case s if s.equalsIgnoreCase("metadata.deletedTime") => n.deletedTime.getOrElse(0L)
-            case s if s.equalsIgnoreCase("metadata.createdTime") => n.createdTime
+            case s if s.equalsIgnoreCase("node.version") => n.version.getOrElse(-1)
+            case s if s.equalsIgnoreCase("node.lastUpdatedTime") => n.lastUpdatedTime
+            case s if s.equalsIgnoreCase("node.deletedTime") => n.deletedTime.getOrElse(0L)
+            case s if s.equalsIgnoreCase("node.createdTime") => n.createdTime
             case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(p, it)).orNull
           },
           space = n.space
@@ -239,10 +239,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("endNode") => Array(e.endNode.space, e.endNode.externalId)
             case s if s.equalsIgnoreCase("type") => Array(e.`type`.space, e.`type`.externalId)
             case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
-            case s if s.equalsIgnoreCase("metadata.version") => e.version.getOrElse(-1)
-            case s if s.equalsIgnoreCase("metadata.lastUpdatedTime") => e.lastUpdatedTime
-            case s if s.equalsIgnoreCase("metadata.deletedTime") => e.deletedTime.getOrElse(0L)
-            case s if s.equalsIgnoreCase("metadata.createdTime") => e.createdTime
+            case s if s.equalsIgnoreCase("edge.version") => e.version.getOrElse(-1)
+            case s if s.equalsIgnoreCase("edge.lastUpdatedTime") => e.lastUpdatedTime
+            case s if s.equalsIgnoreCase("edge.deletedTime") => e.deletedTime.getOrElse(0L)
+            case s if s.equalsIgnoreCase("edge.createdTime") => e.createdTime
             case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(p, it)).orNull
           },
           space = e.space

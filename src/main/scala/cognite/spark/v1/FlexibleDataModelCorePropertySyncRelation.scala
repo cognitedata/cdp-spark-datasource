@@ -36,14 +36,30 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         corePropConfig.instanceSpace)
     )(sqlContext) {
 
-  protected override def metadataAttributes(): Array[StructField] =
-    Array(
-      DataTypes.createStructField("metadata.cursor", DataTypes.StringType, true),
-      DataTypes.createStructField("metadata.version", DataTypes.LongType, true),
-      DataTypes.createStructField("metadata.createdTime", DataTypes.LongType, true),
-      DataTypes.createStructField("metadata.lastUpdatedTime", DataTypes.LongType, true),
-      DataTypes.createStructField("metadata.deletedTime", DataTypes.LongType, true)
+  protected override def metadataAttributes(): Array[StructField] = {
+    val nodeAttributes = Array(
+      DataTypes.createStructField("node.version", DataTypes.LongType, true),
+      DataTypes.createStructField("node.createdTime", DataTypes.LongType, true),
+      DataTypes.createStructField("node.lastUpdatedTime", DataTypes.LongType, true),
+      DataTypes.createStructField("node.deletedTime", DataTypes.LongType, true)
     )
+
+    val edgeAttributes = Array(
+      DataTypes.createStructField("edge.version", DataTypes.LongType, true),
+      DataTypes.createStructField("edge.createdTime", DataTypes.LongType, true),
+      DataTypes.createStructField("edge.lastUpdatedTime", DataTypes.LongType, true),
+      DataTypes.createStructField("edge.deletedTime", DataTypes.LongType, true)
+    )
+    val metadataAttributes = Array(
+      DataTypes.createStructField("metadata.cursor", DataTypes.StringType, true)
+    )
+
+    metadataAttributes ++ (intendedUsage match {
+      case Usage.Edge => edgeAttributes
+      case Usage.Node => nodeAttributes
+      case Usage.All => edgeAttributes ++ nodeAttributes
+    })
+  }
 
   private def createSyncFilter(
       filters: Array[Filter],
@@ -86,20 +102,16 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
           SourceSelector(
             source = r,
             properties = selectedInstanceProps.toIndexedSeq.filter(p =>
-              !p.startsWith("metadata.") && p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")
+              !p.startsWith("node.") && !p.startsWith("edge.") && !p.startsWith("metadata.") &&
+                p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")
         ))
       .toSeq
 
-    val initialCursor = if (cursor.nonEmpty) {
-      Some(Map("sync" -> cursor))
-    } else {
-      None
-    }
-
     val instanceSyncRequest = InstanceSyncRequest(
       `with` = Map("sync" -> tableExpression),
-      cursors = initialCursor,
-      select = Map("sync" -> SelectExpression(sources = sourceReference)))
+      cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None,
+      select = Map("sync" -> SelectExpression(sources = sourceReference))
+    )
 
     Seq(syncOut(instanceSyncRequest, selectedColumns))
   }
