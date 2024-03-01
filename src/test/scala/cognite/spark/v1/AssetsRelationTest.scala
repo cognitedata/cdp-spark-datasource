@@ -953,28 +953,36 @@ class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecuti
         .save()
 
       val id = writeClient.assets.retrieveByExternalId(externalId).unsafeRunSync().id
+      println(externalId)
+      println(source)
+      println(id)
 
+      // execute the update
+      spark
+        .sql(s"""
+                |select ${id.toString} as id,
+                |'updated-name' as name,
+                |'updated-$newExternalId' as externalId
+     """.stripMargin)
+        .write
+        .format(DefaultSource.sparkFormatString)
+        .useOIDCWrite
+        .option("type", "assets")
+        .option("onconflict", "upsert")
+        .save()
+      var retryCount=0
       // Check if update worked
       val descriptionsAfterUpsert = retryWhile[Array[Row]](
         {
-          spark
-            .sql(s"""
-               |select ${id.toString} as id,
-               |'updated-name' as name,
-               |'updated-$newExternalId' as externalId
-     """.stripMargin)
-            .write
-            .format(DefaultSource.sparkFormatString)
-            .useOIDCWrite
-            .option("type", "assets")
-            .option("onconflict", "upsert")
-            .save()
-          spark
+          val df = spark
             .sql(
               s"select name from destinationAssets where source = '$source' and name = 'updated-name' and externalId ='updated-$newExternalId'")
             .collect()
+          println(df.mkString("(", ", ", ")"))
+          retryCount += 1
+          df
         },
-        df => df.length != 1
+        df => df.length != 1 && retryCount < 10
       )
       assert(descriptionsAfterUpsert.length == 1)
     } finally {
