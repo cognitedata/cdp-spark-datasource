@@ -2054,7 +2054,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     arrayTypesToTest.map(
       extractInstancePropertyValue(ArrayType(IntegerType), _) shouldBe List(100, 200, 300))
     arrayTypesToTest.map(
-      extractInstancePropertyValue(ArrayType(DoubleType), _) shouldBe List(100.0, 200.0, 3000-0))
+      extractInstancePropertyValue(ArrayType(DoubleType), _) shouldBe List(100.0, 200.0, 300.0))
 
   }
 
