@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
+import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
@@ -27,7 +28,7 @@ class FlexibleDataModelConnectionRelationTest
   )
   private val connectionsViewExtId = "sparkDsTestConnectionsView1"
 
-  //  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
+  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
   private val testDataModelExternalId = "testDataModelConnectionsExternalId1"
   private val edgeTypeExtId = s"sparkDsConnectionsEdgeTypeExternalId"

@@ -2028,5 +2028,66 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         fail(s"expecting error to contain '${err.getMessage}' fail but found: ${err.getMessage}")
       case Right(value) => fail(s"expecting to fail but found: ${value.toString}")
     }
+
+  it should "return the instance property value for numbers in correct type" in {
+    val valuesToTest = List(
+      InstancePropertyValue.Int64(100L),
+      InstancePropertyValue.Int32(100),
+      InstancePropertyValue.Float64(100.0),
+      InstancePropertyValue.Float32(100f))
+    valuesToTest.map(extractInstancePropertyValue(LongType, _) shouldBe 100L)
+    valuesToTest.map(extractInstancePropertyValue(FloatType, _) shouldBe 100f)
+    valuesToTest.map(extractInstancePropertyValue(DoubleType, _) shouldBe 100.0)
+    valuesToTest.map(extractInstancePropertyValue(IntegerType, _) shouldBe 100)
+
+    val arrayTypesToTest = List(
+      InstancePropertyValue.Int64List(Seq(100L, 200L, 300L)),
+      InstancePropertyValue.Int32List(Seq(100, 200, 300)),
+      InstancePropertyValue.Float64List(Seq(100.0, 200.0, 300.0)),
+      InstancePropertyValue.Float32List(Seq(100.0f, 200.0f, 300.0f))
+    )
+
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(LongType), _) shouldBe List(100L, 200L, 300L))
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(FloatType), _) shouldBe List(100f, 200f, 300f))
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(IntegerType), _) shouldBe List(100, 200, 300))
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(DoubleType), _) shouldBe List(100.0, 200.0, 300.0))
+
+  }
+
+  it should "return the instance property value for strings formatted as date in correct type" in {
+    val expected = "2023-01-01"
+    val valuesToTest = List(
+      InstancePropertyValue.String(expected),
+      InstancePropertyValue.Date(LocalDate.parse(expected)))
+    valuesToTest.map(extractInstancePropertyValue(StringType, _) shouldBe expected)
+
+    val arrayTypesToTest = List(
+      InstancePropertyValue.StringList(Seq(expected)),
+      InstancePropertyValue.DateList(Seq(LocalDate.parse(expected)))
+    )
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(StringType), _) shouldBe List(expected))
+  }
+
+  it should "return the instance property value for strings formatted as timestamp in correct type" in {
+    val expected = "2007-12-03T10:15:30+01:00"
+    val valuesToTest = List(
+      InstancePropertyValue.String(expected),
+      InstancePropertyValue.Timestamp(ZonedDateTime.parse(expected))
+    )
+    valuesToTest.map(extractInstancePropertyValue(StringType, _) shouldBe expected)
+
+    val arrayTypesToTest = List(
+      InstancePropertyValue.StringList(Seq(expected)),
+      InstancePropertyValue.TimestampList(Seq(ZonedDateTime.parse(expected)))
+    )
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(StringType), _) shouldBe List(expected))
+  }
+
 }
 // scalastyle:on null
