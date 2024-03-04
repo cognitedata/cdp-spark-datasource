@@ -199,8 +199,9 @@ trait SparkTest {
       initialDelay: FiniteDuration,
       maxRetries: Int,
       maxDelay: FiniteDuration = 20.seconds): IO[A] = {
-    val exponentialDelay = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2)
-    val randomDelayScale = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
+    val defaultMaxBackoffDelay: FiniteDuration = 120.seconds
+    val exponentialDelay = (defaultMaxBackoffDelay / 2).min(initialDelay * 2)
+    val randomDelayScale = (defaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
     val nextDelay = Random.nextInt(randomDelayScale.toInt).millis + exponentialDelay
     ioa.handleErrorWith {
       case exception @ (_: RetryException | _: TimeoutException | _: IOException) =>
@@ -240,22 +241,23 @@ trait SparkTest {
 
   def getDefaultConfig(auth: CdfSparkAuth, projectName: String): RelationConfig =
     RelationConfig(
-      auth,
-      Some("SparkDatasourceTestTag"),
-      Some("SparkDatasourceTestApp"),
-      projectName,
-      Some(Constants.DefaultBatchSize),
-      None,
+      auth = auth,
+      clientTag = Some("SparkDatasourceTestTag"),
+      applicationName = Some("SparkDatasourceTestApp"),
+      projectName = projectName,
+      batchSize = Some(Constants.DefaultBatchSize),
+      limitPerPartition = None,
       partitions = Constants.DefaultPartitions,
-      Constants.DefaultMaxRetries,
-      Constants.DefaultMaxRetryDelaySeconds,
+      maxRetries = Constants.DefaultMaxRetries,
+      maxRetryDelaySeconds = Constants.DefaultMaxRetryDelaySeconds,
+      initialRetryDelayMillis = Constants.DefaultInitialRetryDelay.toMillis.toInt,
       collectMetrics = false,
       collectTestMetrics = false,
-      "",
-      Constants.DefaultBaseUrl,
-      OnConflictOption.Abort,
-      spark.sparkContext.applicationId,
-      Constants.DefaultParallelismPerPartition,
+      metricsPrefix = "",
+      baseUrl = Constants.DefaultBaseUrl,
+      onConflict = OnConflictOption.Abort,
+      applicationId = spark.sparkContext.applicationId,
+      parallelismPerPartition = Constants.DefaultParallelismPerPartition,
       ignoreUnknownIds = true,
       deleteMissingAssets = false,
       subtrees = AssetSubtreeOption.Ingest,

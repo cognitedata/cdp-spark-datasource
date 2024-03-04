@@ -36,8 +36,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 
-  private val intendedUsage = corePropConfig.intendedUsage
-  private val viewReference = corePropConfig.viewReference
+  protected val intendedUsage = corePropConfig.intendedUsage
+  protected val viewReference = corePropConfig.viewReference
   private val instanceSpace = corePropConfig.instanceSpace
 
   private val (allProperties, propertySchema) = retrieveAllViewPropsAndSchema
@@ -130,7 +130,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     filterRequests.distinct.map { fr =>
       client.instances
         .filterStream(fr, config.limitPerPartition)
-        .map(toProjectedInstance(_, selectedInstanceProps))
+        .map(toProjectedInstance(_, None, selectedInstanceProps))
     }
   }
 
@@ -291,7 +291,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
   }
 
-  private def compatibleInstanceTypes(usage: Usage): Vector[InstanceType] =
+  protected def compatibleInstanceTypes(usage: Usage): Vector[InstanceType] =
     usage match {
       case Usage.Node => Vector(InstanceType.Node)
       case Usage.Edge => Vector(InstanceType.Edge)

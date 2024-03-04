@@ -118,6 +118,7 @@ object CdpConnector {
     val retryingBackend = new RetryingBackend[IO, Any](
       throttledBackend,
       maxRetries = maxRetries,
+      initialRetryDelay = initialRetryDelayMillis.milliseconds,
       maxRetryDelay = maxRetryDelaySeconds.seconds)
     // limit the number of concurrent requests
     val limitedBackend: SttpBackend[IO, Any] =
@@ -143,18 +144,27 @@ object CdpConnector {
 
     //Use separate backend for auth, so we should not retry as much as maxRetries config
     val authSttpBackend =
-      retryingSttpBackend(5, config.maxRetryDelaySeconds, config.parallelismPerPartition, metricsPrefix)
+      retryingSttpBackend(
+        maxRetries = 5,
+        initialRetryDelayMillis = config.initialRetryDelayMillis,
+        maxRetryDelaySeconds = config.maxRetryDelaySeconds,
+        maxParallelRequests = config.parallelismPerPartition,
+        metricsPrefix = metricsPrefix
+      )
     val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunSync()
 
     import natchez.Trace.Implicits.noop // TODO: add full tracing
     implicit val sttpBackend: SttpBackend[IO, Any] = {
       new FixedTraceSttpBackend(
         retryingSttpBackend(
-          config.maxRetries,
-          config.maxRetryDelaySeconds,
-          config.parallelismPerPartition,
-          metricsPrefix),
-        config.tracingParent)
+          maxRetries = config.maxRetries,
+          initialRetryDelayMillis = config.initialRetryDelayMillis,
+          maxRetryDelaySeconds = config.maxRetryDelaySeconds,
+          maxParallelRequests = config.parallelismPerPartition,
+          metricsPrefix = metricsPrefix
+        ),
+        config.tracingParent
+      )
     }
 
     new GenericClient(
