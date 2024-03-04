@@ -56,6 +56,9 @@ class FlexibleDataModelCorePropertyRelationTest
   private val containerFilterByProps = "sparkDsTestContainerFilterByProps2"
   private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
 
+  private val containerSyncTest = "sparkDsTestContainerForSync"
+  private val viewSyncTest = "sparkDsTestViewForSync"
+
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
   private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
 
@@ -421,12 +424,28 @@ class FlexibleDataModelCorePropertyRelationTest
       instanceSpaceExternalId = spaceExternalId
     )
 
+    val syncNodesDf = syncRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewNodes.externalId,
+      viewVersion = viewNodes.version,
+      cursor = ""
+    )
+
     val readEdgesDf = readRows(
       instanceType = InstanceType.Edge,
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
       instanceSpaceExternalId = spaceExternalId
+    )
+
+    val syncEdgesDf = syncRows(
+      instanceType = InstanceType.Edge,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewEdges.externalId,
+      viewVersion = viewEdges.version,
+      cursor = ""
     )
 
     val readAllDf = readRows(
@@ -447,6 +466,8 @@ class FlexibleDataModelCorePropertyRelationTest
     readNodesDf.createTempView(s"node_instances_table")
     readEdgesDf.createTempView(s"edge_instances_table")
     readAllDf.createTempView(s"all_instances_table")
+    syncNodesDf.createTempView(s"sync_nodes_table")
+    syncEdgesDf.createTempView(s"sync_edges_table")
 
     val selectedNodes = spark
       .sql("select * from node_instances_table")
@@ -460,11 +481,24 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql("select * from all_instances_table")
       .collect()
 
-    val actualAllInstanceExternalIds = toExternalIds(selectedNodesAndEdges) ++ toExternalIds(
-      selectedNodes) ++ toExternalIds(selectedEdges)
+    val syncedNodes = spark
+      .sql("select * from sync_nodes_table")
+      .collect()
+
+    val syncedEdges = spark
+      .sql("select * from sync_edges_table")
+      .collect()
+
+    val syncedNodesExternalIds = toExternalIds(syncedNodes)
+    val syncedEdgesExternalIds = toExternalIds(syncedEdges)
+    val filterNodes = toExternalIds(selectedNodes)
+    val filterEdges = toExternalIds(selectedEdges)
+    val actualAllInstanceExternalIds = toExternalIds(selectedNodesAndEdges) ++ filterNodes ++ filterEdges
 
     allInstanceExternalIds.length shouldBe 8
     (actualAllInstanceExternalIds should contain).allElementsOf(allInstanceExternalIds)
+    (syncedNodesExternalIds should contain).allElementsOf(filterNodes)
+    (syncedEdgesExternalIds should contain).allElementsOf(filterEdges)
   }
 
   it should "succeed when filtering edges with type, startNode & endNode" in {
@@ -528,6 +562,107 @@ class FlexibleDataModelCorePropertyRelationTest
     (actualAllEdgeExternalIds should contain).allElementsOf(allEdgeExternalIds)
   }
 
+  it should "be able to fetch more data with cursor when syncing" in {
+    val (viewDefinition, modifiedExternalIds) = setupSyncTest.unsafeRunSync()
+    val view = viewDefinition.toSourceReference
+    val syncDf = syncRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      cursor = ""
+    )
+
+    syncDf.createTempView(s"sync_empty_cursor")
+    val syncedNodes = spark.sql("select * from sync_empty_cursor").collect()
+    val syncedExternalIds = toExternalIds(syncedNodes)
+    val lastRow = syncedNodes.last
+    val cursor = lastRow.getString(lastRow.schema.fieldIndex("metadata.cursor"))
+
+    val createdTime = lastRow.getLong(lastRow.schema.fieldIndex("node.createdTime"))
+    createdTime should be > 1L
+    val lastUpdated = lastRow.getLong(lastRow.schema.fieldIndex("node.lastUpdatedTime"))
+    lastUpdated should be >=  createdTime
+    val deletedTime = lastRow.getLong(lastRow.schema.fieldIndex("node.deletedTime"))
+    deletedTime shouldBe 0L
+    val version = lastRow.getLong(lastRow.schema.fieldIndex("node.version"))
+    version should be > 0L
+
+    (syncedExternalIds should contain).allElementsOf(modifiedExternalIds)
+
+    val syncNext = syncRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      cursor = cursor)
+
+    syncNext.createTempView(s"sync_next_cursor")
+    var syncedNextNodes = spark.sql("select * from sync_next_cursor").collect()
+    syncedNextNodes.length shouldBe 0
+
+    // Add 10 nodes and verify we can sync them out with same cursor
+    setupInstancesForSync(viewDefinition.toSourceReference, 10).unsafeRunSync()
+    syncedNextNodes = spark.sql("select * from sync_next_cursor").collect()
+    syncedNextNodes.length shouldBe 10
+  }
+
+  it should "respect filters in sync queries" in {
+    val (viewDefinition, _) = setupSyncTest.unsafeRunSync()
+    val view = viewDefinition.toSourceReference
+    val syncDf = syncRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      cursor = ""
+    )
+
+    syncDf.createTempView(s"sync_empty_cursor_with_filter")
+    val syncedNodes = spark.sql("select * from sync_empty_cursor_with_filter where longProp > 10L and longProp <= 50").collect()
+    syncedNodes.length shouldBe 40
+
+    val syncedNodes2 = spark.sql("select * from sync_empty_cursor_with_filter where " +
+      "`node.lastUpdatedTime` > 10L and " +
+      "longProp > 0 and " +
+      "space = '" + spaceExternalId + "' and " +
+      "`node.deletedTime` = 0").collect()
+    syncedNodes2.length shouldBe 50
+
+    val syncedNodes3 = spark.sql("select * from sync_empty_cursor_with_filter where " +
+      "`node.lastUpdatedTime` > 10L and " +
+      "longProp > 0 and " +
+      "space = 'nonexistingspace'").collect()
+    syncedNodes3.length shouldBe 0
+  }
+
+  it should "sync with old cursor " in {
+    // Let us see what happens when this cursor gets more than 3 days..
+    val oldCursorValue = "\"Z0FBQUFBQmw0RjJXenpCbHl3Ny02MzRRN21lTEVkdm5hU3hpQTM4d05ERkwxV2xNSG5" +
+      "wa2ltOHhXMXloWC05akN6TDEzWGExMkkwZlpocGVhdVZXSDBGMVpEdmIwSTlzVDhQQUVhOHBNV2pCNUFNMFBsREg" +
+      "4WjlEU3RacFFMbS1MM3hZaGVkV3ZFcVhoUy13R0NlODEzaEhlZUhUbVoxeTZ3bWVCX0tnSWdXRkphcjJIS2hfemh" +
+      "pM216WktROG9RdjdqVmRWeFRMdDZ5TVdVNG1iNGo2X3J1VVVVRy10ZnowYUozSnV0R2ozZjd6YU1mMjBNVnc1eWN" +
+      "tX1hmbF80RmY0RkdVRk5DVTI0UE9scW5rbkF1MEZIUHBKUklERDVnRDJ5ZWhXVGVwNE4wcVBpeVV1amdGSDZKeTd" +
+      "nanhkRTNiZ2QtUTdWdGdhbUpHakdEWXpQRmNueEFGdGd3UTBHdHZpY3hZdnpHdk16QVBlNE8wSlZzUGk0d2hOV01" +
+      "jRUFQdjNPNE9mQ0g0MG11S1NYMzJyWnczRkhBWG00WWJCRU1jUT09\""
+
+    val (viewDefinition, modifiedExternalIds) = setupSyncTest.unsafeRunSync()
+    val view = viewDefinition.toSourceReference
+    val syncDf = syncRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      cursor = oldCursorValue
+    )
+
+    syncDf.createTempView(s"sync_old_cursor")
+    val syncedNodes = spark.sql("select * from sync_old_cursor").collect()
+    val syncedExternalIds = toExternalIds(syncedNodes)
+
+    (syncedExternalIds should contain).allElementsOf(modifiedExternalIds)
+  }
+
   it should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
@@ -539,31 +674,52 @@ class FlexibleDataModelCorePropertyRelationTest
       instanceSpaceExternalId = spaceExternalId
     )
 
+    val syncDf = syncRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      cursor = ""
+    )
+
     readDf.createTempView(s"instance_filter_table")
+    syncDf.createTempView(s"sync_instance_filter_table")
+    val filter =
+      s"""
+         |where
+         |forEqualsFilter = 'str1' and
+         |forInFilter in ('str1', 'str2', 'str3') and
+         |forGteFilter >= 1 and
+         |forGtFilter > 1 and
+         |forLteFilter <= 2 and
+         |forLtFilter < 4 and
+         |(forOrFilter1 == 5.1 or forOrFilter2 == 6.1) and
+         |forIsNotNullFilter is not null and
+         |forIsNullFilter is null""".stripMargin
+    val filterSql = s"""select * from instance_filter_table
+                    |$filter
+                    |""".stripMargin
 
-    val sql = s"""
-                 |select * from instance_filter_table
-                 |where
-                 |forEqualsFilter = 'str1' and
-                 |forInFilter in ('str1', 'str2', 'str3') and
-                 |forGteFilter >= 1 and
-                 |forGtFilter > 1 and
-                 |forLteFilter <= 2 and
-                 |forLtFilter < 4 and
-                 |(forOrFilter1 == 5.1 or forOrFilter2 == 6.1) and
-                 |forIsNotNullFilter is not null and
-                 |forIsNullFilter is null
-                 |""".stripMargin
-
+    val syncSql = s"""select * from sync_instance_filter_table
+                    |$filter
+                    |""".stripMargin
     val filtered = spark
-      .sql(sql)
+      .sql(filterSql)
+      .collect()
+
+    val synced = spark
+      .sql(syncSql)
       .collect()
 
     filtered.length shouldBe 1
+    synced.length shouldBe 1
     val filteredInstanceExtIds =
       filtered.map(row => row.getString(row.schema.fieldIndex("externalId"))).toVector
     instanceExtIds.containsSlice(filteredInstanceExtIds) shouldBe true
     filteredInstanceExtIds shouldBe Vector(s"${view.externalId}Node1")
+    val syncedInstanceExtIds =
+      synced.map(row => row.getString(row.schema.fieldIndex("externalId"))).toVector
+    syncedInstanceExtIds shouldBe Vector(s"${view.externalId}Node1")
   }
 
   it should "successfully cast numeric properties" in {
@@ -665,7 +821,8 @@ class FlexibleDataModelCorePropertyRelationTest
       .collect()
 
     rows.isEmpty shouldBe false
-    toExternalIds(rows).toVector shouldBe Vector(s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
+    toExternalIds(rows).toVector shouldBe Vector(
+      s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
     toPropVal(rows, "stringProp1").toVector shouldBe Vector("stringProp1Val")
     toPropVal(rows, "stringProp2").toVector shouldBe Vector("stringProp2Val")
   }
@@ -719,8 +876,7 @@ class FlexibleDataModelCorePropertyRelationTest
       insertResult shouldBe Success(())
       // Now, update one of the values
       val updateDf = spark
-        .sql(
-          s"""
+        .sql(s"""
              |select
              |'${externalId}' as externalId,
              |'updatedProp1Val' as stringProp1
@@ -737,21 +893,31 @@ class FlexibleDataModelCorePropertyRelationTest
       }
       updateResult shouldBe Success(())
       // Fetch the updated instance
-      val instance = client.instances.retrieveByExternalIds(
-        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
-        sources = Some(Seq(InstanceSource(ViewReference(
-          space = spaceExternalId,
-          externalId = viewStartNodeAndEndNodesExternalId,
-          version = viewVersion
-        ))))
-      ).unsafeRunSync().items.head
-      val props = instance.properties.get.get(spaceExternalId)
+      val instance = client.instances
+        .retrieveByExternalIds(
+          items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+          sources = Some(
+            Seq(
+              InstanceSource(
+                ViewReference(
+                  space = spaceExternalId,
+                  externalId = viewStartNodeAndEndNodesExternalId,
+                  version = viewVersion
+                ))))
+        )
+        .unsafeRunSync()
+        .items
+        .head
+      val props = instance.properties.get
+        .get(spaceExternalId)
         .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
       // Check the properties
       props.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1Val"))
       props.get("stringProp2") shouldBe Some(InstancePropertyValue.String("stringProp2Val"))
     } finally {
-      val _ = client.instances.delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId))).unsafeRunSync()
+      val _ = client.instances
+        .delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId)))
+        .unsafeRunSync()
     }
   }
 
@@ -760,8 +926,7 @@ class FlexibleDataModelCorePropertyRelationTest
     try {
       // First, create a random node
       val insertDf = spark
-        .sql(
-          s"""
+        .sql(s"""
              |select
              |'${externalId}' as externalId,
              |'stringProp1Val' as stringProp1,
@@ -780,8 +945,7 @@ class FlexibleDataModelCorePropertyRelationTest
       insertResult shouldBe Success(())
       // Now, update one of the values with a null, but ignoreNullFields
       val updateDf1 = spark
-        .sql(
-          s"""
+        .sql(s"""
              |select
              |'${externalId}' as externalId,
              |'updatedProp1Val' as stringProp1,
@@ -795,21 +959,29 @@ class FlexibleDataModelCorePropertyRelationTest
           viewExternalId = viewStartNodeAndEndNodesExternalId,
           instanceSpace = Some(spaceExternalId),
           updateDf1,
-          ignoreNullFields=true
+          ignoreNullFields = true
         )
       }
       updateResult1 shouldBe Success(())
 
       // Fetch the updated instance
-      val instance1 = client.instances.retrieveByExternalIds(
-        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
-        sources = Some(Seq(InstanceSource(ViewReference(
-          space = spaceExternalId,
-          externalId = viewStartNodeAndEndNodesExternalId,
-          version = viewVersion
-        ))))
-      ).unsafeRunSync().items.head
-      val props1 = instance1.properties.get.get(spaceExternalId)
+      val instance1 = client.instances
+        .retrieveByExternalIds(
+          items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+          sources = Some(
+            Seq(
+              InstanceSource(
+                ViewReference(
+                  space = spaceExternalId,
+                  externalId = viewStartNodeAndEndNodesExternalId,
+                  version = viewVersion
+                ))))
+        )
+        .unsafeRunSync()
+        .items
+        .head
+      val props1 = instance1.properties.get
+        .get(spaceExternalId)
         .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
       // Check the properties
       props1.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1Val"))
@@ -817,8 +989,7 @@ class FlexibleDataModelCorePropertyRelationTest
 
       // Update the value with null, and don't ignoreNullFields
       val updateDf2 = spark
-        .sql(
-          s"""
+        .sql(s"""
              |select
              |'${externalId}' as externalId,
              |'updatedProp1ValAgain' as stringProp1,
@@ -837,21 +1008,31 @@ class FlexibleDataModelCorePropertyRelationTest
       }
       updateResult2 shouldBe Success(())
       // Fetch the updated instance
-      val instance = client.instances.retrieveByExternalIds(
-        items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
-        sources = Some(Seq(InstanceSource(ViewReference(
-          space = spaceExternalId,
-          externalId = viewStartNodeAndEndNodesExternalId,
-          version = viewVersion
-        ))))
-      ).unsafeRunSync().items.head
-      val props2 = instance.properties.get.get(spaceExternalId)
+      val instance = client.instances
+        .retrieveByExternalIds(
+          items = Seq(InstanceRetrieve(InstanceType.Node, externalId, spaceExternalId)),
+          sources = Some(
+            Seq(
+              InstanceSource(
+                ViewReference(
+                  space = spaceExternalId,
+                  externalId = viewStartNodeAndEndNodesExternalId,
+                  version = viewVersion
+                ))))
+        )
+        .unsafeRunSync()
+        .items
+        .head
+      val props2 = instance.properties.get
+        .get(spaceExternalId)
         .get(s"${viewStartNodeAndEndNodesExternalId}/${viewVersion}")
       // Check the properties
       props2.get("stringProp1") shouldBe Some(InstancePropertyValue.String("updatedProp1ValAgain"))
       props2.get("stringProp2") shouldBe None
     } finally {
-      val _ = client.instances.delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId))).unsafeRunSync()
+      val _ = client.instances
+        .delete(Seq(NodeDeletionRequest(space = spaceExternalId, externalId = externalId)))
+        .unsafeRunSync()
     }
   }
 
@@ -1052,6 +1233,22 @@ class FlexibleDataModelCorePropertyRelationTest
     } yield (viewAll, viewNodes, viewEdges)
   }
 
+  private def setupSyncTest: IO[(ViewDefinition, Seq[String])] = {
+    val containerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "stringProp" -> FDMContainerPropertyTypes.TextPropertyNonListWithoutDefaultValueNullable,
+      "longProp" -> FDMContainerPropertyTypes.Float64NonListWithoutDefaultValueNullable,
+    )
+
+    for {
+      containerDefinition <- createContainerIfNotExists(Usage.All, containerProps, containerSyncTest)
+      viewDefinition <- createViewWithCorePropsIfNotExists(
+        containerDefinition,
+        viewSyncTest,
+        viewVersion)
+      extIds <- setupInstancesForSync(viewDefinition.toSourceReference, 50)
+    } yield (viewDefinition, extIds)
+  }
+
   private def setupFilteringByPropertiesTest: IO[(ViewDefinition, Seq[String])] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
       "forEqualsFilter" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
@@ -1096,6 +1293,31 @@ class FlexibleDataModelCorePropertyRelationTest
             )))
         )))
       .unsafeRunSync()
+
+  private def setupInstancesForSync(viewRef: ViewReference, instances: Int): IO[Seq[String]] = {
+    val items =
+      for (i <- 1 to instances)
+        yield
+          NodeWrite(
+            spaceExternalId,
+            "external" + i,
+            sources = Some(
+              Seq(EdgeOrNodeData(
+                viewRef,
+                Some(
+                  Map(
+                    "stringProp" -> Some(
+                      InstancePropertyValue.String(System.nanoTime().toString)),
+                    "longProp" -> Some(InstancePropertyValue.Int64(i.toLong))
+                  ))
+              )))
+          )
+    client.instances
+      .createItems(InstanceCreate(items = items))
+      .map(_.collect { case n: SlimNodeOrEdge.SlimNodeDefinition => n.externalId })
+      .map(_.distinct)
+  }
+
   // scalastyle:off method.length
   private def setupInstancesForFiltering(viewDef: ViewDefinition): IO[Seq[String]] = {
     val viewExtId = viewDef.externalId
@@ -1159,8 +1381,8 @@ class FlexibleDataModelCorePropertyRelationTest
                         "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
                         "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now())),
                         "forIsNullFilter" -> Some(InstancePropertyValue.Object(Json.fromJsonObject(
-                          JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))
-                      )))
+                          JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1)))))
+                      ))
                     )))
                   )
                 ),
@@ -1236,6 +1458,30 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("viewExternalId", viewExternalId)
       .option("viewVersion", viewVersion)
       .option("instanceSpace", instanceSpaceExternalId)
+      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
+      .option("collectMetrics", true)
+      .load()
+
+  private def syncRows(
+      instanceType: InstanceType,
+      viewSpaceExternalId: String,
+      viewExternalId: String,
+      viewVersion: String,
+      cursor: String): DataFrame =
+    spark.read
+      .format(DefaultSource.sparkFormatString)
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
+      .option("baseUrl", s"https://${cluster}.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
+      .option("cursor", cursor)
+      .option("instanceType", instanceType.productPrefix)
+      .option("viewSpace", viewSpaceExternalId)
+      .option("viewExternalId", viewExternalId)
+      .option("viewVersion", viewVersion)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
       .option("collectMetrics", true)
       .load()
