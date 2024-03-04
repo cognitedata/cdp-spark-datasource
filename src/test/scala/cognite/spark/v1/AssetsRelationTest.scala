@@ -7,12 +7,12 @@ import io.scalaland.chimney.dsl._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Row}
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.scalatest.{FlatSpec, Matchers}
 
 import java.util.UUID
 import scala.util.control.NonFatal
 
-class AssetsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   val sourceDf = dataFrameReaderUsingOidc
     .option("project", "publicdata")
