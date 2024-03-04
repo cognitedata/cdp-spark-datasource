@@ -6,7 +6,7 @@ import cognite.spark.v1.FlexibleDataModelRelationFactory.{
   ViewCorePropertyConfig,
   ViewSyncCorePropertyConfig
 }
-import com.cognite.sdk.scala.common.ItemsWithCursor
+import com.cognite.sdk.scala.common.{CdpApiException, ItemsWithCursor}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
@@ -35,6 +35,9 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         corePropConfig.viewReference,
         corePropConfig.instanceSpace)
     )(sqlContext) {
+
+  // request no more data after seeing items with node/edge lastUpdatedTime >= terminationTimeStamp
+  private val terminationTimeStamp = System.currentTimeMillis()
 
   protected override def metadataAttributes(): Array[StructField] = {
     val nodeAttributes = Array(
@@ -124,21 +127,36 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       syncWithCursor(syncRequest).map { sr =>
         val items = sr.items
         val nextCursor = sr.nextCursor
-        val next = (nextCursor, items.nonEmpty) match {
-          case (Some(cursor), true) =>
-            syncOut(syncRequest.copy(cursors = Some(Map("sync" -> cursor))), selectedProps)
-          case _ => fs2.Stream.empty
-        }
+        val next =
+          (nextCursor, items.nonEmpty && items.last.lastUpdatedTime < terminationTimeStamp) match {
+            case (Some(cursor), true) =>
+              syncOut(syncRequest.copy(cursors = Some(Map("sync" -> cursor))), selectedProps)
+            case _ => fs2.Stream.empty
+          }
 
         val projected = items.map(toProjectedInstance(_, nextCursor, selectedProps))
         fs2.Stream.emits(projected) ++ next
       }
     }.flatten
 
-  private def syncWithCursor(syncRequest: InstanceSyncRequest): IO[ItemsWithCursor[InstanceDefinition]] =
-    client.instances.syncRequest(syncRequest).map { sr =>
+  private def syncWithCursor(
+      syncRequest: InstanceSyncRequest): IO[ItemsWithCursor[InstanceDefinition]] = {
+    // temporary handle expired cursor by syncing from scratch
+    val response = client.instances
+      .syncRequest(syncRequest)
+      .redeemWith(
+        {
+          case e: CdpApiException if e.code == 400 && e.message.startsWith("Cursor has expired") =>
+            client.instances.syncRequest(syncRequest.copy(cursors = None))
+          case e => IO.raiseError(e)
+        },
+        IO.pure
+      )
+
+    response.map { sr =>
       val itemDefinitions = sr.items.getOrElse(Map.empty).get("sync").getOrElse(Vector.empty)
       val nextCursor = sr.nextCursor.getOrElse(Map.empty).get("sync")
       ItemsWithCursor(itemDefinitions, nextCursor)
     }
+  }
 }
