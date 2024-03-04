@@ -41,6 +41,8 @@ lazy val commonSettings = Seq(
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
   scalaVersion := scala212, // default to Scala 2.12
+  // handle cross plugin https://github.com/stringbean/sbt-dependency-lock/issues/13
+  dependencyLockFile := { baseDirectory.value / s"build.scala-${CrossVersion.partialVersion(scalaVersion.value) match { case Some((2, n)) => s"2.$n" }}.sbt.lock" },
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
@@ -88,7 +90,9 @@ lazy val commonSettings = Seq(
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
   // Yell at tests that take longer than 120 seconds to finish.
   // Yell at them once every 60 seconds.
-  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60")
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60"),
+  // no need to lock submodules
+  dependencyLockModuleFilter := moduleFilter(organization = "com.cognite.spark.datasource", name = "*")
 )
 
 lazy val structType = (project in file("struct_type"))
