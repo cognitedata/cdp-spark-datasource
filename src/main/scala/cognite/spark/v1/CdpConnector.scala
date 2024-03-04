@@ -94,6 +94,7 @@ object CdpConnector {
       maxRetryDelaySeconds: Int,
       maxParallelRequests: Int = Constants.DefaultParallelismPerPartition,
       metricsPrefix: Option[String] = None,
+      initialRetryDelayMillis: Int = Constants.DefaultInitialRetryDelay.toMillis.toInt,
       useSharedThrottle: Boolean = false
   ): SttpBackend[IO, Any] = {
     val metricsBackend =
