@@ -384,6 +384,8 @@ object DefaultSource {
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
+    val initialRetryDelayMillis = toPositiveInt(parameters, "initialRetryDelayMs")
+      .getOrElse(Constants.DefaultInitialRetryDelay.toMillis.toInt)
     val maxRetryDelaySeconds = toPositiveInt(parameters, "maxRetryDelay")
       .getOrElse(Constants.DefaultMaxRetryDelaySeconds)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
@@ -452,6 +454,7 @@ object DefaultSource {
       limitPerPartition = limitPerPartition,
       partitions = partitions,
       maxRetries = maxRetries,
+      initialRetryDelayMillis = initialRetryDelayMillis,
       maxRetryDelaySeconds = maxRetryDelaySeconds,
       collectMetrics = collectMetrics,
       collectTestMetrics = collectTestMetrics,
@@ -466,7 +469,7 @@ object DefaultSource {
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
       rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
       enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy,
-      extractTracingHeadersKernel(parameters)
+      tracingParent = extractTracingHeadersKernel(parameters)
     )
   }
 
