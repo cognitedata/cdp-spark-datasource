@@ -101,7 +101,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
     Vector(
       client.instances
         .filterStream(filterReq, config.limitPerPartition)
-        .map(toProjectedInstance(_, selectedFields)))
+        .map(toProjectedInstance(_, None, selectedFields)))
   }
 
   private def extractFilters(filters: Array[Filter]): Either[CdfSparkException, FilterDefinition] = {

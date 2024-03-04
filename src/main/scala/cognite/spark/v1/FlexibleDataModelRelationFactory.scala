@@ -21,6 +21,13 @@ object FlexibleDataModelRelationFactory {
       instanceSpace: Option[String])
       extends FlexibleDataModelRelationFactory
 
+  final case class ViewSyncCorePropertyConfig(
+      intendedUsage: Usage,
+      viewReference: Option[ViewReference],
+      cursor: String,
+      instanceSpace: Option[String])
+      extends FlexibleDataModelRelationFactory
+
   final case class ConnectionConfig(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
@@ -51,6 +58,13 @@ object FlexibleDataModelRelationFactory {
       sqlContext: SQLContext,
       viewCorePropConfig: ViewCorePropertyConfig): FlexibleDataModelCorePropertyRelation =
     new FlexibleDataModelCorePropertyRelation(config, viewCorePropConfig)(sqlContext)
+
+  def corePropertySyncRelation(
+      cursor: String,
+      config: RelationConfig,
+      sqlContext: SQLContext,
+      viewCorePropConfig: ViewSyncCorePropertyConfig): FlexibleDataModelCorePropertySyncRelation =
+    new FlexibleDataModelCorePropertySyncRelation(cursor, config, viewCorePropConfig)(sqlContext)
 
   def connectionRelation(
       config: RelationConfig,
