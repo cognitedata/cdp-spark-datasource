@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-02-28T11:14:22.299165105Z",
+  "timestamp" : "2024-03-05T10:31:46.919666107Z",
   "configurations" : [
     "compile",
     "optional",
@@ -1381,11 +1381,11 @@
     {
       "org" : "org.apache.orc",
       "name" : "orc-core",
-      "version" : "1.7.8",
+      "version" : "1.7.10",
       "artifacts" : [
         {
           "name" : "orc-core.jar",
-          "hash" : "sha1:119aa6e986c0c81ebd825399064d6f8843517e94"
+          "hash" : "sha1:71b922618be76ed251a047b03d6989cf0bed8925"
         }
       ],
       "configurations" : [
@@ -1395,11 +1395,11 @@
     {
       "org" : "org.apache.orc",
       "name" : "orc-mapreduce",
-      "version" : "1.7.8",
+      "version" : "1.7.10",
       "artifacts" : [
         {
           "name" : "orc-mapreduce.jar",
-          "hash" : "sha1:0c9e40907dabeece3ec74ddce2819a63cd7e9dc8"
+          "hash" : "sha1:cfe80b0179d1f394c6a6a7013b883d855050747c"
         }
       ],
       "configurations" : [
@@ -1409,11 +1409,11 @@
     {
       "org" : "org.apache.orc",
       "name" : "orc-shims",
-      "version" : "1.7.8",
+      "version" : "1.7.10",
       "artifacts" : [
         {
           "name" : "orc-shims.jar",
-          "hash" : "sha1:c232a0396501361f12194a9f67d99442c898588d"
+          "hash" : "sha1:2fabee8f620ba70b95a3fdefff72ba178729105b"
         }
       ],
       "configurations" : [
@@ -1507,11 +1507,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-catalyst_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-catalyst_2.12.jar",
-          "hash" : "sha1:3f04550e73f020b96f83143beb238294d057e24b"
+          "hash" : "sha1:e5d2eb27173b4593a98469d9da735a677c2c645f"
         }
       ],
       "configurations" : [
@@ -1521,11 +1521,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-core_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-core_2.12.jar",
-          "hash" : "sha1:8c00f8f6caa081f6c047862c97caa254e0e79cc8"
+          "hash" : "sha1:bd9dd46ba055c1e2c4c5c1bed71b808b84553af2"
         }
       ],
       "configurations" : [
@@ -1535,11 +1535,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-kvstore_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-kvstore_2.12.jar",
-          "hash" : "sha1:3fd9d6c67ba2dd62198a5a64b52ddc9a82b96054"
+          "hash" : "sha1:d5f7e512d4153a74ed4943ff2740b5f0ef9650d0"
         }
       ],
       "configurations" : [
@@ -1549,11 +1549,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-launcher_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-launcher_2.12.jar",
-          "hash" : "sha1:b42b5f772f2ac31993bdb4e3c36966ff08eb3ed6"
+          "hash" : "sha1:f2fd82f73c4b0d72e621dec3ae45a07409b02f57"
         }
       ],
       "configurations" : [
@@ -1563,11 +1563,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-network-common_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-network-common_2.12.jar",
-          "hash" : "sha1:303886af764e2f65e6ca3f66b74e707793666543"
+          "hash" : "sha1:8ad90403b085223ef4875d8ba10914d57716df2c"
         }
       ],
       "configurations" : [
@@ -1577,11 +1577,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-network-shuffle_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-network-shuffle_2.12.jar",
-          "hash" : "sha1:aafbcde04c2a4bee250fd819b159f1bb454e4d56"
+          "hash" : "sha1:26dae1c920539a2fcd827004795f2ceeb9ee2955"
         }
       ],
       "configurations" : [
@@ -1591,11 +1591,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-sketch_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-sketch_2.12.jar",
-          "hash" : "sha1:8857c47c4e18675deacc431700d98dcee8914d14"
+          "hash" : "sha1:0d586441d64bb217f2cfb814d22228248adaecc4"
         }
       ],
       "configurations" : [
@@ -1605,11 +1605,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-sql_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-sql_2.12.jar",
-          "hash" : "sha1:be2a4df9c65624155eb299ffc677cabb58e51ac2"
+          "hash" : "sha1:f9ed9ac1c7bb91228c5724654d6217fa6e84ae92"
         }
       ],
       "configurations" : [
@@ -1619,11 +1619,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-tags_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-tags_2.12.jar",
-          "hash" : "sha1:611afa47bcddfbf18f71283e386c68242563df90"
+          "hash" : "sha1:0144f1c1c6701029e14c19e8df2d316ee24bfd62"
         }
       ],
       "configurations" : [
@@ -1633,11 +1633,11 @@
     {
       "org" : "org.apache.spark",
       "name" : "spark-unsafe_2.12",
-      "version" : "3.3.3",
+      "version" : "3.3.4",
       "artifacts" : [
         {
           "name" : "spark-unsafe_2.12.jar",
-          "hash" : "sha1:46c2da19b336e7577626e300c2dfd5d7158d108e"
+          "hash" : "sha1:88111296b7e8be901b8f13e1a4884753dc9e7dbd"
         }
       ],
       "configurations" : [
