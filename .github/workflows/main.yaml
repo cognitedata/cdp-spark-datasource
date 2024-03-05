@@ -24,6 +24,10 @@ jobs:
 
           echo "DOCKER_IMAGE_NAME=eu.gcr.io/cognitedata/cdf-spark-performance-bench" >> $GITHUB_ENV
           echo "DOCKER_IMAGE_TAG=$BUILD_DATE-$IMAGE_REVISION" >> $GITHUB_ENV
+      - name: Compile
+        run: |
+          sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
+          sbt +compile
       - name: Run tests
         env:
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
