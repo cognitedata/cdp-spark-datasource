@@ -114,7 +114,8 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     val instanceSyncRequest = InstanceSyncRequest(
       `with` = Map("sync" -> tableExpression),
       cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None,
-      select = Map("sync" -> SelectExpression(sources = sourceReference))
+      select = Map("sync" -> SelectExpression(sources = sourceReference)),
+      includeTyping = Some(true)
     )
 
     Seq(syncOut(instanceSyncRequest, selectedColumns))
