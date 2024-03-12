@@ -16,6 +16,7 @@ import fs2.Stream
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField}
+import org.log4s.getLogger
 
 /**
   * Flexible Data Model Relation for syncing Nodes or Edges with properties
@@ -36,8 +37,11 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         corePropConfig.instanceSpace)
     )(sqlContext) {
 
+  private val logger = getLogger
   // request no more data after seeing items with node/edge lastUpdatedTime >= terminationTimeStamp
   private val terminationTimeStamp = System.currentTimeMillis()
+  private val mandatoryViewFields = schema.fields.filter(f =>
+    f.name != "space" && f.name != "externalId" && f.name != "type" && f.name != "startNode" && f.name != "endNode" && !f.nullable)
 
   protected override def metadataAttributes(): Array[StructField] = {
     val nodeAttributes = Array(
@@ -65,20 +69,45 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
   }
 
   private def createSyncFilter(
+      hasDataFilter: Boolean,
       filters: Array[Filter],
-      instanceType: InstanceType): FilterDefinition.And = {
-    val hasData: Option[HasData] = viewReference.map { viewRef =>
-      HasData(List(viewRef))
-    }
+      instanceType: InstanceType): Option[FilterDefinition] = {
+    val hasData: Option[HasData] =
+      if (!hasDataFilter) {
+        None
+      } else {
+        viewReference.map { viewRef =>
+          HasData(List(viewRef))
+        }
+      }
     val requestFilters: Seq[FilterDefinition] = (filters.map {
       toNodeOrEdgeAttributeFilter(instanceType, _).toOption
     } ++ Array(hasData)).flatten.toSeq
-    FilterDefinition.And(requestFilters)
+
+    if (requestFilters.isEmpty) {
+      None
+    } else {
+      Some(FilterDefinition.And(requestFilters))
+    }
+  }
+
+  override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
+      client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+    val currentCursor: Option[String] = if (cursor == "") None else Some(cursor)
+    Seq(
+      syncOut(
+        hasDataFilter = true,
+        filters = filters,
+        selectedColumns = selectedColumns,
+        currentCursor = currentCursor))
   }
 
   // scalastyle:off cyclomatic.complexity
-  override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-      client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+  private def buildRequest(
+      hasDataFilter: Boolean,
+      filters: Array[Filter],
+      selectedColumns: Array[String],
+      currentCursor: Option[String]): InstanceSyncRequest = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
@@ -92,12 +121,12 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         throw new CdfSparkIllegalArgumentException("Cannot sync both nodes and edges at the same time")
     }
 
-    val syncFilter = createSyncFilter(filters, instanceType)
+    val syncFilter = createSyncFilter(hasDataFilter, filters, instanceType)
     val tableExpression = instanceType match {
       case InstanceType.Edge =>
-        TableExpression(edges = Some(EdgeTableExpression(filter = Some(syncFilter))))
+        TableExpression(edges = Some(EdgeTableExpression(filter = syncFilter)))
       case InstanceType.Node =>
-        TableExpression(nodes = Some(NodesTableExpression(filter = Some(syncFilter))))
+        TableExpression(nodes = Some(NodesTableExpression(filter = syncFilter)))
     }
 
     val sourceReference: Seq[SourceSelector] = viewReference
@@ -108,56 +137,84 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
             properties = selectedInstanceProps.toIndexedSeq.filter(p =>
               !p.startsWith("node.") && !p.startsWith("edge.") && !p.startsWith("metadata.") &&
                 p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")
-        ))
+        )
+      )
       .toSeq
 
-    val instanceSyncRequest = InstanceSyncRequest(
+    InstanceSyncRequest(
       `with` = Map("sync" -> tableExpression),
-      cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None,
+      cursors = currentCursor.flatMap(c => Some(Map("sync" -> c))),
       select = Map("sync" -> SelectExpression(sources = sourceReference)),
       includeTyping = Some(true)
     )
-
-    Seq(syncOut(instanceSyncRequest, selectedColumns))
   }
-  // scalastyle:on cyclomatic.complexity
 
-  private def syncOut(syncRequest: InstanceSyncRequest, selectedProps: Array[String])(
-      implicit F: Async[IO]): Stream[IO, ProjectedFlexibleDataModelInstance] =
-    Stream.eval {
-      syncWithCursor(syncRequest).map { sr =>
-        val items = sr.items
-        val nextCursor = sr.nextCursor
-        val next =
-          (nextCursor, items.nonEmpty && items.last.lastUpdatedTime < terminationTimeStamp) match {
-            case (Some(cursor), true) =>
-              syncOut(syncRequest.copy(cursors = Some(Map("sync" -> cursor))), selectedProps)
-            case _ => fs2.Stream.empty
-          }
+  private def syncOut(
+      hasDataFilter: Boolean,
+      filters: Array[Filter],
+      selectedColumns: Array[String],
+      currentCursor: Option[String])(
+      implicit F: Async[IO]): Stream[IO, ProjectedFlexibleDataModelInstance] = {
 
-        val projected = items.map(toProjectedInstance(_, nextCursor, selectedProps))
-        fs2.Stream.emits(projected) ++ next
-      }
-    }.flatten
+    val synced: IO[(ItemsWithCursor[InstanceDefinition], Boolean)] =
+      syncWithCursor(hasDataFilter, filters, selectedColumns, currentCursor)
+    val stream: Stream[IO, ProjectedFlexibleDataModelInstance] = Stream.eval(synced).flatMap {
+      case (ItemsWithCursor(items, nextCursor), continueWithHasData) =>
+        val projectedItems =
+          items.filter(clientsideHasDataFilter).map(toProjectedInstance(_, nextCursor, selectedColumns))
+
+        val nextStream = nextCursor match {
+          case Some(c) if items.nonEmpty && items.last.lastUpdatedTime < terminationTimeStamp =>
+            syncOut(continueWithHasData, filters, selectedColumns, Some(c))
+          case _ => Stream.empty
+        }
+        Stream.emits(projectedItems) ++ nextStream
+    }
+    stream
+  }
+
+  private def clientsideHasDataFilter(item: InstanceDefinition): Boolean = {
+    val values = item.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+    values.nonEmpty &&
+    mandatoryViewFields.forall { field =>
+      values.contains(field.name)
+    }
+  }
 
   private def syncWithCursor(
-      syncRequest: InstanceSyncRequest): IO[ItemsWithCursor[InstanceDefinition]] = {
-    // temporary handle expired cursor by syncing from scratch
+      hasDataFilter: Boolean,
+      filters: Array[Filter],
+      selectedColumns: Array[String],
+      currentCursor: Option[String]): IO[(ItemsWithCursor[InstanceDefinition], Boolean)] = {
+    val syncRequest = buildRequest(hasDataFilter, filters, selectedColumns, currentCursor)
+    var continueWithHasData = hasDataFilter
     val response = client.instances
       .syncRequest(syncRequest)
       .redeemWith(
         {
-          case e: CdpApiException if e.code == 400 && e.message.startsWith("Cursor has expired") =>
+          // if cursor has expired, restart from empty cursor.
+          case e: CdpApiException if e.code == 400 && e.message.startsWith("Cursor has expired") => {
+            logger.warn(e)("Cursor has expired. Starting from scratch.")
             client.instances.syncRequest(syncRequest.copy(cursors = None))
+          }
+          case e: CdpApiException
+              if continueWithHasData && e.code == 408 && e.message.startsWith(
+                "Graph query timed out.") => {
+            logger.warn(e)("Graph query timed out. Retrying without hasData filter.")
+            // drop the hasData filter and retry
+            continueWithHasData = false
+            client.instances.syncRequest(
+              buildRequest(continueWithHasData, filters, selectedColumns, currentCursor))
+          }
           case e => IO.raiseError(e)
         },
         IO.pure
       )
 
     response.map { sr =>
-      val itemDefinitions = sr.items.getOrElse(Map.empty).get("sync").getOrElse(Vector.empty)
+      val itemDefinitions = sr.items.getOrElse(Map.empty).getOrElse("sync", Vector.empty)
       val nextCursor = sr.nextCursor.getOrElse(Map.empty).get("sync")
-      ItemsWithCursor(itemDefinitions, nextCursor)
+      (ItemsWithCursor(itemDefinitions, nextCursor), continueWithHasData)
     }
   }
 }
