@@ -1,18 +1,20 @@
 package cognite.spark.v1
 
 import cats.effect.{Async, IO}
+import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.FlexibleDataModelRelationFactory.{
   ViewCorePropertyConfig,
   ViewSyncCorePropertyConfig
 }
-import com.cognite.sdk.scala.common.{CdpApiException, ItemsWithCursor}
+import com.cognite.sdk.scala.common.ItemsWithCursor
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.{HasData, MatchAll}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import fs2.Stream
+import io.circe.JsonObject
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField}
@@ -93,13 +95,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     }
 
     val syncFilter = createSyncFilter(filters, instanceType)
-    val tableExpression = instanceType match {
-      case InstanceType.Edge =>
-        TableExpression(edges = Some(EdgeTableExpression(filter = Some(syncFilter))))
-      case InstanceType.Node =>
-        TableExpression(nodes = Some(NodesTableExpression(filter = Some(syncFilter))))
-    }
-
+    val tableExpression = generateTableExpression(instanceType, syncFilter)
     val sourceReference: Seq[SourceSelector] = viewReference
       .map(
         r =>
@@ -111,53 +107,106 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         ))
       .toSeq
 
-    val instanceSyncRequest = InstanceSyncRequest(
-      `with` = Map("sync" -> tableExpression),
-      cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None,
-      select = Map("sync" -> SelectExpression(sources = sourceReference)),
-      includeTyping = Some(true)
-    )
+    val futureItemsCursor = cursor match {
+      case "" =>
+        Some(
+          fetchData(
+            isBackFill = false,
+            cursors = None,
+            `with` = Map(
+              "sync" -> generateTableExpression(
+                instanceType,
+                FilterDefinition.Not(MatchAll(JsonObject())))),
+            select = Map("sync" -> SelectExpression(sources = sourceReference))
+          ).map(_.nextCursor)
+            .unsafeRunSync()
+            .getOrElse {
+              throw new CdfSparkIllegalArgumentException(
+                "Could not load initial cursor for sync relation.")
+            }
+        )
+      case _ => None
+    }
 
-    Seq(syncOut(instanceSyncRequest, selectedColumns))
+    Seq(
+      syncOut(
+        futureItemsCursor,
+        isBackFill = cursor.isEmpty,
+        cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None,
+        `with` = Map("sync" -> tableExpression),
+        select = Map("sync" -> SelectExpression(sources = sourceReference)),
+        selectedColumns
+      ))
+  }
+
+  private def generateTableExpression(
+      instanceType: InstanceType,
+      filters: FilterDefinition): TableExpression =
+    instanceType match {
+      case InstanceType.Edge =>
+        TableExpression(edges = Some(EdgeTableExpression(filter = Some(filters))))
+      case InstanceType.Node =>
+        TableExpression(nodes = Some(NodesTableExpression(filter = Some(filters))))
+    }
+
+  private def fetchData(
+      isBackFill: Boolean,
+      cursors: Option[Map[String, String]],
+      `with`: Map[String, TableExpression],
+      select: Map[String, SelectExpression]): IO[ItemsWithCursor[InstanceDefinition]] = {
+    val response = if (isBackFill) {
+      client.instances.queryRequest(
+        InstanceQueryRequest(
+          `with` = `with`,
+          cursors = cursors,
+          select = select,
+          includeTyping = Some(true)
+        ))
+    } else {
+      client.instances.syncRequest(
+        InstanceSyncRequest(
+          `with` = `with`,
+          cursors = cursors,
+          select = select,
+          includeTyping = Some(true)
+        ))
+    }
+    response.map { qr =>
+      val itemDefinitions = qr.items.getOrElse(Map.empty).get("sync").getOrElse(Vector.empty)
+      val nextCursor = qr.nextCursor.getOrElse(Map.empty).get("sync")
+      ItemsWithCursor(itemDefinitions, nextCursor)
+    }
   }
   // scalastyle:on cyclomatic.complexity
 
-  private def syncOut(syncRequest: InstanceSyncRequest, selectedProps: Array[String])(
+  private def syncOut(
+      futureItems: Option[String],
+      isBackFill: Boolean,
+      cursors: Option[Map[String, String]],
+      `with`: Map[String, TableExpression],
+      select: Map[String, SelectExpression],
+      selectedProps: Array[String])(
       implicit F: Async[IO]): Stream[IO, ProjectedFlexibleDataModelInstance] =
     Stream.eval {
-      syncWithCursor(syncRequest).map { sr =>
+      fetchData(isBackFill, cursors, `with`, select).map { sr =>
         val items = sr.items
         val nextCursor = sr.nextCursor
         val next =
           (nextCursor, items.nonEmpty && items.last.lastUpdatedTime < terminationTimeStamp) match {
             case (Some(cursor), true) =>
-              syncOut(syncRequest.copy(cursors = Some(Map("sync" -> cursor))), selectedProps)
+              syncOut(
+                futureItems,
+                isBackFill,
+                Some(Map("sync" -> cursor)),
+                `with`,
+                select,
+                selectedProps)
             case _ => fs2.Stream.empty
           }
-
-        val projected = items.map(toProjectedInstance(_, nextCursor, selectedProps))
+        val projectedCursorId = if (futureItems.isEmpty) nextCursor else futureItems
+        val projected = items.map(toProjectedInstance(_, projectedCursorId, selectedProps))
         fs2.Stream.emits(projected) ++ next
       }
     }.flatten
 
-  private def syncWithCursor(
-      syncRequest: InstanceSyncRequest): IO[ItemsWithCursor[InstanceDefinition]] = {
-    // temporary handle expired cursor by syncing from scratch
-    val response = client.instances
-      .syncRequest(syncRequest)
-      .redeemWith(
-        {
-          case e: CdpApiException if e.code == 400 && e.message.startsWith("Cursor has expired") =>
-            client.instances.syncRequest(syncRequest.copy(cursors = None))
-          case e => IO.raiseError(e)
-        },
-        IO.pure
-      )
-
-    response.map { sr =>
-      val itemDefinitions = sr.items.getOrElse(Map.empty).get("sync").getOrElse(Vector.empty)
-      val nextCursor = sr.nextCursor.getOrElse(Map.empty).get("sync")
-      ItemsWithCursor(itemDefinitions, nextCursor)
-    }
-  }
 }
