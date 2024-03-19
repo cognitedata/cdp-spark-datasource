@@ -636,6 +636,33 @@ class FlexibleDataModelCorePropertyRelationTest
     syncedNodes3.length shouldBe 0
   }
 
+  it should "sync with old cursor " in {
+    // Let us see what happens when this cursor gets more than 3 days..
+    val oldCursorValue = "\"Z0FBQUFBQmw0RjJXenpCbHl3Ny02MzRRN21lTEVkdm5hU3hpQTM4d05ERkwxV2xNSG5" +
+      "wa2ltOHhXMXloWC05akN6TDEzWGExMkkwZlpocGVhdVZXSDBGMVpEdmIwSTlzVDhQQUVhOHBNV2pCNUFNMFBsREg" +
+      "4WjlEU3RacFFMbS1MM3hZaGVkV3ZFcVhoUy13R0NlODEzaEhlZUhUbVoxeTZ3bWVCX0tnSWdXRkphcjJIS2hfemh" +
+      "pM216WktROG9RdjdqVmRWeFRMdDZ5TVdVNG1iNGo2X3J1VVVVRy10ZnowYUozSnV0R2ozZjd6YU1mMjBNVnc1eWN" +
+      "tX1hmbF80RmY0RkdVRk5DVTI0UE9scW5rbkF1MEZIUHBKUklERDVnRDJ5ZWhXVGVwNE4wcVBpeVV1amdGSDZKeTd" +
+      "nanhkRTNiZ2QtUTdWdGdhbUpHakdEWXpQRmNueEFGdGd3UTBHdHZpY3hZdnpHdk16QVBlNE8wSlZzUGk0d2hOV01" +
+      "jRUFQdjNPNE9mQ0g0MG11S1NYMzJyWnczRkhBWG00WWJCRU1jUT09\""
+
+    val (viewDefinition, modifiedExternalIds) = setupSyncTest.unsafeRunSync()
+    val view = viewDefinition.toSourceReference
+    val syncDf = syncRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      cursor = oldCursorValue
+    )
+
+    syncDf.createTempView(s"sync_old_cursor")
+    val syncedNodes = spark.sql("select * from sync_old_cursor").collect()
+    val syncedExternalIds = toExternalIds(syncedNodes)
+
+    (syncedExternalIds should contain).allElementsOf(modifiedExternalIds)
+  }
+
   it should "succeed when filtering instances by properties" in {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
