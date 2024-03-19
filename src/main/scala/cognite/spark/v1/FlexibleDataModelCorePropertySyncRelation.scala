@@ -126,7 +126,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
   }
 
   /**
-    * Generate future items cursor.
+    * Generate future items cursor and validate cursor expiration.
     * If the cursor has expired, generate a new cursor and do a full back fill.
     */
   private def generateFutureItemsCursor(
@@ -140,7 +140,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         "sync" -> generateTableExpression(instanceType, FilterDefinition.Not(MatchAll(JsonObject())))),
       select = select)
       .map { sr =>
-        (sr.nextCursor, cursor.isEmpty)
+        (sr.nextCursor, cursors.isEmpty)
       }
       .redeemWith(
         {
