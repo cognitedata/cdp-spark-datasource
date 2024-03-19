@@ -127,9 +127,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
 
   /**
     * Generate future items cursor.
-    * If the cursor has expired, generate a new cursor and do a full backfill.
-    * If the cursor with sync causes 408, then do a backfill, and pray that incremental sync sessions
-    * will not time out.
+    * If the cursor has expired, generate a new cursor and do a full back fill.
     */
   private def generateFutureItemsCursor(
       cursors: Option[Map[String, String]],
