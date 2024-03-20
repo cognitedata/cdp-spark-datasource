@@ -117,7 +117,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
 
     Seq(
       syncOut(
-        futureItemsCursor,
+        Some(futureItemsCursor),
         cursors = if (executeBackFill) None else cursors,
         `with` = Map("sync" -> tableExpression),
         select,
@@ -137,14 +137,20 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
   private def generateFutureItemsCursor(
       cursors: Option[Map[String, String]],
       instanceType: InstanceType,
-      select: Map[String, SelectExpression]): IO[(Option[String], Boolean)] =
+      select: Map[String, SelectExpression]): IO[(String, Boolean)] =
     fetchData(
       isBackFill = false,
       cursors = cursors,
       `with` = Map("sync" -> generateTableExpression(instanceType, matchNothingFilter)),
       select = select)
-      .map { sr =>
-        (sr.nextCursor, cursors.isEmpty)
+      .flatMap { sr =>
+        sr.nextCursor match {
+          case None =>
+            IO.raiseError(
+              new IllegalArgumentException("/sync response must have " +
+                "nextCursor"))
+          case Some(nextCursor) => IO.pure(nextCursor, cursors.isEmpty)
+        }
       }
       .redeemWith(
         {
