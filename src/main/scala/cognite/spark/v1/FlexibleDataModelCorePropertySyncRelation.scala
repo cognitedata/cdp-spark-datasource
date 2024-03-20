@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.effect.{Async, IO}
+import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.FlexibleDataModelRelationFactory.{
