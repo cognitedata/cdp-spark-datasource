@@ -112,13 +112,12 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       .toSeq
     val cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None
     val select = Map("sync" -> SelectExpression(sources = sourceReference))
-    val (futureItemsCursor, executeBackFill) =
-      generateFutureItemsCursor(cursors, instanceType, select).unsafeRunSync()
+    val syncMode =
+      decideSyncMode(cursors, instanceType, select).unsafeRunSync()
 
     Seq(
       syncOut(
-        Some(futureItemsCursor),
-        cursors = if (executeBackFill) None else cursors,
+        syncMode,
         `with` = Map("sync" -> tableExpression),
         select,
         selectedColumns
@@ -127,6 +126,12 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
   // scalastyle:on method.length
   // scalastyle:on cyclomatic.complexity
 
+  sealed trait SyncMode {}
+  // /query all items first, report futureItemsCursor as cursor for next run
+  final case class BackFillMode(futureItemsSyncCursor: String) extends SyncMode
+  // sync starting from a non-empty non-expired /sync cursor from a previous run
+  final case class StreamMode(syncCursors: Map[String, String]) extends SyncMode
+
   private val matchNothingFilter: FilterDefinition =
     FilterDefinition.Not(MatchAll(JsonObject()))
 
@@ -134,29 +139,32 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     * Generate future items cursor and validate cursor expiration.
     * If the cursor has expired, generate a new cursor and do a full back fill.
     */
-  private def generateFutureItemsCursor(
+  private def decideSyncMode(
       cursors: Option[Map[String, String]],
       instanceType: InstanceType,
-      select: Map[String, SelectExpression]): IO[(String, Boolean)] =
+      select: Map[String, SelectExpression]): IO[SyncMode] =
     fetchData(
       isBackFill = false,
       cursors = cursors,
       `with` = Map("sync" -> generateTableExpression(instanceType, matchNothingFilter)),
       select = select)
       .flatMap { sr =>
-        sr.nextCursor match {
-          case None =>
+        (sr.nextCursor, cursors) match {
+          case (None, _) =>
             IO.raiseError(
               new IllegalArgumentException("/sync response must have " +
                 "nextCursor"))
-          case Some(nextCursor) => IO.pure((nextCursor, cursors.isEmpty))
+          // sync cursors are present and non-expired
+          case (Some(_), Some(syncCursors)) => IO.pure(StreamMode(syncCursors))
+          // otherwise fallback to backfill first
+          case (Some(futureItemsSyncCursor), None) => IO.pure(BackFillMode(futureItemsSyncCursor))
         }
       }
       .redeemWith(
         {
           case e: CdpApiException if e.code == 400 && e.message.startsWith("Cursor has expired") =>
             logger.warn("Cursor has expired, doing a full backfill")
-            generateFutureItemsCursor(None, instanceType, select)
+            decideSyncMode(None, instanceType, select)
           case e => IO.raiseError(e)
         },
         IO.pure
@@ -204,24 +212,41 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
   }
 
   private def syncOut(
-      futureItemsCursor: Option[String],
-      cursors: Option[Map[String, String]],
+      syncMode: SyncMode,
       `with`: Map[String, TableExpression],
       select: Map[String, SelectExpression],
       selectedProps: Array[String])(
-      implicit F: Async[IO]): Stream[IO, ProjectedFlexibleDataModelInstance] =
+      implicit F: Async[IO]): Stream[IO, ProjectedFlexibleDataModelInstance] = {
+    val (isBackFill, cursors, toProjectedCursor) = syncMode match {
+      case StreamMode(syncCursors) =>
+        (false, Some(syncCursors), (nextCursor: Option[String]) => nextCursor)
+      case BackFillMode(futureItemsSyncCursor) =>
+        (true, None, (_: Option[String]) => Some(futureItemsSyncCursor))
+    }
+    val projectInstance = (nextCursor: Option[String]) =>
+      toProjectedInstance(_, toProjectedCursor(nextCursor), selectedProps)
+    val dataFetcher = (cursors: Option[Map[String, String]]) =>
+      fetchData(isBackFill, cursors, `with`, select)
+    syncOut(cursors, dataFetcher, projectInstance)
+  }
+
+  private def syncOut(
+      cursors: Option[Map[String, String]],
+      fetchData: Option[Map[String, String]] => IO[ItemsWithCursor[InstanceDefinition]],
+      projectInstance: Option[String] => InstanceDefinition => ProjectedFlexibleDataModelInstance
+  ): Stream[IO, ProjectedFlexibleDataModelInstance] =
     Stream.eval {
-      fetchData(futureItemsCursor.nonEmpty, cursors, `with`, select).map { sr =>
+      fetchData(cursors).map { sr =>
         val items = sr.items
         val nextCursor = sr.nextCursor
         val next =
           (nextCursor, items.nonEmpty && items.last.lastUpdatedTime < terminationTimeStamp) match {
             case (Some(cursor), true) =>
-              syncOut(futureItemsCursor, Some(Map("sync" -> cursor)), `with`, select, selectedProps)
+              syncOut(Some(Map("sync" -> cursor)), fetchData, projectInstance)
             case _ => fs2.Stream.empty
           }
-        val projectedCursorId = if (futureItemsCursor.isEmpty) nextCursor else futureItemsCursor
-        val projected = items.map(toProjectedInstance(_, projectedCursorId, selectedProps))
+        val projection = projectInstance(nextCursor)
+        val projected = items.map(projection)
         fs2.Stream.emits(projected) ++ next
       }
     }.flatten
