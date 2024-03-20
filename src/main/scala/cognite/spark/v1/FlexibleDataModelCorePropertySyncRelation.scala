@@ -125,6 +125,9 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       ))
   }
 
+  private val matchNothingFilter: FilterDefinition =
+    FilterDefinition.Not(MatchAll(JsonObject()))
+
   /**
     * Generate future items cursor and validate cursor expiration.
     * If the cursor has expired, generate a new cursor and do a full back fill.
@@ -137,7 +140,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       isBackFill = false,
       cursors = cursors,
       `with` = Map(
-        "sync" -> generateTableExpression(instanceType, FilterDefinition.Not(MatchAll(JsonObject())))),
+        "sync" -> generateTableExpression(instanceType, matchNothingFilter)),
       select = select)
       .map { sr =>
         (sr.nextCursor, cursors.isEmpty)
