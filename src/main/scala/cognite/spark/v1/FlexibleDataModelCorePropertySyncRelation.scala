@@ -220,8 +220,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       syncMode: SyncMode,
       `with`: Map[String, TableExpression],
       select: Map[String, SelectExpression],
-      selectedProps: Array[String])(
-      implicit F: Async[IO]): Stream[IO, ProjectedFlexibleDataModelInstance] = {
+      selectedProps: Array[String]): Stream[IO, ProjectedFlexibleDataModelInstance] = {
     val (isBackFill, cursors, toProjectedCursor) = syncMode match {
       case StreamMode(syncCursors) =>
         (false, Some(syncCursors), (nextCursor: Option[String]) => nextCursor)
