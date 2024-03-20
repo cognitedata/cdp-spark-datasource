@@ -136,15 +136,18 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     FilterDefinition.Not(MatchAll(JsonObject()))
 
   /**
-    * Generate future items cursor and validate cursor expiration.
-    * If the cursor has expired, generate a new cursor and do a full back fill.
+    * Validate cursors validity if present
+    * If cursors are invalid or not present generate sync cursor that would match _future_
+    * updates, demand initial full backfill fetch via query endpoint.
+    * Note: cursors validitiy is checked via future cursor fetch attempt so an attempt to fetch
+    *       future cursor is always made
     */
   private def decideSyncMode(
       cursors: Option[Map[String, String]],
       instanceType: InstanceType,
       select: Map[String, SelectExpression]): IO[SyncMode] =
     fetchData(
-      isBackFill = false,
+      useQueryEndpoint = false,
       cursors = cursors,
       `with` = Map("sync" -> generateTableExpression(instanceType, matchNothingFilter)),
       select = select)
@@ -181,11 +184,11 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     }
 
   private def fetchData(
-      isBackFill: Boolean,
+      useQueryEndpoint: Boolean,
       cursors: Option[Map[String, String]],
       `with`: Map[String, TableExpression],
       select: Map[String, SelectExpression]): IO[ItemsWithCursor[InstanceDefinition]] = {
-    val response = if (isBackFill) {
+    val response = if (useQueryEndpoint) {
       client.instances.queryRequest(
         InstanceQueryRequest(
           `with` = `with`,
@@ -226,7 +229,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     val projectInstance = (nextCursor: Option[String]) =>
       toProjectedInstance(_, toProjectedCursor(nextCursor), selectedProps)
     val dataFetcher = (cursors: Option[Map[String, String]]) =>
-      fetchData(isBackFill, cursors, `with`, select)
+      fetchData(useQueryEndpoint = isBackFill, cursors, `with`, select)
     syncOut(cursors, dataFetcher, projectInstance, applyTimestampTermination = !isBackFill)
   }
 
