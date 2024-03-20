@@ -227,22 +227,25 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       toProjectedInstance(_, toProjectedCursor(nextCursor), selectedProps)
     val dataFetcher = (cursors: Option[Map[String, String]]) =>
       fetchData(isBackFill, cursors, `with`, select)
-    syncOut(cursors, dataFetcher, projectInstance)
+    syncOut(cursors, dataFetcher, projectInstance, applyTimestampTermination = !isBackFill)
   }
 
   private def syncOut(
       cursors: Option[Map[String, String]],
       fetchData: Option[Map[String, String]] => IO[ItemsWithCursor[InstanceDefinition]],
-      projectInstance: Option[String] => InstanceDefinition => ProjectedFlexibleDataModelInstance
+      projectInstance: Option[String] => InstanceDefinition => ProjectedFlexibleDataModelInstance,
+      applyTimestampTermination: Boolean
   ): Stream[IO, ProjectedFlexibleDataModelInstance] =
     Stream.eval {
       fetchData(cursors).map { sr =>
         val items = sr.items
         val nextCursor = sr.nextCursor
+        val shouldStopEarly = items.isEmpty || (applyTimestampTermination && items.last.lastUpdatedTime >=
+          terminationTimeStamp)
         val next =
-          (nextCursor, items.nonEmpty && items.last.lastUpdatedTime < terminationTimeStamp) match {
-            case (Some(cursor), true) =>
-              syncOut(Some(Map("sync" -> cursor)), fetchData, projectInstance)
+          (nextCursor, shouldStopEarly) match {
+            case (Some(cursor), false) =>
+              syncOut(Some(Map("sync" -> cursor)), fetchData, projectInstance, applyTimestampTermination)
             case _ => fs2.Stream.empty
           }
         val projection = projectInstance(nextCursor)
