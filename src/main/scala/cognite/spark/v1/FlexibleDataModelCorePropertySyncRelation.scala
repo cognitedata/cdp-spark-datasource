@@ -149,7 +149,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
             IO.raiseError(
               new IllegalArgumentException("/sync response must have " +
                 "nextCursor"))
-          case Some(nextCursor) => IO.pure(nextCursor, cursors.isEmpty)
+          case Some(nextCursor) => IO.pure((nextCursor, cursors.isEmpty))
         }
       }
       .redeemWith(
