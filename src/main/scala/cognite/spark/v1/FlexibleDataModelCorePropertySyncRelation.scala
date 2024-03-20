@@ -124,6 +124,8 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         selectedColumns
       ))
   }
+  // scalastyle:on method.length
+  // scalastyle:on cyclomatic.complexity
 
   private val matchNothingFilter: FilterDefinition =
     FilterDefinition.Not(MatchAll(JsonObject()))
@@ -195,7 +197,6 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       ItemsWithCursor(itemDefinitions, nextCursor)
     }
   }
-  // scalastyle:on cyclomatic.complexity
 
   private def syncOut(
       futureItemsCursor: Option[String],
