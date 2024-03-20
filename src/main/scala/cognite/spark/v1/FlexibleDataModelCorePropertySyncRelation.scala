@@ -190,7 +190,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       )
     }
     response.map { qr =>
-      val itemDefinitions = qr.items.getOrElse(Map.empty).get("sync").getOrElse(Vector.empty)
+      val itemDefinitions = qr.items.getOrElse(Map.empty).getOrElse("sync", Vector.empty)
       val nextCursor = qr.nextCursor.getOrElse(Map.empty).get("sync")
       ItemsWithCursor(itemDefinitions, nextCursor)
     }
