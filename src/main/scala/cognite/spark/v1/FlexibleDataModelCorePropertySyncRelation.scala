@@ -20,6 +20,14 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField}
 import org.log4s.getLogger
 
+sealed trait SyncMode {}
+
+// /query all items first, report futureItemsCursor as cursor for next run
+final case class BackFillMode(futureItemsSyncCursor: String) extends SyncMode
+
+// sync starting from a non-empty non-expired /sync cursor from a previous run
+final case class StreamMode(syncCursors: Map[String, String]) extends SyncMode
+
 /**
   * Flexible Data Model Relation for syncing Nodes or Edges with properties
   *
@@ -125,12 +133,6 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
   }
   // scalastyle:on method.length
   // scalastyle:on cyclomatic.complexity
-
-  sealed trait SyncMode {}
-  // /query all items first, report futureItemsCursor as cursor for next run
-  final case class BackFillMode(futureItemsSyncCursor: String) extends SyncMode
-  // sync starting from a non-empty non-expired /sync cursor from a previous run
-  final case class StreamMode(syncCursors: Map[String, String]) extends SyncMode
 
   private val matchNothingFilter: FilterDefinition =
     FilterDefinition.Not(MatchAll(JsonObject()))
