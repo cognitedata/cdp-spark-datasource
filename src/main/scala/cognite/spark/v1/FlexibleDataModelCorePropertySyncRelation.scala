@@ -198,23 +198,23 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
   // scalastyle:on cyclomatic.complexity
 
   private def syncOut(
-      futureItems: Option[String],
+      futureItemsCursor: Option[String],
       cursors: Option[Map[String, String]],
       `with`: Map[String, TableExpression],
       select: Map[String, SelectExpression],
       selectedProps: Array[String])(
       implicit F: Async[IO]): Stream[IO, ProjectedFlexibleDataModelInstance] =
     Stream.eval {
-      fetchData(futureItems.nonEmpty, cursors, `with`, select).map { sr =>
+      fetchData(futureItemsCursor.nonEmpty, cursors, `with`, select).map { sr =>
         val items = sr.items
         val nextCursor = sr.nextCursor
         val next =
           (nextCursor, items.nonEmpty && items.last.lastUpdatedTime < terminationTimeStamp) match {
             case (Some(cursor), true) =>
-              syncOut(futureItems, Some(Map("sync" -> cursor)), `with`, select, selectedProps)
+              syncOut(futureItemsCursor, Some(Map("sync" -> cursor)), `with`, select, selectedProps)
             case _ => fs2.Stream.empty
           }
-        val projectedCursorId = if (futureItems.isEmpty) nextCursor else futureItems
+        val projectedCursorId = if (futureItemsCursor.isEmpty) nextCursor else futureItemsCursor
         val projected = items.map(toProjectedInstance(_, projectedCursorId, selectedProps))
         fs2.Stream.emits(projected) ++ next
       }
