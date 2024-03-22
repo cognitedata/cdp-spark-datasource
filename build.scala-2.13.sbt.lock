@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-03-11T14:11:06.783919Z",
+  "timestamp" : "2024-03-15T15:52:05.012801Z",
   "configurations" : [
     "compile",
     "optional",
@@ -78,11 +78,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.13",
-      "version" : "2.19.795",
+      "version" : "2.20.796",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.13.jar",
-          "hash" : "sha1:da91f98aed0347a2668eb915ff7d21a810cda4e5"
+          "hash" : "sha1:992de9eb926c5fa9652acbca182f595b93d5e95b"
         }
       ],
       "configurations" : [
