@@ -63,8 +63,17 @@ object FlexibleDataModelRelationFactory {
       cursor: String,
       config: RelationConfig,
       sqlContext: SQLContext,
+      cursorName: Option[String],
+      jobId: Option[String],
+      syncCursorSaveCallbackUrl: Option[String],
       viewCorePropConfig: ViewSyncCorePropertyConfig): FlexibleDataModelCorePropertySyncRelation =
-    new FlexibleDataModelCorePropertySyncRelation(cursor, config, viewCorePropConfig)(sqlContext)
+    new FlexibleDataModelCorePropertySyncRelation(
+      cursor,
+      config,
+      cursorName,
+      jobId,
+      syncCursorSaveCallbackUrl,
+      viewCorePropConfig)(sqlContext)
 
   def connectionRelation(
       config: RelationConfig,

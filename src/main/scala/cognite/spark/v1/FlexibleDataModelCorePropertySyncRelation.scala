@@ -38,6 +38,9 @@ final case class StreamMode(syncCursors: Map[String, String]) extends SyncMode
 private[spark] class FlexibleDataModelCorePropertySyncRelation(
     cursor: String,
     config: RelationConfig,
+    cursorName: Option[String],
+    jobId: Option[String],
+    syncCursorSaveCallbackUrl: Option[String],
     corePropConfig: ViewSyncCorePropertyConfig)(sqlContext: SQLContext)
     extends FlexibleDataModelCorePropertyRelation(
       config,
@@ -229,28 +232,41 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     }
     val projectInstance = (nextCursor: Option[String]) =>
       toProjectedInstance(_, toProjectedCursor(nextCursor), selectedProps)
+    val projectFinalCursor = (nextCursor: Option[String]) => toProjectedCursor(nextCursor)
     val dataFetcher = (cursors: Option[Map[String, String]]) =>
       fetchData(useQueryEndpoint = isBackFill, cursors, `with`, select)
-    syncOut(cursors, dataFetcher, projectInstance, applyTimestampTermination = !isBackFill)
+    syncOut(
+      cursors,
+      dataFetcher,
+      projectInstance,
+      projectFinalCursor,
+      applyTimestampTermination = !isBackFill)
   }
 
   private def syncOut(
       cursors: Option[Map[String, String]],
       fetchData: Option[Map[String, String]] => IO[ItemsWithCursor[InstanceDefinition]],
       projectInstance: Option[String] => InstanceDefinition => ProjectedFlexibleDataModelInstance,
+      projectFinalCursor: Option[String] => Option[String],
       applyTimestampTermination: Boolean
   ): Stream[IO, ProjectedFlexibleDataModelInstance] =
     Stream.eval {
       fetchData(cursors).map { sr =>
         val items = sr.items
         val nextCursor = sr.nextCursor
-        val shouldStopEarly = items.isEmpty || (applyTimestampTermination && items.last.lastUpdatedTime >=
-          terminationTimeStamp)
+        val shouldStopEarly = items.nonEmpty && applyTimestampTermination && items.last.lastUpdatedTime >= terminationTimeStamp
+        val shouldStop = items.isEmpty || shouldStopEarly // || nextCursor.isEmpty is handled by matching
         val next =
-          (nextCursor, shouldStopEarly) match {
+          (nextCursor, shouldStop) match {
             case (Some(cursor), false) =>
-              syncOut(Some(Map("sync" -> cursor)), fetchData, projectInstance, applyTimestampTermination)
-            case _ => fs2.Stream.empty
+              syncOut(
+                Some(Map("sync" -> cursor)),
+                fetchData,
+                projectInstance,
+                projectFinalCursor,
+                applyTimestampTermination)
+            case (None, _) | (_, true) =>
+              fs2.Stream.exec(saveLastCursor(projectFinalCursor(nextCursor)))
           }
         val projection = projectInstance(nextCursor)
         val projected = items.map(projection)
@@ -258,4 +274,12 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       }
     }.flatten
 
+  private def saveLastCursor(cursorValue: Option[String]): IO[Unit] =
+    (syncCursorSaveCallbackUrl, jobId, cursorName, cursorValue) match {
+      case (Some(syncCursorSaveCallbackUrl), Some(jobId), Some(cursorName), Some(cursorValue)) =>
+        SyncCursorCallback
+          .lastCursorCallback(syncCursorSaveCallbackUrl, cursorName, cursorValue, jobId)
+          .void
+      case _ => IO.unit
+    }
 }
