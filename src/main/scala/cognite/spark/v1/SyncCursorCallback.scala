@@ -16,7 +16,8 @@ case class IncrementalCursorResponse(name: String, value: String, updated: Boole
 
 object SyncCursorCallback {
   @transient private lazy val sttpBackend: SttpBackend[IO, Any] =
-    new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
+    new GzipBackend[IO, Any](
+      AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create("Last-Cursor-Submitter")))
 
   @transient private val retryingBackend = new RetryingBackend[IO, Any](
     sttpBackend,
