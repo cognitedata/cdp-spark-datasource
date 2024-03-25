@@ -266,8 +266,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
                 projectFinalCursor,
                 applyTimestampTermination)
             case (None, _) | (_, true) =>
-              saveLastCursor(projectFinalCursor(nextCursor))
-              fs2.Stream.empty
+              fs2.Stream.exec(saveLastCursor(projectFinalCursor(nextCursor)))
           }
         val projection = projectInstance(nextCursor)
         val projected = items.map(projection)
@@ -275,12 +274,12 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       }
     }.flatten
 
-  private def saveLastCursor(cursorValue: Option[String]) =
+  private def saveLastCursor(cursorValue: Option[String]): IO[Unit] =
     (syncCursorSaveCallbackUrl, jobId, cursorName, cursorValue) match {
       case (Some(syncCursorSaveCallbackUrl), Some(jobId), Some(cursorName), Some(cursorValue)) =>
         SyncCursorCallback
           .lastCursorCallback(syncCursorSaveCallbackUrl, cursorName, cursorValue, jobId)
-          .unsafeRunSync()
-      case _ =>
+          .void
+      case _ => IO.unit
     }
 }
