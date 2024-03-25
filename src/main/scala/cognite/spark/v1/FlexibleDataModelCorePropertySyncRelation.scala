@@ -260,6 +260,9 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
             case (Some(_), true, _) =>
               saveLastCursor(projectFinalCursor(nextCursor))
               fs2.Stream.empty
+            case (None, true, _) =>
+              saveLastCursor(projectFinalCursor(nextCursor))
+              fs2.Stream.empty
             case (Some(_), false, true) =>
               saveLastCursor(projectFinalCursor(nextCursor))
               fs2.Stream.empty
