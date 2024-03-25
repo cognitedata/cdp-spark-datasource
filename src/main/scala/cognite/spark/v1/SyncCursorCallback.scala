@@ -61,7 +61,7 @@ object SyncCursorCallback {
       callbackUrl: String,
       cursorName: String,
       cursorValue: String,
-      jobId: String): IncrementalCursorResponse = {
+      jobId: String): IO[IncrementalCursorResponse] = {
     val uri = Uri.parse(s"$callbackUrl/$jobId") match {
       case Left(value) => throw new IllegalArgumentException(s"Failed to parse URI '$value'")
       case Right(value) => value
@@ -82,7 +82,6 @@ object SyncCursorCallback {
         case Right(value) => value
       }
       .send(sttpBackend)
-      .unsafeRunSync()
-      .body
+      .map(_.body)
   }
 }

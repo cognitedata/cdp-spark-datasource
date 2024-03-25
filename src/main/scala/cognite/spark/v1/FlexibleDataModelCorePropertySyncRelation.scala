@@ -252,12 +252,14 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
           (nextCursor, items.isEmpty, shouldStopEarly) match {
             case (Some(cursor), true, _) =>
               if (syncCursorSaveCallbackUrl.isDefined && jobId.isDefined && cursorName.isDefined) {
-                SyncCursorCallback.lastCursorCallback(
-                  syncCursorSaveCallbackUrl.get,
-                  cursorName.get,
-                  cursor,
-                  jobId.get
-                )
+                SyncCursorCallback
+                  .lastCursorCallback(
+                    syncCursorSaveCallbackUrl.get,
+                    cursorName.get,
+                    cursor,
+                    jobId.get
+                  )
+                  .unsafeRunSync()
               }
               fs2.Stream.empty
             case (Some(cursor), _, false) =>
