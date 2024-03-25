@@ -558,10 +558,18 @@ object DefaultSource {
             parameters.get("viewExternalId"),
             parameters.get("viewVersion")
           )(ViewReference.apply)
+
+        val cursorName = parameters.get("cursorName")
+        val jobId = parameters.get("jobId")
+        val syncCursorSaveCallbackUrl = parameters.get("syncCursorSaveCallbackUrl")
+
         FlexibleDataModelRelationFactory.corePropertySyncRelation(
           usageAndCursor._2,
           config = config,
           sqlContext = sqlContext,
+          cursorName = cursorName,
+          jobId = jobId,
+          syncCursorSaveCallbackUrl = syncCursorSaveCallbackUrl,
           viewCorePropConfig = ViewSyncCorePropertyConfig(
             intendedUsage = usage,
             viewReference = viewReference,
