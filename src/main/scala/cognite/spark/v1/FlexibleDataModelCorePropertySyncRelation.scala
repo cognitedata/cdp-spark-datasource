@@ -251,18 +251,12 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         val next =
           (nextCursor, items.isEmpty, shouldStopEarly) match {
             case (Some(cursor), true, _) =>
-              if (syncCursorSaveCallbackUrl.isDefined && jobId.isDefined && cursorName.isDefined) {
-                SyncCursorCallback
-                  .lastCursorCallback(
-                    syncCursorSaveCallbackUrl.get,
-                    cursorName.get,
-                    cursor,
-                    jobId.get
-                  )
-                  .unsafeRunSync()
-              }
+              saveLastCursor(cursor)
               fs2.Stream.empty
-            case (Some(cursor), _, false) =>
+            case (Some(cursor), false, true) =>
+              saveLastCursor(cursor)
+              fs2.Stream.empty
+            case (Some(cursor), false, false) =>
               syncOut(Some(Map("sync" -> cursor)), fetchData, projectInstance, applyTimestampTermination)
             case _ => fs2.Stream.empty
           }
@@ -272,4 +266,15 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       }
     }.flatten
 
+  private def saveLastCursor(cursor: String) =
+    if (syncCursorSaveCallbackUrl.isDefined && jobId.isDefined && cursorName.isDefined) {
+      SyncCursorCallback
+        .lastCursorCallback(
+          syncCursorSaveCallbackUrl.get,
+          cursorName.get,
+          cursor,
+          jobId.get
+        )
+        .unsafeRunSync()
+    }
 }
