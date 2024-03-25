@@ -1,9 +1,10 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import com.cognite.sdk.scala.sttp.GzipBackend
+import com.cognite.sdk.scala.sttp.{GzipBackend, RetryingBackend}
 import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
+import scala.concurrent.duration._
 import sttp.client3.{SttpBackend, basicRequest}
 import sttp.client3.asynchttpclient.SttpClientBackendFactory
 import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
@@ -16,6 +17,13 @@ case class IncrementalCursorResponse(name: String, value: String, updated: Boole
 object SyncCursorCallback {
   @transient private lazy val sttpBackend: SttpBackend[IO, Any] =
     new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
+
+  @transient private val retryingBackend = new RetryingBackend[IO, Any](
+    sttpBackend,
+    maxRetries = 5,
+    initialRetryDelay = 200.milliseconds,
+    maxRetryDelay = 5.seconds
+  )
 
   implicit val incrementalCursorCodec: Codec[IncrementalCursor] = deriveCodec[IncrementalCursor]
   implicit val incrementalCursorResponseCodec: Codec[IncrementalCursorResponse] =
@@ -45,7 +53,7 @@ object SyncCursorCallback {
         case Left(_) => IncrementalCursorResponse(cursorName, cursorValue, updated = false)
         case Right(value) => value
       }
-      .send(sttpBackend)
+      .send(retryingBackend)
       .map(_.body)
   }
 }
