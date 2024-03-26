@@ -21,13 +21,6 @@ object FlexibleDataModelRelationFactory {
       instanceSpace: Option[String])
       extends FlexibleDataModelRelationFactory
 
-  final case class ViewSyncCorePropertyConfig(
-      intendedUsage: Usage,
-      viewReference: Option[ViewReference],
-      cursor: String,
-      instanceSpace: Option[String])
-      extends FlexibleDataModelRelationFactory
-
   final case class ConnectionConfig(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
@@ -66,7 +59,7 @@ object FlexibleDataModelRelationFactory {
       cursorName: Option[String],
       jobId: Option[String],
       syncCursorSaveCallbackUrl: Option[String],
-      viewCorePropConfig: ViewSyncCorePropertyConfig): FlexibleDataModelCorePropertySyncRelation =
+      viewCorePropConfig: ViewCorePropertyConfig): FlexibleDataModelCorePropertySyncRelation =
     new FlexibleDataModelCorePropertySyncRelation(
       cursor,
       config,
@@ -81,6 +74,28 @@ object FlexibleDataModelRelationFactory {
       connectionConfig: ConnectionConfig): FlexibleDataModelConnectionRelation =
     new FlexibleDataModelConnectionRelation(config, connectionConfig)(sqlContext)
 
+  def dataModelRelationSync(
+      cursor: String,
+      cursorName: Option[String],
+      jobId: Option[String],
+      syncCursorSaveCallbackUrl: Option[String],
+      config: RelationConfig,
+      sqlContext: SQLContext,
+      dataModelConfig: DataModelConfig): FlexibleDataModelBaseRelation = {
+    val viewCorePropertyConfig = (dataModelConfig match {
+      case vc: DataModelViewConfig => resolveViewCorePropertyConfig(config, vc).unsafeRunSync()
+      case cc: DataModelConnectionConfig => ViewCorePropertyConfig(Usage.Edge, None, cc.instanceSpace)
+    })
+    new FlexibleDataModelCorePropertySyncRelation(
+      cursor,
+      config,
+      cursorName,
+      jobId,
+      syncCursorSaveCallbackUrl,
+      viewCorePropertyConfig
+    )(sqlContext)
+  }
+
   def dataModelRelation(
       config: RelationConfig,
       sqlContext: SQLContext,
@@ -91,10 +106,9 @@ object FlexibleDataModelRelationFactory {
       case cc: DataModelConnectionConfig => createConnectionRelationForDataModel(config, sqlContext, cc)
     }).unsafeRunSync()
 
-  private def createCorePropertyRelationForDataModel(
+  private def resolveViewCorePropertyConfig(
       config: RelationConfig,
-      sqlContext: SQLContext,
-      modelViewConfig: DataModelViewConfig): IO[FlexibleDataModelCorePropertyRelation] = {
+      modelViewConfig: DataModelViewConfig): IO[ViewCorePropertyConfig] = {
     val client = CdpConnector.clientFromConfig(config)
     fetchInlinedDataModel(client, modelViewConfig)
       .map { models =>
@@ -112,25 +126,34 @@ object FlexibleDataModelRelationFactory {
       .flatMap {
         case Some(vc: DataModelViewReference) =>
           IO.delay(
-            new FlexibleDataModelCorePropertyRelation(
-              config,
-              corePropConfig = ViewCorePropertyConfig(
-                intendedUsage = vc.usedFor,
-                viewReference = Some(vc.toSourceReference),
-                instanceSpace = modelViewConfig.instanceSpace
-              )
-            )(sqlContext)
+            ViewCorePropertyConfig(
+              intendedUsage = vc.usedFor,
+              viewReference = Some(vc.toSourceReference),
+              instanceSpace = modelViewConfig.instanceSpace
+            )
           )
         case None =>
           IO.raiseError(
             new CdfSparkIllegalArgumentException(s"""
-              |Could not find a view with externalId: '${modelViewConfig.viewExternalId}' in the specified data model
-              | with (space: '${modelViewConfig.modelSpace}', externalId: '${modelViewConfig.modelExternalId}',
-              | version: '${modelViewConfig.modelVersion}')
-              |""".stripMargin)
+                                                    |Could not find a view with externalId: '${modelViewConfig.viewExternalId}' in the specified data model
+                                                    | with (space: '${modelViewConfig.modelSpace}', externalId: '${modelViewConfig.modelExternalId}',
+                                                    | version: '${modelViewConfig.modelVersion}')
+                                                    |""".stripMargin)
           )
       }
   }
+
+  private def createCorePropertyRelationForDataModel(
+      config: RelationConfig,
+      sqlContext: SQLContext,
+      modelViewConfig: DataModelViewConfig): IO[FlexibleDataModelCorePropertyRelation] =
+    resolveViewCorePropertyConfig(config, modelViewConfig)
+      .map(
+        viewCorePropertyConfig =>
+          new FlexibleDataModelCorePropertyRelation(
+            config,
+            corePropConfig = viewCorePropertyConfig
+          )(sqlContext))
 
   private def createConnectionRelationForDataModel(
       config: RelationConfig,

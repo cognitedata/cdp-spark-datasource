@@ -3,10 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.FlexibleDataModelRelationFactory.{
-  ViewCorePropertyConfig,
-  ViewSyncCorePropertyConfig
-}
+import cognite.spark.v1.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import com.cognite.sdk.scala.common.{CdpApiException, ItemsWithCursor}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
@@ -41,13 +38,10 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     cursorName: Option[String],
     jobId: Option[String],
     syncCursorSaveCallbackUrl: Option[String],
-    corePropConfig: ViewSyncCorePropertyConfig)(sqlContext: SQLContext)
+    corePropConfig: ViewCorePropertyConfig)(sqlContext: SQLContext)
     extends FlexibleDataModelCorePropertyRelation(
       config,
-      ViewCorePropertyConfig(
-        corePropConfig.intendedUsage,
-        corePropConfig.viewReference,
-        corePropConfig.instanceSpace)
+      corePropConfig
     )(sqlContext) {
 
   private val logger = getLogger
