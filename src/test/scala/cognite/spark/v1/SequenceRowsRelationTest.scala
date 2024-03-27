@@ -4,9 +4,9 @@ import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.v1.{Sequence, SequenceColumnCreate}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.{DataFrame, Row}
-import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
+import org.scalatest.{FlatSpec, Matchers}
 
-class SequenceRowsRelationTest extends FlatSpec with Matchers with ParallelTestExecution with SparkTest {
+class SequenceRowsRelationTest extends FlatSpec with Matchers with SparkTest {
   import spark.implicits._
 
   private val sequencesSourceDf = spark.read
