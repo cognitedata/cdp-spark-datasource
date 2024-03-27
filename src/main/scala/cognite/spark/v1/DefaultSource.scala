@@ -71,7 +71,6 @@ class DefaultSource
 
     corePropertySyncRelation
       .orElse(corePropertyRelation)
-      .orElse(datamodelBasedSync)
       .orElse(dataModelBasedConnectionRelation)
       .orElse(datamodelBasedSync)
       .orElse(dataModelBasedCorePropertyRelation)
