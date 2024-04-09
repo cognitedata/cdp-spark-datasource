@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.effect.unsafe.{IORuntime, IORuntimeConfig}
+import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.sttp.{
   BackpressureThrottleBackend,
   GzipBackend,
@@ -56,27 +57,27 @@ object CdpConnector {
   private val sttpBackend: SttpBackend[IO, Any] =
     new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
+  private def getOrCreateCounter(metricsPrefix: String, name: String): Counter = {
+    val (stageAttempt, taskAttempt) = {
+      val ctx = org.apache.spark.TaskContext.get
+      (ctx.stageAttemptNumber, ctx.attemptNumber)
+    }
+    MetricsSource
+      .getOrCreateCounter(metricsPrefix, stageAttempt, taskAttempt, name)
+  }
+
   private def incMetrics(
       metricsPrefix: String,
       namePrefix: String,
       maybeStatus: Option[StatusCode]): IO[Unit] =
-    IO.delay(MetricsSource.getOrCreateCounter(metricsPrefix, s"${namePrefix}requests").inc()) *>
+    IO.delay(getOrCreateCounter(metricsPrefix, s"${namePrefix}requests").inc()) *>
       (maybeStatus match {
         case None =>
-          IO.delay(
-            MetricsSource
-              .getOrCreateCounter(metricsPrefix, s"${namePrefix}requests.response.failure")
-              .inc()
-          )
+          IO.delay(getOrCreateCounter(metricsPrefix, s"${namePrefix}requests.response.failure").inc())
         case Some(status) if status.code >= 400 =>
           IO.delay(
-            MetricsSource
-              .getOrCreateCounter(
-                metricsPrefix,
-                s"${namePrefix}requests.${status.code}" +
-                  s".response")
-              .inc()
-          )
+            getOrCreateCounter(metricsPrefix, s"${namePrefix}requests.${status.code}" + s".response")
+              .inc())
         case _ => IO.unit
       })
 
@@ -122,10 +123,7 @@ object CdpConnector {
       metricsPrefix =>
         new MetricsBackend[IO, Any](
           limitedBackend,
-          _ =>
-            IO.delay(
-              MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries").inc()
-          )
+          _ => IO.delay(getOrCreateCounter(metricsPrefix, "requestsWithoutRetries").inc())
       )
     )
   }

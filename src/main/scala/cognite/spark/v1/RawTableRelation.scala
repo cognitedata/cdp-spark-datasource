@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
+import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
@@ -39,11 +40,19 @@ class RawTableRelation(
 
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
 
+  private def getOrCreateCounter(name: String): Counter = {
+    val (stageAttempt, taskAttempt) = {
+      val ctx = org.apache.spark.TaskContext.get
+      (ctx.stageAttemptNumber, ctx.attemptNumber)
+    }
+
+    MetricsSource
+      .getOrCreateCounter(config.metricsPrefix, stageAttempt, taskAttempt, name)
+  }
+
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-  @transient lazy private val rowsCreated =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.created")
-  @transient lazy private val rowsRead =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.read")
+  private def rowsCreated: Counter = getOrCreateCounter(s"raw.$database.$table.rows.read")
+  private def rowsRead: Counter = getOrCreateCounter(s"raw.$database.$table.rows.created")
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
@@ -149,11 +158,7 @@ class RawTableRelation(
           rowsRead.inc()
         }
         if (collectTestMetrics) {
-          @transient lazy val partitionSize =
-            MetricsSource.getOrCreateCounter(
-              config.metricsPrefix,
-              s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
-          partitionSize.inc()
+          getOrCreateCounter(s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize").inc()
         }
         rowConverter(item)
       },
