@@ -59,8 +59,8 @@ object CdpConnector {
 
   private def getOrCreateCounter(metricsPrefix: String, name: String): Counter = {
     val (stageAttempt, taskAttempt) = {
-      val ctx = org.apache.spark.TaskContext.get
-      (ctx.stageAttemptNumber, ctx.attemptNumber)
+      val ctx = org.apache.spark.TaskContext.get()
+      (ctx.stageAttemptNumber(), ctx.attemptNumber())
     }
     MetricsSource
       .getOrCreateCounter(metricsPrefix, stageAttempt, taskAttempt, name)

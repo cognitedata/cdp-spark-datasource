@@ -42,8 +42,8 @@ class RawTableRelation(
 
   private def getOrCreateCounter(name: String): Counter = {
     val (stageAttempt, taskAttempt) = {
-      val ctx = org.apache.spark.TaskContext.get
-      (ctx.stageAttemptNumber, ctx.attemptNumber)
+      val ctx = org.apache.spark.TaskContext.get()
+      (ctx.stageAttemptNumber(), ctx.attemptNumber())
     }
 
     MetricsSource

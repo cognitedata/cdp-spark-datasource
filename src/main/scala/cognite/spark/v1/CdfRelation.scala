@@ -24,8 +24,8 @@ abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
 
   private def getOrCreateCounter(action: String): Counter = {
     val (stageAttempt, taskAttempt) = {
-      val ctx = org.apache.spark.TaskContext.get
-      (ctx.stageAttemptNumber, ctx.attemptNumber)
+      val ctx = org.apache.spark.TaskContext.get()
+      (ctx.stageAttemptNumber(), ctx.attemptNumber())
     }
     MetricsSource
       .getOrCreateCounter(config.metricsPrefix, stageAttempt, taskAttempt, s"$shortName.$action")
