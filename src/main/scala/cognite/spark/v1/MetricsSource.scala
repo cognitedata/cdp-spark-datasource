@@ -59,7 +59,7 @@ class MetricsSource {
     source
   }
 
-  def deregisterMetricSource(key: String, source: Source) = {
+  def deregisterMetricSource(key: String, source: Source): Unit = {
     metricsMap.remove(key)
     SparkEnv.get.metricsSystem.removeSource(source)
   }
