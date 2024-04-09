@@ -11,13 +11,28 @@ class MetricsSource {
   // Keeps track of all the Metric instances that are being published
   val metricsMap = new ConcurrentHashMap[String, Eval[Counter]]
 
-  def getOrCreateCounter(metricNamespace: String, metricName: String): Counter = {
+  def getOrCreateCounter(metricNamespace: String, name: String): Counter = {
+    val ctx = Option(TaskContext.get())
+
+    def getNumberOrEmpty(getter: TaskContext => AnyVal): String =
+      ctx.map(getter).map(_.toString()).getOrElse("")
+
+    // The number of fields in the name should be consistent, even if there is no value for
+    // the attempt numbers
+    val stageId = getNumberOrEmpty(_.stageId())
+    val stageAttempt = getNumberOrEmpty(_.stageAttemptNumber())
+    val partitionId = getNumberOrEmpty(_.partitionId())
+    val taskAttempt = getNumberOrEmpty(_.taskAttemptId())
+
+    val metricName = s"$stageId.$stageAttempt.$partitionId.$taskAttempt.$name"
+    val key = s"$metricNamespace.$metricName"
+
     val wrapped = Eval.later {
       val counter = new Counter
       registerMetricSource(metricNamespace, metricName, counter)
       counter
     }
-    val key = s"$metricNamespace.$metricName"
+
     metricsMap.putIfAbsent(key, wrapped)
     metricsMap.get(key).value
   }

@@ -12,20 +12,18 @@ abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
     extends BaseRelation
     with Serializable {
   protected val shortName: String = shortNameStr
-  @transient lazy protected val itemsRead: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
-  @transient lazy protected val itemsCreated: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.created")
-  @transient lazy protected val itemsUpdated: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.updated")
-  @transient lazy protected val itemsDeleted: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.deleted")
+  protected def itemsRead: Counter = getOrCreateCounter("read")
+  protected def itemsCreated: Counter = getOrCreateCounter("created")
+  protected def itemsUpdated: Counter = getOrCreateCounter("updated")
+  protected def itemsDeleted: Counter = getOrCreateCounter("deleted")
   // We are not aware if it is `created` or `updated in flexible data modelling case
-  @transient lazy protected val itemsUpserted: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.upserted")
+  protected def itemsUpserted: Counter = getOrCreateCounter("upserted")
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
+
+  private def getOrCreateCounter(action: String): Counter =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.$action")
 
   def incMetrics(counter: Counter, count: Int): IO[Unit] =
     IO(
