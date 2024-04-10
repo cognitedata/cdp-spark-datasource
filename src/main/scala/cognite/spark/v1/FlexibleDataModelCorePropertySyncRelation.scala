@@ -186,7 +186,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       useQueryEndpoint: Boolean,
       cursors: Option[Map[String, String]],
       `with`: Map[String, TableExpression],
-      select: Map[String, SelectExpression]): IO[ItemsWithCursor[InstanceDefinition]] = {
+      select: Map[String, SelectExpression]): IO[ItemsWithCursor[InstanceDefinition]] =
     if (useQueryEndpoint) {
       val response = client.instances.queryRequest(
         InstanceQueryRequest(
@@ -216,7 +216,6 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         ItemsWithCursor(itemDefinitions, nextCursor)
       }
     }
-  }
 
   private def syncOut(
       syncMode: SyncMode,
