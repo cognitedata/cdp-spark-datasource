@@ -186,9 +186,9 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       useQueryEndpoint: Boolean,
       cursors: Option[Map[String, String]],
       `with`: Map[String, TableExpression],
-      select: Map[String, SelectExpression]): IO[ItemsWithCursor[InstanceDefinition]] = {
-    val response = if (useQueryEndpoint) {
-      client.instances.queryRequest(
+      select: Map[String, SelectExpression]): IO[ItemsWithCursor[InstanceDefinition]] =
+    if (useQueryEndpoint) {
+      val response = client.instances.queryRequest(
         InstanceQueryRequest(
           `with` = `with`,
           cursors = cursors,
@@ -196,8 +196,13 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
           includeTyping = Some(true)
         )
       )
+      response.map { qr =>
+        val itemDefinitions = qr.items.flatMap(_.get("sync")).getOrElse(Vector.empty)
+        val nextCursor = qr.nextCursor.flatMap(_.get("sync"))
+        ItemsWithCursor(itemDefinitions, nextCursor)
+      }
     } else {
-      client.instances.syncRequest(
+      val response = client.instances.syncRequest(
         InstanceSyncRequest(
           `with` = `with`,
           cursors = cursors,
@@ -205,13 +210,12 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
           includeTyping = Some(true)
         )
       )
+      response.map { qr =>
+        val itemDefinitions = qr.items.flatMap(_.get("sync")).getOrElse(Vector.empty)
+        val nextCursor = qr.nextCursor.get("sync")
+        ItemsWithCursor(itemDefinitions, nextCursor)
+      }
     }
-    response.map { qr =>
-      val itemDefinitions = qr.items.getOrElse(Map.empty).getOrElse("sync", Vector.empty)
-      val nextCursor = qr.nextCursor.getOrElse(Map.empty).get("sync")
-      ItemsWithCursor(itemDefinitions, nextCursor)
-    }
-  }
 
   private def syncOut(
       syncMode: SyncMode,
