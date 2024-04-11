@@ -303,13 +303,27 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   protected def metadataAttributes(): Array[StructField] = Array.empty
 
   // schema fields for relation references and node/edge identifiers
-  protected def usageBasedSchemaAttributes(usage: Usage): Array[StructField] =
+  protected def usageBasedSchemaAttributes(usage: Usage): Array[StructField] = {
+    val nodeAttributes = Array(
+      DataTypes.createStructField("node.version", DataTypes.LongType, true),
+      DataTypes.createStructField("node.createdTime", DataTypes.LongType, true),
+      DataTypes.createStructField("node.lastUpdatedTime", DataTypes.LongType, true),
+      DataTypes.createStructField("node.deletedTime", DataTypes.LongType, true)
+    )
+
+    val edgeAttributes = Array(
+      DataTypes.createStructField("edge.version", DataTypes.LongType, true),
+      DataTypes.createStructField("edge.createdTime", DataTypes.LongType, true),
+      DataTypes.createStructField("edge.lastUpdatedTime", DataTypes.LongType, true),
+      DataTypes.createStructField("edge.deletedTime", DataTypes.LongType, true)
+    )
+
     usage match {
       case Usage.Node =>
         Array(
           DataTypes.createStructField("space", DataTypes.StringType, false),
           DataTypes.createStructField("externalId", DataTypes.StringType, false)
-        )
+        ) ++ nodeAttributes
       case Usage.Edge =>
         Array(
           DataTypes.createStructField("space", DataTypes.StringType, false),
@@ -317,7 +331,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           relationReferenceSchema("type", nullable = false),
           relationReferenceSchema("startNode", nullable = false),
           relationReferenceSchema("endNode", nullable = false)
-        )
+        ) ++ edgeAttributes
       case Usage.All =>
         Array(
           DataTypes.createStructField("space", DataTypes.StringType, false),
@@ -325,8 +339,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           relationReferenceSchema("type", nullable = true),
           relationReferenceSchema("startNode", nullable = true),
           relationReferenceSchema("endNode", nullable = true)
-        )
+        ) ++ nodeAttributes ++ edgeAttributes
     }
+  }
 
   // Filter definition for edge `type`, `startNode` & `endNode`
   private def createEdgeAttributeFilter(
