@@ -7,8 +7,7 @@ import cognite.spark.v1.FlexibleDataModelRelationFactory.{
   ConnectionConfig,
   DataModelConnectionConfig,
   DataModelViewConfig,
-  ViewCorePropertyConfig,
-  ViewSyncCorePropertyConfig
+  ViewCorePropertyConfig
 }
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
@@ -63,6 +62,7 @@ class DefaultSource
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
     val corePropertySyncRelation = extractCorePropertySyncRelation(parameters, config, sqlContext)
     val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext)
+    val datamodelBasedSync = extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext)
     val dataModelBasedConnectionRelation =
       extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
     val dataModelBasedCorePropertyRelation =
@@ -71,12 +71,12 @@ class DefaultSource
 
     corePropertySyncRelation
       .orElse(corePropertyRelation)
+      .orElse(datamodelBasedSync)
       .orElse(dataModelBasedConnectionRelation)
       .orElse(dataModelBasedCorePropertyRelation)
       .orElse(connectionRelation)
-      .getOrElse(
-        throw new CdfSparkException(
-          s"""
+      .getOrElse(throw new CdfSparkException(
+        s"""
              |Invalid combination of arguments!
              |
              | Expecting 'instanceType' and 'cursor' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
@@ -85,11 +85,11 @@ class DefaultSource
              | 'instanceSpace') for CorePropertyRelation,
              | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') with optional 'instanceSpace' for ConnectionRelation,
              | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'viewExternalId') with optional
-             | 'instanceSpace' for data model based CorePropertyRelation,
+             | 'instanceSpace' and optional 'cursor' for data model based CorePropertyRelation,
              | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', viewExternalId', 'connectionPropertyName')
              | with optional 'instanceSpace' for data model based  ConnectionRelation,
              |""".stripMargin
-        ))
+      ))
   }
 
   /**
@@ -526,6 +526,31 @@ object DefaultSource {
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
   }
 
+  private def extractDataModelBasedConnectionRelationSync(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext): Option[FlexibleDataModelBaseRelation] = {
+    val instanceSpace = parameters.get("instanceSpace")
+    Apply[Option]
+      .map5(
+        parameters.get("modelSpace"),
+        parameters.get("modelExternalId"),
+        parameters.get("modelVersion"),
+        parameters.get("viewExternalId"),
+        parameters.get("cursor")
+      )(Tuple5(_, _, _, _, _))
+      .map(t =>
+        FlexibleDataModelRelationFactory.dataModelRelationSync(
+          t._5,
+          parameters.get("cursorName"),
+          parameters.get("jobId"),
+          parameters.get("syncCursorSaveCallbackUrl"),
+          config,
+          sqlContext,
+          DataModelViewConfig(t._1, t._2, t._3, t._4, instanceSpace)
+      ))
+  }
+
   private def extractConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
@@ -559,14 +584,21 @@ object DefaultSource {
             parameters.get("viewExternalId"),
             parameters.get("viewVersion")
           )(ViewReference.apply)
+
+        val cursorName = parameters.get("cursorName")
+        val jobId = parameters.get("jobId")
+        val syncCursorSaveCallbackUrl = parameters.get("syncCursorSaveCallbackUrl")
+
         FlexibleDataModelRelationFactory.corePropertySyncRelation(
           usageAndCursor._2,
           config = config,
           sqlContext = sqlContext,
-          viewCorePropConfig = ViewSyncCorePropertyConfig(
+          cursorName = cursorName,
+          jobId = jobId,
+          syncCursorSaveCallbackUrl = syncCursorSaveCallbackUrl,
+          viewCorePropConfig = ViewCorePropertyConfig(
             intendedUsage = usage,
             viewReference = viewReference,
-            cursor = usageAndCursor._2,
             instanceSpace = parameters.get("instanceSpace"))
         )
       }
