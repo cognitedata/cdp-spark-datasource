@@ -711,6 +711,16 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql(syncSql)
       .collect()
 
+    filtered.length shouldBe(1)
+    synced.length shouldBe(1)
+
+    for (row <- filtered ++ synced) {
+      row.getLong(row.schema.fieldIndex("node.createdTime")) should be >= 1L
+      row.getLong(row.schema.fieldIndex("node.lastUpdatedTime")) should be >= 1L
+      row.getLong(row.schema.fieldIndex("node.version")) should be >= 1L
+      row.getLong(row.schema.fieldIndex("node.deletedTime")) shouldBe 0L
+    }
+
     filtered.length shouldBe 1
     synced.length shouldBe 1
     val filteredInstanceExtIds =
