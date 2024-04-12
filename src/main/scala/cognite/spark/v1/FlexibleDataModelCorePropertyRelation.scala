@@ -36,8 +36,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 
-  protected val intendedUsage = corePropConfig.intendedUsage
-  protected val viewReference = corePropConfig.viewReference
+  protected val intendedUsage: Usage = corePropConfig.intendedUsage
+  protected val viewReference: Option[ViewReference] = corePropConfig.viewReference
   private val instanceSpace = corePropConfig.instanceSpace
 
   private val (allProperties, propertySchema) = retrieveAllViewPropsAndSchema
