@@ -49,30 +49,10 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
   // request no more data after seeing items with node/edge lastUpdatedTime >= terminationTimeStamp
   private val terminationTimeStamp = System.currentTimeMillis()
 
-  protected override def metadataAttributes(): Array[StructField] = {
-    val nodeAttributes = Array(
-      DataTypes.createStructField("node.version", DataTypes.LongType, true),
-      DataTypes.createStructField("node.createdTime", DataTypes.LongType, true),
-      DataTypes.createStructField("node.lastUpdatedTime", DataTypes.LongType, true),
-      DataTypes.createStructField("node.deletedTime", DataTypes.LongType, true)
-    )
-
-    val edgeAttributes = Array(
-      DataTypes.createStructField("edge.version", DataTypes.LongType, true),
-      DataTypes.createStructField("edge.createdTime", DataTypes.LongType, true),
-      DataTypes.createStructField("edge.lastUpdatedTime", DataTypes.LongType, true),
-      DataTypes.createStructField("edge.deletedTime", DataTypes.LongType, true)
-    )
-    val metadataAttributes = Array(
+  protected override def metadataAttributes(): Array[StructField] =
+    Array(
       DataTypes.createStructField("metadata.cursor", DataTypes.StringType, true)
     )
-
-    metadataAttributes ++ (intendedUsage match {
-      case Usage.Edge => edgeAttributes
-      case Usage.Node => nodeAttributes
-      case Usage.All => edgeAttributes ++ nodeAttributes
-    })
-  }
 
   private def createSyncFilter(
       filters: Array[Filter],
@@ -186,9 +166,9 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       useQueryEndpoint: Boolean,
       cursors: Option[Map[String, String]],
       `with`: Map[String, TableExpression],
-      select: Map[String, SelectExpression]): IO[ItemsWithCursor[InstanceDefinition]] = {
-    val response = if (useQueryEndpoint) {
-      client.instances.queryRequest(
+      select: Map[String, SelectExpression]): IO[ItemsWithCursor[InstanceDefinition]] =
+    if (useQueryEndpoint) {
+      val response = client.instances.queryRequest(
         InstanceQueryRequest(
           `with` = `with`,
           cursors = cursors,
@@ -196,8 +176,13 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
           includeTyping = Some(true)
         )
       )
+      response.map { qr =>
+        val itemDefinitions = qr.items.flatMap(_.get("sync")).getOrElse(Vector.empty)
+        val nextCursor = qr.nextCursor.flatMap(_.get("sync"))
+        ItemsWithCursor(itemDefinitions, nextCursor)
+      }
     } else {
-      client.instances.syncRequest(
+      val response = client.instances.syncRequest(
         InstanceSyncRequest(
           `with` = `with`,
           cursors = cursors,
@@ -205,13 +190,12 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
           includeTyping = Some(true)
         )
       )
+      response.map { qr =>
+        val itemDefinitions = qr.items.flatMap(_.get("sync")).getOrElse(Vector.empty)
+        val nextCursor = qr.nextCursor.get("sync")
+        ItemsWithCursor(itemDefinitions, nextCursor)
+      }
     }
-    response.map { qr =>
-      val itemDefinitions = qr.items.getOrElse(Map.empty).getOrElse("sync", Vector.empty)
-      val nextCursor = qr.nextCursor.getOrElse(Map.empty).get("sync")
-      ItemsWithCursor(itemDefinitions, nextCursor)
-    }
-  }
 
   private def syncOut(
       syncMode: SyncMode,
