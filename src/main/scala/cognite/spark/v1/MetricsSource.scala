@@ -3,6 +3,7 @@ package org.apache.spark.datasource
 import cats.Eval
 import com.codahale.metrics._
 import org.apache.spark._
+import org.log4s._
 import scala.collection.JavaConverters._
 
 import java.util.concurrent.ConcurrentHashMap
@@ -29,6 +30,7 @@ class MetricsSource {
     val key = s"$metricNamespace.$metricName"
 
     val wrapped = Eval.later {
+      getLogger.info(s"Creating and registering counter for $key")
       val counter = new Counter
       val source = registerMetricSource(metricNamespace, metricName, counter)
       (counter, source)
@@ -73,10 +75,16 @@ class MetricsSource {
     val removed = metricsMap.asScala.retain((k, _) => !k.startsWith(key))
 
     if (removed.nonEmpty) {
+      val logger = getLogger
       val metricsSystem = SparkEnv.get.metricsSystem
-      removed.values
-        .map(_.value._2)
-        .foreach(source => metricsSystem.removeSource(source))
+      removed
+        .map(entry => (entry._1, entry._2.value._2))
+        .foreach(metric => {
+          val key = metric._1
+          val source = metric._2
+          logger.info(s"Deleting and removing counter for $key")
+          metricsSystem.removeSource(source)
+        })
     }
   }
 }
