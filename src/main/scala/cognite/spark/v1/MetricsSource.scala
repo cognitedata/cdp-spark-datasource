@@ -86,6 +86,21 @@ class MetricsSource {
         })
     }
   }
+
+  def getAggregatedCount(metricNamespace: String, resource: String): Option[Long] = {
+    val counters = metricsMap.asScala
+      .filterKeys(key => key.startsWith(metricNamespace) && key.endsWith(resource))
+      .values
+
+    if (counters.isEmpty) {
+      Option.empty
+    } else {
+      Some(
+        counters
+          .map(v => v.value.counter.getCount)
+          .sum)
+    }
+  }
 }
 
 // Singleton to make sure each metric is only registered once.
