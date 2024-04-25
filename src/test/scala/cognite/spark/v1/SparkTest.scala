@@ -271,12 +271,13 @@ trait SparkTest {
   private def getCounterSafe(metricName: String): Option[Long] =
     Option(MetricsSource.metricsMap
       .get(metricName))
-      .map(_.value.getCount)
+      .map(_.value.counter.getCount)
 
   private def getCounter(metricName: String): Long =
     MetricsSource.metricsMap
       .get(metricName)
       .value
+      .counter
       .getCount
 
   def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =

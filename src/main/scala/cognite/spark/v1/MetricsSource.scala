@@ -10,7 +10,7 @@ import scala.collection.JavaConverters._
 class MetricsSource {
   // Add metricNamespace to differentiate with spark system metrics.
   // Keeps track of all the Metric instances that are being published
-  val metricsMap = new ConcurrentHashMap[String, Eval[(Counter, Source)]]
+  val metricsMap = new ConcurrentHashMap[String, Eval[SourceCounter]]
 
   def getOrCreateCounter(metricNamespace: String, name: String): Counter = {
     val ctx = Option(TaskContext.get())
@@ -32,11 +32,11 @@ class MetricsSource {
       getLogger.info(s"Creating and registering counter for $key")
       val counter = new Counter
       val source = registerMetricSource(metricNamespace, metricName, counter)
-      (counter, source)
+      new SourceCounter(source, counter)
     }
 
     metricsMap.putIfAbsent(key, wrapped)
-    metricsMap.get(key).value._1
+    metricsMap.get(key).value.counter
   }
 
   /**
@@ -77,7 +77,7 @@ class MetricsSource {
       val logger = getLogger
       val metricsSystem = SparkEnv.get.metricsSystem
       removed
-        .map(entry => (entry._1, entry._2.value._2))
+        .map(entry => (entry._1, entry._2.value.source))
         .foreach(metric => {
           val key = metric._1
           val source = metric._2
@@ -90,3 +90,5 @@ class MetricsSource {
 
 // Singleton to make sure each metric is only registered once.
 object MetricsSource extends MetricsSource
+
+class SourceCounter(val source: Source, val counter: Counter)
