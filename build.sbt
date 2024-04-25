@@ -46,7 +46,13 @@ lazy val commonSettings = Seq(
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
-  scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
+  scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature") ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+    // We use JavaConverters to remain backwards compatible with Scala 2.12,
+    // and to avoid a dependency on scala-collection-compat
+    case Some((2, 13)) => Seq("-Wconf:src=src/main/scala/cognite/spark/v1/MetricsSource.scala&cat=deprecation:i")
+    case _ => Seq.empty
+  }),
+  // scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature", "-Wconf:src=src/main/scala/cognite/spark/v1/MetricsSource.scala&cat=deprecation:i"),
   resolvers ++= Resolver.sonatypeOssRepos("releases"),
   developers := List(
     Developer(

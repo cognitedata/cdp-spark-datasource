@@ -2,11 +2,10 @@ package org.apache.spark.datasource
 
 import cats.Eval
 import com.codahale.metrics._
+import java.util.concurrent.ConcurrentHashMap
 import org.apache.spark._
 import org.log4s._
 import scala.collection.JavaConverters._
-
-import java.util.concurrent.ConcurrentHashMap
 
 class MetricsSource {
   // Add metricNamespace to differentiate with spark system metrics.
