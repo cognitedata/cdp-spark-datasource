@@ -759,7 +759,7 @@ class RawTableRelationTest
     assert(df.count() == 0)
 
     // No rows should have been read, so the metric should not exist.
-    a[NullPointerException] should be thrownBy getNumberOfRowsRead(
+    a[NoSuchElementException] should be thrownBy getNumberOfRowsRead(
       metricsPrefix,
       s"raw.spark-test-database.$tableName.rows")
   }

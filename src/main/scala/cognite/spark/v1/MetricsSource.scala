@@ -87,6 +87,9 @@ class MetricsSource {
     }
   }
 
+  /**
+    * For tests only. Combines all metrics for a given target resource
+    */
   def getAggregatedCount(metricNamespace: String, resource: String): Option[Long] = {
     val counters = metricsMap.asScala
       .filterKeys(key => key.startsWith(metricNamespace) && key.endsWith(resource))
