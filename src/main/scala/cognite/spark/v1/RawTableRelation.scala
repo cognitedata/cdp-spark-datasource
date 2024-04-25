@@ -42,9 +42,9 @@ class RawTableRelation(
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
   private def rowsCreated: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.read")
-  private def rowsRead: Counter =
     MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.created")
+  private def rowsRead: Counter =
+    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.read")
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
