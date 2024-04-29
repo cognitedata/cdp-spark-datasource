@@ -25,7 +25,7 @@ class MetricsSource {
     val partitionId = getNumberOrEmpty(_.partitionId())
     val taskAttempt = getNumberOrEmpty(_.taskAttemptId())
 
-    val metricName = s"$stageId.$stageAttempt.$partitionId.$taskAttempt.$name"
+    val metricName = s"<$stageId>[$stageAttempt]#<$partitionId>[$taskAttempt]#$name"
     val key = s"$metricNamespace.$metricName"
 
     val wrapped = Eval.later {

@@ -52,7 +52,6 @@ lazy val commonSettings = Seq(
     case Some((2, 13)) => Seq("-Wconf:src=src/main/scala/cognite/spark/v1/MetricsSource.scala&cat=deprecation:i")
     case _ => Seq.empty
   }),
-  // scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature", "-Wconf:src=src/main/scala/cognite/spark/v1/MetricsSource.scala&cat=deprecation:i"),
   resolvers ++= Resolver.sonatypeOssRepos("releases"),
   developers := List(
     Developer(
