@@ -32,16 +32,16 @@ class MetricsSourceTest extends FlatSpec with Matchers {
     MetricsSource.getOrCreateCounter("removePrefix.jobId", "name")
     MetricsSource.getOrCreateCounter("removePrefix.otherJobId", "name")
 
-    Option(MetricsSource.metricsMap.get("removePrefix.jobId.name")) shouldBe 'defined
-    Option(MetricsSource.metricsMap.get("removePrefix.otherJobId.name")) shouldBe 'defined
+    Option(MetricsSource.metricsMap.get("removePrefix.jobId.name")).isDefined shouldBe true
+    Option(MetricsSource.metricsMap.get("removePrefix.otherJobId.name")).isDefined shouldBe true
     SparkEnv.get.metricsSystem.getSourcesByName("removePrefix.jobId").size should equal(1)
     SparkEnv.get.metricsSystem.getSourcesByName("removePrefix.otherJobId").size should equal(1)
 
-    MetricsSource.removeJobMetrics("removePrefix", "jobId")
+    MetricsSource.removeJobMetrics("removePrefix.jobId")
 
-    Option(MetricsSource.metricsMap.get("removePrefix.jobId.name")) shouldBe 'empty
-    Option(MetricsSource.metricsMap.get("removePrefix.otherJobId.name")) shouldBe 'defined
-    SparkEnv.get.metricsSystem.getSourcesByName("removePrefix.jobId") shouldBe 'empty
+    Option(MetricsSource.metricsMap.get("removePrefix.jobId.name")).isDefined shouldBe false
+    Option(MetricsSource.metricsMap.get("removePrefix.otherJobId.name")).isDefined shouldBe true
+    SparkEnv.get.metricsSystem.getSourcesByName("removePrefix.jobId").size should equal(0)
     SparkEnv.get.metricsSystem.getSourcesByName("removePrefix.otherJobId").size should equal(1)
   }
 }

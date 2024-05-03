@@ -8,17 +8,17 @@ import org.log4s.getLogger
 import scala.collection.JavaConverters._
 
 class MetricsSource {
-  // Add metricNamespace to differentiate with spark system metrics.
+  // Add metricPrefix to differentiate with spark system metrics.
   // Keeps track of all the Metric instances that are being published
   val metricsMap = new ConcurrentHashMap[String, Eval[SourceCounter]]
 
-  def getOrCreateCounter(metricNamespace: String, metricName: String): Counter = {
-    val key = s"$metricNamespace.$metricName"
+  def getOrCreateCounter(metricPrefix: String, metricName: String): Counter = {
+    val key = s"$metricPrefix.$metricName"
 
     val wrapped = Eval.later {
       getLogger.info(s"Creating and registering counter for $key")
       val counter = new Counter
-      val source = registerMetricSource(metricNamespace, metricName, counter)
+      val source = registerMetricSource(metricPrefix, metricName, counter)
       SourceCounter(source, counter)
     }
 
@@ -36,10 +36,10 @@ class MetricsSource {
     * @param metricName name of the Metric
     * @param metric com.codahale.metrics.Metric instance to be published
     */
-  def registerMetricSource(metricNamespace: String, metricName: String, metric: Metric): Source = {
+  def registerMetricSource(metricPrefix: String, metricName: String, metric: Metric): Source = {
     val env = SparkEnv.get
     val source = new Source {
-      override val sourceName = s"${metricNamespace}"
+      override val sourceName = s"${metricPrefix}"
       override def metricRegistry: MetricRegistry = {
         val metrics = new MetricRegistry
         metrics.register(metricName, metric)
@@ -56,10 +56,13 @@ class MetricsSource {
     * This method will deregister the metric from Spark's org.apache.spark.metrics.MetricsSystem
     * and stops tracking that it was published
     */
-  def removeJobMetrics(metricNamespace: String, jobId: String): Unit = {
-    val key = s"$metricNamespace.$jobId"
+  def removeJobMetrics(metricPrefix: String): Unit = {
     val removed =
-      metricsMap.keys().asScala.filter(k => k.startsWith(key)).map(k => (k, metricsMap.remove(k)))
+      metricsMap
+        .keys()
+        .asScala
+        .filter(k => k.startsWith(metricPrefix))
+        .map(k => (k, metricsMap.remove(k)))
 
     if (removed.nonEmpty) {
       val logger = getLogger
