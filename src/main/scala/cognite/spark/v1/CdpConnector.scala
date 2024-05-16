@@ -143,18 +143,22 @@ object CdpConnector {
       None
     }
 
+    import natchez.Trace.Implicits.noop // TODO: add full tracing
+
     //Use separate backend for auth, so we should not retry as much as maxRetries config
     val authSttpBackend =
-      retryingSttpBackend(
-        maxRetries = 5,
-        initialRetryDelayMillis = config.initialRetryDelayMillis,
-        maxRetryDelaySeconds = config.maxRetryDelaySeconds,
-        maxParallelRequests = config.parallelismPerPartition,
-        metricsPrefix = metricsPrefix
+      new FixedTraceSttpBackend(
+        retryingSttpBackend(
+          maxRetries = 5,
+          initialRetryDelayMillis = config.initialRetryDelayMillis,
+          maxRetryDelaySeconds = config.maxRetryDelaySeconds,
+          maxParallelRequests = config.parallelismPerPartition,
+          metricsPrefix = metricsPrefix
+        ),
+        config.tracingParent
       )
     val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunSync()
 
-    import natchez.Trace.Implicits.noop // TODO: add full tracing
     implicit val sttpBackend: SttpBackend[IO, Any] = {
       new FixedTraceSttpBackend(
         retryingSttpBackend(
