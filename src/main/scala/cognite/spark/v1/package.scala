@@ -3,9 +3,13 @@ package cognite.spark
 import com.cognite.sdk.scala.common.{NonNullableSetter, SdkException, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1.{SequenceColumn, SequenceColumnCreate}
 import io.scalaland.chimney.Transformer
+import io.scalaland.chimney.dsl.TransformerConfiguration
 
 // scalastyle:off
 package object v1 {
+  implicit val chimneyConfiguration =
+    TransformerConfiguration.default.enableMethodAccessors.enableDefaultValues
+
   @SuppressWarnings(
     Array(
       "org.wartremover.warts.Null",
