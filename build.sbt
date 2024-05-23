@@ -135,7 +135,7 @@ lazy val library = (project in file("."))
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing(),
       "io.scalaland" %% "chimney" % "1.1.0"
-        // scala-collection-compat is used in TransformerF, but we don't use that,
+        // scala-collection-compat is used in stdlib collections conversion,
         // and this dependency causes issues with Livy.
         exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
         exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
