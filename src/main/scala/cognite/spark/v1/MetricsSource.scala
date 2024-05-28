@@ -4,13 +4,11 @@ import cats.Eval
 import com.codahale.metrics._
 import java.util.concurrent.ConcurrentHashMap
 import org.apache.spark._
-import org.log4s._
-import scala.collection.JavaConverters._
 
 class MetricsSource {
   // Add metricNamespace to differentiate with spark system metrics.
   // Keeps track of all the Metric instances that are being published
-  val metricsMap = new ConcurrentHashMap[String, Eval[SourceCounter]]
+  val metricsMap = new ConcurrentHashMap[String, Eval[Counter]]
 
   def getOrCreateCounter(metricNamespace: String, name: String): Counter = {
     val ctx = Option(TaskContext.get())
@@ -29,14 +27,13 @@ class MetricsSource {
     val key = s"$metricNamespace.$metricName"
 
     val wrapped = Eval.later {
-      getLogger.info(s"Creating and registering counter for $key")
       val counter = new Counter
-      val source = registerMetricSource(metricNamespace, metricName, counter)
-      new SourceCounter(source, counter)
+      registerMetricSource(metricNamespace, metricName, counter)
+      counter
     }
 
     metricsMap.putIfAbsent(key, wrapped)
-    metricsMap.get(key).value.counter
+    metricsMap.get(key).value
   }
 
   /**
@@ -49,64 +46,20 @@ class MetricsSource {
     * @param metricName name of the Metric
     * @param metric com.codahale.metrics.Metric instance to be published
     */
-  def registerMetricSource(metricNamespace: String, metricName: String, metric: Metric): Source = {
+  def registerMetricSource(metricNamespace: String, metricName: String, metric: Metric): Unit = {
     val env = SparkEnv.get
-    val source = new Source {
-      override val sourceName = s"${metricNamespace}"
-      override def metricRegistry: MetricRegistry = {
-        val metrics = new MetricRegistry
-        metrics.register(metricName, metric)
-        metrics
+    env.metricsSystem.registerSource(
+      new Source {
+        override val sourceName = s"${metricNamespace}"
+        override def metricRegistry: MetricRegistry = {
+          val metrics = new MetricRegistry
+          metrics.register(metricName, metric)
+          metrics
+        }
       }
-    }
-    env.metricsSystem.registerSource(source)
-    source
-  }
-
-  /**
-    * Remove the metrics from a job.
-    *
-    * This method will deregister the metric from Spark's org.apache.spark.metrics.MetricsSystem
-    * and stops tracking that it was published
-    */
-  def removeJobMetrics(metricNamespace: String, jobId: String): Unit = {
-    val key = s"$metricNamespace.$jobId"
-    val removed = metricsMap.asScala.retain((k, _) => !k.startsWith(key))
-
-    if (removed.nonEmpty) {
-      val logger = getLogger
-      val metricsSystem = SparkEnv.get.metricsSystem
-      removed
-        .map(entry => (entry._1, entry._2.value.source))
-        .foreach(metric => {
-          val key = metric._1
-          val source = metric._2
-          logger.info(s"Deleting and removing counter for $key")
-          metricsSystem.removeSource(source)
-        })
-    }
-  }
-
-  /**
-    * For tests only. Combines all metrics for a given target resource
-    */
-  def getAggregatedCount(metricNamespace: String, resource: String): Option[Long] = {
-    val counters = metricsMap.asScala
-      .filterKeys(key => key.startsWith(metricNamespace) && key.endsWith(resource))
-      .values
-
-    if (counters.isEmpty) {
-      Option.empty
-    } else {
-      Some(
-        counters
-          .map(v => v.value.counter.getCount)
-          .sum)
-    }
+    )
   }
 }
 
 // Singleton to make sure each metric is only registered once.
 object MetricsSource extends MetricsSource
-
-class SourceCounter(val source: Source, val counter: Counter)
