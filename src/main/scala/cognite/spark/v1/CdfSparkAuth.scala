@@ -18,10 +18,14 @@ object CdfSparkAuth {
 
   final case class OAuth2ClientCredentials(credentials: OAuth2.ClientCredentials) extends CdfSparkAuth {
 
+    private val refreshSecondsBeforeExpiration = 300L
+
     override def provider(
         implicit clock: Clock[IO],
         sttpBackend: SttpBackend[IO, Any]): IO[AuthProvider[IO]] =
-      OAuth2.ClientCredentialsProvider[IO](credentials)
+      OAuth2.ClientCredentialsProvider[IO](
+        credentials,
+        refreshSecondsBeforeExpiration = refreshSecondsBeforeExpiration)
   }
 
   final case class OAuth2Sessions(session: OAuth2.Session) extends CdfSparkAuth {
