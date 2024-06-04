@@ -61,7 +61,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       updates: Seq[P],
       resource: T,
       isUpdateEmpty: U => Boolean
-  )(implicit transform: Transformer[P, U]): IO[Unit] = {
+  )(implicit transform: Transformer.AutoDerived[P, U]): IO[Unit] = {
     if (!updates.forall(u => u.id.isDefined || u.getExternalId.isDefined)) {
       throw new CdfSparkException("Update requires an id or externalId to be set for each row.")
     }
@@ -104,8 +104,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resourceCreates: Seq[S],
       resource: T,
       doUpsert: Boolean)(
-      implicit transformToUpdate: Transformer[S, U],
-      transformToCreate: Transformer[S, C]
+      implicit transformToUpdate: Transformer.AutoDerived[S, U],
+      transformToCreate: Transformer.AutoDerived[S, C]
   ): IO[Unit] = {
     val (resourcesToUpdate, resourcesToCreate) = resourceCreates.partition(
       p => p.getExternalId.exists(id => existingExternalIds.contains(id))
@@ -164,8 +164,8 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       isUpdateEmpty: Up => Boolean,
       resource: Re,
       mustBeUpdate: U => Boolean = (_: U) => false)(
-      implicit transformToUpdate: Transformer[U, Up],
-      transformToCreate: Transformer[U, C]): IO[Unit] = {
+      implicit transformToUpdate: Transformer.AutoDerived[U, Up],
+      transformToCreate: Transformer.AutoDerived[U, C]): IO[Unit] = {
 
     val (itemsWithId, itemsWithoutId) = items.partition(r => r.id.exists(_ > 0) || mustBeUpdate(r))
 
