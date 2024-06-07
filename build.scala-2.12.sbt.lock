@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-06-07T12:13:18.896955Z",
+  "timestamp" : "2024-06-07T12:31:09.210185Z",
   "configurations" : [
     "compile",
     "optional",
@@ -1101,11 +1101,11 @@
     {
       "org" : "io.scalaland",
       "name" : "chimney_2.12",
-      "version" : "0.6.1",
+      "version" : "0.7.5",
       "artifacts" : [
         {
           "name" : "chimney_2.12.jar",
-          "hash" : "sha1:0549d763679547561ee7bc4d4221f51bec654110"
+          "hash" : "sha1:ce398400cf286ef25c69c454595a6719f5b20844"
         }
       ],
       "configurations" : [
@@ -2488,11 +2488,11 @@
     {
       "org" : "org.scala-lang.modules",
       "name" : "scala-collection-compat_2.12",
-      "version" : "2.9.0",
+      "version" : "2.10.0",
       "artifacts" : [
         {
           "name" : "scala-collection-compat_2.12.jar",
-          "hash" : "sha1:ff06706d7baaad4405ca4fe985aa167396414a25"
+          "hash" : "sha1:bf81785e892f4185f470bddd205b011237aab553"
         }
       ],
       "configurations" : [
