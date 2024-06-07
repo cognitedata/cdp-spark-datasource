@@ -5,7 +5,10 @@ import cats.effect.unsafe.implicits.global
 import cats.implicits._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ConnectionDefinition, EdgeConnection}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
+  ConnectionDefinition,
+  EdgeConnection
+}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelViewReference
 import com.cognite.sdk.scala.v1.fdm.views.{ViewDefinition, ViewReference}
 import org.apache.spark.sql.SQLContext
@@ -177,7 +180,7 @@ object FlexibleDataModelRelationFactory {
           .map(_.headOption)
       }
       .flatMap {
-        case Some(cDef : EdgeConnection) =>
+        case Some(cDef: EdgeConnection) =>
           IO.delay(
             new FlexibleDataModelConnectionRelation(
               config,
