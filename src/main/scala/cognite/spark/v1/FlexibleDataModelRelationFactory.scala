@@ -5,7 +5,7 @@ import cats.effect.unsafe.implicits.global
 import cats.implicits._
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ConnectionDefinition
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ConnectionDefinition, EdgeConnection}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelViewReference
 import com.cognite.sdk.scala.v1.fdm.views.{ViewDefinition, ViewReference}
 import org.apache.spark.sql.SQLContext
@@ -177,7 +177,7 @@ object FlexibleDataModelRelationFactory {
           .map(_.headOption)
       }
       .flatMap {
-        case Some(cDef) =>
+        case Some(cDef : EdgeConnection) =>
           IO.delay(
             new FlexibleDataModelConnectionRelation(
               config,
@@ -202,7 +202,7 @@ object FlexibleDataModelRelationFactory {
       viewDef: ViewDefinition,
       connectionPropertyName: String): Option[ConnectionDefinition] =
     viewDef.properties.collectFirst {
-      case (name, p: ConnectionDefinition) if name == connectionPropertyName => p
+      case (name, p: EdgeConnection) if name == connectionPropertyName => p
     }
 
   private def fetchInlinedDataModel(client: GenericClient[IO], modelViewConfig: DataModelViewConfig) =
