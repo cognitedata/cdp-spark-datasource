@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-06-07T12:36:26.956029Z",
+  "timestamp" : "2024-06-07T12:55:47.850818Z",
   "configurations" : [
     "compile",
     "optional",
@@ -14,7 +14,6 @@
       "org" : "co.fs2",
       "name" : "fs2-core_2.12",
       "version" : "3.6.1",
-      "artifacts" : [
       "artifacts" : [
         {
           "name" : "fs2-core_2.12.jar",
