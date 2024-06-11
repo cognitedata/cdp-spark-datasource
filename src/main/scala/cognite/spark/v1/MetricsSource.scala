@@ -13,14 +13,14 @@ class MetricsSource {
   def getOrCreateCounter(metricNamespace: String, name: String): Counter = {
     val ctx = Option(TaskContext.get())
 
-    def getNumberOrEmpty(getter: TaskContext => AnyVal): String =
+    def getNumberOrEmpty(getter: TaskContext => Long): String =
       ctx.map(getter).map(_.toString()).getOrElse("")
 
     // The number of fields in the name should be consistent, even if there is no value for
     // the attempt numbers
-    val stageId = getNumberOrEmpty(_.stageId())
-    val stageAttempt = getNumberOrEmpty(_.stageAttemptNumber())
-    val partitionId = getNumberOrEmpty(_.partitionId())
+    val stageId = getNumberOrEmpty(_.stageId().toLong)
+    val stageAttempt = getNumberOrEmpty(_.stageAttemptNumber().toLong)
+    val partitionId = getNumberOrEmpty(_.partitionId().toLong)
     val taskAttempt = getNumberOrEmpty(_.taskAttemptId())
 
     val metricName = s"<$stageId>[$stageAttempt]#<$partitionId>[$taskAttempt]#$name"
