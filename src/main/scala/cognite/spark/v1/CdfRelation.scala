@@ -5,6 +5,7 @@ import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.{NonNullableSetter, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1._
 import io.scalaland.chimney.Transformer
+import org.apache.spark.TaskContext
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources.BaseRelation
 
@@ -12,18 +13,22 @@ abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
     extends BaseRelation
     with Serializable {
   protected val shortName: String = shortNameStr
-  protected def itemsRead: Counter = getOrCreateCounter("read")
-  protected def itemsCreated: Counter = getOrCreateCounter("created")
-  protected def itemsUpdated: Counter = getOrCreateCounter("updated")
-  protected def itemsDeleted: Counter = getOrCreateCounter("deleted")
+
+  private def getOrCreateCounter(action: String): Counter =
+    MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsPrefix,
+      s"$shortName.$action",
+      Option(TaskContext.get()))
+
+  @transient lazy protected val itemsRead: Counter = getOrCreateCounter("read")
+  @transient lazy protected val itemsCreated: Counter = getOrCreateCounter("created")
+  @transient lazy protected val itemsUpdated: Counter = getOrCreateCounter("updated")
+  @transient lazy protected val itemsDeleted: Counter = getOrCreateCounter("deleted")
   // We are not aware if it is `created` or `updated in flexible data modelling case
-  protected def itemsUpserted: Counter = getOrCreateCounter("upserted")
+  @transient lazy protected val itemsUpserted: Counter = getOrCreateCounter("upserted")
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
-
-  private def getOrCreateCounter(action: String): Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.$action")
 
   def incMetrics(counter: Counter, count: Int): IO[Unit] =
     IO(

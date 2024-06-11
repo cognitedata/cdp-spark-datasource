@@ -10,9 +10,10 @@ class MetricsSource {
   // Keeps track of all the Metric instances that are being published
   val metricsMap = new ConcurrentHashMap[String, Eval[Counter]]
 
-  def getOrCreateCounter(metricNamespace: String, name: String): Counter = {
-    val ctx = Option(TaskContext.get())
-
+  def getOrCreateAttemptTrackingCounter(
+      metricNamespace: String,
+      name: String,
+      ctx: Option[TaskContext]): Counter = {
     def getNumberOrEmpty(getter: TaskContext => Long): String =
       ctx.map(getter).map(_.toString()).getOrElse("")
 

@@ -7,6 +7,7 @@ import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
+import org.apache.spark.TaskContext
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -41,10 +42,16 @@ class RawTableRelation(
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-  private def rowsCreated: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.created")
-  private def rowsRead: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.read")
+  @transient lazy private val rowsCreated: Counter =
+    MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsPrefix,
+      s"raw.$database.$table.rows.created",
+      Option(TaskContext.get()))
+  @transient lazy private val rowsRead: Counter =
+    MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsPrefix,
+      s"raw.$database.$table.rows.read",
+      Option(TaskContext.get()))
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
@@ -150,11 +157,13 @@ class RawTableRelation(
           rowsRead.inc()
         }
         if (collectTestMetrics) {
-          MetricsSource
-            .getOrCreateCounter(
-              config.metricsPrefix,
-              s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
-            .inc()
+          @transient lazy val partitionSize =
+            MetricsSource
+              .getOrCreateAttemptTrackingCounter(
+                config.metricsPrefix,
+                s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize",
+                Option(TaskContext.get()))
+          partitionSize.inc()
         }
         rowConverter(item)
       },
