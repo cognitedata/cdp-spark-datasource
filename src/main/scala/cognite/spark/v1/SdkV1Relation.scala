@@ -81,7 +81,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     }
     val updateExternalIds = if (updatesByExternalId.isEmpty) { IO.unit } else {
       val updatesByExternalIdMap = updatesByExternalId
-        .map(u => u.getExternalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+        .map(u => u.getExternalId.get -> u.transformInto[U])
         .toMap
 
       resource
@@ -132,8 +132,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       resource
         .updateByExternalId(
           resourcesToUpdate
-            .map(u =>
-              u.getExternalId.get -> u.into[U].withFieldComputed(_.externalId, _ => None).transform)
+            .map(u => u.getExternalId.get -> u.transformInto[U])
             .toMap)
         .flatTap(_ => incMetrics(itemsUpdated, resourcesToUpdate.size))
         .map(_ => ())
