@@ -24,7 +24,7 @@ class MetricsSource {
     val partitionId = getNumberOrEmpty(_.partitionId().toLong)
     val taskAttempt = getNumberOrEmpty(_.taskAttemptId())
 
-    val metricName = s"<$stageId>[$stageAttempt]#<$partitionId>[$taskAttempt]#$name"
+    val metricName = s":sid:$stageId:sat:$stageAttempt:pid:$partitionId:tat:$taskAttempt:$name"
     val key = s"$metricNamespace.$metricName"
 
     val wrapped = Eval.later {
@@ -63,4 +63,6 @@ class MetricsSource {
 }
 
 // Singleton to make sure each metric is only registered once.
-object MetricsSource extends MetricsSource
+object MetricsSource extends MetricsSource {
+  val metricNameRegex = "^(?::sid:([^:]*):sat:([^:]*):pid:([^:]*):tat:([^:]*):)?(.*)$".r
+}
