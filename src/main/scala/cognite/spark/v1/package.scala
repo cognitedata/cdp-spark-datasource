@@ -8,7 +8,7 @@ import io.scalaland.chimney.dsl.TransformerConfiguration
 // scalastyle:off
 package object v1 {
   implicit val chimneyConfiguration =
-    TransformerConfiguration.default.enableMethodAccessors.enableDefaultValues
+    TransformerConfiguration.default.enableDefaultValues
 
   @SuppressWarnings(
     Array(
