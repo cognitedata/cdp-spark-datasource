@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-06-11T15:18:38.262187453Z",
+  "timestamp" : "2024-06-12T07:05:03.427672546Z",
   "configurations" : [
     "compile",
     "optional",
@@ -903,11 +903,11 @@
     {
       "org" : "io.scalaland",
       "name" : "chimney-macro-commons_2.12",
-      "version" : "0.8.5",
+      "version" : "1.0.0",
       "artifacts" : [
         {
           "name" : "chimney-macro-commons_2.12.jar",
-          "hash" : "sha1:ff881272dbde510ecaebbe3d9e95126b9b8cdea1"
+          "hash" : "sha1:0746159d5095ca157b3342b9ce570e39bab64080"
         }
       ],
       "configurations" : [
@@ -919,11 +919,11 @@
     {
       "org" : "io.scalaland",
       "name" : "chimney_2.12",
-      "version" : "0.8.5",
+      "version" : "1.0.0",
       "artifacts" : [
         {
           "name" : "chimney_2.12.jar",
-          "hash" : "sha1:3905507728294a2d529dab1de8a309e0af842272"
+          "hash" : "sha1:81448a78773f2cd68b52633954ddc32b094cca05"
         }
       ],
       "configurations" : [
