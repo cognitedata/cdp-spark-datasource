@@ -101,7 +101,7 @@ lazy val structType = (project in file("struct_type"))
     name := "cdf-spark-datasource-struct-type",
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
-      "io.scalaland" %% "chimney" % "0.8.5",
+      "io.scalaland" %% "chimney" % "1.1.0",
       "org.typelevel" %% "cats-core" % "2.9.0",
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
     ),
@@ -134,7 +134,7 @@ lazy val library = (project in file("."))
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing(),
-      "io.scalaland" %% "chimney" % "0.8.5"
+      "io.scalaland" %% "chimney" % "1.1.0"
         // scala-collection-compat is used in TransformerF, but we don't use that,
         // and this dependency causes issues with Livy.
         exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
