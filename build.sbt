@@ -12,7 +12,7 @@ val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.21.798"
+val cogniteSdkVersion = "2.22.799"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -35,7 +35,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.15." + patchVersion,
+  version := "3.17." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -101,7 +101,7 @@ lazy val structType = (project in file("struct_type"))
     name := "cdf-spark-datasource-struct-type",
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
-      "io.scalaland" %% "chimney" % "0.6.1",
+      "io.scalaland" %% "chimney" % "1.1.0",
       "org.typelevel" %% "cats-core" % "2.9.0",
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
     ),
@@ -134,8 +134,8 @@ lazy val library = (project in file("."))
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing(),
-      "io.scalaland" %% "chimney" % "0.6.1"
-        // scala-collection-compat is used in TransformerF, but we don't use that,
+      "io.scalaland" %% "chimney" % "1.1.0"
+        // scala-collection-compat is used in stdlib collections conversion,
         // and this dependency causes issues with Livy.
         exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
         exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),

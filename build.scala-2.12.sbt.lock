@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-04-10T11:03:49.660918394Z",
+  "timestamp" : "2024-06-13T12:33:47.307516812Z",
   "configurations" : [
     "compile",
     "optional",
@@ -78,11 +78,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.12",
-      "version" : "2.21.798",
+      "version" : "2.22.799",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.12.jar",
-          "hash" : "sha1:fdc737c1e9221e4debceaa40752e1b05ed7c04cc"
+          "hash" : "sha1:ed8e2eb244aba70057acc381ea369798bab69c9e"
         }
       ],
       "configurations" : [
@@ -1100,12 +1100,29 @@
     },
     {
       "org" : "io.scalaland",
+      "name" : "chimney-macro-commons_2.12",
+      "version" : "1.1.0",
+      "artifacts" : [
+        {
+          "name" : "chimney-macro-commons_2.12.jar",
+          "hash" : "sha1:95396e0cd2de2237c98ccec8a706bc6f13da3160"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "provided",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "io.scalaland",
       "name" : "chimney_2.12",
-      "version" : "0.6.1",
+      "version" : "1.1.0",
       "artifacts" : [
         {
           "name" : "chimney_2.12.jar",
-          "hash" : "sha1:0549d763679547561ee7bc4d4221f51bec654110"
+          "hash" : "sha1:43a80aa0855a7662e87fd6ee38564f8dc5b1d4a1"
         }
       ],
       "configurations" : [
@@ -2488,11 +2505,11 @@
     {
       "org" : "org.scala-lang.modules",
       "name" : "scala-collection-compat_2.12",
-      "version" : "2.9.0",
+      "version" : "2.12.0",
       "artifacts" : [
         {
           "name" : "scala-collection-compat_2.12.jar",
-          "hash" : "sha1:ff06706d7baaad4405ca4fe985aa167396414a25"
+          "hash" : "sha1:9c4098292dcc773f2f0f9b452d958e8600fc8758"
         }
       ],
       "configurations" : [
