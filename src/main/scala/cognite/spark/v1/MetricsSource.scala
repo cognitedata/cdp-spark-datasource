@@ -63,6 +63,31 @@ class MetricsSource {
 }
 
 // Singleton to make sure each metric is only registered once.
-object MetricsSource extends MetricsSource {
-  val metricNameRegex = "^(?::sid:([^:]*):sat:([^:]*):pid:([^:]*):tat:([^:]*):)?(.*)$".r
+object MetricsSource extends MetricsSource {}
+
+case class AttemptTrackingMetricName(
+    stageId: Option[String],
+    stageAttempt: Option[String],
+    partitionId: Option[String],
+    taskAttempt: Option[String],
+    name: String) {}
+
+object AttemptTrackingMetricName {
+  private val regex = "^(?::sid:([^:]*):sat:([^:]*):pid:([^:]*):tat:([^:]*):)?(.*)$".r
+
+  def parse(name: String): AttemptTrackingMetricName =
+    name match {
+      case regex(stageId, stageAttempt, partitionId, taskAttempt, name) => {
+        AttemptTrackingMetricName(
+          Option(stageId).filterNot(_.isEmpty),
+          Option(stageAttempt).filterNot(_.isEmpty),
+          Option(partitionId).filterNot(_.isEmpty),
+          Option(taskAttempt).filterNot(_.isEmpty),
+          name
+        )
+      }
+      case _ => {
+        AttemptTrackingMetricName(None, None, None, None, name)
+      }
+    }
 }
