@@ -560,8 +560,7 @@ object FlexibleDataModelRelationUtils {
       case (_, InstancePropertyValue.TimeSeriesReferenceList(value)) => value
       case (_, InstancePropertyValue.FileReferenceList(value)) => value
       case (_, InstancePropertyValue.SequenceReferenceList(value)) => value
-      case (_, InstancePropertyValue.ViewDirectNodeRelationList(value)) =>
-        value.map(r => Array(r.space, r.externalId))
+      case (_, InstancePropertyValue.ViewDirectNodeRelationList(value)) => value.map(r => Array(r.space, r.externalId))
     }
 
   private def extractInstancePropertyValues(

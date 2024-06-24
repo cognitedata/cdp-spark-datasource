@@ -2060,15 +2060,17 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
   it should "return the instance property value for strings formatted as date in correct type" in {
     val expected = "2023-01-01"
-    val valuesToTest =
-      List(InstancePropertyValue.String(expected), InstancePropertyValue.Date(LocalDate.parse(expected)))
+    val valuesToTest = List(
+      InstancePropertyValue.String(expected),
+      InstancePropertyValue.Date(LocalDate.parse(expected)))
     valuesToTest.map(extractInstancePropertyValue(StringType, _) shouldBe expected)
 
     val arrayTypesToTest = List(
       InstancePropertyValue.StringList(Seq(expected)),
       InstancePropertyValue.DateList(Seq(LocalDate.parse(expected)))
     )
-    arrayTypesToTest.map(extractInstancePropertyValue(ArrayType(StringType), _) shouldBe List(expected))
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(StringType), _) shouldBe List(expected))
   }
 
   it should "return the instance property value for strings formatted as timestamp in correct type" in {
@@ -2083,7 +2085,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       InstancePropertyValue.StringList(Seq(expected)),
       InstancePropertyValue.TimestampList(Seq(ZonedDateTime.parse(expected)))
     )
-    arrayTypesToTest.map(extractInstancePropertyValue(ArrayType(StringType), _) shouldBe List(expected))
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(StringType), _) shouldBe List(expected))
   }
 
 }

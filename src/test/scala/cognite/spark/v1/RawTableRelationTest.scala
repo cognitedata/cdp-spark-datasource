@@ -137,74 +137,64 @@ class RawTableRelationTest
       TestTable("with-long-empty-str", dataWithEmptyStringInLongField),
       TestTable("with-number-empty-str", dataWithEmptyStringInDoubleField),
       TestTable("with-boolean-empty-str", dataWithEmptyStringInBooleanField),
-      TestTable(
-        "cryptoAssets",
-        (1 to 500).map(i => RawRow(i.toString, Map("i" -> Json.fromString("exist"))))),
-      TestTable(
-        "future-event",
-        (1 to 100).map(i => {
-          val time = if (i >= 20 && i < 30) {
-            Instant
-              .from(DateTimeFormatter.ISO_INSTANT.parse("2019-06-21T11:48:01.000Z"))
-              .atZone(ZoneId.of("UTC"))
+      TestTable("cryptoAssets", (1 to 500).map(i =>
+        RawRow(i.toString, Map("i" -> Json.fromString("exist")))
+      )),
+      TestTable("future-event", (1 to 100).map(i => {
+        val time = if (i >= 20 && i < 30) {
+            Instant.from(DateTimeFormatter.ISO_INSTANT.parse("2019-06-21T11:48:01.000Z")).atZone(ZoneId.of("UTC"))
           } else {
             LocalDateTime.now().atZone(ZoneId.of("UTC"))
           }
-          RawRow(
-            i.toString,
-            Map(
-              "key" -> i.toString,
-              "startTime" -> s"${time.plusDays(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)}",
-              "endTime" -> s"${time.plusDays(2).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)}",
-              "description" -> s"event $i",
-              "source" -> "generator",
-              "sourceId" -> s"test id $i",
-              "subtype" -> "past",
-              "type" -> "test type"
-            ).map { case (k, v) => (k, Json.fromString(v)) }
-          )
-        })
-      ),
-      TestTable(
-        "bigTable",
-        (1 to 1000).map(i => RawRow(i.toString, Map("i" -> Json.fromString("exist"))))),
+        RawRow(i.toString, Map(
+          "key" -> i.toString,
+          "startTime" -> s"${time.plusDays(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)}",
+          "endTime" -> s"${time.plusDays(2).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)}",
+          "description" -> s"event $i",
+          "source" -> "generator",
+          "sourceId" -> s"test id $i",
+          "subtype" -> "past",
+          "type" -> "test type"
+        ).map { case (k, v) => (k, Json.fromString(v)) })
+      })),
+      TestTable("bigTable", (1 to 1000).map(i =>
+        RawRow(i.toString, Map("i" -> Json.fromString("exist")))
+      )),
       TestTable("raw-write-test", Seq.empty), // used for writes
-      TestTable(
-        "MegaColumnTable",
-        Seq(
-          RawRow("rowkey", (1 to 384).map(i => (i.toString -> Json.fromString("value"))).toMap)
-        )),
-      TestTable(
-        "MegaColumnTableDuplicate",
-        Seq(
-          RawRow("rowkey", (1 to 384).map(i => (i.toString -> Json.fromString("value"))).toMap)
-        )),
+      TestTable("MegaColumnTable", Seq(
+        RawRow("rowkey", (1 to 384).map(i =>
+          (i.toString -> Json.fromString("value"))).toMap
+        )
+      )),
+      TestTable("MegaColumnTableDuplicate", Seq(
+        RawRow("rowkey", (1 to 384).map(i =>
+          (i.toString -> Json.fromString("value"))).toMap
+        )
+      )),
       TestTable("MegaColumnTableDuplicate2", Seq.empty), // used for writes
       TestTable("struct-test", Seq.empty) // used for writes
     )
   )
 
-  def createTestData: IO[Unit] =
-    for {
-      _ <- writeClient.rawDatabases.createOne(RawDatabase(testData.dbName))
-      _ <- writeClient.rawTables(testData.dbName).create(testData.tables.map(_.name).map(RawTable))
-      _ <- testData.tables
-        .filterNot(_.data.isEmpty)
-        .toList
-        .traverse(t => writeClient.rawRows(testData.dbName, t.name).create(t.data))
-    } yield ()
+  def createTestData: IO[Unit] = for {
+    _ <- writeClient.rawDatabases.createOne(RawDatabase(testData.dbName))
+    _ <- writeClient.rawTables(testData.dbName).create(testData.tables.map(_.name).map(RawTable))
+    _ <- testData.tables.filterNot(_.data.isEmpty).toList.traverse(t =>
+      writeClient.rawRows(testData.dbName, t.name).create(t.data))
+  } yield ()
 
-  def cleanupTestData: IO[Unit] =
-    for {
-      _ <- writeClient.rawTables(testData.dbName).deleteByIds(testData.tables.map(_.name))
-      _ <- writeClient.rawDatabases.deleteById(testData.dbName)
-    } yield ()
+  def cleanupTestData: IO[Unit] = for {
+    _ <- writeClient.rawTables(testData.dbName).deleteByIds(testData.tables.map(_.name))
+    _ <- writeClient.rawDatabases.deleteById(testData.dbName)
+  } yield ()
 
-  override def beforeAll(): Unit =
+  override def beforeAll(): Unit = {
     createTestData.unsafeRunSync()
+  }
 
-  override def afterAll(): Unit =
+  override def afterAll(): Unit = {
     cleanupTestData.unsafeRunSync()
+  }
 
   lazy private val dfWithoutKey = rawRead("without-key")
   lazy private val dfWithKey = rawRead("with-key")
