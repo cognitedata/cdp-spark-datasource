@@ -35,9 +35,11 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
   protected val aadTenant = sys.env("TEST_AAD_TENANT")
   protected val cluster = sys.env("TEST_CLUSTER")
   protected val project = sys.env("TEST_PROJECT")
-  protected val tokenUri: String = sys.env.get("TEST_TOKEN_URL")
+  protected val tokenUri: String = sys.env
+    .get("TEST_TOKEN_URL")
     .orElse(
-      sys.env.get("TEST_AAD_TENANT")
+      sys.env
+        .get("TEST_AAD_TENANT")
         .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
     .getOrElse("https://sometokenurl")
   protected val client: GenericClient[IO] = getTestClient()

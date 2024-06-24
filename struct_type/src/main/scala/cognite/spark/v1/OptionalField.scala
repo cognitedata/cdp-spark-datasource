@@ -14,7 +14,10 @@ sealed trait OptionalField[+T] {
 }
 final case class FieldSpecified[+T](value: T) extends OptionalField[T] {
   override def toOption: Option[T] =
-    if (value == null) { throw new Exception("FieldSpecified(null) observed, that's bad. Please reach out to Cognite support.") } else { Some(value) }
+    if (value == null) {
+      throw new Exception(
+        "FieldSpecified(null) observed, that's bad. Please reach out to Cognite support.")
+    } else { Some(value) }
   override def flatMap[B](f: T => OptionalField[B]): OptionalField[B] = f(value)
   override def map[B](f: T => B): OptionalField[B] = FieldSpecified(f(value))
 }
@@ -36,7 +39,8 @@ object OptionalField {
     }
 
   implicit val monad: Monad[OptionalField] = new Monad[OptionalField] {
-    override def flatMap[A, B](fa: OptionalField[A])(f: A => OptionalField[B]): OptionalField[B] = fa.flatMap(f)
+    override def flatMap[A, B](fa: OptionalField[A])(f: A => OptionalField[B]): OptionalField[B] =
+      fa.flatMap(f)
 
     @tailrec
     override def tailRecM[A, B](a: A)(f: A => OptionalField[Either[A, B]]): OptionalField[B] =
@@ -50,4 +54,3 @@ object OptionalField {
     override def pure[A](x: A): OptionalField[A] = FieldSpecified(x)
   }
 }
-

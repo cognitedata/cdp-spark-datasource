@@ -8,8 +8,20 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeCon
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceDefinition, InstanceRetrieve, InstanceType, SlimNodeOrEdge}
-import com.cognite.sdk.scala.v1.fdm.views.{ConnectionDirection, ViewCreateDefinition, ViewDefinition, ViewPropertyCreateDefinition, ViewReference}
+import com.cognite.sdk.scala.v1.fdm.instances.{
+  InstanceCreate,
+  InstanceDefinition,
+  InstanceRetrieve,
+  InstanceType,
+  SlimNodeOrEdge
+}
+import com.cognite.sdk.scala.v1.fdm.views.{
+  ConnectionDirection,
+  ViewCreateDefinition,
+  ViewDefinition,
+  ViewPropertyCreateDefinition,
+  ViewReference
+}
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -56,13 +68,15 @@ class FlexibleDataModelConnectionRelationTest
               viewVersion
             ),
             ViewCreateDefinition(
-              space=spaceExternalId,
-              externalId=duplicateViewExtId1,
-              version=viewVersion,
-              properties=Map(
+              space = spaceExternalId,
+              externalId = duplicateViewExtId1,
+              version = viewVersion,
+              properties = Map(
                 duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
                   EdgeConnection(
-                    `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId1),
+                    `type` = DirectRelationReference(
+                      space = spaceExternalId,
+                      externalId = duplicateEdgeTypeExtId1),
                     source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
                     name = None,
                     description = None,
@@ -79,7 +93,9 @@ class FlexibleDataModelConnectionRelationTest
               properties = Map(
                 duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
                   EdgeConnection(
-                    `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId2),
+                    `type` = DirectRelationReference(
+                      space = spaceExternalId,
+                      externalId = duplicateEdgeTypeExtId2),
                     source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
                     name = None,
                     description = None,
@@ -226,8 +242,7 @@ class FlexibleDataModelConnectionRelationTest
 
   it should "pick the right property even though views have same property names" in {
     val df = spark
-      .sql(
-        s"""
+      .sql(s"""
            |select
            |'edgeWithDuplicate1' as externalId,
            |named_struct(
@@ -253,8 +268,7 @@ class FlexibleDataModelConnectionRelationTest
     result shouldBe Success(())
 
     val df2 = spark
-      .sql(
-        s"""
+      .sql(s"""
            |select
            |'edgeWithDuplicate2' as externalId,
            |named_struct(
@@ -279,20 +293,31 @@ class FlexibleDataModelConnectionRelationTest
     }
     result2 shouldBe Success(())
 
-    client.instances.retrieveByExternalIds(
-      items = Seq(
-        InstanceRetrieve(instanceType = InstanceType.Edge, externalId = "edgeWithDuplicate1", space = spaceExternalId),
-        InstanceRetrieve(instanceType = InstanceType.Edge, externalId = "edgeWithDuplicate2", space = spaceExternalId),
-      ),
-      sources = None,
-      includeTyping = true,
-    ).unsafeRunSync().items.foreach {
-      case e: InstanceDefinition.EdgeDefinition => e.externalId match {
-        case "edgeWithDuplicate1" => e.`type`.externalId shouldBe duplicateEdgeTypeExtId1
-        case "edgeWithDuplicate2" => e.`type`.externalId shouldBe duplicateEdgeTypeExtId2
+    client.instances
+      .retrieveByExternalIds(
+        items = Seq(
+          InstanceRetrieve(
+            instanceType = InstanceType.Edge,
+            externalId = "edgeWithDuplicate1",
+            space = spaceExternalId),
+          InstanceRetrieve(
+            instanceType = InstanceType.Edge,
+            externalId = "edgeWithDuplicate2",
+            space = spaceExternalId),
+        ),
+        sources = None,
+        includeTyping = true,
+      )
+      .unsafeRunSync()
+      .items
+      .foreach {
+        case e: InstanceDefinition.EdgeDefinition =>
+          e.externalId match {
+            case "edgeWithDuplicate1" => e.`type`.externalId shouldBe duplicateEdgeTypeExtId1
+            case "edgeWithDuplicate2" => e.`type`.externalId shouldBe duplicateEdgeTypeExtId2
+          }
+        case _ => ()
       }
-      case _ => ()
-    }
   }
 
   it should "insert connection instances" in {

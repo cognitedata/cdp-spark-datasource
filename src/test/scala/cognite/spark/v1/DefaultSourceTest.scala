@@ -47,8 +47,7 @@ class DefaultSourceTest extends WordSpec with Matchers {
           }
         DefaultSource.parseAuth(params) shouldBe Some(
           CdfSparkAuth.OAuth2Sessions(OAuth2
-            .Session("https://value-field.cognitedata.com", 123, "value-SessionKey",
-              "value-Project"))
+            .Session("https://value-field.cognitedata.com", 123, "value-SessionKey", "value-Project"))
         )
       }
 
@@ -103,13 +102,16 @@ class DefaultSourceTest extends WordSpec with Matchers {
         DefaultSource.parseCogniteIds("\"[123,456]\"") shouldBe List(CogniteExternalId("[123,456]"))
       }
       "parse arrays according to their contents" in {
-        DefaultSource.parseCogniteIds("""[123, "123"]""") shouldBe List(CogniteInternalId(123), CogniteExternalId("123"))
+        DefaultSource.parseCogniteIds("""[123, "123"]""") shouldBe List(
+          CogniteInternalId(123),
+          CogniteExternalId("123"))
       }
       "parse other valid json as externalId" in {
-        DefaultSource.parseCogniteIds("""{"key": 123}""") shouldBe List(CogniteExternalId("""{"key": 123}"""))
-        DefaultSource.parseCogniteIds("""[123, "123", {"abc": 0} ]""") shouldBe List(CogniteExternalId("""[123, "123", {"abc": 0} ]"""))
+        DefaultSource.parseCogniteIds("""{"key": 123}""") shouldBe List(
+          CogniteExternalId("""{"key": 123}"""))
+        DefaultSource.parseCogniteIds("""[123, "123", {"abc": 0} ]""") shouldBe List(
+          CogniteExternalId("""[123, "123", {"abc": 0} ]"""))
       }
     }
   }
 }
-

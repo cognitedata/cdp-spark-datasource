@@ -18,14 +18,17 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val errorMessage = "Some exception"
 
     val getStreams = (_: GenericClient[IO]) =>
-      Seq(Stream.eval(IO.raiseError(com.cognite.sdk.scala.common.CdpApiException(
-        uri"https://api.cognitedata.com/v1/",
-        400,
-        errorMessage,
-        None,
-        None,
-        None,
-        None))))
+      Seq(
+        Stream.eval(
+          IO.raiseError(
+            com.cognite.sdk.scala.common.CdpApiException(
+              uri"https://api.cognitedata.com/v1/",
+              400,
+              errorMessage,
+              None,
+              None,
+              None,
+              None))))
 
     val toRow = (_: String, _: Option[Int]) => Row.empty
     val uniqueId = (_: String) => "1"
@@ -35,12 +38,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         CdfSparkAuth.OAuth2ClientCredentials(readOidcCredentials),
         readProject
       )
-      SdkV1Rdd[String, String](
-        spark.sparkContext,
-        relationConfig,
-        toRow,
-        uniqueId,
-        getStreams)
+      SdkV1Rdd[String, String](spark.sparkContext, relationConfig, toRow, uniqueId, getStreams)
     }
 
     val e = intercept[CdpApiException] {
@@ -66,13 +64,16 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val rdd = new SdkV1Rdd[Event, Long](
       spark.sparkContext,
       DefaultSource
-        .parseRelationConfig(Map(
-          "tokenUri" -> OIDCWrite.tokenUri,
-          "clientId" -> OIDCWrite.clientId,
-          "clientSecret" -> OIDCWrite.clientSecret,
-          "project" -> OIDCWrite.project,
-          "scopes" -> OIDCWrite.scopes
-        ), spark.sqlContext)
+        .parseRelationConfig(
+          Map(
+            "tokenUri" -> OIDCWrite.tokenUri,
+            "clientId" -> OIDCWrite.clientId,
+            "clientSecret" -> OIDCWrite.clientSecret,
+            "project" -> OIDCWrite.project,
+            "scopes" -> OIDCWrite.scopes
+          ),
+          spark.sqlContext
+        )
         .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
@@ -93,13 +94,16 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     val rdd = new SdkV1Rdd[Event, Long](
       spark.sparkContext,
       DefaultSource
-        .parseRelationConfig(Map(
-          "tokenUri" -> OIDCWrite.tokenUri,
-          "clientId" -> OIDCWrite.clientId,
-          "clientSecret" -> OIDCWrite.clientSecret,
-          "project" -> OIDCWrite.project,
-          "scopes" -> OIDCWrite.scopes
-        ), spark.sqlContext)
+        .parseRelationConfig(
+          Map(
+            "tokenUri" -> OIDCWrite.tokenUri,
+            "clientId" -> OIDCWrite.clientId,
+            "clientSecret" -> OIDCWrite.clientSecret,
+            "project" -> OIDCWrite.project,
+            "scopes" -> OIDCWrite.scopes
+          ),
+          spark.sqlContext
+        )
         .copy(parallelismPerPartition = nStreams * 3),
       (e: Event, _: Option[Int]) => asRow(e),
       (e: Event) => e.id,
