@@ -22,6 +22,7 @@ import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import org.apache.spark.TaskContext
 
 object CdpConnector {
   @transient private val logger = getLogger
@@ -60,21 +61,31 @@ object CdpConnector {
       metricsPrefix: String,
       namePrefix: String,
       maybeStatus: Option[StatusCode]): IO[Unit] =
-    IO.delay(MetricsSource.getOrCreateCounter(metricsPrefix, s"${namePrefix}requests").inc()) *>
+    IO.delay(
+      MetricsSource
+        .getOrCreateAttemptTrackingCounter(
+          metricsPrefix,
+          s"${namePrefix}requests",
+          Option(TaskContext.get()))
+        .inc()) *>
       (maybeStatus match {
         case None =>
           IO.delay(
             MetricsSource
-              .getOrCreateCounter(metricsPrefix, s"${namePrefix}requests.response.failure")
+              .getOrCreateAttemptTrackingCounter(
+                metricsPrefix,
+                s"${namePrefix}requests.response.failure",
+                Option(TaskContext.get()))
               .inc()
           )
         case Some(status) if status.code >= 400 =>
           IO.delay(
             MetricsSource
-              .getOrCreateCounter(
+              .getOrCreateAttemptTrackingCounter(
                 metricsPrefix,
                 s"${namePrefix}requests.${status.code}" +
-                  s".response")
+                  s".response",
+                Option(TaskContext.get()))
               .inc()
           )
         case _ => IO.unit
@@ -130,7 +141,12 @@ object CdpConnector {
           limitedBackend,
           _ =>
             IO.delay(
-              MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries").inc()
+              MetricsSource
+                .getOrCreateAttemptTrackingCounter(
+                  metricsPrefix,
+                  "requestsWithoutRetries",
+                  Option(TaskContext.get()))
+                .inc()
           )
       )
     )

@@ -85,7 +85,7 @@ class TimeSeriesRelationTest
     assert(df.count() == 0)
 
     // Metrics counter does not create a Map key until reading the first row
-    assertThrows[NullPointerException](getNumberOfRowsRead(metricsPrefix, "timeseries"))
+    assertThrows[NoSuchElementException](getNumberOfRowsRead(metricsPrefix, "timeseries"))
   }
 
   it should "not fetch all items if filter on id" taggedAs WriteTest in {
@@ -184,8 +184,8 @@ class TimeSeriesRelationTest
         .load()
       df.createOrReplaceTempView("destinationTimeSeriesInsertAndUpdate")
 
-      a[NullPointerException] should be thrownBy getNumberOfRowsCreated(metricsPrefix, "timeseries")
-      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+      a[NoSuchElementException] should be thrownBy getNumberOfRowsCreated(metricsPrefix, "timeseries")
+      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
 
       val randomSuffix = shortRandomString()
       // Insert new time series test data
@@ -212,7 +212,7 @@ class TimeSeriesRelationTest
         .write
         .insertInto("destinationTimeSeriesInsertAndUpdate")
 
-      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
       val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
       assert(rowsCreated == 5)
 
@@ -327,7 +327,7 @@ class TimeSeriesRelationTest
         .option("metricsPrefix", metricsPrefix)
         .save()
 
-      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
       val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
       assert(rowsCreated == 7)
 
@@ -354,7 +354,7 @@ class TimeSeriesRelationTest
       assert(insertCdpApiException.code == 409)
       val rowsCreatedAfterAbort = getNumberOfRowsCreated(metricsPrefix, "timeseries")
       assert(rowsCreatedAfterAbort == 7)
-      assertThrows[NullPointerException](getNumberOfRowsUpdated(metricsPrefix, "timeseries"))
+      assertThrows[NoSuchElementException](getNumberOfRowsUpdated(metricsPrefix, "timeseries"))
     } finally {
       try {
         cleanUpTimeSeriesTestDataByUnit(abortUnit)
