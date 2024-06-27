@@ -67,7 +67,7 @@ trait SparkTest {
     audience = Some(OIDCWrite.audience),
     cdfProjectName = OIDCWrite.project,
   )
-  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(15, 30)
+  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(false, 15, 30)
 
   val writeAuthProvider =
     OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
@@ -260,6 +260,7 @@ trait SparkTest {
       initialRetryDelayMillis = Constants.DefaultInitialRetryDelay.toMillis.toInt,
       collectMetrics = false,
       collectTestMetrics = false,
+      metricsTrackAttempts = false,
       metricsPrefix = "",
       baseUrl = Constants.DefaultBaseUrl,
       onConflict = OnConflictOption.Abort,

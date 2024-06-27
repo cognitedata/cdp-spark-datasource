@@ -58,12 +58,14 @@ object CdpConnector {
     new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
   private def incMetrics(
+      metricsTrackAttempts: Boolean,
       metricsPrefix: String,
       namePrefix: String,
       maybeStatus: Option[StatusCode]): IO[Unit] =
     IO.delay(
       MetricsSource
         .getOrCreateAttemptTrackingCounter(
+          metricsTrackAttempts,
           metricsPrefix,
           s"${namePrefix}requests",
           Option(TaskContext.get()))
@@ -73,6 +75,7 @@ object CdpConnector {
           IO.delay(
             MetricsSource
               .getOrCreateAttemptTrackingCounter(
+                metricsTrackAttempts,
                 metricsPrefix,
                 s"${namePrefix}requests.response.failure",
                 Option(TaskContext.get()))
@@ -82,6 +85,7 @@ object CdpConnector {
           IO.delay(
             MetricsSource
               .getOrCreateAttemptTrackingCounter(
+                metricsTrackAttempts,
                 metricsPrefix,
                 s"${namePrefix}requests.${status.code}" +
                   s".response",
@@ -100,7 +104,9 @@ object CdpConnector {
     new BackpressureThrottleBackend[IO, Any](sttpBackend, makeQueueOf1.unsafeRunSync(), 800.milliseconds)
   }
 
+  // scalastyle:off method.length
   def retryingSttpBackend(
+      metricsTrackAttempts: Boolean,
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
       maxParallelRequests: Int = Constants.DefaultParallelismPerPartition,
@@ -114,10 +120,16 @@ object CdpConnector {
           new MetricsBackend[IO, Any](
             sttpBackend, {
               case RequestResponseInfo(tags, maybeStatus) =>
-                incMetrics(metricsPrefix, "", maybeStatus) *>
+                incMetrics(metricsTrackAttempts, metricsPrefix, "", maybeStatus) *>
                   tags
                     .get(GenericClient.RESOURCE_TYPE_TAG)
-                    .map(service => incMetrics(metricsPrefix, s"${service.toString}.", maybeStatus))
+                    .map(
+                      service =>
+                        incMetrics(
+                          metricsTrackAttempts,
+                          metricsPrefix,
+                          s"${service.toString}.",
+                          maybeStatus))
                     .getOrElse(IO.unit)
             }
         ))
@@ -143,6 +155,7 @@ object CdpConnector {
             IO.delay(
               MetricsSource
                 .getOrCreateAttemptTrackingCounter(
+                  metricsTrackAttempts,
                   metricsPrefix,
                   "requestsWithoutRetries",
                   Option(TaskContext.get()))
@@ -151,6 +164,7 @@ object CdpConnector {
       )
     )
   }
+  // scalastyle:on method.length
 
   def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
     val metricsPrefix = if (config.collectMetrics) {
@@ -165,6 +179,7 @@ object CdpConnector {
     val authSttpBackend =
       new FixedTraceSttpBackend(
         retryingSttpBackend(
+          config.metricsTrackAttempts,
           maxRetries = 5,
           initialRetryDelayMillis = config.initialRetryDelayMillis,
           maxRetryDelaySeconds = config.maxRetryDelaySeconds,
@@ -178,6 +193,7 @@ object CdpConnector {
     implicit val sttpBackend: SttpBackend[IO, Any] = {
       new FixedTraceSttpBackend(
         retryingSttpBackend(
+          config.metricsTrackAttempts,
           maxRetries = config.maxRetries,
           initialRetryDelayMillis = config.initialRetryDelayMillis,
           maxRetryDelaySeconds = config.maxRetryDelaySeconds,

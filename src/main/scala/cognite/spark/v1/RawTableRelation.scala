@@ -44,11 +44,13 @@ class RawTableRelation(
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
   @transient lazy private val rowsCreated: Counter =
     MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsTrackAttempts,
       config.metricsPrefix,
       s"raw.$database.$table.rows.created",
       Option(TaskContext.get()))
   @transient lazy private val rowsRead: Counter =
     MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsTrackAttempts,
       config.metricsPrefix,
       s"raw.$database.$table.rows.read",
       Option(TaskContext.get()))
@@ -160,6 +162,7 @@ class RawTableRelation(
           @transient lazy val partitionSize =
             MetricsSource
               .getOrCreateAttemptTrackingCounter(
+                config.metricsTrackAttempts,
                 config.metricsPrefix,
                 s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize",
                 Option(TaskContext.get()))
