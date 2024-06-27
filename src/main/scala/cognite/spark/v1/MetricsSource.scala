@@ -11,28 +11,33 @@ class MetricsSource {
   val metricsMap = new ConcurrentHashMap[String, Eval[Counter]]
 
   def getOrCreateAttemptTrackingCounter(
+      trackAttempts: Boolean,
       metricNamespace: String,
       name: String,
-      ctx: Option[TaskContext]): Counter = {
-    def getNumberOrEmpty(getter: TaskContext => Long): String =
-      ctx.map(getter).map(_.toString()).getOrElse("")
+      ctx: Option[TaskContext],
+  ): Counter = {
 
-    // The number of fields in the name should be consistent, even if there is no value for
-    // the attempt numbers
-    val stageId = getNumberOrEmpty(_.stageId().toLong)
-    val stageAttempt = getNumberOrEmpty(_.stageAttemptNumber().toLong)
-    val partitionId = getNumberOrEmpty(_.partitionId().toLong)
-    val taskAttempt = getNumberOrEmpty(_.taskAttemptId())
+    val metricName = if (trackAttempts) {
+      def getNumberOrEmpty(getter: TaskContext => Long): String =
+        ctx.map(getter).map(_.toString()).getOrElse("")
 
-    val metricName = s":sid:$stageId:sat:$stageAttempt:pid:$partitionId:tat:$taskAttempt:$name"
-    val key = s"$metricNamespace.$metricName"
+      // The number of fields in the name should be consistent, even if there is no value for
+      // the attempt numbers
+      val stageId = getNumberOrEmpty(_.stageId().toLong)
+      val stageAttempt = getNumberOrEmpty(_.stageAttemptNumber().toLong)
+      val partitionId = getNumberOrEmpty(_.partitionId().toLong)
+      val taskAttempt = getNumberOrEmpty(_.taskAttemptId())
 
+      s":sid:$stageId:sat:$stageAttempt:pid:$partitionId:tat:$taskAttempt:$name"
+    } else {
+      name
+    }
     val wrapped = Eval.later {
       val counter = new Counter
       registerMetricSource(metricNamespace, metricName, counter)
       counter
     }
-
+    val key = s"$metricNamespace.$metricName"
     metricsMap.putIfAbsent(key, wrapped)
     metricsMap.get(key).value
   }
