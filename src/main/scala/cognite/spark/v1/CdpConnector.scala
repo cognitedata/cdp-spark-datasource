@@ -104,6 +104,7 @@ object CdpConnector {
     new BackpressureThrottleBackend[IO, Any](sttpBackend, makeQueueOf1.unsafeRunSync(), 800.milliseconds)
   }
 
+  // scalastyle:off method.length
   def retryingSttpBackend(
       metricsTrackAttempts: Boolean,
       maxRetries: Int,
@@ -163,6 +164,7 @@ object CdpConnector {
       )
     )
   }
+  // scalastyle:on method.length
 
   def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
     val metricsPrefix = if (config.collectMetrics) {

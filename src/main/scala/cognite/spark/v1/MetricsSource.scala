@@ -14,8 +14,7 @@ class MetricsSource {
       trackAttempts: Boolean,
       metricNamespace: String,
       name: String,
-      ctx: Option[TaskContext],
-  ): Counter = {
+      ctx: Option[TaskContext]): Counter = {
 
     val metricName = if (trackAttempts) {
       def getNumberOrEmpty(getter: TaskContext => Long): String =
