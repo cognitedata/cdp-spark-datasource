@@ -671,11 +671,15 @@ object FlexibleDataModelRelationUtils {
 //            .getOrElse(row.getAs[Array[Row]](i).toSeq)
 
         case p: TextProperty =>
-          val strSeq = getListPropAsSeq[Any](row, i)
-          Try(InstancePropertyValue.StringList(skipNulls(strSeq).map(String.valueOf))).toEither
+          Try({
+            val strSeq = getListPropAsSeq[String](row, i)
+            InstancePropertyValue.StringList(skipNulls(strSeq))
+          }).toEither
         case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) =>
-          val boolSeq = getListPropAsSeq[Boolean](row, i)
-          Try(InstancePropertyValue.BooleanList(boolSeq)).toEither
+          Try({
+            val boolSeq = getListPropAsSeq[Boolean](row, i)
+            InstancePropertyValue.BooleanList(boolSeq)
+          }).toEither
         case p @ PrimitiveProperty(PrimitivePropType.Float32, _) =>
           val floatSeq = getListPropAsSeq[Any](row, i)
           tryAsFloatSeq(floatSeq, propertyName)
