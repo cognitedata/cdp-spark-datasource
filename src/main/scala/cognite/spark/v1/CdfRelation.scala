@@ -16,6 +16,7 @@ abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
 
   private def getOrCreateCounter(action: String): Counter =
     MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsTrackAttempts,
       config.metricsPrefix,
       s"$shortName.$action",
       Option(TaskContext.get()))
