@@ -15,6 +15,7 @@ final case class RelationConfig(
     collectMetrics: Boolean,
     collectTestMetrics: Boolean,
     metricsPrefix: String,
+    metricsTrackAttempts: Boolean,
     baseUrl: String,
     onConflict: OnConflictOption,
     applicationId: String,

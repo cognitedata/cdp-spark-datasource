@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-06-04T09:51:18.055269400Z",
+  "timestamp" : "2024-06-24T09:18:34.469835Z",
   "configurations" : [
     "compile",
     "optional",
@@ -615,11 +615,11 @@
     {
       "org" : "io.scalaland",
       "name" : "chimney-macro-commons_2.12",
-      "version" : "0.8.5",
+      "version" : "1.1.0",
       "artifacts" : [
         {
           "name" : "chimney-macro-commons_2.12.jar",
-          "hash" : "sha1:ff881272dbde510ecaebbe3d9e95126b9b8cdea1"
+          "hash" : "sha1:95396e0cd2de2237c98ccec8a706bc6f13da3160"
         }
       ],
       "configurations" : [
@@ -631,11 +631,11 @@
     {
       "org" : "io.scalaland",
       "name" : "chimney_2.12",
-      "version" : "0.8.5",
+      "version" : "1.1.0",
       "artifacts" : [
         {
           "name" : "chimney_2.12.jar",
-          "hash" : "sha1:3905507728294a2d529dab1de8a309e0af842272"
+          "hash" : "sha1:43a80aa0855a7662e87fd6ee38564f8dc5b1d4a1"
         }
       ],
       "configurations" : [
@@ -1826,11 +1826,11 @@
     {
       "org" : "org.scala-lang.modules",
       "name" : "scala-collection-compat_2.12",
-      "version" : "2.11.0",
+      "version" : "2.12.0",
       "artifacts" : [
         {
           "name" : "scala-collection-compat_2.12.jar",
-          "hash" : "sha1:965bfcb4ca7f821113b4877154457f9a4fae2328"
+          "hash" : "sha1:9c4098292dcc773f2f0f9b452d958e8600fc8758"
         }
       ],
       "configurations" : [

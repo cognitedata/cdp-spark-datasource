@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-06-11T15:18:38.262187453Z",
+  "timestamp" : "2024-06-24T09:19:10.723477Z",
   "configurations" : [
     "compile",
     "optional",
@@ -45,11 +45,11 @@
     {
       "org" : "com.chuusai",
       "name" : "shapeless_2.12",
-      "version" : "2.3.10",
+      "version" : "2.3.11",
       "artifacts" : [
         {
           "name" : "shapeless_2.12.jar",
-          "hash" : "sha1:570fa767d1d6fe2a3ca273d7ba8be9ac412ced0e"
+          "hash" : "sha1:1ed605fb8773f78d995548d8eaeea7534a1174fa"
         }
       ],
       "configurations" : [
@@ -75,11 +75,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.12",
-      "version" : "2.22.799",
+      "version" : "2.23.805",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.12.jar",
-          "hash" : "sha1:ed8e2eb244aba70057acc381ea369798bab69c9e"
+          "hash" : "sha1:dce2de292da76e1764438920d6a94722dc7ef845"
         }
       ],
       "configurations" : [
@@ -571,11 +571,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-core_2.12",
-      "version" : "0.14.6",
+      "version" : "0.14.8",
       "artifacts" : [
         {
           "name" : "circe-core_2.12.jar",
-          "hash" : "sha1:bc2b8121161f0fba03353984d44964ee5d30f406"
+          "hash" : "sha1:bd90caa1ae3059c2e1512467e6950d6e1e1ab5cd"
         }
       ],
       "configurations" : [
@@ -587,11 +587,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-generic_2.12",
-      "version" : "0.14.6",
+      "version" : "0.14.8",
       "artifacts" : [
         {
           "name" : "circe-generic_2.12.jar",
-          "hash" : "sha1:acb253e93a8b35315ae8974b0222579a70fb2802"
+          "hash" : "sha1:3af09693a3676840a9832d3ea60171718347809d"
         }
       ],
       "configurations" : [
@@ -603,11 +603,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-jawn_2.12",
-      "version" : "0.14.6",
+      "version" : "0.14.8",
       "artifacts" : [
         {
           "name" : "circe-jawn_2.12.jar",
-          "hash" : "sha1:158c22090c289f6537544b4e63e5843525284e6e"
+          "hash" : "sha1:95fc5507f0ce3d0a7076a424da6b27d4ac44366f"
         }
       ],
       "configurations" : [
@@ -619,11 +619,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-numbers_2.12",
-      "version" : "0.14.6",
+      "version" : "0.14.8",
       "artifacts" : [
         {
           "name" : "circe-numbers_2.12.jar",
-          "hash" : "sha1:cb4277dadbb541e113cad11ed4aa292482d9b6ba"
+          "hash" : "sha1:2ca3ee6ec17ec42adb63874db57916fc01b933fb"
         }
       ],
       "configurations" : [
@@ -635,11 +635,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-parser_2.12",
-      "version" : "0.14.6",
+      "version" : "0.14.8",
       "artifacts" : [
         {
           "name" : "circe-parser_2.12.jar",
-          "hash" : "sha1:f4f04ea681d3f6b84fac4d46250af33c8eef52af"
+          "hash" : "sha1:990723c0bbb6f1405716195d4fc36bd082deff21"
         }
       ],
       "configurations" : [
@@ -903,11 +903,11 @@
     {
       "org" : "io.scalaland",
       "name" : "chimney-macro-commons_2.12",
-      "version" : "0.8.5",
+      "version" : "1.1.0",
       "artifacts" : [
         {
           "name" : "chimney-macro-commons_2.12.jar",
-          "hash" : "sha1:ff881272dbde510ecaebbe3d9e95126b9b8cdea1"
+          "hash" : "sha1:95396e0cd2de2237c98ccec8a706bc6f13da3160"
         }
       ],
       "configurations" : [
@@ -919,11 +919,11 @@
     {
       "org" : "io.scalaland",
       "name" : "chimney_2.12",
-      "version" : "0.8.5",
+      "version" : "1.1.0",
       "artifacts" : [
         {
           "name" : "chimney_2.12.jar",
-          "hash" : "sha1:3905507728294a2d529dab1de8a309e0af842272"
+          "hash" : "sha1:43a80aa0855a7662e87fd6ee38564f8dc5b1d4a1"
         }
       ],
       "configurations" : [
@@ -2114,11 +2114,11 @@
     {
       "org" : "org.scala-lang.modules",
       "name" : "scala-collection-compat_2.12",
-      "version" : "2.11.0",
+      "version" : "2.12.0",
       "artifacts" : [
         {
           "name" : "scala-collection-compat_2.12.jar",
-          "hash" : "sha1:965bfcb4ca7f821113b4877154457f9a4fae2328"
+          "hash" : "sha1:9c4098292dcc773f2f0f9b452d958e8600fc8758"
         }
       ],
       "configurations" : [
@@ -2370,11 +2370,11 @@
     {
       "org" : "org.typelevel",
       "name" : "jawn-parser_2.12",
-      "version" : "1.4.0",
+      "version" : "1.5.1",
       "artifacts" : [
         {
           "name" : "jawn-parser_2.12.jar",
-          "hash" : "sha1:2fc71895d27835c1e83835fb31e6609cad52b3c7"
+          "hash" : "sha1:ae20b61b0130d3f6528e92407e7ca63b472777f6"
         }
       ],
       "configurations" : [
