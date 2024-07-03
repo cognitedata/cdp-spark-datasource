@@ -97,6 +97,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val instanceExtIdNode = s"${randomId}Node"
     val instanceExtIdEdge = s"${randomId}Edge"
 
+    //scalastyle:off method.length
     def insertionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
@@ -140,6 +141,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 |) as directRelation1,
                 |null as directRelation2
                 |""".stripMargin)
+    //scalastyle:on
 
     val insertionResults = Try {
       Vector(
@@ -283,7 +285,17 @@ class FlexibleDataModelCorePropertyRelationTest
                   .now()
                   .minusDays(10)
                   .format(InstancePropertyValue.Timestamp.formatter)}') as timestampListProp1,
-                |null as timestampListProp2
+                |null as timestampListProp2,
+                |array(
+                |    named_struct(
+                |       'spaceExternalId', '$spaceExternalId',
+                |       'externalId', '$startNodeExtId'
+                |    ),
+                |    named_struct(
+                |       'spaceExternalId', '$spaceExternalId',
+                |       'externalId', '$endNodeExtId'
+                |    )
+                |) as directRelation3
                 |""".stripMargin)
 
     val insertionResult = Try {
@@ -1140,6 +1152,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 externalId = containerStartNodeAndEndNodesExternalId)),
             source = None)),
       "directRelation2" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "directRelation3" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
     )
 
     for {
