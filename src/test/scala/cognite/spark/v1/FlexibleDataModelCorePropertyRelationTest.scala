@@ -594,7 +594,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val createdTime = lastRow.getLong(lastRow.schema.fieldIndex("node.createdTime"))
     createdTime should be > 1L
     val lastUpdated = lastRow.getLong(lastRow.schema.fieldIndex("node.lastUpdatedTime"))
-    lastUpdated should be >=  createdTime
+    lastUpdated should be >= createdTime
     val deletedTime = lastRow.getLong(lastRow.schema.fieldIndex("node.deletedTime"))
     deletedTime shouldBe 0L
     val version = lastRow.getLong(lastRow.schema.fieldIndex("node.version"))
@@ -631,20 +631,28 @@ class FlexibleDataModelCorePropertyRelationTest
     )
 
     syncDf.createTempView(s"sync_empty_cursor_with_filter")
-    val syncedNodes = spark.sql("select * from sync_empty_cursor_with_filter where longProp > 10L and longProp <= 50").collect()
+    val syncedNodes = spark
+      .sql("select * from sync_empty_cursor_with_filter where longProp > 10L and longProp <= 50")
+      .collect()
     syncedNodes.length shouldBe 40
 
-    val syncedNodes2 = spark.sql("select * from sync_empty_cursor_with_filter where " +
-      "`node.lastUpdatedTime` > 10L and " +
-      "longProp > 0 and " +
-      "space = '" + spaceExternalId + "' and " +
-      "`node.deletedTime` = 0").collect()
+    val syncedNodes2 = spark
+      .sql(
+        "select * from sync_empty_cursor_with_filter where " +
+          "`node.lastUpdatedTime` > 10L and " +
+          "longProp > 0 and " +
+          "space = '" + spaceExternalId + "' and " +
+          "`node.deletedTime` = 0")
+      .collect()
     syncedNodes2.length shouldBe 50
 
-    val syncedNodes3 = spark.sql("select * from sync_empty_cursor_with_filter where " +
-      "`node.lastUpdatedTime` > 10L and " +
-      "longProp > 0 and " +
-      "space = 'nonexistingspace'").collect()
+    val syncedNodes3 = spark
+      .sql(
+        "select * from sync_empty_cursor_with_filter where " +
+          "`node.lastUpdatedTime` > 10L and " +
+          "longProp > 0 and " +
+          "space = 'nonexistingspace'")
+      .collect()
     syncedNodes3.length shouldBe 0
   }
 
@@ -723,8 +731,8 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql(syncSql)
       .collect()
 
-    filtered.length shouldBe(1)
-    synced.length shouldBe(1)
+    filtered.length shouldBe (1)
+    synced.length shouldBe (1)
 
     for (row <- filtered ++ synced) {
       row.getLong(row.schema.fieldIndex("node.createdTime")) should be >= 1L
@@ -1327,12 +1335,10 @@ class FlexibleDataModelCorePropertyRelationTest
             sources = Some(
               Seq(EdgeOrNodeData(
                 viewRef,
-                Some(
-                  Map(
-                    "stringProp" -> Some(
-                      InstancePropertyValue.String(System.nanoTime().toString)),
-                    "longProp" -> Some(InstancePropertyValue.Int64(i.toLong))
-                  ))
+                Some(Map(
+                  "stringProp" -> Some(InstancePropertyValue.String(System.nanoTime().toString)),
+                  "longProp" -> Some(InstancePropertyValue.Int64(i.toLong))
+                ))
               )))
           )
     client.instances

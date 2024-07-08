@@ -114,8 +114,7 @@ object FDMContainerPropertyTypes {
       nullable = Some(true),
       autoIncrement = Some(false),
       defaultValue = None,
-      description =
-        Some("Test DirectNodeRelationProperty List WithoutDefaultValue Nullable Description"),
+      description = Some("Test DirectNodeRelationProperty List WithoutDefaultValue Nullable Description"),
       name = Some("Test-DirectNodeRelationProperty-List-WithoutDefaultValue-Nullable-Name"),
       `type` = DirectNodeRelationProperty(None, None, Some(true)),
     )

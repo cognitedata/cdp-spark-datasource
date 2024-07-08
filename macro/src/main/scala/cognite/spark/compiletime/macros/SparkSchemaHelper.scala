@@ -14,14 +14,13 @@ class SparkSchemaHelperImpl(val c: Context) {
 
     val seqAny = typeOf[Seq[Any]]
     // says if the type can be handled by Spark on itself or we should "help" by recursively applying the asRow macro
-    def isPrimitive(t: c.Type): Boolean = {
+    def isPrimitive(t: c.Type): Boolean =
       if (t <:< seqAny) {
         isPrimitive(t.typeArgs.head)
       } else {
         val fullName = t.typeSymbol.fullName
         fullName.startsWith("scala.") || fullName.startsWith("java.")
       }
-    }
 
     val constructor = weakTypeOf[T].decl(termNames.CONSTRUCTOR).asMethod
     val params = constructor.paramLists.flatten
@@ -66,7 +65,8 @@ class SparkSchemaHelperImpl(val c: Context) {
         val paramType = param.typeSignature
         val isOuterOption = paramType <:< optionType
         if (paramType <:< optionNonNullableSetter || paramType <:< optionSetter) {
-          throw new Exception(s"scala SDK Setters are no longer supported in Schema: $param : ${param.typeSignature}")
+          throw new Exception(
+            s"scala SDK Setters are no longer supported in Schema: $param : ${param.typeSignature}")
         }
         val isOptionalField = paramType <:< optionalFieldType
 
@@ -171,7 +171,9 @@ class SparkSchemaHelperImpl(val c: Context) {
           q"""(scala.util.Try($r.getAs[Any]($name)) match {
              case scala.util.Success(null) => cognite.spark.v1.FieldNull: cognite.spark.v1.OptionalField[$innerType]
              case scala.util.Failure(_) => cognite.spark.v1.FieldNotSpecified: cognite.spark.v1.OptionalField[$innerType]
-             case scala.util.Success(x) => cognite.spark.v1.FieldSpecified(${handleFieldValue(q"x", innerType)}): cognite.spark.v1.OptionalField[$innerType]
+             case scala.util.Success(x) => cognite.spark.v1.FieldSpecified(${handleFieldValue(
+            q"x",
+            innerType)}): cognite.spark.v1.OptionalField[$innerType]
            })"""
 
         val resExpr =

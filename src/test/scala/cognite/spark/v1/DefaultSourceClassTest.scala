@@ -2,7 +2,6 @@ package cognite.spark.v1
 
 import org.scalatest.{FlatSpec, Matchers}
 
-
 class DefaultSourceClassTest extends FlatSpec with Matchers {
   it should "have default constructor" in {
     // Data source should be constructable with no arguments and
