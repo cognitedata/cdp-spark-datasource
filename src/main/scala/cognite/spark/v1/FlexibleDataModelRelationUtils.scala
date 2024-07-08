@@ -669,7 +669,7 @@ object FlexibleDataModelRelationUtils {
       schema: StructType,
       propertyName: String,
       propDef: CorePropertyDefinition,
-      instanceSpace: Option[String]
+      //instanceSpace: Option[String]
       ): Either[Throwable, OptionalField[InstancePropertyValue]] =
     lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
       propDef.`type` match {
@@ -897,4 +897,4 @@ object FlexibleDataModelRelationUtils {
   private def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
 }
-// scalastyle:on number.of.methods file.size.limit
+// scalastyle:on
