@@ -691,7 +691,7 @@ object FlexibleDataModelRelationUtils {
         case _: DirectNodeRelationProperty =>
           val structSeq = getListPropAsSeq[Row](propertyName, row, i)
           tryAsDirectNodeRelationList(structSeq, propertyName, schema, instanceSpace)
-            .map(InstancePropertyValue.ObjectList)
+            .map(InstancePropertyValue.ViewDirectNodeRelationList)
         case _: TextProperty =>
           Try({
             val strSeq = getListPropAsSeq[String](propertyName, row, i)
@@ -756,10 +756,8 @@ object FlexibleDataModelRelationUtils {
       propDef.`type` match {
         case _: DirectNodeRelationProperty =>
           extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, row)
-            .map(
-              directRelationReference =>
-                InstancePropertyValue.ViewDirectNodeRelation(
-                  Some(directRelationReference)))
+            .map(directRelationReference =>
+              InstancePropertyValue.ViewDirectNodeRelation(Some(directRelationReference)))
         case _: TextProperty =>
           Try(InstancePropertyValue.String(String.valueOf(row.get(i)))).toEither
         case _ @PrimitiveProperty(PrimitivePropType.Boolean, _) =>
@@ -867,10 +865,9 @@ object FlexibleDataModelRelationUtils {
       value: Seq[Row],
       propertyName: String,
       schema: StructType,
-      instanceSpace: Option[String]): Either[CdfSparkException, Vector[Json]] =
-    skipNulls(value).toVector.traverse(
-      extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, _)
-        .map(_.asJson))
+      instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectRelationReference]] =
+    skipNulls(value).toVector
+      .traverse(extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, _))
 
   private def tryAsDate(value: Any, propertyName: String): Either[CdfSparkException, LocalDate] =
     Try(value.asInstanceOf[java.sql.Date].toLocalDate)
