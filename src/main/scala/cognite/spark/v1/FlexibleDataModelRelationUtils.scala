@@ -756,8 +756,10 @@ object FlexibleDataModelRelationUtils {
       propDef.`type` match {
         case _: DirectNodeRelationProperty =>
           extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, row)
-            .map(_.asJson)
-            .map(InstancePropertyValue.Object)
+            .map(
+              directRelationReference =>
+                InstancePropertyValue.ViewDirectNodeRelation(
+                  Some(directRelationReference)))
         case _: TextProperty =>
           Try(InstancePropertyValue.String(String.valueOf(row.get(i)))).toEither
         case _ @PrimitiveProperty(PrimitivePropType.Boolean, _) =>
