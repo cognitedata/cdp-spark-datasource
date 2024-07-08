@@ -618,7 +618,7 @@ object FlexibleDataModelRelationUtils {
       case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
         corePropDef.`type` match {
           case t if t.isList =>
-            toInstancePropertyValueOfList(row, schema, propertyName, corePropDef) //, instanceSpace)
+            toInstancePropertyValueOfList(row, schema, propertyName, corePropDef, instanceSpace)
           case _ =>
             toInstancePropertyValueOfNonList(row, schema, propertyName, corePropDef, instanceSpace)
         }
@@ -682,14 +682,16 @@ object FlexibleDataModelRelationUtils {
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: CorePropertyDefinition
-//      instanceSpace: Option[String]
+      propDef: CorePropertyDefinition,
+     instanceSpace: Option[String]
   ): Either[Throwable, OptionalField[InstancePropertyValue]] =
     lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
       propDef.`type` match {
-//        case _: DirectNodeRelationProperty =>
-//          val structSeq = getListPropAsSeq[Any](propertyName, row, i)
-//          tryAsDirectNodeRelationList(structSeq, propertyName, instanceSpace).map(InstancePropertyValue.ViewDirectNodeRelationList)
+        case _: DirectNodeRelationProperty =>
+          val structSeq = getListPropAsSeq[Row](propertyName, row, i)
+          tryAsDirectNodeRelationList(structSeq, propertyName, schema, instanceSpace)
+            .map(_.map(_.asJson))
+            .map(InstancePropertyValue.ObjectList)
         case _: TextProperty =>
           Try({
             val strSeq = getListPropAsSeq[String](propertyName, row, i)
@@ -859,12 +861,14 @@ object FlexibleDataModelRelationUtils {
         )
       })
 
-//  private def tryAsDirectNodeRelationList(
-//      value: Seq[Any],
-//      propertyName: String,
-//      instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectNodeRelationProperty]] =
-//    val struct = row.getStruct(schema.fieldIndex(propertyName))
-//    skipNulls(value).toVector.traverse()
+  private def tryAsDirectNodeRelationList(
+      value: Seq[Row],
+      propertyName: String,
+      schema: StructType,
+      instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectNodeRelationProperty]] =
+    skipNulls(value).toVector.traverse(extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, _)
+      .map(_.asJson)
+      .map(InstancePropertyValue.Object))
 
   private def tryAsDate(value: Any, propertyName: String): Either[CdfSparkException, LocalDate] =
     Try(value.asInstanceOf[java.sql.Date].toLocalDate)
