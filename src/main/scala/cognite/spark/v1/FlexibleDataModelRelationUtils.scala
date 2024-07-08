@@ -213,7 +213,6 @@ object FlexibleDataModelRelationUtils {
         )
     }
 
-  // scalastyle:off method.length
   private def createNodeOrEdgeWriteData(
       externalId: String,
       instanceSpace: String,
@@ -490,8 +489,6 @@ object FlexibleDataModelRelationUtils {
             |""".stripMargin))
     }
 
-  // scalastyle:off method.length
-  // scalastyle:off cyclomatic.complexity
   private[spark] def extractInstancePropertyValue(
       propType: DataType,
       value: InstancePropertyValue): Any =
@@ -596,7 +593,6 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  // scalastyle:off cyclomatic.complexity method.length
   private def propertyDefinitionToInstancePropertyValue(
       row: Row,
       schema: StructType,
@@ -663,7 +659,6 @@ object FlexibleDataModelRelationUtils {
         }
     }
   }
-  // scalastyle:off cyclomatic.complexity method.length
   private def toInstancePropertyValueOfList(
       row: Row,
       schema: StructType,
@@ -725,7 +720,6 @@ object FlexibleDataModelRelationUtils {
       }
     }
 
-  // scalastyle:off cyclomatic.complexity method.length
   private def toInstancePropertyValueOfNonList(
       row: Row,
       schema: StructType,
@@ -771,7 +765,6 @@ object FlexibleDataModelRelationUtils {
         case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
       }
     }
-  // scalastyle:on cyclomatic.complexity method.length
 
 
   private def safeConvertToLong(n: BigDecimal): Long = {
