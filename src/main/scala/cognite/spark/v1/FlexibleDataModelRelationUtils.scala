@@ -3,27 +3,13 @@ package cognite.spark.v1
 import cats.implicits._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
-  DirectNodeRelationProperty,
-  FileReference,
-  PrimitiveProperty,
-  SequenceReference,
-  TextProperty,
-  TimeSeriesReference
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
-  EdgeDeletionRequest,
-  NodeDeletionRequest
-}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{EdgeDeletionRequest, NodeDeletionRequest}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  EdgeOrNodeData,
-  InstanceDeletionRequest,
-  InstancePropertyValue,
-  NodeOrEdgeCreate
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceDeletionRequest, InstancePropertyValue, NodeOrEdgeCreate}
+import io.circe.Json
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
@@ -690,7 +676,6 @@ object FlexibleDataModelRelationUtils {
         case _: DirectNodeRelationProperty =>
           val structSeq = getListPropAsSeq[Row](propertyName, row, i)
           tryAsDirectNodeRelationList(structSeq, propertyName, schema, instanceSpace)
-            .map(_.map(_.asJson))
             .map(InstancePropertyValue.ObjectList)
         case _: TextProperty =>
           Try({
@@ -865,11 +850,10 @@ object FlexibleDataModelRelationUtils {
       value: Seq[Row],
       propertyName: String,
       schema: StructType,
-      instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectNodeRelationProperty]] =
+      instanceSpace: Option[String]): Either[CdfSparkException, Vector[Json]] =
     skipNulls(value).toVector.traverse(
       extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, _)
-        .map(_.asJson)
-        .map(InstancePropertyValue.Object))
+        .map(_.asJson))
 
   private def tryAsDate(value: Any, propertyName: String): Either[CdfSparkException, LocalDate] =
     Try(value.asInstanceOf[java.sql.Date].toLocalDate)
