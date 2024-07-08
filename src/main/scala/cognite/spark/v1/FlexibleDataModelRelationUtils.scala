@@ -620,7 +620,7 @@ object FlexibleDataModelRelationUtils {
     val instancePropertyValueResult = propDef match {
       case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
         corePropDef.`type` match {
-          case t if t.isList => toInstancePropertyValueOfList(row, schema, propertyName, corePropDef, instanceSpace)//, instanceSpace)
+          case t if t.isList => toInstancePropertyValueOfList(row, schema, propertyName, corePropDef)//, instanceSpace)
           case _ => toInstancePropertyValueOfNonList(row, schema, propertyName, corePropDef, instanceSpace)
         }
       case _: PropertyDefinition.ConnectionDefinition =>
@@ -684,8 +684,8 @@ object FlexibleDataModelRelationUtils {
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: CorePropertyDefinition,
-      instanceSpace: Option[String]
+      propDef: CorePropertyDefinition
+//      instanceSpace: Option[String]
       ): Either[Throwable, OptionalField[InstancePropertyValue]] =
     lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
       propDef.`type` match {
