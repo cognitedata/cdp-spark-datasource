@@ -24,7 +24,6 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
   InstancePropertyValue,
   NodeOrEdgeCreate
 }
-import io.circe.Json
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
