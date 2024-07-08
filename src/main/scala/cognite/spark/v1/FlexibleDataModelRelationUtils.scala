@@ -1,8 +1,6 @@
 package cognite.spark.v1
 
-import cats.Apply
 import cats.implicits._
-import com.cognite.sdk.scala.common.CdpApiError
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
@@ -11,10 +9,9 @@ import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{EdgeDeletionRequest, NodeDeletionRequest}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceDeletionRequest, InstancePropertyValue, NodeOrEdgeCreate}
-import io.circe.DecodingFailure
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{ArrayType, DataType, DoubleType, FloatType, IntegerType, LongType, StringType, StructType}
+import org.apache.spark.sql.types._
 
 import java.time._
 import scala.util.{Failure, Success, Try}
@@ -608,7 +605,7 @@ object FlexibleDataModelRelationUtils {
     val instancePropertyValueResult = propDef match {
       case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
         corePropDef.`type` match {
-          case t if t.isList => toInstancePropertyValueOfList(row, schema, propertyName, corePropDef, instanceSpace)
+          case t if t.isList => toInstancePropertyValueOfList(row, schema, propertyName, corePropDef)//, instanceSpace)
           case _ => toInstancePropertyValueOfNonList(row, schema, propertyName, corePropDef, instanceSpace)
         }
       case _: PropertyDefinition.ConnectionDefinition =>
@@ -670,43 +667,43 @@ object FlexibleDataModelRelationUtils {
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: CorePropertyDefinition,
-      instanceSpace: Option[String]): Either[Throwable, OptionalField[InstancePropertyValue]] =
+      propDef: CorePropertyDefinition
+//      instanceSpace: Option[String]
+      ): Either[Throwable, OptionalField[InstancePropertyValue]] =
     lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
       propDef.`type` match {
 //        case p: DirectNodeRelationProperty =>
 //          val structSeq = Try(row.getSeq[Any](i))
 //            .getOrElse(row.getAs[Array[Row]](i).toSeq)
-
-        case p: TextProperty =>
+        case _: TextProperty =>
           Try({
             val strSeq = getListPropAsSeq[String](propertyName, row, i)
             InstancePropertyValue.StringList(skipNulls(strSeq))
           }).toEither
-        case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Boolean, _) =>
           Try({
             val boolSeq = getListPropAsSeq[Boolean](propertyName, row, i)
             InstancePropertyValue.BooleanList(boolSeq)
           }).toEither
-        case p @ PrimitiveProperty(PrimitivePropType.Float32, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Float32, _) =>
           val floatSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryConvertNumberSeq(floatSeq, propertyName, Float.toString, safeConvertToFloat).map(InstancePropertyValue.Float32List)
-        case p @ PrimitiveProperty(PrimitivePropType.Float64, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Float64, _) =>
           val doubleSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryConvertNumberSeq(doubleSeq, propertyName, Double.toString, safeConvertToDouble).map(InstancePropertyValue.Float64List)
-        case p @ PrimitiveProperty(PrimitivePropType.Int32, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Int32, _) =>
           val intSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryConvertNumberSeq(intSeq, propertyName, Int.toString, safeConvertToInt).map(InstancePropertyValue.Int32List)
-        case p @ PrimitiveProperty(PrimitivePropType.Int64, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Int64, _) =>
           val longSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryConvertNumberSeq(longSeq, propertyName, Long.toString, safeConvertToLong).map(InstancePropertyValue.Int64List)
-        case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
           val tsSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryAsTimestamps(tsSeq, propertyName).map(InstancePropertyValue.TimestampList)
-        case p @ PrimitiveProperty(PrimitivePropType.Date, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Date, _) =>
           val dateSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryAsDates(dateSeq, propertyName).map(InstancePropertyValue.DateList)
-        case p @ PrimitiveProperty(PrimitivePropType.Json, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Json, _) =>
           val strSeq = getListPropAsSeq[String](propertyName, row, i)
           skipNulls(strSeq).toVector
             .traverse(io.circe.parser.parse)
@@ -714,13 +711,13 @@ object FlexibleDataModelRelationUtils {
             .leftMap(e =>
               new CdfSparkException(
                 s"Error parsing value of field '$propertyName' as a list of json objects: ${e.getMessage}"))
-        case p: TimeSeriesReference =>
+        case _: TimeSeriesReference =>
           val strSeq = getListPropAsSeq[Any](propertyName, row, i)
           Try(InstancePropertyValue.TimeSeriesReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
-        case p: FileReference =>
+        case _: FileReference =>
           val strSeq = getListPropAsSeq[Any](propertyName, row, i)
           Try(InstancePropertyValue.FileReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
-        case p: SequenceReference =>
+        case _: SequenceReference =>
           val strSeq = getListPropAsSeq[Any](propertyName, row, i)
           Try(InstancePropertyValue.SequenceReferenceList(skipNulls(strSeq).map(String.valueOf))).toEither
         case t => Left(new CdfSparkException(s"Unhandled list type: ${t.toString}"))
@@ -736,27 +733,27 @@ object FlexibleDataModelRelationUtils {
       instanceSpace: Option[String]): Either[Throwable, OptionalField[InstancePropertyValue]] =
     lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
       propDef.`type` match {
-        case p: DirectNodeRelationProperty =>
+        case _: DirectNodeRelationProperty =>
           extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, row)
             .map(_.asJson)
             .map(InstancePropertyValue.Object)
-        case p: TextProperty =>
+        case _: TextProperty =>
           Try(InstancePropertyValue.String(String.valueOf(row.get(i)))).toEither
-        case p @ PrimitiveProperty(PrimitivePropType.Boolean, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Boolean, _) =>
           Try(InstancePropertyValue.Boolean(row.getBoolean(i))).toEither
-        case p @ PrimitiveProperty(PrimitivePropType.Float32, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Float32, _) =>
           tryConvertNumber(row.get(i), propertyName, Float.toString, safeConvertToFloat).map(InstancePropertyValue.Float32)
-        case p @ PrimitiveProperty(PrimitivePropType.Float64, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Float64, _) =>
           tryConvertNumber(row.get(i), propertyName, Double.toString, safeConvertToDouble).map(InstancePropertyValue.Float64)
-        case p @ PrimitiveProperty(PrimitivePropType.Int32, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Int32, _) =>
           tryConvertNumber(row.get(i), propertyName, Int.toString, safeConvertToInt).map(InstancePropertyValue.Int32)
-        case p @ PrimitiveProperty(PrimitivePropType.Int64, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Int64, _) =>
           tryConvertNumber(row.get(i), propertyName, Long.toString, safeConvertToLong).map(InstancePropertyValue.Int64)
-        case p @ PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
           tryAsTimestamp(row.get(i), propertyName).map(InstancePropertyValue.Timestamp.apply)
-        case p @ PrimitiveProperty(PrimitivePropType.Date, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Date, _) =>
           tryAsDate(row.get(i), propertyName).map(InstancePropertyValue.Date.apply)
-        case p @ PrimitiveProperty(PrimitivePropType.Json, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Json, _) =>
           io.circe.parser
             .parse(row
               .getString(i))
@@ -764,11 +761,11 @@ object FlexibleDataModelRelationUtils {
             .leftMap(e =>
               new CdfSparkException(
                 s"Error parsing value of field '$propertyName' as a json object: ${e.getMessage}"))
-        case p: TimeSeriesReference =>
+        case _: TimeSeriesReference =>
           Try(InstancePropertyValue.TimeSeriesReference(String.valueOf(row.get(i)))).toEither
-        case p: FileReference =>
+        case _: FileReference =>
           Try(InstancePropertyValue.FileReference(String.valueOf(row.get(i)))).toEither
-        case p: SequenceReference =>
+        case _: SequenceReference =>
           Try(InstancePropertyValue.SequenceReference(String.valueOf(row.get(i)))).toEither
         case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
       }
