@@ -683,7 +683,7 @@ object FlexibleDataModelRelationUtils {
       schema: StructType,
       propertyName: String,
       propDef: CorePropertyDefinition,
-     instanceSpace: Option[String]
+      instanceSpace: Option[String]
   ): Either[Throwable, OptionalField[InstancePropertyValue]] =
     lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
       propDef.`type` match {
@@ -866,9 +866,10 @@ object FlexibleDataModelRelationUtils {
       propertyName: String,
       schema: StructType,
       instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectNodeRelationProperty]] =
-    skipNulls(value).toVector.traverse(extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, _)
-      .map(_.asJson)
-      .map(InstancePropertyValue.Object))
+    skipNulls(value).toVector.traverse(
+      extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, _)
+        .map(_.asJson)
+        .map(InstancePropertyValue.Object))
 
   private def tryAsDate(value: Any, propertyName: String): Either[CdfSparkException, LocalDate] =
     Try(value.asInstanceOf[java.sql.Date].toLocalDate)
