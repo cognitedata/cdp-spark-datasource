@@ -16,7 +16,8 @@ import org.apache.spark.sql.types._
 import java.time._
 import scala.util.{Failure, Success, Try}
 
-// scalastyle:off number.of.methods file.size.limit
+// scalastyle:off
+//TODO put back scalastyle rules
 object FlexibleDataModelRelationUtils {
   private[spark] def createNodes(
       rows: Seq[Row],
@@ -609,7 +610,7 @@ object FlexibleDataModelRelationUtils {
           case _ => toInstancePropertyValueOfNonList(row, schema, propertyName, corePropDef, instanceSpace)
         }
       case _: PropertyDefinition.ConnectionDefinition =>
-        lookupFieldInRow(row, schema, propertyName, true) { _ =>
+        lookupFieldInRow(row, schema, propertyName, nullable = true) { _ =>
           extractDirectRelation(propertyName, "Connection Reference", schema, instanceSpace, row)
             .map(_.asJson)
             .map(InstancePropertyValue.Object)
@@ -636,7 +637,7 @@ object FlexibleDataModelRelationUtils {
 
   private val timezoneId: ZoneId = ZoneId.of("UTC")
 
-  private def   lookupFieldInRow(row: Row, schema: StructType, propertyName: String, nullable: Boolean)(
+  private def lookupFieldInRow(row: Row, schema: StructType, propertyName: String, nullable: Boolean)(
       get: => Int => Either[Throwable, InstancePropertyValue])
     : Either[Throwable, OptionalField[InstancePropertyValue]] =
     Try(schema.fieldIndex(propertyName)) match {
@@ -667,14 +668,14 @@ object FlexibleDataModelRelationUtils {
       row: Row,
       schema: StructType,
       propertyName: String,
-      propDef: CorePropertyDefinition
-//      instanceSpace: Option[String]
+      propDef: CorePropertyDefinition,
+      instanceSpace: Option[String]
       ): Either[Throwable, OptionalField[InstancePropertyValue]] =
     lookupFieldInRow(row, schema, propertyName, propDef.nullable.getOrElse(true)) { i =>
       propDef.`type` match {
-//        case p: DirectNodeRelationProperty =>
-//          val structSeq = Try(row.getSeq[Any](i))
-//            .getOrElse(row.getAs[Array[Row]](i).toSeq)
+//        case _: DirectNodeRelationProperty =>
+//          val structSeq = getListPropAsSeq[Any](propertyName, row, i)
+//          tryAsDirectNodeRelationList(structSeq, propertyName, instanceSpace).map(InstancePropertyValue.ViewDirectNodeRelationList)
         case _: TextProperty =>
           Try({
             val strSeq = getListPropAsSeq[String](propertyName, row, i)
@@ -831,6 +832,13 @@ object FlexibleDataModelRelationUtils {
                                  |""".stripMargin, exception)
       })
   }
+
+//  private def tryAsDirectNodeRelationList(
+//      value: Seq[Any],
+//      propertyName: String,
+//      instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectNodeRelationProperty]] =
+//    val struct = row.getStruct(schema.fieldIndex(propertyName))
+//    skipNulls(value).toVector.traverse()
 
   private def tryAsDate(value: Any, propertyName: String): Either[CdfSparkException, LocalDate] =
     Try(value.asInstanceOf[java.sql.Date].toLocalDate)
