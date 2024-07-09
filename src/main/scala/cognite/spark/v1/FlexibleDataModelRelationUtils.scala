@@ -866,15 +866,15 @@ object FlexibleDataModelRelationUtils {
   private def tryAsDirectNodeRelationList(
       value: Seq[Row],
       propertyName: String,
-      instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectRelationReference]] = {
-    skipNulls(value).toVector.traverse(extractDirectRelations(propertyName, "Direct Node Relation", instanceSpace, _))
-  }
+      instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectRelationReference]] =
+    skipNulls(value).toVector
+      .traverse(extractDirectRelations(propertyName, "Direct Node Relation", instanceSpace, _))
 
   private def extractDirectRelations(
-                                     propertyName: String,
-                                     descriptiveName: String,
-                                     defaultSpace: Option[String],
-                                     row: Row): Either[CdfSparkException, DirectRelationReference] =
+      propertyName: String,
+      descriptiveName: String,
+      defaultSpace: Option[String],
+      row: Row): Either[CdfSparkException, DirectRelationReference] =
     Try {
       extractDirectRelationReferenceFromStruct(propertyName, descriptiveName, defaultSpace, row)
     } match {

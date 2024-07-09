@@ -3,7 +3,10 @@ package cognite.spark.v1
 import cognite.spark.v1.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue.{ViewDirectNodeRelation, ViewDirectNodeRelationList}
+import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue.{
+  ViewDirectNodeRelation,
+  ViewDirectNodeRelationList
+}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDeletionRequest, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
@@ -348,11 +351,64 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.get("1999").map(_.contains("dr")) shouldBe Some(true)
     extIdPropsMap.get("1999").map(_.contains("ldr")) shouldBe Some(true)
     extIdPropsMap.get("1999").flatMap(_.get("dr")).flatten shouldBe
-      Some(ViewDirectNodeRelation(Some(DirectRelationReference("startNodeSpace1","startNodeExtId1"))))
+      Some(ViewDirectNodeRelation(Some(DirectRelationReference("startNodeSpace1", "startNodeExtId1"))))
     extIdPropsMap.get("1999").flatMap(_.get("ldr")).flatten shouldBe
-      Some(ViewDirectNodeRelationList(Seq(DirectRelationReference("startNodeSpace2","startNodeExtId2"))))
+      Some(
+        ViewDirectNodeRelationList(Seq(DirectRelationReference("startNodeSpace2", "startNodeExtId2"))))
   }
 
+  it should "successfully create nodes with all nullable/non-nullable properties" in {
+    val propertyMap = Map(
+      "stringProp" ->
+        TextPropertyNonListWithDefaultValueNonNullable,
+      "intProp" ->
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
+      "doubleListProp" -> Float64ListWithoutDefaultValueNonNullable,
+      "floatListProp" -> Float32ListWithoutDefaultValueNullable
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("stringProp", StringType, nullable = false),
+          StructField("externalId", StringType, nullable = false),
+          StructField("intProp", StringType, nullable = true),
+          StructField("doubleListProp", ArrayType(DoubleType), nullable = false),
+          StructField("floatListProp", ArrayType(FloatType), nullable = true)
+        )
+      )
+
+    val values =
+      Seq[Array[Any]](
+        Array("stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
+        Array("stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    nodes.map(_.space).distinct.headOption shouldBe Some("instanceSpaceExternalId1")
+    val extIdPropsMap = nodes.map { e =>
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
+    }.toMap
+    extIdPropsMap.contains("extId1") shouldBe true
+    extIdPropsMap.contains("extId2") shouldBe true
+    (extIdPropsMap("extId1") should contain).theSameElementsAs(
+      Map(
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
+        "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
+      ))
+    (extIdPropsMap("extId2") should contain).theSameElementsAs(
+      Map(
+        "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
+        "intProp" -> Some(InstancePropertyValue.Int32(5)),
+        "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
+      ))
+  }
   it should "successfully create nodes with only required properties" in {
     val propertyMap = Map(
       "stringProp" ->
