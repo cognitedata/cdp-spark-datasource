@@ -666,7 +666,6 @@ object FlexibleDataModelRelationUtils {
     }
 
   private def getListPropAsSeq[T](propertyName: String, row: Row, index: Integer): Seq[T] = {
-    print(row)
     Try(row.getSeq[T](index)) match {
       case Success(x) => x
       case Failure(_) =>
