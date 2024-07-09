@@ -665,7 +665,8 @@ object FlexibleDataModelRelationUtils {
       case Success(i) => get(i).map(FieldSpecified(_))
     }
 
-  private def getListPropAsSeq[T](propertyName: String, row: Row, index: Integer): Seq[T] =
+  private def getListPropAsSeq[T](propertyName: String, row: Row, index: Integer): Seq[T] = {
+    print(row)
     Try(row.getSeq[T](index)) match {
       case Success(x) => x
       case Failure(_) =>
@@ -677,6 +678,8 @@ object FlexibleDataModelRelationUtils {
               err)
         }
     }
+  }
+
   // scalastyle:off cyclomatic.complexity method.length
   private def toInstancePropertyValueOfList(
       row: Row,
@@ -689,7 +692,7 @@ object FlexibleDataModelRelationUtils {
       propDef.`type` match {
         case _: DirectNodeRelationProperty =>
           val structSeq = getListPropAsSeq[Row](propertyName, row, i)
-          tryAsDirectNodeRelationList(structSeq, propertyName, schema, instanceSpace)
+          tryAsDirectNodeRelationList(structSeq, propertyName, instanceSpace)
             .map(InstancePropertyValue.ViewDirectNodeRelationList)
         case _: TextProperty =>
           Try({
@@ -863,10 +866,27 @@ object FlexibleDataModelRelationUtils {
   private def tryAsDirectNodeRelationList(
       value: Seq[Row],
       propertyName: String,
-      schema: StructType,
-      instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectRelationReference]] =
-    skipNulls(value).toVector
-      .traverse(extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, _))
+      instanceSpace: Option[String]): Either[CdfSparkException, Vector[DirectRelationReference]] = {
+    skipNulls(value).toVector.traverse(extractDirectRelations(propertyName, "Direct Node Relation", instanceSpace, _))
+  }
+
+  private def extractDirectRelations(
+                                     propertyName: String,
+                                     descriptiveName: String,
+                                     defaultSpace: Option[String],
+                                     row: Row): Either[CdfSparkException, DirectRelationReference] =
+    Try {
+      extractDirectRelationReferenceFromStruct(propertyName, descriptiveName, defaultSpace, row)
+    } match {
+      case Success(relation) => relation
+      case Failure(err) =>
+        Left(new CdfSparkException(s"""
+                                      |Could not find required property '$propertyName'
+                                      |'$propertyName' ($descriptiveName) should be a
+                                      | 'StructType' with 'space' & 'externalId' properties: ${err.getMessage}
+                                      |in data row: ${rowToString(row)}
+                                      |""".stripMargin))
+    }
 
   private def tryAsDate(value: Any, propertyName: String): Either[CdfSparkException, LocalDate] =
     Try(value.asInstanceOf[java.sql.Date].toLocalDate)
