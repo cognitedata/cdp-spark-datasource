@@ -665,7 +665,7 @@ object FlexibleDataModelRelationUtils {
       case Success(i) => get(i).map(FieldSpecified(_))
     }
 
-  private def getListPropAsSeq[T](propertyName: String, row: Row, index: Integer): Seq[T] = {
+  private def getListPropAsSeq[T](propertyName: String, row: Row, index: Integer): Seq[T] =
     Try(row.getSeq[T](index)) match {
       case Success(x) => x
       case Failure(_) =>
@@ -677,7 +677,6 @@ object FlexibleDataModelRelationUtils {
               err)
         }
     }
-  }
 
   // scalastyle:off cyclomatic.complexity method.length
   private def toInstancePropertyValueOfList(
