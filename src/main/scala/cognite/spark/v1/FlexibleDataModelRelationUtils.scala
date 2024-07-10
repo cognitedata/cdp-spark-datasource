@@ -489,7 +489,7 @@ object FlexibleDataModelRelationUtils {
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     Try {
       val struct = row.getStruct(schema.fieldIndex(propertyName))
-      extractDirectRelationReferenceFromStruct(propertyName, descriptiveName, defaultSpace, struct)
+      extractDirectRelationReferenceFromPropertyStruct(propertyName, descriptiveName, defaultSpace, struct)
     } match {
       case Success(relation) => relation
       case Failure(err) =>
@@ -874,7 +874,7 @@ object FlexibleDataModelRelationUtils {
       instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     Try {
-      extractDirectRelationReferenceFromStruct(propertyName, descriptiveName, defaultSpace, row)
+      extractDirectRelationReferenceFromPropertyStruct(propertyName, descriptiveName, instanceSpace, row)
     } match {
       case Success(relation) => relation
       case Failure(err) =>
