@@ -160,7 +160,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                 case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
               })
             ))
-        )
+        ),
+        None
       ),
       NodeWrite(
         spaceExternalId,
@@ -173,7 +174,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                 case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
               })
             ))
-        )
+        ),
+        None
       )
     )
   }
@@ -260,7 +262,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                   "stringProp1" -> Some(InstancePropertyValue.String("stringProp1Val")),
                   "stringProp2" -> Some(InstancePropertyValue.String("stringProp2Val"))))
               ))
-            )
+            ),
+            None
           ),
           NodeWrite(
             spaceExternalId,
@@ -272,7 +275,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                   "stringProp1" -> Some(InstancePropertyValue.String("stringProp1Val")),
                   "stringProp2" -> Some(InstancePropertyValue.String("stringProp2Val"))))
               ))
-            )
+            ),
+            None
           )
         ),
         replace = Some(true)
@@ -296,7 +300,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                 sourceReference,
                 Some(Map("stringProp1" -> Some(InstancePropertyValue.String("stringProp1StartNode"))))
               ))
-            )
+            ),
+            None
           ),
           NodeWrite(
             spaceExternalId,
@@ -306,7 +311,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                 sourceReference,
                 Some(Map("stringProp1" -> Some(InstancePropertyValue.String("stringProp1EndNode"))))
               ))
-            )
+            ),
+            None
           )
         ),
         replace = Some(true)

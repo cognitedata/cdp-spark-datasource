@@ -1333,7 +1333,8 @@ class FlexibleDataModelCorePropertyRelationTest
                       InstancePropertyValue.String(System.nanoTime().toString)),
                     "longProp" -> Some(InstancePropertyValue.Int64(i.toLong))
                   ))
-              )))
+              ))),
+            None
           )
     client.instances
       .createItems(InstanceCreate(items = items))
@@ -1386,7 +1387,8 @@ class FlexibleDataModelCorePropertyRelationTest
                         "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
                         "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now()))
                       ))
-                    )))
+                    ))),
+                    None
                   ),
                   NodeWrite(
                     spaceExternalId,
@@ -1406,7 +1408,8 @@ class FlexibleDataModelCorePropertyRelationTest
                         "forIsNullFilter" -> Some(InstancePropertyValue.Object(Json.fromJsonObject(
                           JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1)))))
                       ))
-                    )))
+                    ))),
+                    None
                   )
                 ),
                 replace = Some(true)

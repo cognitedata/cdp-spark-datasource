@@ -257,7 +257,7 @@ object FlexibleDataModelRelationUtils {
             )
           )
         )
-      case (None, None, None) =>
+      case (edgeTypeOption: Option[DirectRelationReference], None, None) =>
         Right(
           NodeWrite(
             space = instanceSpace,
@@ -269,7 +269,8 @@ object FlexibleDataModelRelationUtils {
                   properties = Some(props.toMap)
                 )
               )
-            )
+            ),
+            `type` = edgeTypeOption
           )
         )
       case _ =>
@@ -305,12 +306,13 @@ object FlexibleDataModelRelationUtils {
             sources = None
           )
         )
-      case (None, None, None) =>
+      case (edgeTypeOption: Option[DirectRelationReference], None, None) =>
         Right(
           NodeWrite(
             space = instanceSpace,
             externalId = externalId,
-            sources = None
+            sources = None,
+            `type` = edgeTypeOption
           )
         )
       case _ =>
@@ -355,7 +357,8 @@ object FlexibleDataModelRelationUtils {
                 properties = Some(props.toMap)
               )
             )
-          )
+          ),
+          `type` = None //TODO
         )
     }
 
@@ -371,7 +374,8 @@ object FlexibleDataModelRelationUtils {
         NodeWrite(
           space = space,
           externalId = externalId,
-          sources = None
+          sources = None,
+          `type` = None,
         )
     }
 
