@@ -697,34 +697,34 @@ object FlexibleDataModelRelationUtils {
             val strSeq = getListPropAsSeq[String](propertyName, row, i)
             InstancePropertyValue.StringList(skipNulls(strSeq))
           }).toEither
-        case _ @PrimitiveProperty(PrimitivePropType.Boolean, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Boolean, _) =>
           Try({
             val boolSeq = getListPropAsSeq[Boolean](propertyName, row, i)
             InstancePropertyValue.BooleanList(boolSeq)
           }).toEither
-        case _ @PrimitiveProperty(PrimitivePropType.Float32, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Float32, _) =>
           val floatSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryConvertNumberSeq(floatSeq, propertyName, "Float", safeConvertToFloat)
             .map(InstancePropertyValue.Float32List)
-        case _ @PrimitiveProperty(PrimitivePropType.Float64, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Float64, _) =>
           val doubleSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryConvertNumberSeq(doubleSeq, propertyName, "Double", safeConvertToDouble)
             .map(InstancePropertyValue.Float64List)
-        case _ @PrimitiveProperty(PrimitivePropType.Int32, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Int32, _) =>
           val intSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryConvertNumberSeq(intSeq, propertyName, "Int", safeConvertToInt)
             .map(InstancePropertyValue.Int32List)
-        case _ @PrimitiveProperty(PrimitivePropType.Int64, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Int64, _) =>
           val longSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryConvertNumberSeq(longSeq, propertyName, "Long", safeConvertToLong)
             .map(InstancePropertyValue.Int64List)
-        case _ @PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
           val tsSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryAsTimestamps(tsSeq, propertyName).map(InstancePropertyValue.TimestampList)
-        case _ @PrimitiveProperty(PrimitivePropType.Date, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Date, _) =>
           val dateSeq = getListPropAsSeq[Any](propertyName, row, i)
           tryAsDates(dateSeq, propertyName).map(InstancePropertyValue.DateList)
-        case _ @PrimitiveProperty(PrimitivePropType.Json, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Json, _) =>
           val strSeq = getListPropAsSeq[String](propertyName, row, i)
           skipNulls(strSeq).toVector
             .traverse(io.circe.parser.parse)
@@ -760,25 +760,25 @@ object FlexibleDataModelRelationUtils {
               InstancePropertyValue.ViewDirectNodeRelation(Some(directRelationReference)))
         case _: TextProperty =>
           Try(InstancePropertyValue.String(String.valueOf(row.get(i)))).toEither
-        case _ @PrimitiveProperty(PrimitivePropType.Boolean, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Boolean, _) =>
           Try(InstancePropertyValue.Boolean(row.getBoolean(i))).toEither
-        case _ @PrimitiveProperty(PrimitivePropType.Float32, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Float32, _) =>
           tryConvertNumber(row.get(i), propertyName, "Float", safeConvertToFloat)
             .map(InstancePropertyValue.Float32)
-        case _ @PrimitiveProperty(PrimitivePropType.Float64, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Float64, _) =>
           tryConvertNumber(row.get(i), propertyName, "Double", safeConvertToDouble)
             .map(InstancePropertyValue.Float64)
-        case _ @PrimitiveProperty(PrimitivePropType.Int32, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Int32, _) =>
           tryConvertNumber(row.get(i), propertyName, "Int", safeConvertToInt)
             .map(InstancePropertyValue.Int32)
-        case _ @PrimitiveProperty(PrimitivePropType.Int64, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Int64, _) =>
           tryConvertNumber(row.get(i), propertyName, "Long", safeConvertToLong)
             .map(InstancePropertyValue.Int64)
-        case _ @PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
           tryAsTimestamp(row.get(i), propertyName).map(InstancePropertyValue.Timestamp.apply)
-        case _ @PrimitiveProperty(PrimitivePropType.Date, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Date, _) =>
           tryAsDate(row.get(i), propertyName).map(InstancePropertyValue.Date.apply)
-        case _ @PrimitiveProperty(PrimitivePropType.Json, _) =>
+        case _ @ PrimitiveProperty(PrimitivePropType.Json, _) =>
           io.circe.parser
             .parse(row
               .getString(i))
