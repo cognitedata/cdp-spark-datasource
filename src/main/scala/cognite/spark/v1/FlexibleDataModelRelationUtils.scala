@@ -698,7 +698,7 @@ object FlexibleDataModelRelationUtils {
             .map(InstancePropertyValue.ViewDirectNodeRelationList)
         case _: TextProperty =>
           Try({
-            val strSeq = getListPropAsSeq[String](propertyName, row, i)
+            val strSeq = getListPropAsSeq[Any](propertyName, row, i).map(String.valueOf)
             InstancePropertyValue.StringList(skipNulls(strSeq))
           }).toEither
         case _ @PrimitiveProperty(PrimitivePropType.Boolean, _) =>
