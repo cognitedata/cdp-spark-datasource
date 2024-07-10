@@ -871,7 +871,7 @@ object FlexibleDataModelRelationUtils {
   private def extractDirectRelations(
       propertyName: String,
       descriptiveName: String,
-      defaultSpace: Option[String],
+      instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     Try {
       extractDirectRelationReferenceFromStruct(propertyName, descriptiveName, defaultSpace, row)
