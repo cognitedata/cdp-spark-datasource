@@ -855,7 +855,7 @@ object FlexibleDataModelRelationUtils {
         val seqAsStr = ns.map(String.valueOf).mkString(",")
         new CdfSparkException(
           s"""Error parsing value for field '$propertyName'.
-                                 |Expecting a Array[$expectedType] but found '$seqAsStr'
+                                 |Expecting a Array[$expectedType] but found '[$seqAsStr]'
                                  |""".stripMargin,
           exception
         )
