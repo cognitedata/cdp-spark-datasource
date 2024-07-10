@@ -704,19 +704,19 @@ object FlexibleDataModelRelationUtils {
           }).toEither
         case _ @PrimitiveProperty(PrimitivePropType.Float32, _) =>
           val floatSeq = getListPropAsSeq[Any](propertyName, row, i)
-          tryConvertNumberSeq(floatSeq, propertyName, Float.toString, safeConvertToFloat)
+          tryConvertNumberSeq(floatSeq, propertyName, "Float", safeConvertToFloat)
             .map(InstancePropertyValue.Float32List)
         case _ @PrimitiveProperty(PrimitivePropType.Float64, _) =>
           val doubleSeq = getListPropAsSeq[Any](propertyName, row, i)
-          tryConvertNumberSeq(doubleSeq, propertyName, Double.toString, safeConvertToDouble)
+          tryConvertNumberSeq(doubleSeq, propertyName, "Double", safeConvertToDouble)
             .map(InstancePropertyValue.Float64List)
         case _ @PrimitiveProperty(PrimitivePropType.Int32, _) =>
           val intSeq = getListPropAsSeq[Any](propertyName, row, i)
-          tryConvertNumberSeq(intSeq, propertyName, Int.toString, safeConvertToInt)
+          tryConvertNumberSeq(intSeq, propertyName, "Int", safeConvertToInt)
             .map(InstancePropertyValue.Int32List)
         case _ @PrimitiveProperty(PrimitivePropType.Int64, _) =>
           val longSeq = getListPropAsSeq[Any](propertyName, row, i)
-          tryConvertNumberSeq(longSeq, propertyName, Long.toString, safeConvertToLong)
+          tryConvertNumberSeq(longSeq, propertyName, "Long", safeConvertToLong)
             .map(InstancePropertyValue.Int64List)
         case _ @PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
           val tsSeq = getListPropAsSeq[Any](propertyName, row, i)
@@ -763,16 +763,16 @@ object FlexibleDataModelRelationUtils {
         case _ @PrimitiveProperty(PrimitivePropType.Boolean, _) =>
           Try(InstancePropertyValue.Boolean(row.getBoolean(i))).toEither
         case _ @PrimitiveProperty(PrimitivePropType.Float32, _) =>
-          tryConvertNumber(row.get(i), propertyName, Float.toString, safeConvertToFloat)
+          tryConvertNumber(row.get(i), propertyName, "Float", safeConvertToFloat)
             .map(InstancePropertyValue.Float32)
         case _ @PrimitiveProperty(PrimitivePropType.Float64, _) =>
-          tryConvertNumber(row.get(i), propertyName, Double.toString, safeConvertToDouble)
+          tryConvertNumber(row.get(i), propertyName, "Double", safeConvertToDouble)
             .map(InstancePropertyValue.Float64)
         case _ @PrimitiveProperty(PrimitivePropType.Int32, _) =>
-          tryConvertNumber(row.get(i), propertyName, Int.toString, safeConvertToInt)
+          tryConvertNumber(row.get(i), propertyName, "Int", safeConvertToInt)
             .map(InstancePropertyValue.Int32)
         case _ @PrimitiveProperty(PrimitivePropType.Int64, _) =>
-          tryConvertNumber(row.get(i), propertyName, Long.toString, safeConvertToLong)
+          tryConvertNumber(row.get(i), propertyName, "Long", safeConvertToLong)
             .map(InstancePropertyValue.Int64)
         case _ @PrimitiveProperty(PrimitivePropType.Timestamp, _) =>
           tryAsTimestamp(row.get(i), propertyName).map(InstancePropertyValue.Timestamp.apply)
