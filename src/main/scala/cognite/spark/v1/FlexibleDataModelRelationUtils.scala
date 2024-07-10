@@ -455,7 +455,7 @@ object FlexibleDataModelRelationUtils {
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     extractDirectRelation("endNode", "Edge end node", schema, defaultSpace, row)
 
-  private def extractDirectRelationReferenceFromStruct(
+  private def extractDirectRelationReferenceFromPropertyStruct(
       propertyName: String,
       descriptiveName: String,
       defaultSpace: Option[String],
