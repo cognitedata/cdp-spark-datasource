@@ -272,10 +272,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
             val nullable = corePropDef.nullable.getOrElse(true)
             corePropDef.`type` match {
-              case t: DirectNodeRelationProperty if !t.isList =>
-                Vector(relationReferenceSchema(propName, nullable = nullable))
               case t: DirectNodeRelationProperty if t.isList =>
                 Vector(relationReferenceSchema(propName, nullable = nullable, list = true))
+              case _: DirectNodeRelationProperty =>
+                Vector(relationReferenceSchema(propName, nullable = nullable))
               case t: TextProperty if t.isList =>
                 Vector(
                   DataTypes.createStructField(
