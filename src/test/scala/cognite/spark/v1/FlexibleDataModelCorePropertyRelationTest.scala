@@ -53,6 +53,9 @@ class FlexibleDataModelCorePropertyRelationTest
   private val containerAllNumericProps = "sparkDsTestContainerNumericProps2"
   private val viewAllNumericProps = "sparkDsTestViewNumericProps2"
 
+  private val containerAllRelationProps = "sparkDsTestContainerRelationProps2"
+  private val viewAllRelationProps = "sparkDsTestViewRelationProps2"
+
   private val containerFilterByProps = "sparkDsTestContainerFilterByProps2"
   private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
 
@@ -744,6 +747,59 @@ class FlexibleDataModelCorePropertyRelationTest
     syncedInstanceExtIds shouldBe Vector(s"${view.externalId}Node1")
   }
 
+  it should "successfully read from relation properties" in {
+    val viewDef = setupRelationReadPropsTest.unsafeRunSync()
+    val nodeExtId1 = s"${viewDef.externalId}Relation1"
+
+    //we use named struct here because we don't have access to node_reference
+    val df = spark
+      .sql(s"""
+              |select
+              |'$nodeExtId1' as externalId,
+              |named_struct('space', '$spaceExternalId', 'externalId', '$nodeExtId1') as relProp,
+              |array(named_struct('space', '$spaceExternalId', 'externalId', '$nodeExtId1')) as relListProp
+              |""".stripMargin)
+
+    val result = Try {
+      insertRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = viewDef.space,
+        viewExternalId = viewDef.externalId,
+        viewVersion = viewDef.version,
+        instanceSpaceExternalId = viewDef.space,
+        df
+      )
+    }
+
+    result shouldBe Success(())
+    val dfFromModel = readRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = viewDef.space,
+      viewVersion = viewDef.version,
+      viewExternalId = viewDef.externalId,
+      instanceSpaceExternalId = viewDef.space
+    )
+    dfFromModel.createTempView("temp_view_with_relations")
+    val dfRead = spark
+      .sql(s"""
+              |select
+              |`relProp` as relProp,
+              |`relListProp` as relListProp
+              |from temp_view_with_relations
+              |""".stripMargin)
+    val result2 = Try {
+      insertRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = viewDef.space,
+        viewExternalId = viewDef.externalId,
+        viewVersion = viewDef.version,
+        instanceSpaceExternalId = viewDef.space,
+        dfRead
+      )
+    }
+    result2 shouldBe Success(())
+  }
+
   it should "successfully cast numeric properties" in {
     val viewDef = setupNumericConversionTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}Numeric1"
@@ -1432,6 +1488,18 @@ class FlexibleDataModelCorePropertyRelationTest
     for {
       container <- createContainerIfNotExists(Usage.All, containerProps, containerAllNumericProps)
       view <- createViewWithCorePropsIfNotExists(container, viewAllNumericProps, viewVersion)
+    } yield view
+  }
+
+  private def setupRelationReadPropsTest: IO[ViewDefinition] = {
+    val containerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "relProp" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "relListProp" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
+    )
+
+    for {
+      container <- createContainerIfNotExists(Usage.All, containerProps, containerAllRelationProps)
+      view <- createViewWithCorePropsIfNotExists(container, viewAllRelationProps, viewVersion)
     } yield view
   }
 
