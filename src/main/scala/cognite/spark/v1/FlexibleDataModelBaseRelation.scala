@@ -378,8 +378,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         DataTypes.createStructField("externalId", DataTypes.StringType, false)
       )
     )
-  protected def relationReferenceSchema(name: String, nullable: Boolean, list: Boolean = false): StructField = {
-    if(list) {
+  protected def relationReferenceSchema(
+      name: String,
+      nullable: Boolean,
+      list: Boolean = false): StructField =
+    if (list) {
       DataTypes.createStructField(
         name,
         DataTypes.createArrayType(relationReferenceInnerStruct()),
@@ -392,7 +395,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         nullable
       )
     }
-  }
 
   private def toComparableFilterValueDefinition(
       attribute: String,
