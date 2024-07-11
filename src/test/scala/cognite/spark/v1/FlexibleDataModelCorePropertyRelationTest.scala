@@ -1153,6 +1153,7 @@ class FlexibleDataModelCorePropertyRelationTest
             source = None)),
       "directRelation2" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
       "directRelation3" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
+      "listOfDirectRelations" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
     )
 
     for {

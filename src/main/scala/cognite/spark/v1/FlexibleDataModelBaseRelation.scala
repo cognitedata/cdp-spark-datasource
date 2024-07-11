@@ -272,8 +272,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
             val nullable = corePropDef.nullable.getOrElse(true)
             corePropDef.`type` match {
-              case _: DirectNodeRelationProperty =>
+              case t: DirectNodeRelationProperty if !t.isList =>
                 Vector(relationReferenceSchema(propName, nullable = nullable))
+              case t: DirectNodeRelationProperty if t.isList =>
+                Vector(relationReferenceSchema(propName, nullable = nullable, list = true))
               case t: TextProperty if t.isList =>
                 Vector(
                   DataTypes.createStructField(
@@ -369,17 +371,28 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       attribute: String): Seq[String] =
     Vector(instanceType.productPrefix.toLowerCase(Locale.US), attribute)
 
-  protected def relationReferenceSchema(name: String, nullable: Boolean): StructField =
-    DataTypes.createStructField(
-      name,
-      DataTypes.createStructType(
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false)
-        )
-      ),
-      nullable
+  private def relationReferenceInnerStruct(): StructType =
+    DataTypes.createStructType(
+      Array(
+        DataTypes.createStructField("space", DataTypes.StringType, false),
+        DataTypes.createStructField("externalId", DataTypes.StringType, false)
+      )
     )
+  protected def relationReferenceSchema(name: String, nullable: Boolean, list: Boolean = false): StructField = {
+    if(list) {
+      DataTypes.createStructField(
+        name,
+        DataTypes.createArrayType(relationReferenceInnerStruct()),
+        nullable
+      )
+    } else {
+      DataTypes.createStructField(
+        name,
+        relationReferenceInnerStruct(),
+        nullable
+      )
+    }
+  }
 
   private def toComparableFilterValueDefinition(
       attribute: String,
