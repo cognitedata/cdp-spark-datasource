@@ -783,6 +783,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val dfRead = spark
       .sql(s"""
               |select
+              |'$nodeExtId1' as externalId,
               |`relProp` as relProp,
               |`relListProp` as relListProp
               |from temp_view_with_relations
