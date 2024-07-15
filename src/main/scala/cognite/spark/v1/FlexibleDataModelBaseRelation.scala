@@ -50,7 +50,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       itemsRead.inc()
     }
     new GenericRow(a.properties.map {
-      // For startNode, endNode, type & DirectRelationReference
+      // For startNode, endNode, type & DirectRelationReference & list of DirectRelationReference
+      case a: Array[Array[Any]] => a.map(new GenericRow(_))
       case a: Array[Any] => new GenericRow(a)
       case e => e
     })
