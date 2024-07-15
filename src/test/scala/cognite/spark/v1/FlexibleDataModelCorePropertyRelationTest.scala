@@ -1498,6 +1498,7 @@ class FlexibleDataModelCorePropertyRelationTest
     )
 
     for {
+      _ <- createSpaceIfNotExists(spaceExternalId)
       container <- createContainerIfNotExists(Usage.All, containerProps, containerAllRelationProps)
       view <- createViewWithCorePropsIfNotExists(container, viewAllRelationProps, viewVersion)
     } yield view

@@ -1,8 +1,8 @@
 package cognite.spark.v1
 
-import cats.Apply
+import cats.{Applicative, Apply}
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.{GenericClient, SpaceById, SpaceCreateDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
   ContainerPropertyDefinition,
   ViewCorePropertyDefinition
@@ -177,6 +177,15 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       )
     )
   }
+
+  protected def createSpaceIfNotExists(space: String): IO[Unit] = for {
+    existing <- client.spacesv3.retrieveItems(Seq(SpaceById(space)))
+    _ <- Applicative[IO].whenA(existing.isEmpty) {
+      client.spacesv3.createItems(Seq(
+        SpaceCreateDefinition(space)
+      ))
+    }
+  } yield ()
 
   protected def createContainerIfNotExists(
       usage: Usage,
