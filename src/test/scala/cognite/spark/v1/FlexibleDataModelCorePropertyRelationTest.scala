@@ -74,11 +74,11 @@ class FlexibleDataModelCorePropertyRelationTest
     "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
   )
 
-  private val containerStartAndEndNodes: ContainerDefinition =
+  private lazy val containerStartAndEndNodes: ContainerDefinition =
     createContainerIfNotExists(Usage.Node, nodeContainerProps, containerStartNodeAndEndNodesExternalId)
       .unsafeRunSync()
 
-  private val viewStartAndEndNodes: ViewDefinition =
+  private lazy val viewStartAndEndNodes: ViewDefinition =
     createViewWithCorePropsIfNotExists(
       containerStartAndEndNodes,
       viewStartNodeAndEndNodesExternalId,
