@@ -50,7 +50,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       itemsRead.inc()
     }
     new GenericRow(a.properties.map {
-      // For startNode, endNode, type & DirectRelationReference
+      // For startNode, endNode, type & DirectRelationReference & list of DirectRelationReference
+      case a: Array[Array[Any]] => a.map(new GenericRow(_))
       case a: Array[Any] => new GenericRow(a)
       case e => e
     })
@@ -272,6 +273,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
             val nullable = corePropDef.nullable.getOrElse(true)
             corePropDef.`type` match {
+              case t: DirectNodeRelationProperty if t.isList =>
+                Vector(relationReferenceSchema(propName, nullable = nullable, list = true))
               case _: DirectNodeRelationProperty =>
                 Vector(relationReferenceSchema(propName, nullable = nullable))
               case t: TextProperty if t.isList =>
@@ -369,17 +372,30 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       attribute: String): Seq[String] =
     Vector(instanceType.productPrefix.toLowerCase(Locale.US), attribute)
 
-  protected def relationReferenceSchema(name: String, nullable: Boolean): StructField =
-    DataTypes.createStructField(
-      name,
-      DataTypes.createStructType(
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false)
-        )
-      ),
-      nullable
+  private def relationReferenceInnerStruct(): StructType =
+    DataTypes.createStructType(
+      Array(
+        DataTypes.createStructField("space", DataTypes.StringType, false),
+        DataTypes.createStructField("externalId", DataTypes.StringType, false)
+      )
     )
+  protected def relationReferenceSchema(
+      name: String,
+      nullable: Boolean,
+      list: Boolean = false): StructField =
+    if (list) {
+      DataTypes.createStructField(
+        name,
+        DataTypes.createArrayType(relationReferenceInnerStruct()),
+        nullable
+      )
+    } else {
+      DataTypes.createStructField(
+        name,
+        relationReferenceInnerStruct(),
+        nullable
+      )
+    }
 
   private def toComparableFilterValueDefinition(
       attribute: String,

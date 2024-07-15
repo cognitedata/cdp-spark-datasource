@@ -167,6 +167,7 @@ trait SparkTest {
         .get("TEST_AAD_TENANT")
         .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
     .getOrElse("https://sometokenurl")
+  val testAudience = s"https://${testCluster}.cognitedata.com"
   val testTokenUri = uri"$testTokenUriStr"
 
   def getTestClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
@@ -176,6 +177,7 @@ trait SparkTest {
       clientId = testClientId,
       clientSecret = testClientSecret,
       scopes = List(s"https://${testCluster}.cognitedata.com/.default"),
+      audience = Some(testAudience),
       cdfProjectName = testProject
     )
 
