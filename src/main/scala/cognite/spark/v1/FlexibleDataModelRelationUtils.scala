@@ -96,7 +96,7 @@ object FlexibleDataModelRelationUtils {
           instanceSpace = space,
           source,
           edgeNodeTypeRelation =
-            extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
+            extractNodeOrEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           startNodeRelation =
             extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           endNodeRelation =
@@ -120,7 +120,7 @@ object FlexibleDataModelRelationUtils {
           externalId = externalId,
           instanceSpace = space,
           edgeNodeTypeRelation =
-            extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
+            extractNodeOrEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           startNodeRelation =
             extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           endNodeRelation =
@@ -179,7 +179,7 @@ object FlexibleDataModelRelationUtils {
       for {
         space <- extractSpaceOrDefault(schema, row, instanceSpace)
         extId <- extractExternalId(schema, row)
-        edgeType <- extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
+        edgeType <- extractNodeOrEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
         startNode <- extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
         endNode <- extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
         props <- extractInstancePropertyValues(
@@ -214,7 +214,7 @@ object FlexibleDataModelRelationUtils {
       for {
         space <- extractSpaceOrDefault(schema, row, instanceSpace)
         extId <- extractExternalId(schema, row)
-        edgeType <- extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
+        edgeType <- extractNodeOrEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
         startNode <- extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
         endNode <- extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
       } yield
@@ -257,7 +257,7 @@ object FlexibleDataModelRelationUtils {
             )
           )
         )
-      case (None, None, None) =>
+      case (nodeType, None, None) =>
         Right(
           NodeWrite(
             space = instanceSpace,
@@ -269,7 +269,8 @@ object FlexibleDataModelRelationUtils {
                   properties = Some(props.toMap)
                 )
               )
-            )
+            ),
+            `type` = nodeType
           )
         )
       case _ =>
@@ -305,12 +306,13 @@ object FlexibleDataModelRelationUtils {
             sources = None
           )
         )
-      case (None, None, None) =>
+      case (nodeType, None, None) =>
         Right(
           NodeWrite(
             space = instanceSpace,
             externalId = externalId,
-            sources = None
+            sources = None,
+            `type` = nodeType
           )
         )
       case _ =>
@@ -355,7 +357,9 @@ object FlexibleDataModelRelationUtils {
                 properties = Some(props.toMap)
               )
             )
-          )
+          ),
+          `type` =
+            extractNodeOrEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption
         )
     }
 
@@ -371,7 +375,9 @@ object FlexibleDataModelRelationUtils {
         NodeWrite(
           space = space,
           externalId = externalId,
-          sources = None
+          sources = None,
+          `type` =
+            extractNodeOrEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption
         )
     }
 
@@ -437,11 +443,11 @@ object FlexibleDataModelRelationUtils {
                                       |""".stripMargin))
     }
 
-  private def extractEdgeTypeDirectRelation(
+  private def extractNodeOrEdgeTypeDirectRelation(
       schema: StructType,
       instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
-    extractDirectRelation("type", "Edge type", schema, instanceSpace, row)
+    extractDirectRelation("type", "Node or Edge type", schema, instanceSpace, row)
 
   private def extractEdgeStartNodeDirectRelation(
       schema: StructType,

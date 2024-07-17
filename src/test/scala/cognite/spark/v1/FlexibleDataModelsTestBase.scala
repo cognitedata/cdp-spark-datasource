@@ -56,7 +56,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
     val randomPrefix = apiCompatibleRandomString()
     val writeData = viewDef.usedFor match {
       case Usage.Node =>
-        createNodeWriteInstances(viewDef, directNodeReference, randomPrefix)
+        createNodeWriteInstances(viewDef, directNodeReference, None, randomPrefix)
       case Usage.Edge =>
         Apply[Option].map3(typeNode, startNode, endNode)(Tuple3.apply).toSeq.flatMap {
           case (t, s, e) =>
@@ -69,7 +69,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
               randomPrefix)
         }
       case Usage.All =>
-        createNodeWriteInstances(viewDef, directNodeReference, randomPrefix) ++ Apply[Option]
+        createNodeWriteInstances(viewDef, directNodeReference, None, randomPrefix) ++ Apply[Option]
           .map3(typeNode, startNode, endNode)(Tuple3.apply)
           .toSeq
           .flatMap {
@@ -146,6 +146,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
   protected def createNodeWriteInstances(
       viewDef: ViewDefinition,
       directNodeReference: DirectRelationReference,
+      typeNode: Option[DirectRelationReference],
       randomPrefix: String): Seq[NodeWrite] = {
     val viewRef = viewDef.toSourceReference
     Seq(
@@ -160,7 +161,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                 case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
               })
             ))
-        )
+        ),
+        `type` = typeNode
       ),
       NodeWrite(
         spaceExternalId,
@@ -173,7 +175,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                 case (n, p) => n -> createInstancePropertyValue(n, p.`type`, directNodeReference)
               })
             ))
-        )
+        ),
+        `type` = typeNode
       )
     )
   }
@@ -269,7 +272,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                   "stringProp1" -> Some(InstancePropertyValue.String("stringProp1Val")),
                   "stringProp2" -> Some(InstancePropertyValue.String("stringProp2Val"))))
               ))
-            )
+            ),
+            `type` = None
           ),
           NodeWrite(
             spaceExternalId,
@@ -281,7 +285,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                   "stringProp1" -> Some(InstancePropertyValue.String("stringProp1Val")),
                   "stringProp2" -> Some(InstancePropertyValue.String("stringProp2Val"))))
               ))
-            )
+            ),
+            `type` = None
           )
         ),
         replace = Some(true)
@@ -305,7 +310,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                 sourceReference,
                 Some(Map("stringProp1" -> Some(InstancePropertyValue.String("stringProp1StartNode"))))
               ))
-            )
+            ),
+            `type` = None
           ),
           NodeWrite(
             spaceExternalId,
@@ -315,7 +321,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
                 sourceReference,
                 Some(Map("stringProp1" -> Some(InstancePropertyValue.String("stringProp1EndNode"))))
               ))
-            )
+            ),
+            `type` = None
           )
         ),
         replace = Some(true)

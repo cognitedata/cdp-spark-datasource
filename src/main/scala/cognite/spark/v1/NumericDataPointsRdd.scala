@@ -527,7 +527,7 @@ final case class NumericDataPointsRdd(
               dataPointsAggregates.get(r.aggregation) match {
                 case Some(dataPoints) =>
                   increaseReadMetrics(dataPoints.size)
-                  maybeLimitStream(Stream.chunk(Chunk.seq(dataPoints)).covary[IO])
+                  maybeLimitStream(Stream.chunk(Chunk.from(dataPoints)).covary[IO])
                 case None => Stream.chunk(Chunk.empty[Row]).covary[IO]
               }
             }
