@@ -573,7 +573,7 @@ object FlexibleDataModelRelationUtils {
       case (_, InstancePropertyValue.FileReferenceList(value)) => value
       case (_, InstancePropertyValue.SequenceReferenceList(value)) => value
       case (_, InstancePropertyValue.ViewDirectNodeRelationList(value)) =>
-        value.map(r => Array(r.space, r.externalId))
+        value.map(r => Array(r.space, r.externalId)).toArray
     }
 
   private def extractInstancePropertyValues(
