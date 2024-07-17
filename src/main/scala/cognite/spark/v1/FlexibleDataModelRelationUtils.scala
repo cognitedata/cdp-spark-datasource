@@ -269,7 +269,8 @@ object FlexibleDataModelRelationUtils {
                   properties = Some(props.toMap)
                 )
               )
-            )
+            ),
+            `type` = None
           )
         )
       case _ =>
@@ -310,7 +311,8 @@ object FlexibleDataModelRelationUtils {
           NodeWrite(
             space = instanceSpace,
             externalId = externalId,
-            sources = None
+            sources = None,
+            `type` = None
           )
         )
       case _ =>
@@ -355,7 +357,8 @@ object FlexibleDataModelRelationUtils {
                 properties = Some(props.toMap)
               )
             )
-          )
+          ),
+          `type` = None
         )
     }
 
@@ -371,7 +374,8 @@ object FlexibleDataModelRelationUtils {
         NodeWrite(
           space = space,
           externalId = externalId,
-          sources = None
+          sources = None,
+          `type` = None
         )
     }
 
