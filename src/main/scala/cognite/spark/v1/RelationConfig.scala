@@ -15,6 +15,7 @@ final case class RelationConfig(
     collectMetrics: Boolean,
     collectTestMetrics: Boolean,
     metricsPrefix: String,
+    metricsTrackAttempts: Boolean,
     baseUrl: String,
     onConflict: OnConflictOption,
     applicationId: String,
@@ -25,7 +26,9 @@ final case class RelationConfig(
     ignoreNullFields: Boolean,
     rawEnsureParent: Boolean,
     enableSinglePartitionDeleteAssetHierarchy: Boolean, // flag to test whether single partition helps avoid NPE in asset hierarchy builder
-    tracingParent: Kernel
+    tracingParent: Kernel,
+    initialRetryDelayMillis: Int,
+    useSharedThrottle: Boolean
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */

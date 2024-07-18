@@ -3,6 +3,8 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
+import com.cognite.sdk.scala.v1.SpaceCreateDefinition
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
@@ -27,7 +29,7 @@ class FlexibleDataModelConnectionRelationTest
   )
   private val connectionsViewExtId = "sparkDsTestConnectionsView1"
 
-  //  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
+  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
   private val testDataModelExternalId = "testDataModelConnectionsExternalId1"
   private val edgeTypeExtId = s"sparkDsConnectionsEdgeTypeExternalId"
@@ -58,12 +60,15 @@ class FlexibleDataModelConnectionRelationTest
               externalId=duplicateViewExtId1,
               version=viewVersion,
               properties=Map(
-                duplicatePropertyName -> ViewPropertyCreateDefinition.ConnectionDefinition(
-                  `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId1),
-                  source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
-                  name=None,
-                  description=None,
-                  direction=None,
+                duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+                  EdgeConnection(
+                    `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId1),
+                    source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
+                    name = None,
+                    description = None,
+                    direction = None,
+                    connectionType = None,
+                  ),
                 ),
               ),
             ),
@@ -72,12 +77,15 @@ class FlexibleDataModelConnectionRelationTest
               externalId = duplicateViewExtId2,
               version = viewVersion,
               properties = Map(
-                duplicatePropertyName -> ViewPropertyCreateDefinition.ConnectionDefinition(
-                  `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId2),
-                  source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
-                  name = None,
-                  description = None,
-                  direction = None,
+                duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+                  EdgeConnection(
+                    `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId2),
+                    source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
+                    name = None,
+                    description = None,
+                    direction = None,
+                    connectionType = None,
+                  ),
                 ),
               ),
             ),
@@ -364,12 +372,15 @@ class FlexibleDataModelConnectionRelationTest
             description = Some("Test View For Connections Spark Datasource"),
             filter = None,
             properties = Map(
-              "connectionProp" -> ViewPropertyCreateDefinition.ConnectionDefinition(
-                name = Some("connectionProp"),
-                description = Some("connectionProp"),
-                `type` = `type`,
-                source = connectionSource,
-                direction = Some(ConnectionDirection.Outwards)
+              "connectionProp" -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+                EdgeConnection(
+                  name = Some("connectionProp"),
+                  description = Some("connectionProp"),
+                  `type` = `type`,
+                  source = connectionSource,
+                  direction = Some(ConnectionDirection.Outwards),
+                  connectionType = None,
+                ),
               )
             ),
             implements = None,
@@ -394,6 +405,7 @@ class FlexibleDataModelConnectionRelationTest
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", s"https://${cluster}.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
@@ -411,6 +423,7 @@ class FlexibleDataModelConnectionRelationTest
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", s"https://${cluster}.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
@@ -432,6 +445,7 @@ class FlexibleDataModelConnectionRelationTest
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", s"https://${cluster}.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
@@ -459,6 +473,7 @@ class FlexibleDataModelConnectionRelationTest
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", s"https://${cluster}.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)

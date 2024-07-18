@@ -3,6 +3,10 @@ package cognite.spark.v1
 import cognite.spark.v1.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
+import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue.{
+  ViewDirectNodeRelation,
+  ViewDirectNodeRelationList
+}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDeletionRequest, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
@@ -299,6 +303,60 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     nodes.map(_.`type`.space).distinct shouldBe Vector("edgeTypeSpace")
   }
 
+  it should "successfully create nodes with direct relation references and list of direct relation references" in {
+    val propertyMap = Map(
+      "intProp" ->
+        Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
+      "dr" -> DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "ldr" -> DirectNodeRelationViewPropertyListWithoutDefaultValueNullable
+    )
+    val schema =
+      StructType(
+        Array(
+          StructField("externalId", StringType, nullable = false),
+          StructField(
+            "dr",
+            relationRefSchema,
+            nullable = false
+          ),
+          StructField(
+            "ldr",
+            ArrayType(relationRefSchema),
+            nullable = false
+          )
+        )
+      )
+
+    val values =
+      Seq[Array[Any]](
+        Array(
+          1999,
+          new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
+          Array(new GenericRowWithSchema(Array("startNodeSpace2", "startNodeExtId2"), relationRefSchema))
+        )
+      )
+    val rows = values.map(r => new GenericRowWithSchema(r, schema))
+
+    val result = createNodes(rows, schema, propertyMap, destRef, Some("instanceSpaceExternalId1"))
+    result.isRight shouldBe true
+
+    val nodes = result.toOption.getOrElse(Vector.empty)
+    val extIdPropsMap = nodes.map { e =>
+      e.externalId -> e.sources
+        .getOrElse(Seq.empty)
+        .flatMap(s => s.properties.getOrElse(Map.empty))
+        .toMap
+    }.toMap
+    extIdPropsMap.get("1999") shouldNot be(None)
+    extIdPropsMap.get("1999").map(_.contains("dr")) shouldBe Some(true)
+    extIdPropsMap.get("1999").map(_.contains("ldr")) shouldBe Some(true)
+    extIdPropsMap.get("1999").flatMap(_.get("dr")).flatten shouldBe
+      Some(ViewDirectNodeRelation(Some(DirectRelationReference("startNodeSpace1", "startNodeExtId1"))))
+    extIdPropsMap.get("1999").flatMap(_.get("ldr")).flatten shouldBe
+      Some(
+        ViewDirectNodeRelationList(Seq(DirectRelationReference("startNodeSpace2", "startNodeExtId2"))))
+  }
+
   it should "successfully create nodes with all nullable/non-nullable properties" in {
     val propertyMap = Map(
       "stringProp" ->
@@ -351,7 +409,6 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))
       ))
   }
-
   it should "successfully create nodes with only required properties" in {
     val propertyMap = Map(
       "stringProp" ->
@@ -2028,5 +2085,63 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         fail(s"expecting error to contain '${err.getMessage}' fail but found: ${err.getMessage}")
       case Right(value) => fail(s"expecting to fail but found: ${value.toString}")
     }
+
+  it should "return the instance property value for numbers in correct type" in {
+    val valuesToTest = List(
+      InstancePropertyValue.Int64(100L),
+      InstancePropertyValue.Int32(100),
+      InstancePropertyValue.Float64(100.0),
+      InstancePropertyValue.Float32(100f))
+    valuesToTest.map(extractInstancePropertyValue(LongType, _) shouldBe 100L)
+    valuesToTest.map(extractInstancePropertyValue(FloatType, _) shouldBe 100f)
+    valuesToTest.map(extractInstancePropertyValue(DoubleType, _) shouldBe 100.0)
+    valuesToTest.map(extractInstancePropertyValue(IntegerType, _) shouldBe 100)
+
+    val arrayTypesToTest = List(
+      InstancePropertyValue.Int64List(Seq(100L, 200L, 300L)),
+      InstancePropertyValue.Int32List(Seq(100, 200, 300)),
+      InstancePropertyValue.Float64List(Seq(100.0, 200.0, 300.0)),
+      InstancePropertyValue.Float32List(Seq(100.0f, 200.0f, 300.0f))
+    )
+
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(LongType), _) shouldBe List(100L, 200L, 300L))
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(FloatType), _) shouldBe List(100f, 200f, 300f))
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(IntegerType), _) shouldBe List(100, 200, 300))
+    arrayTypesToTest.map(
+      extractInstancePropertyValue(ArrayType(DoubleType), _) shouldBe List(100.0, 200.0, 300.0))
+
+  }
+
+  it should "return the instance property value for strings formatted as date in correct type" in {
+    val expected = "2023-01-01"
+    val valuesToTest =
+      List(InstancePropertyValue.String(expected), InstancePropertyValue.Date(LocalDate.parse(expected)))
+    valuesToTest.map(extractInstancePropertyValue(StringType, _) shouldBe expected)
+
+    val arrayTypesToTest = List(
+      InstancePropertyValue.StringList(Seq(expected)),
+      InstancePropertyValue.DateList(Seq(LocalDate.parse(expected)))
+    )
+    arrayTypesToTest.map(extractInstancePropertyValue(ArrayType(StringType), _) shouldBe List(expected))
+  }
+
+  it should "return the instance property value for strings formatted as timestamp in correct type" in {
+    val expected = "2007-12-03T10:15:30+01:00"
+    val valuesToTest = List(
+      InstancePropertyValue.String(expected),
+      InstancePropertyValue.Timestamp(ZonedDateTime.parse(expected))
+    )
+    valuesToTest.map(extractInstancePropertyValue(StringType, _) shouldBe expected)
+
+    val arrayTypesToTest = List(
+      InstancePropertyValue.StringList(Seq(expected)),
+      InstancePropertyValue.TimestampList(Seq(ZonedDateTime.parse(expected)))
+    )
+    arrayTypesToTest.map(extractInstancePropertyValue(ArrayType(StringType), _) shouldBe List(expected))
+  }
+
 }
 // scalastyle:on null

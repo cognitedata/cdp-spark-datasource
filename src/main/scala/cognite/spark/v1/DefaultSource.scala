@@ -60,31 +60,36 @@ class DefaultSource
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
+    val corePropertySyncRelation = extractCorePropertySyncRelation(parameters, config, sqlContext)
     val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext)
+    val datamodelBasedSync = extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext)
     val dataModelBasedConnectionRelation =
       extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
     val dataModelBasedCorePropertyRelation =
       extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
     val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
 
-    corePropertyRelation
+    corePropertySyncRelation
+      .orElse(corePropertyRelation)
+      .orElse(datamodelBasedSync)
       .orElse(dataModelBasedConnectionRelation)
       .orElse(dataModelBasedCorePropertyRelation)
       .orElse(connectionRelation)
-      .getOrElse(
-        throw new CdfSparkException(
-          s"""
+      .getOrElse(throw new CdfSparkException(
+        s"""
              |Invalid combination of arguments!
              |
-             | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
+             | Expecting 'instanceType' and 'cursor' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
+             | 'instanceSpace') for CorePropertySyncRelation,
+             | or expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
              | 'instanceSpace') for CorePropertyRelation,
              | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') with optional 'instanceSpace' for ConnectionRelation,
              | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'viewExternalId') with optional
-             | 'instanceSpace' for data model based CorePropertyRelation,
+             | 'instanceSpace' and optional 'cursor' for data model based CorePropertyRelation,
              | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', viewExternalId', 'connectionPropertyName')
              | with optional 'instanceSpace' for data model based  ConnectionRelation,
              |""".stripMargin
-        ))
+      ))
   }
 
   /**
@@ -379,6 +384,8 @@ object DefaultSource {
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
+    val initialRetryDelayMillis = toPositiveInt(parameters, "initialRetryDelayMs")
+      .getOrElse(Constants.DefaultInitialRetryDelay.toMillis.toInt)
     val maxRetryDelaySeconds = toPositiveInt(parameters, "maxRetryDelay")
       .getOrElse(Constants.DefaultMaxRetryDelaySeconds)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
@@ -404,6 +411,7 @@ object DefaultSource {
       case Some(prefix) => s"$prefix"
       case None => ""
     }
+    val metricsTrackAttempts = toBoolean(parameters, "metricsTrackAttempts")
     val collectMetrics = toBoolean(parameters, "collectMetrics")
     val collectTestMetrics = toBoolean(parameters, "collectTestMetrics")
 
@@ -447,10 +455,12 @@ object DefaultSource {
       limitPerPartition = limitPerPartition,
       partitions = partitions,
       maxRetries = maxRetries,
+      initialRetryDelayMillis = initialRetryDelayMillis,
       maxRetryDelaySeconds = maxRetryDelaySeconds,
       collectMetrics = collectMetrics,
       collectTestMetrics = collectTestMetrics,
       metricsPrefix = metricsPrefix,
+      metricsTrackAttempts = metricsTrackAttempts,
       baseUrl = baseUrl,
       onConflict = saveMode,
       applicationId = Option(sqlContext).map(_.sparkContext.applicationId).getOrElse("CDF"),
@@ -461,7 +471,8 @@ object DefaultSource {
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
       rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
       enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy,
-      extractTracingHeadersKernel(parameters)
+      tracingParent = extractTracingHeadersKernel(parameters),
+      useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false)
     )
   }
 
@@ -517,6 +528,31 @@ object DefaultSource {
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
   }
 
+  private def extractDataModelBasedConnectionRelationSync(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext): Option[FlexibleDataModelBaseRelation] = {
+    val instanceSpace = parameters.get("instanceSpace")
+    Apply[Option]
+      .map5(
+        parameters.get("modelSpace"),
+        parameters.get("modelExternalId"),
+        parameters.get("modelVersion"),
+        parameters.get("viewExternalId"),
+        parameters.get("cursor")
+      )(Tuple5(_, _, _, _, _))
+      .map(t =>
+        FlexibleDataModelRelationFactory.dataModelRelationSync(
+          t._5,
+          parameters.get("cursorName"),
+          parameters.get("jobId"),
+          parameters.get("syncCursorSaveCallbackUrl"),
+          config,
+          sqlContext,
+          DataModelViewConfig(t._1, t._2, t._3, t._4, instanceSpace)
+      ))
+  }
+
   private def extractConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
@@ -529,6 +565,45 @@ object DefaultSource {
       )(ConnectionConfig(_, _, instanceSpace))
       .map(FlexibleDataModelRelationFactory.connectionRelation(config, sqlContext, _))
   }
+
+  private def extractCorePropertySyncRelation(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext) =
+    Apply[Option]
+      .map2(
+        parameters.get("instanceType"),
+        parameters.get("cursor")
+      )(Tuple2(_, _))
+      .map { usageAndCursor =>
+        val usage = usageAndCursor._1 match {
+          case t if t.equalsIgnoreCase("edge") => Usage.Edge
+          case t if t.equalsIgnoreCase("node") => Usage.Node
+        }
+        val viewReference = Apply[Option]
+          .map3(
+            parameters.get("viewSpace"),
+            parameters.get("viewExternalId"),
+            parameters.get("viewVersion")
+          )(ViewReference.apply)
+
+        val cursorName = parameters.get("cursorName")
+        val jobId = parameters.get("jobId")
+        val syncCursorSaveCallbackUrl = parameters.get("syncCursorSaveCallbackUrl")
+
+        FlexibleDataModelRelationFactory.corePropertySyncRelation(
+          usageAndCursor._2,
+          config = config,
+          sqlContext = sqlContext,
+          cursorName = cursorName,
+          jobId = jobId,
+          syncCursorSaveCallbackUrl = syncCursorSaveCallbackUrl,
+          viewCorePropConfig = ViewCorePropertyConfig(
+            intendedUsage = usage,
+            viewReference = viewReference,
+            instanceSpace = parameters.get("instanceSpace"))
+        )
+      }
 
   private def extractCorePropertyRelation(
       parameters: Map[String, String],

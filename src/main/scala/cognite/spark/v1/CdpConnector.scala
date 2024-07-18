@@ -22,6 +22,7 @@ import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import org.apache.spark.TaskContext
 
 object CdpConnector {
   @transient private val logger = getLogger
@@ -57,34 +58,61 @@ object CdpConnector {
     new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
   private def incMetrics(
+      metricsTrackAttempts: Boolean,
       metricsPrefix: String,
       namePrefix: String,
       maybeStatus: Option[StatusCode]): IO[Unit] =
-    IO.delay(MetricsSource.getOrCreateCounter(metricsPrefix, s"${namePrefix}requests").inc()) *>
+    IO.delay(
+      MetricsSource
+        .getOrCreateAttemptTrackingCounter(
+          metricsTrackAttempts,
+          metricsPrefix,
+          s"${namePrefix}requests",
+          Option(TaskContext.get()))
+        .inc()) *>
       (maybeStatus match {
         case None =>
           IO.delay(
             MetricsSource
-              .getOrCreateCounter(metricsPrefix, s"${namePrefix}requests.response.failure")
+              .getOrCreateAttemptTrackingCounter(
+                metricsTrackAttempts,
+                metricsPrefix,
+                s"${namePrefix}requests.response.failure",
+                Option(TaskContext.get()))
               .inc()
           )
         case Some(status) if status.code >= 400 =>
           IO.delay(
             MetricsSource
-              .getOrCreateCounter(
+              .getOrCreateAttemptTrackingCounter(
+                metricsTrackAttempts,
                 metricsPrefix,
                 s"${namePrefix}requests.${status.code}" +
-                  s".response")
+                  s".response",
+                Option(TaskContext.get()))
               .inc()
           )
         case _ => IO.unit
       })
 
+  def throttlingSttpBackend(sttpBackend: SttpBackend[IO, Any]): SttpBackend[IO, Any] = {
+    // this backend throttles all requests when rate limiting from the service is encountered
+    val makeQueueOf1 = for {
+      queue <- Queue.bounded[IO, Unit](1)
+      _ <- queue.offer(())
+    } yield queue
+    new BackpressureThrottleBackend[IO, Any](sttpBackend, makeQueueOf1.unsafeRunSync(), 800.milliseconds)
+  }
+
+  // scalastyle:off method.length
   def retryingSttpBackend(
+      metricsTrackAttempts: Boolean,
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
       maxParallelRequests: Int = Constants.DefaultParallelismPerPartition,
-      metricsPrefix: Option[String] = None
+      metricsPrefix: Option[String] = None,
+      initialRetryDelayMillis: Int = Constants.DefaultInitialRetryDelay.toMillis.toInt,
+      useSharedThrottle: Boolean = false
   ): SttpBackend[IO, Any] = {
     val metricsBackend =
       metricsPrefix.fold(sttpBackend)(
@@ -92,26 +120,29 @@ object CdpConnector {
           new MetricsBackend[IO, Any](
             sttpBackend, {
               case RequestResponseInfo(tags, maybeStatus) =>
-                incMetrics(metricsPrefix, "", maybeStatus) *>
+                incMetrics(metricsTrackAttempts, metricsPrefix, "", maybeStatus) *>
                   tags
                     .get(GenericClient.RESOURCE_TYPE_TAG)
-                    .map(service => incMetrics(metricsPrefix, s"${service.toString}.", maybeStatus))
+                    .map(
+                      service =>
+                        incMetrics(
+                          metricsTrackAttempts,
+                          metricsPrefix,
+                          s"${service.toString}.",
+                          maybeStatus))
                     .getOrElse(IO.unit)
             }
         ))
-    // this backend throttles when rate limiting from the serivce is encountered
-    val makeQueueOf1 = for {
-      queue <- Queue.bounded[IO, Unit](1)
-      _ <- queue.offer(())
-    } yield queue
     val throttledBackend =
-      new BackpressureThrottleBackend[IO, Any](
-        metricsBackend,
-        makeQueueOf1.unsafeRunSync(),
-        800.milliseconds)
+      if (!useSharedThrottle) {
+        metricsBackend
+      } else {
+        throttlingSttpBackend(metricsBackend)
+      }
     val retryingBackend = new RetryingBackend[IO, Any](
       throttledBackend,
       maxRetries = maxRetries,
+      initialRetryDelay = initialRetryDelayMillis.milliseconds,
       maxRetryDelay = maxRetryDelaySeconds.seconds)
     // limit the number of concurrent requests
     val limitedBackend: SttpBackend[IO, Any] =
@@ -122,11 +153,18 @@ object CdpConnector {
           limitedBackend,
           _ =>
             IO.delay(
-              MetricsSource.getOrCreateCounter(metricsPrefix, "requestsWithoutRetries").inc()
+              MetricsSource
+                .getOrCreateAttemptTrackingCounter(
+                  metricsTrackAttempts,
+                  metricsPrefix,
+                  "requestsWithoutRetries",
+                  Option(TaskContext.get()))
+                .inc()
           )
       )
     )
   }
+  // scalastyle:on method.length
 
   def clientFromConfig(config: RelationConfig, cdfVersion: Option[String] = None): GenericClient[IO] = {
     val metricsPrefix = if (config.collectMetrics) {
@@ -135,20 +173,35 @@ object CdpConnector {
       None
     }
 
+    import natchez.Trace.Implicits.noop // TODO: add full tracing
+
     //Use separate backend for auth, so we should not retry as much as maxRetries config
     val authSttpBackend =
-      retryingSttpBackend(5, config.maxRetryDelaySeconds, config.parallelismPerPartition, metricsPrefix)
+      new FixedTraceSttpBackend(
+        retryingSttpBackend(
+          config.metricsTrackAttempts,
+          maxRetries = 5,
+          initialRetryDelayMillis = config.initialRetryDelayMillis,
+          maxRetryDelaySeconds = config.maxRetryDelaySeconds,
+          maxParallelRequests = config.parallelismPerPartition,
+          metricsPrefix = metricsPrefix
+        ),
+        config.tracingParent
+      )
     val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunSync()
 
-    import natchez.Trace.Implicits.noop // TODO: add full tracing
     implicit val sttpBackend: SttpBackend[IO, Any] = {
       new FixedTraceSttpBackend(
         retryingSttpBackend(
-          config.maxRetries,
-          config.maxRetryDelaySeconds,
-          config.parallelismPerPartition,
-          metricsPrefix),
-        config.tracingParent)
+          config.metricsTrackAttempts,
+          maxRetries = config.maxRetries,
+          initialRetryDelayMillis = config.initialRetryDelayMillis,
+          maxRetryDelaySeconds = config.maxRetryDelaySeconds,
+          maxParallelRequests = config.parallelismPerPartition,
+          metricsPrefix = metricsPrefix
+        ),
+        config.tracingParent
+      )
     }
 
     new GenericClient(
