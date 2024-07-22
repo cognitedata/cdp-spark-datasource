@@ -95,7 +95,7 @@ object FlexibleDataModelRelationUtils {
           externalId = externalId,
           instanceSpace = space,
           source,
-          edgeNodeTypeRelation =
+          typeDirectRelation =
             extractNodeOrEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           startNodeRelation =
             extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
@@ -233,12 +233,12 @@ object FlexibleDataModelRelationUtils {
       externalId: String,
       instanceSpace: String,
       source: SourceReference,
-      edgeNodeTypeRelation: Option[DirectRelationReference],
+      typeDirectRelation: Option[DirectRelationReference],
       startNodeRelation: Option[DirectRelationReference],
       endNodeRelation: Option[DirectRelationReference],
       props: Vector[(String, Option[InstancePropertyValue])],
       row: Row): Either[CdfSparkException, NodeOrEdgeCreate] =
-    (edgeNodeTypeRelation, startNodeRelation, endNodeRelation) match {
+    (typeDirectRelation, startNodeRelation, endNodeRelation) match {
       case (Some(edgeType), Some(startNode), Some(endNode)) =>
         Right(
           EdgeWrite(
@@ -275,7 +275,7 @@ object FlexibleDataModelRelationUtils {
         )
       case _ =>
         val relationRefNames = Vector(
-          edgeNodeTypeRelation.map(_ => "'type'"),
+          typeDirectRelation.map(_ => "'type'"),
           startNodeRelation.map(_ => "'startNode'"),
           endNodeRelation.map(_ => "'endNode'")
         ).flatten
