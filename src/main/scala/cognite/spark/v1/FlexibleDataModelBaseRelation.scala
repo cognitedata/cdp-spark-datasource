@@ -350,7 +350,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
   }
 
-
   // Filter definition for edge `type`, `startNode` & `endNode`
   private def createAttributeFilter(
       attribute: String,
