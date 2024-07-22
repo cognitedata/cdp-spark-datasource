@@ -409,7 +409,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       Stream
         .fromIterator[IO](list.iterator, chunkSize = batchSize)
         .chunks
-        .parEvalMapUnordered(config.parallelismPerPartition)(chunk => op(chunk.toVector).map(Chunk.seq))
+        .parEvalMapUnordered(config.parallelismPerPartition)(chunk => op(chunk.toVector).map(Chunk.from))
         .flatMap(Stream.chunk)
         .compile
         .toVector

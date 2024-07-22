@@ -12,7 +12,7 @@ val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.23.805"
+val cogniteSdkVersion = "2.24.833"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -35,7 +35,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  crossScalaVersions := supportedScalaVersions,
+  isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
   scalaVersion := scala212, // default to Scala 2.12
