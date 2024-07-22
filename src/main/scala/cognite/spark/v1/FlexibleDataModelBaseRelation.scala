@@ -80,11 +80,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
-        createEdgeAttributeFilter("type", value)
+        createAttributeFilter("type", value)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
-        createEdgeAttributeFilter("startNode", value)
+        createAttributeFilter("startNode", value)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
-        createEdgeAttributeFilter("endNode", value)
+        createAttributeFilter("endNode", value)
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
           FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
@@ -179,14 +179,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
-        createEdgeAttributeFilter("startNode", value)
+        createAttributeFilter("startNode", value)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
-        createEdgeAttributeFilter("endNode", value)
+        createAttributeFilter("endNode", value)
       case EqualTo(attribute, value: GenericRowWithSchema)
           if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
-        createEdgeAttributeFilter("type", value)
-//      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Node =>
-//        createEdgeAttributeFilter("type", value) TODO
+        createAttributeFilter("type", value)
       case Or(f1, f2) =>
         Vector(f1, f2)
           .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
@@ -352,8 +350,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
   }
 
+
   // Filter definition for edge `type`, `startNode` & `endNode`
-  private def createEdgeAttributeFilter(
+  private def createAttributeFilter(
       attribute: String,
       struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
     Try {
