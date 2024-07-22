@@ -182,8 +182,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         createEdgeAttributeFilter("startNode", value)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
         createEdgeAttributeFilter("endNode", value)
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         createEdgeAttributeFilter("type", value)
+//      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Node =>
+//        createEdgeAttributeFilter("type", value) TODO
       case Or(f1, f2) =>
         Vector(f1, f2)
           .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
