@@ -80,11 +80,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
-        createAttributeFilter("type", value)
+        createAttributeFilter("type", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
-        createAttributeFilter("startNode", value)
+        createAttributeFilter("startNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
-        createAttributeFilter("endNode", value)
+        createAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
           FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
@@ -179,12 +179,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
-        createAttributeFilter("startNode", value)
+        createAttributeFilter("startNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
-        createAttributeFilter("endNode", value)
+        createAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
-        createAttributeFilter("type", value)
+          if attribute.equalsIgnoreCase("type") =>
+        createAttributeFilter("type", value, instanceType)
       case Or(f1, f2) =>
         Vector(f1, f2)
           .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
@@ -353,24 +353,30 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   }
 
   // Filter definition for edge `type`, `startNode` & `endNode`
-  private def createAttributeFilter(
-      attribute: String,
-      struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
+  private def createAttributeFilter(//TODO this is the problem, it's defined as "edge"
+                                    attribute: String,
+                                    struct: GenericRowWithSchema,
+                                    instanceType: InstanceType): Either[CdfSparkException, FilterDefinition] = {
+    val instanceTypeString = instanceType match {
+      case InstanceType.Edge => "edge"
+      case InstanceType.Node => "node"
+    }
     Try {
       val space = struct.getString(struct.fieldIndex("space"))
       val externalId = struct.getString(struct.fieldIndex("externalId"))
       FilterDefinition.Equals(
-        property = Vector("edge", attribute),
+        property = Vector(instanceTypeString, attribute),
         value = FilterValueDefinition.Object(
           Json.obj("space" -> Json.fromString(space), "externalId" -> Json.fromString(externalId)))
       )
     }.toEither.leftMap { _ =>
       new CdfSparkIllegalArgumentException(
-        s"""Invalid filter value for: 'edge $attribute'
+        s"""Invalid filter value for: '$instanceTypeString $attribute'
            |Expecting a struct with 'space' & 'externalId' attributes, but found: ${struct.json}
            |""".stripMargin
       )
     }
+  }
 
   // Filter definitions for "space" & "externalId" attributes for nodes & edges
   private def createNodeOrEdgeCommonAttributeRef(

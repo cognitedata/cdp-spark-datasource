@@ -12,7 +12,7 @@ val circeVersion = "0.14.6"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.24.833"
+val cogniteSdkVersion = "2.25.0-SNAPSHOTa"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
