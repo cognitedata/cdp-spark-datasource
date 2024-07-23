@@ -891,7 +891,7 @@ class EventsRelationTest extends FlatSpec with Matchers
       eventsCreated = getNumberOfRowsCreated(metricsPrefix, "events")
       _ = assert (eventsCreated == 1)
 
-      _ = a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "events")
+      _ = a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "events")
 
       // We need to add endTime as well, otherwise Spark is clever enough to remove duplicates
       // on its own, it seems.

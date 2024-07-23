@@ -3,9 +3,11 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
+import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
+import org.apache.spark.TaskContext
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -32,6 +34,8 @@ class RawTableRelation(
   import CdpConnector._
   import RawTableRelation._
 
+  override def toString: String = s"RawTableRelation(db=${database}, table=${table})"
+
   private val MaxKeysAllowedForFiltering = 10000L
 
   @transient lazy val client: GenericClient[IO] =
@@ -40,10 +44,18 @@ class RawTableRelation(
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-  @transient lazy private val rowsCreated =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.created")
-  @transient lazy private val rowsRead =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.read")
+  @transient lazy private val rowsCreated: Counter =
+    MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsTrackAttempts,
+      config.metricsPrefix,
+      s"raw.$database.$table.rows.created",
+      Option(TaskContext.get()))
+  @transient lazy private val rowsRead: Counter =
+    MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsTrackAttempts,
+      config.metricsPrefix,
+      s"raw.$database.$table.rows.read",
+      Option(TaskContext.get()))
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
@@ -150,9 +162,12 @@ class RawTableRelation(
         }
         if (collectTestMetrics) {
           @transient lazy val partitionSize =
-            MetricsSource.getOrCreateCounter(
-              config.metricsPrefix,
-              s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
+            MetricsSource
+              .getOrCreateAttemptTrackingCounter(
+                config.metricsTrackAttempts,
+                config.metricsPrefix,
+                s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize",
+                Option(TaskContext.get()))
           partitionSize.inc()
         }
         rowConverter(item)

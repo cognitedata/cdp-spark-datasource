@@ -109,6 +109,17 @@ object FDMContainerPropertyTypes {
       `type` = DirectNodeRelationProperty(None, None),
     )
 
+  val DirectNodeRelationPropertyListWithoutDefaultValueNullable: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description =
+        Some("Test DirectNodeRelationProperty List WithoutDefaultValue Nullable Description"),
+      name = Some("Test-DirectNodeRelationProperty-List-WithoutDefaultValue-Nullable-Name"),
+      `type` = DirectNodeRelationProperty(None, None, Some(true)),
+    )
+
   val Float64NonListWithoutDefaultValueNullable: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
       nullable = Some(true),
@@ -610,6 +621,7 @@ object FDMContainerPropertyTypes {
     Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
     Int32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
     DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+    DirectNodeRelationPropertyListWithoutDefaultValueNullable,
     Float64NonListWithoutDefaultValueNullable,
     Int64NonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
     Float64NonListWithDefaultValueNullable,

@@ -22,6 +22,7 @@ import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
+import scala.collection.JavaConverters._
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
@@ -44,9 +45,11 @@ trait SparkTest {
   object OIDCWrite {
     val clientId = sys.env("TEST_CLIENT_ID2")
     val clientSecret = sys.env("TEST_CLIENT_SECRET2")
-    val tokenUri: String = sys.env.get("TEST_TOKEN_URL2")
+    val tokenUri: String = sys.env
+      .get("TEST_TOKEN_URL2")
       .orElse(
-        sys.env.get("TEST_AAD_TENANT2")
+        sys.env
+          .get("TEST_AAD_TENANT2")
           .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
       .getOrElse("https://sometokenurl")
     val project = sys.env("TEST_PROJECT2")
@@ -64,7 +67,7 @@ trait SparkTest {
     audience = Some(OIDCWrite.audience),
     cdfProjectName = OIDCWrite.project,
   )
-  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(15, 30)
+  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(false, 15, 30)
 
   val writeAuthProvider =
     OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
@@ -157,11 +160,14 @@ trait SparkTest {
   val testClientSecret: String = sys.env("TEST_CLIENT_SECRET")
   val testCluster: String = sys.env("TEST_CLUSTER")
   val testProject: String = sys.env("TEST_PROJECT")
-  val testTokenUriStr: String = sys.env.get("TEST_TOKEN_URL")
+  val testTokenUriStr: String = sys.env
+    .get("TEST_TOKEN_URL")
     .orElse(
-      sys.env.get("TEST_AAD_TENANT")
+      sys.env
+        .get("TEST_AAD_TENANT")
         .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
     .getOrElse("https://sometokenurl")
+  val testAudience = s"https://${testCluster}.cognitedata.com"
   val testTokenUri = uri"$testTokenUriStr"
 
   def getTestClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
@@ -171,6 +177,7 @@ trait SparkTest {
       clientId = testClientId,
       clientSecret = testClientSecret,
       scopes = List(s"https://${testCluster}.cognitedata.com/.default"),
+      audience = Some(testAudience),
       cdfProjectName = testProject
     )
 
@@ -189,9 +196,8 @@ trait SparkTest {
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
-  class RetryException(private val message: String,
-                       private val cause: Throwable = None.orNull)
-    extends Exception(message, cause) {}
+  class RetryException(private val message: String, private val cause: Throwable = None.orNull)
+      extends Exception(message, cause) {}
 
   // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](
@@ -222,20 +228,23 @@ trait SparkTest {
     retryWithBackoff(
       for {
         actionValue <- action
-        _ <- IO.delay { if (shouldRetry(actionValue)) {
-          throw new RetryException(
-            s"Retry needed at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
-        } }
+        _ <- IO.delay {
+          if (shouldRetry(actionValue)) {
+            throw new RetryException(
+              s"Retry needed at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
+          }
+        }
       } yield actionValue,
       1.second,
       20
     )
 
   def retryWhile[A](action: => A, shouldRetry: A => Boolean)(
-    implicit prettifier: Prettifier,
-    pos: source.Position): A =
+      implicit prettifier: Prettifier,
+      pos: source.Position): A =
     retryWhileIO(IO.unit.map(_ => action), shouldRetry)
-      .unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
+      .unsafeRunTimed(5.minutes)
+      .getOrElse(throw new RuntimeException("Test timed out during retries"))
 
   val updateAndUpsert: TableFor1[String] = Table(heading = "mode", "upsert", "update")
 
@@ -253,6 +262,7 @@ trait SparkTest {
       initialRetryDelayMillis = Constants.DefaultInitialRetryDelay.toMillis.toInt,
       collectMetrics = false,
       collectTestMetrics = false,
+      metricsTrackAttempts = false,
       metricsPrefix = "",
       baseUrl = Constants.DefaultBaseUrl,
       onConflict = OnConflictOption.Abort,
@@ -268,45 +278,48 @@ trait SparkTest {
       useSharedThrottle = false
     )
 
-  private def getCounterSafe(metricName: String): Option[Long] =
-    Option(MetricsSource.metricsMap
-      .get(metricName))
-      .map(_.value.getCount)
+  private def getCounterSafe(metricsNamespace: String, resource: String): Option[Long] = {
+    val counters = MetricsSource.metricsMap.asScala
+      .filterKeys(key => key.startsWith(metricsNamespace) && key.endsWith(resource))
+      .values
 
-  private def getCounter(metricName: String): Long =
-    MetricsSource.metricsMap
-      .get(metricName)
-      .value
-      .getCount
+    if (counters.isEmpty) {
+      Option.empty
+    } else {
+      Some(
+        counters
+          .map(v => v.value.getCount)
+          .sum)
+    }
+  }
+
+  private def getCounter(metricsNamespace: String, resource: String): Long =
+    getCounterSafe(metricsNamespace, resource).get
 
   def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.read")
+    getCounter(metricsPrefix, s"$resourceType.read")
 
   def getNumberOfRowsReadSafe(metricsPrefix: String, resourceType: String): Option[Long] =
-    getCounterSafe(s"$metricsPrefix.$resourceType.read")
+    getCounterSafe(metricsPrefix, s"$resourceType.read")
 
   def getNumberOfRowsCreated(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.created")
+    getCounter(metricsPrefix, s"$resourceType.created")
 
   def getNumberOfRowsUpserted(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.upserted")
+    getCounter(metricsPrefix, s"$resourceType.upserted")
 
   def getNumberOfRequests(metricsPrefix: String): Long =
-    getCounter(s"$metricsPrefix.requestsWithoutRetries")
+    getCounter(metricsPrefix, "requestsWithoutRetries")
 
   def getNumberOfRowsDeleted(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.deleted")
+    getCounter(metricsPrefix, s"$resourceType.deleted")
 
   def getNumberOfRowsUpdated(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.updated")
+    getCounter(metricsPrefix, s"$resourceType.updated")
 
   def getPartitionSize(metricsPrefix: String, resourceType: String, partitionIndex: Long): Long = {
-    val metricName = s"$metricsPrefix.$resourceType.$partitionIndex.partitionSize"
-    if (MetricsSource.metricsMap.containsKey(metricName)) {
-      getCounter(metricName)
-    } else {
-      0
-    }
+    val resource = s"$resourceType.$partitionIndex.partitionSize"
+    getCounterSafe(metricsPrefix, resource).getOrElse(0)
   }
 
   def sparkIntercept(f: => Any)(implicit pos: source.Position): Throwable =

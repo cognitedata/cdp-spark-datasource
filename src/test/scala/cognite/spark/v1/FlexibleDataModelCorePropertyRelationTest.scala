@@ -53,6 +53,9 @@ class FlexibleDataModelCorePropertyRelationTest
   private val containerAllNumericProps = "sparkDsTestContainerNumericProps2"
   private val viewAllNumericProps = "sparkDsTestViewNumericProps2"
 
+  private val containerAllRelationProps = "sparkDsTestContainerRelationProps2"
+  private val viewAllRelationProps = "sparkDsTestViewRelationProps2"
+
   private val containerFilterByProps = "sparkDsTestContainerFilterByProps2"
   private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
 
@@ -71,11 +74,11 @@ class FlexibleDataModelCorePropertyRelationTest
     "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
   )
 
-  private val containerStartAndEndNodes: ContainerDefinition =
+  private lazy val containerStartAndEndNodes: ContainerDefinition =
     createContainerIfNotExists(Usage.Node, nodeContainerProps, containerStartNodeAndEndNodesExternalId)
       .unsafeRunSync()
 
-  private val viewStartAndEndNodes: ViewDefinition =
+  private lazy val viewStartAndEndNodes: ViewDefinition =
     createViewWithCorePropsIfNotExists(
       containerStartAndEndNodes,
       viewStartNodeAndEndNodesExternalId,
@@ -97,6 +100,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val instanceExtIdNode = s"${randomId}Node"
     val instanceExtIdEdge = s"${randomId}Edge"
 
+    //scalastyle:off method.length
     def insertionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
@@ -140,6 +144,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 |) as directRelation1,
                 |null as directRelation2
                 |""".stripMargin)
+    //scalastyle:on
 
     val insertionResults = Try {
       Vector(
@@ -283,7 +288,17 @@ class FlexibleDataModelCorePropertyRelationTest
                   .now()
                   .minusDays(10)
                   .format(InstancePropertyValue.Timestamp.formatter)}') as timestampListProp1,
-                |null as timestampListProp2
+                |null as timestampListProp2,
+                |array(
+                |    named_struct(
+                |       'spaceExternalId', '$spaceExternalId',
+                |       'externalId', '$startNodeExtId'
+                |    ),
+                |    named_struct(
+                |       'spaceExternalId', '$spaceExternalId',
+                |       'externalId', '$endNodeExtId'
+                |    )
+                |) as directRelation3
                 |""".stripMargin)
 
     val insertionResult = Try {
@@ -732,6 +747,60 @@ class FlexibleDataModelCorePropertyRelationTest
     syncedInstanceExtIds shouldBe Vector(s"${view.externalId}Node1")
   }
 
+  it should "successfully read from relation properties" in {
+    val viewDef = setupRelationReadPropsTest.unsafeRunSync()
+    val nodeExtId1 = s"${viewDef.externalId}Relation1"
+
+    //we use named struct here because we don't have access to node_reference
+    val df = spark
+      .sql(s"""
+              |select
+              |'$nodeExtId1' as externalId,
+              |named_struct('space', '$spaceExternalId', 'externalId', '$nodeExtId1') as relProp,
+              |array(named_struct('space', '$spaceExternalId', 'externalId', '$nodeExtId1')) as relListProp
+              |""".stripMargin)
+
+    val result = Try {
+      insertRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = viewDef.space,
+        viewExternalId = viewDef.externalId,
+        viewVersion = viewDef.version,
+        instanceSpaceExternalId = viewDef.space,
+        df
+      )
+    }
+
+    result shouldBe Success(())
+    val dfFromModel = readRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = viewDef.space,
+      viewVersion = viewDef.version,
+      viewExternalId = viewDef.externalId,
+      instanceSpaceExternalId = viewDef.space
+    )
+    dfFromModel.createTempView("temp_view_with_relations")
+    val dfRead = spark
+      .sql(s"""
+              |select
+              |'$nodeExtId1' as externalId,
+              |`relProp` as relProp,
+              |`relListProp` as relListProp
+              |from temp_view_with_relations
+              |""".stripMargin)
+    val result2 = Try {
+      insertRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = viewDef.space,
+        viewExternalId = viewDef.externalId,
+        viewVersion = viewDef.version,
+        instanceSpaceExternalId = viewDef.space,
+        dfRead
+      )
+    }
+    result2 shouldBe Success(())
+  }
+
   it should "successfully cast numeric properties" in {
     val viewDef = setupNumericConversionTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}Numeric1"
@@ -1140,6 +1209,8 @@ class FlexibleDataModelCorePropertyRelationTest
                 externalId = containerStartNodeAndEndNodesExternalId)),
             source = None)),
       "directRelation2" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "directRelation3" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
+      "listOfDirectRelations" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
     )
 
     for {
@@ -1320,7 +1391,8 @@ class FlexibleDataModelCorePropertyRelationTest
                       InstancePropertyValue.String(System.nanoTime().toString)),
                     "longProp" -> Some(InstancePropertyValue.Int64(i.toLong))
                   ))
-              )))
+              ))),
+            `type` = None
           )
     client.instances
       .createItems(InstanceCreate(items = items))
@@ -1373,7 +1445,8 @@ class FlexibleDataModelCorePropertyRelationTest
                         "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
                         "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now()))
                       ))
-                    )))
+                    ))),
+                    `type` = None
                   ),
                   NodeWrite(
                     spaceExternalId,
@@ -1393,7 +1466,8 @@ class FlexibleDataModelCorePropertyRelationTest
                         "forIsNullFilter" -> Some(InstancePropertyValue.Object(Json.fromJsonObject(
                           JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1)))))
                       ))
-                    )))
+                    ))),
+                    `type` = None
                   )
                 ),
                 replace = Some(true)
@@ -1421,6 +1495,19 @@ class FlexibleDataModelCorePropertyRelationTest
     } yield view
   }
 
+  private def setupRelationReadPropsTest: IO[ViewDefinition] = {
+    val containerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "relProp" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "relListProp" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
+    )
+
+    for {
+      _ <- createSpaceIfNotExists(spaceExternalId)
+      container <- createContainerIfNotExists(Usage.All, containerProps, containerAllRelationProps)
+      view <- createViewWithCorePropsIfNotExists(container, viewAllRelationProps, viewVersion)
+    } yield view
+  }
+
   private def insertRows(
       instanceType: InstanceType,
       viewSpaceExternalId: String,
@@ -1434,6 +1521,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", s"https://${cluster}.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
@@ -1459,6 +1547,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", s"https://${cluster}.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
@@ -1483,6 +1572,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", s"https://${cluster}.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
@@ -1507,6 +1597,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", s"https://${cluster}.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
@@ -1534,6 +1625,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
       .option("baseUrl", s"https://${cluster}.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)

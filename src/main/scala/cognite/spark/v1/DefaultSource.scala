@@ -411,6 +411,7 @@ object DefaultSource {
       case Some(prefix) => s"$prefix"
       case None => ""
     }
+    val metricsTrackAttempts = toBoolean(parameters, "metricsTrackAttempts")
     val collectMetrics = toBoolean(parameters, "collectMetrics")
     val collectTestMetrics = toBoolean(parameters, "collectTestMetrics")
 
@@ -459,6 +460,7 @@ object DefaultSource {
       collectMetrics = collectMetrics,
       collectTestMetrics = collectTestMetrics,
       metricsPrefix = metricsPrefix,
+      metricsTrackAttempts = metricsTrackAttempts,
       baseUrl = baseUrl,
       onConflict = saveMode,
       applicationId = Option(sqlContext).map(_.sparkContext.applicationId).getOrElse("CDF"),

@@ -2,7 +2,11 @@ package cognite.spark.v1.utils.fdm
 
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewCorePropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{
+  PrimitivePropType,
+  PropertyDefaultValue,
+  PropertyType
+}
 
 object FDMViewPropertyTypes {
 
@@ -135,6 +139,16 @@ object FDMViewPropertyTypes {
       `type` = DirectNodeRelationProperty(None, None),
       container = None,
       containerPropertyIdentifier = None
+    )
+  val DirectNodeRelationViewPropertyListWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description =
+        Some("Test DirectNodeRelationProperty NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Test-DirectNodeRelationProperty-NonList-WithoutDefaultValue-Nullable-Name"),
+      `type` = DirectNodeRelationProperty(None, None, Some(true))
     )
 
   val Float64NonListWithoutDefaultValueNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
