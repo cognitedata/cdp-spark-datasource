@@ -254,6 +254,53 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       }
       .map(_.head)
 
+  protected def createTypedNodesIfNotExists(
+       typedNodeNullTypeExtId: String,
+       typedNodeExtId: String,
+       typeNodeExtId: String,
+       typeNodeSourceReference: SourceReference,
+       sourceReference: SourceReference
+     ): IO[Unit] =
+    client.instances
+      .createItems(instance = InstanceCreate(
+        items = Seq(
+          NodeWrite(
+            spaceExternalId,
+            typeNodeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                typeNodeSourceReference,
+                None
+              ))
+            ),
+            `type` = None
+          ),
+          NodeWrite(
+            spaceExternalId,
+            typedNodeNullTypeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                sourceReference,
+                None
+              ))
+            ),
+            `type` = None
+          ),
+          NodeWrite(
+            spaceExternalId,
+            typedNodeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                sourceReference,
+                None
+              ))
+            ),
+            `type` = Some(DirectRelationReference(spaceExternalId, typeNodeExtId))
+          )
+        ),
+        replace = Some(true)
+      ))
+      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
   // scalastyle:off method.length
   protected def createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId: String,

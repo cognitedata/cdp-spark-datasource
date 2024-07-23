@@ -273,6 +273,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     val fields = viewProps.flatMap {
       case (propName, propDef) =>
         propDef match {
+          case _ if propName == "type" =>
+            Vector()//TODO cleanup a bit, this makes sense (bc type is included in usageBasedSchemaAttributes but still...)//TODO actually I shouldn't have to send it here, it should appear by default
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
             val nullable = corePropDef.nullable.getOrElse(true)
             corePropDef.`type` match {

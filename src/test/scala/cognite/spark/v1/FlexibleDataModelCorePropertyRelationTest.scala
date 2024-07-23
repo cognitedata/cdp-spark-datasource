@@ -64,6 +64,11 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
   private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
+  private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes2"
+  private val typeContainerNodeExternalId = "sparkDsTestContainerTypeNodes2"
+
+  private val typedViewNodeExternalId = "sparkDsTestViewTypedNodes2"
+  private val typeViewNodeExternalId = "sparkDsTestViewTypeNodes2"
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
@@ -73,6 +78,18 @@ class FlexibleDataModelCorePropertyRelationTest
     "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
     "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
   )
+
+  private val nodeContainerTypeProp: Map[String, ContainerPropertyDefinition] = Map(
+    "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
+  )//TODO probably should not need to specify this
+
+  private lazy val containerTypeNode: ContainerDefinition =
+    createContainerIfNotExists(Usage.Node, nodeContainerProps, typeContainerNodeExternalId)
+      .unsafeRunSync()
+
+  private lazy val containerTypedNode: ContainerDefinition =
+    createContainerIfNotExists(Usage.Node, nodeContainerTypeProp, typedContainerNodeExternalId)
+      .unsafeRunSync()
 
   private lazy val containerStartAndEndNodes: ContainerDefinition =
     createContainerIfNotExists(Usage.Node, nodeContainerProps, containerStartNodeAndEndNodesExternalId)
@@ -84,6 +101,21 @@ class FlexibleDataModelCorePropertyRelationTest
       viewStartNodeAndEndNodesExternalId,
       viewVersion)
       .unsafeRunSync()
+
+  //To use as type for other node
+  private lazy val viewTypeNode: ViewDefinition = createViewWithCorePropsIfNotExists(
+    containerTypeNode,
+    typeViewNodeExternalId,
+    viewVersion
+  ).unsafeRunSync()
+
+  //Types are optional on nodes, this is used to test using a node which has a type
+  private lazy val viewTypedNode: ViewDefinition =
+    createViewWithCorePropsIfNotExists(
+      containerTypedNode,
+      typedViewNodeExternalId,
+      viewVersion
+    ).unsafeRunSync()
 
   it should "succeed when inserting all nullable & non nullable non list values" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode"
@@ -575,6 +607,39 @@ class FlexibleDataModelCorePropertyRelationTest
 
     allEdgeExternalIds.length shouldBe 2
     (actualAllEdgeExternalIds should contain).allElementsOf(allEdgeExternalIds)
+  }
+
+
+  it should "succeed when filtering nodes with type" in {
+    val nullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeNullType"
+    val nonNullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByType"
+    val typeNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeType"
+
+    createTypedNodesIfNotExists(
+      nullTypedNode,
+      nonNullTypedNode,
+      typeNode,
+      viewTypeNode.toSourceReference,
+      viewTypedNode.toSourceReference).unsafeRunSync()
+
+    val readNodesDf = readRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewTypedNode.externalId,
+      viewVersion = viewTypedNode.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+
+    readNodesDf.createTempView(s"node_filter_instances_table")
+
+    val selectedNodes = spark
+      .sql(s"""select * from node_filter_instances_table
+              | where type = struct('$spaceExternalId' as space, '$typeNode' as externalId)
+              | and space = '$spaceExternalId'
+              | """.stripMargin)
+      .collect()
+
+    selectedNodes.length shouldBe 2
   }
 
   it should "be able to fetch more data with cursor when syncing" in {
