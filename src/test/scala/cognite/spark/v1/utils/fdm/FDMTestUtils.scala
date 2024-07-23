@@ -247,7 +247,8 @@ object FDMTestUtils {
         NodeWrite(
           space,
           s"node_instances_${container.externalId}",
-          Some(nodeData)
+          Some(nodeData),
+          `type` = None
         )
     }
 

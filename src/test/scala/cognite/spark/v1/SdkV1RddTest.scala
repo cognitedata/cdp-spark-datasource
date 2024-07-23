@@ -53,7 +53,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
   private def generateStreams(nStreams: Int, nItemsPerStream: Int) =
     0.until(nStreams).map { i =>
       Stream.evalUnChunk {
-        IO.sleep((scala.math.random() * 300).millis) *> IO(Chunk.seq(1.to(nItemsPerStream).map { j =>
+        IO.sleep((scala.math.random() * 300).millis) *> IO(Chunk.from(1.to(nItemsPerStream).map { j =>
           val id = (i * nItemsPerStream + j).toLong
           Event(id = id)
         }))
