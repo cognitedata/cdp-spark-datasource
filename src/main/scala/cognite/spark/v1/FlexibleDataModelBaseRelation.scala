@@ -149,7 +149,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           .traverse(
             toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.Or.apply)
-      //Node type s being optional means that this is possible to check
+      //Node types are optional so exists will be automatically checked
+      //Types are a property of the node/edge and should not use the view but directly check on the node
       case IsNotNull(attribute) if attribute.equalsIgnoreCase("type") =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNotNull(attribute) =>
