@@ -81,7 +81,7 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private val nodeContainerTypeProp: Map[String, ContainerPropertyDefinition] = Map(
     "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable
-  ) //TODO probably should not need to specify this
+  )
 
   private lazy val containerTypeNode: ContainerDefinition =
     createContainerIfNotExists(Usage.Node, nodeContainerProps, typeContainerNodeExternalId)
