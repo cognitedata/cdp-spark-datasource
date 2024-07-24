@@ -80,11 +80,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
-        createAttributeFilter("type", value, instanceType)
+        createEqualsAttributeFilter("type", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
-        createAttributeFilter("startNode", value, instanceType)
+        createEqualsAttributeFilter("startNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
-        createAttributeFilter("endNode", value, instanceType)
+        createEqualsAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
           FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
@@ -149,8 +149,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           .traverse(
             toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.Or.apply)
+      //Node type s being optional means that this is possible to check
+      case IsNotNull(attribute) if attribute.equalsIgnoreCase("type") =>
+        Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
+      case IsNull(attribute) if attribute.equalsIgnoreCase("type") =>
+        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
       case Not(f) =>
@@ -179,12 +184,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
-        createAttributeFilter("startNode", value, instanceType)
+        createEqualsAttributeFilter("startNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
-        createAttributeFilter("endNode", value, instanceType)
+        createEqualsAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema)
           if attribute.equalsIgnoreCase("type") =>
-        createAttributeFilter("type", value, instanceType)
+        createEqualsAttributeFilter("type", value, instanceType)
       case Or(f1, f2) =>
         Vector(f1, f2)
           .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
@@ -273,8 +278,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     val fields = viewProps.flatMap {
       case (propName, propDef) =>
         propDef match {
-          case _ if propName == "type" =>
-            Vector()//TODO cleanup a bit, this makes sense (bc type is included in usageBasedSchemaAttributes but still...)//TODO actually I shouldn't have to send it here, it should appear by default
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
             val nullable = corePropDef.nullable.getOrElse(true)
             corePropDef.`type` match {
@@ -353,7 +356,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   }
 
   // Filter definition for edge `type`, `startNode` & `endNode`
-  private def createAttributeFilter(//TODO this is the problem, it's defined as "edge"
+  private def createEqualsAttributeFilter(
                                     attribute: String,
                                     struct: GenericRowWithSchema,
                                     instanceType: InstanceType): Either[CdfSparkException, FilterDefinition] = {

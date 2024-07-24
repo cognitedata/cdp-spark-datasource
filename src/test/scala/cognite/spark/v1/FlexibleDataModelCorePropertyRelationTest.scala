@@ -64,11 +64,11 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
   private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
-  private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes2"
-  private val typeContainerNodeExternalId = "sparkDsTestContainerTypeNodes2"
+  private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes4"
+  private val typeContainerNodeExternalId = "sparkDsTestContainerTypeNodes4"
 
-  private val typedViewNodeExternalId = "sparkDsTestViewTypedNodes2"
-  private val typeViewNodeExternalId = "sparkDsTestViewTypeNodes2"
+  private val typedViewNodeExternalId = "sparkDsTestViewTypedNodes4"
+  private val typeViewNodeExternalId = "sparkDsTestViewTypeNodes4"
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
@@ -80,7 +80,7 @@ class FlexibleDataModelCorePropertyRelationTest
   )
 
   private val nodeContainerTypeProp: Map[String, ContainerPropertyDefinition] = Map(
-    "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
+    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable
   )//TODO probably should not need to specify this
 
   private lazy val containerTypeNode: ContainerDefinition =
@@ -634,12 +634,12 @@ class FlexibleDataModelCorePropertyRelationTest
 
     val selectedNodes = spark
       .sql(s"""select * from node_filter_instances_table
-              | where type is null
+              | where type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
               | and space = '$spaceExternalId'
               | """.stripMargin)
       .collect()
 
-    selectedNodes.length shouldBe 2
+    selectedNodes.length shouldBe 1
   }
 
   it should "be able to fetch more data with cursor when syncing" in {
