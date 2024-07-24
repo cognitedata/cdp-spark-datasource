@@ -34,9 +34,11 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
   protected val clientSecret = sys.env("TEST_CLIENT_SECRET")
   protected val cluster = sys.env("TEST_CLUSTER")
   protected val project = sys.env("TEST_PROJECT")
-  protected val tokenUri: String = sys.env.get("TEST_TOKEN_URL")
+  protected val tokenUri: String = sys.env
+    .get("TEST_TOKEN_URL")
     .orElse(
-      sys.env.get("TEST_AAD_TENANT")
+      sys.env
+        .get("TEST_AAD_TENANT")
         .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
     .getOrElse("https://sometokenurl")
   protected val audience = s"https://${cluster}.cognitedata.com"
@@ -181,14 +183,16 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
     )
   }
 
-  protected def createSpaceIfNotExists(space: String): IO[Unit] = for {
-    existing <- client.spacesv3.retrieveItems(Seq(SpaceById(space)))
-    _ <- Applicative[IO].whenA(existing.isEmpty) {
-      client.spacesv3.createItems(Seq(
-        SpaceCreateDefinition(space)
-      ))
-    }
-  } yield ()
+  protected def createSpaceIfNotExists(space: String): IO[Unit] =
+    for {
+      existing <- client.spacesv3.retrieveItems(Seq(SpaceById(space)))
+      _ <- Applicative[IO].whenA(existing.isEmpty) {
+        client.spacesv3.createItems(
+          Seq(
+            SpaceCreateDefinition(space)
+          ))
+      }
+    } yield ()
 
   protected def createContainerIfNotExists(
       usage: Usage,
@@ -255,12 +259,12 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       .map(_.head)
 
   protected def createTypedNodesIfNotExists(
-       typedNodeNullTypeExtId: String,
-       typedNodeExtId: String,
-       typeNodeExtId: String,
-       typeNodeSourceReference: SourceReference,
-       sourceReference: SourceReference
-     ): IO[Unit] =
+      typedNodeNullTypeExtId: String,
+      typedNodeExtId: String,
+      typeNodeExtId: String,
+      typeNodeSourceReference: SourceReference,
+      sourceReference: SourceReference
+  ): IO[Unit] =
     client.instances
       .createItems(instance = InstanceCreate(
         items = Seq(

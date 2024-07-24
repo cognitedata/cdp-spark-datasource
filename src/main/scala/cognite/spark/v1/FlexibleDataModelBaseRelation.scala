@@ -188,8 +188,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         createEqualsAttributeFilter("startNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
         createEqualsAttributeFilter("endNode", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("type") =>
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
         createEqualsAttributeFilter("type", value, instanceType)
       case Or(f1, f2) =>
         Vector(f1, f2)
@@ -358,9 +357,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
 
   // Filter definition for edge `type`, `startNode` & `endNode`
   private def createEqualsAttributeFilter(
-                                    attribute: String,
-                                    struct: GenericRowWithSchema,
-                                    instanceType: InstanceType): Either[CdfSparkException, FilterDefinition] = {
+      attribute: String,
+      struct: GenericRowWithSchema,
+      instanceType: InstanceType): Either[CdfSparkException, FilterDefinition] = {
     val instanceTypeString = instanceType match {
       case InstanceType.Edge => "edge"
       case InstanceType.Node => "node"
