@@ -62,8 +62,8 @@ class FlexibleDataModelCorePropertyRelationTest
   private val containerSyncTest = "sparkDsTestContainerForSync"
   private val viewSyncTest = "sparkDsTestViewForSync"
 
-  private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes3"
-  private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes3"
+  private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
+  private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
   private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes4"
   private val typeContainerNodeExternalId = "sparkDsTestContainerTypeNodes4"
 
