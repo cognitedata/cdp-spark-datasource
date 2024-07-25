@@ -58,7 +58,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: test
+    needs: build-and-push
     if: github.ref == 'refs/heads/master'
     environment: CD
     steps:
