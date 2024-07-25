@@ -140,7 +140,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 |'$instanceExtId' as externalId,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
-                |    'externalId', '$instanceExtId'
+                |    'externalId', '$startNodeExtId'
                 |) as type,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
@@ -281,7 +281,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 |'$instanceExtId' as externalId,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
-                |    'externalId', '$instanceExtId'
+                |    'externalId', '$startNodeExtId'
                 |) as type,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
