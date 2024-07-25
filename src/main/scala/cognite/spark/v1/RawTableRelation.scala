@@ -34,6 +34,8 @@ class RawTableRelation(
   import CdpConnector._
   import RawTableRelation._
 
+  override def toString: String = s"RawTableRelation(db=${database}, table=${table})"
+
   private val MaxKeysAllowedForFiltering = 10000L
 
   @transient lazy val client: GenericClient[IO] =
