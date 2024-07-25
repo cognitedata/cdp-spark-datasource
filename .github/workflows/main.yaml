@@ -3,7 +3,7 @@ name: CI
 on: ["push"]
 
 jobs:
-  build-and-push:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 80
     environment: ${{ github.ref == 'refs/heads/master' && 'CD' || 'CI' }}
