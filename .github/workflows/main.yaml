@@ -64,6 +64,7 @@ jobs:
           fail_ci_if_error: false
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: test
     if: github.ref == 'refs/heads/master'
     environment: CD
