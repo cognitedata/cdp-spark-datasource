@@ -1,4 +1,3 @@
-import com.typesafe.sbt.packager.docker.Cmd
 import sbtassembly.AssemblyPlugin.autoImport._
 import sbtassembly.MergeStrategy
 import scala.xml.{Node => XmlNode, NodeSeq => XmlNodeSeq, _}
