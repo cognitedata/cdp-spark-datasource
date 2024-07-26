@@ -17,13 +17,6 @@ jobs:
       - uses: coursier/setup-action@v1
         with:
           jvm: adopt:8
-      - name: Set variables
-        run: |
-          IMAGE_REVISION=$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)
-          BUILD_DATE=$(date +%Y-%m-%dT%H%M)
-
-          echo "DOCKER_IMAGE_NAME=eu.gcr.io/cognitedata/cdf-spark-performance-bench" >> $GITHUB_ENV
-          echo "DOCKER_IMAGE_TAG=$BUILD_DATE-$IMAGE_REVISION" >> $GITHUB_ENV
       - name: Compile
         run: |
           sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
@@ -58,18 +51,36 @@ jobs:
           path: 'target/test-reports/**/*.xml'
           retention-days: 1
       - name: Upload report to codecov.io
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build-and-push
+    if: github.ref == 'refs/heads/master'
+    environment: CD
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git rev-list --count --first-parent HEAD > patch_version.txt
+      - name: Set up JDK 8
+        uses: coursier/setup-action@v1
+        with:
+          jvm: adopt:8
       - name: Build JAR file
         run: |
           LIB_PACKAGE="+library/package"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
             LIB_PACKAGE="+fatJarShaded/assembly"
           fi
+      - name: Check dependencies
+        run: |
+          sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
       - name: Install GPG & Sonatype credentials for SBT
-        if: github.ref == 'refs/heads/master'
         env:
           GPG_PUBLIC_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PUBLIC_KEY }}
           GPG_PRIVATE_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PRIVATE_KEY }}
@@ -85,7 +96,6 @@ jobs:
           mkdir -p ~/.sbt/gpg
           echo "$GPG_PRIVATE_KEY_PASSPHRASE" | gpg --verbose --batch -a --export-secret-keys --pinentry-mode loopback --passphrase-fd 0 > ~/.sbt/gpg/secring.asc
       - name: Deploy JAR
-        if: github.ref == 'refs/heads/master'
         env:
           GPG_KEY_PASSWORD: ${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_OSSRH_USER }}

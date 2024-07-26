@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-07-26T08:52:00.909204Z",
+  "timestamp" : "2024-07-26T08:53:16.379169Z",
   "configurations" : [
     "compile",
     "optional",
@@ -13,11 +13,11 @@
     {
       "org" : "co.fs2",
       "name" : "fs2-core_2.13",
-      "version" : "3.6.1",
+      "version" : "3.10.2",
       "artifacts" : [
         {
           "name" : "fs2-core_2.13.jar",
-          "hash" : "sha1:507ac3d526d841c5857c394a841c54a92ca497fc"
+          "hash" : "sha1:ee6589d3ee01c487af8a9d60cd35274b7010ae95"
         }
       ],
       "configurations" : [
@@ -29,11 +29,11 @@
     {
       "org" : "co.fs2",
       "name" : "fs2-io_2.13",
-      "version" : "3.6.1",
+      "version" : "3.10.2",
       "artifacts" : [
         {
           "name" : "fs2-io_2.13.jar",
-          "hash" : "sha1:4eebbfcb60cd66782d3ed07280f8ad7d014cd20b"
+          "hash" : "sha1:e1c3ac4217d017f26efb0cf2af104d62208090c9"
         }
       ],
       "configurations" : [
@@ -45,11 +45,11 @@
     {
       "org" : "com.chuusai",
       "name" : "shapeless_2.13",
-      "version" : "2.3.11",
+      "version" : "2.3.12",
       "artifacts" : [
         {
           "name" : "shapeless_2.13.jar",
-          "hash" : "sha1:61ace0241b473e91614259b2bfc774d31b44b74c"
+          "hash" : "sha1:95fad9c171019294e0a0b7de12d5e892f95e764a"
         }
       ],
       "configurations" : [
@@ -75,11 +75,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.13",
-      "version" : "2.23.805",
+      "version" : "2.24.833",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.13.jar",
-          "hash" : "sha1:a00ded7439a248c8a80e9a316e6f1a52f382a229"
+          "hash" : "sha1:3998b69e10b52ed9cb68132c7116a453fb712261"
         }
       ],
       "configurations" : [
@@ -91,11 +91,11 @@
     {
       "org" : "com.comcast",
       "name" : "ip4s-core_2.13",
-      "version" : "3.2.0",
+      "version" : "3.5.0",
       "artifacts" : [
         {
           "name" : "ip4s-core_2.13.jar",
-          "hash" : "sha1:c3b87f772bd3ad888b3fe0f531ec08c3678bb475"
+          "hash" : "sha1:a35384c0eea504e57656f0a859487624e1ff8c63"
         }
       ],
       "configurations" : [
@@ -289,11 +289,11 @@
     {
       "org" : "com.google.protobuf",
       "name" : "protobuf-java",
-      "version" : "3.25.1",
+      "version" : "3.25.3",
       "artifacts" : [
         {
           "name" : "protobuf-java.jar",
-          "hash" : "sha1:2933a5c3f022456d8842323fe0d7fb2d25a7e3c7"
+          "hash" : "sha1:d3200261955f3298e0d85c9892201e70492ce8eb"
         }
       ],
       "configurations" : [
@@ -513,11 +513,11 @@
     {
       "org" : "commons-io",
       "name" : "commons-io",
-      "version" : "2.15.0",
+      "version" : "2.16.1",
       "artifacts" : [
         {
           "name" : "commons-io.jar",
-          "hash" : "sha1:5c3c2db10f6f797430a7f9c696b4d1273768c924"
+          "hash" : "sha1:377d592e740dc77124e0901291dbfaa6810a200e"
         }
       ],
       "configurations" : [
@@ -571,11 +571,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-core_2.13",
-      "version" : "0.14.8",
+      "version" : "0.14.9",
       "artifacts" : [
         {
           "name" : "circe-core_2.13.jar",
-          "hash" : "sha1:ba09b00a350c8c3c16a8528bac6249e4fbca2411"
+          "hash" : "sha1:7f569014f391ab5e280b0264a6d78c9d2c014fbd"
         }
       ],
       "configurations" : [
@@ -587,11 +587,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-generic_2.13",
-      "version" : "0.14.8",
+      "version" : "0.14.9",
       "artifacts" : [
         {
           "name" : "circe-generic_2.13.jar",
-          "hash" : "sha1:56b77cc6788db246ce84a42ea371f263aeb70ed9"
+          "hash" : "sha1:2a4808ad4ca221315704f6c6e5fda70fd475f572"
         }
       ],
       "configurations" : [
@@ -603,11 +603,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-jawn_2.13",
-      "version" : "0.14.8",
+      "version" : "0.14.9",
       "artifacts" : [
         {
           "name" : "circe-jawn_2.13.jar",
-          "hash" : "sha1:7c050feb7f6bcd4ff261b64aa214b144d9de896b"
+          "hash" : "sha1:b7b6320dfdf2e1d029509de8af486008f16f62f4"
         }
       ],
       "configurations" : [
@@ -619,11 +619,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-numbers_2.13",
-      "version" : "0.14.8",
+      "version" : "0.14.9",
       "artifacts" : [
         {
           "name" : "circe-numbers_2.13.jar",
-          "hash" : "sha1:515bf38ca47d3840081a2d380a33cf4652693506"
+          "hash" : "sha1:f4e4406d9d2dd7c32ebcc8813d06725114353089"
         }
       ],
       "configurations" : [
@@ -635,11 +635,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-parser_2.13",
-      "version" : "0.14.8",
+      "version" : "0.14.9",
       "artifacts" : [
         {
           "name" : "circe-parser_2.13.jar",
-          "hash" : "sha1:c289e195818a0a8c404ae97c48887a9aab4418a1"
+          "hash" : "sha1:95f4e783f9090ed56edc20935aabfd191a2a8282"
         }
       ],
       "configurations" : [
@@ -2172,11 +2172,11 @@
     {
       "org" : "org.scodec",
       "name" : "scodec-bits_2.13",
-      "version" : "1.1.35",
+      "version" : "1.1.38",
       "artifacts" : [
         {
           "name" : "scodec-bits_2.13.jar",
-          "hash" : "sha1:d94da766a969d49d5a655299cc638c8701ce35d5"
+          "hash" : "sha1:48b7983881f1f16a73cc85e863fc9e5401fed90d"
         }
       ],
       "configurations" : [
@@ -2258,11 +2258,11 @@
     {
       "org" : "org.tpolecat",
       "name" : "natchez-core_2.13",
-      "version" : "0.3.1",
+      "version" : "0.3.5",
       "artifacts" : [
         {
           "name" : "natchez-core_2.13.jar",
-          "hash" : "sha1:82c1f25d6d4d27982766bf7c5d1638ef590c5cc8"
+          "hash" : "sha1:c8616b07885b6b574a3d241f81f3e524ebcc536c"
         }
       ],
       "configurations" : [
@@ -2288,11 +2288,11 @@
     {
       "org" : "org.typelevel",
       "name" : "case-insensitive_2.13",
-      "version" : "1.3.0",
+      "version" : "1.4.0",
       "artifacts" : [
         {
           "name" : "case-insensitive_2.13.jar",
-          "hash" : "sha1:7e1cf6149b17fb4abe94e60974dfa641068adbb9"
+          "hash" : "sha1:d6974ef3ebe84385592e0e7ee3ebd4dcad9ab667"
         }
       ],
       "configurations" : [
@@ -2304,11 +2304,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-core_2.13",
-      "version" : "2.9.0",
+      "version" : "2.10.0",
       "artifacts" : [
         {
           "name" : "cats-core_2.13.jar",
-          "hash" : "sha1:e829364b8a5cf0d79c9ea0827dc082a49d01bc3d"
+          "hash" : "sha1:f333233487bff425196019aed0443acdfbc80dae"
         }
       ],
       "configurations" : [
@@ -2320,11 +2320,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect-kernel_2.13",
-      "version" : "3.4.6",
+      "version" : "3.5.4",
       "artifacts" : [
         {
           "name" : "cats-effect-kernel_2.13.jar",
-          "hash" : "sha1:2dada5527aa04e48dc6d1702506f2da75f837725"
+          "hash" : "sha1:cfd821201afcc8a83b0b237343c3795e2a7dbee1"
         }
       ],
       "configurations" : [
@@ -2336,11 +2336,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect-std_2.13",
-      "version" : "3.4.6",
+      "version" : "3.5.4",
       "artifacts" : [
         {
           "name" : "cats-effect-std_2.13.jar",
-          "hash" : "sha1:b40afad41bda79f7e51b30001aef1ff5f3f749c8"
+          "hash" : "sha1:58aa4a2a828fede06563bca57cdd7080c9a38b67"
         }
       ],
       "configurations" : [
@@ -2352,11 +2352,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect_2.13",
-      "version" : "3.4.6",
+      "version" : "3.5.4",
       "artifacts" : [
         {
           "name" : "cats-effect_2.13.jar",
-          "hash" : "sha1:0aecfc712b50e1b1aa3e5f02d6aa6ab65df848c0"
+          "hash" : "sha1:ce3ec54d321847c54501caec7348592e234dec1f"
         }
       ],
       "configurations" : [
@@ -2368,11 +2368,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-kernel_2.13",
-      "version" : "2.9.0",
+      "version" : "2.10.0",
       "artifacts" : [
         {
           "name" : "cats-kernel_2.13.jar",
-          "hash" : "sha1:60d9c13a233d7dbff25cc1f07e4fa29c00bbd333"
+          "hash" : "sha1:6e9fbc99fa5a88a00ac55afc2540247f7f4ce04d"
         }
       ],
       "configurations" : [
@@ -2384,11 +2384,11 @@
     {
       "org" : "org.typelevel",
       "name" : "jawn-parser_2.13",
-      "version" : "1.5.1",
+      "version" : "1.6.0",
       "artifacts" : [
         {
           "name" : "jawn-parser_2.13.jar",
-          "hash" : "sha1:09b1f7e52a186493c2cb1fe0d8d0220f0c266d9f"
+          "hash" : "sha1:b47cfc6b652fec2fd295c8608e7a9a84633c724f"
         }
       ],
       "configurations" : [
