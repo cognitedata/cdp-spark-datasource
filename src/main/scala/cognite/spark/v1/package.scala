@@ -9,7 +9,8 @@ import io.scalaland.chimney.internal.runtime.TransformerFlags
 
 // scalastyle:off
 package object v1 {
-  implicit val chimneyConfiguration: UpdateFlag[TransformerFlags.Enable[TransformerFlags.DefaultValues, TransformerFlags.Default]] =
+  implicit val chimneyConfiguration
+    : UpdateFlag[TransformerFlags.Enable[TransformerFlags.DefaultValues, TransformerFlags.Default]] =
     TransformerConfiguration.default.enableDefaultValues
 
   @SuppressWarnings(
