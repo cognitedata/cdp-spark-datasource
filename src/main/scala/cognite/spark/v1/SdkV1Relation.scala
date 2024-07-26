@@ -52,7 +52,6 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
       new GenericRow(indicesOfRequiredFields.map(idx => rowOfAllFields.get(idx)))
     }
 
-  // scalastyle:off no.whitespace.after.left.bracket
   def updateByIdOrExternalId[
       P <: WithExternalIdGeneric[OptionalField] with WithId[Option[Long]],
       U <: WithSetExternalId,
@@ -92,7 +91,6 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
     (updateIds, updateExternalIds).parMapN((_, _) => ())
   }
 
-  // scalastyle:off no.whitespace.after.left.bracket method.length
   def createOrUpdateByExternalId[
       R <: ToCreate[C],
       U <: WithSetExternalId,

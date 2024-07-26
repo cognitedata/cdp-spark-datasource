@@ -145,8 +145,6 @@ lazy val library = (project in file("."))
     buildInfoUsePackageAsPath := true,
     commonSettings,
     name := "cdf-spark-datasource",
-    scalastyleFailOnWarning := true,
-    scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing(),

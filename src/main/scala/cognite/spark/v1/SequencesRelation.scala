@@ -183,7 +183,6 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       sequences,
       (s: SequenceUpsertSchema) => s.columns.map(_.size).getOrElse(0))
 
-    // scalastyle:off no.whitespace.after.left.bracket
     groupedSequences.toList.traverse_ { sequencesToCreate =>
       genericUpsert[
         Sequence,
@@ -192,10 +191,8 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         SequenceUpdate,
         SequencesResource[IO]](sequencesToCreate, isUpdateEmpty, client.sequences)
     }
-    // scalastyle:on no.whitespace.after.left.bracket
   }
 
-  // scalastyle:off method.length
   override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
     val sequences =
       rows
@@ -205,7 +202,6 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     implicit val toUpdate = transformerUpsertToUpdate(sequences)
 
-    // scalastyle:off no.whitespace.after.left.bracket
     createOrUpdateByExternalId[
       Sequence,
       SequenceUpdate,
@@ -214,7 +210,6 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       OptionalField,
       SequencesResource[IO]](Set.empty, sequences, client.sequences, doUpsert = true)
   }
-  // scalastyle:off method.length
 
   override def schema: StructType = structType[SequenceReadSchema]()
 

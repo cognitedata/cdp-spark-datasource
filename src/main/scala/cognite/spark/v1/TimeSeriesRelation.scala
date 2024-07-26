@@ -39,7 +39,6 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val timeSeries = rows.map(fromRow[TimeSeriesUpsertSchema](_))
-    // scalastyle:off no.whitespace.after.left.bracket
     genericUpsert[
       TimeSeries,
       TimeSeriesUpsertSchema,

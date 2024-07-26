@@ -52,7 +52,7 @@ abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
   implicit def fieldToSetter[T]: Transformer[OptionalField[T], Option[Setter[T]]] =
     new Transformer[OptionalField[T], Option[Setter[T]]] {
       override def transform(src: OptionalField[T]): Option[Setter[T]] = src match {
-        case FieldSpecified(null) => // scalastyle:ignore null
+        case FieldSpecified(null) =>
           throw new Exception(
             "FieldSpecified(null) observed, that's bad. Please reach out to Cognite support.")
         case FieldSpecified(x) => Some(SetValue(x))
