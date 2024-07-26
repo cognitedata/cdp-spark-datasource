@@ -4,8 +4,8 @@ import sbtassembly.MergeStrategy
 import scala.xml.{Node => XmlNode, NodeSeq => XmlNodeSeq, _}
 import scala.xml.transform.{RewriteRule, RuleTransformer}
 
-val scala212 = "2.13.14"
-val scala213 = "2.13.8"
+val scala212 = "2.12.18"
+val scala213 = "2.13.14"
 val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.4"
 val circeVersion = "0.14.9"
