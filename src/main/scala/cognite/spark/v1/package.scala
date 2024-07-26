@@ -4,10 +4,12 @@ import com.cognite.sdk.scala.common.{NonNullableSetter, SdkException, SetNull, S
 import com.cognite.sdk.scala.v1.{SequenceColumn, SequenceColumnCreate}
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl.TransformerConfiguration
+import io.scalaland.chimney.dsl.TransformerConfiguration.UpdateFlag
+import io.scalaland.chimney.internal.runtime.TransformerFlags
 
 // scalastyle:off
 package object v1 {
-  implicit val chimneyConfiguration =
+  implicit val chimneyConfiguration: UpdateFlag[TransformerFlags.Enable[TransformerFlags.DefaultValues, TransformerFlags.Default]] =
     TransformerConfiguration.default.enableDefaultValues
 
   @SuppressWarnings(
