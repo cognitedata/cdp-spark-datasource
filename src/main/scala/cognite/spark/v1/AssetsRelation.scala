@@ -22,7 +22,6 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  Array("name", "source", "dataSetId", "labels", "id", "externalId", "externalIdPrefix")
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO]): Seq[Stream[IO, AssetsReadSchema]] = {
     val (ids, filters) =
