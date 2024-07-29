@@ -9,7 +9,7 @@ import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
 import scala.annotation.nowarn
 
-@nowarn("cat=unused")
+@nowarn("cat=unused,unused-nowarn")
 class AssetHierarchyBuilderTest
     extends FlatSpec
     with Matchers
