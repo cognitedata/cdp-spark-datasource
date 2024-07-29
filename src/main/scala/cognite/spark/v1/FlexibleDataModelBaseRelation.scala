@@ -151,11 +151,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           .map(FilterDefinition.Or.apply)
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
-      case IsNotNull(attribute) if attribute.equalsIgnoreCase("type")  && instanceType == InstanceType.Node =>
+      case IsNotNull(attribute)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
-      case IsNull(attribute) if attribute.equalsIgnoreCase("type")  && instanceType == InstanceType.Node =>
+      case IsNull(attribute)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
@@ -203,9 +205,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           .map(FilterDefinition.Not.apply)
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
-      case IsNotNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Node =>
+      case IsNotNull(attribute)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
-      case IsNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Node =>
+      case IsNull(attribute)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case f =>
         Left(new CdfSparkIllegalArgumentException(
