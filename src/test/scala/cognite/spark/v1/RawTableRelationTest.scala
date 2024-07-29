@@ -821,7 +821,7 @@ class RawTableRelationTest
     dfWithEmptyStringInByteField
       .collect()
       .map(_.getAs[Any]("byte"))
-      .toSet shouldBe Set(null, 1.toByte) // scalastyle:off null
+      .toSet shouldBe Set(null, 1.toByte)
   }
 
   it should "handle empty string as null for Short type" in {
@@ -831,7 +831,7 @@ class RawTableRelationTest
     dfWithEmptyStringInShortField
       .collect()
       .map(_.getAs[Any]("short"))
-      .toSet shouldBe Set(null, 12.toShort) // scalastyle:off null
+      .toSet shouldBe Set(null, 12.toShort)
   }
 
   it should "handle empty string as null for Integer type" in {
@@ -841,7 +841,7 @@ class RawTableRelationTest
     dfWithEmptyStringInIntegerField
       .collect()
       .map(_.getAs[Any]("integer"))
-      .toSet shouldBe Set(null, 123) // scalastyle:off null
+      .toSet shouldBe Set(null, 123)
   }
 
   it should "handle empty string as null for Long type" in {
@@ -851,7 +851,7 @@ class RawTableRelationTest
     dfWithEmptyStringInLongField
       .collect()
       .map(_.getAs[Any]("long"))
-      .toSet shouldBe Set(null, 12345L) // scalastyle:off null
+      .toSet shouldBe Set(null, 12345L)
   }
 
   it should "handle empty string as null for Double type" in {
@@ -861,7 +861,7 @@ class RawTableRelationTest
     dfWithEmptyStringInDoubleField
       .collect()
       .map(_.getAs[Any]("num"))
-      .toSet shouldBe Set(null, 12.3) // scalastyle:off null
+      .toSet shouldBe Set(null, 12.3)
   }
 
   it should "handle empty string as null for Boolean type" in {
@@ -874,7 +874,7 @@ class RawTableRelationTest
     dfWithEmptyStringInBooleanField
       .collect()
       .map(_.getAs[Any]("bool"))
-      .toSet shouldBe Set(null, true, false) // scalastyle:off null
+      .toSet shouldBe Set(null, true, false)
   }
 
   it should "fail reasonably on invalid types" in {

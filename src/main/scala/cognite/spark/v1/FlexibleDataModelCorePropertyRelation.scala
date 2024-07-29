@@ -51,7 +51,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
 
   override def schema: StructType = propertySchema
 
-  // scalastyle:off cyclomatic.complexity
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val firstRow = rows.headOption
     (firstRow, viewReference) match {
@@ -67,7 +66,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case (None, _) => incMetrics(itemsUpserted, 0)
     }
   }
-  // scalastyle:on cyclomatic.complexity
 
   override def insert(rows: Seq[Row]): IO[Unit] =
     IO.raiseError[Unit](

@@ -4,10 +4,12 @@ import com.cognite.sdk.scala.common.{NonNullableSetter, SdkException, SetNull, S
 import com.cognite.sdk.scala.v1.{SequenceColumn, SequenceColumnCreate}
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl.TransformerConfiguration
+import io.scalaland.chimney.dsl.TransformerConfiguration.UpdateFlag
+import io.scalaland.chimney.internal.runtime.TransformerFlags
 
-// scalastyle:off
 package object v1 {
-  implicit val chimneyConfiguration =
+  implicit val chimneyConfiguration
+    : UpdateFlag[TransformerFlags.Enable[TransformerFlags.DefaultValues, TransformerFlags.Default]] =
     TransformerConfiguration.default.enableDefaultValues
 
   @SuppressWarnings(
@@ -20,9 +22,9 @@ package object v1 {
   implicit def optionToSetter[T: Manifest]: Transformer[Option[T], Option[Setter[T]]] =
     new Transformer[Option[T], Option[Setter[T]]] {
       override def transform(src: Option[T]) = src match {
-        case null => Some(SetNull()) // scalastyle:ignore null
+        case null => Some(SetNull())
         case None => None
-        case Some(null) => Some(SetNull()) // scalastyle:ignore null
+        case Some(null) => Some(SetNull())
         case Some(value: T) => Some(SetValue(value))
         case Some(badValue) =>
           throw new SdkException(

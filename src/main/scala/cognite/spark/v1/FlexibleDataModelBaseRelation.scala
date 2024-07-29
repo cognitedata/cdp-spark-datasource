@@ -60,9 +60,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any =
     FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema.apply(key).dataType, value)
 
-  // scalastyle:on cyclomatic.complexity
-
-  // scalastyle:off cyclomatic.complexity method.length
   protected def toInstanceFilter(
       instanceType: InstanceType,
       sparkFilter: Filter,
@@ -161,9 +158,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           new CdfSparkIllegalArgumentException(
             s"Unsupported filter '${f.getClass.getSimpleName}', ${f.toString}"))
     }
-  // scalastyle:on cyclomatic.complexity
 
-  // scalastyle:off cyclomatic.complexity
   protected def toNodeOrEdgeAttributeFilter(
       instanceType: InstanceType,
       sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
@@ -199,9 +194,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         Left(new CdfSparkIllegalArgumentException(
           s"Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
     }
-  // scalastyle:on cyclomatic.complexity
 
-  // scalastyle:off cyclomatic.complexity
   protected def toProjectedInstance(
       i: InstanceDefinition,
       cursor: Option[String],
@@ -250,9 +243,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         )
     }
   }
-  // scalastyle:on cyclomatic.complexity
 
-  // scalastyle:off cyclomatic.complexity
   protected def deriveViewPropertySchemaWithUsageSpecificAttributes(
       usage: Usage,
       viewProps: Map[String, ViewPropertyDefinition]): StructType = {
@@ -415,7 +406,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case Left(err) => Left(err)
     }
 
-  // scalastyle:off cyclomatic.complexity
   private def toFilterValueDefinition(
       attribute: String,
       value: Any): Either[CdfSparkException, FilterValueDefinition] =
@@ -466,7 +456,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           )
         )
     }
-  // scalastyle:on cyclomatic.complexity
 
   private def toFilterDirectNodeRelation(
       v: GenericRowWithSchema): Either[CdfSparkIllegalArgumentException, FilterValueDefinition] =
@@ -483,7 +472,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       )
     }
 
-  // scalastyle:off cyclomatic.complexity method.length
   private def toFilterValueListDefinition(
       attribute: String,
       values: Vector[Any]): Either[CdfSparkException, FilterValueDefinition] = {

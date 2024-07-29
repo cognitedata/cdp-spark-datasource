@@ -8,7 +8,6 @@ import cognite.spark.v1.{OptionalField, StructTypeEncoder}
 
 object StructTypeEncoderMacro {
   implicit def defaultStructTypeEncoder[T]: StructTypeEncoder[T] = macro structTypeEncoder_impl[T]
-  // scalastyle:off method.name
   def structTypeEncoder_impl[T: c.WeakTypeTag](c: Context): c.Expr[StructTypeEncoder[T]] = {
     import c.universe._
     val structField = symbolOf[StructField.type].asClass.module
@@ -24,7 +23,6 @@ object StructTypeEncoderMacro {
     c.Expr[StructTypeEncoder[T]](q"new StructTypeEncoder[${weakTypeOf[T]}] {..$body}")
   }
 
-  // scalastyle:off cyclomatic.complexity
   private def typeToStructType(c: Context)(t: c.Type): (c.Tree, Boolean) = {
     import c.universe._
     val nullable = t <:< weakTypeOf[Option[_]] || t <:< weakTypeOf[OptionalField[_]]

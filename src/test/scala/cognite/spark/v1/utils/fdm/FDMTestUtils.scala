@@ -71,7 +71,6 @@ object FDMTestUtils {
       containerPropertyIdentifier = containerPropertyIdentifier
     )
 
-  // scalastyle:off cyclomatic.complexity method.length
   def createAllPossibleContainerPropCombinations: Map[String, ContainerPropertyDefinition] = {
     val boolOptions = List(
       true,
@@ -122,14 +121,12 @@ object FDMTestUtils {
       )
     }).toMap
   }
-  // scalastyle:on cyclomatic.complexity method.length
 
   def createAllPossibleViewPropCombinations: Map[String, ViewCorePropertyDefinition] =
     createAllPossibleContainerPropCombinations.map {
       case (key, prop) => key -> toViewPropertyDefinition(prop, None, None)
     }
 
-  // scalastyle:off cyclomatic.complexity
   def viewPropStr: Vector[String] =
     createAllPossibleViewPropCombinations.map {
       case (propName, prop) =>
@@ -169,7 +166,6 @@ object FDMTestUtils {
        |    )
        |""".stripMargin
     }.toVector
-  // scalastyle:on cyclomatic.complexity
 
   def createTestContainer(
       space: String,
@@ -296,7 +292,6 @@ object FDMTestUtils {
         )
     }
 
-  // scalastyle:off cyclomatic.complexity
   private def listContainerPropToInstanceProperty(
       propName: String,
       containerPropType: PropertyType
@@ -348,9 +343,7 @@ object FDMTestUtils {
         )
       case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
     }
-  // scalastyle:on cyclomatic.complexity
 
-  // scalastyle:off cyclomatic.complexity
   private def nonListContainerPropToInstanceProperty(
       propName: String,
       containerPropType: PropertyType
@@ -386,7 +379,6 @@ object FDMTestUtils {
         )
       case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
     }
-  // scalastyle:on cyclomatic.complexity
 
   private def toInstanceData(
       containerRef: ContainerReference,
@@ -396,7 +388,6 @@ object FDMTestUtils {
       source = containerRef,
       properties = Some(instancePropertyValues.map { case (k, v) => k -> Some(v) }.toMap)
     )
-  // scalastyle:off cyclomatic.complexity
   private def propertyDefaultValueForPropertyType(
       p: PropertyType,
       withDefault: Boolean
@@ -448,6 +439,5 @@ object FDMTestUtils {
     } else {
       None
     }
-  // scalastyle:on cyclomatic.complexity
 
 }
