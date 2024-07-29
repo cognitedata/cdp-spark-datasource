@@ -7,6 +7,9 @@ import com.cognite.sdk.scala.v1.{AssetCreate, CogniteExternalId}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.{FlatSpec, Matchers, OptionValues, ParallelTestExecution}
 
+import scala.annotation.nowarn
+
+@nowarn("cat=unused")
 class AssetHierarchyBuilderTest
     extends FlatSpec
     with Matchers
