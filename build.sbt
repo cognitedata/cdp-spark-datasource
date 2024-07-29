@@ -55,8 +55,13 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature") ++ (CrossVersion.partialVersion(scalaVersion.value) match {
     // We use JavaConverters to remain backwards compatible with Scala 2.12,
     // and to avoid a dependency on scala-collection-compat
-    case Some((2, 13)) => Seq("-Wconf:src=src/test/scala/cognite/spark/v1/SparkTest.scala&cat=deprecation:i")
-    case Some((2, 12)) => Seq("-Wconf:src=src/test/scala/.*&cat=unused:i")
+    case Some((2, 13)) => Seq(
+      "-Wconf:src=src/test/scala/cognite/spark/v1/SparkTest.scala&cat=deprecation:i",
+      "-Wconf:src=src/test/scala/.*&cat=other-pure-statement:i"
+    )
+    case Some((2, 12)) => Seq(
+      "-Wconf:src=src/test/scala/.*&cat=unused:i"
+    )
     case _ => Seq.empty
   }),
   resolvers ++= Resolver.sonatypeOssRepos("releases"),
