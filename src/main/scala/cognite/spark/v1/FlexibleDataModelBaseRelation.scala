@@ -155,7 +155,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
-      case IsNull(attribute) if attribute.equalsIgnoreCase("type")  && instanceType == InstanceType.Node add =>
+      case IsNull(attribute) if attribute.equalsIgnoreCase("type")  && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
