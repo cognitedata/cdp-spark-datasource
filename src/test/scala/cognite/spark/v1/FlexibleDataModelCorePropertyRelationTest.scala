@@ -64,6 +64,11 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
   private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
+  private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes4"
+  private val typeContainerNodeExternalId = "sparkDsTestContainerTypeNodes4"
+
+  private val typedViewNodeExternalId = "sparkDsTestViewTypedNodes4"
+  private val typeViewNodeExternalId = "sparkDsTestViewTypeNodes4"
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
@@ -73,6 +78,18 @@ class FlexibleDataModelCorePropertyRelationTest
     "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
     "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
   )
+
+  private val nodeContainerTypeProp: Map[String, ContainerPropertyDefinition] = Map(
+    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable
+  )
+
+  private lazy val containerTypeNode: ContainerDefinition =
+    createContainerIfNotExists(Usage.Node, nodeContainerProps, typeContainerNodeExternalId)
+      .unsafeRunSync()
+
+  private lazy val containerTypedNode: ContainerDefinition =
+    createContainerIfNotExists(Usage.Node, nodeContainerTypeProp, typedContainerNodeExternalId)
+      .unsafeRunSync()
 
   private lazy val containerStartAndEndNodes: ContainerDefinition =
     createContainerIfNotExists(Usage.Node, nodeContainerProps, containerStartNodeAndEndNodesExternalId)
@@ -84,6 +101,21 @@ class FlexibleDataModelCorePropertyRelationTest
       viewStartNodeAndEndNodesExternalId,
       viewVersion)
       .unsafeRunSync()
+
+  //To use as type for other node
+  private lazy val viewTypeNode: ViewDefinition = createViewWithCorePropsIfNotExists(
+    containerTypeNode,
+    typeViewNodeExternalId,
+    viewVersion
+  ).unsafeRunSync()
+
+  //Types are optional on nodes, this is used to test using a node which has a type
+  private lazy val viewTypedNode: ViewDefinition =
+    createViewWithCorePropsIfNotExists(
+      containerTypedNode,
+      typedViewNodeExternalId,
+      viewVersion
+    ).unsafeRunSync()
 
   it should "succeed when inserting all nullable & non nullable non list values" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode"
@@ -107,7 +139,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 |'$instanceExtId' as externalId,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
-                |    'externalId', '$instanceExtId'
+                |    'externalId', '$startNodeExtId'
                 |) as type,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
@@ -247,7 +279,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 |'$instanceExtId' as externalId,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
-                |    'externalId', '$instanceExtId'
+                |    'externalId', '$startNodeExtId'
                 |) as type,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
@@ -563,6 +595,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql(s"""select * from edge_filter_instances_table
            | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
            | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
+           | and type is not null
            | and type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
            | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
            | and space = '$spaceExternalId'
@@ -573,6 +606,38 @@ class FlexibleDataModelCorePropertyRelationTest
 
     allEdgeExternalIds.length shouldBe 2
     (actualAllEdgeExternalIds should contain).allElementsOf(allEdgeExternalIds)
+  }
+
+  it should "succeed when filtering nodes with type" in {
+    val nullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeNullType"
+    val nonNullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByType"
+    val typeNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeType"
+
+    createTypedNodesIfNotExists(
+      nullTypedNode,
+      nonNullTypedNode,
+      typeNode,
+      viewTypeNode.toSourceReference,
+      viewTypedNode.toSourceReference).unsafeRunSync()
+
+    val readNodesDf = readRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewTypedNode.externalId,
+      viewVersion = viewTypedNode.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+
+    readNodesDf.createTempView(s"node_filter_instances_table")
+
+    val selectedNodes = spark
+      .sql(s"""select * from node_filter_instances_table
+              | where type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
+              | and space = '$spaceExternalId'
+              | """.stripMargin)
+      .collect()
+
+    selectedNodes.length shouldBe 1
   }
 
   it should "be able to fetch more data with cursor when syncing" in {
@@ -595,7 +660,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val createdTime = lastRow.getLong(lastRow.schema.fieldIndex("node.createdTime"))
     createdTime should be > 1L
     val lastUpdated = lastRow.getLong(lastRow.schema.fieldIndex("node.lastUpdatedTime"))
-    lastUpdated should be >=  createdTime
+    lastUpdated should be >= createdTime
     val deletedTime = lastRow.getLong(lastRow.schema.fieldIndex("node.deletedTime"))
     deletedTime shouldBe 0L
     val version = lastRow.getLong(lastRow.schema.fieldIndex("node.version"))
@@ -632,20 +697,28 @@ class FlexibleDataModelCorePropertyRelationTest
     )
 
     syncDf.createTempView(s"sync_empty_cursor_with_filter")
-    val syncedNodes = spark.sql("select * from sync_empty_cursor_with_filter where longProp > 10L and longProp <= 50").collect()
+    val syncedNodes = spark
+      .sql("select * from sync_empty_cursor_with_filter where longProp > 10L and longProp <= 50")
+      .collect()
     syncedNodes.length shouldBe 40
 
-    val syncedNodes2 = spark.sql("select * from sync_empty_cursor_with_filter where " +
-      "`node.lastUpdatedTime` > 10L and " +
-      "longProp > 0 and " +
-      "space = '" + spaceExternalId + "' and " +
-      "`node.deletedTime` = 0").collect()
+    val syncedNodes2 = spark
+      .sql(
+        "select * from sync_empty_cursor_with_filter where " +
+          "`node.lastUpdatedTime` > 10L and " +
+          "longProp > 0 and " +
+          "space = '" + spaceExternalId + "' and " +
+          "`node.deletedTime` = 0")
+      .collect()
     syncedNodes2.length shouldBe 50
 
-    val syncedNodes3 = spark.sql("select * from sync_empty_cursor_with_filter where " +
-      "`node.lastUpdatedTime` > 10L and " +
-      "longProp > 0 and " +
-      "space = 'nonexistingspace'").collect()
+    val syncedNodes3 = spark
+      .sql(
+        "select * from sync_empty_cursor_with_filter where " +
+          "`node.lastUpdatedTime` > 10L and " +
+          "longProp > 0 and " +
+          "space = 'nonexistingspace'")
+      .collect()
     syncedNodes3.length shouldBe 0
   }
 
@@ -724,8 +797,8 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql(syncSql)
       .collect()
 
-    filtered.length shouldBe(1)
-    synced.length shouldBe(1)
+    filtered.length shouldBe (1)
+    synced.length shouldBe (1)
 
     for (row <- filtered ++ synced) {
       row.getLong(row.schema.fieldIndex("node.createdTime")) should be >= 1L
@@ -1381,12 +1454,10 @@ class FlexibleDataModelCorePropertyRelationTest
             sources = Some(
               Seq(EdgeOrNodeData(
                 viewRef,
-                Some(
-                  Map(
-                    "stringProp" -> Some(
-                      InstancePropertyValue.String(System.nanoTime().toString)),
-                    "longProp" -> Some(InstancePropertyValue.Int64(i.toLong))
-                  ))
+                Some(Map(
+                  "stringProp" -> Some(InstancePropertyValue.String(System.nanoTime().toString)),
+                  "longProp" -> Some(InstancePropertyValue.Int64(i.toLong))
+                ))
               ))),
             `type` = None
           )
