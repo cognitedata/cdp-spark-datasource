@@ -597,6 +597,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql(s"""select * from edge_filter_instances_table
            | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
            | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
+           | and type is not null
            | and type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
            | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
            | and space = '$spaceExternalId'
