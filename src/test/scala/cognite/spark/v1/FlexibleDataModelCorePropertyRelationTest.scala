@@ -132,7 +132,6 @@ class FlexibleDataModelCorePropertyRelationTest
     val instanceExtIdNode = s"${randomId}Node"
     val instanceExtIdEdge = s"${randomId}Edge"
 
-    //scalastyle:off method.length
     def insertionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
@@ -176,7 +175,6 @@ class FlexibleDataModelCorePropertyRelationTest
                 |) as directRelation1,
                 |null as directRelation2
                 |""".stripMargin)
-    //scalastyle:on
 
     val insertionResults = Try {
       Vector(
@@ -1233,7 +1231,6 @@ class FlexibleDataModelCorePropertyRelationTest
     succeed
   }
 
-  // scalastyle:off method.length
   private def setupAllListAndNonListPropertyTest
     : IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
@@ -1308,7 +1305,6 @@ class FlexibleDataModelCorePropertyRelationTest
       _ <- IO.sleep(5.seconds)
     } yield (viewAll, viewNodes, viewEdges)
   }
-  // scalastyle:on method.length
 
   private def setupAllNonListPropertyTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
@@ -1471,7 +1467,6 @@ class FlexibleDataModelCorePropertyRelationTest
       .map(_.distinct)
   }
 
-  // scalastyle:off method.length
   private def setupInstancesForFiltering(viewDef: ViewDefinition): IO[Seq[String]] = {
     val viewExtId = viewDef.externalId
     val source = viewDef.toInstanceSource
@@ -1549,7 +1544,6 @@ class FlexibleDataModelCorePropertyRelationTest
         }
       }
   }
-  // scalastyle:on method.length
 
   private def setupNumericConversionTest: IO[ViewDefinition] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(

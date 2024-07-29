@@ -1,4 +1,3 @@
-// scalastyle:off
 package cognite.spark.v1
 
 import org.apache.spark.sql.Row

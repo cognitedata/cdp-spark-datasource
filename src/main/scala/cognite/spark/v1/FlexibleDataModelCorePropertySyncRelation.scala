@@ -66,8 +66,6 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     FilterDefinition.And(requestFilters)
   }
 
-  // scalastyle:off cyclomatic.complexity
-  // scalastyle:off method.length
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
@@ -108,8 +106,6 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         selectedColumns
       ))
   }
-  // scalastyle:on method.length
-  // scalastyle:on cyclomatic.complexity
 
   private val matchNothingFilter: FilterDefinition =
     FilterDefinition.Not(MatchAll(JsonObject()))

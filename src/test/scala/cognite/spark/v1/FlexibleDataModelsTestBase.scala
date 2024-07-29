@@ -48,7 +48,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
 
   protected val viewVersion = "v1"
 
-  // scalastyle:off method.length
   protected def createTestInstancesForView(
       viewDef: ViewDefinition,
       directNodeReference: DirectRelationReference,
@@ -96,7 +95,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       .map(_.map(_.externalId))
       .flatTap(_ => IO.sleep(5.seconds))
   }
-  // scalastyle:on method.length
 
   protected def createEdgeWriteInstances(
       viewDef: ViewDefinition,
@@ -343,9 +341,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
         replace = Some(true)
       ))
       .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
-  // scalastyle:off method.length
 
-  // scalastyle:off method.length
   protected def createNodesForEdgesIfNotExists(
       startNodeExtId: String,
       endNodeExtId: String,
@@ -380,7 +376,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       ))
       .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
 
-  // scalastyle:off method.length
 
   protected def apiCompatibleRandomString(): String =
     UUID.randomUUID().toString.replaceAll("[_\\-x0]", "").substring(0, 5)
@@ -419,7 +414,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
         }
     }
 
-  // scalastyle:off cyclomatic.complexity
   protected def listContainerPropToInstanceProperty(
       propName: String,
       propertyType: PropertyType
@@ -471,9 +465,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
         )
       case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
     }
-  // scalastyle:on cyclomatic.complexity
 
-  // scalastyle:off cyclomatic.complexity
   protected def nonListContainerPropToInstanceProperty(
       propName: String,
       propertyType: PropertyType
