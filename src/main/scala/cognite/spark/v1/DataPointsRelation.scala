@@ -166,14 +166,14 @@ object DataPointsRelationV1 {
         .eval(queryPoints)
         .flatMap {
           case (_, Nil) => Pull.done
-          case (None, points) => Pull.output(Chunk.seq(points))
+          case (None, points) => Pull.output(Chunk.from(points))
           case (Some(lastTimestamp), points) =>
             val newLowerLimit = lastTimestamp.plusMillis(1)
             val pointsFromResponse = nPointsRemaining match {
               case None => points
               case Some(maxNumPointsToInclude) => points.take(maxNumPointsToInclude)
             }
-            val currentPull = Pull.output(Chunk.seq(pointsFromResponse))
+            val currentPull = Pull.output(Chunk.from(pointsFromResponse))
             if (points.size == batchSize) {
               // we hit the batch size, let's load the next page
               currentPull >>

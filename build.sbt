@@ -8,11 +8,11 @@ val scala212 = "2.12.15"
 val scala213 = "2.13.8"
 val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.4"
-val circeVersion = "0.14.6"
+val circeVersion = "0.14.9"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.23.805"
+val cogniteSdkVersion = "2.24.833"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -30,12 +30,19 @@ credentials += Credentials("Sonatype Nexus Repository Manager",
   System.getenv("SONATYPE_USERNAME"),
   System.getenv("SONATYPE_PASSWORD"),
 )
+credentials += Credentials("Artifactory Realm",
+  "cognite.jfrog.io",
+  System.getenv("JFROG_USERNAME"),
+  System.getenv("JFROG_PASSWORD"),
+)
+
+val artifactory = "https://cognite.jfrog.io/cognite"
 
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.19." + patchVersion,
+  version := "3.20." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -81,11 +88,16 @@ lazy val commonSettings = Seq(
   ),
   // Remove all additional repository other than Maven Central from POM
   pomIncludeRepository := { _ => false },
-  publishTo := {
+  publishTo := (if (System.getenv("PUBLISH_TO_JFROG") == "true") {
+    if (isSnapshot.value)
+      Some("snapshots".at(s"$artifactory/libs-snapshot-local/"))
+    else
+      Some("local-releases".at(s"$artifactory/libs-release-local/"))
+  } else {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value) { Some("snapshots" at nexus + "content/repositories/snapshots") }
     else { Some("releases" at nexus + "service/local/staging/deploy/maven2") }
-  },
+  }),
   publishMavenStyle := true,
   pgpPassphrase := {
     if (gpgPass.isDefined) { gpgPass.map(_.toCharArray) }
