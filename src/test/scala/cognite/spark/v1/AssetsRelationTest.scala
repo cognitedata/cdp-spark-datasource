@@ -13,7 +13,8 @@ import java.util.UUID
 import scala.annotation.nowarn
 import scala.util.control.NonFatal
 
-@nowarn("cat=unused,unused-nowarn")
+@nowarn("cat=unused")
+@nowarn("cat=unused-nowarn")
 class AssetsRelationTest extends FlatSpec with Matchers with SparkTest {
 
   val sourceDf = dataFrameReaderUsingOidc
