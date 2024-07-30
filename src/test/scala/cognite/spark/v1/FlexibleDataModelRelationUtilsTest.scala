@@ -17,7 +17,6 @@ import org.scalatest.{Assertion, FlatSpec, Matchers}
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
 
-// scalastyle:off null
 class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
   private val destRef = ViewReference("space", "viewExtId1", "viewV1")
@@ -2144,4 +2143,3 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
   }
 
 }
-// scalastyle:on null

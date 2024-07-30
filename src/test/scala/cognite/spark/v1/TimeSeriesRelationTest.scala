@@ -525,7 +525,7 @@ class TimeSeriesRelationTest
         None,
         None,
         isString = false,
-        Some(Map("foo" -> null, "bar" -> "test")), // scalastyle:off null
+        Some(Map("foo" -> null, "bar" -> "test")),
         Some(upsertUnit),
         None,
         isStep = false,

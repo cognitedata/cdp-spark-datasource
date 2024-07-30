@@ -71,7 +71,6 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       .flatTap(_ => incMetrics(itemsDeleted, relationshipIds.length))
   }
 
-  // scalastyle:off no.whitespace.after.left.bracket method.length
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val relationships = rows.map(fromRow[RelationshipsUpsertSchema](_))
     createOrUpdateByExternalId[

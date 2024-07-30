@@ -108,10 +108,10 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
 
   private def jsonFromDouble(num: Double): Json =
     Json.fromDouble(num).getOrElse(throw new CdfSparkException(s"Numeric value $num"))
-  private def tryGetValue(columnType: String): PartialFunction[Any, Json] = // scalastyle:off
+  private def tryGetValue(columnType: String): PartialFunction[Any, Json] =
     columnType match {
       case "DOUBLE" => {
-        case null => Json.Null // scalastyle:off null
+        case null => Json.Null
         case x: Double => jsonFromDouble(x)
         case x: Int => jsonFromDouble(x.toDouble)
         case x: Float => jsonFromDouble(x.toDouble)
@@ -120,12 +120,12 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
         case x: java.math.BigInteger => jsonFromDouble(x.doubleValue)
       }
       case "LONG" => {
-        case null => Json.Null // scalastyle:off null
+        case null => Json.Null
         case x: Int => Json.fromInt(x)
         case x: Long => Json.fromLong(x)
       }
       case "STRING" => {
-        case null => Json.Null // scalastyle:off null
+        case null => Json.Null
         case x: String => Json.fromString(x)
       }
     }
@@ -275,7 +275,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
 object SequenceRowsRelation {
 
   private def parseValue(value: Long, offset: Long = 0) = Some(value + offset)
-  def getSeqFilter(filter: Filter): Seq[SequenceRowFilter] = // scalastyle:off
+  def getSeqFilter(filter: Filter): Seq[SequenceRowFilter] =
     filter match {
       case EqualTo("rowNumber", value: Long) =>
         Seq(SequenceRowFilter(parseValue(value), parseValue(value, +1)))

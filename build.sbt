@@ -1,11 +1,10 @@
-import com.typesafe.sbt.packager.docker.Cmd
 import sbtassembly.AssemblyPlugin.autoImport._
 import sbtassembly.MergeStrategy
 import scala.xml.{Node => XmlNode, NodeSeq => XmlNodeSeq, _}
 import scala.xml.transform.{RewriteRule, RuleTransformer}
 
-val scala212 = "2.12.15"
-val scala213 = "2.13.8"
+val scala212 = "2.12.19"
+val scala213 = "2.13.14"
 val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.4"
 val circeVersion = "0.14.9"
@@ -56,7 +55,13 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature") ++ (CrossVersion.partialVersion(scalaVersion.value) match {
     // We use JavaConverters to remain backwards compatible with Scala 2.12,
     // and to avoid a dependency on scala-collection-compat
-    case Some((2, 13)) => Seq("-Wconf:src=src/test/scala/cognite/spark/v1/SparkTest.scala&cat=deprecation:i")
+    case Some((2, 13)) => Seq(
+      "-Wconf:src=src/test/scala/cognite/spark/v1/SparkTest.scala&cat=deprecation:i",
+      "-Wconf:src=src/test/scala/.*&cat=other-pure-statement:i"
+    )
+    case Some((2, 12)) => Seq(
+      "-Wconf:src=src/test/scala/.*&cat=unused:i"
+    )
     case _ => Seq.empty
   }),
   resolvers ++= Resolver.sonatypeOssRepos("releases"),
@@ -146,8 +151,6 @@ lazy val library = (project in file("."))
     buildInfoUsePackageAsPath := true,
     commonSettings,
     name := "cdf-spark-datasource",
-    scalastyleFailOnWarning := true,
-    scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing(),

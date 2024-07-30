@@ -131,5 +131,4 @@ private[spark] class FlexibleDataModelConnectionRelation(
     IO.raiseError[Unit](
       new CdfSparkException(
         "Create is not supported for flexible data model connection instances. Use upsert instead."))
-  // scalastyle:on cyclomatic.complexity
 }

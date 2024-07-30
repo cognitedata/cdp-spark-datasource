@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-07-29T07:53:46.671574Z",
+  "timestamp" : "2024-07-30T07:33:09.389746Z",
   "configurations" : [
     "compile",
     "optional",
@@ -2083,11 +2083,11 @@
     {
       "org" : "org.scala-lang",
       "name" : "scala-library",
-      "version" : "2.12.15",
+      "version" : "2.12.19",
       "artifacts" : [
         {
           "name" : "scala-library.jar",
-          "hash" : "sha1:0f2e89c89340282c9625ac57efb451056f31af57"
+          "hash" : "sha1:719d843f28afd3239726b7aab9c5c9171aae1d80"
         }
       ],
       "configurations" : [
@@ -2100,11 +2100,11 @@
     {
       "org" : "org.scala-lang",
       "name" : "scala-reflect",
-      "version" : "2.12.15",
+      "version" : "2.12.19",
       "artifacts" : [
         {
           "name" : "scala-reflect.jar",
-          "hash" : "sha1:3eca572cf97238683a8a545dabb22b52781547c8"
+          "hash" : "sha1:76c5600f371936a8c8fed925cb76791e212d3715"
         }
       ],
       "configurations" : [

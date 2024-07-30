@@ -251,7 +251,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           .retrieveByExternalIds(batch, ignoreUnknownIds = true)
     ).map(_.map(a => a.externalId.get -> a).toMap)
 
-  def upsertRoots( // scalastyle:off
+  def upsertRoots(
       newRoots: Vector[AssetsIngestSchema],
       sourceRoots: Map[String, Asset]): IO[Vector[Asset]] = {
 

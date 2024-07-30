@@ -121,7 +121,6 @@ class RawTableRelation(
         RawJsonConverter.untypedRowConverter
     }
 
-  // scalastyle:off method.length
   private def readRows(
       limit: Option[Int],
       numPartitions: Option[Int],
@@ -177,7 +176,6 @@ class RawTableRelation(
       deduplicateRows = true // if false we might end up with 429 when trying to update assets with multiple same request
     )
   }
-  // scalastyle:on method.length
 
   override def buildScan(): RDD[Row] = buildScan(schema.fieldNames, Array.empty)
 

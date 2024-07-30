@@ -431,7 +431,6 @@ final case class NumericDataPointsRdd(
       "scalafix:DisableSyntax.while"
     ))
   @inline
-  // scalastyle:off cyclomatic.complexity
   private def dataPointToRow(id: CogniteId, dataPoint: SdkDataPoint): Row = {
     val array = new Array[Any](rowIndicesLength)
     var i = 0
@@ -440,16 +439,16 @@ final case class NumericDataPointsRdd(
         case 0 =>
           array(i) = id match {
             case CogniteInternalId(id) => id
-            case _ => null // scalastyle:off null
+            case _ => null
           }
         case 1 =>
           array(i) = id match {
             case CogniteExternalId(externalId) => externalId
-            case _ => null // scalastyle:off null
+            case _ => null
           }
         case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
         case 3 => array(i) = dataPoint.value
-        case 4 | 5 => array(i) = null // scalastyle:off null
+        case 4 | 5 => array(i) = null
       }
       i += 1
     }
@@ -470,12 +469,12 @@ final case class NumericDataPointsRdd(
         case 0 =>
           array(i) = r.id match {
             case CogniteInternalId(id) => id
-            case _ => null // scalastyle:off null
+            case _ => null
           }
         case 1 =>
           array(i) = r.id match {
             case CogniteExternalId(externalId) => externalId
-            case _ => null // scalastyle:off null
+            case _ => null
           }
         case 2 => array(i) = java.sql.Timestamp.from(dataPoint.timestamp)
         case 3 => array(i) = dataPoint.value

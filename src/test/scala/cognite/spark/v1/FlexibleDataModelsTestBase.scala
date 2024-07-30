@@ -34,9 +34,11 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
   protected val clientSecret = sys.env("TEST_CLIENT_SECRET")
   protected val cluster = sys.env("TEST_CLUSTER")
   protected val project = sys.env("TEST_PROJECT")
-  protected val tokenUri: String = sys.env.get("TEST_TOKEN_URL")
+  protected val tokenUri: String = sys.env
+    .get("TEST_TOKEN_URL")
     .orElse(
-      sys.env.get("TEST_AAD_TENANT")
+      sys.env
+        .get("TEST_AAD_TENANT")
         .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
     .getOrElse("https://sometokenurl")
   protected val audience = s"https://${cluster}.cognitedata.com"
@@ -46,7 +48,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
 
   protected val viewVersion = "v1"
 
-  // scalastyle:off method.length
   protected def createTestInstancesForView(
       viewDef: ViewDefinition,
       directNodeReference: DirectRelationReference,
@@ -94,7 +95,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       .map(_.map(_.externalId))
       .flatTap(_ => IO.sleep(5.seconds))
   }
-  // scalastyle:on method.length
 
   protected def createEdgeWriteInstances(
       viewDef: ViewDefinition,
@@ -181,14 +181,16 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
     )
   }
 
-  protected def createSpaceIfNotExists(space: String): IO[Unit] = for {
-    existing <- client.spacesv3.retrieveItems(Seq(SpaceById(space)))
-    _ <- Applicative[IO].whenA(existing.isEmpty) {
-      client.spacesv3.createItems(Seq(
-        SpaceCreateDefinition(space)
-      ))
-    }
-  } yield ()
+  protected def createSpaceIfNotExists(space: String): IO[Unit] =
+    for {
+      existing <- client.spacesv3.retrieveItems(Seq(SpaceById(space)))
+      _ <- Applicative[IO].whenA(existing.isEmpty) {
+        client.spacesv3.createItems(
+          Seq(
+            SpaceCreateDefinition(space)
+          ))
+      }
+    } yield ()
 
   protected def createContainerIfNotExists(
       usage: Usage,
@@ -254,6 +256,53 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       }
       .map(_.head)
 
+  protected def createTypedNodesIfNotExists(
+      typedNodeNullTypeExtId: String,
+      typedNodeExtId: String,
+      typeNodeExtId: String,
+      typeNodeSourceReference: SourceReference,
+      sourceReference: SourceReference
+  ): IO[Unit] =
+    client.instances
+      .createItems(instance = InstanceCreate(
+        items = Seq(
+          NodeWrite(
+            spaceExternalId,
+            typeNodeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                typeNodeSourceReference,
+                None
+              ))
+            ),
+            `type` = None
+          ),
+          NodeWrite(
+            spaceExternalId,
+            typedNodeNullTypeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                sourceReference,
+                None
+              ))
+            ),
+            `type` = None
+          ),
+          NodeWrite(
+            spaceExternalId,
+            typedNodeExtId,
+            Some(
+              Seq(EdgeOrNodeData(
+                sourceReference,
+                None
+              ))
+            ),
+            `type` = Some(DirectRelationReference(spaceExternalId, typeNodeExtId))
+          )
+        ),
+        replace = Some(true)
+      ))
+      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
   // scalastyle:off method.length
   protected def createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId: String,
@@ -292,9 +341,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
         replace = Some(true)
       ))
       .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
-  // scalastyle:off method.length
 
-  // scalastyle:off method.length
   protected def createNodesForEdgesIfNotExists(
       startNodeExtId: String,
       endNodeExtId: String,
@@ -329,7 +376,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       ))
       .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
 
-  // scalastyle:off method.length
 
   protected def apiCompatibleRandomString(): String =
     UUID.randomUUID().toString.replaceAll("[_\\-x0]", "").substring(0, 5)
@@ -368,7 +414,6 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
         }
     }
 
-  // scalastyle:off cyclomatic.complexity
   protected def listContainerPropToInstanceProperty(
       propName: String,
       propertyType: PropertyType
@@ -420,9 +465,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
         )
       case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
     }
-  // scalastyle:on cyclomatic.complexity
 
-  // scalastyle:off cyclomatic.complexity
   protected def nonListContainerPropToInstanceProperty(
       propName: String,
       propertyType: PropertyType

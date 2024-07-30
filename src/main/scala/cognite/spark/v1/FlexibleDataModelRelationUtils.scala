@@ -31,8 +31,6 @@ import org.apache.spark.sql.types._
 import java.time._
 import scala.util.{Failure, Success, Try}
 
-// scalastyle:off
-//TODO put back scalastyle rules
 object FlexibleDataModelRelationUtils {
   private[spark] def createNodes(
       rows: Seq[Row],
@@ -95,7 +93,7 @@ object FlexibleDataModelRelationUtils {
           externalId = externalId,
           instanceSpace = space,
           source,
-          edgeNodeTypeRelation =
+          typeDirectRelation =
             extractNodeOrEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           startNodeRelation =
             extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
@@ -228,17 +226,16 @@ object FlexibleDataModelRelationUtils {
         )
     }
 
-  // scalastyle:off method.length
   private def createNodeOrEdgeWriteData(
       externalId: String,
       instanceSpace: String,
       source: SourceReference,
-      edgeNodeTypeRelation: Option[DirectRelationReference],
+      typeDirectRelation: Option[DirectRelationReference],
       startNodeRelation: Option[DirectRelationReference],
       endNodeRelation: Option[DirectRelationReference],
       props: Vector[(String, Option[InstancePropertyValue])],
       row: Row): Either[CdfSparkException, NodeOrEdgeCreate] =
-    (edgeNodeTypeRelation, startNodeRelation, endNodeRelation) match {
+    (typeDirectRelation, startNodeRelation, endNodeRelation) match {
       case (Some(edgeType), Some(startNode), Some(endNode)) =>
         Right(
           EdgeWrite(
@@ -275,7 +272,7 @@ object FlexibleDataModelRelationUtils {
         )
       case _ =>
         val relationRefNames = Vector(
-          edgeNodeTypeRelation.map(_ => "'type'"),
+          typeDirectRelation.map(_ => "'type'"),
           startNodeRelation.map(_ => "'startNode'"),
           endNodeRelation.map(_ => "'endNode'")
         ).flatten
@@ -511,8 +508,6 @@ object FlexibleDataModelRelationUtils {
             |""".stripMargin))
     }
 
-  // scalastyle:off method.length
-  // scalastyle:off cyclomatic.complexity
   private[spark] def extractInstancePropertyValue(
       propType: DataType,
       value: InstancePropertyValue): Any =
@@ -617,7 +612,6 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  // scalastyle:off cyclomatic.complexity method.length
   private def propertyDefinitionToInstancePropertyValue(
       row: Row,
       schema: StructType,
@@ -688,7 +682,6 @@ object FlexibleDataModelRelationUtils {
         }
     }
 
-  // scalastyle:off cyclomatic.complexity method.length
   private def toInstancePropertyValueOfList(
       row: Row,
       schema: StructType,
@@ -755,7 +748,6 @@ object FlexibleDataModelRelationUtils {
       }
     }
 
-  // scalastyle:off cyclomatic.complexity method.length
   private def toInstancePropertyValueOfNonList(
       row: Row,
       schema: StructType,
@@ -805,7 +797,6 @@ object FlexibleDataModelRelationUtils {
         case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
       }
     }
-  // scalastyle:on cyclomatic.complexity method.length
 
   private def safeConvertToLong(n: BigDecimal): Long =
     if (n.isValidLong) {
@@ -953,4 +944,3 @@ object FlexibleDataModelRelationUtils {
   private def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
 }
-// scalastyle:on number.of.methods file.size.limit
