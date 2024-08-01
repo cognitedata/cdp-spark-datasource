@@ -296,7 +296,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
             Some(
               Seq(EdgeOrNodeData(
                 sourceReference,
-                None
+                Some(Map("type" -> Some(InstancePropertyValue.ViewDirectNodeRelation(Some(DirectRelationReference(spaceExternalId, typeNodeExtId))))))
               ))
             ),
             `type` = Some(DirectRelationReference(spaceExternalId, typeNodeExtId))

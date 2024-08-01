@@ -64,11 +64,11 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
   private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
-  private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes4"
-  private val typeContainerNodeExternalId = "sparkDsTestContainerTypeNodes4"
+  private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes6"
+  private val typeContainerNodeExternalId = "sparkDsTestContainerTypeNode6"
 
-  private val typedViewNodeExternalId = "sparkDsTestViewTypedNodes4"
-  private val typeViewNodeExternalId = "sparkDsTestViewTypeNodes4"
+  private val typedViewNodeExternalId = "sparkDsTestViewTypedNodes6"
+  private val typeViewNodeExternalId = "sparkDsTestViewTypeNodes6"
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
@@ -82,7 +82,7 @@ class FlexibleDataModelCorePropertyRelationTest
   // Nodes can also have properties named types. These are not the node's type and they should work together
   val nodeWithTypePropertyContainerProps: Map[String, ContainerPropertyDefinition] = Map(
     "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
-    "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable
+    "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
   )
 
   private lazy val containerTypeNode: ContainerDefinition =
