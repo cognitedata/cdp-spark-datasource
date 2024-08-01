@@ -81,6 +81,7 @@ class FlexibleDataModelCorePropertyRelationTest
 
   // Nodes can also have properties named types. These are not the node's type and they should work together
   val nodeWithTypePropertyContainerProps: Map[String, ContainerPropertyDefinition] = Map(
+    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
     "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable
   )
 
