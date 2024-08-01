@@ -79,16 +79,18 @@ class FlexibleDataModelCorePropertyRelationTest
     "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
   )
 
-  private val nodeContainerTypeProp: Map[String, ContainerPropertyDefinition] = Map(
-    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable
+  // Nodes can also have properties named types. These are not the node's type and they should work together
+  val nodeWithTypePropertyContainerProps: Map[String, ContainerPropertyDefinition] = Map(
+    "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable
   )
 
   private lazy val containerTypeNode: ContainerDefinition =
     createContainerIfNotExists(Usage.Node, nodeContainerProps, typeContainerNodeExternalId)
       .unsafeRunSync()
 
+  //To verify there is no conflict, we use a container with a propertyt also named "type"
   private lazy val containerTypedNode: ContainerDefinition =
-    createContainerIfNotExists(Usage.Node, nodeContainerTypeProp, typedContainerNodeExternalId)
+    createContainerIfNotExists(Usage.Node, nodeWithTypePropertyContainerProps, typedContainerNodeExternalId)
       .unsafeRunSync()
 
   private lazy val containerStartAndEndNodes: ContainerDefinition =
@@ -595,7 +597,6 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql(s"""select * from edge_filter_instances_table
            | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
            | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
-           | and type is not null
            | and type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
            | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
            | and space = '$spaceExternalId'

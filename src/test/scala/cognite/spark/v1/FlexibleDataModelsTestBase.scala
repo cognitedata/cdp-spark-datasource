@@ -221,6 +221,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       }
       .map(_.head)
 
+
   protected def createViewWithCorePropsIfNotExists(
       container: ContainerDefinition,
       viewExternalId: String,
@@ -283,7 +284,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
             Some(
               Seq(EdgeOrNodeData(
                 sourceReference,
-                None
+                //this property also named type is a real life possibility and needs to be allowed
+                Some(Map("type" -> Some(InstancePropertyValue.ViewDirectNodeRelation(Some(DirectRelationReference(spaceExternalId, typeNodeExtId))))))
               ))
             ),
             `type` = None
