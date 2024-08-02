@@ -243,7 +243,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case e: InstanceDefinition.EdgeDefinition =>
         ProjectedFlexibleDataModelInstance(
           externalId = e.externalId,
-          properties = selectedInstanceProps.map(_.toLowerCase).map {
+          properties = selectedInstanceProps.map {
             case s if s.equalsIgnoreCase("space") => e.space
             case s if s.equalsIgnoreCase("spaceExternalId") => e.space
             case s if s.equalsIgnoreCase("externalId") => e.externalId
@@ -329,8 +329,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       DataTypes.createStructField("edge.createdTime", DataTypes.LongType, true),
       DataTypes.createStructField("edge.lastUpdatedTime", DataTypes.LongType, true),
       DataTypes.createStructField("edge.deletedTime", DataTypes.LongType, true),
-      relationReferenceSchema("startNode", nullable = false),
-      relationReferenceSchema("endNode", nullable = false),
     )
 
     val baseAttributes = Array(
@@ -338,17 +336,21 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       DataTypes.createStructField("externalId", DataTypes.StringType, false)
     )
 
+    def relationReferenceAttributes(nullable: Boolean) = Array(
+      relationReferenceSchema("startNode", nullable),
+      relationReferenceSchema("endNode", nullable)
+    )
+
     def typeAttribute(nullable: Boolean) =
       Array(relationReferenceSchema("_type", nullable))
-
 
     usage match {
       case Usage.Node =>
         baseAttributes ++ nodeAttributes ++ typeAttribute(true)
       case Usage.Edge =>
-        baseAttributes ++ edgeAttributes ++ typeAttribute(false)
+        baseAttributes ++ edgeAttributes ++ typeAttribute(false) ++ relationReferenceAttributes(false)
       case Usage.All =>
-        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(false)
+        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(true) ++ relationReferenceAttributes(true)
     }
   }
 
