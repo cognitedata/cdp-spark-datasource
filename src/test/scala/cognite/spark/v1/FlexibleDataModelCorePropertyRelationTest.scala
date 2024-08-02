@@ -634,7 +634,8 @@ class FlexibleDataModelCorePropertyRelationTest
 
     val selectedNodes = spark
       .sql(s"""select * from node_filter_instances_table
-              | where type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
+              | where `node.type` = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
+              | and type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
               | and space = '$spaceExternalId'
               | """.stripMargin)
       .collect()
