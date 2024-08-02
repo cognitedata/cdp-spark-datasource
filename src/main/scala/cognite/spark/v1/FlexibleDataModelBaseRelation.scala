@@ -243,13 +243,14 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case e: InstanceDefinition.EdgeDefinition =>
         ProjectedFlexibleDataModelInstance(
           externalId = e.externalId,
-          properties = selectedInstanceProps.map {
+          properties = selectedInstanceProps.map(_.toLowerCase).map {
             case s if s.equalsIgnoreCase("space") => e.space
             case s if s.equalsIgnoreCase("spaceExternalId") => e.space
             case s if s.equalsIgnoreCase("externalId") => e.externalId
             case s if s.equalsIgnoreCase("startNode") => Array(e.startNode.space, e.startNode.externalId)
             case s if s.equalsIgnoreCase("endNode") => Array(e.endNode.space, e.endNode.externalId)
             case s if s.equalsIgnoreCase("_type") => Array(e.`type`.space, e.`type`.externalId)
+//            case s if s.equalsIgnoreCase("type") && !selectedInstanceProps.contains("_type") => Array(e.`type`.space, e.`type`.externalId)
             case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
             case s if s.equalsIgnoreCase("edge.version") => e.version.getOrElse(-1)
             case s if s.equalsIgnoreCase("edge.lastUpdatedTime") => e.lastUpdatedTime
@@ -321,8 +322,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       DataTypes.createStructField("node.createdTime", DataTypes.LongType, true),
       DataTypes.createStructField("node.lastUpdatedTime", DataTypes.LongType, true),
       DataTypes.createStructField("node.deletedTime", DataTypes.LongType, true),
-      relationReferenceSchema("_type", nullable = true)
-
     )
 
     val edgeAttributes = Array(
@@ -332,7 +331,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       DataTypes.createStructField("edge.deletedTime", DataTypes.LongType, true),
       relationReferenceSchema("startNode", nullable = false),
       relationReferenceSchema("endNode", nullable = false),
-      relationReferenceSchema("_type", nullable = true)
     )
 
     val baseAttributes = Array(
@@ -340,13 +338,17 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       DataTypes.createStructField("externalId", DataTypes.StringType, false)
     )
 
+    def typeAttribute(nullable: Boolean) =
+      Array(relationReferenceSchema("_type", nullable))
+
+
     usage match {
       case Usage.Node =>
-        baseAttributes ++ nodeAttributes
+        baseAttributes ++ nodeAttributes ++ typeAttribute(true)
       case Usage.Edge =>
-        baseAttributes ++ edgeAttributes
+        baseAttributes ++ edgeAttributes ++ typeAttribute(false)
       case Usage.All =>
-        baseAttributes ++ nodeAttributes ++ edgeAttributes
+        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(false)
     }
   }
 

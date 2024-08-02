@@ -143,7 +143,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
-                |) as type,
+                |) as _type,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
@@ -283,7 +283,7 @@ class FlexibleDataModelCorePropertyRelationTest
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
-                |) as type,
+                |) as _type,
                 |named_struct(
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
@@ -598,7 +598,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql(s"""select * from edge_filter_instances_table
            | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
            | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
-           | and type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
+           | and _type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
            | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
            | and space = '$spaceExternalId'
            | """.stripMargin)
@@ -634,8 +634,8 @@ class FlexibleDataModelCorePropertyRelationTest
 
     val selectedNodes = spark
       .sql(s"""select * from node_filter_instances_table
-              | where _type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
-              | and type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
+              | where type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
+              | and _type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
               | and space = '$spaceExternalId'
               | """.stripMargin)
       .collect()
