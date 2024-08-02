@@ -76,8 +76,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           FilterDefinition.Equals(
             createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
             FilterValueDefinition.String(String.valueOf(value))))
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("node.type") =>
-        createEqualsAttributeFilter("node.type", value, instanceType)
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
+        createEqualsAttributeFilter("type", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
         createEqualsAttributeFilter("startNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
@@ -149,12 +149,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
       case IsNotNull(attribute)
-          if attribute.equalsIgnoreCase("node.type") && instanceType == InstanceType.Node =>
+          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
       case IsNull(attribute)
-          if attribute.equalsIgnoreCase("node.type") && instanceType == InstanceType.Node =>
+          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
@@ -185,7 +185,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         createEqualsAttributeFilter("startNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
         createEqualsAttributeFilter("endNode", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("node.type") =>
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
       case Or(f1, f2) =>
         Vector(f1, f2)
@@ -201,10 +201,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
       case IsNotNull(attribute)
-          if attribute.equalsIgnoreCase("node.type") && instanceType == InstanceType.Node =>
+          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNull(attribute)
-          if attribute.equalsIgnoreCase("node.type") && instanceType == InstanceType.Node =>
+          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case f =>
         Left(new CdfSparkIllegalArgumentException(
@@ -230,7 +230,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("spaceExternalId") => n.space
             case s if s.equalsIgnoreCase("externalId") => n.externalId
             case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
-            case s if s.equalsIgnoreCase("node.type") =>
+            case s if s.equalsIgnoreCase("_type") =>
               n.`type`.map(t => Array(t.space, t.externalId)).orNull
             case s if s.equalsIgnoreCase("node.version") => n.version.getOrElse(-1)
             case s if s.equalsIgnoreCase("node.lastUpdatedTime") => n.lastUpdatedTime
@@ -249,7 +249,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("externalId") => e.externalId
             case s if s.equalsIgnoreCase("startNode") => Array(e.startNode.space, e.startNode.externalId)
             case s if s.equalsIgnoreCase("endNode") => Array(e.endNode.space, e.endNode.externalId)
-            case s if s.equalsIgnoreCase("edge.type") => Array(e.`type`.space, e.`type`.externalId)
+            case s if s.equalsIgnoreCase("_type") => Array(e.`type`.space, e.`type`.externalId)
             case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
             case s if s.equalsIgnoreCase("edge.version") => e.version.getOrElse(-1)
             case s if s.equalsIgnoreCase("edge.lastUpdatedTime") => e.lastUpdatedTime
@@ -321,7 +321,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       DataTypes.createStructField("node.createdTime", DataTypes.LongType, true),
       DataTypes.createStructField("node.lastUpdatedTime", DataTypes.LongType, true),
       DataTypes.createStructField("node.deletedTime", DataTypes.LongType, true),
-      relationReferenceSchema("node.type", nullable = true)
+      relationReferenceSchema("_type", nullable = true)
 
     )
 
@@ -330,27 +330,23 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       DataTypes.createStructField("edge.createdTime", DataTypes.LongType, true),
       DataTypes.createStructField("edge.lastUpdatedTime", DataTypes.LongType, true),
       DataTypes.createStructField("edge.deletedTime", DataTypes.LongType, true),
-      relationReferenceSchema("edge.type", nullable = true)
+      relationReferenceSchema("startNode", nullable = false),
+      relationReferenceSchema("endNode", nullable = false),
+      relationReferenceSchema("_type", nullable = true)
+    )
+
+    val baseAttributes = Array(
+      DataTypes.createStructField("space", DataTypes.StringType, false),
+      DataTypes.createStructField("externalId", DataTypes.StringType, false)
     )
 
     usage match {
       case Usage.Node =>
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false),
-        ) ++ nodeAttributes
+        baseAttributes ++ nodeAttributes
       case Usage.Edge =>
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false),
-          relationReferenceSchema("startNode", nullable = false),
-          relationReferenceSchema("endNode", nullable = false)
-        ) ++ edgeAttributes
+        baseAttributes ++ edgeAttributes
       case Usage.All =>
-        Array(
-          DataTypes.createStructField("space", DataTypes.StringType, false),
-          DataTypes.createStructField("externalId", DataTypes.StringType, false),
-        ) ++ nodeAttributes ++ edgeAttributes
+        baseAttributes ++ nodeAttributes ++ edgeAttributes
     }
   }
 
