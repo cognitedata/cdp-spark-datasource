@@ -350,12 +350,20 @@ class FlexibleDataModelCorePropertyRelationTest
     )
     readEdgesDf.createTempView(s"edge_type_test_instances_table")
 
-    val selectedEdges = spark
+    val selectedEdgesBothTypes = spark
       .sql(
         f"""select * from edge_type_test_instances_table
           | where _type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
           | and type = struct('${spaceExternalId}' as space, '${endNodeExtId}' as externalId)
           |""".stripMargin)
+      .collect()
+
+    //In this case since both are present, we assume type refers to the view property
+    val selectedEdgesTypeViewProperty = spark
+      .sql(
+        f"""select * from edge_type_test_instances_table
+           | where type = struct('${spaceExternalId}' as space, '${endNodeExtId}' as externalId)
+           |""".stripMargin)
       .collect()
 
     def deletionDf(instanceExtId: String): DataFrame =
@@ -404,7 +412,8 @@ class FlexibleDataModelCorePropertyRelationTest
     getDeletedMetricsCount(viewNodes) shouldBe 1
     getDeletedMetricsCount(viewEdges) shouldBe 1
 
-    toExternalIds(selectedEdges).length shouldBe(1)
+    toExternalIds(selectedEdgesBothTypes).length shouldBe(1)
+    toExternalIds(selectedEdgesTypeViewProperty).length shouldBe(1)
   }
 
   it should "succeed when inserting all nullable & non nullable list values" in {
