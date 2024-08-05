@@ -61,10 +61,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema.apply(key).dataType, value)
 
   protected def toInstanceFilter(
+      schema: StructType,
       instanceType: InstanceType,
       sparkFilter: Filter,
       space: String,
-      versionedExternalId: String): Either[CdfSparkException, FilterDefinition] =
+      versionedExternalId: String): Either[CdfSparkException, FilterDefinition] = {
+    val hasBothTypeProperties = schema.fieldNames.contains("type") && schema.fieldNames.contains("_type")
     sparkFilter match {
       case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
         Right(
@@ -77,6 +79,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
+        createEqualsAttributeFilter("type", value, instanceType)
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") && !hasBothTypeProperties && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("type", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
         createEqualsAttributeFilter("startNode", value, instanceType)
@@ -139,12 +143,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case And(f1, f2) =>
         Vector(f1, f2)
           .traverse(
-            toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
+            toInstanceFilter(schema, instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         Vector(f1, f2)
           .traverse(
-            toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
+            toInstanceFilter(schema, instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.Or.apply)
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
@@ -159,17 +163,20 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
       case Not(f) =>
-        toInstanceFilter(instanceType, f, space = space, versionedExternalId = versionedExternalId)
+        toInstanceFilter(schema, instanceType, f, space = space, versionedExternalId = versionedExternalId)
           .map(FilterDefinition.Not.apply)
       case f =>
         Left(
           new CdfSparkIllegalArgumentException(
             s"Unsupported filter '${f.getClass.getSimpleName}', ${f.toString}"))
     }
+  }
 
   protected def toNodeOrEdgeAttributeFilter(
+      schema: StructType,
       instanceType: InstanceType,
-      sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
+      sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
+    val hasBothTypeProperties = schema.fieldNames.contains("type") && schema.fieldNames.contains("_type")
     sparkFilter match {
       case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
         Right(
@@ -187,16 +194,18 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         createEqualsAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") && !hasBothTypeProperties && instanceType == InstanceType.Edge =>
+        createEqualsAttributeFilter("type", value, instanceType)
       case Or(f1, f2) =>
         Vector(f1, f2)
-          .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
+          .traverse(toNodeOrEdgeAttributeFilter(schema, instanceType, _))
           .map(FilterDefinition.Or.apply)
       case And(f1, f2) =>
         Vector(f1, f2)
-          .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
+          .traverse(toNodeOrEdgeAttributeFilter(schema, instanceType, _))
           .map(FilterDefinition.And.apply)
       case Not(f) =>
-        toNodeOrEdgeAttributeFilter(instanceType, f)
+        toNodeOrEdgeAttributeFilter(schema, instanceType, f)
           .map(FilterDefinition.Not.apply)
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
@@ -210,6 +219,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         Left(new CdfSparkIllegalArgumentException(
           s"Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
     }
+  }
 
   protected def toProjectedInstance(
       i: InstanceDefinition,
@@ -231,6 +241,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("externalId") => n.externalId
             case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
             case s if s.equalsIgnoreCase("_type") =>
+              n.`type`.map(t => Array(t.space, t.externalId)).orNull
+            case s if s.equalsIgnoreCase("type") && i.instanceType == InstanceType.Edge && !i.properties.exists(_.contains("type")) =>
               n.`type`.map(t => Array(t.space, t.externalId)).orNull
             case s if s.equalsIgnoreCase("node.version") => n.version.getOrElse(-1)
             case s if s.equalsIgnoreCase("node.lastUpdatedTime") => n.lastUpdatedTime
