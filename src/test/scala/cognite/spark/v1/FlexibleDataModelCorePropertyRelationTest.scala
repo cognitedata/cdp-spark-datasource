@@ -34,6 +34,10 @@ class FlexibleDataModelCorePropertyRelationTest
   private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList2"
   private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList2"
 
+  private val containerAllAmbiguousTypeExternalId = "sparkDsTestContainerAllAmbiguousType3"
+  private val containerNodesAmbiguousTypeExternalId = "sparkDsTestContainerNodesAmbiguousType3"
+  private val containerEdgesAmbiguousTypeExternalId = "sparkDsTestContainerEdgesAmbiguousType3"
+
   private val containerAllListExternalId = "sparkDsTestContainerAllList2"
   private val containerNodesListExternalId = "sparkDsTestContainerNodesList2"
   private val containerEdgesListExternalId = "sparkDsTestContainerEdgesList2"
@@ -41,6 +45,10 @@ class FlexibleDataModelCorePropertyRelationTest
   private val viewAllListAndNonListExternalId = "sparkDsTestViewAllListAndNonList2"
   private val viewNodesListAndNonListExternalId = "sparkDsTestViewNodesListAndNonList2"
   private val viewEdgesListAndNonListExternalId = "sparkDsTestViewEdgesListAndNonList2"
+
+  private val viewAllAmbiguousTypeExternalId = "sparkDsTestViewAllAmbiguousType3"
+  private val viewNodesAmbiguousTypeExternalId = "sparkDsTestViewNodesAmbiguousType3"
+  private val viewEdgesAmbiguousTypeExternalId = "sparkDsTestViewEdgesAmbiguousType3"
 
   private val viewAllNonListExternalId = "sparkDsTestViewAllNonList2"
   private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList2"
@@ -64,11 +72,11 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
   private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
-  private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes4"
-  private val typeContainerNodeExternalId = "sparkDsTestContainerTypeNodes4"
+  private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes6"
+  private val typeContainerNodeExternalId = "sparkDsTestContainerTypeNode6"
 
-  private val typedViewNodeExternalId = "sparkDsTestViewTypedNodes4"
-  private val typeViewNodeExternalId = "sparkDsTestViewTypeNodes4"
+  private val typedViewNodeExternalId = "sparkDsTestViewTypedNodes6"
+  private val typeViewNodeExternalId = "sparkDsTestViewTypeNodes6"
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
@@ -79,16 +87,19 @@ class FlexibleDataModelCorePropertyRelationTest
     "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
   )
 
-  private val nodeContainerTypeProp: Map[String, ContainerPropertyDefinition] = Map(
-    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable
+  // Nodes can also have properties named types. These are not the node's type and they should work together
+  val nodeWithTypePropertyContainerProps: Map[String, ContainerPropertyDefinition] = Map(
+    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
+    "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
   )
 
   private lazy val containerTypeNode: ContainerDefinition =
     createContainerIfNotExists(Usage.Node, nodeContainerProps, typeContainerNodeExternalId)
       .unsafeRunSync()
 
+  //To verify there is no conflict, we use a container with a propertyt also named "type"
   private lazy val containerTypedNode: ContainerDefinition =
-    createContainerIfNotExists(Usage.Node, nodeContainerTypeProp, typedContainerNodeExternalId)
+    createContainerIfNotExists(Usage.Node, nodeWithTypePropertyContainerProps, typedContainerNodeExternalId)
       .unsafeRunSync()
 
   private lazy val containerStartAndEndNodes: ContainerDefinition =
@@ -258,6 +269,153 @@ class FlexibleDataModelCorePropertyRelationTest
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
+  it should "handle ambiguous types" in {
+    val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
+    val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
+    createStartAndEndNodesForEdgesIfNotExists(
+      startNodeExtId,
+      endNodeExtId,
+      viewStartAndEndNodes.toSourceReference).unsafeRunSync()
+
+    val (viewAll, viewNodes, viewEdges) = setupAmbiguousTypeTest.unsafeRunSync()
+    val randomId = generateNodeExternalId
+    val instanceExtIdAll = s"${randomId}All"
+    val instanceExtIdNode = s"${randomId}Node"
+    val instanceExtIdEdge = s"${randomId}Edge"
+
+    def insertionDf(instanceExtId: String): DataFrame =
+      spark
+        .sql(s"""
+                |select
+                |'$instanceExtId' as externalId,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$startNodeExtId'
+                |) as _type,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$endNodeExtId'
+                |) as type,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$startNodeExtId'
+                |) as startNode,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$endNodeExtId'
+                |) as endNode
+            |""".stripMargin)
+
+    val insertionResult = Try {
+      Vector(
+        insertRows(
+          instanceType = InstanceType.Node,
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewAll.externalId,
+          viewVersion = viewAll.version,
+          instanceSpaceExternalId = spaceExternalId,
+          insertionDf(instanceExtIdAll)
+        ),
+        insertRows(
+          instanceType = InstanceType.Node,
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewNodes.externalId,
+          viewVersion = viewNodes.version,
+          instanceSpaceExternalId = spaceExternalId,
+          insertionDf(instanceExtIdNode)
+        ),
+        insertRows(
+          instanceType = InstanceType.Edge,
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewEdges.externalId,
+          viewVersion = viewEdges.version,
+          instanceSpaceExternalId = spaceExternalId,
+          insertionDf(instanceExtIdEdge)
+        )
+      )
+    }
+
+    insertionResult shouldBe Success(Vector((), (), ()))
+    insertionResult.get.size shouldBe 3
+    getUpsertedMetricsCount(viewAll) shouldBe 1
+    getUpsertedMetricsCount(viewNodes) shouldBe 1
+    getUpsertedMetricsCount(viewEdges) shouldBe 1
+
+    val readEdgesDf = readRows(
+      instanceType = InstanceType.Edge,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewEdges.externalId,
+      viewVersion = viewEdges.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+    readEdgesDf.createTempView(s"edge_type_test_instances_table")
+
+    val selectedEdgesBothTypes = spark
+      .sql(
+        f"""select * from edge_type_test_instances_table
+          | where _type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
+          | and type = struct('${spaceExternalId}' as space, '${endNodeExtId}' as externalId)
+          |""".stripMargin)
+      .collect()
+
+    //In this case since both are present, we assume type refers to the view property
+    val selectedEdgesTypeViewProperty = spark
+      .sql(
+        f"""select * from edge_type_test_instances_table
+           | where type = struct('${spaceExternalId}' as space, '${endNodeExtId}' as externalId)
+           |""".stripMargin)
+      .collect()
+
+    def deletionDf(instanceExtId: String): DataFrame =
+      spark
+        .sql(s"""
+             |select
+             |'$spaceExternalId' as space,
+             |'$instanceExtId' as externalId
+             |""".stripMargin)
+
+    val deletionResults = Try {
+      Vector(
+        insertRows(
+          instanceType = InstanceType.Node,
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewAll.externalId,
+          viewVersion = viewAll.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdAll),
+          onConflict = "delete"
+        ),
+        insertRows(
+          instanceType = InstanceType.Node,
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewNodes.externalId,
+          viewVersion = viewNodes.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdNode),
+          onConflict = "delete"
+        ),
+        insertRows(
+          instanceType = InstanceType.Edge,
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewEdges.externalId,
+          viewVersion = viewEdges.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdEdge),
+          onConflict = "delete"
+        )
+      )
+    }
+
+    deletionResults shouldBe Success(Vector((), (), ()))
+    deletionResults.get.size shouldBe 3
+    getDeletedMetricsCount(viewAll) shouldBe 1
+    getDeletedMetricsCount(viewNodes) shouldBe 1
+    getDeletedMetricsCount(viewEdges) shouldBe 1
+
+    toExternalIds(selectedEdgesBothTypes).length shouldBe(1)
+    toExternalIds(selectedEdgesTypeViewProperty).length shouldBe(1)
+  }
+
   it should "succeed when inserting all nullable & non nullable list values" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
@@ -302,22 +460,22 @@ class FlexibleDataModelCorePropertyRelationTest
                 |array(true, true, false, null, false) as boolListProp1,
                 |null as boolListProp2,
                 |array('${LocalDate
-                  .now()
-                  .minusDays(5)
-                  .format(InstancePropertyValue.Date.formatter)}', '${LocalDate
-                  .now()
-                  .minusDays(10)
-                  .format(InstancePropertyValue.Date.formatter)}') as dateListProp1,
+          .now()
+          .minusDays(5)
+          .format(InstancePropertyValue.Date.formatter)}', '${LocalDate
+          .now()
+          .minusDays(10)
+          .format(InstancePropertyValue.Date.formatter)}') as dateListProp1,
                 |null as dateListProp2,
                 |array('{"a": "a", "b": 1}', '{"a": "b", "b": 2}', '{"a": "c", "b": 3}') as jsonListProp1,
                 |null as jsonListProp2,
                 |array('${ZonedDateTime
-                  .now()
-                  .minusDays(5)
-                  .format(InstancePropertyValue.Timestamp.formatter)}', '${ZonedDateTime
-                  .now()
-                  .minusDays(10)
-                  .format(InstancePropertyValue.Timestamp.formatter)}') as timestampListProp1,
+          .now()
+          .minusDays(5)
+          .format(InstancePropertyValue.Timestamp.formatter)}', '${ZonedDateTime
+          .now()
+          .minusDays(10)
+          .format(InstancePropertyValue.Timestamp.formatter)}') as timestampListProp1,
                 |null as timestampListProp2,
                 |array(
                 |    named_struct(
@@ -369,10 +527,10 @@ class FlexibleDataModelCorePropertyRelationTest
     def deletionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
-             |select
-             |'$spaceExternalId' as space,
-             |'$instanceExtId' as externalId
-             |""".stripMargin)
+                |select
+                |'$spaceExternalId' as space,
+                |'$instanceExtId' as externalId
+                |""".stripMargin)
 
     val deletionResults = Try {
       Vector(
@@ -412,6 +570,7 @@ class FlexibleDataModelCorePropertyRelationTest
     getDeletedMetricsCount(viewNodes) shouldBe 1
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
+
 
   it should "succeed when fetching instances with select *" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertAllStartNode"
@@ -595,8 +754,7 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql(s"""select * from edge_filter_instances_table
            | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
            | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
-           | and type is not null
-           | and type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
+           | and _type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
            | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
            | and space = '$spaceExternalId'
            | """.stripMargin)
@@ -633,6 +791,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val selectedNodes = spark
       .sql(s"""select * from node_filter_instances_table
               | where type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
+              | and _type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
               | and space = '$spaceExternalId'
               | """.stripMargin)
       .collect()
@@ -1380,6 +1539,22 @@ class FlexibleDataModelCorePropertyRelationTest
       viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllListExternalId, viewVersion)
       viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesListExternalId, viewVersion)
       viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesListExternalId, viewVersion)
+    } yield (viewAll, viewNodes, viewEdges)
+  }
+
+  private def setupAmbiguousTypeTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
+    val containerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+    )
+
+    for {
+      cAll <- createContainerIfNotExists(Usage.All, containerProps, containerAllAmbiguousTypeExternalId)
+      cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesAmbiguousTypeExternalId)
+      cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesAmbiguousTypeExternalId)
+      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllAmbiguousTypeExternalId, viewVersion)
+      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesAmbiguousTypeExternalId, viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesAmbiguousTypeExternalId, viewVersion)
+      _ <- IO.sleep(5.seconds)
     } yield (viewAll, viewNodes, viewEdges)
   }
 

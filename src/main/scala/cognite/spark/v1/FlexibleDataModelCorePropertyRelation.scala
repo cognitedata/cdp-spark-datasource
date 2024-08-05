@@ -138,11 +138,11 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     usage match {
       case Usage.Node =>
         filters.toVector
-          .traverse(toNodeOrEdgeAttributeFilter(InstanceType.Node, _))
+          .traverse(toNodeOrEdgeAttributeFilter(schema, InstanceType.Node, _))
           .map(toAndFilter)
       case Usage.Edge =>
         filters.toVector
-          .traverse(toNodeOrEdgeAttributeFilter(InstanceType.Edge, _))
+          .traverse(toNodeOrEdgeAttributeFilter(schema, InstanceType.Edge, _))
           .map(toAndFilter)
       case Usage.All =>
         val nodeFilter = usageBasedAttributeFilter(Usage.Node, filters)
@@ -166,6 +166,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         filters.toVector
           .traverse(
             toInstanceFilter(
+              schema,
               InstanceType.Node,
               _,
               space = ref.space,
@@ -175,6 +176,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         filters.toVector
           .traverse(
             toInstanceFilter(
+              schema,
               InstanceType.Edge,
               _,
               space = ref.space,

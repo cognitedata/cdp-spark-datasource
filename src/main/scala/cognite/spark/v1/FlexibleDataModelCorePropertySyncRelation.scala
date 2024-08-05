@@ -61,7 +61,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       HasData(List(viewRef))
     }
     val requestFilters: Seq[FilterDefinition] = (filters.map {
-      toNodeOrEdgeAttributeFilter(instanceType, _).toOption
+      toNodeOrEdgeAttributeFilter(schema, instanceType, _).toOption
     } ++ Array(hasData)).flatten.toSeq
     FilterDefinition.And(requestFilters)
   }
@@ -90,7 +90,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
             source = r,
             properties = selectedInstanceProps.toIndexedSeq.filter(p =>
               !p.startsWith("node.") && !p.startsWith("edge.") && !p.startsWith("metadata.") &&
-                p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")
+                p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "_type")
         ))
       .toSeq
     val cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None
