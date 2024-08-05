@@ -80,7 +80,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") && !hasBothTypeProperties && instanceType == InstanceType.Edge =>
+      case EqualTo(attribute, value: GenericRowWithSchema)
+          if attribute.equalsIgnoreCase("type") && !hasBothTypeProperties && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("type", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
         createEqualsAttributeFilter("startNode", value, instanceType)
@@ -143,12 +144,22 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case And(f1, f2) =>
         Vector(f1, f2)
           .traverse(
-            toInstanceFilter(schema, instanceType, _, space = space, versionedExternalId = versionedExternalId))
+            toInstanceFilter(
+              schema,
+              instanceType,
+              _,
+              space = space,
+              versionedExternalId = versionedExternalId))
           .map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         Vector(f1, f2)
           .traverse(
-            toInstanceFilter(schema, instanceType, _, space = space, versionedExternalId = versionedExternalId))
+            toInstanceFilter(
+              schema,
+              instanceType,
+              _,
+              space = space,
+              versionedExternalId = versionedExternalId))
           .map(FilterDefinition.Or.apply)
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
@@ -163,7 +174,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
       case Not(f) =>
-        toInstanceFilter(schema, instanceType, f, space = space, versionedExternalId = versionedExternalId)
+        toInstanceFilter(
+          schema,
+          instanceType,
+          f,
+          space = space,
+          versionedExternalId = versionedExternalId)
           .map(FilterDefinition.Not.apply)
       case f =>
         Left(
@@ -194,7 +210,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         createEqualsAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") && !hasBothTypeProperties && instanceType == InstanceType.Edge =>
+      case EqualTo(attribute, value: GenericRowWithSchema)
+          if attribute.equalsIgnoreCase("type") && !hasBothTypeProperties && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("type", value, instanceType)
       case Or(f1, f2) =>
         Vector(f1, f2)
@@ -242,7 +259,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
             case s if s.equalsIgnoreCase("_type") =>
               n.`type`.map(t => Array(t.space, t.externalId)).orNull
-            case s if s.equalsIgnoreCase("type") && i.instanceType == InstanceType.Edge && !i.properties.exists(_.contains("type")) =>
+            case s
+                if s.equalsIgnoreCase("type") && i.instanceType == InstanceType.Edge && !i.properties
+                  .exists(_.contains("type")) =>
               n.`type`.map(t => Array(t.space, t.externalId)).orNull
             case s if s.equalsIgnoreCase("node.version") => n.version.getOrElse(-1)
             case s if s.equalsIgnoreCase("node.lastUpdatedTime") => n.lastUpdatedTime
@@ -362,7 +381,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case Usage.Edge =>
         baseAttributes ++ edgeAttributes ++ typeAttribute(false) ++ relationReferenceAttributes(false)
       case Usage.All =>
-        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(true) ++ relationReferenceAttributes(true)
+        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(true) ++ relationReferenceAttributes(
+          true)
     }
   }
 
