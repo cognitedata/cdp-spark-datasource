@@ -3,12 +3,27 @@ package cognite.spark.v1
 import cats.implicits._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
+  DirectNodeRelationProperty,
+  FileReference,
+  PrimitiveProperty,
+  SequenceReference,
+  TextProperty,
+  TimeSeriesReference
+}
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{EdgeDeletionRequest, NodeDeletionRequest}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
+  EdgeDeletionRequest,
+  NodeDeletionRequest
+}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceDeletionRequest, InstancePropertyValue, NodeOrEdgeCreate}
+import com.cognite.sdk.scala.v1.fdm.instances.{
+  EdgeOrNodeData,
+  InstanceDeletionRequest,
+  InstancePropertyValue,
+  NodeOrEdgeCreate
+}
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
@@ -340,8 +355,7 @@ object FlexibleDataModelRelationUtils {
               )
             )
           ),
-          `type` =
-            extractNodeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption
+          `type` = extractNodeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption
         )
     }
 
@@ -358,8 +372,7 @@ object FlexibleDataModelRelationUtils {
           space = space,
           externalId = externalId,
           sources = None,
-          `type` =
-            extractNodeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption
+          `type` = extractNodeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption
         )
     }
 
@@ -429,18 +442,16 @@ object FlexibleDataModelRelationUtils {
       schema: StructType,
       instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
-      extractDirectRelation("_type", "Node or Edge type", schema, instanceSpace, row)
-
+    extractDirectRelation("_type", "Node or Edge type", schema, instanceSpace, row)
 
   private def extractEdgeTypeDirectRelation(
       schema: StructType,
       instanceSpace: Option[String],
-      row: Row): Either[CdfSparkException, DirectRelationReference] = {
+      row: Row): Either[CdfSparkException, DirectRelationReference] =
     extractDirectRelation("_type", "Node or Edge type", schema, instanceSpace, row) match {
       case right @ Right(_) => right
       case _ => extractDirectRelation("type", "Node or Edge type", schema, instanceSpace, row)
     }
-  }
 
   private def extractEdgeStartNodeDirectRelation(
       schema: StructType,
