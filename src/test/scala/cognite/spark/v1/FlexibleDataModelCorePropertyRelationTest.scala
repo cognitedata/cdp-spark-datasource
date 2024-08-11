@@ -34,9 +34,9 @@ class FlexibleDataModelCorePropertyRelationTest
   private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList2"
   private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList2"
 
-  private val containerAllAmbiguousTypeExternalId = "sparkDsTestContainerAllAmbiguousType3"
+  private val containerAllAmbiguousTypeExternalId = "sparkDsTestContainerAllAmbiguousType4"
   private val containerNodesAmbiguousTypeExternalId = "sparkDsTestContainerNodesAmbiguousType3"
-  private val containerEdgesAmbiguousTypeExternalId = "sparkDsTestContainerEdgesAmbiguousType3"
+  private val containerEdgesAmbiguousTypeExternalId = "sparkDsTestContainerEdgesAmbiguousType4"
 
   private val containerAllTypeExternalId = "sparkDsTestContainerAllType1"
   private val containerNodesTypeExternalId = "sparkDsTestContainerNodesType1"
@@ -50,9 +50,9 @@ class FlexibleDataModelCorePropertyRelationTest
   private val viewNodesListAndNonListExternalId = "sparkDsTestViewNodesListAndNonList2"
   private val viewEdgesListAndNonListExternalId = "sparkDsTestViewEdgesListAndNonList2"
 
-  private val viewAllAmbiguousTypeExternalId = "sparkDsTestViewAllAmbiguousType3"
+  private val viewAllAmbiguousTypeExternalId = "sparkDsTestViewAllAmbiguousType4"
   private val viewNodesAmbiguousTypeExternalId = "sparkDsTestViewNodesAmbiguousType3"
-  private val viewEdgesAmbiguousTypeExternalId = "sparkDsTestViewEdgesAmbiguousType3"
+  private val viewEdgesAmbiguousTypeExternalId = "sparkDsTestViewEdgesAmbiguousType4"
 
   private val viewAllTypeExternalId = "sparkDsTestViewAllType4"
   private val viewNodesTypeExternalId = "sparkDsTestViewNodesType4"
@@ -277,7 +277,7 @@ class FlexibleDataModelCorePropertyRelationTest
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-  it should "handle ambiguous types when there is a type property in the view of the edge" in {
+  it should "handle ambiguous types when there is a type property in the view of the node" in {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -313,6 +313,26 @@ class FlexibleDataModelCorePropertyRelationTest
                 |    'externalId', '$endNodeExtId'
                 |) as endNode
             |""".stripMargin)
+    //We don't support ambiguous names on edges as of now.
+    def insertionEdgeDf(instanceExtId: String): DataFrame =
+    spark
+      .sql(s"""
+              |select
+              |'$instanceExtId' as externalId,
+              |named_struct(
+              |    'spaceExternalId', '$spaceExternalId',
+              |    'externalId', '$startNodeExtId'
+              |) as _type,
+              |"stringProp" as stringProp,
+              |named_struct(
+              |    'spaceExternalId', '$spaceExternalId',
+              |    'externalId', '$startNodeExtId'
+              |) as startNode,
+              |named_struct(
+              |    'spaceExternalId', '$spaceExternalId',
+              |    'externalId', '$endNodeExtId'
+              |) as endNode
+              |""".stripMargin)
 
     val insertionResult = Try {
       Vector(
@@ -322,7 +342,7 @@ class FlexibleDataModelCorePropertyRelationTest
           viewExternalId = viewAll.externalId,
           viewVersion = viewAll.version,
           instanceSpaceExternalId = spaceExternalId,
-          insertionDf(instanceExtIdAll)
+          insertionEdgeDf(instanceExtIdAll)
         ),
         insertRows(
           instanceType = InstanceType.Node,
@@ -338,7 +358,7 @@ class FlexibleDataModelCorePropertyRelationTest
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
           instanceSpaceExternalId = spaceExternalId,
-          insertionDf(instanceExtIdEdge)
+          insertionEdgeDf(instanceExtIdEdge)
         )
       )
     }
@@ -1697,11 +1717,14 @@ class FlexibleDataModelCorePropertyRelationTest
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
       "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
     )
+    val edgeContainerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "stringProp" -> FDMContainerPropertyTypes.TextPropertyNonListWithoutDefaultValueNullable,
+    )
 
     for {
-      cAll <- createContainerIfNotExists(Usage.All, containerProps, containerAllAmbiguousTypeExternalId)
+      cAll <- createContainerIfNotExists(Usage.All, edgeContainerProps, containerAllAmbiguousTypeExternalId)
       cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesAmbiguousTypeExternalId)
-      cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesAmbiguousTypeExternalId)
+      cEdges <- createContainerIfNotExists(Usage.Edge, edgeContainerProps, containerEdgesAmbiguousTypeExternalId)
       viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllAmbiguousTypeExternalId, viewVersion)
       viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesAmbiguousTypeExternalId, viewVersion)
       viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesAmbiguousTypeExternalId, viewVersion)
