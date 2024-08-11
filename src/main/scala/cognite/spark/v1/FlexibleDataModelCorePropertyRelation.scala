@@ -166,7 +166,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         filters.toVector
           .traverse(
             toInstanceFilter(
-              schema,
               InstanceType.Node,
               _,
               space = ref.space,
@@ -176,7 +175,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         filters.toVector
           .traverse(
             toInstanceFilter(
-              schema,
               InstanceType.Edge,
               _,
               space = ref.space,

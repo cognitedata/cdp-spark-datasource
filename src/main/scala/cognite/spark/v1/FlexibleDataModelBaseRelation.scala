@@ -61,12 +61,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema.apply(key).dataType, value)
 
   protected def toInstanceFilter(
-      schema: StructType,
       instanceType: InstanceType,
       sparkFilter: Filter,
       space: String,
       versionedExternalId: String): Either[CdfSparkException, FilterDefinition] = {
-    val hasBothTypeProperties = schema.fieldNames.contains("type") && schema.fieldNames.contains("_type")
     sparkFilter match {
       case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
         Right(
@@ -80,8 +78,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
+      //TODO add exists on view property first
       case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("type") && !hasBothTypeProperties && instanceType == InstanceType.Edge =>
+          if attribute.equalsIgnoreCase("type") =>
         createEqualsAttributeFilter("type", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
         createEqualsAttributeFilter("startNode", value, instanceType)
@@ -145,7 +144,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         Vector(f1, f2)
           .traverse(
             toInstanceFilter(
-              schema,
               instanceType,
               _,
               space = space,
@@ -155,7 +153,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         Vector(f1, f2)
           .traverse(
             toInstanceFilter(
-              schema,
               instanceType,
               _,
               space = space,
@@ -166,16 +163,19 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case IsNotNull(attribute)
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
+      case IsNotNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+        Right(FilterDefinition.Exists(Seq("edge", "type")))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
       case IsNull(attribute)
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
+      case IsNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
       case Not(f) =>
         toInstanceFilter(
-          schema,
           instanceType,
           f,
           space = space,
@@ -192,7 +192,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       schema: StructType,
       instanceType: InstanceType,
       sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
-    val hasBothTypeProperties = schema.fieldNames.contains("type") && schema.fieldNames.contains("_type")
     sparkFilter match {
       case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
         Right(
@@ -210,8 +209,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         createEqualsAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("type") && !hasBothTypeProperties && instanceType == InstanceType.Edge =>
+      //TODO add exists on view property first
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
         createEqualsAttributeFilter("type", value, instanceType)
       case Or(f1, f2) =>
         Vector(f1, f2)
@@ -227,11 +226,15 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
       case IsNotNull(attribute)
-          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
+        if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
+      case IsNotNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+        Right(FilterDefinition.Exists(Seq("edge", "type")))
       case IsNull(attribute)
-          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
+        if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
+      case IsNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
       case f =>
         Left(new CdfSparkIllegalArgumentException(
           s"Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
@@ -259,10 +262,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
             case s if s.equalsIgnoreCase("_type") =>
               n.`type`.map(t => Array(t.space, t.externalId)).orNull
-            case s
-                if s.equalsIgnoreCase("type") && i.instanceType == InstanceType.Edge && !i.properties
-                  .exists(_.contains("type")) =>
-              n.`type`.map(t => Array(t.space, t.externalId)).orNull
             case s if s.equalsIgnoreCase("node.version") => n.version.getOrElse(-1)
             case s if s.equalsIgnoreCase("node.lastUpdatedTime") => n.lastUpdatedTime
             case s if s.equalsIgnoreCase("node.deletedTime") => n.deletedTime.getOrElse(0L)
@@ -281,7 +280,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("startNode") => Array(e.startNode.space, e.startNode.externalId)
             case s if s.equalsIgnoreCase("endNode") => Array(e.endNode.space, e.endNode.externalId)
             case s if s.equalsIgnoreCase("_type") => Array(e.`type`.space, e.`type`.externalId)
-//            case s if s.equalsIgnoreCase("type") && !selectedInstanceProps.contains("_type") => Array(e.`type`.space, e.`type`.externalId)
+            case s if s.equalsIgnoreCase("type") => Array(e.`type`.space, e.`type`.externalId)
             case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
             case s if s.equalsIgnoreCase("edge.version") => e.version.getOrElse(-1)
             case s if s.equalsIgnoreCase("edge.lastUpdatedTime") => e.lastUpdatedTime
@@ -360,6 +359,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       DataTypes.createStructField("edge.createdTime", DataTypes.LongType, true),
       DataTypes.createStructField("edge.lastUpdatedTime", DataTypes.LongType, true),
       DataTypes.createStructField("edge.deletedTime", DataTypes.LongType, true),
+      relationReferenceSchema("type", nullable = true)
     )
 
     val baseAttributes = Array(
@@ -372,8 +372,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       relationReferenceSchema("endNode", nullable)
     )
 
-    def typeAttribute(nullable: Boolean) =
-      Array(relationReferenceSchema("_type", nullable))
+    def typeAttribute(nullable: Boolean) = {
+      Array(
+        relationReferenceSchema("_type", nullable),
+      )
+    }
 
     usage match {
       case Usage.Node =>
@@ -381,7 +384,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case Usage.Edge =>
         baseAttributes ++ edgeAttributes ++ typeAttribute(false) ++ relationReferenceAttributes(false)
       case Usage.All =>
-        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(true) ++ relationReferenceAttributes(
+        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(false) ++ relationReferenceAttributes(
           true)
     }
   }
