@@ -382,15 +382,15 @@ class FlexibleDataModelCorePropertyRelationTest
       .sql(
         f"""select * from edge_ambiguous_type_test_instances_table
           | where _type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
-          | and type = struct('${spaceExternalId}' as space, '${endNodeExtId}' as externalId)
+          | and type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
           |""".stripMargin)
       .collect()
 
-    //In this case since both are present, we assume type refers to the view property
+    //In this case since both are present, we assume type refers to the EDGE property. There is no view prop here.
     val selectedEdgesTypeViewProperty = spark
       .sql(
         f"""select * from edge_ambiguous_type_test_instances_table
-           | where type = struct('${spaceExternalId}' as space, '${endNodeExtId}' as externalId)
+           | where type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
            |""".stripMargin)
       .collect()
 
