@@ -79,8 +79,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
       //TODO add exists on view property first
-      case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("type") =>
+      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
         createEqualsAttributeFilter("type", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
         createEqualsAttributeFilter("startNode", value, instanceType)
@@ -143,43 +142,33 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case And(f1, f2) =>
         Vector(f1, f2)
           .traverse(
-            toInstanceFilter(
-              instanceType,
-              _,
-              space = space,
-              versionedExternalId = versionedExternalId))
+            toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         Vector(f1, f2)
           .traverse(
-            toInstanceFilter(
-              instanceType,
-              _,
-              space = space,
-              versionedExternalId = versionedExternalId))
+            toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
           .map(FilterDefinition.Or.apply)
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
       case IsNotNull(attribute)
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
-      case IsNotNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+      case IsNotNull(attribute)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Exists(Seq("edge", "type")))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
       case IsNull(attribute)
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
-      case IsNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+      case IsNull(attribute)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
       case Not(f) =>
-        toInstanceFilter(
-          instanceType,
-          f,
-          space = space,
-          versionedExternalId = versionedExternalId)
+        toInstanceFilter(instanceType, f, space = space, versionedExternalId = versionedExternalId)
           .map(FilterDefinition.Not.apply)
       case f =>
         Left(
@@ -191,7 +180,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   protected def toNodeOrEdgeAttributeFilter(
       schema: StructType,
       instanceType: InstanceType,
-      sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
+      sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
         Right(
@@ -226,20 +215,21 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
       case IsNotNull(attribute)
-        if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
+          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
-      case IsNotNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+      case IsNotNull(attribute)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Exists(Seq("edge", "type")))
       case IsNull(attribute)
-        if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
+          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
-      case IsNull(attribute) if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+      case IsNull(attribute)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
       case f =>
         Left(new CdfSparkIllegalArgumentException(
           s"Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
     }
-  }
 
   protected def toProjectedInstance(
       i: InstanceDefinition,
@@ -372,11 +362,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       relationReferenceSchema("endNode", nullable)
     )
 
-    def typeAttribute(nullable: Boolean) = {
+    def typeAttribute(nullable: Boolean) =
       Array(
         relationReferenceSchema("_type", nullable),
       )
-    }
 
     usage match {
       case Usage.Node =>
