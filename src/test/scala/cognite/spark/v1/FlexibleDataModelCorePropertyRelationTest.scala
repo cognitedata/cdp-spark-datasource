@@ -14,7 +14,9 @@ import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.functions.lit
 import org.scalatest.{FlatSpec, Matchers}
+import shapeless.syntax.std.product.productOps
 
 import java.time.{LocalDate, ZonedDateTime}
 import scala.concurrent.duration.DurationInt
@@ -823,20 +825,36 @@ class FlexibleDataModelCorePropertyRelationTest
       cursor = ""
     )
 
-    val readAllDf = readRows(
+    val readEdgesDfViewAll = readRows(
       instanceType = InstanceType.Edge,
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewAll.externalId,
       viewVersion = viewAll.version,
       instanceSpaceExternalId = spaceExternalId
-    ).unionAll(
-      readRows(
-        instanceType = InstanceType.Node,
-        viewSpaceExternalId = spaceExternalId,
-        viewExternalId = viewAll.externalId,
-        viewVersion = viewAll.version,
-        instanceSpaceExternalId = spaceExternalId
-      ))
+    )
+
+    val readNodesDfViewAll = readRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewAll.externalId,
+      viewVersion = viewAll.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+
+
+    val edgesColumns = readEdgesDfViewAll.columns.toSet
+    val nodesColumns = readNodesDfViewAll.columns.toSet
+
+    val edgesMissingCols = nodesColumns -- edgesColumns
+    val nodesMissingCols = edgesColumns -- nodesColumns
+
+    val nodesWithAllCols = nodesMissingCols.foldLeft(readNodesDf) {
+      (df, col) => df.withColumn(col, lit(null))
+    }
+    val edgesWithAllCols = edgesMissingCols.foldLeft(readEdgesDf) {
+      (df, col) => df.withColumn(col, lit(null))
+    }
+    val readAllDf = nodesWithAllCols.unionAll(edgesWithAllCols)
 
     readNodesDf.createTempView(s"node_instances_table")
     readEdgesDf.createTempView(s"edge_instances_table")
