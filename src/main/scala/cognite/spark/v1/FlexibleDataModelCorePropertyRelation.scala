@@ -224,7 +224,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
             IO.delay(
               Some((
                 viewDef.properties,
-                deriveViewPropertySchemaWithUsageSpecificAttributes(viewDef.usedFor, viewDef.properties)
+                deriveViewPropertySchemaWithUsageSpecificAttributes(intendedUsage, viewDef.properties)
               )))
           case Some(viewDef) =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
