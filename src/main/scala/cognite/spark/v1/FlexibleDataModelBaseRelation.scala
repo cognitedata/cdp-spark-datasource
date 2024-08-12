@@ -373,7 +373,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case Usage.Edge =>
         baseAttributes ++ edgeAttributes ++ typeAttribute(false) ++ relationReferenceAttributes(false)
       case Usage.All =>
-        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(false) ++ relationReferenceAttributes(
+        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(true) ++ relationReferenceAttributes(
           true)
     }
   }
