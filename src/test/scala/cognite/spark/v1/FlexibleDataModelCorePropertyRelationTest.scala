@@ -848,12 +848,13 @@ class FlexibleDataModelCorePropertyRelationTest
     val edgesMissingCols = nodesColumns -- edgesColumns
     val nodesMissingCols = edgesColumns -- nodesColumns
 
-    val nodesWithAllCols = nodesMissingCols.foldLeft(readNodesDf) {
+    val nodesWithAllCols = nodesMissingCols.foldLeft(readNodesDfViewAll) {
       (df, col) => df.withColumn(col, lit(null))
     }
-    val edgesWithAllCols = edgesMissingCols.foldLeft(readEdgesDf) {
+    val edgesWithAllCols = edgesMissingCols.foldLeft(readEdgesDfViewAll) {
       (df, col) => df.withColumn(col, lit(null))
     }
+
     val readAllDf = nodesWithAllCols.unionAll(edgesWithAllCols)
 
     readNodesDf.createTempView(s"node_instances_table")
