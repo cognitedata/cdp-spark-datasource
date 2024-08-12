@@ -83,15 +83,17 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
 
     val syncFilter = createSyncFilter(filters, instanceType)
     val tableExpression = generateTableExpression(instanceType, syncFilter)
-    def sourceReference(instanceType: InstanceType): Seq[SourceSelector] = viewReference
-      .map(
-        r =>
-          SourceSelector(
-            source = r,
-            properties = selectedInstanceProps.toIndexedSeq.filter(p =>
-              !p.startsWith("node.") && !p.startsWith("edge.") && !p.startsWith("metadata.") && !reservedPropertyNames(instanceType).contains(p))
-        ))
-      .toSeq
+    def sourceReference(instanceType: InstanceType): Seq[SourceSelector] =
+      viewReference
+        .map(
+          r =>
+            SourceSelector(
+              source = r,
+              properties = selectedInstanceProps.toIndexedSeq.filter(p =>
+                !p.startsWith("node.") && !p.startsWith("edge.") && !p
+                  .startsWith("metadata.") && !reservedPropertyNames(instanceType).contains(p))
+          ))
+        .toSeq
 
     def reservedPropertyNames(instanceType: InstanceType): Seq[String] = {
       val result = Seq("space", "externalId", "_type")
@@ -102,7 +104,8 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     }
 
     val cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None
-    def select(instanceType: InstanceType) = Map("sync" -> SelectExpression(sources = sourceReference(instanceType)))
+    def select(instanceType: InstanceType) =
+      Map("sync" -> SelectExpression(sources = sourceReference(instanceType)))
     val syncMode =
       decideSyncMode(cursors, instanceType, select(instanceType)).unsafeRunSync()
 
