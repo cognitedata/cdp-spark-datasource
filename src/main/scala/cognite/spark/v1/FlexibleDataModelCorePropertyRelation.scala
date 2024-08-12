@@ -222,10 +222,11 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           case Some(viewDef)
               if compatibleUsageTypes(viewUsage = viewDef.usedFor, intendedUsage = intendedUsage) =>
             IO.delay(
-              Some((
-                viewDef.properties,
-                deriveViewPropertySchemaWithUsageSpecificAttributes(intendedUsage, viewDef.properties)
-              )))
+              Some(
+                (
+                  viewDef.properties,
+                  deriveViewPropertySchemaWithUsageSpecificAttributes(intendedUsage, viewDef.properties)
+                )))
           case Some(viewDef) =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
                | View with (space: '${viewDef.space}', externalId: '${viewDef.externalId}', version: '${viewDef.version}')
