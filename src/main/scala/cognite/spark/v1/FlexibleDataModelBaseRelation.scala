@@ -78,8 +78,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
-      //TODO add exists on view property first
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
+      case EqualTo(attribute, value: GenericRowWithSchema)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("type", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
         createEqualsAttributeFilter("startNode", value, instanceType)
@@ -155,7 +155,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNotNull(attribute)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+        if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Exists(Seq("edge", "type")))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
@@ -163,7 +163,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case IsNull(attribute)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+        if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
@@ -198,7 +198,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
       //TODO add exists on view property first
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("type") =>
+      case EqualTo(attribute, value: GenericRowWithSchema)
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("type", value, instanceType)
       case Or(f1, f2) =>
         Vector(f1, f2)
@@ -217,13 +218,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNotNull(attribute)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+        if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Exists(Seq("edge", "type")))
       case IsNull(attribute)
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case IsNull(attribute)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+        if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
       case f =>
         Left(new CdfSparkIllegalArgumentException(
