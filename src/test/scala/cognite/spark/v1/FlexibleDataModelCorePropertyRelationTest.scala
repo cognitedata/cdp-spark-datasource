@@ -16,7 +16,6 @@ import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions.lit
 import org.scalatest.{FlatSpec, Matchers}
-import shapeless.syntax.std.product.productOps
 
 import java.time.{LocalDate, ZonedDateTime}
 import scala.concurrent.duration.DurationInt
