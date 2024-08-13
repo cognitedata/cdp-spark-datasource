@@ -81,9 +81,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case EqualTo(attribute, value: GenericRowWithSchema)
           if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("type", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
+      case EqualTo(attribute, value: GenericRowWithSchema)
+          if attribute.equalsIgnoreCase("startNode") && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("startNode", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
+      case EqualTo(attribute, value: GenericRowWithSchema)
+          if attribute.equalsIgnoreCase("endNode") && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
@@ -191,9 +193,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           FilterDefinition.Equals(
             createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
             FilterValueDefinition.String(String.valueOf(value))))
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("startNode") =>
+      case EqualTo(attribute, value: GenericRowWithSchema)
+          if attribute.equalsIgnoreCase("startNode") && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("startNode", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("endNode") =>
+      case EqualTo(attribute, value: GenericRowWithSchema)
+          if attribute.equalsIgnoreCase("endNode") && instanceType == InstanceType.Edge =>
         createEqualsAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
         createEqualsAttributeFilter("type", value, instanceType)
