@@ -450,7 +450,7 @@ object FlexibleDataModelRelationUtils {
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     extractDirectRelation("_type", "Edge type", schema, instanceSpace, row) match {
       case right @ Right(_) => right
-      case _ => extractDirectRelation("type", "Node or Edge type", schema, instanceSpace, row)
+      case _ => extractDirectRelation("type", "Edge type", schema, instanceSpace, row)
     }
 
   private def extractEdgeStartNodeDirectRelation(
