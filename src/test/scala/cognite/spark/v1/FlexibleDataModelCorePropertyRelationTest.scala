@@ -148,7 +148,8 @@ class FlexibleDataModelCorePropertyRelationTest
 
     val (viewAll, viewNodes, viewEdges) = setupAllNonListPropertyTest.unsafeRunSync()
     val randomId = generateNodeExternalId
-    val instanceExtIdAll = s"${randomId}All"
+    val instanceExtIdAllNode = s"${randomId}AllNode"
+    val instanceExtIdAllEdge = s"${randomId}AllEdge"
     val instanceExtIdNode = s"${randomId}Node"
     val instanceExtIdEdge = s"${randomId}Edge"
 
@@ -204,7 +205,15 @@ class FlexibleDataModelCorePropertyRelationTest
           viewExternalId = viewAll.externalId,
           viewVersion = viewAll.version,
           instanceSpaceExternalId = spaceExternalId,
-          insertionDf(instanceExtIdAll)
+          insertionDf(instanceExtIdAllNode)
+        ),
+        insertRows(
+          instanceType = InstanceType.Edge,
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewAll.externalId,
+          viewVersion = viewAll.version,
+          instanceSpaceExternalId = spaceExternalId,
+          insertionDf(instanceExtIdAllEdge)
         ),
         insertRows(
           instanceType = InstanceType.Node,
@@ -225,9 +234,9 @@ class FlexibleDataModelCorePropertyRelationTest
       )
     }
 
-    insertionResults shouldBe Success(Vector((), (), ()))
-    insertionResults.get.size shouldBe 3
-    getUpsertedMetricsCount(viewAll) shouldBe 1
+    insertionResults shouldBe Success(Vector((), (), (), ()))
+    insertionResults.get.size shouldBe 4
+    getUpsertedMetricsCount(viewAll) shouldBe 2
     getUpsertedMetricsCount(viewNodes) shouldBe 1
     getUpsertedMetricsCount(viewEdges) shouldBe 1
 
@@ -247,7 +256,16 @@ class FlexibleDataModelCorePropertyRelationTest
           viewExternalId = viewAll.externalId,
           viewVersion = viewAll.version,
           instanceSpaceExternalId = spaceExternalId,
-          deletionDf(instanceExtIdAll),
+          deletionDf(instanceExtIdAllNode),
+          onConflict = "delete"
+        ),
+        insertRows(
+          instanceType = InstanceType.Edge,
+          viewSpaceExternalId = spaceExternalId,
+          viewExternalId = viewAll.externalId,
+          viewVersion = viewAll.version,
+          instanceSpaceExternalId = spaceExternalId,
+          deletionDf(instanceExtIdAllEdge),
           onConflict = "delete"
         ),
         insertRows(
@@ -271,9 +289,9 @@ class FlexibleDataModelCorePropertyRelationTest
       )
     }
 
-    deletionResults shouldBe Success(Vector((), (), ()))
-    deletionResults.get.size shouldBe 3
-    getDeletedMetricsCount(viewAll) shouldBe 1
+    deletionResults shouldBe Success(Vector((), (), (), ()))
+    deletionResults.get.size shouldBe 4
+    getDeletedMetricsCount(viewAll) shouldBe 2
     getDeletedMetricsCount(viewNodes) shouldBe 1
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
