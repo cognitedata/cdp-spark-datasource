@@ -178,7 +178,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   }
 
   protected def toNodeOrEdgeAttributeFilter(
-      schema: StructType,
       instanceType: InstanceType,
       sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
@@ -203,14 +202,14 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         createEqualsAttributeFilter("type", value, instanceType)
       case Or(f1, f2) =>
         Vector(f1, f2)
-          .traverse(toNodeOrEdgeAttributeFilter(schema, instanceType, _))
+          .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
           .map(FilterDefinition.Or.apply)
       case And(f1, f2) =>
         Vector(f1, f2)
-          .traverse(toNodeOrEdgeAttributeFilter(schema, instanceType, _))
+          .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
           .map(FilterDefinition.And.apply)
       case Not(f) =>
-        toNodeOrEdgeAttributeFilter(schema, instanceType, f)
+        toNodeOrEdgeAttributeFilter(instanceType, f)
           .map(FilterDefinition.Not.apply)
       //Node types are optional so exists will be automatically checked
       //Types are a property of the node/edge and should not use the view but directly check on the node
