@@ -155,7 +155,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNotNull(attribute)
-        if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Exists(Seq("edge", "type")))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
@@ -163,7 +163,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case IsNull(attribute)
-        if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
@@ -218,13 +218,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Exists(Seq("node", "type")))
       case IsNotNull(attribute)
-        if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Exists(Seq("edge", "type")))
       case IsNull(attribute)
           if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
       case IsNull(attribute)
-        if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
+          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
       case f =>
         Left(new CdfSparkIllegalArgumentException(
