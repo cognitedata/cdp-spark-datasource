@@ -362,14 +362,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   // Filter definitions for attributes for nodes & edges
   private def createNodeOrEdgeCommonAttributeRef(
       instanceType: InstanceType,
-      attribute: String): Seq[String] = {
+      attribute: String): Seq[String] =
     //type is a special case, and is reserved for edges only and is an alias of _type
     if (attribute.equalsIgnoreCase("type")) {
       Vector(instanceType.productPrefix.toLowerCase(Locale.US), "_type")
     } else {
       Vector(instanceType.productPrefix.toLowerCase(Locale.US), attribute)
     }
-  }
 
   private def relationReferenceInnerStruct(): StructType =
     DataTypes.createStructType(
