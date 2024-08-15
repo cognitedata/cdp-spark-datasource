@@ -106,9 +106,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       selectedColumns
     }
 
-    val instanceFilter = viewReference
-      .map(usageBasedPropertyFilter(intendedUsage, filters, _))
-      .getOrElse(usageBasedAttributeFilter(intendedUsage, filters)) match {
+    val instanceFilter = usageBasedPropertyFilter(intendedUsage, filters, viewReference) match {
       case Right(filters) => filters
       case Left(err) => throw err
     }
@@ -132,53 +130,28 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
   }
 
-  private def usageBasedAttributeFilter(
-      usage: Usage,
-      filters: Array[Filter]): Either[CdfSparkException, Option[FilterDefinition]] =
-    usage match {
-      case Usage.Node =>
-        filters.toVector
-          .traverse(toNodeOrEdgeAttributeFilter(InstanceType.Node, _))
-          .map(toAndFilter)
-      case Usage.Edge =>
-        filters.toVector
-          .traverse(toNodeOrEdgeAttributeFilter(InstanceType.Edge, _))
-          .map(toAndFilter)
-      case Usage.All =>
-        val nodeFilter = usageBasedAttributeFilter(Usage.Node, filters)
-        val edgeFilter = usageBasedAttributeFilter(Usage.Edge, filters)
-        nodeFilter.flatMap { nf =>
-          edgeFilter.map { ef =>
-            Apply[Option]
-              .map2(nf, ef)((n, e) => FilterDefinition.Or(Vector(n, e)))
-              .orElse(nf)
-              .orElse(ef)
-          }
-        }
-    }
-
   private def usageBasedPropertyFilter(
       usage: Usage,
       filters: Array[Filter],
-      ref: ViewReference): Either[CdfSparkException, Option[FilterDefinition]] =
+      ref: Option[ViewReference]): Either[CdfSparkException, Option[FilterDefinition]] =
     usage match {
       case Usage.Node =>
         filters.toVector
           .traverse(
-            toInstanceFilter(
+            toFilter(
               InstanceType.Node,
               _,
-              space = ref.space,
-              versionedExternalId = s"${ref.externalId}/${ref.version}"))
+              space = ref.map(_.space),
+              versionedExternalId = ref.map(r => s"${r.externalId}/${r.version}")))
           .map(toAndFilter)
       case Usage.Edge =>
         filters.toVector
           .traverse(
-            toInstanceFilter(
+            toFilter(
               InstanceType.Edge,
               _,
-              space = ref.space,
-              versionedExternalId = s"${ref.externalId}/${ref.version}"))
+              space = ref.map(_.space),
+              versionedExternalId = ref.map(r => s"${r.externalId}/${r.version}")))
           .map(toAndFilter)
       case Usage.All =>
         val nodeFilter = usageBasedPropertyFilter(Usage.Node, filters, ref)

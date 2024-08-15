@@ -116,7 +116,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
     if (filters.isEmpty) {
       Right(edgeTypeFilter)
     } else {
-      filters.toVector.traverse(toNodeOrEdgeAttributeFilter(InstanceType.Edge, _)).map { f =>
+      filters.toVector.traverse(toFilter(InstanceType.Edge, _, None, None)).map { f =>
         FilterDefinition.And(edgeTypeFilter +: f)
       }
     }

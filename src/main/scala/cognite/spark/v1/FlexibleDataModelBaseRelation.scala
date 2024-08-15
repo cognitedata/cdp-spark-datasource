@@ -57,7 +57,14 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     })
   }
 
-  private val reservedAttributes = Set("space", "externalId", "type", "startNode", "endNode")
+
+  private def isReservedAttribute(instanceType: InstanceType, attribute: String) = {
+    val alwaysReservedAttributes: Set[String] = Set("space", "externalId", "_type")
+    val edgeReservedAttributes: Set[String] = Set("type", "startNode", "endNode")
+    // type is supported as an alias to _type for edges for legacy reasons.
+    alwaysReservedAttributes.contains(attribute) ||
+      (instanceType == InstanceType.Edge && edgeReservedAttributes.contains(attribute))
+  }
 
   private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any =
     FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema.apply(key).dataType, value)
@@ -66,86 +73,53 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       instanceType: InstanceType,
       sparkFilter: Filter,
       space: Option[String],
-      versionExternalId: Option[String]
+      versionedExternalId: Option[String]
   ): Either[CdfSparkException, FilterDefinition] = {
     sparkFilter match {
+      case EqualTo(attribute, _) if isReservedAttribute(instanceType, attribute) =>
+        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+      case IsNull(attribute) if isReservedAttribute(instanceType, attribute) =>
+        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+      case IsNotNull(attribute) if isReservedAttribute(instanceType, attribute) =>
+        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+      case StringStartsWith(attribute, _) if isReservedAttribute(instanceType, attribute) =>
+        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+      case In(attribute, _) if isReservedAttribute(instanceType, attribute) =>
+        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
       case And(f1, f2) =>
         Vector(f1, f2)
           .traverse(
-            toFilter(instanceType, _, space = space, versionExternalId))
+            toFilter(instanceType, _, space = space, versionedExternalId))
           .map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         Vector(f1, f2)
           .traverse(
-            toFilter(instanceType, _, space = space, versionExternalId))
+            toFilter(instanceType, _, space = space, versionedExternalId))
           .map(FilterDefinition.Or.apply)
       case Not(f) =>
-        toFilter(instanceType, f, space = space, versionExternalId)
+        toFilter(instanceType, f, space = space, versionedExternalId)
           .map(FilterDefinition.Not.apply)
-      case _ if space.isEmpty || versionExternalId.isEmpty =>
-        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
-      case EqualTo(attribute, _) if reservedAttributes.contains(attribute.toLowerCase) =>
-        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
-      case IsNull(attribute) if reservedAttributes.contains(attribute.toLowerCase) =>
-        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
-      case IsNotNull(attribute) if reservedAttributes.contains(attribute.toLowerCase) =>
-        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+      case _ if space.isDefined && versionedExternalId.isDefined =>
+        toInstanceFilter(sparkFilter, space.get, versionedExternalId.get)
+      case f =>
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"""Unsupported filter '${f.getClass.getSimpleName}', ${f.toString}
+               | for space: ${space.getOrElse("not specified")}
+               | and versionedExternalId: ${versionedExternalId.getOrElse("not specified")}
+               | and instanceType: $instanceType """.stripMargin))
     }
   }
 
-  protected def toInstanceFilter(
-      instanceType: InstanceType,
+  private def toInstanceFilter(
       sparkFilter: Filter,
       space: String,
       versionedExternalId: String): Either[CdfSparkException, FilterDefinition] = {
     sparkFilter match {
-      case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
-        Right(
-          FilterDefinition.Equals(
-            createNodeOrEdgeCommonAttributeRef(instanceType, "space"),
-            FilterValueDefinition.String(String.valueOf(value))))
-      case EqualTo(attribute, value) if attribute.equalsIgnoreCase("externalId") =>
-        Right(
-          FilterDefinition.Equals(
-            createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
-            FilterValueDefinition.String(String.valueOf(value))))
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
-        createEqualsAttributeFilter("type", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
-        createEqualsAttributeFilter("type", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("startNode") && instanceType == InstanceType.Edge =>
-        createEqualsAttributeFilter("startNode", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("endNode") && instanceType == InstanceType.Edge =>
-        createEqualsAttributeFilter("endNode", value, instanceType)
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
           FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
-      case In(attribute, values) if attribute.equalsIgnoreCase("space") =>
-        toSeqFilterValueDefinition(attribute, values)
-          .filterOrElse(
-            {
-              case FilterValueDefinition.StringList(_) => true
-              case _ => false
-            },
-            new CdfSparkIllegalArgumentException(
-              s"Unsupported filter '${sparkFilter.getClass.getSimpleName}', ${sparkFilter.toString}")
-          )
-          .map(FilterDefinition.In(createNodeOrEdgeCommonAttributeRef(instanceType, "space"), _))
-      case In(attribute, values) if attribute.equalsIgnoreCase("externalId") =>
-        toSeqFilterValueDefinition(attribute, values)
-          .filterOrElse(
-            {
-              case FilterValueDefinition.StringList(_) => true
-              case _ => false
-            },
-            new CdfSparkIllegalArgumentException(
-              s"Unsupported filter '${sparkFilter.getClass.getSimpleName}', ${sparkFilter.toString}")
-          )
-          .map(FilterDefinition.In(createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"), _))
-      case In(attribute, values) =>
+    case In(attribute, values) =>
         toSeqFilterValueDefinition(attribute, values).map(
           FilterDefinition.In(Seq(space, versionedExternalId, attribute), _))
       case GreaterThanOrEqual(attribute, value) =>
@@ -160,51 +134,14 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case LessThan(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
           FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), lt = Some(f)))
-      case StringStartsWith(attribute, value) if attribute.equalsIgnoreCase("space") =>
-        Right(
-          FilterDefinition.Prefix(
-            createNodeOrEdgeCommonAttributeRef(instanceType, "space"),
-            FilterValueDefinition.String(value)))
-      case StringStartsWith(attribute, value) if attribute.equalsIgnoreCase("externalId") =>
-        Right(
-          FilterDefinition.Prefix(
-            createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
-            FilterValueDefinition.String(value)))
       case StringStartsWith(attribute, value) =>
         Right(
           FilterDefinition
             .Prefix(Seq(space, versionedExternalId, attribute), FilterValueDefinition.String(value)))
-      case And(f1, f2) =>
-        Vector(f1, f2)
-          .traverse(
-            toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
-          .map(FilterDefinition.And.apply)
-      case Or(f1, f2) =>
-        Vector(f1, f2)
-          .traverse(
-            toInstanceFilter(instanceType, _, space = space, versionedExternalId = versionedExternalId))
-          .map(FilterDefinition.Or.apply)
-      //Node types are optional so exists will be automatically checked
-      //Types are a property of the node/edge and should not use the view but directly check on the node
-      case IsNotNull(attribute)
-          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
-        Right(FilterDefinition.Exists(Seq("node", "type")))
-      case IsNotNull(attribute)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
-        Right(FilterDefinition.Exists(Seq("edge", "type")))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
-      case IsNull(attribute)
-          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
-      case IsNull(attribute)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
       case IsNull(attribute) =>
         Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
-      case Not(f) =>
-        toInstanceFilter(instanceType, f, space = space, versionedExternalId = versionedExternalId)
-          .map(FilterDefinition.Not.apply)
       case f =>
         Left(
           new CdfSparkIllegalArgumentException(
@@ -212,61 +149,48 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
   }
 
-  protected def toNodeOrEdgeAttributeFilter(
+  // Some reserved attributes are not attached to a view but directly to the node/edge
+  // This handles filtering on these attributes.
+  private def toNodeOrEdgeAttributeFilter(
       instanceType: InstanceType,
-      sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] =
+      sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
+    val nodeOrEdgeStringAttributes = Seq("space", "externalId")
+    val nodeOrEdgeReferenceAttributes = Seq("type", "_type", "startNode", "endNode")
     sparkFilter match {
-      case EqualTo(attribute, value) if attribute.equalsIgnoreCase("space") =>
+      case EqualTo(attribute, value) if nodeOrEdgeStringAttributes.contains(attribute) =>
         Right(
           FilterDefinition.Equals(
-            createNodeOrEdgeCommonAttributeRef(instanceType, "space"),
+            createNodeOrEdgeCommonAttributeRef(instanceType, attribute),
             FilterValueDefinition.String(String.valueOf(value))))
-      case EqualTo(attribute, value) if attribute.equalsIgnoreCase("externalId") =>
+      case EqualTo(attribute, value: GenericRowWithSchema) if nodeOrEdgeReferenceAttributes.contains(attribute) =>
+        createEqualsAttributeFilter(createNodeOrEdgeCommonAttributeRef(instanceType, "space"), value)
+      case In(attribute, values) if nodeOrEdgeStringAttributes.contains(attribute) =>
+        toSeqFilterValueDefinition(attribute, values)
+          .filterOrElse(
+            {
+              case FilterValueDefinition.StringList(_) => true
+              case _ => false
+            },
+            new CdfSparkIllegalArgumentException(
+              s"Unsupported filter '${sparkFilter.getClass.getSimpleName}', ${sparkFilter.toString}")
+          )
+          .map(FilterDefinition.In(createNodeOrEdgeCommonAttributeRef(instanceType, attribute), _))
+      case StringStartsWith(attribute, value) if nodeOrEdgeStringAttributes.contains(attribute) =>
         Right(
-          FilterDefinition.Equals(
-            createNodeOrEdgeCommonAttributeRef(instanceType, "externalId"),
-            FilterValueDefinition.String(String.valueOf(value))))
-      case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("startNode") && instanceType == InstanceType.Edge =>
-        createEqualsAttributeFilter("startNode", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("endNode") && instanceType == InstanceType.Edge =>
-        createEqualsAttributeFilter("endNode", value, instanceType)
-      case EqualTo(attribute, value: GenericRowWithSchema) if attribute.equalsIgnoreCase("_type") =>
-        createEqualsAttributeFilter("type", value, instanceType)
-      //TODO add exists on view property first
-      case EqualTo(attribute, value: GenericRowWithSchema)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
-        createEqualsAttributeFilter("type", value, instanceType)
-      case Or(f1, f2) =>
-        Vector(f1, f2)
-          .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
-          .map(FilterDefinition.Or.apply)
-      case And(f1, f2) =>
-        Vector(f1, f2)
-          .traverse(toNodeOrEdgeAttributeFilter(instanceType, _))
-          .map(FilterDefinition.And.apply)
-      case Not(f) =>
-        toNodeOrEdgeAttributeFilter(instanceType, f)
-          .map(FilterDefinition.Not.apply)
-      //Node types are optional so exists will be automatically checked
-      //Types are a property of the node/edge and should not use the view but directly check on the node
-      case IsNotNull(attribute)
-          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
-        Right(FilterDefinition.Exists(Seq("node", "type")))
-      case IsNotNull(attribute)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
-        Right(FilterDefinition.Exists(Seq("edge", "type")))
-      case IsNull(attribute)
-          if attribute.equalsIgnoreCase("_type") && instanceType == InstanceType.Node =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("node", "type"))))
-      case IsNull(attribute)
-          if attribute.equalsIgnoreCase("type") && instanceType == InstanceType.Edge =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq("edge", "type"))))
+          FilterDefinition.Prefix(
+            createNodeOrEdgeCommonAttributeRef(instanceType, attribute),
+            FilterValueDefinition.String(value)))
+      case IsNotNull(attribute) =>
+        Right(FilterDefinition.Exists(createNodeOrEdgeCommonAttributeRef(instanceType, attribute)))
+      case IsNull(attribute) =>
+        Right(FilterDefinition.Not(FilterDefinition.Exists(createNodeOrEdgeCommonAttributeRef(instanceType, attribute))))
       case f =>
         Left(new CdfSparkIllegalArgumentException(
-          s"Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}"))
+          s"""Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}
+             | for instanceType: $instanceType
+             |""".stripMargin))
     }
+  }
 
   protected def toProjectedInstance(
       i: InstanceDefinition,
@@ -415,34 +339,37 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
   }
 
-  // Filter definition for edge `type`, `startNode` & `endNode`
+  // Filter definition for node/edge `type`, `startNode` & `endNode`
   private def createEqualsAttributeFilter(
-      attribute: String,
-      struct: GenericRowWithSchema,
-      instanceType: InstanceType): Either[CdfSparkException, FilterDefinition] = {
-
+      attributeVector: Seq[String],
+      struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] = {
     Try {
       val space = struct.getString(struct.fieldIndex("space"))
       val externalId = struct.getString(struct.fieldIndex("externalId"))
       FilterDefinition.Equals(
-        property = createNodeOrEdgeCommonAttributeRef(instanceType, attribute),
+        property = attributeVector,
         value = FilterValueDefinition.Object(
           Json.obj("space" -> Json.fromString(space), "externalId" -> Json.fromString(externalId)))
       )
     }.toEither.leftMap { _ =>
       new CdfSparkIllegalArgumentException(
-        s"""Invalid filter value for: '${createNodeOrEdgeCommonAttributeRef(instanceType, attribute)}'
+        s"""Invalid filter value for: '${attributeVector}'
            |Expecting a struct with 'space' & 'externalId' attributes, but found: ${struct.json}
            |""".stripMargin
       )
     }
   }
 
-  // Filter definitions for "space" & "externalId" attributes for nodes & edges
+  // Filter definitions for attributes for nodes & edges
   private def createNodeOrEdgeCommonAttributeRef(
       instanceType: InstanceType,
-      attribute: String): Seq[String] =
+      attribute: String): Seq[String] = {
+    //type is a special case, and is reserved for edges only and is an alias of _type
+    if(attribute.equalsIgnoreCase("type")) {
+      Vector(instanceType.productPrefix.toLowerCase(Locale.US), "_type")
+    }
     Vector(instanceType.productPrefix.toLowerCase(Locale.US), attribute)
+  }
 
   private def relationReferenceInnerStruct(): StructType =
     DataTypes.createStructType(
