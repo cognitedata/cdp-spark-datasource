@@ -364,8 +364,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       instanceType: InstanceType,
       attribute: String): Seq[String] =
     //type is a special case, and is reserved for edges only and is an alias of _type
-    if (attribute.equalsIgnoreCase("type")) {
-      Vector(instanceType.productPrefix.toLowerCase(Locale.US), "_type")
+    if (attribute.equalsIgnoreCase("_type")) {
+      Vector(instanceType.productPrefix.toLowerCase(Locale.US), "type")
     } else {
       Vector(instanceType.productPrefix.toLowerCase(Locale.US), attribute)
     }
