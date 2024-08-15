@@ -30,10 +30,10 @@ import scala.util.Random
 
 trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
 
-  protected val clientId = sys.env("TEST_CLIENT_ID")
-  protected val clientSecret = sys.env("TEST_CLIENT_SECRET")
-  protected val cluster = sys.env("TEST_CLUSTER")
-  protected val project = sys.env("TEST_PROJECT")
+  protected val clientId: String = sys.env("TEST_CLIENT_ID")
+  protected val clientSecret: String = sys.env("TEST_CLIENT_SECRET")
+  protected val cluster: String = sys.env("TEST_CLUSTER")
+  protected val project: String = sys.env("TEST_PROJECT")
   protected val tokenUri: String = sys.env
     .get("TEST_TOKEN_URL")
     .orElse(
@@ -221,6 +221,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       }
       .map(_.head)
 
+
   protected def createViewWithCorePropsIfNotExists(
       container: ContainerDefinition,
       viewExternalId: String,
@@ -283,7 +284,8 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
             Some(
               Seq(EdgeOrNodeData(
                 sourceReference,
-                None
+                //this property also named type is a real life possibility and needs to be allowed
+                Some(Map("type" -> Some(InstancePropertyValue.ViewDirectNodeRelation(Some(DirectRelationReference(spaceExternalId, typeNodeExtId))))))
               ))
             ),
             `type` = None
@@ -294,7 +296,7 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
             Some(
               Seq(EdgeOrNodeData(
                 sourceReference,
-                None
+                Some(Map("type" -> Some(InstancePropertyValue.ViewDirectNodeRelation(Some(DirectRelationReference(spaceExternalId, typeNodeExtId))))))
               ))
             ),
             `type` = Some(DirectRelationReference(spaceExternalId, typeNodeExtId))
