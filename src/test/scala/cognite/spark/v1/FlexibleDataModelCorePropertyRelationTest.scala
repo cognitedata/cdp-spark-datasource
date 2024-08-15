@@ -35,13 +35,13 @@ class FlexibleDataModelCorePropertyRelationTest
   private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList2"
   private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList2"
 
-  private val containerAllAmbiguousTypeExternalId = "sparkDsTestContainerAllAmbiguousType5"
-  private val containerNodesAmbiguousTypeExternalId = "sparkDsTestContainerNodesAmbiguousType5"
-  private val containerEdgesAmbiguousTypeExternalId = "sparkDsTestContainerEdgesAmbiguousType5"
+  private val containerAllAmbiguousTypeExternalId = "sparkDsTestContainerAllAmbiguousType6"
+  private val containerNodesAmbiguousTypeExternalId = "sparkDsTestContainerNodesAmbiguousType6"
+  private val containerEdgesAmbiguousTypeExternalId = "sparkDsTestContainerEdgesAmbiguousType6"
 
-  private val containerAllTypeExternalId = "sparkDsTestContainerAllType2"
-  private val containerNodesTypeExternalId = "sparkDsTestContainerNodesType2"
-  private val containerEdgesTypeExternalId = "sparkDsTestContainerEdgesType2"
+  private val containerAllTypeExternalId = "sparkDsTestContainerAllType3"
+  private val containerNodesTypeExternalId = "sparkDsTestContainerNodesType3"
+  private val containerEdgesTypeExternalId = "sparkDsTestContainerEdgesType3"
 
   private val containerAllListExternalId = "sparkDsTestContainerAllList2"
   private val containerNodesListExternalId = "sparkDsTestContainerNodesList2"
@@ -51,13 +51,13 @@ class FlexibleDataModelCorePropertyRelationTest
   private val viewNodesListAndNonListExternalId = "sparkDsTestViewNodesListAndNonList2"
   private val viewEdgesListAndNonListExternalId = "sparkDsTestViewEdgesListAndNonList2"
 
-  private val viewAllAmbiguousTypeExternalId = "sparkDsTestViewAllAmbiguousType5"
-  private val viewNodesAmbiguousTypeExternalId = "sparkDsTestViewNodesAmbiguousType5"
-  private val viewEdgesAmbiguousTypeExternalId = "sparkDsTestViewEdgesAmbiguousType5"
+  private val viewAllAmbiguousTypeExternalId = "sparkDsTestViewAllAmbiguousType6"
+  private val viewNodesAmbiguousTypeExternalId = "sparkDsTestViewNodesAmbiguousType6"
+  private val viewEdgesAmbiguousTypeExternalId = "sparkDsTestViewEdgesAmbiguousType6"
 
-  private val viewAllTypeExternalId = "sparkDsTestViewAllType5"
-  private val viewNodesTypeExternalId = "sparkDsTestViewNodesType5"
-  private val viewEdgesTypeExternalId = "sparkDsTestViewEdgesType5"
+  private val viewAllTypeExternalId = "sparkDsTestViewAllType6"
+  private val viewNodesTypeExternalId = "sparkDsTestViewNodesType6"
+  private val viewEdgesTypeExternalId = "sparkDsTestViewEdgesType6"
 
   private val viewAllNonListExternalId = "sparkDsTestViewAllNonList2"
   private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList2"
