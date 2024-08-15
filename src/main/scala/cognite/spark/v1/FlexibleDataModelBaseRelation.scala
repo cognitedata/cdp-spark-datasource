@@ -159,7 +159,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             FilterValueDefinition.String(String.valueOf(value))))
       case EqualTo(attribute, value: GenericRowWithSchema)
           if nodeOrEdgeReferenceAttributes.contains(attribute) =>
-        createEqualsAttributeFilter(createNodeOrEdgeCommonAttributeRef(instanceType, "space"), value)
+        createEqualsAttributeFilter(createNodeOrEdgeCommonAttributeRef(instanceType, attribute), value)
       case In(attribute, values) if nodeOrEdgeStringAttributes.contains(attribute) =>
         toSeqFilterValueDefinition(attribute, values)
           .filterOrElse(
