@@ -57,13 +57,12 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     })
   }
 
-
   private def isReservedAttribute(instanceType: InstanceType, attribute: String) = {
     val alwaysReservedAttributes: Set[String] = Set("space", "externalId", "_type")
     val edgeReservedAttributes: Set[String] = Set("type", "startNode", "endNode")
     // type is supported as an alias to _type for edges for legacy reasons.
     alwaysReservedAttributes.contains(attribute) ||
-      (instanceType == InstanceType.Edge && edgeReservedAttributes.contains(attribute))
+    (instanceType == InstanceType.Edge && edgeReservedAttributes.contains(attribute))
   }
 
   private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any =
@@ -74,7 +73,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       sparkFilter: Filter,
       space: Option[String],
       versionedExternalId: Option[String]
-  ): Either[CdfSparkException, FilterDefinition] = {
+  ): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, _) if isReservedAttribute(instanceType, attribute) =>
         toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
@@ -88,13 +87,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
       case And(f1, f2) =>
         Vector(f1, f2)
-          .traverse(
-            toFilter(instanceType, _, space = space, versionedExternalId))
+          .traverse(toFilter(instanceType, _, space = space, versionedExternalId))
           .map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         Vector(f1, f2)
-          .traverse(
-            toFilter(instanceType, _, space = space, versionedExternalId))
+          .traverse(toFilter(instanceType, _, space = space, versionedExternalId))
           .map(FilterDefinition.Or.apply)
       case Not(f) =>
         toFilter(instanceType, f, space = space, versionedExternalId)
@@ -109,17 +106,16 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
                | and versionedExternalId: ${versionedExternalId.getOrElse("not specified")}
                | and instanceType: $instanceType """.stripMargin))
     }
-  }
 
   private def toInstanceFilter(
       sparkFilter: Filter,
       space: String,
-      versionedExternalId: String): Either[CdfSparkException, FilterDefinition] = {
+      versionedExternalId: String): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
           FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
-    case In(attribute, values) =>
+      case In(attribute, values) =>
         toSeqFilterValueDefinition(attribute, values).map(
           FilterDefinition.In(Seq(space, versionedExternalId, attribute), _))
       case GreaterThanOrEqual(attribute, value) =>
@@ -147,7 +143,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           new CdfSparkIllegalArgumentException(
             s"Unsupported filter '${f.getClass.getSimpleName}', ${f.toString}"))
     }
-  }
 
   // Some reserved attributes are not attached to a view but directly to the node/edge
   // This handles filtering on these attributes.
@@ -162,7 +157,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           FilterDefinition.Equals(
             createNodeOrEdgeCommonAttributeRef(instanceType, attribute),
             FilterValueDefinition.String(String.valueOf(value))))
-      case EqualTo(attribute, value: GenericRowWithSchema) if nodeOrEdgeReferenceAttributes.contains(attribute) =>
+      case EqualTo(attribute, value: GenericRowWithSchema)
+          if nodeOrEdgeReferenceAttributes.contains(attribute) =>
         createEqualsAttributeFilter(createNodeOrEdgeCommonAttributeRef(instanceType, "space"), value)
       case In(attribute, values) if nodeOrEdgeStringAttributes.contains(attribute) =>
         toSeqFilterValueDefinition(attribute, values)
@@ -183,10 +179,14 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(createNodeOrEdgeCommonAttributeRef(instanceType, attribute)))
       case IsNull(attribute) =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(createNodeOrEdgeCommonAttributeRef(instanceType, attribute))))
+        Right(
+          FilterDefinition.Not(
+            FilterDefinition.Exists(createNodeOrEdgeCommonAttributeRef(instanceType, attribute))))
       case f =>
-        Left(new CdfSparkIllegalArgumentException(
-          s"""Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String.valueOf(f)}
+        Left(
+          new CdfSparkIllegalArgumentException(
+            s"""Unsupported node or edge attribute filter '${f.getClass.getSimpleName}': ${String
+                 .valueOf(f)}
              | for instanceType: $instanceType
              |""".stripMargin))
     }
@@ -342,7 +342,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   // Filter definition for node/edge `type`, `startNode` & `endNode`
   private def createEqualsAttributeFilter(
       attributeVector: Seq[String],
-      struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] = {
+      struct: GenericRowWithSchema): Either[CdfSparkException, FilterDefinition] =
     Try {
       val space = struct.getString(struct.fieldIndex("space"))
       val externalId = struct.getString(struct.fieldIndex("externalId"))
@@ -358,14 +358,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
            |""".stripMargin
       )
     }
-  }
 
   // Filter definitions for attributes for nodes & edges
   private def createNodeOrEdgeCommonAttributeRef(
       instanceType: InstanceType,
       attribute: String): Seq[String] = {
     //type is a special case, and is reserved for edges only and is an alias of _type
-    if(attribute.equalsIgnoreCase("type")) {
+    if (attribute.equalsIgnoreCase("type")) {
       Vector(instanceType.productPrefix.toLowerCase(Locale.US), "_type")
     }
     Vector(instanceType.productPrefix.toLowerCase(Locale.US), attribute)
