@@ -59,8 +59,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
 
   private def isReservedAttribute(instanceType: InstanceType, attribute: String) = {
     val alwaysReservedAttributes: Set[String] = Set("space", "externalId", "_type")
-    val edgeReservedAttributes: Set[String] = Set("type", "startNode", "endNode")
+
     // type is supported as an alias to _type for edges for legacy reasons.
+    val edgeReservedAttributes: Set[String] = Set("type", "startNode", "endNode")
     alwaysReservedAttributes.contains(attribute) ||
     (instanceType == InstanceType.Edge && edgeReservedAttributes.contains(attribute))
   }
@@ -363,7 +364,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   private def createNodeOrEdgeCommonAttributeRef(
       instanceType: InstanceType,
       attribute: String): Seq[String] =
-    //type is a special case, and is reserved for edges only and is an alias of _type
     if (attribute.equalsIgnoreCase("_type")) {
       Vector(instanceType.productPrefix.toLowerCase(Locale.US), "type")
     } else {
