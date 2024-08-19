@@ -141,8 +141,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
             toFilter(
               InstanceType.Node,
               _,
-              FilterViewReference(ref.map(_)),
-              versionedExternalId = ref.map(r => s"${r.externalId}/${r.version}")))
+              ref
+            )
+          )
           .map(toAndFilter)
       case Usage.Edge =>
         filters.toVector
@@ -150,8 +151,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
             toFilter(
               InstanceType.Edge,
               _,
-              space = ref.map(_.space),
-              versionedExternalId = ref.map(r => s"${r.externalId}/${r.version}")))
+              ref
+            )
+          )
           .map(toAndFilter)
       case Usage.All =>
         val nodeFilter = usageBasedPropertyFilter(Usage.Node, filters, ref)

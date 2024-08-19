@@ -61,7 +61,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       HasData(List(viewRef))
     }
     val requestFilters: Seq[FilterDefinition] = (filters.map {
-      toFilter(instanceType, _, None, None).toOption
+      toFilter(instanceType, _, None).toOption
     } ++ Array(hasData)).flatten.toSeq
     FilterDefinition.And(requestFilters)
   }
