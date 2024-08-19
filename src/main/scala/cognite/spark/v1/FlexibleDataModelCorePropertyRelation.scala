@@ -141,7 +141,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
             toFilter(
               InstanceType.Node,
               _,
-              space = ref.map(_.space),
+              FilterViewReference(ref.map(_)),
               versionedExternalId = ref.map(r => s"${r.externalId}/${r.version}")))
           .map(toAndFilter)
       case Usage.Edge =>

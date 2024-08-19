@@ -5,15 +5,13 @@ import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
-  ComparableFilterValue,
-  SeqFilterValue
-}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{ComparableFilterValue, SeqFilterValue}
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.instances._
+import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import fs2.Stream
 import io.circe.Json
 import org.apache.spark.rdd.RDD
@@ -69,11 +67,18 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any =
     FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema.apply(key).dataType, value)
 
+  private def getVersionedViewExternalId(viewReference: ViewReference): String = {
+    s"${viewReference.externalId}/${viewReference.version}"
+  }
+
+  private def getViewAttributeReference(viewReference: ViewReference, propertyName: String): Seq[String] = {
+    Seq(viewReference.space, getVersionedViewExternalId(viewReference), propertyName)
+  }
+
   protected def toFilter(
       instanceType: InstanceType,
       sparkFilter: Filter,
-      space: Option[String],
-      versionedExternalId: Option[String]
+      viewReference: Option[ViewReference]
   ): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, _) if isReservedAttribute(instanceType, attribute) =>
@@ -88,57 +93,56 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
       case And(f1, f2) =>
         Vector(f1, f2)
-          .traverse(toFilter(instanceType, _, space = space, versionedExternalId))
+          .traverse(toFilter(instanceType, _, viewReference))
           .map(FilterDefinition.And.apply)
       case Or(f1, f2) =>
         Vector(f1, f2)
-          .traverse(toFilter(instanceType, _, space = space, versionedExternalId))
+          .traverse(toFilter(instanceType, _, viewReference))
           .map(FilterDefinition.Or.apply)
       case Not(f) =>
-        toFilter(instanceType, f, space = space, versionedExternalId)
+        toFilter(instanceType, f, viewReference)
           .map(FilterDefinition.Not.apply)
-      case _ if space.isDefined && versionedExternalId.isDefined =>
-        toInstanceFilter(sparkFilter, space.get, versionedExternalId.get)
+      case _ if viewReference.isDefined =>
+        toInstanceFilter(sparkFilter, viewReference.get)
       case f =>
         Left(
           new CdfSparkIllegalArgumentException(
             s"""Unsupported filter '${f.getClass.getSimpleName}', ${f.toString}
-               | for space: ${space.getOrElse("not specified")}
-               | and versionedExternalId: ${versionedExternalId.getOrElse("not specified")}
+               | for space: ${viewReference.map(_.space).getOrElse("not specified")}
+               | and versionedExternalId: ${viewReference.map(getVersionedViewExternalId).getOrElse("not specified")}
                | and instanceType: $instanceType """.stripMargin))
     }
 
   private def toInstanceFilter(
       sparkFilter: Filter,
-      space: String,
-      versionedExternalId: String): Either[CdfSparkException, FilterDefinition] =
+      viewReference: ViewReference): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
-          FilterDefinition.Equals(Seq(space, versionedExternalId, attribute), _))
+          FilterDefinition.Equals(getViewAttributeReference(viewReference, attribute), _))
       case In(attribute, values) =>
         toSeqFilterValueDefinition(attribute, values).map(
-          FilterDefinition.In(Seq(space, versionedExternalId, attribute), _))
+          FilterDefinition.In(getViewAttributeReference(viewReference, attribute), _))
       case GreaterThanOrEqual(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), gte = Some(f)))
+          FilterDefinition.Range(property = getViewAttributeReference(viewReference, attribute), gte = Some(f)))
       case GreaterThan(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), gt = Some(f)))
+          FilterDefinition.Range(property = getViewAttributeReference(viewReference, attribute), gt = Some(f)))
       case LessThanOrEqual(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), lte = Some(f)))
+          FilterDefinition.Range(property = getViewAttributeReference(viewReference, attribute), lte = Some(f)))
       case LessThan(attribute, value) =>
         toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = Seq(space, versionedExternalId, attribute), lt = Some(f)))
+          FilterDefinition.Range(property = getViewAttributeReference(viewReference, attribute), lt = Some(f)))
       case StringStartsWith(attribute, value) =>
         Right(
           FilterDefinition
-            .Prefix(Seq(space, versionedExternalId, attribute), FilterValueDefinition.String(value)))
+            .Prefix(getViewAttributeReference(viewReference, attribute), FilterValueDefinition.String(value)))
       case IsNotNull(attribute) =>
-        Right(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute)))
+        Right(FilterDefinition.Exists(getViewAttributeReference(viewReference, attribute)))
       case IsNull(attribute) =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(Seq(space, versionedExternalId, attribute))))
+        Right(FilterDefinition.Not(FilterDefinition.Exists(getViewAttributeReference(viewReference, attribute))))
       case f =>
         Left(
           new CdfSparkIllegalArgumentException(
@@ -354,7 +358,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       )
     }.toEither.leftMap { _ =>
       new CdfSparkIllegalArgumentException(
-        s"""Invalid filter value for: '${attributeVector}'
+        s"""Invalid filter value for: '$attributeVector'
            |Expecting a struct with 'space' & 'externalId' attributes, but found: ${struct.json}
            |""".stripMargin
       )
