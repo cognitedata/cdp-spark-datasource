@@ -92,8 +92,10 @@ object FlexibleDataModelRelationUtils {
         writeData <- createNodeOrEdgeWriteData(
           externalId = externalId,
           instanceSpace = space,
-          source,
-          typeDirectRelation =
+          Some(source),
+          nodeTypeDirectRelation =
+            extractNodeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
+          edgeTypeDirectRelation =
             extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           startNodeRelation =
             extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
@@ -117,13 +119,17 @@ object FlexibleDataModelRelationUtils {
         writeData <- createNodeOrEdgeWriteData(
           externalId = externalId,
           instanceSpace = space,
-          edgeNodeTypeRelation =
+          nodeTypeDirectRelation =
+            extractNodeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
+          edgeTypeDirectRelation =
             extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           startNodeRelation =
             extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
           endNodeRelation =
             extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
-          row
+          source = None,
+          props = Vector.empty,
+          row = row
         )
       } yield writeData
     }
@@ -229,13 +235,14 @@ object FlexibleDataModelRelationUtils {
   private def createNodeOrEdgeWriteData(
       externalId: String,
       instanceSpace: String,
-      source: SourceReference,
-      typeDirectRelation: Option[DirectRelationReference],
+      source: Option[SourceReference],
+      nodeTypeDirectRelation: Option[DirectRelationReference],
+      edgeTypeDirectRelation: Option[DirectRelationReference],
       startNodeRelation: Option[DirectRelationReference],
       endNodeRelation: Option[DirectRelationReference],
       props: Vector[(String, Option[InstancePropertyValue])],
       row: Row): Either[CdfSparkException, NodeOrEdgeCreate] =
-    (typeDirectRelation, startNodeRelation, endNodeRelation) match {
+    (edgeTypeDirectRelation, startNodeRelation, endNodeRelation) match {
       case (Some(edgeType), Some(startNode), Some(endNode)) =>
         Right(
           EdgeWrite(
@@ -244,35 +251,35 @@ object FlexibleDataModelRelationUtils {
             externalId = externalId,
             startNode = startNode,
             endNode = endNode,
-            sources = Some(
+            sources = source.map(src =>
               Seq(
                 EdgeOrNodeData(
-                  source = source,
+                  source = src,
                   properties = Some(props.toMap)
                 )
               )
             )
           )
         )
-      case (nodeType, None, None) =>
+      case (_, None, None) =>
         Right(
           NodeWrite(
             space = instanceSpace,
             externalId = externalId,
-            sources = Some(
+            sources = source.map(src =>
               Seq(
                 EdgeOrNodeData(
-                  source = source,
+                  source = src,
                   properties = Some(props.toMap)
                 )
               )
             ),
-            `type` = nodeType
+            `type` = nodeTypeDirectRelation
           )
         )
       case _ =>
         val relationRefNames = Vector(
-          typeDirectRelation.map(_ => "'type'"),
+          edgeTypeDirectRelation.map(_ => "'type'"),
           startNodeRelation.map(_ => "'startNode'"),
           endNodeRelation.map(_ => "'endNode'")
         ).flatten
@@ -282,48 +289,6 @@ object FlexibleDataModelRelationUtils {
           |Only found: 'externalId', ${relationRefNames.mkString(", ")}
           |in data row: ${rowToString(row)}
           |""".stripMargin))
-    }
-
-  private def createNodeOrEdgeWriteData(
-      externalId: String,
-      instanceSpace: String,
-      edgeNodeTypeRelation: Option[DirectRelationReference],
-      startNodeRelation: Option[DirectRelationReference],
-      endNodeRelation: Option[DirectRelationReference],
-      row: Row): Either[CdfSparkException, NodeOrEdgeCreate] =
-    (edgeNodeTypeRelation, startNodeRelation, endNodeRelation) match {
-      case (Some(edgeType), Some(startNode), Some(endNode)) =>
-        Right(
-          EdgeWrite(
-            `type` = edgeType,
-            space = instanceSpace,
-            externalId = externalId,
-            startNode = startNode,
-            endNode = endNode,
-            sources = None
-          )
-        )
-      case (nodeType, None, None) =>
-        Right(
-          NodeWrite(
-            space = instanceSpace,
-            externalId = externalId,
-            sources = None,
-            `type` = nodeType
-          )
-        )
-      case _ =>
-        val relationRefNames = Vector(
-          edgeNodeTypeRelation.map(_ => "'type'"),
-          startNodeRelation.map(_ => "'startNode'"),
-          endNodeRelation.map(_ => "'endNode'")
-        ).flatten
-        Left(new CdfSparkException(s"""
-             |Fields 'type', 'externalId', 'startNode' & 'endNode' fields are required to create an Edge.
-             |Field 'externalId' is required to create a Node
-             |Only found: 'externalId', ${relationRefNames.mkString(", ")}
-             |in data row: ${rowToString(row)}
-             |""".stripMargin))
     }
 
   private def createNodeWriteData(
@@ -444,6 +409,7 @@ object FlexibleDataModelRelationUtils {
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     extractDirectRelation("_type", "Node type", schema, instanceSpace, row)
 
+  //For edge we support using "type" as an alias for "_type" for legacy reasons
   private def extractEdgeTypeDirectRelation(
       schema: StructType,
       instanceSpace: Option[String],
