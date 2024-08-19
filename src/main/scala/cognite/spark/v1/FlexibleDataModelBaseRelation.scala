@@ -5,7 +5,10 @@ import cats.implicits._
 import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{ComparableFilterValue, SeqFilterValue}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
+  ComparableFilterValue,
+  SeqFilterValue
+}
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
@@ -67,13 +70,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any =
     FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema.apply(key).dataType, value)
 
-  private def getVersionedViewExternalId(viewReference: ViewReference): String = {
+  private def getVersionedViewExternalId(viewReference: ViewReference): String =
     s"${viewReference.externalId}/${viewReference.version}"
-  }
 
-  private def getViewAttributeReference(viewReference: ViewReference, propertyName: String): Seq[String] = {
+  private def getViewAttributeReference(
+      viewReference: ViewReference,
+      propertyName: String): Seq[String] =
     Seq(viewReference.space, getVersionedViewExternalId(viewReference), propertyName)
-  }
 
   protected def toFilter(
       instanceType: InstanceType,
@@ -109,7 +112,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
           new CdfSparkIllegalArgumentException(
             s"""Unsupported filter '${f.getClass.getSimpleName}', ${f.toString}
                | for space: ${viewReference.map(_.space).getOrElse("not specified")}
-               | and versionedExternalId: ${viewReference.map(getVersionedViewExternalId).getOrElse("not specified")}
+               | and versionedExternalId: ${viewReference
+                 .map(getVersionedViewExternalId)
+                 .getOrElse("not specified")}
                | and instanceType: $instanceType """.stripMargin))
     }
 
@@ -124,25 +129,37 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         toSeqFilterValueDefinition(attribute, values).map(
           FilterDefinition.In(getViewAttributeReference(viewReference, attribute), _))
       case GreaterThanOrEqual(attribute, value) =>
-        toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = getViewAttributeReference(viewReference, attribute), gte = Some(f)))
+        toComparableFilterValueDefinition(attribute, value).map(
+          f =>
+            FilterDefinition
+              .Range(property = getViewAttributeReference(viewReference, attribute), gte = Some(f)))
       case GreaterThan(attribute, value) =>
-        toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = getViewAttributeReference(viewReference, attribute), gt = Some(f)))
+        toComparableFilterValueDefinition(attribute, value).map(
+          f =>
+            FilterDefinition
+              .Range(property = getViewAttributeReference(viewReference, attribute), gt = Some(f)))
       case LessThanOrEqual(attribute, value) =>
-        toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = getViewAttributeReference(viewReference, attribute), lte = Some(f)))
+        toComparableFilterValueDefinition(attribute, value).map(
+          f =>
+            FilterDefinition
+              .Range(property = getViewAttributeReference(viewReference, attribute), lte = Some(f)))
       case LessThan(attribute, value) =>
-        toComparableFilterValueDefinition(attribute, value).map(f =>
-          FilterDefinition.Range(property = getViewAttributeReference(viewReference, attribute), lt = Some(f)))
+        toComparableFilterValueDefinition(attribute, value).map(
+          f =>
+            FilterDefinition
+              .Range(property = getViewAttributeReference(viewReference, attribute), lt = Some(f)))
       case StringStartsWith(attribute, value) =>
         Right(
           FilterDefinition
-            .Prefix(getViewAttributeReference(viewReference, attribute), FilterValueDefinition.String(value)))
+            .Prefix(
+              getViewAttributeReference(viewReference, attribute),
+              FilterValueDefinition.String(value)))
       case IsNotNull(attribute) =>
         Right(FilterDefinition.Exists(getViewAttributeReference(viewReference, attribute)))
       case IsNull(attribute) =>
-        Right(FilterDefinition.Not(FilterDefinition.Exists(getViewAttributeReference(viewReference, attribute))))
+        Right(
+          FilterDefinition.Not(
+            FilterDefinition.Exists(getViewAttributeReference(viewReference, attribute))))
       case f =>
         Left(
           new CdfSparkIllegalArgumentException(
@@ -368,8 +385,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   private def createNodeOrEdgeCommonAttributeRef(
       instanceType: InstanceType,
       attribute: String): Seq[String] = {
-    val instanceAttribute =  {
-      if(attribute.equalsIgnoreCase("_type"))
+    val instanceAttribute = {
+      if (attribute.equalsIgnoreCase("_type"))
         "type"
       else
         attribute
