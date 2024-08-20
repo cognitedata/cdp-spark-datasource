@@ -1,7 +1,7 @@
 package cognite.spark.v1.utils.fdm
 
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumProperty, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumProperty, EnumValueMetadata, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
 import com.cognite.sdk.scala.v1.fdm.common.properties.{ListablePropertyType, PrimitivePropType, PropertyDefaultValue, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers._
@@ -16,6 +16,13 @@ object FDMTestUtils {
 
   val AllContainerPropertyTypes: List[PropertyType] = List[PropertyType](
     TextProperty(),
+    EnumProperty(
+      values = Map(
+        "VAL1" -> EnumValueMetadata(Some("value1"), Some("value 1")),
+        "VAL2" -> EnumValueMetadata(None, None)
+      ),
+      unknownValue = Some("VAL2")
+    ),
     PrimitiveProperty(`type` = PrimitivePropType.Boolean),
     PrimitiveProperty(`type` = PrimitivePropType.Float32),
     PrimitiveProperty(`type` = PrimitivePropType.Float64),
@@ -355,6 +362,8 @@ object FDMTestUtils {
     containerPropType match {
       case PropertyType.TextProperty(None | Some(false), _) =>
         InstancePropertyValue.String(s"${propName}Value")
+      case PropertyType.EnumProperty(_, _) =>
+        InstancePropertyValue.Enum("VAL1")
       case PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, _) =>
         InstancePropertyValue.Boolean(false)
       case PropertyType.PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) =>
@@ -402,8 +411,6 @@ object FDMTestUtils {
     }
     if (withDefault && !isList) {
       p match {
-        //TODO should this be here even?
-        case EnumProperty(_, _) => None
         case TextProperty(_, _) => Some(PropertyDefaultValue.String("defaultTextValue"))
         case PrimitiveProperty(PrimitivePropType.Boolean, _) =>
           Some(PropertyDefaultValue.Boolean(false))
@@ -441,10 +448,11 @@ object FDMTestUtils {
               )
             )
           )
-        case _: DirectNodeRelationProperty => None
         case _: TimeSeriesReference => Some(PropertyDefaultValue.String("timeSeriesExternalId"))
         case _: FileReference => Some(PropertyDefaultValue.String("fileExternalId"))
         case _: SequenceReference => Some(PropertyDefaultValue.String("sequenceExternalId"))
+        case EnumProperty(_, _) => None
+        case _: DirectNodeRelationProperty => None
       }
     } else {
       None
