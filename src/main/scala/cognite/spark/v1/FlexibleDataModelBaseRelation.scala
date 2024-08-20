@@ -81,6 +81,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   protected def toFilter(
       instanceType: InstanceType,
       sparkFilter: Filter,
+      // viewReference is required for non-reserved attribute filters resolution
       viewReference: Option[ViewReference]
   ): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {

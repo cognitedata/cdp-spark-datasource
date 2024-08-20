@@ -61,7 +61,11 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       HasData(List(viewRef))
     }
     val requestFilters: Seq[FilterDefinition] = (filters.map {
-      toFilter(instanceType, _, None).toOption
+      // don't specify viewReference to avoid filter pushdown for non-reserved attributes
+      // for performance reasons, sync is incremental and filtering is done in spark to
+      // avoid edge cases where too much needs to be filtered out and service request would
+      // time out filtering it
+      toFilter(instanceType, _, viewReference = None).toOption
     } ++ Array(hasData)).flatten.toSeq
     FilterDefinition.And(requestFilters)
   }
