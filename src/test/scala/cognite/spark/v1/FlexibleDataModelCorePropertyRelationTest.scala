@@ -440,14 +440,16 @@ class FlexibleDataModelCorePropertyRelationTest
           instanceSpaceExternalId = spaceExternalId,
           deletionDf(instanceExtIdNode),
           onConflict = "delete"
-        ),
+        )
+      ) ++
+      toExternalIds(selectedEdgesBothTypes).map(externalId =>
         insertRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
           instanceSpaceExternalId = spaceExternalId,
-          deletionDf(instanceExtIdEdge),
+          deletionDf(externalId),
           onConflict = "delete"
         )
       )
@@ -583,14 +585,16 @@ class FlexibleDataModelCorePropertyRelationTest
           instanceSpaceExternalId = spaceExternalId,
           deletionDf(instanceExtIdNode),
           onConflict = "delete"
-        ),
+        )
+      ) ++
+      toExternalIds(selectedEdgesBothTypes).map(externalId =>
         insertRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
           instanceSpaceExternalId = spaceExternalId,
-          deletionDf(instanceExtIdEdge),
+          deletionDf(externalId),
           onConflict = "delete"
         )
       )
