@@ -86,15 +86,15 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   ): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       case EqualTo(attribute, _) if isReservedAttribute(instanceType, attribute) =>
-        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+        toReservedAttributeFilter(instanceType, sparkFilter)
       case IsNull(attribute) if isReservedAttribute(instanceType, attribute) =>
-        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+        toReservedAttributeFilter(instanceType, sparkFilter)
       case IsNotNull(attribute) if isReservedAttribute(instanceType, attribute) =>
-        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+        toReservedAttributeFilter(instanceType, sparkFilter)
       case StringStartsWith(attribute, _) if isReservedAttribute(instanceType, attribute) =>
-        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+        toReservedAttributeFilter(instanceType, sparkFilter)
       case In(attribute, _) if isReservedAttribute(instanceType, attribute) =>
-        toNodeOrEdgeAttributeFilter(instanceType, sparkFilter)
+        toReservedAttributeFilter(instanceType, sparkFilter)
       case And(f1, f2) =>
         Vector(f1, f2)
           .traverse(toFilter(instanceType, _, viewReference))
@@ -169,7 +169,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
 
   // Some reserved attributes are not attached to a view but directly to the node/edge
   // This handles filtering on these attributes.
-  private def toNodeOrEdgeAttributeFilter(
+  private def toReservedAttributeFilter(
       instanceType: InstanceType,
       sparkFilter: Filter): Either[CdfSparkException, FilterDefinition] = {
     val nodeOrEdgeStringAttributes = Seq("space", "externalId")
