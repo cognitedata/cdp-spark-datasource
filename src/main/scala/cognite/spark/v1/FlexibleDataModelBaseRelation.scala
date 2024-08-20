@@ -85,6 +85,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       viewReference: Option[ViewReference]
   ): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
+      // reserved attributes case, make sure to update toReservedAttributeFilter when adding more
       case EqualTo(attribute, _) if isReservedAttribute(instanceType, attribute) =>
         toReservedAttributeFilter(instanceType, sparkFilter)
       case IsNull(attribute) if isReservedAttribute(instanceType, attribute) =>
@@ -95,6 +96,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         toReservedAttributeFilter(instanceType, sparkFilter)
       case In(attribute, _) if isReservedAttribute(instanceType, attribute) =>
         toReservedAttributeFilter(instanceType, sparkFilter)
+      // end reserved attributes case
       case And(f1, f2) =>
         Vector(f1, f2)
           .traverse(toFilter(instanceType, _, viewReference))
