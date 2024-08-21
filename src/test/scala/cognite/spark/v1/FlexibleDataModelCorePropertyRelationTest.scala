@@ -31,9 +31,9 @@ class FlexibleDataModelCorePropertyRelationTest
   private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList2"
   private val containerEdgesListAndNonListExternalId = "sparkDsTestContainerEdgesListAndNonList2"
 
-  private val containerAllNonListExternalId = "sparkDsTestContainerAllNonList2"
-  private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList2"
-  private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList2"
+  private val containerAllNonListExternalId = "sparkDsTestContainerAllNonList3"
+  private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList3"
+  private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList3"
 
   private val containerAllAmbiguousTypeExternalId = "sparkDsTestContainerAllAmbiguousType5"
   private val containerNodesAmbiguousTypeExternalId = "sparkDsTestContainerNodesAmbiguousType5"
@@ -59,9 +59,9 @@ class FlexibleDataModelCorePropertyRelationTest
   private val viewNodesTypeExternalId = "sparkDsTestViewNodesType5"
   private val viewEdgesTypeExternalId = "sparkDsTestViewEdgesType5"
 
-  private val viewAllNonListExternalId = "sparkDsTestViewAllNonList2"
-  private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList2"
-  private val viewEdgesNonListExternalId = "sparkDsTestViewEdgesNonList2"
+  private val viewAllNonListExternalId = "sparkDsTestViewAllNonList3"
+  private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList3"
+  private val viewEdgesNonListExternalId = "sparkDsTestViewEdgesNonList3"
 
   private val viewAllListExternalId = "sparkDsTestViewAllList2"
   private val viewNodesListExternalId = "sparkDsTestViewNodesList2"

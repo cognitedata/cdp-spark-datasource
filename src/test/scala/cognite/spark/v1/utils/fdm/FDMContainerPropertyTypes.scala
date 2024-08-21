@@ -9,7 +9,7 @@ object FDMContainerPropertyTypes {
   val EnumNonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
     nullable = Some(false),
     autoIncrement = Some(false),
-    defaultValue = Some(PropertyDefaultValue.String("2023-01-17")),
+    defaultValue = None,
     description = Some("Test Enum NonList WithoutDefaultValue NonNullable Description"),
     name = Some("Test-Enum-NonList-WithoutDefaultValue-NonNullable-Name"),
     `type` = PropertyType.EnumProperty(
@@ -24,7 +24,7 @@ object FDMContainerPropertyTypes {
   val EnumNonListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
     nullable = Some(true),
     autoIncrement = Some(false),
-    defaultValue = Some(PropertyDefaultValue.String("2023-01-17")),
+    defaultValue = None,
     description = Some("Test Enum NonList WithoutDefaultValue Nullable Description"),
     name = Some("Test-Enum-NonList-WithoutDefaultValue-Nullable-Name"),
     `type` = PropertyType.EnumProperty(
