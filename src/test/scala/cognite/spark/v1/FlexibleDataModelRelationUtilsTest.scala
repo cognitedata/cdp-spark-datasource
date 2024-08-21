@@ -3,10 +3,7 @@ package cognite.spark.v1
 import cognite.spark.v1.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue.{
-  ViewDirectNodeRelation,
-  ViewDirectNodeRelationList
-}
+import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue.{ViewDirectNodeRelation, ViewDirectNodeRelationList}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDeletionRequest, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
@@ -711,6 +708,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
   it should "successfully create edges with all nullable/non-nullable properties" in {
     val propertyMap = Map(
+      "enumProp" -> EnumPropertyNonListWithoutDefaultValueNullable,
       "stringProp" ->
         TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
@@ -720,6 +718,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val schema = StructType(
       Array(
+
         StructField("stringProp", StringType, nullable = false),
         StructField("intProp", IntegerType, nullable = true),
         StructField("externalId", IntegerType, nullable = false),
