@@ -54,15 +54,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val firstRow = rows.headOption
     (firstRow, viewReference) match {
-      case (Some(fr), Some(viewRef)) =>
-        upsertNodesOrEdges(rows, fr.schema, viewRef, allProperties, instanceSpace).flatMap(results =>
+      case (Some(fr), _) =>
+        upsertNodesOrEdges(rows, fr.schema, viewReference, allProperties, instanceSpace).flatMap(results =>
           incMetrics(itemsUpserted, results.length))
-      case (Some(fr), None) =>
-        upsertNodesOrEdges(
-          instanceSpace,
-          rows,
-          fr.schema
-        ).flatMap(results => incMetrics(itemsUpserted, results.length))
       case (None, _) => incMetrics(itemsUpserted, 0)
     }
   }
@@ -238,7 +232,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   private def upsertNodesOrEdges(
       rows: Seq[Row],
       schema: StructType,
-      source: SourceReference,
+      source: Option[SourceReference],
       propDefMap: Map[String, ViewPropertyDefinition],
       instanceSpace: Option[String]) = {
     val nodesOrEdges = intendedUsage match {
@@ -248,31 +242,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         createEdges(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
       case Usage.All =>
         createNodesOrEdges(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)
-    }
-    nodesOrEdges match {
-      case Right(items) if items.nonEmpty =>
-        val instanceCreate = InstanceCreate(
-          items = items,
-          replace = Some(false),
-          // These options need to made dynamic by moving to frontend
-          // https://cognitedata.slack.com/archives/C03G11UNHBJ/p1678971213050319
-          autoCreateStartNodes = Some(true),
-          autoCreateEndNodes = Some(true)
-        )
-        client.instances.createItems(instanceCreate)
-      case Right(_) => IO.pure(Vector.empty)
-      case Left(err) => IO.raiseError(err)
-    }
-  }
-
-  private def upsertNodesOrEdges(
-      instanceSpace: Option[String],
-      rows: Seq[Row],
-      schema: StructType): IO[Seq[SlimNodeOrEdge]] = {
-    val nodesOrEdges = intendedUsage match {
-      case Usage.Node => createNodes(rows, schema, instanceSpace)
-      case Usage.Edge => createEdges(rows, schema, instanceSpace)
-      case Usage.All => createNodesOrEdges(rows, schema, instanceSpace)
     }
     nodesOrEdges match {
       case Right(items) if items.nonEmpty =>
