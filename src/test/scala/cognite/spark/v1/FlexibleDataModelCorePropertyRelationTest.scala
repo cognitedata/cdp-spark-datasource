@@ -170,6 +170,8 @@ class FlexibleDataModelCorePropertyRelationTest
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode,
+                |'VAL1' as enumProp1,
+                |null as enumProp2,
                 |'stringProp1' as stringProp1,
                 |null as stringProp2,
                 |1 as intProp1,
@@ -1678,6 +1680,8 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private def setupAllNonListPropertyTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "enumProp1" -> FDMContainerPropertyTypes.EnumNonListWithoutDefaultValueNonNullable,
+      "enumProp2" -> FDMContainerPropertyTypes.EnumNonListWithoutDefaultValueNullable,
       "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
       "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
       "intProp1" -> FDMContainerPropertyTypes.Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
@@ -1854,7 +1858,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val items =
       for (i <- 1 to instances)
         yield
-          NodeWrite(
+           NodeWrite(
             spaceExternalId,
             "external" + i,
             sources = Some(
