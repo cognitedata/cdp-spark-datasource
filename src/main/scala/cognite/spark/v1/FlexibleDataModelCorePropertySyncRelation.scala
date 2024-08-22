@@ -65,7 +65,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       // for performance reasons, sync is incremental and filtering is done in spark to
       // avoid edge cases where too much needs to be filtered out and service request would
       // time out filtering it
-      toFilter(instanceType, _, viewReference = None).toOption
+      toFilter(instanceType, _, viewReference = None, isSyncRequest = true).toOption
     } ++ Array(hasData)).flatten.toSeq
     FilterDefinition.And(requestFilters)
   }

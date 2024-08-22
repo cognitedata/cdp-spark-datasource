@@ -82,7 +82,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       instanceType: InstanceType,
       sparkFilter: Filter,
       // viewReference is required for non-reserved attribute filters resolution
-      viewReference: Option[ViewReference]
+      viewReference: Option[ViewReference],
+      isSyncRequest: Boolean = false
   ): Either[CdfSparkException, FilterDefinition] =
     sparkFilter match {
       // reserved attributes case, make sure to update toReservedAttributeFilter when adding more
@@ -92,9 +93,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         toReservedAttributeFilter(instanceType, sparkFilter)
       case IsNotNull(attribute) if isReservedAttribute(instanceType, attribute) =>
         toReservedAttributeFilter(instanceType, sparkFilter)
-      case StringStartsWith(attribute, _) if isReservedAttribute(instanceType, attribute) =>
+      case StringStartsWith(attribute, _)
+          if isReservedAttribute(instanceType, attribute) && !isSyncRequest =>
         toReservedAttributeFilter(instanceType, sparkFilter)
-      case In(attribute, _) if isReservedAttribute(instanceType, attribute) =>
+      case In(attribute, _) if isReservedAttribute(instanceType, attribute) && !isSyncRequest =>
         toReservedAttributeFilter(instanceType, sparkFilter)
       // end reserved attributes case
       case And(f1, f2) =>
@@ -108,7 +110,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case Not(f) =>
         toFilter(instanceType, f, viewReference)
           .map(FilterDefinition.Not.apply)
-      case _ if viewReference.isDefined =>
+      case _ if viewReference.isDefined && !isSyncRequest =>
         toInstanceFilter(sparkFilter, viewReference.get)
       case f =>
         Left(
