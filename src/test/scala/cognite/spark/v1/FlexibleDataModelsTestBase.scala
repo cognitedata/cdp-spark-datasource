@@ -3,19 +3,12 @@ package cognite.spark.v1
 import cats.{Applicative, Apply}
 import cats.effect.IO
 import com.cognite.sdk.scala.v1.{GenericClient, SpaceById, SpaceCreateDefinition}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
-  ContainerPropertyDefinition,
-  ViewCorePropertyDefinition
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{ListablePropertyType, PrimitivePropType, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.containers.{
-  ContainerCreateDefinition,
-  ContainerDefinition,
-  ContainerId
-}
+import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, ContainerDefinition, ContainerId}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
@@ -408,12 +401,10 @@ trait FlexibleDataModelsTestBase extends FlatSpec with Matchers with SparkTest {
       case d: DirectNodeRelationProperty =>
         val ref = d.container.map(_ => directNodeReference)
         Some(InstancePropertyValue.ViewDirectNodeRelation(value = ref))
+      case p: ListablePropertyType if p.isList =>
+        Some(listContainerPropToInstanceProperty(propName, p))
       case p =>
-        if (p.isList) {
-          Some(listContainerPropToInstanceProperty(propName, p))
-        } else {
-          Some(nonListContainerPropToInstanceProperty(propName, p))
-        }
+        Some(nonListContainerPropToInstanceProperty(propName, p))
     }
 
   protected def listContainerPropToInstanceProperty(

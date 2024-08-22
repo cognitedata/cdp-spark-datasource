@@ -1,12 +1,8 @@
 package cognite.spark.v1.utils.fdm
 
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewCorePropertyDefinition
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  PrimitivePropType,
-  PropertyDefaultValue,
-  PropertyType
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumValueMetadata}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
 
 object FDMViewPropertyTypes {
 
@@ -567,6 +563,41 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
+  val EnumPropertyNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Enum EnumProperty NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Enum-EnumProperty-NonList-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.EnumProperty(
+        values = Map(
+          "VAL1" -> EnumValueMetadata(Some("value1"), Some("value 1")),
+          "VAL2" -> EnumValueMetadata(None, None)
+        ),
+        unknownValue = Some("VAL2")
+      ),
+      container = None,
+      containerPropertyIdentifier = None
+    )
+  val EnumPropertyNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Enum EnumProperty NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Enum-EnumProperty-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.EnumProperty(
+        values = Map(
+          "VAL1" -> EnumValueMetadata(Some("value1"), Some("value 1")),
+          "VAL2" -> EnumValueMetadata(None, None)
+        ),
+        unknownValue = Some("VAL2")
+      ),
+      container = None,
+      containerPropertyIdentifier = None
+    )
+
   val Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
     ViewCorePropertyDefinition(
       nullable = Some(false),
@@ -737,6 +768,8 @@ object FDMViewPropertyTypes {
     )
 
   val AllPossibleViewPropertyDefs: Vector[ViewCorePropertyDefinition] = Vector(
+    EnumPropertyNonListWithoutDefaultValueNonNullable,
+    EnumPropertyNonListWithoutDefaultValueNullable,
     DateNonListWithDefaultValueNonNullable,
     JsonNonListWithoutDefaultValueNullable,
     DateNonListWithoutDefaultValueNonNullable,
