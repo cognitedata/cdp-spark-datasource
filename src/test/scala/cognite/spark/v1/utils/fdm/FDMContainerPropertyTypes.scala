@@ -1,14 +1,40 @@
 package cognite.spark.v1.utils.fdm
 
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  PrimitivePropType,
-  PropertyDefaultValue,
-  PropertyType
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumValueMetadata}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
 
 object FDMContainerPropertyTypes {
+
+  val EnumNonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(false),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Enum NonList WithoutDefaultValue NonNullable Description"),
+    name = Some("Test-Enum-NonList-WithoutDefaultValue-NonNullable-Name"),
+    `type` = PropertyType.EnumProperty(
+      values = Map(
+        "VAL1" -> EnumValueMetadata(Some("value1"), Some("value 1")),
+        "VAL2" -> EnumValueMetadata(None, None)
+      ),
+      unknownValue = Some("VAL2")
+    )
+  )
+
+  val EnumNonListWithoutDefaultValueNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
+    nullable = Some(true),
+    autoIncrement = Some(false),
+    defaultValue = None,
+    description = Some("Test Enum NonList WithoutDefaultValue Nullable Description"),
+    name = Some("Test-Enum-NonList-WithoutDefaultValue-Nullable-Name"),
+    `type` = PropertyType.EnumProperty(
+      values = Map(
+        "VAL1" -> EnumValueMetadata(Some("value1"), Some("value 1")),
+        "VAL2" -> EnumValueMetadata(None, None)
+      ),
+      unknownValue = Some("VAL2")
+    )
+  )
 
   val DateNonListWithDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
     nullable = Some(false),

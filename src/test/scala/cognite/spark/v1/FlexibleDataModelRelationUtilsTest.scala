@@ -3,10 +3,7 @@ package cognite.spark.v1
 import cognite.spark.v1.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue.{
-  ViewDirectNodeRelation,
-  ViewDirectNodeRelationList
-}
+import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue.{ViewDirectNodeRelation, ViewDirectNodeRelationList}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDeletionRequest, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
@@ -711,6 +708,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
   it should "successfully create edges with all nullable/non-nullable properties" in {
     val propertyMap = Map(
+      "enumProp" -> EnumPropertyNonListWithoutDefaultValueNullable,
       "stringProp" ->
         TextPropertyNonListWithDefaultValueNonNullable,
       "intProp" ->
@@ -720,6 +718,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
     val schema = StructType(
       Array(
+        StructField("enumProp", StringType, nullable = false),
         StructField("stringProp", StringType, nullable = false),
         StructField("intProp", IntegerType, nullable = true),
         StructField("externalId", IntegerType, nullable = false),
@@ -733,6 +732,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values = Seq[Array[Any]](
       Array(
+        "VAL1",
         "stringProp1",
         null,
         "extId1",
@@ -743,6 +743,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         Array(2.1, null)
       ),
       Array(
+        "VAL1",
         "stringProp2",
         2,
         "extId2",
@@ -769,12 +770,14 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     extIdPropsMap.contains("extId2") shouldBe true
     (extIdPropsMap("extId1") should contain).theSameElementsAs(
       Map(
+        "enumProp" -> Some(InstancePropertyValue.Enum("VAL1")),
         "stringProp" -> Some(InstancePropertyValue.String("stringProp1")),
         "doubleListProp" -> Some(InstancePropertyValue.Float64List(List(1.1, 1.2))),
         "floatListProp" -> Some(InstancePropertyValue.Float32List(List(2.1F)))
       ))
     (extIdPropsMap("extId2") should contain).theSameElementsAs(
       Map(
+        "enumProp" -> Some(InstancePropertyValue.Enum("VAL1")),
         "stringProp" -> Some(InstancePropertyValue.String("stringProp2")),
         "intProp" -> Some(InstancePropertyValue.Int32(2)),
         "doubleListProp" -> Some(InstancePropertyValue.Float64List(Seq(2.1, 2.2)))

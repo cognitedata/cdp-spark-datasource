@@ -303,6 +303,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
                     nullable))
               case _: TextProperty =>
                 Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
+              case _: EnumProperty =>
+                Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
               case p @ PrimitiveProperty(ppt, _) if p.isList =>
                 Vector(
                   DataTypes.createStructField(
