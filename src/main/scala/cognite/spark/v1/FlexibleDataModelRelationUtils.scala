@@ -38,7 +38,7 @@ object FlexibleDataModelRelationUtils {
       propertyDefMap: Map[String, ViewPropertyDefinition],
       source: Option[SourceReference],
       instanceSpace: Option[String],
-      ignoreNullFields: Boolean = true) =
+      ignoreNullFields: Boolean = true): Either[CdfSparkException, Vector[NodeWrite]] =
     validateSourceSchema(source, schema, propertyDefMap) *> createNodeWriteData(
       schema,
       source,
