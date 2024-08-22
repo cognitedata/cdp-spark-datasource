@@ -1,8 +1,8 @@
 package cognite.spark.v1.utils.fdm
 
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumProperty, EnumValueMetadata, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{ListablePropertyType, PrimitivePropType, PropertyDefaultValue, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers._
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
@@ -16,6 +16,13 @@ object FDMTestUtils {
 
   val AllContainerPropertyTypes: List[PropertyType] = List[PropertyType](
     TextProperty(),
+    EnumProperty(
+      values = Map(
+        "VAL1" -> EnumValueMetadata(Some("value1"), Some("value 1")),
+        "VAL2" -> EnumValueMetadata(None, None)
+      ),
+      unknownValue = Some("VAL2")
+    ),
     PrimitiveProperty(`type` = PrimitivePropType.Boolean),
     PrimitiveProperty(`type` = PrimitivePropType.Float32),
     PrimitiveProperty(`type` = PrimitivePropType.Float64),
@@ -103,7 +110,10 @@ object FDMTestUtils {
           case p: PrimitiveProperty => p.`type`.productPrefix
           case _ => p.getClass.getSimpleName
         },
-        if (p.isList) "List" else "NonList",
+        p match {
+          case p: ListablePropertyType if p.isList => "List"
+          case _ => "NonList"
+        },
         if (autoIncrementApplicableProp) {
           if (autoIncrement) "WithAutoIncrement" else "WithoutAutoIncrement"
         } else { "" },
@@ -137,6 +147,7 @@ object FDMTestUtils {
           case p: PrimitiveProperty =>
             s"PropertyType.PrimitiveProperty(PrimitivePropType.${p.`type`},${p.list})"
           case d: DirectNodeRelationProperty => d.toString
+          case _: PropertyType.EnumProperty => s"PropertyType.EnumProperty"
           case _: PropertyType.TimeSeriesReference => s"PropertyType.TimeSeriesReference())"
           case _: PropertyType.FileReference => s"PropertyType.FileReference())"
           case _: PropertyType.SequenceReference => s"PropertyType.SequenceReference())"
@@ -205,10 +216,10 @@ object FDMTestUtils {
       propName: String,
       containerPropType: PropertyType
   ): InstancePropertyValue =
-    if (containerPropType.isList) {
-      listContainerPropToInstanceProperty(propName, containerPropType)
-    } else {
-      nonListContainerPropToInstanceProperty(propName, containerPropType)
+
+    containerPropType match {
+      case p: ListablePropertyType if p.isList => listContainerPropToInstanceProperty(propName, containerPropType)
+      case _ => nonListContainerPropToInstanceProperty(propName, containerPropType)
     }
 
   def createNodeWriteData(container: ContainerDefinition): NodeWrite =
@@ -351,6 +362,8 @@ object FDMTestUtils {
     containerPropType match {
       case PropertyType.TextProperty(None | Some(false), _) =>
         InstancePropertyValue.String(s"${propName}Value")
+      case PropertyType.EnumProperty(_, _) =>
+        InstancePropertyValue.Enum("VAL1")
       case PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, _) =>
         InstancePropertyValue.Boolean(false)
       case PropertyType.PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) =>
@@ -391,8 +404,12 @@ object FDMTestUtils {
   private def propertyDefaultValueForPropertyType(
       p: PropertyType,
       withDefault: Boolean
-  ): Option[PropertyDefaultValue] =
-    if (withDefault && !p.isList) {
+  ): Option[PropertyDefaultValue] = {
+    val isList = p match {
+      case l: ListablePropertyType if l.isList => true
+      case _ => false
+    }
+    if (withDefault && !isList) {
       p match {
         case TextProperty(_, _) => Some(PropertyDefaultValue.String("defaultTextValue"))
         case PrimitiveProperty(PrimitivePropType.Boolean, _) =>
@@ -431,13 +448,15 @@ object FDMTestUtils {
               )
             )
           )
-        case _: DirectNodeRelationProperty => None
         case _: TimeSeriesReference => Some(PropertyDefaultValue.String("timeSeriesExternalId"))
         case _: FileReference => Some(PropertyDefaultValue.String("fileExternalId"))
         case _: SequenceReference => Some(PropertyDefaultValue.String("sequenceExternalId"))
+        case EnumProperty(_, _) => None
+        case _: DirectNodeRelationProperty => None
       }
     } else {
       None
     }
+  }
 
 }

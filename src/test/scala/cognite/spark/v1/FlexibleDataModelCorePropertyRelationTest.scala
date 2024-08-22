@@ -31,9 +31,9 @@ class FlexibleDataModelCorePropertyRelationTest
   private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList2"
   private val containerEdgesListAndNonListExternalId = "sparkDsTestContainerEdgesListAndNonList2"
 
-  private val containerAllNonListExternalId = "sparkDsTestContainerAllNonList2"
-  private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList2"
-  private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList2"
+  private val containerAllNonListExternalId = "sparkDsTestContainerAllNonList3"
+  private val containerNodesNonListExternalId = "sparkDsTestContainerNodesNonList3"
+  private val containerEdgesNonListExternalId = "sparkDsTestContainerEdgesNonList3"
 
   private val containerAllAmbiguousTypeExternalId = "sparkDsTestContainerAllAmbiguousType5"
   private val containerNodesAmbiguousTypeExternalId = "sparkDsTestContainerNodesAmbiguousType5"
@@ -59,9 +59,9 @@ class FlexibleDataModelCorePropertyRelationTest
   private val viewNodesTypeExternalId = "sparkDsTestViewNodesType5"
   private val viewEdgesTypeExternalId = "sparkDsTestViewEdgesType5"
 
-  private val viewAllNonListExternalId = "sparkDsTestViewAllNonList2"
-  private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList2"
-  private val viewEdgesNonListExternalId = "sparkDsTestViewEdgesNonList2"
+  private val viewAllNonListExternalId = "sparkDsTestViewAllNonList3"
+  private val viewNodesNonListExternalId = "sparkDsTestViewNodesNonList3"
+  private val viewEdgesNonListExternalId = "sparkDsTestViewEdgesNonList3"
 
   private val viewAllListExternalId = "sparkDsTestViewAllList2"
   private val viewNodesListExternalId = "sparkDsTestViewNodesList2"
@@ -170,6 +170,8 @@ class FlexibleDataModelCorePropertyRelationTest
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode,
+                |'VAL1' as enumProp1,
+                |null as enumProp2,
                 |'stringProp1' as stringProp1,
                 |null as stringProp2,
                 |1 as intProp1,
@@ -440,14 +442,16 @@ class FlexibleDataModelCorePropertyRelationTest
           instanceSpaceExternalId = spaceExternalId,
           deletionDf(instanceExtIdNode),
           onConflict = "delete"
-        ),
+        )
+      ) ++
+      toExternalIds(selectedEdgesBothTypes).map(externalId =>
         insertRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
           instanceSpaceExternalId = spaceExternalId,
-          deletionDf(instanceExtIdEdge),
+          deletionDf(externalId),
           onConflict = "delete"
         )
       )
@@ -583,14 +587,16 @@ class FlexibleDataModelCorePropertyRelationTest
           instanceSpaceExternalId = spaceExternalId,
           deletionDf(instanceExtIdNode),
           onConflict = "delete"
-        ),
+        )
+      ) ++
+      toExternalIds(selectedEdgesBothTypes).map(externalId =>
         insertRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
           viewVersion = viewEdges.version,
           instanceSpaceExternalId = spaceExternalId,
-          deletionDf(instanceExtIdEdge),
+          deletionDf(externalId),
           onConflict = "delete"
         )
       )
@@ -1674,6 +1680,8 @@ class FlexibleDataModelCorePropertyRelationTest
 
   private def setupAllNonListPropertyTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "enumProp1" -> FDMContainerPropertyTypes.EnumNonListWithoutDefaultValueNonNullable,
+      "enumProp2" -> FDMContainerPropertyTypes.EnumNonListWithoutDefaultValueNullable,
       "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
       "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
       "intProp1" -> FDMContainerPropertyTypes.Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
@@ -1850,7 +1858,7 @@ class FlexibleDataModelCorePropertyRelationTest
     val items =
       for (i <- 1 to instances)
         yield
-          NodeWrite(
+           NodeWrite(
             spaceExternalId,
             "external" + i,
             sources = Some(

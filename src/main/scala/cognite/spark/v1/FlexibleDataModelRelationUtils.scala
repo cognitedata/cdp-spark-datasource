@@ -5,13 +5,18 @@ import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
   DirectNodeRelationProperty,
+  EnumProperty,
   FileReference,
   PrimitiveProperty,
   SequenceReference,
   TextProperty,
   TimeSeriesReference
 }
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{
+  ListablePropertyType,
+  PrimitivePropType,
+  PropertyDefinition
+}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
   EdgeDeletionRequest,
@@ -521,6 +526,7 @@ object FlexibleDataModelRelationUtils {
     (propType, value) match {
       case (StringType, InstancePropertyValue.Date(v)) => v.toString
       case (StringType, InstancePropertyValue.Timestamp(v)) => v.toString
+      case (StringType, InstancePropertyValue.Enum(v)) => v
       case (ArrayType(StringType, _), InstancePropertyValue.TimestampList(v)) => v.map(_.toString)
       case (ArrayType(StringType, _), InstancePropertyValue.DateList(v)) => v.map(_.toString)
       case (IntegerType, InstancePropertyValue.Float64(v)) => v.toInt
@@ -556,6 +562,7 @@ object FlexibleDataModelRelationUtils {
       case (_, InstancePropertyValue.Float32List(value)) => value
       case (_, InstancePropertyValue.Float64List(value)) => value
       case (_, InstancePropertyValue.String(value)) => value
+      case (_, InstancePropertyValue.Enum(value)) => value
       case (_, InstancePropertyValue.Boolean(value)) => value
       case (_, InstancePropertyValue.Date(value)) => java.sql.Date.valueOf(value)
       case (_, InstancePropertyValue.Timestamp(value)) => java.sql.Timestamp.from(value.toInstant)
@@ -628,7 +635,7 @@ object FlexibleDataModelRelationUtils {
     val instancePropertyValueResult = propDef match {
       case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
         corePropDef.`type` match {
-          case t if t.isList =>
+          case t: ListablePropertyType if t.isList =>
             toInstancePropertyValueOfList(row, schema, propertyName, corePropDef, instanceSpace)
           case _ =>
             toInstancePropertyValueOfNonList(row, schema, propertyName, corePropDef, instanceSpace)
@@ -767,6 +774,8 @@ object FlexibleDataModelRelationUtils {
           extractDirectRelation(propertyName, "Direct Node Relation", schema, instanceSpace, row)
             .map(directRelationReference =>
               InstancePropertyValue.ViewDirectNodeRelation(Some(directRelationReference)))
+        case _: EnumProperty =>
+          Try(InstancePropertyValue.Enum(String.valueOf(row.get(i)))).toEither
         case _: TextProperty =>
           Try(InstancePropertyValue.String(String.valueOf(row.get(i)))).toEither
         case _ @PrimitiveProperty(PrimitivePropType.Boolean, _) =>
