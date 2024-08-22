@@ -163,14 +163,14 @@ object FlexibleDataModelRelationUtils {
           externalId = extId,
           startNode = startNode,
           endNode = endNode,
-          sources = source.map(src =>
-            Seq(
-              EdgeOrNodeData(
-                source = src,
-                properties = Some(props.toMap)
-              )
-            )
-          )
+          sources = source.map(
+            src =>
+              Seq(
+                EdgeOrNodeData(
+                  source = src,
+                  properties = Some(props.toMap)
+                )
+            ))
         )
     }
 
@@ -193,14 +193,14 @@ object FlexibleDataModelRelationUtils {
             externalId = externalId,
             startNode = startNode,
             endNode = endNode,
-            sources = source.map(src =>
-              Seq(
-                EdgeOrNodeData(
-                  source = src,
-                  properties = Some(props.toMap)
-                )
-              )
-            )
+            sources = source.map(
+              src =>
+                Seq(
+                  EdgeOrNodeData(
+                    source = src,
+                    properties = Some(props.toMap)
+                  )
+              ))
           )
         )
       case (_, None, None) =>
@@ -208,14 +208,14 @@ object FlexibleDataModelRelationUtils {
           NodeWrite(
             space = instanceSpace,
             externalId = externalId,
-            sources = source.map(src =>
-              Seq(
-                EdgeOrNodeData(
-                  source = src,
-                  properties = Some(props.toMap)
-                )
-              )
-            ),
+            sources = source.map(
+              src =>
+                Seq(
+                  EdgeOrNodeData(
+                    source = src,
+                    properties = Some(props.toMap)
+                  )
+              )),
             `type` = nodeTypeDirectRelation
           )
         )
@@ -254,14 +254,14 @@ object FlexibleDataModelRelationUtils {
         NodeWrite(
           space = space,
           externalId = externalId,
-          sources = source.map(src =>
-            Seq(
-              EdgeOrNodeData(
-                source = src,
-                properties = Some(props.toMap)
-              )
-            )
-          ),
+          sources = source.map(
+            src =>
+              Seq(
+                EdgeOrNodeData(
+                  source = src,
+                  properties = Some(props.toMap)
+                )
+            )),
           `type` = extractNodeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption
         )
     }
@@ -492,14 +492,13 @@ object FlexibleDataModelRelationUtils {
   private def validateSourceSchema(
       source: Option[SourceReference],
       schema: StructType,
-      propertyDefMap: Map[String, ViewPropertyDefinition]): Either[CdfSparkException, Boolean] = {
+      propertyDefMap: Map[String, ViewPropertyDefinition]): Either[CdfSparkException, Boolean] =
     source match {
       case Some(_) =>
         validateRowFieldsWithPropertyDefinitions(schema, propertyDefMap)
       case None =>
         Right(true)
     }
-  }
 
   private def validateRowFieldsWithPropertyDefinitions(
       schema: StructType,
