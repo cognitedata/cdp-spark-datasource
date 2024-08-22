@@ -54,7 +54,7 @@ object FlexibleDataModelRelationUtils {
       source: Option[SourceReference],
       instanceSpace: Option[String],
       ignoreNullFields: Boolean = true): Either[CdfSparkException, Vector[EdgeWrite]] =
-    validateRowFieldsWithPropertyDefinitions(schema, propertyDefMap) *> createEdgeWriteData(
+    validateSourceSchema(source, schema, propertyDefMap) *> createEdgeWriteData(
       schema,
       source,
       propertyDefMap,
