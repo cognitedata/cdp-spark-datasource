@@ -3,7 +3,8 @@ package cognite.spark.v1
 import cats.{Apply, Functor}
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationFactory.{
+import cognite.spark.v1.fdm.{FlexibleDataModelBaseRelation, FlexibleDataModelRelationFactory}
+import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.{
   ConnectionConfig,
   DataModelConnectionConfig,
   DataModelViewConfig,

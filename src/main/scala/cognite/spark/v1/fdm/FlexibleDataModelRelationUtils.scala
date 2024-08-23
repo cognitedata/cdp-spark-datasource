@@ -1,6 +1,14 @@
-package cognite.spark.v1
+package cognite.spark.v1.fdm
 
 import cats.implicits._
+import cognite.spark.v1.{
+  CdfSparkException,
+  CdfSparkIllegalArgumentException,
+  FieldNotSpecified,
+  FieldNull,
+  FieldSpecified,
+  OptionalField
+}
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
