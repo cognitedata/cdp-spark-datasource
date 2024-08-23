@@ -1,25 +1,19 @@
 package cognite.spark.v1.fdm.utils
 
 import cats.effect.IO
-import cats.{Applicative, Apply}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory
 import cognite.spark.v1.{DefaultSource, SparkTest}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
+import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.properties.{ListablePropertyType, PrimitivePropType, PropertyType}
-import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, ContainerDefinition, ContainerId}
-import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
-import com.cognite.sdk.scala.v1.{GenericClient, SpaceById, SpaceCreateDefinition}
 import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.{DataFrame, Row}
 
 import java.time.{LocalDate, LocalDateTime, ZoneId}
 import java.util.UUID
-import scala.concurrent.duration.DurationInt
 import scala.util.Random
 
 trait FlexibleDataModelTestBase extends SparkTest {
