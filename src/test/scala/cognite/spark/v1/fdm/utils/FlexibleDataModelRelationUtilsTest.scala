@@ -1,7 +1,7 @@
-package cognite.spark.v1
+package cognite.spark.v1.fdm.utils
 
 import cognite.spark.v1.FlexibleDataModelRelationUtils._
-import cognite.spark.v1.utils.fdm.FDMViewPropertyTypes._
+import cognite.spark.v1.fdm.utils.FDMViewPropertyTypes._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue.{ViewDirectNodeRelation, ViewDirectNodeRelationList}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}

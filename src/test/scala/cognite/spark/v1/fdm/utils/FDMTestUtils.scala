@@ -1,4 +1,4 @@
-package cognite.spark.v1.utils.fdm
+package cognite.spark.v1.fdm.utils
 
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumProperty, EnumValueMetadata, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}

@@ -1,4 +1,4 @@
-package cognite.spark.v1.utils.fdm
+package cognite.spark.v1.fdm.utils
 
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumValueMetadata}
