@@ -53,7 +53,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
 
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val firstRow = rows.headOption
-    (firstRow, viewReference) match {
+    firstRow match {
       case (Some(fr), _) =>
         upsertNodesOrEdges(rows, fr.schema, viewReference, allProperties, instanceSpace)
           .flatMap(results => incMetrics(itemsUpserted, results.length))
