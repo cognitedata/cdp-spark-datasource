@@ -1,34 +1,15 @@
-package cognite.spark.v1
+package cognite.spark.v1.fdm
 
 import cats.implicits._
+import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, FieldNotSpecified, FieldNull, FieldSpecified, OptionalField}
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
-  DirectNodeRelationProperty,
-  EnumProperty,
-  FileReference,
-  PrimitiveProperty,
-  SequenceReference,
-  TextProperty,
-  TimeSeriesReference
-}
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  ListablePropertyType,
-  PrimitivePropType,
-  PropertyDefinition
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumProperty, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{ListablePropertyType, PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
-  EdgeDeletionRequest,
-  NodeDeletionRequest
-}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{EdgeDeletionRequest, NodeDeletionRequest}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  EdgeOrNodeData,
-  InstanceDeletionRequest,
-  InstancePropertyValue,
-  NodeOrEdgeCreate
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceDeletionRequest, InstancePropertyValue, NodeOrEdgeCreate}
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._

@@ -3,7 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestBase, FlexibleDataModelTestInitializer}
-import cognite.spark.v1.{DefaultSource, FlexibleDataModelRelationFactory, SparkTest}
+import cognite.spark.v1.{DefaultSource, SparkTest}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}

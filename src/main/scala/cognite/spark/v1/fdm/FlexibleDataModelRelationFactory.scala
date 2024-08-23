@@ -1,14 +1,12 @@
-package cognite.spark.v1
+package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits._
+import cognite.spark.v1.{CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ConnectionDefinition, EdgeConnection}
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
-  ConnectionDefinition,
-  EdgeConnection
-}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelViewReference
 import com.cognite.sdk.scala.v1.fdm.views.{ViewDefinition, ViewReference}
 import org.apache.spark.sql.SQLContext

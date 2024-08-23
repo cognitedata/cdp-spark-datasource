@@ -3,12 +3,8 @@ package cognite.spark.v1
 import cats.{Apply, Functor}
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationFactory.{
-  ConnectionConfig,
-  DataModelConnectionConfig,
-  DataModelViewConfig,
-  ViewCorePropertyConfig
-}
+import cognite.spark.v1.fdm.{FlexibleDataModelBaseRelation, FlexibleDataModelRelationFactory}
+import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.{ConnectionConfig, DataModelConnectionConfig, DataModelViewConfig, ViewCorePropertyConfig}
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference

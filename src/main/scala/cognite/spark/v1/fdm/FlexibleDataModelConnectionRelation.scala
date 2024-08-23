@@ -1,10 +1,11 @@
-package cognite.spark.v1
+package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.implicits.toTraverseOps
-import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.FlexibleDataModelRelationFactory.ConnectionConfig
-import cognite.spark.v1.FlexibleDataModelRelationUtils.{createConnectionInstances, createEdgeDeleteData}
+import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
+import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ConnectionConfig
+import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils.{createConnectionInstances, createEdgeDeleteData}
+import cognite.spark.v1.{CdfSparkException, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}

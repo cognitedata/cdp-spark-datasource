@@ -1,6 +1,6 @@
 package cognite.spark.v1.fdm.utils
 
-import cognite.spark.v1.FlexibleDataModelRelationUtils._
+import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.fdm.utils.FDMViewPropertyTypes._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue.{ViewDirectNodeRelation, ViewDirectNodeRelationList}
