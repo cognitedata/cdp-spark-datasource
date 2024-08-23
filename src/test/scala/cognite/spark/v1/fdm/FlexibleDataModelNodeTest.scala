@@ -2,7 +2,7 @@ package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestInitializer, FlexibleDataModelTestBase}
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestInitializer}
 import cognite.spark.v1.{DefaultSource, SparkTest}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
