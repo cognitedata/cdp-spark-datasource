@@ -2,14 +2,13 @@ package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestInitializer, FlexibleDataModelTestBase}
-import cognite.spark.v1.{DefaultSource, FlexibleDataModelRelationFactory, SparkTest}
+import cognite.spark.v1.SparkTest
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestInitializer}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.{ViewDefinition, ViewReference}
-import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
 class FlexibleDataModelSyncTest extends FlatSpec
