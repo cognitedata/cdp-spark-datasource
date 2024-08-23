@@ -29,7 +29,8 @@ trait FlexibleDataModelTestBase extends SparkTest {
         .get("TEST_AAD_TENANT")
         .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
     .getOrElse("https://sometokenurl")
-  protected val audience = s"https://${cluster}.cognitedata.com"
+
+  protected val audience = s"https://$cluster.cognitedata.com"
   protected val client: GenericClient[IO] = getTestClient()
 
   protected val spaceExternalId = "testSpaceForSparkDatasource"
@@ -45,13 +46,13 @@ trait FlexibleDataModelTestBase extends SparkTest {
     spark.read
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
+      .option("baseUrl", s"https://$cluster.cognitedata.com")
       .option("tokenUri", tokenUri)
       .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
+      .option("scopes", s"https://$cluster.cognitedata.com/.default")
       .option("cursor", cursor)
       .option("instanceType", instanceType.productPrefix)
       .option("viewSpace", viewSpaceExternalId)
