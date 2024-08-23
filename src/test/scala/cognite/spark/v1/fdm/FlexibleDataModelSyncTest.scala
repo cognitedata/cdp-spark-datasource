@@ -2,8 +2,8 @@ package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.fdm.utils.FDMContainerPropertyTypes
-import cognite.spark.v1.{DefaultSource, FlexibleDataModelRelationFactory, FlexibleDataModelsTestBase, SparkTest}
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestInitializer, FlexibleDataModelTestBase}
+import cognite.spark.v1.{DefaultSource, FlexibleDataModelRelationFactory, SparkTest}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
@@ -15,7 +15,7 @@ import org.scalatest.{FlatSpec, Matchers}
 class FlexibleDataModelSyncTest extends FlatSpec
   with Matchers
   with SparkTest
-  with FlexibleDataModelsTestBase {
+  with FlexibleDataModelTestInitializer {
 
   private val containerSyncTest = "sparkDsTestContainerForSync"
   private val viewSyncTest = "sparkDsTestViewForSync"
@@ -58,30 +58,7 @@ class FlexibleDataModelSyncTest extends FlatSpec
       extIds <- setupInstancesForSync(viewDefinition.toSourceReference, 50)
     } yield (viewDefinition, extIds)
   }
-  private def syncRows(
-                        instanceType: InstanceType,
-                        viewSpaceExternalId: String,
-                        viewExternalId: String,
-                        viewVersion: String,
-                        cursor: String): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("cursor", cursor)
-      .option("instanceType", instanceType.productPrefix)
-      .option("viewSpace", viewSpaceExternalId)
-      .option("viewExternalId", viewExternalId)
-      .option("viewVersion", viewVersion)
-      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
-      .option("collectMetrics", value = true)
-      .load()
+
 
   it should "be able to fetch more data with cursor when syncing" in {
     val (viewDefinition, modifiedExternalIds) = setupSyncTest.unsafeRunSync()

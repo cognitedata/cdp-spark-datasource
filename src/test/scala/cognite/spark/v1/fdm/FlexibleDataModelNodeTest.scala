@@ -2,8 +2,8 @@ package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.fdm.utils.FDMContainerPropertyTypes
-import cognite.spark.v1.{DefaultSource, FlexibleDataModelRelationFactory, FlexibleDataModelsTestBase, SparkTest}
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestInitializer, FlexibleDataModelTestBase}
+import cognite.spark.v1.{DefaultSource, FlexibleDataModelRelationFactory, SparkTest}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
@@ -26,7 +26,7 @@ class FlexibleDataModelNodeTest
     extends FlatSpec
     with Matchers
     with SparkTest
-    with FlexibleDataModelsTestBase {
+    with FlexibleDataModelTestInitializer {
 
   private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList2"
   private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList2"
