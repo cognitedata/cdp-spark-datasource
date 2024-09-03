@@ -34,6 +34,8 @@ class RawTableRelation(
   import CdpConnector._
   import RawTableRelation._
 
+  override def toString: String = s"RawTableRelation(db=${database}, table=${table})"
+
   private val MaxKeysAllowedForFiltering = 10000L
 
   @transient lazy val client: GenericClient[IO] =
@@ -119,7 +121,6 @@ class RawTableRelation(
         RawJsonConverter.untypedRowConverter
     }
 
-  // scalastyle:off method.length
   private def readRows(
       limit: Option[Int],
       numPartitions: Option[Int],
@@ -175,7 +176,6 @@ class RawTableRelation(
       deduplicateRows = true // if false we might end up with 429 when trying to update assets with multiple same request
     )
   }
-  // scalastyle:on method.length
 
   override def buildScan(): RDD[Row] = buildScan(schema.fieldNames, Array.empty)
 

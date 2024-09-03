@@ -167,6 +167,7 @@ trait SparkTest {
         .get("TEST_AAD_TENANT")
         .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
     .getOrElse("https://sometokenurl")
+  val testAudience = s"https://${testCluster}.cognitedata.com"
   val testTokenUri = uri"$testTokenUriStr"
 
   def getTestClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
@@ -176,6 +177,7 @@ trait SparkTest {
       clientId = testClientId,
       clientSecret = testClientSecret,
       scopes = List(s"https://${testCluster}.cognitedata.com/.default"),
+      audience = Some(testAudience),
       cdfProjectName = testProject
     )
 
@@ -197,7 +199,6 @@ trait SparkTest {
   class RetryException(private val message: String, private val cause: Throwable = None.orNull)
       extends Exception(message, cause) {}
 
-  // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](
       ioa: IO[A],
       initialDelay: FiniteDuration,
@@ -218,7 +219,6 @@ trait SparkTest {
       case error => IO.raiseError(error)
     }
   }
-  // scalastyle:on cyclomatic.complexity
 
   def retryWhileIO[A](action: IO[A], shouldRetry: A => Boolean)(
       implicit prettifier: Prettifier,

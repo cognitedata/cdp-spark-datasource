@@ -251,7 +251,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           .retrieveByExternalIds(batch, ignoreUnknownIds = true)
     ).map(_.map(a => a.externalId.get -> a).toMap)
 
-  def upsertRoots( // scalastyle:off
+  def upsertRoots(
       newRoots: Vector[AssetsIngestSchema],
       sourceRoots: Map[String, Asset]): IO[Vector[Asset]] = {
 
@@ -409,7 +409,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       Stream
         .fromIterator[IO](list.iterator, chunkSize = batchSize)
         .chunks
-        .parEvalMapUnordered(config.parallelismPerPartition)(chunk => op(chunk.toVector).map(Chunk.seq))
+        .parEvalMapUnordered(config.parallelismPerPartition)(chunk => op(chunk.toVector).map(Chunk.from))
         .flatMap(Stream.chunk)
         .compile
         .toVector

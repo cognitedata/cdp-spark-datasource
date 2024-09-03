@@ -1,26 +1,27 @@
-package cognite.spark.v1
+package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestInitializer}
+import cognite.spark.v1.{DefaultSource, SparkTest}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceDefinition, InstanceRetrieve, InstanceType, SlimNodeOrEdge}
-import com.cognite.sdk.scala.v1.fdm.views.{ConnectionDirection, ViewCreateDefinition, ViewDefinition, ViewPropertyCreateDefinition, ViewReference}
+import com.cognite.sdk.scala.v1.fdm.instances._
+import com.cognite.sdk.scala.v1.fdm.views._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
 import scala.util.{Success, Try}
 
-class FlexibleDataModelConnectionRelationTest
+class FlexibleDataModelEdgeTest
     extends FlatSpec
     with Matchers
     with SparkTest
-    with FlexibleDataModelsTestBase {
+    with FlexibleDataModelTestInitializer {
 
   private val startEndNodeContainerExternalId = "sparkDsConnectionsTestContainerStartEndNodes1"
   private val startEndNodeViewExternalId = "sparkDsConnectionsTestViewStartEndNodes1"
@@ -94,7 +95,7 @@ class FlexibleDataModelConnectionRelationTest
       )))
     .unsafeRunSync()
 
-  it should "fetch connection instances with filters" in {
+  it should "fetch edges with filters" in {
     val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
     val endNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchEndNode"
 
@@ -168,7 +169,7 @@ class FlexibleDataModelConnectionRelationTest
     (instExtIds should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "fetch connection instances from a data model" in {
+  it should "fetch edges from a data model" in {
     val df = readRowsFromModel(
       spaceExternalId,
       testDataModelExternalId,
@@ -194,7 +195,7 @@ class FlexibleDataModelConnectionRelationTest
     (toExternalIds(rows) should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "insert connection instance to a data model" in {
+  it should "insert edge to a data model" in {
     val df = spark
       .sql(s"""
            |select
@@ -224,7 +225,7 @@ class FlexibleDataModelConnectionRelationTest
     getUpsertedMetricsCountForModel(testDataModelExternalId, viewVersion) shouldBe 1
   }
 
-  it should "pick the right property even though views have same property names" in {
+  it should "pick the right property as default for _type even though views have same property names" in {
     val df = spark
       .sql(
         s"""
@@ -295,7 +296,7 @@ class FlexibleDataModelConnectionRelationTest
     }
   }
 
-  it should "insert connection instances" in {
+  it should "insert edges" in {
     val edgeExternalId = s"edgeInstExtId${apiCompatibleRandomString()}"
     val startNodeExtId = s"${startEndNodeViewExternalId}InsertStartNode"
     val endNodeExtId = s"${startEndNodeViewExternalId}InsertEndNode"
@@ -403,16 +404,17 @@ class FlexibleDataModelConnectionRelationTest
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
+      .option("baseUrl", s"https://$cluster.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
+      .option("scopes", s"https://$cluster.cognitedata.com/.default")
       .option("edgeTypeSpace", edgeTypeSpace)
       .option("edgeTypeExternalId", edgeTypeExternalId)
       .option("onconflict", onConflict)
-      .option("collectMetrics", true)
+      .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
       .save()
 
@@ -420,16 +422,17 @@ class FlexibleDataModelConnectionRelationTest
     spark.read
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
+      .option("baseUrl", s"https://$cluster.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
+      .option("scopes", s"https://$cluster.cognitedata.com/.default")
       .option("edgeTypeSpace", edgeSpace)
       .option("edgeTypeExternalId", edgeExternalId)
       .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
-      .option("collectMetrics", true)
+      .option("collectMetrics", value = true)
       .load()
 
   private def readRowsFromModel(
@@ -441,19 +444,20 @@ class FlexibleDataModelConnectionRelationTest
     spark.read
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
+      .option("baseUrl", s"https://$cluster.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
+      .option("scopes", s"https://$cluster.cognitedata.com/.default")
       .option("modelSpace", modelSpace)
       .option("modelExternalId", modelExternalId)
       .option("modelVersion", modelVersion)
       .option("edgeTypeSpace", edgeTypeSpace)
       .option("edgeTypeExternalId", edgeTypeExternalId)
       .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("collectMetrics", true)
+      .option("collectMetrics", value = true)
       .load()
 
   private def insertRowsToModel(
@@ -468,12 +472,13 @@ class FlexibleDataModelConnectionRelationTest
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
+      .option("baseUrl", s"https://$cluster.cognitedata.com")
       .option("tokenUri", tokenUri)
+      .option("audience", audience)
       .option("clientId", clientId)
       .option("clientSecret", clientSecret)
       .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
+      .option("scopes", s"https://$cluster.cognitedata.com/.default")
       .option("modelSpace", modelSpace)
       .option("modelExternalId", modelExternalId)
       .option("modelVersion", modelVersion)
@@ -481,7 +486,7 @@ class FlexibleDataModelConnectionRelationTest
       .option("connectionPropertyName", connectionPropertyName)
       .option("instanceSpace", instanceSpace.orNull)
       .option("onconflict", onConflict)
-      .option("collectMetrics", true)
+      .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$modelExternalId-$modelVersion")
       .save()
 
