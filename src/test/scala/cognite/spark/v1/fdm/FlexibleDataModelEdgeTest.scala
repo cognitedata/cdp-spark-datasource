@@ -2,7 +2,7 @@ package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestInitializer}
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FlexibleDataModelTestInitializer}
 import cognite.spark.v1.{DefaultSource, SparkTest}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
@@ -26,7 +26,7 @@ class FlexibleDataModelEdgeTest
   private val startEndNodeContainerExternalId = "sparkDsConnectionsTestContainerStartEndNodes1"
   private val startEndNodeViewExternalId = "sparkDsConnectionsTestViewStartEndNodes1"
   private val propsMap = Map(
-    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithoutDefaultValueNullable
+    "stringProp1" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable
   )
   private val connectionsViewExtId = "sparkDsTestConnectionsView1"
 

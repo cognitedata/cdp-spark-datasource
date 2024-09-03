@@ -270,6 +270,7 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
         replace = Some(true)
       ))
       .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
+
   // scalastyle:off method.length
   protected def createStartAndEndNodesForEdgesIfNotExists(
                                                            startNodeExtId: String,

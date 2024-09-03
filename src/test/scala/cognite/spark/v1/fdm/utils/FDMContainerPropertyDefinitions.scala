@@ -4,7 +4,7 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.Contain
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumValueMetadata}
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
 
-object FDMContainerPropertyTypes {
+object FDMContainerPropertyDefinitions {
 
   val EnumNonListWithoutDefaultValueNonNullable: ContainerPropertyDefinition = ContainerPropertyDefinition(
     nullable = Some(false),

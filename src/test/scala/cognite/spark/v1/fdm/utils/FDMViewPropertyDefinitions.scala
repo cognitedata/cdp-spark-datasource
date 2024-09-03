@@ -4,7 +4,7 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewCor
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumValueMetadata}
 import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
 
-object FDMViewPropertyTypes {
+object FDMViewPropertyDefinitions {
 
   val DateNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
