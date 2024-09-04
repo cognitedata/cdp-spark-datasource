@@ -25,7 +25,7 @@
             "markers": "python_version >= '3.6'",
             "version": "==2024.7.4"
         },
-        "cffi": {
+        "cffi": { 
             "hashes": [
                 "sha256:011aff3524d578a9412c8b3cfaa50f2c0bd78e03eb7af7aa5e0df59b158efb2f",
                 "sha256:0a048d4f6630113e54bb4b77e315e1ba32a5a31512c31a273807d0027a7e69ab",
