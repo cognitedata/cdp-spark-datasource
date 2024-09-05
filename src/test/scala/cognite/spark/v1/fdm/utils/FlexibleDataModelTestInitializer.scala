@@ -1,27 +1,24 @@
 package cognite.spark.v1.fdm.utils
 
-import cats.{Applicative, Apply}
 import cats.effect.IO
-import cognite.spark.v1.DefaultSource
-import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory
-import com.cognite.sdk.scala.v1.{SpaceById, SpaceCreateDefinition}
-import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
+import cats.{Applicative, Apply}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
+import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, ContainerDefinition, ContainerId}
-import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.{ViewCreateDefinition, ViewDefinition, ViewPropertyCreateDefinition}
-import org.apache.spark.sql.DataFrame
+import com.cognite.sdk.scala.v1.{SpaceById, SpaceCreateDefinition}
 import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 
 trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
   protected def createTestInstancesForView(
-                                            viewDef: ViewDefinition,
-                                            directNodeReference: DirectRelationReference,
-                                            typeNode: Option[DirectRelationReference],
-                                            startNode: Option[DirectRelationReference],
-                                            endNode: Option[DirectRelationReference]): IO[Seq[String]] = {
+      viewDef: ViewDefinition,
+      directNodeReference: DirectRelationReference,
+      typeNode: Option[DirectRelationReference],
+      startNode: Option[DirectRelationReference],
+      endNode: Option[DirectRelationReference]): IO[Seq[String]] = {
     val randomPrefix = apiCompatibleRandomString()
     val writeData = viewDef.usedFor match {
       case Usage.Node =>
