@@ -2,6 +2,8 @@ package cognite.spark.v1.fdm.utils
 
 import cats.{Applicative, Apply}
 import cats.effect.IO
+import cognite.spark.v1.DefaultSource
+import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory
 import com.cognite.sdk.scala.v1.{SpaceById, SpaceCreateDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
@@ -10,6 +12,7 @@ import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, Conta
 import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
 import com.cognite.sdk.scala.v1.fdm.views.{ViewCreateDefinition, ViewDefinition, ViewPropertyCreateDefinition}
+import org.apache.spark.sql.DataFrame
 import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 
 trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
@@ -62,12 +65,12 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
   }
 
   protected def createEdgeWriteInstances(
-                                          viewDef: ViewDefinition,
-                                          typeNode: DirectRelationReference,
-                                          startNode: DirectRelationReference,
-                                          endNode: DirectRelationReference,
-                                          directNodeReference: DirectRelationReference,
-                                          randomPrefix: String): Seq[EdgeWrite] = {
+      viewDef: ViewDefinition,
+      typeNode: DirectRelationReference,
+      startNode: DirectRelationReference,
+      endNode: DirectRelationReference,
+      directNodeReference: DirectRelationReference,
+      randomPrefix: String): Seq[EdgeWrite] = {
     val viewRef = viewDef.toSourceReference
     val edgeExternalIdPrefix = s"${viewDef.externalId}${randomPrefix}Edge"
     Seq(
@@ -344,5 +347,36 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
       ))
       .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
 
-
+  protected def insertRowsToModel(
+    modelSpace: String,
+    modelExternalId: String,
+    modelVersion: String,
+    viewExternalId: String,
+    instanceSpace: Option[String],
+    df: DataFrame,
+    onConflict: String = "upsert",
+    ignoreNullFields: Boolean = true,
+    connectionPropertyName: Option[String] = None): Unit = {
+    df.write
+      .format(DefaultSource.sparkFormatString)
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
+      .option("baseUrl", s"https://$cluster.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("audience", audience)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", s"https://$cluster.cognitedata.com/.default")
+      .option("modelSpace", modelSpace)
+      .option("modelExternalId", modelExternalId)
+      .option("modelVersion", modelVersion)
+      .option("viewExternalId", viewExternalId)
+      .options(connectionPropertyName.map("connectionPropertyName" -> _).toMap)
+      .option("instanceSpace", instanceSpace.orNull)
+      .option("onconflict", onConflict)
+      .option("collectMetrics", value = true)
+      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
+      .option("ignoreNullFields", ignoreNullFields)
+      .save()
+  }
 }

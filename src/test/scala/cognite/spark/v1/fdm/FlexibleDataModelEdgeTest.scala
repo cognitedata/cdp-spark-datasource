@@ -215,9 +215,9 @@ class FlexibleDataModelEdgeTest
         testDataModelExternalId,
         viewVersion,
         connectionsViewExtId,
-        "connectionProp",
         Some(spaceExternalId),
-        df
+        df,
+        connectionPropertyName = Some("connectionProp")
       )
     }
 
@@ -246,9 +246,9 @@ class FlexibleDataModelEdgeTest
         testDataModelExternalId,
         viewVersion,
         duplicateViewExtId1,
-        duplicatePropertyName,
         Some(spaceExternalId),
-        df
+        df,
+        connectionPropertyName = Some(duplicatePropertyName)
       )
     }
     result shouldBe Success(())
@@ -273,9 +273,9 @@ class FlexibleDataModelEdgeTest
         testDataModelExternalId,
         viewVersion,
         duplicateViewExtId2,
-        duplicatePropertyName,
         Some(spaceExternalId),
-        df2
+        df2,
+        connectionPropertyName = Some(duplicatePropertyName)
       )
     }
     result2 shouldBe Success(())
@@ -460,35 +460,6 @@ class FlexibleDataModelEdgeTest
       .option("collectMetrics", value = true)
       .load()
 
-  private def insertRowsToModel(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      viewExternalId: String,
-      connectionPropertyName: String,
-      instanceSpace: Option[String],
-      df: DataFrame,
-      onConflict: String = "upsert"): Unit =
-    df.write
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://$cluster.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://$cluster.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("viewExternalId", viewExternalId)
-      .option("connectionPropertyName", connectionPropertyName)
-      .option("instanceSpace", instanceSpace.orNull)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", value = true)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .save()
 
   private def getUpsertedMetricsCount(edgeTypeSpace: String, edgeTypeExternalId: String): Long =
     getNumberOfRowsUpserted(

@@ -1,4 +1,4 @@
-package cognite.spark.v1.fdm.utils
+package cognite.spark.v1.fdm
 
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.fdm.utils.FDMViewPropertyDefinitions._

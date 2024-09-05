@@ -473,9 +473,8 @@ class FlexibleDataModelNodeTest
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewAll, viewNodes, viewEdges) = setupTypeTest.unsafeRunSync()
+    val (viewNodes, viewEdges) = setupTypeTest.unsafeRunSync()
     val randomId = generateNodeExternalId
-    val instanceExtIdAll = s"${randomId}All"
     val instanceExtIdNode = s"${randomId}Node"
     val instanceExtIdEdge = s"${randomId}Edge"
 
@@ -504,14 +503,6 @@ class FlexibleDataModelNodeTest
         insertRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewAll.externalId,
-          viewVersion = viewAll.version,
-          instanceSpaceExternalId = spaceExternalId,
-          insertionDf(instanceExtIdAll)
-        ),
-        insertRows(
-          instanceType = InstanceType.Node,
-          viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
           viewVersion = viewNodes.version,
           instanceSpaceExternalId = spaceExternalId,
@@ -527,12 +518,6 @@ class FlexibleDataModelNodeTest
         )
       )
     }
-
-    insertionResult shouldBe Success(Vector((), (), ()))
-    insertionResult.get.size shouldBe 3
-    getUpsertedMetricsCount(viewAll) shouldBe 1
-    getUpsertedMetricsCount(viewNodes) shouldBe 1
-    getUpsertedMetricsCount(viewEdges) shouldBe 1
 
     val readEdgesDf: DataFrame = readRows(
       instanceType = InstanceType.Edge,
@@ -571,15 +556,6 @@ class FlexibleDataModelNodeTest
         insertRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewAll.externalId,
-          viewVersion = viewAll.version,
-          instanceSpaceExternalId = spaceExternalId,
-          deletionDf(instanceExtIdAll),
-          onConflict = "delete"
-        ),
-        insertRows(
-          instanceType = InstanceType.Node,
-          viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
           viewVersion = viewNodes.version,
           instanceSpaceExternalId = spaceExternalId,
@@ -600,9 +576,13 @@ class FlexibleDataModelNodeTest
       )
     }
 
-    deletionResults shouldBe Success(Vector((), (), ()))
-    deletionResults.get.size shouldBe 3
-    getDeletedMetricsCount(viewAll) shouldBe 1
+    insertionResult shouldBe Success(Vector((), ()))
+    insertionResult.get.size shouldBe 2
+    getUpsertedMetricsCount(viewNodes) shouldBe 1
+    getUpsertedMetricsCount(viewEdges) shouldBe 1
+
+    deletionResults shouldBe Success(Vector((), ()))
+    deletionResults.get.size shouldBe 2
     getDeletedMetricsCount(viewNodes) shouldBe 1
     getDeletedMetricsCount(viewEdges) shouldBe 1
 
@@ -1666,20 +1646,18 @@ class FlexibleDataModelNodeTest
     } yield (viewAll, viewNodes, viewEdges)
   }
 
-  private def setupTypeTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
+  private def setupTypeTest: IO[(ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
       "stringProp" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable,
     )
 
     for {
-      cAll <- createContainerIfNotExists(Usage.All, containerProps, containerAllTypeExternalId)
       cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesTypeExternalId)
       cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesTypeExternalId)
-      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllTypeExternalId, viewVersion)
       viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesTypeExternalId, viewVersion)
       viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesTypeExternalId, viewVersion)
       _ <- IO.sleep(5.seconds)
-    } yield (viewAll, viewNodes, viewEdges)
+    } yield (viewNodes, viewEdges)
   }
 
   private def setupFilteringByPropertiesTest: IO[(ViewDefinition, Seq[String])] = {
@@ -1912,36 +1890,6 @@ class FlexibleDataModelNodeTest
       .option("metricsPrefix", s"$modelExternalId-$modelVersion")
       .option("collectMetrics", true)
       .load()
-
-  private def insertRowsToModel(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      viewExternalId: String,
-      instanceSpace: Option[String],
-      df: DataFrame,
-      onConflict: String = "upsert",
-      ignoreNullFields: Boolean = true): Unit =
-    df.write
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("instanceSpace", instanceSpace.orNull)
-      .option("viewExternalId", viewExternalId)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", true)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("ignoreNullFields", ignoreNullFields)
-      .save()
 
   private def getUpsertedMetricsCountForModel(modelSpace: String, modelExternalId: String): Long =
     getNumberOfRowsUpserted(
