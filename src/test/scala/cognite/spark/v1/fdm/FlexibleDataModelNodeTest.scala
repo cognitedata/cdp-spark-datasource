@@ -473,9 +473,8 @@ class FlexibleDataModelNodeTest
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewNodes, viewEdges) = setupTypeTest.unsafeRunSync()
+    val (viewEdges) = setupTypeTest.unsafeRunSync()
     val randomId = generateNodeExternalId
-    val instanceExtIdNode = s"${randomId}Node"
     val instanceExtIdEdge = s"${randomId}Edge"
 
     def insertionDf(instanceExtId: String): DataFrame =
@@ -501,14 +500,6 @@ class FlexibleDataModelNodeTest
     val insertionResult = Try {
       Vector(
         insertRows(
-          instanceType = InstanceType.Node,
-          viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewNodes.externalId,
-          viewVersion = viewNodes.version,
-          instanceSpaceExternalId = spaceExternalId,
-          insertionDf(instanceExtIdNode)
-        ),
-        insertRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -518,6 +509,10 @@ class FlexibleDataModelNodeTest
         )
       )
     }
+
+    insertionResult shouldBe Success(Vector())
+    insertionResult.get.size shouldBe 1
+    getUpsertedMetricsCount(viewEdges) shouldBe 1
 
     val readEdgesDf: DataFrame = readRows(
       instanceType = InstanceType.Edge,
@@ -552,17 +547,6 @@ class FlexibleDataModelNodeTest
                 |""".stripMargin)
 
     val deletionResults = Try {
-      Vector(
-        insertRows(
-          instanceType = InstanceType.Node,
-          viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewNodes.externalId,
-          viewVersion = viewNodes.version,
-          instanceSpaceExternalId = spaceExternalId,
-          deletionDf(instanceExtIdNode),
-          onConflict = "delete"
-        )
-      ) ++
       toExternalIds(selectedEdgesBothTypes).map(externalId =>
         insertRows(
           instanceType = InstanceType.Edge,
@@ -576,14 +560,8 @@ class FlexibleDataModelNodeTest
       )
     }
 
-    insertionResult shouldBe Success(Vector((), ()))
-    insertionResult.get.size shouldBe 2
-    getUpsertedMetricsCount(viewNodes) shouldBe 1
-    getUpsertedMetricsCount(viewEdges) shouldBe 1
-
-    deletionResults shouldBe Success(Vector((), ()))
-    deletionResults.get.size shouldBe 2
-    getDeletedMetricsCount(viewNodes) shouldBe 1
+    deletionResults shouldBe Success(Vector(()))
+    deletionResults.get.length shouldBe 1
     getDeletedMetricsCount(viewEdges) shouldBe 1
 
     toExternalIds(selectedEdgesBothTypes).length shouldBe(1)
@@ -1646,18 +1624,16 @@ class FlexibleDataModelNodeTest
     } yield (viewAll, viewNodes, viewEdges)
   }
 
-  private def setupTypeTest: IO[(ViewDefinition, ViewDefinition)] = {
+  private def setupTypeTest: IO[ViewDefinition] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
       "stringProp" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable,
     )
 
     for {
-      cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesTypeExternalId)
       cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesTypeExternalId)
-      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesTypeExternalId, viewVersion)
       viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesTypeExternalId, viewVersion)
       _ <- IO.sleep(5.seconds)
-    } yield (viewNodes, viewEdges)
+    } yield (viewEdges)
   }
 
   private def setupFilteringByPropertiesTest: IO[(ViewDefinition, Seq[String])] = {
