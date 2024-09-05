@@ -38,6 +38,7 @@ class FlexibleDataModelEdgeTest
 
   private val duplicateViewExtId1 = s"sparkDsConnectionsDuplicatePropertyViewExternalId1"
   private val duplicateViewExtId2 = s"sparkDsConnectionsDuplicatePropertyViewExternalId2"
+
   private val duplicateEdgeTypeExtId1 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId1"
   private val duplicateEdgeTypeExtId2 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId2"
   private val duplicatePropertyName = "testDataModelDuplicatePropertyName"
@@ -50,51 +51,11 @@ class FlexibleDataModelEdgeTest
         Some("SparkDatasourceConnectionsTestModel"),
         Some("Spark Datasource connections test model"),
         viewVersion,
-        views = Some(
-          Seq(
-            ViewReference(
-              spaceExternalId,
-              connectionsViewExtId,
-              viewVersion
-            ),
-            ViewCreateDefinition(
-              space=spaceExternalId,
-              externalId=duplicateViewExtId1,
-              version=viewVersion,
-              properties=Map(
-                duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
-                  EdgeConnection(
-                    `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId1),
-                    source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
-                    name = None,
-                    description = None,
-                    direction = None,
-                    connectionType = None,
-                  ),
-                ),
-              ),
-            ),
-            ViewCreateDefinition(
-              space = spaceExternalId,
-              externalId = duplicateViewExtId2,
-              version = viewVersion,
-              properties = Map(
-                duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
-                  EdgeConnection(
-                    `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId2),
-                    source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
-                    name = None,
-                    description = None,
-                    direction = None,
-                    connectionType = None,
-                  ),
-                ),
-              ),
-            ),
-          )
+        None
         )
-      )))
+      ))
     .unsafeRunSync()
+
 
   it should "fetch edges with filters" in {
     val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
@@ -226,7 +187,39 @@ class FlexibleDataModelEdgeTest
     getUpsertedMetricsCountForModel(testDataModelExternalId, viewVersion) shouldBe 1
   }
 
-  it should "pick the right property as default for _type even though views have same property names" in {
+  it should "pick the right property as default for _type even though two views in the data models have same property names" in {
+
+    def createPropertyMapForDuplicateTest(edgeExternalId: String) = {
+      Map(
+        duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+          EdgeConnection(
+            `type` = DirectRelationReference(space = spaceExternalId, externalId = edgeExternalId),
+            source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
+            name = None,
+            description = None,
+            direction = None,
+            connectionType = None,
+          ),
+        )
+      )
+    }
+    //identical view, property name, but different ids for the edges.
+    val viewPropertiesEdge1: Map[String, ViewPropertyCreateDefinition] =
+      createPropertyMapForDuplicateTest(duplicateEdgeTypeExtId1)
+    val viewPropertiesEdge2: Map[String, ViewPropertyCreateDefinition] =
+      createPropertyMapForDuplicateTest(duplicateEdgeTypeExtId2)
+    createViewWithProperties(
+      duplicateViewExtId1,
+      viewVersion,
+      viewPropertiesEdge1
+    )
+    createViewWithProperties(
+      duplicateViewExtId2,
+      viewVersion,
+      viewPropertiesEdge2
+    )
+
+
     val df = spark
       .sql(
         s"""
@@ -328,7 +321,7 @@ class FlexibleDataModelEdgeTest
              |""".stripMargin)
 
     val insertionResult = Try {
-      insertRows(
+      insertEdgeRows(
         edgeTypeSpace = spaceExternalId,
         edgeTypeExternalId = edgeExternalId,
         insertionDf(edgeExternalId)
@@ -388,6 +381,34 @@ class FlexibleDataModelEdgeTest
             implements = None,
           )
 
+          client.views
+            .createItems(items = Seq(viewToCreate))
+            .flatTap(_ => IO.sleep(3.seconds))
+        } else {
+          IO.delay(views)
+        }
+      }
+      .map(_.head)
+
+  private def createViewWithProperties(
+      viewExternalId: String,
+      viewVersion: String,
+      viewProperties: Map[String, ViewPropertyCreateDefinition]
+      ): IO[ViewDefinition] =
+    client.views
+      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, Some(viewVersion))))
+      .flatMap { views =>
+        if (views.isEmpty) {
+          val viewToCreate = ViewCreateDefinition(
+            space = spaceExternalId,
+            externalId = viewExternalId,
+            version = viewVersion,
+            name = Some(s"test-view-$viewExternalId"),
+            description = Some("Test View For Connections Spark Datasource"),
+            filter = None,
+            properties = viewProperties,
+            implements = None,
+          )
           client.views
             .createItems(items = Seq(viewToCreate))
             .flatTap(_ => IO.sleep(3.seconds))

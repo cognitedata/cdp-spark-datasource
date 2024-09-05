@@ -39,7 +39,7 @@ trait FDMSparkDataframeTestOperations extends FlexibleDataModelTestBase {
       .save()
   }
 
-  protected def insertRows(
+  protected def insertNodeRows(
       instanceType: InstanceType,
       viewSpaceExternalId: String,
       viewExternalId: String,
@@ -66,7 +66,8 @@ trait FDMSparkDataframeTestOperations extends FlexibleDataModelTestBase {
       .option("collectMetrics", true)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
       .save()
-  protected def insertRows(
+
+  protected def insertEdgeRows(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
       df: DataFrame,

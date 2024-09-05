@@ -196,7 +196,7 @@ class FlexibleDataModelNodeTest
 
     val insertionResults = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -204,7 +204,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdAllNode)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -212,7 +212,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdAllEdge)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -220,7 +220,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdNode)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -247,7 +247,7 @@ class FlexibleDataModelNodeTest
 
     val deletionResults = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -256,7 +256,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdAllNode),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -265,7 +265,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdAllEdge),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -274,7 +274,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdNode),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -352,7 +352,7 @@ class FlexibleDataModelNodeTest
 
     val insertionResult = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -360,7 +360,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionEdgeDf(instanceExtIdAll)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -368,7 +368,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdNode)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -420,7 +420,7 @@ class FlexibleDataModelNodeTest
 
     val deletionResults = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -429,7 +429,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdAll),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -440,7 +440,7 @@ class FlexibleDataModelNodeTest
         )
       ) ++
       toExternalIds(selectedEdgesBothTypes).map(externalId =>
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -496,7 +496,7 @@ class FlexibleDataModelNodeTest
 
     val insertionResult = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -545,7 +545,7 @@ class FlexibleDataModelNodeTest
 
     val deletionResults = Try {
       toExternalIds(selectedEdgesBothTypes).map(externalId =>
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -640,7 +640,7 @@ class FlexibleDataModelNodeTest
 
     val insertionResult = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -648,7 +648,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdAll)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -656,7 +656,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdNode)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -683,7 +683,7 @@ class FlexibleDataModelNodeTest
 
     val deletionResults = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -692,7 +692,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdAll),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -701,7 +701,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdNode),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -1048,7 +1048,7 @@ class FlexibleDataModelNodeTest
               |""".stripMargin)
 
     val result = Try {
-      insertRows(
+      insertNodeRows(
         instanceType = InstanceType.Node,
         viewSpaceExternalId = viewDef.space,
         viewExternalId = viewDef.externalId,
@@ -1076,7 +1076,7 @@ class FlexibleDataModelNodeTest
               |from temp_view_with_relations
               |""".stripMargin)
     val result2 = Try {
-      insertRows(
+      insertNodeRows(
         instanceType = InstanceType.Node,
         viewSpaceExternalId = viewDef.space,
         viewExternalId = viewDef.externalId,
@@ -1115,7 +1115,7 @@ class FlexibleDataModelNodeTest
               |""".stripMargin)
 
     val result = Try {
-      insertRows(
+      insertNodeRows(
         instanceType = InstanceType.Node,
         viewSpaceExternalId = viewDef.space,
         viewExternalId = viewDef.externalId,
