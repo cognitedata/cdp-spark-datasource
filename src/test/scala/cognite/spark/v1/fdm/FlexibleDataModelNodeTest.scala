@@ -2,7 +2,7 @@ package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FlexibleDataModelTestInitializer}
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMSparkDataframeTestOperations, FlexibleDataModelTestInitializer}
 import cognite.spark.v1.{DefaultSource, SparkTest}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
@@ -26,7 +26,8 @@ class FlexibleDataModelNodeTest
     extends FlatSpec
     with Matchers
     with SparkTest
-    with FlexibleDataModelTestInitializer {
+    with FlexibleDataModelTestInitializer
+    with FDMSparkDataframeTestOperations {
 
   private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList2"
   private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList2"
@@ -40,8 +41,6 @@ class FlexibleDataModelNodeTest
   private val containerNodesAmbiguousTypeExternalId = "sparkDsTestContainerNodesAmbiguousType6"
   private val containerEdgesAmbiguousTypeExternalId = "sparkDsTestContainerEdgesAmbiguousType6"
 
-  private val containerAllTypeExternalId = "sparkDsTestContainerAllType3"
-  private val containerNodesTypeExternalId = "sparkDsTestContainerNodesType3"
   private val containerEdgesTypeExternalId = "sparkDsTestContainerEdgesType3"
 
   private val containerAllListExternalId = "sparkDsTestContainerAllList2"
@@ -56,8 +55,6 @@ class FlexibleDataModelNodeTest
   private val viewNodesAmbiguousTypeExternalId = "sparkDsTestViewNodesAmbiguousType6"
   private val viewEdgesAmbiguousTypeExternalId = "sparkDsTestViewEdgesAmbiguousType6"
 
-  private val viewAllTypeExternalId = "sparkDsTestViewAllType6"
-  private val viewNodesTypeExternalId = "sparkDsTestViewNodesType6"
   private val viewEdgesTypeExternalId = "sparkDsTestViewEdgesType6"
 
   private val viewAllNonListExternalId = "sparkDsTestViewAllNonList3"
@@ -1788,88 +1785,5 @@ class FlexibleDataModelNodeTest
       view <- createViewWithCorePropsIfNotExists(container, viewAllRelationProps, viewVersion)
     } yield view
   }
-
-  private def insertRows(
-      instanceType: InstanceType,
-      viewSpaceExternalId: String,
-      viewExternalId: String,
-      viewVersion: String,
-      instanceSpaceExternalId: String,
-      df: DataFrame,
-      onConflict: String = "upsert"): Unit =
-    df.write
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("instanceType", instanceType.productPrefix)
-      .option("viewSpace", viewSpaceExternalId)
-      .option("viewExternalId", viewExternalId)
-      .option("viewVersion", viewVersion)
-      .option("instanceSpace", instanceSpaceExternalId)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", true)
-      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
-      .save()
-
-  private def readRows(
-      instanceType: InstanceType,
-      viewSpaceExternalId: String,
-      viewExternalId: String,
-      viewVersion: String,
-      instanceSpaceExternalId: String): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("instanceType", instanceType.productPrefix)
-      .option("viewSpace", viewSpaceExternalId)
-      .option("viewExternalId", viewExternalId)
-      .option("viewVersion", viewVersion)
-      .option("instanceSpace", instanceSpaceExternalId)
-      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
-      .option("collectMetrics", true)
-      .load()
-
-  private def readRowsFromModel(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      viewExternalId: String,
-      instanceSpace: Option[String]): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("instanceSpace", instanceSpace.orNull)
-      .option("viewExternalId", viewExternalId)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("collectMetrics", true)
-      .load()
-
-  private def getUpsertedMetricsCountForModel(modelSpace: String, modelExternalId: String): Long =
-    getNumberOfRowsUpserted(
-      s"$modelSpace-$modelExternalId",
-      FlexibleDataModelRelationFactory.ResourceType)
 
 }

@@ -346,37 +346,4 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
         replace = Some(true)
       ))
       .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
-
-  protected def insertRowsToModel(
-    modelSpace: String,
-    modelExternalId: String,
-    modelVersion: String,
-    viewExternalId: String,
-    instanceSpace: Option[String],
-    df: DataFrame,
-    onConflict: String = "upsert",
-    ignoreNullFields: Boolean = true,
-    connectionPropertyName: Option[String] = None): Unit = {
-    df.write
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://$cluster.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://$cluster.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("viewExternalId", viewExternalId)
-      .options(connectionPropertyName.map("connectionPropertyName" -> _).toMap)
-      .option("instanceSpace", instanceSpace.orNull)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", value = true)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("ignoreNullFields", ignoreNullFields)
-      .save()
-  }
 }

@@ -2,7 +2,7 @@ package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FlexibleDataModelTestInitializer}
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMSparkDataframeTestOperations, FlexibleDataModelTestInitializer}
 import cognite.spark.v1.{DefaultSource, SparkTest}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
@@ -21,7 +21,8 @@ class FlexibleDataModelEdgeTest
     extends FlatSpec
     with Matchers
     with SparkTest
-    with FlexibleDataModelTestInitializer {
+    with FlexibleDataModelTestInitializer
+    with FDMSparkDataframeTestOperations {
 
   private val startEndNodeContainerExternalId = "sparkDsConnectionsTestContainerStartEndNodes1"
   private val startEndNodeViewExternalId = "sparkDsConnectionsTestViewStartEndNodes1"
@@ -395,79 +396,4 @@ class FlexibleDataModelEdgeTest
         }
       }
       .map(_.head)
-
-  private def insertRows(
-      edgeTypeSpace: String,
-      edgeTypeExternalId: String,
-      df: DataFrame,
-      onConflict: String = "upsert"): Unit =
-    df.write
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://$cluster.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://$cluster.cognitedata.com/.default")
-      .option("edgeTypeSpace", edgeTypeSpace)
-      .option("edgeTypeExternalId", edgeTypeExternalId)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", value = true)
-      .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
-      .save()
-
-  private def readRows(edgeSpace: String, edgeExternalId: String): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://$cluster.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://$cluster.cognitedata.com/.default")
-      .option("edgeTypeSpace", edgeSpace)
-      .option("edgeTypeExternalId", edgeExternalId)
-      .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
-      .option("collectMetrics", value = true)
-      .load()
-
-  private def readRowsFromModel(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      edgeTypeSpace: String,
-      edgeTypeExternalId: String): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://$cluster.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://$cluster.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("edgeTypeSpace", edgeTypeSpace)
-      .option("edgeTypeExternalId", edgeTypeExternalId)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("collectMetrics", value = true)
-      .load()
-
-
-  private def getUpsertedMetricsCount(edgeTypeSpace: String, edgeTypeExternalId: String): Long =
-    getNumberOfRowsUpserted(
-      s"$edgeTypeSpace-$edgeTypeExternalId",
-      FlexibleDataModelRelationFactory.ResourceType)
-
-  private def getUpsertedMetricsCountForModel(modelExternalId: String, modelVersion: String): Long =
-    getNumberOfRowsUpserted(
-      s"$modelExternalId-$modelVersion",
-      FlexibleDataModelRelationFactory.ResourceType)
 }
