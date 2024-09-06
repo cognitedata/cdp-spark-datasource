@@ -31,7 +31,6 @@ class FlexibleDataModelEdgeTest
   )
   private val connectionsViewExtId = "sparkDsTestConnectionsView1"
 
-  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
   private val testDataModelExternalId = "testDataModelConnectionsExternalId1"
   private val edgeTypeExtId = s"sparkDsConnectionsEdgeTypeExternalId"
@@ -42,6 +41,8 @@ class FlexibleDataModelEdgeTest
   private val duplicateEdgeTypeExtId1 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId1"
   private val duplicateEdgeTypeExtId2 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId2"
   private val duplicatePropertyName = "testDataModelDuplicatePropertyName"
+
+  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
   client.dataModelsV3
     .createItems(
@@ -355,66 +356,43 @@ class FlexibleDataModelEdgeTest
       `type`: DirectRelationReference,
       viewExternalId: String,
       viewVersion: String): IO[ViewDefinition] =
-    client.views
-      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, Some(viewVersion))))
-      .flatMap { views =>
-        if (views.isEmpty) {
-          val viewToCreate = ViewCreateDefinition(
-            space = spaceExternalId,
-            externalId = viewExternalId,
-            version = viewVersion,
-            name = Some(s"Test-View-Connections-Spark-DS"),
-            description = Some("Test View For Connections Spark Datasource"),
-            filter = None,
-            properties = Map(
-              "connectionProp" -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
-                EdgeConnection(
-                  name = Some("connectionProp"),
-                  description = Some("connectionProp"),
-                  `type` = `type`,
-                  source = connectionSource,
-                  direction = Some(ConnectionDirection.Outwards),
-                  connectionType = None,
-                ),
-              )
+    client.views.createItems(
+      Seq(ViewCreateDefinition(
+        space = spaceExternalId,
+        externalId = viewExternalId,
+        version = viewVersion,
+        name = Some(s"Test-View-Connections-Spark-DS"),
+        description = Some("Test View For Connections Spark Datasource"),
+        filter = None,
+        properties = Map(
+          "connectionProp" -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+            EdgeConnection(
+              name = Some("connectionProp"),
+              description = Some("connectionProp"),
+              `type` = `type`,
+              source = connectionSource,
+              direction = Some(ConnectionDirection.Outwards),
+              connectionType = None,
             ),
-            implements = None,
           )
-
-          client.views
-            .createItems(items = Seq(viewToCreate))
-            .flatTap(_ => IO.sleep(3.seconds))
-        } else {
-          IO.delay(views)
-        }
-      }
-      .map(_.head)
+        ),
+        implements = None,
+    ))).map(_.head)
 
   private def createViewWithProperties(
       viewExternalId: String,
       viewVersion: String,
       viewProperties: Map[String, ViewPropertyCreateDefinition]
       ): IO[ViewDefinition] =
-    client.views
-      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, Some(viewVersion))))
-      .flatMap { views =>
-        if (views.isEmpty) {
-          val viewToCreate = ViewCreateDefinition(
-            space = spaceExternalId,
-            externalId = viewExternalId,
-            version = viewVersion,
-            name = Some(s"test-view-$viewExternalId"),
-            description = Some("Test View For Connections Spark Datasource"),
-            filter = None,
-            properties = viewProperties,
-            implements = None,
-          )
-          client.views
-            .createItems(items = Seq(viewToCreate))
-            .flatTap(_ => IO.sleep(3.seconds))
-        } else {
-          IO.delay(views)
-        }
-      }
-      .map(_.head)
+    client.views.createItems(
+      Seq(ViewCreateDefinition(
+        space = spaceExternalId,
+        externalId = viewExternalId,
+        version = viewVersion,
+        name = Some(s"test-view-$viewExternalId"),
+        description = Some("Test View For Connections Spark Datasource"),
+        filter = None,
+        properties = viewProperties,
+        implements = None,
+      ))).map(_.head)
 }
