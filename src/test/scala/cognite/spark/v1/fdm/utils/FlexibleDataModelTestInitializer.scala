@@ -58,7 +58,6 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
         )
       )
       .map(_.map(_.externalId))
-      .flatTap(_ => IO.sleep(5.seconds))
   }
 
   protected def createEdgeWriteInstances(
@@ -179,7 +178,6 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
           )
           client.containers
             .createItems(containers = Seq(containerToCreate))
-            .flatTap(_ => IO.sleep(5.seconds))
         } else {
           IO.delay(containers)
         }
@@ -215,7 +213,6 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
 
           client.views
             .createItems(items = Seq(viewToCreate))
-            .flatTap(_ => IO.sleep(5.seconds))
         } else {
           IO.delay(views)
         }
@@ -268,8 +265,7 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
           )
         ),
         replace = Some(true)
-      ))
-      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
+      )) *> IO.unit
 
   // scalastyle:off method.length
   protected def createStartAndEndNodesForEdgesIfNotExists(
@@ -307,8 +303,7 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
           )
         ),
         replace = Some(true)
-      ))
-      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
+      )) *> IO.unit
 
   protected def createNodesForEdgesIfNotExists(
                                                 startNodeExtId: String,
@@ -341,6 +336,5 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
           )
         ),
         replace = Some(true)
-      ))
-      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
+      )) *> IO.unit
 }
