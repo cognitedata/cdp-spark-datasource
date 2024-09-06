@@ -230,21 +230,6 @@ class FlexibleDataModelEdgeTest
 
   it should "pick the right property as default for _type even though two views in the data models have same property names" in {
 
-    def createPropertyMapForDuplicateTest(edgeExternalId: String) = {
-      Map(
-        duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
-          EdgeConnection(
-            `type` = DirectRelationReference(space = spaceExternalId, externalId = edgeExternalId),
-            source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
-            name = None,
-            description = None,
-            direction = None,
-            connectionType = None,
-          ),
-        )
-      )
-    }
-
     val df = spark
       .sql(
         s"""
