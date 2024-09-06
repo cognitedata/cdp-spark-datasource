@@ -2,11 +2,11 @@ package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
+import cognite.spark.v1.SparkTest
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMSparkDataframeTestOperations, FlexibleDataModelTestInitializer}
-import cognite.spark.v1.{DefaultSource, SparkTest}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
-import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
+import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
 import com.cognite.sdk.scala.v1.fdm.instances._
@@ -14,7 +14,6 @@ import com.cognite.sdk.scala.v1.fdm.views._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
-import scala.concurrent.duration.DurationInt
 import scala.util.{Success, Try}
 
 class FlexibleDataModelEdgeTest

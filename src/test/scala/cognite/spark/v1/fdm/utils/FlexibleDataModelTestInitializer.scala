@@ -10,7 +10,6 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeW
 import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.{ViewCreateDefinition, ViewDefinition, ViewPropertyCreateDefinition}
 import com.cognite.sdk.scala.v1.{SpaceById, SpaceCreateDefinition}
-import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 
 trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
   protected def createTestInstancesForView(
