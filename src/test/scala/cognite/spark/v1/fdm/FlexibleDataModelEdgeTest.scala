@@ -29,14 +29,14 @@ class FlexibleDataModelEdgeTest
   private val propsMap = Map(
     "stringProp1" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable
   )
-  private val connectionsViewExtId = "sparkDsTestConnectionsView1"
+  private val connectionsViewExtId = "sparkDsTestConnectionsView2"
 
 
   private val testDataModelExternalId = "testDataModelConnectionsExternalId1"
   private val edgeTypeExtId = s"sparkDsConnectionsEdgeTypeExternalId"
 
-  private val duplicateViewExtId1 = s"sparkDsConnectionsDuplicatePropertyViewExternalId1"
-  private val duplicateViewExtId2 = s"sparkDsConnectionsDuplicatePropertyViewExternalId2"
+  private val duplicateViewExtId1 = s"sparkDsConnectionsDuplicatePropertyViewExternalId3"
+  private val duplicateViewExtId2 = s"sparkDsConnectionsDuplicatePropertyViewExternalId4"
 
   private val duplicateEdgeTypeExtId1 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId1"
   private val duplicateEdgeTypeExtId2 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId2"
@@ -44,18 +44,20 @@ class FlexibleDataModelEdgeTest
 
   client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
+  def getDataModelCreate(views: Seq[ViewCreateDefinition]) = DataModelCreate(
+    spaceExternalId,
+    testDataModelExternalId,
+    Some("SparkDatasourceConnectionsTestModel"),
+    Some("Spark Datasource connections test model"),
+    viewVersion,
+    None
+  )
+
   client.dataModelsV3
-    .createItems(
-      Seq(DataModelCreate(
-        spaceExternalId,
-        testDataModelExternalId,
-        Some("SparkDatasourceConnectionsTestModel"),
-        Some("Spark Datasource connections test model"),
-        viewVersion,
-        None
-        )
-      ))
+    .createItems(getDataModelCreate())
     .unsafeRunSync()
+
+
 
 
   it should "fetch edges with filters" in {
@@ -113,7 +115,6 @@ class FlexibleDataModelEdgeTest
         endNode =
           DirectRelationReference(space = spaceExternalId, externalId = s"${endNodeExtIdPrefix}2")
       )
-      _ <- IO.sleep(5.seconds)
     } yield c1 ++ c2).unsafeRunSync()
 
     val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = edgeTypeExtId)
@@ -213,12 +214,12 @@ class FlexibleDataModelEdgeTest
       duplicateViewExtId1,
       viewVersion,
       viewPropertiesEdge1
-    )
+    ).unsafeRunSync()
     createViewWithProperties(
       duplicateViewExtId2,
       viewVersion,
       viewPropertiesEdge2
-    )
+    ).unsafeRunSync()
 
 
     val df = spark
@@ -355,44 +356,41 @@ class FlexibleDataModelEdgeTest
       connectionSource: ViewReference,
       `type`: DirectRelationReference,
       viewExternalId: String,
-      viewVersion: String): IO[ViewDefinition] =
-    client.views.createItems(
-      Seq(ViewCreateDefinition(
-        space = spaceExternalId,
-        externalId = viewExternalId,
-        version = viewVersion,
-        name = Some(s"Test-View-Connections-Spark-DS"),
-        description = Some("Test View For Connections Spark Datasource"),
-        filter = None,
-        properties = Map(
-          "connectionProp" -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
-            EdgeConnection(
-              name = Some("connectionProp"),
-              description = Some("connectionProp"),
-              `type` = `type`,
-              source = connectionSource,
-              direction = Some(ConnectionDirection.Outwards),
-              connectionType = None,
-            ),
-          )
-        ),
-        implements = None,
-    ))).map(_.head)
+      viewVersion: String): IO[ViewDefinition] = {
+    val propsMap = Map(
+      "connectionProp" -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+        EdgeConnection(
+          name = Some("connectionProp"),
+          description = Some("connectionProp"),
+          `type` = `type`,
+          source = connectionSource,
+          direction = Some(ConnectionDirection.Outwards),
+          connectionType = None,
+        )
+      ))
+    createViewWithProperties(viewExternalId, viewVersion, propsMap)
+  }
 
   private def createViewWithProperties(
-      viewExternalId: String,
-      viewVersion: String,
-      viewProperties: Map[String, ViewPropertyCreateDefinition]
-      ): IO[ViewDefinition] =
-    client.views.createItems(
-      Seq(ViewCreateDefinition(
-        space = spaceExternalId,
-        externalId = viewExternalId,
-        version = viewVersion,
-        name = Some(s"test-view-$viewExternalId"),
-        description = Some("Test View For Connections Spark Datasource"),
-        filter = None,
-        properties = viewProperties,
-        implements = None,
-      ))).map(_.head)
+        viewExternalId: String,
+        viewVersion: String,
+        viewProperties: Map[String, ViewPropertyCreateDefinition]
+      ): IO[ViewDefinition] = {
+    for {
+      view <- client.views.createItems(
+        Seq(ViewCreateDefinition(
+          space = spaceExternalId,
+          externalId = viewExternalId,
+          version = viewVersion,
+          name = Some(s"test-view-$viewExternalId"),
+          description = Some("Test View For Connections Spark Datasource"),
+          filter = None,
+          properties = viewProperties,
+          implements = None,
+        ))).map(_.head)
+      _ <- client.dataModelsV3.createItems(Seq(DataModelCreate(
+        space = spaceExternalId, externalId = testDataModelExternalId, name = ???, description = ???, version = ???, views = ???
+      )))
+    } yield view
+  }
 }
