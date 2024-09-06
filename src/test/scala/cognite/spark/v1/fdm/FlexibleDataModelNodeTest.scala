@@ -507,10 +507,6 @@ class FlexibleDataModelNodeTest
       )
     }
 
-    insertionResult shouldBe Success(Array(()))
-    insertionResult.get.size shouldBe 1
-    getUpsertedMetricsCount(viewEdges) shouldBe 1
-
     val readEdgesDf: DataFrame = readRows(
       instanceType = InstanceType.Edge,
       viewSpaceExternalId = spaceExternalId,
@@ -556,8 +552,11 @@ class FlexibleDataModelNodeTest
         )
       )
     }
+    insertionResult shouldBe Success(Vector(()))
+    insertionResult.get.size shouldBe 1
+    getUpsertedMetricsCount(viewEdges) shouldBe 1
 
-    deletionResults shouldBe Success(Vector(()))
+    deletionResults shouldBe Success(Seq(()))
     deletionResults.get.length shouldBe 1
     getDeletedMetricsCount(viewEdges) shouldBe 1
 
@@ -667,12 +666,6 @@ class FlexibleDataModelNodeTest
       )
     }
 
-    insertionResult shouldBe Success(Vector((), (), ()))
-    insertionResult.get.size shouldBe 3
-    getUpsertedMetricsCount(viewAll) shouldBe 1
-    getUpsertedMetricsCount(viewNodes) shouldBe 1
-    getUpsertedMetricsCount(viewEdges) shouldBe 1
-
     def deletionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
@@ -712,6 +705,12 @@ class FlexibleDataModelNodeTest
         )
       )
     }
+
+    insertionResult shouldBe Success(Vector((), (), ()))
+    insertionResult.get.size shouldBe 3
+    getUpsertedMetricsCount(viewAll) shouldBe 1
+    getUpsertedMetricsCount(viewNodes) shouldBe 1
+    getUpsertedMetricsCount(viewEdges) shouldBe 1
 
     deletionResults shouldBe Success(Vector((), (), ()))
     deletionResults.get.size shouldBe 3

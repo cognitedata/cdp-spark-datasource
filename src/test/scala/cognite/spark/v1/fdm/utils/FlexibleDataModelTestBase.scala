@@ -191,10 +191,10 @@ trait FlexibleDataModelTestBase extends SparkTest {
       case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
     }
 
-  def toExternalIds(rows: Array[Row]): Array[String] =
+  def toExternalIds(rows: Array[Row]): Seq[String] =
     rows.map(row => row.getString(row.schema.fieldIndex("externalId")))
 
-  def toPropVal(rows: Array[Row], prop: String): Array[String] =
+  def toPropVal(rows: Array[Row], prop: String): Seq[String] =
     rows.map(row => row.getString(row.schema.fieldIndex(prop)))
 
 }
