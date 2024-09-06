@@ -507,7 +507,7 @@ class FlexibleDataModelNodeTest
       )
     }
 
-    insertionResult shouldBe Success(Vector())
+    insertionResult shouldBe Success(Vector(()))
     insertionResult.get.size shouldBe 1
     getUpsertedMetricsCount(viewEdges) shouldBe 1
 
