@@ -71,7 +71,7 @@ class FlexibleDataModelSyncTest extends FlatSpec
     )
 
     syncDf.createTempView(s"sync_empty_cursor")
-    val syncedNodes = spark.sql("select * from sync_empty_cursor").collect().toIndexedSeq
+    val syncedNodes = spark.sql("select * from sync_empty_cursor").collect()
     val syncedExternalIds = toExternalIds(syncedNodes)
     val lastRow = syncedNodes.last
     val cursor = lastRow.getString(lastRow.schema.fieldIndex("metadata.cursor"))
@@ -95,12 +95,12 @@ class FlexibleDataModelSyncTest extends FlatSpec
       cursor = cursor)
 
     syncNext.createTempView(s"sync_next_cursor")
-    var syncedNextNodes = spark.sql("select * from sync_next_cursor").collect().toIndexedSeq
+    var syncedNextNodes = spark.sql("select * from sync_next_cursor").collect()
     syncedNextNodes.length shouldBe 0
 
     // Add 10 nodes and verify we can sync them out with same cursor
     setupInstancesForSync(viewDefinition.toSourceReference, 10).unsafeRunSync()
-    syncedNextNodes = spark.sql("select * from sync_next_cursor").collect().toIndexedSeq
+    syncedNextNodes = spark.sql("select * from sync_next_cursor").collect()
     syncedNextNodes.length shouldBe 10
   }
 
