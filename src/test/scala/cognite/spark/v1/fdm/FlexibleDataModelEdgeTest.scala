@@ -44,19 +44,72 @@ class FlexibleDataModelEdgeTest
 
   client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
-  def getDataModelCreate(views: Seq[ViewCreateDefinition]) = DataModelCreate(
-    spaceExternalId,
-    testDataModelExternalId,
-    Some("SparkDatasourceConnectionsTestModel"),
-    Some("Spark Datasource connections test model"),
-    viewVersion,
-    None
-  )
 
   client.dataModelsV3
-    .createItems(getDataModelCreate())
+    .createItems(
+      Seq(DataModelCreate(
+        spaceExternalId,
+        testDataModelExternalId,
+        Some("SparkDatasourceConnectionsTestModel"),
+        Some("Spark Datasource connections test model"),
+        viewVersion,
+        views = Some(
+          Seq(
+            ViewCreateDefinition(
+              space=spaceExternalId,
+              externalId=connectionsViewExtId,
+              version=viewVersion,
+              properties=Map(
+                duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+                  EdgeConnection(
+                    `type` = DirectRelationReference(spaceExternalId, externalId = edgeTypeExtId),
+                    source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
+                    name = None,
+                    description = None,
+                    direction = None,
+                    connectionType = None,
+                  ),
+                ),
+              ),
+            ),
+            ViewCreateDefinition(
+              space=spaceExternalId,
+              externalId=duplicateViewExtId1,
+              version=viewVersion,
+              properties=Map(
+                duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+                  EdgeConnection(
+                    `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId1),
+                    source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
+                    name = None,
+                    description = None,
+                    direction = None,
+                    connectionType = None,
+                  ),
+                ),
+              ),
+            ),
+            ViewCreateDefinition(
+              space = spaceExternalId,
+              externalId = duplicateViewExtId2,
+              version = viewVersion,
+              properties = Map(
+                duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+                  EdgeConnection(
+                    `type` = DirectRelationReference(space = spaceExternalId, externalId = duplicateEdgeTypeExtId2),
+                    source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
+                    name = None,
+                    description = None,
+                    direction = None,
+                    connectionType = None,
+                  ),
+                ),
+              ),
+            ),
+          )
+        )
+      )))
     .unsafeRunSync()
-
 
 
 
@@ -85,20 +138,6 @@ class FlexibleDataModelEdgeTest
         startEndNodeView.toSourceReference,
       )
 
-      connectionsSourceContainer <- createContainerIfNotExists(
-        usage = Usage.Edge,
-        propsMap,
-        "connectionSourceContainer1")
-      connectionSourceView <- createViewWithCorePropsIfNotExists(
-        connectionsSourceContainer,
-        "connectionSourceView1",
-        viewVersion)
-      _ <- createViewWithConnectionsIfNotExists(
-        connectionSourceView.toSourceReference,
-        `type` = DirectRelationReference(spaceExternalId, externalId = edgeTypeExtId),
-        connectionsViewExtId,
-        viewVersion
-      )
       c1 <- createConnectionWriteInstances(
         externalId = "edge1",
         typeNode = DirectRelationReference(space = spaceExternalId, externalId = edgeTypeExtId),
@@ -205,22 +244,6 @@ class FlexibleDataModelEdgeTest
         )
       )
     }
-    //identical view, property name, but different ids for the edges.
-    val viewPropertiesEdge1: Map[String, ViewPropertyCreateDefinition] =
-      createPropertyMapForDuplicateTest(duplicateEdgeTypeExtId1)
-    val viewPropertiesEdge2: Map[String, ViewPropertyCreateDefinition] =
-      createPropertyMapForDuplicateTest(duplicateEdgeTypeExtId2)
-    createViewWithProperties(
-      duplicateViewExtId1,
-      viewVersion,
-      viewPropertiesEdge1
-    ).unsafeRunSync()
-    createViewWithProperties(
-      duplicateViewExtId2,
-      viewVersion,
-      viewPropertiesEdge2
-    ).unsafeRunSync()
-
 
     val df = spark
       .sql(
@@ -352,45 +375,4 @@ class FlexibleDataModelEdgeTest
     client.instances.createItems(InstanceCreate(connectionInstances, replace = Some(true)))
   }
 
-  private def createViewWithConnectionsIfNotExists(
-      connectionSource: ViewReference,
-      `type`: DirectRelationReference,
-      viewExternalId: String,
-      viewVersion: String): IO[ViewDefinition] = {
-    val propsMap = Map(
-      "connectionProp" -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
-        EdgeConnection(
-          name = Some("connectionProp"),
-          description = Some("connectionProp"),
-          `type` = `type`,
-          source = connectionSource,
-          direction = Some(ConnectionDirection.Outwards),
-          connectionType = None,
-        )
-      ))
-    createViewWithProperties(viewExternalId, viewVersion, propsMap)
-  }
-
-  private def createViewWithProperties(
-        viewExternalId: String,
-        viewVersion: String,
-        viewProperties: Map[String, ViewPropertyCreateDefinition]
-      ): IO[ViewDefinition] = {
-    for {
-      view <- client.views.createItems(
-        Seq(ViewCreateDefinition(
-          space = spaceExternalId,
-          externalId = viewExternalId,
-          version = viewVersion,
-          name = Some(s"test-view-$viewExternalId"),
-          description = Some("Test View For Connections Spark Datasource"),
-          filter = None,
-          properties = viewProperties,
-          implements = None,
-        ))).map(_.head)
-      _ <- client.dataModelsV3.createItems(Seq(DataModelCreate(
-        space = spaceExternalId, externalId = testDataModelExternalId, name = ???, description = ???, version = ???, views = ???
-      )))
-    } yield view
-  }
 }
