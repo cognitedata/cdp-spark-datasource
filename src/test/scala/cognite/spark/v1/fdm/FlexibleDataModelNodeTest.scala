@@ -4,6 +4,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMSparkDataframeTestOperations, FlexibleDataModelTestInitializer}
+import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
@@ -21,6 +22,8 @@ import org.scalatest.{FlatSpec, Matchers}
 import java.time.{LocalDate, ZonedDateTime}
 import scala.concurrent.duration.DurationInt
 import scala.util.{Success, Try}
+import cognite.spark.v1.fdm.utils.FDMTestMetricOperations._
+import cognite.spark.v1.fdm.utils.FlexibleDataModelTestConstants._
 
 class FlexibleDataModelNodeTest
     extends FlatSpec
@@ -84,7 +87,7 @@ class FlexibleDataModelNodeTest
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
-//  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
+  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
   val nodeContainerProps: Map[String, ContainerPropertyDefinition] = Map(
     "stringProp1" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNonNullable,

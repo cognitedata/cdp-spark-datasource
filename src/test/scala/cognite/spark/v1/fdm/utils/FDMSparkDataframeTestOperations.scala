@@ -1,11 +1,12 @@
 package cognite.spark.v1.fdm.utils
 
-import cognite.spark.v1.DefaultSource
+import cognite.spark.v1.{DefaultSource, SparkTest}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory
+import cognite.spark.v1.fdm.utils.FlexibleDataModelTestConstants._
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 
-trait FDMSparkDataframeTestOperations extends FlexibleDataModelTestBase {
+trait FDMSparkDataframeTestOperations extends SparkTest {
   protected def insertRowsToModel(
       modelSpace: String,
       modelExternalId: String,
@@ -63,7 +64,7 @@ trait FDMSparkDataframeTestOperations extends FlexibleDataModelTestBase {
       .option("viewVersion", viewVersion)
       .option("instanceSpace", instanceSpaceExternalId)
       .option("onconflict", onConflict)
-      .option("collectMetrics", true)
+      .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
       .save()
 
@@ -154,7 +155,7 @@ trait FDMSparkDataframeTestOperations extends FlexibleDataModelTestBase {
       .option("instanceSpace", instanceSpace.orNull)
       .option("viewExternalId", viewExternalId)
       .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("collectMetrics", true)
+      .option("collectMetrics", value = true)
       .load()
 
   protected def readRowsFromModel(
@@ -182,15 +183,36 @@ trait FDMSparkDataframeTestOperations extends FlexibleDataModelTestBase {
       .option("collectMetrics", value = true)
       .load()
 
-  protected def getUpsertedMetricsCount(edgeTypeSpace: String, edgeTypeExternalId: String): Long =
-    getNumberOfRowsUpserted(
-      s"$edgeTypeSpace-$edgeTypeExternalId",
-      FlexibleDataModelRelationFactory.ResourceType)
+  protected def syncRows(
+    instanceType: InstanceType,
+    viewSpaceExternalId: String,
+    viewExternalId: String,
+    viewVersion: String,
+    cursor: String
+  ): DataFrame =
+    spark.read
+      .format(DefaultSource.sparkFormatString)
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
+      .option("baseUrl", s"https://$cluster.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("audience", audience)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", s"https://$cluster.cognitedata.com/.default")
+      .option("cursor", cursor)
+      .option("instanceType", instanceType.productPrefix)
+      .option("viewSpace", viewSpaceExternalId)
+      .option("viewExternalId", viewExternalId)
+      .option("viewVersion", viewVersion)
+      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
+      .option("collectMetrics", value = true)
+      .load()
 
+  def toExternalIds(rows: Array[Row]): Seq[String] =
+    rows.toIndexedSeq.map(row => row.getString(row.schema.fieldIndex("externalId")))
 
-  protected def getUpsertedMetricsCountForModel(modelSpace: String, modelExternalId: String): Long =
-    getNumberOfRowsUpserted(
-      s"$modelSpace-$modelExternalId",
-      FlexibleDataModelRelationFactory.ResourceType)
+  def toPropVal(rows: Array[Row], prop: String): Seq[String] =
+    rows.toIndexedSeq.map(row => row.getString(row.schema.fieldIndex(prop)))
 
 }

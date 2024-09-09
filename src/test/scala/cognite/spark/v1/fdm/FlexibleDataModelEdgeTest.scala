@@ -3,6 +3,8 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
+import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{getUpsertedMetricsCount, getUpsertedMetricsCountForModel}
+import cognite.spark.v1.fdm.utils.FlexibleDataModelTestConstants._
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMSparkDataframeTestOperations, FlexibleDataModelTestInitializer}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
@@ -31,7 +33,7 @@ class FlexibleDataModelEdgeTest
   private val connectionsViewExtId = "sparkDsTestConnectionsView2"
 
 
-  private val testDataModelExternalId = "testDataModelConnectionsExternalId1"
+  private val edgeTestDataModelExternalId = "testDataModelConnectionsExternalId1"
   private val edgeTypeExtId = s"sparkDsConnectionsEdgeTypeExternalId"
 
   private val duplicateViewExtId1 = s"sparkDsConnectionsDuplicatePropertyViewExternalId3"
@@ -43,12 +45,11 @@ class FlexibleDataModelEdgeTest
 
   client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
-
   client.dataModelsV3
     .createItems(
       Seq(DataModelCreate(
         spaceExternalId,
-        testDataModelExternalId,
+        edgeTestDataModelExternalId,
         Some("SparkDatasourceConnectionsTestModel"),
         Some("Spark Datasource connections test model"),
         viewVersion,
@@ -174,7 +175,7 @@ class FlexibleDataModelEdgeTest
   it should "fetch edges from a data model" in {
     val df = readRowsFromModel(
       spaceExternalId,
-      testDataModelExternalId,
+      edgeTestDataModelExternalId,
       viewVersion,
       spaceExternalId,
       edgeTypeExtId)
@@ -214,7 +215,7 @@ class FlexibleDataModelEdgeTest
     val result = Try {
       insertRowsToModel(
         spaceExternalId,
-        testDataModelExternalId,
+        edgeTestDataModelExternalId,
         viewVersion,
         connectionsViewExtId,
         Some(spaceExternalId),
@@ -224,7 +225,7 @@ class FlexibleDataModelEdgeTest
     }
 
     result shouldBe Success(())
-    getUpsertedMetricsCountForModel(testDataModelExternalId, viewVersion) shouldBe 1
+    getUpsertedMetricsCountForModel(edgeTestDataModelExternalId, viewVersion) shouldBe 1
   }
 
   it should "pick the right property as default for _type even though two views in the data models have same property names" in {
@@ -246,7 +247,7 @@ class FlexibleDataModelEdgeTest
     val result = Try {
       insertRowsToModel(
         spaceExternalId,
-        testDataModelExternalId,
+        edgeTestDataModelExternalId,
         viewVersion,
         duplicateViewExtId1,
         Some(spaceExternalId),
@@ -273,7 +274,7 @@ class FlexibleDataModelEdgeTest
     val result2 = Try {
       insertRowsToModel(
         spaceExternalId,
-        testDataModelExternalId,
+        edgeTestDataModelExternalId,
         viewVersion,
         duplicateViewExtId2,
         Some(spaceExternalId),
