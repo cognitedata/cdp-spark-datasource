@@ -3,8 +3,9 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
-import cognite.spark.v1.fdm.utils.FlexibleDataModelTestConstants._
-import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMSparkDataframeTestOperations, FlexibleDataModelTestInitializer}
+import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
+import cognite.spark.v1.fdm.utils.FDMTestConstants._
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMSparkDataframeTestOperations, FDMTestInitializer}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
@@ -15,8 +16,7 @@ import org.scalatest.{FlatSpec, Matchers}
 class FlexibleDataModelSyncTest extends FlatSpec
   with Matchers
   with SparkTest
-  with FlexibleDataModelTestInitializer
-  with FDMSparkDataframeTestOperations {
+  with FDMTestInitializer {
 
   private val containerSyncTest = "sparkDsTestContainerForSync"
   private val viewSyncTest = "sparkDsTestViewForSync"

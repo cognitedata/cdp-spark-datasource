@@ -2,12 +2,13 @@ package cognite.spark.v1.fdm.utils
 
 import cognite.spark.v1.{DefaultSource, SparkTest}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory
-import cognite.spark.v1.fdm.utils.FlexibleDataModelTestConstants._
+import cognite.spark.v1.fdm.utils.FDMTestConstants._
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
 import org.apache.spark.sql.{DataFrame, Row}
 
-trait FDMSparkDataframeTestOperations extends SparkTest {
-  protected def insertRowsToModel(
+object FDMSparkDataframeTestOperations extends SparkTest {
+
+  def insertRowsToModel(
       modelSpace: String,
       modelExternalId: String,
       modelVersion: String,
@@ -40,7 +41,7 @@ trait FDMSparkDataframeTestOperations extends SparkTest {
       .save()
   }
 
-  protected def insertNodeRows(
+  def insertNodeRows(
       instanceType: InstanceType,
       viewSpaceExternalId: String,
       viewExternalId: String,
@@ -68,7 +69,7 @@ trait FDMSparkDataframeTestOperations extends SparkTest {
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
       .save()
 
-  protected def insertEdgeRows(
+  def insertEdgeRows(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
       df: DataFrame,
@@ -91,7 +92,7 @@ trait FDMSparkDataframeTestOperations extends SparkTest {
       .save()
 
 
-  protected def readRows(
+  def readRows(
       instanceType: InstanceType,
       viewSpaceExternalId: String,
       viewExternalId: String,
@@ -116,7 +117,7 @@ trait FDMSparkDataframeTestOperations extends SparkTest {
       .option("collectMetrics", true)
       .load()
 
-  protected def readRows(edgeSpace: String, edgeExternalId: String): DataFrame =
+  def readRows(edgeSpace: String, edgeExternalId: String): DataFrame =
     spark.read
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -133,7 +134,7 @@ trait FDMSparkDataframeTestOperations extends SparkTest {
       .option("collectMetrics", value = true)
       .load()
 
-  protected def readRowsFromModel(
+  def readRowsFromModel(
       modelSpace: String,
       modelExternalId: String,
       modelVersion: String,
@@ -158,7 +159,7 @@ trait FDMSparkDataframeTestOperations extends SparkTest {
       .option("collectMetrics", value = true)
       .load()
 
-  protected def readRowsFromModel(
+  def readRowsFromModel(
      modelSpace: String,
      modelExternalId: String,
      modelVersion: String,
@@ -183,7 +184,7 @@ trait FDMSparkDataframeTestOperations extends SparkTest {
       .option("collectMetrics", value = true)
       .load()
 
-  protected def syncRows(
+  def syncRows(
     instanceType: InstanceType,
     viewSpaceExternalId: String,
     viewExternalId: String,

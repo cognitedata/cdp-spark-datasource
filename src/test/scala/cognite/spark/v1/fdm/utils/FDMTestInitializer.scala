@@ -2,7 +2,7 @@ package cognite.spark.v1.fdm.utils
 
 import cats.effect.IO
 import cats.{Applicative, Apply}
-import cognite.spark.v1.fdm.utils.FlexibleDataModelTestConstants._
+import cognite.spark.v1.fdm.utils.FDMTestConstants._
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.properties.{ListablePropertyType, PrimitivePropType, PropertyType}
@@ -18,7 +18,7 @@ import io.circe.{Json, JsonObject}
 import java.time.{LocalDate, LocalDateTime, ZoneId}
 import scala.util.Random
 
-trait FlexibleDataModelTestInitializer {
+trait FDMTestInitializer {
 
   protected def createInstancePropertyValue(
     propName: String,

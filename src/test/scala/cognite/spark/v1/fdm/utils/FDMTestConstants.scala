@@ -6,7 +6,7 @@ import com.cognite.sdk.scala.v1.GenericClient
 
 import java.util.UUID
 
-object FlexibleDataModelTestConstants {
+object FDMTestConstants {
 
   val clientId: String = sys.env("TEST_CLIENT_ID")
   val clientSecret: String = sys.env("TEST_CLIENT_SECRET")
