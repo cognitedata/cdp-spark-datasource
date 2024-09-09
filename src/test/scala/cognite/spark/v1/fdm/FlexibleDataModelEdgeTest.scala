@@ -4,9 +4,9 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
 import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
-import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{getUpsertedMetricsCount, getUpsertedMetricsCountForModel}
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
-import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMSparkDataframeTestOperations, FDMTestInitializer}
+import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{getUpsertedMetricsCount, getUpsertedMetricsCountForModel}
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMTestInitializer}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
