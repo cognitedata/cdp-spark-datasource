@@ -2,8 +2,10 @@ package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.fdm.utils.{FDMContainerPropertyTypes, FlexibleDataModelTestInitializer}
-import cognite.spark.v1.{DefaultSource, SparkTest}
+import cognite.spark.v1.SparkTest
+import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMTestInitializer}
+import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
@@ -21,12 +23,14 @@ import org.scalatest.{FlatSpec, Matchers}
 import java.time.{LocalDate, ZonedDateTime}
 import scala.concurrent.duration.DurationInt
 import scala.util.{Success, Try}
+import cognite.spark.v1.fdm.utils.FDMTestMetricOperations._
+import cognite.spark.v1.fdm.utils.FDMTestConstants._
 
 class FlexibleDataModelNodeTest
     extends FlatSpec
     with Matchers
     with SparkTest
-    with FlexibleDataModelTestInitializer {
+    with FDMTestInitializer {
 
   private val containerAllListAndNonListExternalId = "sparkDsTestContainerAllListAndNonList2"
   private val containerNodesListAndNonListExternalId = "sparkDsTestContainerNodesListAndNonList2"
@@ -40,8 +44,6 @@ class FlexibleDataModelNodeTest
   private val containerNodesAmbiguousTypeExternalId = "sparkDsTestContainerNodesAmbiguousType6"
   private val containerEdgesAmbiguousTypeExternalId = "sparkDsTestContainerEdgesAmbiguousType6"
 
-  private val containerAllTypeExternalId = "sparkDsTestContainerAllType3"
-  private val containerNodesTypeExternalId = "sparkDsTestContainerNodesType3"
   private val containerEdgesTypeExternalId = "sparkDsTestContainerEdgesType3"
 
   private val containerAllListExternalId = "sparkDsTestContainerAllList2"
@@ -56,8 +58,6 @@ class FlexibleDataModelNodeTest
   private val viewNodesAmbiguousTypeExternalId = "sparkDsTestViewNodesAmbiguousType6"
   private val viewEdgesAmbiguousTypeExternalId = "sparkDsTestViewEdgesAmbiguousType6"
 
-  private val viewAllTypeExternalId = "sparkDsTestViewAllType6"
-  private val viewNodesTypeExternalId = "sparkDsTestViewNodesType6"
   private val viewEdgesTypeExternalId = "sparkDsTestViewEdgesType6"
 
   private val viewAllNonListExternalId = "sparkDsTestViewAllNonList3"
@@ -87,17 +87,17 @@ class FlexibleDataModelNodeTest
 
   private val testDataModelExternalId = "sparkDsTestModel"
 
-//  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
+  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
   val nodeContainerProps: Map[String, ContainerPropertyDefinition] = Map(
-    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
-    "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
+    "stringProp1" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNonNullable,
+    "stringProp2" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNullable,
   )
 
   // Nodes can also have properties named types. These are not the node's type and they should work together
   val nodeWithTypePropertyContainerProps: Map[String, ContainerPropertyDefinition] = Map(
-    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
-    "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
+    "stringProp1" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNonNullable,
+    "type" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
   )
 
   private lazy val containerTypeNode: ContainerDefinition =
@@ -199,7 +199,7 @@ class FlexibleDataModelNodeTest
 
     val insertionResults = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -207,7 +207,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdAllNode)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -215,7 +215,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdAllEdge)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -223,7 +223,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdNode)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -250,7 +250,7 @@ class FlexibleDataModelNodeTest
 
     val deletionResults = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -259,7 +259,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdAllNode),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -268,7 +268,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdAllEdge),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -277,7 +277,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdNode),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -355,7 +355,7 @@ class FlexibleDataModelNodeTest
 
     val insertionResult = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -363,7 +363,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionEdgeDf(instanceExtIdAll)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -371,7 +371,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdNode)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -423,7 +423,7 @@ class FlexibleDataModelNodeTest
 
     val deletionResults = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -432,7 +432,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdAll),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -443,7 +443,7 @@ class FlexibleDataModelNodeTest
         )
       ) ++
       toExternalIds(selectedEdgesBothTypes).map(externalId =>
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -473,10 +473,8 @@ class FlexibleDataModelNodeTest
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewAll, viewNodes, viewEdges) = setupTypeTest.unsafeRunSync()
+    val (viewEdges) = setupTypeTest.unsafeRunSync()
     val randomId = generateNodeExternalId
-    val instanceExtIdAll = s"${randomId}All"
-    val instanceExtIdNode = s"${randomId}Node"
     val instanceExtIdEdge = s"${randomId}Edge"
 
     def insertionDf(instanceExtId: String): DataFrame =
@@ -501,23 +499,7 @@ class FlexibleDataModelNodeTest
 
     val insertionResult = Try {
       Vector(
-        insertRows(
-          instanceType = InstanceType.Node,
-          viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewAll.externalId,
-          viewVersion = viewAll.version,
-          instanceSpaceExternalId = spaceExternalId,
-          insertionDf(instanceExtIdAll)
-        ),
-        insertRows(
-          instanceType = InstanceType.Node,
-          viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewNodes.externalId,
-          viewVersion = viewNodes.version,
-          instanceSpaceExternalId = spaceExternalId,
-          insertionDf(instanceExtIdNode)
-        ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -527,12 +509,6 @@ class FlexibleDataModelNodeTest
         )
       )
     }
-
-    insertionResult shouldBe Success(Vector((), (), ()))
-    insertionResult.get.size shouldBe 3
-    getUpsertedMetricsCount(viewAll) shouldBe 1
-    getUpsertedMetricsCount(viewNodes) shouldBe 1
-    getUpsertedMetricsCount(viewEdges) shouldBe 1
 
     val readEdgesDf: DataFrame = readRows(
       instanceType = InstanceType.Edge,
@@ -567,28 +543,8 @@ class FlexibleDataModelNodeTest
                 |""".stripMargin)
 
     val deletionResults = Try {
-      Vector(
-        insertRows(
-          instanceType = InstanceType.Node,
-          viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewAll.externalId,
-          viewVersion = viewAll.version,
-          instanceSpaceExternalId = spaceExternalId,
-          deletionDf(instanceExtIdAll),
-          onConflict = "delete"
-        ),
-        insertRows(
-          instanceType = InstanceType.Node,
-          viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewNodes.externalId,
-          viewVersion = viewNodes.version,
-          instanceSpaceExternalId = spaceExternalId,
-          deletionDf(instanceExtIdNode),
-          onConflict = "delete"
-        )
-      ) ++
       toExternalIds(selectedEdgesBothTypes).map(externalId =>
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -599,11 +555,12 @@ class FlexibleDataModelNodeTest
         )
       )
     }
+    insertionResult shouldBe Success(Vector(()))
+    insertionResult.get.size shouldBe 1
+    getUpsertedMetricsCount(viewEdges) shouldBe 1
 
-    deletionResults shouldBe Success(Vector((), (), ()))
-    deletionResults.get.size shouldBe 3
-    getDeletedMetricsCount(viewAll) shouldBe 1
-    getDeletedMetricsCount(viewNodes) shouldBe 1
+    deletionResults shouldBe Success(Seq(()))
+    deletionResults.get.length shouldBe 1
     getDeletedMetricsCount(viewEdges) shouldBe 1
 
     toExternalIds(selectedEdgesBothTypes).length shouldBe(1)
@@ -685,7 +642,7 @@ class FlexibleDataModelNodeTest
 
     val insertionResult = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -693,7 +650,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdAll)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -701,7 +658,7 @@ class FlexibleDataModelNodeTest
           instanceSpaceExternalId = spaceExternalId,
           insertionDf(instanceExtIdNode)
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -711,12 +668,6 @@ class FlexibleDataModelNodeTest
         )
       )
     }
-
-    insertionResult shouldBe Success(Vector((), (), ()))
-    insertionResult.get.size shouldBe 3
-    getUpsertedMetricsCount(viewAll) shouldBe 1
-    getUpsertedMetricsCount(viewNodes) shouldBe 1
-    getUpsertedMetricsCount(viewEdges) shouldBe 1
 
     def deletionDf(instanceExtId: String): DataFrame =
       spark
@@ -728,7 +679,7 @@ class FlexibleDataModelNodeTest
 
     val deletionResults = Try {
       Vector(
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewAll.externalId,
@@ -737,7 +688,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdAll),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Node,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewNodes.externalId,
@@ -746,7 +697,7 @@ class FlexibleDataModelNodeTest
           deletionDf(instanceExtIdNode),
           onConflict = "delete"
         ),
-        insertRows(
+        insertNodeRows(
           instanceType = InstanceType.Edge,
           viewSpaceExternalId = spaceExternalId,
           viewExternalId = viewEdges.externalId,
@@ -757,6 +708,12 @@ class FlexibleDataModelNodeTest
         )
       )
     }
+
+    insertionResult shouldBe Success(Vector((), (), ()))
+    insertionResult.get.size shouldBe 3
+    getUpsertedMetricsCount(viewAll) shouldBe 1
+    getUpsertedMetricsCount(viewNodes) shouldBe 1
+    getUpsertedMetricsCount(viewEdges) shouldBe 1
 
     deletionResults shouldBe Success(Vector((), (), ()))
     deletionResults.get.size shouldBe 3
@@ -1093,7 +1050,7 @@ class FlexibleDataModelNodeTest
               |""".stripMargin)
 
     val result = Try {
-      insertRows(
+      insertNodeRows(
         instanceType = InstanceType.Node,
         viewSpaceExternalId = viewDef.space,
         viewExternalId = viewDef.externalId,
@@ -1121,7 +1078,7 @@ class FlexibleDataModelNodeTest
               |from temp_view_with_relations
               |""".stripMargin)
     val result2 = Try {
-      insertRows(
+      insertNodeRows(
         instanceType = InstanceType.Node,
         viewSpaceExternalId = viewDef.space,
         viewExternalId = viewDef.externalId,
@@ -1160,7 +1117,7 @@ class FlexibleDataModelNodeTest
               |""".stripMargin)
 
     val result = Try {
-      insertRows(
+      insertNodeRows(
         instanceType = InstanceType.Node,
         viewSpaceExternalId = viewDef.space,
         viewExternalId = viewDef.externalId,
@@ -1495,43 +1452,43 @@ class FlexibleDataModelNodeTest
   private def setupAllListAndNonListPropertyTest
     : IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
-      "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
-      "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
-      "intProp1" -> FDMContainerPropertyTypes.Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-      "intProp2" -> FDMContainerPropertyTypes.Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-      "longProp1" -> FDMContainerPropertyTypes.Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-      "longProp2" -> FDMContainerPropertyTypes.Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-      "floatProp1" -> FDMContainerPropertyTypes.Float32NonListWithoutDefaultValueNonNullable,
-      "floatProp2" -> FDMContainerPropertyTypes.Float32NonListWithoutDefaultValueNullable,
-      "doubleProp1" -> FDMContainerPropertyTypes.Float64NonListWithoutDefaultValueNonNullable,
-      "doubleProp2" -> FDMContainerPropertyTypes.Float64NonListWithoutDefaultValueNullable,
-      "boolProp1" -> FDMContainerPropertyTypes.BooleanNonListWithDefaultValueNonNullable,
-      "boolProp2" -> FDMContainerPropertyTypes.BooleanNonListWithDefaultValueNullable,
-      "dateProp1" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNonNullable,
-      "dateProp2" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNullable,
-      "timestampProp1" -> FDMContainerPropertyTypes.TimestampNonListWithDefaultValueNonNullable,
-      "timestampProp2" -> FDMContainerPropertyTypes.TimestampNonListWithDefaultValueNullable,
-      "jsonProp1" -> FDMContainerPropertyTypes.JsonNonListWithDefaultValueNonNullable,
-      "jsonProp2" -> FDMContainerPropertyTypes.JsonNonListWithDefaultValueNullable,
-      "stringListProp1" -> FDMContainerPropertyTypes.TextPropertyListWithoutDefaultValueNonNullable,
-      "stringListProp2" -> FDMContainerPropertyTypes.TextPropertyListWithoutDefaultValueNullable,
-      "intListProp1" -> FDMContainerPropertyTypes.Int32ListWithoutDefaultValueNonNullable,
-      "intListProp2" -> FDMContainerPropertyTypes.Int32ListWithoutDefaultValueNullable,
-      "longListProp1" -> FDMContainerPropertyTypes.Int64ListWithoutDefaultValueNonNullable,
-      "longListProp2" -> FDMContainerPropertyTypes.Int64ListWithoutDefaultValueNullable,
-      "floatListProp1" -> FDMContainerPropertyTypes.Float32ListWithoutDefaultValueNonNullable,
-      "floatListProp2" -> FDMContainerPropertyTypes.Float32ListWithoutDefaultValueNullable,
-      "doubleListProp1" -> FDMContainerPropertyTypes.Float64ListWithoutDefaultValueNonNullable,
-      "doubleListProp2" -> FDMContainerPropertyTypes.Float64ListWithoutDefaultValueNullable,
-      "boolListProp1" -> FDMContainerPropertyTypes.BooleanListWithoutDefaultValueNonNullable,
-      "boolListProp2" -> FDMContainerPropertyTypes.BooleanListWithoutDefaultValueNullable,
-      "dateListProp1" -> FDMContainerPropertyTypes.DateListWithoutDefaultValueNonNullable,
-      "dateListProp2" -> FDMContainerPropertyTypes.DateListWithoutDefaultValueNullable,
-      "timestampListProp1" -> FDMContainerPropertyTypes.TimestampListWithoutDefaultValueNonNullable,
-      "timestampListProp2" -> FDMContainerPropertyTypes.TimestampListWithoutDefaultValueNullable,
-      "jsonListProp1" -> FDMContainerPropertyTypes.JsonListWithoutDefaultValueNonNullable,
-      "jsonListProp2" -> FDMContainerPropertyTypes.JsonListWithoutDefaultValueNullable,
-      "directRelation1" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
+      "stringProp1" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNonNullable,
+      "stringProp2" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNullable,
+      "intProp1" -> FDMContainerPropertyDefinitions.Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
+      "intProp2" -> FDMContainerPropertyDefinitions.Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
+      "longProp1" -> FDMContainerPropertyDefinitions.Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable,
+      "longProp2" -> FDMContainerPropertyDefinitions.Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
+      "floatProp1" -> FDMContainerPropertyDefinitions.Float32NonListWithoutDefaultValueNonNullable,
+      "floatProp2" -> FDMContainerPropertyDefinitions.Float32NonListWithoutDefaultValueNullable,
+      "doubleProp1" -> FDMContainerPropertyDefinitions.Float64NonListWithoutDefaultValueNonNullable,
+      "doubleProp2" -> FDMContainerPropertyDefinitions.Float64NonListWithoutDefaultValueNullable,
+      "boolProp1" -> FDMContainerPropertyDefinitions.BooleanNonListWithDefaultValueNonNullable,
+      "boolProp2" -> FDMContainerPropertyDefinitions.BooleanNonListWithDefaultValueNullable,
+      "dateProp1" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNonNullable,
+      "dateProp2" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNullable,
+      "timestampProp1" -> FDMContainerPropertyDefinitions.TimestampNonListWithDefaultValueNonNullable,
+      "timestampProp2" -> FDMContainerPropertyDefinitions.TimestampNonListWithDefaultValueNullable,
+      "jsonProp1" -> FDMContainerPropertyDefinitions.JsonNonListWithDefaultValueNonNullable,
+      "jsonProp2" -> FDMContainerPropertyDefinitions.JsonNonListWithDefaultValueNullable,
+      "stringListProp1" -> FDMContainerPropertyDefinitions.TextPropertyListWithoutDefaultValueNonNullable,
+      "stringListProp2" -> FDMContainerPropertyDefinitions.TextPropertyListWithoutDefaultValueNullable,
+      "intListProp1" -> FDMContainerPropertyDefinitions.Int32ListWithoutDefaultValueNonNullable,
+      "intListProp2" -> FDMContainerPropertyDefinitions.Int32ListWithoutDefaultValueNullable,
+      "longListProp1" -> FDMContainerPropertyDefinitions.Int64ListWithoutDefaultValueNonNullable,
+      "longListProp2" -> FDMContainerPropertyDefinitions.Int64ListWithoutDefaultValueNullable,
+      "floatListProp1" -> FDMContainerPropertyDefinitions.Float32ListWithoutDefaultValueNonNullable,
+      "floatListProp2" -> FDMContainerPropertyDefinitions.Float32ListWithoutDefaultValueNullable,
+      "doubleListProp1" -> FDMContainerPropertyDefinitions.Float64ListWithoutDefaultValueNonNullable,
+      "doubleListProp2" -> FDMContainerPropertyDefinitions.Float64ListWithoutDefaultValueNullable,
+      "boolListProp1" -> FDMContainerPropertyDefinitions.BooleanListWithoutDefaultValueNonNullable,
+      "boolListProp2" -> FDMContainerPropertyDefinitions.BooleanListWithoutDefaultValueNullable,
+      "dateListProp1" -> FDMContainerPropertyDefinitions.DateListWithoutDefaultValueNonNullable,
+      "dateListProp2" -> FDMContainerPropertyDefinitions.DateListWithoutDefaultValueNullable,
+      "timestampListProp1" -> FDMContainerPropertyDefinitions.TimestampListWithoutDefaultValueNonNullable,
+      "timestampListProp2" -> FDMContainerPropertyDefinitions.TimestampListWithoutDefaultValueNullable,
+      "jsonListProp1" -> FDMContainerPropertyDefinitions.JsonListWithoutDefaultValueNonNullable,
+      "jsonListProp2" -> FDMContainerPropertyDefinitions.JsonListWithoutDefaultValueNullable,
+      "directRelation1" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
         .copy(
           `type` = DirectNodeRelationProperty(
             container = Some(
@@ -1539,9 +1496,9 @@ class FlexibleDataModelNodeTest
                 space = spaceExternalId,
                 externalId = containerStartNodeAndEndNodesExternalId)),
             source = None)),
-      "directRelation2" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
-      "directRelation3" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
-      "listOfDirectRelations" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
+      "directRelation2" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "directRelation3" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
+      "listOfDirectRelations" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
     )
 
     for {
@@ -1569,27 +1526,27 @@ class FlexibleDataModelNodeTest
 
   private def setupAllNonListPropertyTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
-      "enumProp1" -> FDMContainerPropertyTypes.EnumNonListWithoutDefaultValueNonNullable,
-      "enumProp2" -> FDMContainerPropertyTypes.EnumNonListWithoutDefaultValueNullable,
-      "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
-      "stringProp2" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
-      "intProp1" -> FDMContainerPropertyTypes.Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-      "intProp2" -> FDMContainerPropertyTypes.Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-      "longProp1" -> FDMContainerPropertyTypes.Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-      "longProp2" -> FDMContainerPropertyTypes.Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-      "floatProp1" -> FDMContainerPropertyTypes.Float32NonListWithoutDefaultValueNonNullable,
-      "floatProp2" -> FDMContainerPropertyTypes.Float32NonListWithoutDefaultValueNullable,
-      "doubleProp1" -> FDMContainerPropertyTypes.Float64NonListWithoutDefaultValueNonNullable,
-      "doubleProp2" -> FDMContainerPropertyTypes.Float64NonListWithoutDefaultValueNullable,
-      "boolProp1" -> FDMContainerPropertyTypes.BooleanNonListWithDefaultValueNonNullable,
-      "boolProp2" -> FDMContainerPropertyTypes.BooleanNonListWithDefaultValueNullable,
-      "dateProp1" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNonNullable,
-      "dateProp2" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNullable,
-      "timestampProp1" -> FDMContainerPropertyTypes.TimestampNonListWithDefaultValueNonNullable,
-      "timestampProp2" -> FDMContainerPropertyTypes.TimestampNonListWithDefaultValueNullable,
-      "jsonProp1" -> FDMContainerPropertyTypes.JsonNonListWithDefaultValueNonNullable,
-      "jsonProp2" -> FDMContainerPropertyTypes.JsonNonListWithDefaultValueNullable,
-      "directRelation1" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
+      "enumProp1" -> FDMContainerPropertyDefinitions.EnumNonListWithoutDefaultValueNonNullable,
+      "enumProp2" -> FDMContainerPropertyDefinitions.EnumNonListWithoutDefaultValueNullable,
+      "stringProp1" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNonNullable,
+      "stringProp2" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNullable,
+      "intProp1" -> FDMContainerPropertyDefinitions.Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
+      "intProp2" -> FDMContainerPropertyDefinitions.Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
+      "longProp1" -> FDMContainerPropertyDefinitions.Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable,
+      "longProp2" -> FDMContainerPropertyDefinitions.Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
+      "floatProp1" -> FDMContainerPropertyDefinitions.Float32NonListWithoutDefaultValueNonNullable,
+      "floatProp2" -> FDMContainerPropertyDefinitions.Float32NonListWithoutDefaultValueNullable,
+      "doubleProp1" -> FDMContainerPropertyDefinitions.Float64NonListWithoutDefaultValueNonNullable,
+      "doubleProp2" -> FDMContainerPropertyDefinitions.Float64NonListWithoutDefaultValueNullable,
+      "boolProp1" -> FDMContainerPropertyDefinitions.BooleanNonListWithDefaultValueNonNullable,
+      "boolProp2" -> FDMContainerPropertyDefinitions.BooleanNonListWithDefaultValueNullable,
+      "dateProp1" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNonNullable,
+      "dateProp2" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNullable,
+      "timestampProp1" -> FDMContainerPropertyDefinitions.TimestampNonListWithDefaultValueNonNullable,
+      "timestampProp2" -> FDMContainerPropertyDefinitions.TimestampNonListWithDefaultValueNullable,
+      "jsonProp1" -> FDMContainerPropertyDefinitions.JsonNonListWithDefaultValueNonNullable,
+      "jsonProp2" -> FDMContainerPropertyDefinitions.JsonNonListWithDefaultValueNullable,
+      "directRelation1" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
         .copy(
           `type` = DirectNodeRelationProperty(
             container = Some(
@@ -1597,9 +1554,9 @@ class FlexibleDataModelNodeTest
                 space = spaceExternalId,
                 externalId = containerStartNodeAndEndNodesExternalId)),
             source = None)),
-      "directRelation2" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "directRelation2" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
 //      "file" -> FDMContainerPropertyTypes.FileReference,
-      "timeseries" -> FDMContainerPropertyTypes.TimeSeriesReference
+      "timeseries" -> FDMContainerPropertyDefinitions.TimeSeriesReference
 //      "sequence" -> FDMContainerPropertyTypes.SequenceReference,
     )
 
@@ -1616,24 +1573,24 @@ class FlexibleDataModelNodeTest
 
   private def setupAllListPropertyTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
-      "stringListProp1" -> FDMContainerPropertyTypes.TextPropertyListWithoutDefaultValueNonNullable,
-      "stringListProp2" -> FDMContainerPropertyTypes.TextPropertyListWithoutDefaultValueNullable,
-      "intListProp1" -> FDMContainerPropertyTypes.Int32ListWithoutDefaultValueNonNullable,
-      "intListProp2" -> FDMContainerPropertyTypes.Int32ListWithoutDefaultValueNullable,
-      "longListProp1" -> FDMContainerPropertyTypes.Int64ListWithoutDefaultValueNonNullable,
-      "longListProp2" -> FDMContainerPropertyTypes.Int64ListWithoutDefaultValueNullable,
-      "floatListProp1" -> FDMContainerPropertyTypes.Float32ListWithoutDefaultValueNonNullable,
-      "floatListProp2" -> FDMContainerPropertyTypes.Float32ListWithoutDefaultValueNullable,
-      "doubleListProp1" -> FDMContainerPropertyTypes.Float64ListWithoutDefaultValueNonNullable,
-      "doubleListProp2" -> FDMContainerPropertyTypes.Float64ListWithoutDefaultValueNullable,
-      "boolListProp1" -> FDMContainerPropertyTypes.BooleanListWithoutDefaultValueNonNullable,
-      "boolListProp2" -> FDMContainerPropertyTypes.BooleanListWithoutDefaultValueNullable,
-      "dateListProp1" -> FDMContainerPropertyTypes.DateListWithoutDefaultValueNonNullable,
-      "dateListProp2" -> FDMContainerPropertyTypes.DateListWithoutDefaultValueNullable,
-      "timestampListProp1" -> FDMContainerPropertyTypes.TimestampListWithoutDefaultValueNonNullable,
-      "timestampListProp2" -> FDMContainerPropertyTypes.TimestampListWithoutDefaultValueNullable,
-      "jsonListProp1" -> FDMContainerPropertyTypes.JsonListWithoutDefaultValueNonNullable,
-      "jsonListProp2" -> FDMContainerPropertyTypes.JsonListWithoutDefaultValueNullable,
+      "stringListProp1" -> FDMContainerPropertyDefinitions.TextPropertyListWithoutDefaultValueNonNullable,
+      "stringListProp2" -> FDMContainerPropertyDefinitions.TextPropertyListWithoutDefaultValueNullable,
+      "intListProp1" -> FDMContainerPropertyDefinitions.Int32ListWithoutDefaultValueNonNullable,
+      "intListProp2" -> FDMContainerPropertyDefinitions.Int32ListWithoutDefaultValueNullable,
+      "longListProp1" -> FDMContainerPropertyDefinitions.Int64ListWithoutDefaultValueNonNullable,
+      "longListProp2" -> FDMContainerPropertyDefinitions.Int64ListWithoutDefaultValueNullable,
+      "floatListProp1" -> FDMContainerPropertyDefinitions.Float32ListWithoutDefaultValueNonNullable,
+      "floatListProp2" -> FDMContainerPropertyDefinitions.Float32ListWithoutDefaultValueNullable,
+      "doubleListProp1" -> FDMContainerPropertyDefinitions.Float64ListWithoutDefaultValueNonNullable,
+      "doubleListProp2" -> FDMContainerPropertyDefinitions.Float64ListWithoutDefaultValueNullable,
+      "boolListProp1" -> FDMContainerPropertyDefinitions.BooleanListWithoutDefaultValueNonNullable,
+      "boolListProp2" -> FDMContainerPropertyDefinitions.BooleanListWithoutDefaultValueNullable,
+      "dateListProp1" -> FDMContainerPropertyDefinitions.DateListWithoutDefaultValueNonNullable,
+      "dateListProp2" -> FDMContainerPropertyDefinitions.DateListWithoutDefaultValueNullable,
+      "timestampListProp1" -> FDMContainerPropertyDefinitions.TimestampListWithoutDefaultValueNonNullable,
+      "timestampListProp2" -> FDMContainerPropertyDefinitions.TimestampListWithoutDefaultValueNullable,
+      "jsonListProp1" -> FDMContainerPropertyDefinitions.JsonListWithoutDefaultValueNonNullable,
+      "jsonListProp2" -> FDMContainerPropertyDefinitions.JsonListWithoutDefaultValueNullable,
     )
 
     for {
@@ -1648,11 +1605,11 @@ class FlexibleDataModelNodeTest
 
   private def setupAmbiguousTypeTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
-      "type" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "type" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
     )
 
     val edgeContainerProps: Map[String, ContainerPropertyDefinition] = Map(
-      "stringProp" -> FDMContainerPropertyTypes.TextPropertyNonListWithoutDefaultValueNullable,
+      "stringProp" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable,
     )
 
     for {
@@ -1666,38 +1623,34 @@ class FlexibleDataModelNodeTest
     } yield (viewAll, viewNodes, viewEdges)
   }
 
-  private def setupTypeTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
+  private def setupTypeTest: IO[ViewDefinition] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
-      "stringProp" -> FDMContainerPropertyTypes.TextPropertyNonListWithoutDefaultValueNullable,
+      "stringProp" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable,
     )
 
     for {
-      cAll <- createContainerIfNotExists(Usage.All, containerProps, containerAllTypeExternalId)
-      cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesTypeExternalId)
       cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesTypeExternalId)
-      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllTypeExternalId, viewVersion)
-      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesTypeExternalId, viewVersion)
       viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesTypeExternalId, viewVersion)
       _ <- IO.sleep(5.seconds)
-    } yield (viewAll, viewNodes, viewEdges)
+    } yield (viewEdges)
   }
 
   private def setupFilteringByPropertiesTest: IO[(ViewDefinition, Seq[String])] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
-      "forEqualsFilter" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
-      "forInFilter" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNullable,
-      "forGteFilter" -> FDMContainerPropertyTypes.Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-      "forGtFilter" -> FDMContainerPropertyTypes.Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-      "forLteFilter" -> FDMContainerPropertyTypes.Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-      "forLtFilter" -> FDMContainerPropertyTypes.Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-      "forOrFilter1" -> FDMContainerPropertyTypes.Float64NonListWithoutDefaultValueNonNullable,
-      "forOrFilter2" -> FDMContainerPropertyTypes.Float64NonListWithoutDefaultValueNullable,
-      "boolProp1" -> FDMContainerPropertyTypes.BooleanNonListWithDefaultValueNonNullable,
-      "boolProp2" -> FDMContainerPropertyTypes.BooleanNonListWithDefaultValueNullable,
-      "dateProp1" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNonNullable,
-      "forIsNotNullFilter" -> FDMContainerPropertyTypes.DateNonListWithDefaultValueNullable,
-      "forIsNullFilter" -> FDMContainerPropertyTypes.JsonNonListWithoutDefaultValueNullable,
-      "forTimeseriesRef" -> FDMContainerPropertyTypes.TimeSeriesReference
+      "forEqualsFilter" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNonNullable,
+      "forInFilter" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNullable,
+      "forGteFilter" -> FDMContainerPropertyDefinitions.Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
+      "forGtFilter" -> FDMContainerPropertyDefinitions.Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
+      "forLteFilter" -> FDMContainerPropertyDefinitions.Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable,
+      "forLtFilter" -> FDMContainerPropertyDefinitions.Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
+      "forOrFilter1" -> FDMContainerPropertyDefinitions.Float64NonListWithoutDefaultValueNonNullable,
+      "forOrFilter2" -> FDMContainerPropertyDefinitions.Float64NonListWithoutDefaultValueNullable,
+      "boolProp1" -> FDMContainerPropertyDefinitions.BooleanNonListWithDefaultValueNonNullable,
+      "boolProp2" -> FDMContainerPropertyDefinitions.BooleanNonListWithDefaultValueNullable,
+      "dateProp1" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNonNullable,
+      "forIsNotNullFilter" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNullable,
+      "forIsNullFilter" -> FDMContainerPropertyDefinitions.JsonNonListWithoutDefaultValueNullable,
+      "forTimeseriesRef" -> FDMContainerPropertyDefinitions.TimeSeriesReference
 //      "forFileRef" -> FDMContainerPropertyTypes.FileReference,
 //      "forSequenceRef" -> FDMContainerPropertyTypes.SequenceReference,
     )
@@ -1809,11 +1762,11 @@ class FlexibleDataModelNodeTest
 
   private def setupNumericConversionTest: IO[ViewDefinition] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
-      "stringProp" -> FDMContainerPropertyTypes.TextPropertyNonListWithDefaultValueNonNullable,
-      "intProp" -> FDMContainerPropertyTypes.Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-      "longProp" -> FDMContainerPropertyTypes.Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-      "floatProp" -> FDMContainerPropertyTypes.Float32NonListWithoutDefaultValueNullable,
-      "doubleProp" -> FDMContainerPropertyTypes.Float64NonListWithoutDefaultValueNullable,
+      "stringProp" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithDefaultValueNonNullable,
+      "intProp" -> FDMContainerPropertyDefinitions.Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
+      "longProp" -> FDMContainerPropertyDefinitions.Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
+      "floatProp" -> FDMContainerPropertyDefinitions.Float32NonListWithoutDefaultValueNullable,
+      "doubleProp" -> FDMContainerPropertyDefinitions.Float64NonListWithoutDefaultValueNullable,
     )
 
     for {
@@ -1824,8 +1777,8 @@ class FlexibleDataModelNodeTest
 
   private def setupRelationReadPropsTest: IO[ViewDefinition] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
-      "relProp" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
-      "relListProp" -> FDMContainerPropertyTypes.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
+      "relProp" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
+      "relListProp" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
     )
 
     for {
@@ -1834,118 +1787,5 @@ class FlexibleDataModelNodeTest
       view <- createViewWithCorePropsIfNotExists(container, viewAllRelationProps, viewVersion)
     } yield view
   }
-
-  private def insertRows(
-      instanceType: InstanceType,
-      viewSpaceExternalId: String,
-      viewExternalId: String,
-      viewVersion: String,
-      instanceSpaceExternalId: String,
-      df: DataFrame,
-      onConflict: String = "upsert"): Unit =
-    df.write
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("instanceType", instanceType.productPrefix)
-      .option("viewSpace", viewSpaceExternalId)
-      .option("viewExternalId", viewExternalId)
-      .option("viewVersion", viewVersion)
-      .option("instanceSpace", instanceSpaceExternalId)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", true)
-      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
-      .save()
-
-  private def readRows(
-      instanceType: InstanceType,
-      viewSpaceExternalId: String,
-      viewExternalId: String,
-      viewVersion: String,
-      instanceSpaceExternalId: String): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("instanceType", instanceType.productPrefix)
-      .option("viewSpace", viewSpaceExternalId)
-      .option("viewExternalId", viewExternalId)
-      .option("viewVersion", viewVersion)
-      .option("instanceSpace", instanceSpaceExternalId)
-      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
-      .option("collectMetrics", true)
-      .load()
-
-  private def readRowsFromModel(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      viewExternalId: String,
-      instanceSpace: Option[String]): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("instanceSpace", instanceSpace.orNull)
-      .option("viewExternalId", viewExternalId)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("collectMetrics", true)
-      .load()
-
-  private def insertRowsToModel(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      viewExternalId: String,
-      instanceSpace: Option[String],
-      df: DataFrame,
-      onConflict: String = "upsert",
-      ignoreNullFields: Boolean = true): Unit =
-    df.write
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("instanceSpace", instanceSpace.orNull)
-      .option("viewExternalId", viewExternalId)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", true)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("ignoreNullFields", ignoreNullFields)
-      .save()
-
-  private def getUpsertedMetricsCountForModel(modelSpace: String, modelExternalId: String): Long =
-    getNumberOfRowsUpserted(
-      s"$modelSpace-$modelExternalId",
-      FlexibleDataModelRelationFactory.ResourceType)
 
 }

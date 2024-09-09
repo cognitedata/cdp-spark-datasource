@@ -1,24 +1,142 @@
 package cognite.spark.v1.fdm.utils
 
-import cats.{Applicative, Apply}
 import cats.effect.IO
-import com.cognite.sdk.scala.v1.{SpaceById, SpaceCreateDefinition}
-import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
+import cats.{Applicative, Apply}
+import cognite.spark.v1.fdm.utils.FDMTestConstants._
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{ContainerPropertyDefinition, ViewCorePropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
+import com.cognite.sdk.scala.v1.fdm.common.properties.{ListablePropertyType, PrimitivePropType, PropertyType}
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
+import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.containers.{ContainerCreateDefinition, ContainerDefinition, ContainerId}
-import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate, InstancePropertyValue}
 import com.cognite.sdk.scala.v1.fdm.views.{ViewCreateDefinition, ViewDefinition, ViewPropertyCreateDefinition}
-import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
+import com.cognite.sdk.scala.v1.{SpaceById, SpaceCreateDefinition}
+import io.circe.{Json, JsonObject}
 
-trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
+import java.time.{LocalDate, LocalDateTime, ZoneId}
+import scala.util.Random
+
+trait FDMTestInitializer {
+
+  protected def createInstancePropertyValue(
+    propName: String,
+    propType: PropertyType,
+    directNodeReference: DirectRelationReference
+  ): Option[InstancePropertyValue] =
+    propType match {
+      case d: DirectNodeRelationProperty =>
+        val ref = d.container.map(_ => directNodeReference)
+        Some(InstancePropertyValue.ViewDirectNodeRelation(value = ref))
+      case p: ListablePropertyType if p.isList =>
+        Some(listContainerPropToInstanceProperty(propName, p))
+      case p =>
+        Some(nonListContainerPropToInstanceProperty(propName, p))
+    }
+
+  protected def listContainerPropToInstanceProperty(
+    propName: String,
+    propertyType: PropertyType
+  ): InstancePropertyValue =
+    propertyType match {
+      case PropertyType.TextProperty(Some(true), _) =>
+        InstancePropertyValue.StringList(List(s"${propName}Value1", s"${propName}Value2"))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, Some(true)) =>
+        InstancePropertyValue.BooleanList(List(true, false, true, false))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Int32, Some(true)) =>
+        InstancePropertyValue.Int32List((1 to 10).map(_ => Random.nextInt(10000)).toList)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Int64, Some(true)) =>
+        InstancePropertyValue.Int64List((1 to 10).map(_ => Random.nextLong()).toList)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Float32, Some(true)) =>
+        InstancePropertyValue.Float32List((1 to 10).map(_ => Random.nextFloat()).toList)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Float64, Some(true)) =>
+        InstancePropertyValue.Float64List((1 to 10).map(_ => Random.nextDouble()).toList)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Date, Some(true)) =>
+        InstancePropertyValue.DateList(
+          (1 to 10).toList.map(i => LocalDate.now().minusDays(i.toLong))
+        )
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, Some(true)) =>
+        InstancePropertyValue.TimestampList(
+          (1 to 10).toList.map(i => LocalDateTime.now().minusDays(i.toLong).atZone(ZoneId.of("UTC")))
+        )
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Json, Some(true)) =>
+        InstancePropertyValue.ObjectList(
+          List(
+            Json.fromJsonObject(
+              JsonObject.fromMap(
+                Map(
+                  "a" -> Json.fromString("a"),
+                  "b" -> Json.fromInt(1),
+                  "c" -> Json.fromBoolean(true)
+                )
+              )
+            ),
+            Json.fromJsonObject(
+              JsonObject.fromMap(
+                Map(
+                  "a" -> Json.fromString("b"),
+                  "b" -> Json.fromInt(1),
+                  "c" -> Json.fromBoolean(false),
+                  "d" -> Json.fromDoubleOrString(1.56)
+                )
+              )
+            )
+          )
+        )
+      case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
+    }
+
+  protected def nonListContainerPropToInstanceProperty(
+    propName: String,
+    propertyType: PropertyType
+  ): InstancePropertyValue =
+    propertyType match {
+      case PropertyType.TextProperty(None | Some(false), _) =>
+        InstancePropertyValue.String(s"${propName}Value")
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Boolean, _) =>
+        InstancePropertyValue.Boolean(false)
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Int32, None | Some(false)) =>
+        InstancePropertyValue.Int32(Random.nextInt(10000))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Int64, None | Some(false)) =>
+        InstancePropertyValue.Int64(Random.nextLong())
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Float32, None | Some(false)) =>
+        InstancePropertyValue.Float32(Random.nextFloat())
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Float64, None | Some(false)) =>
+        InstancePropertyValue.Float64(Random.nextDouble())
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Date, None | Some(false)) =>
+        InstancePropertyValue.Date(LocalDate.now().minusDays(Random.nextInt(30).toLong))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp, None | Some(false)) =>
+        InstancePropertyValue.Timestamp(
+          LocalDateTime.now().minusDays(Random.nextInt(30).toLong).atZone(ZoneId.of("UTC")))
+      case PropertyType.PrimitiveProperty(PrimitivePropType.Json, None | Some(false)) =>
+        InstancePropertyValue.Object(
+          Json.fromJsonObject(
+            JsonObject.fromMap(
+              Map(
+                "a" -> Json.fromString("a"),
+                "b" -> Json.fromInt(1),
+                "c" -> Json.fromBoolean(true)
+              )
+            )
+          )
+        )
+      case _: PropertyType.DirectNodeRelationProperty =>
+        InstancePropertyValue.ViewDirectNodeRelation(None)
+      case _: PropertyType.TimeSeriesReference =>
+        InstancePropertyValue.TimeSeriesReference("timeseriesExtId1")
+      case _: PropertyType.FileReference => InstancePropertyValue.FileReference("fileExtId1")
+      case _: PropertyType.SequenceReference => InstancePropertyValue.SequenceReference("sequenceExtId1")
+      case other => throw new IllegalArgumentException(s"Unknown value :${other.toString}")
+    }
+
   protected def createTestInstancesForView(
-                                            viewDef: ViewDefinition,
-                                            directNodeReference: DirectRelationReference,
-                                            typeNode: Option[DirectRelationReference],
-                                            startNode: Option[DirectRelationReference],
-                                            endNode: Option[DirectRelationReference]): IO[Seq[String]] = {
+      viewDef: ViewDefinition,
+      directNodeReference: DirectRelationReference,
+      typeNode: Option[DirectRelationReference],
+      startNode: Option[DirectRelationReference],
+      endNode: Option[DirectRelationReference]
+  ): IO[Seq[String]] = {
     val randomPrefix = apiCompatibleRandomString()
     val writeData = viewDef.usedFor match {
       case Usage.Node =>
@@ -58,16 +176,16 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
         )
       )
       .map(_.map(_.externalId))
-      .flatTap(_ => IO.sleep(5.seconds))
   }
 
   protected def createEdgeWriteInstances(
-                                          viewDef: ViewDefinition,
-                                          typeNode: DirectRelationReference,
-                                          startNode: DirectRelationReference,
-                                          endNode: DirectRelationReference,
-                                          directNodeReference: DirectRelationReference,
-                                          randomPrefix: String): Seq[EdgeWrite] = {
+    viewDef: ViewDefinition,
+    typeNode: DirectRelationReference,
+    startNode: DirectRelationReference,
+    endNode: DirectRelationReference,
+    directNodeReference: DirectRelationReference,
+    randomPrefix: String
+  ): Seq[EdgeWrite] = {
     val viewRef = viewDef.toSourceReference
     val edgeExternalIdPrefix = s"${viewDef.externalId}${randomPrefix}Edge"
     Seq(
@@ -109,10 +227,11 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
   }
 
   protected def createNodeWriteInstances(
-                                          viewDef: ViewDefinition,
-                                          directNodeReference: DirectRelationReference,
-                                          typeNode: Option[DirectRelationReference],
-                                          randomPrefix: String): Seq[NodeWrite] = {
+    viewDef: ViewDefinition,
+    directNodeReference: DirectRelationReference,
+    typeNode: Option[DirectRelationReference],
+    randomPrefix: String
+  ): Seq[NodeWrite] = {
     val viewRef = viewDef.toSourceReference
     Seq(
       NodeWrite(
@@ -158,9 +277,10 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
     } yield ()
 
   protected def createContainerIfNotExists(
-                                            usage: Usage,
-                                            properties: Map[String, ContainerPropertyDefinition],
-                                            containerExternalId: String): IO[ContainerDefinition] =
+    usage: Usage,
+    properties: Map[String, ContainerPropertyDefinition],
+    containerExternalId: String
+  ): IO[ContainerDefinition] =
     client.containers
       .retrieveByExternalIds(
         Seq(ContainerId(spaceExternalId, containerExternalId))
@@ -179,7 +299,6 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
           )
           client.containers
             .createItems(containers = Seq(containerToCreate))
-            .flatTap(_ => IO.sleep(5.seconds))
         } else {
           IO.delay(containers)
         }
@@ -188,9 +307,10 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
 
 
   protected def createViewWithCorePropsIfNotExists(
-                                                    container: ContainerDefinition,
-                                                    viewExternalId: String,
-                                                    viewVersion: String): IO[ViewDefinition] =
+    container: ContainerDefinition,
+    viewExternalId: String,
+    viewVersion: String
+  ): IO[ViewDefinition] =
     client.views
       .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, Some(viewVersion))))
       .flatMap { views =>
@@ -215,7 +335,6 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
 
           client.views
             .createItems(items = Seq(viewToCreate))
-            .flatTap(_ => IO.sleep(5.seconds))
         } else {
           IO.delay(views)
         }
@@ -223,12 +342,12 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
       .map(_.head)
 
   protected def createTypedNodesIfNotExists(
-                                             typedNodeNullTypeExtId: String,
-                                             typedNodeExtId: String,
-                                             typeNodeExtId: String,
-                                             typeNodeSourceReference: SourceReference,
-                                             sourceReference: SourceReference
-                                           ): IO[Unit] =
+    typedNodeNullTypeExtId: String,
+    typedNodeExtId: String,
+    typeNodeExtId: String,
+    typeNodeSourceReference: SourceReference,
+    sourceReference: SourceReference
+  ): IO[Unit] =
     client.instances
       .createItems(instance = InstanceCreate(
         items = Seq(
@@ -268,13 +387,14 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
           )
         ),
         replace = Some(true)
-      ))
-      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
+      )) *> IO.unit
+
   // scalastyle:off method.length
   protected def createStartAndEndNodesForEdgesIfNotExists(
-                                                           startNodeExtId: String,
-                                                           endNodeExtId: String,
-                                                           sourceReference: SourceReference): IO[Unit] =
+    startNodeExtId: String,
+    endNodeExtId: String,
+    sourceReference: SourceReference
+  ): IO[Unit] =
     client.instances
       .createItems(instance = InstanceCreate(
         items = Seq(
@@ -306,13 +426,13 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
           )
         ),
         replace = Some(true)
-      ))
-      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
+      )) *> IO.unit
 
   protected def createNodesForEdgesIfNotExists(
-                                                startNodeExtId: String,
-                                                endNodeExtId: String,
-                                                sourceReference: SourceReference): IO[Unit] =
+    startNodeExtId: String,
+    endNodeExtId: String,
+    sourceReference: SourceReference
+  ): IO[Unit] =
     client.instances
       .createItems(instance = InstanceCreate(
         items = Seq(
@@ -340,8 +460,5 @@ trait FlexibleDataModelTestInitializer extends FlexibleDataModelTestBase {
           )
         ),
         replace = Some(true)
-      ))
-      .flatTap(_ => IO.sleep(3.seconds)) *> IO.unit
-
-
+      )) *> IO.unit
 }
