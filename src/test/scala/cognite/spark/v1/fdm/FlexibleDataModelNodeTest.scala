@@ -1738,7 +1738,7 @@ class FlexibleDataModelNodeTest
                       viewRef,
                       Some(Map(
                         "forEqualsFilter" -> Some(InstancePropertyValue.String("str2")),
-                        "forInFilter" -> Some(InstancePropertyValue.String("1")),
+                        "forInFilter" -> Some(InstancePropertyValue.String("str2")),
                         "forGteFilter" -> Some(InstancePropertyValue.Int32(5)),
                         "forGtFilter" -> Some(InstancePropertyValue.Int32(2)),
                         "forLteFilter" -> Some(InstancePropertyValue.Int64(1)),
