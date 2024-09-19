@@ -992,8 +992,10 @@ class FlexibleDataModelNodeTest
       s"""
          |where
          |forEqualsFilter = 'str1' and
+         |forInFilter not in ('1', '2', '3') and
          |forInFilter in ('str1', 'str2', 'str3') and
          |forGteFilter >= 1 and
+         |forGteFilter in (1, 2, 3) and
          |forGtFilter > 1 and
          |forLteFilter <= 2 and
          |forLtFilter < 4 and

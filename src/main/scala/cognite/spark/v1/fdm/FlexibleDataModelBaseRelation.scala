@@ -524,15 +524,20 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     val result = values.headOption match {
       case Some(s: String) =>
         io.circe.parser.parse(s).toOption match {
-          case Some(_) =>
+          // Check if it's a complex Json Object first.
+          case Some(x) if x.isArray || x.isObject =>
             Try(FilterValueDefinition.ObjectList(values.flatMap(v =>
               io.circe.parser.parse(String.valueOf(v)).toOption))).toEither
-          case None =>
+          case _ =>
             Try(FilterValueDefinition.StringList(values.map(_.asInstanceOf[String]))).toEither
         }
-      case Some(_: Int | _: Long) =>
+      case Some(_: Int) =>
+        Try(FilterValueDefinition.IntegerList(values.map(_.asInstanceOf[Int].toLong))).toEither
+      case Some(_: Long) =>
         Try(FilterValueDefinition.IntegerList(values.map(_.asInstanceOf[Long]))).toEither
-      case Some(_: Float | _: Double) =>
+      case Some(_: Float) =>
+        Try(FilterValueDefinition.DoubleList(values.map(_.asInstanceOf[Float].toDouble))).toEither
+      case Some(_: Double) =>
         Try(FilterValueDefinition.DoubleList(values.map(_.asInstanceOf[Double]))).toEither
       case Some(_: Boolean) =>
         Try(FilterValueDefinition.BooleanList(values.map(_.asInstanceOf[Boolean]))).toEither
