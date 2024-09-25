@@ -11,7 +11,7 @@ val circeVersion = "0.14.9"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.28.844"
+val cogniteSdkVersion = "2.30.0-SNAPSHOT"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -46,7 +46,7 @@ lazy val commonSettings = Seq(
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
-  scalaVersion := scala212, // default to Scala 2.12
+  scalaVersion := scala213, // default to Scala 2.12
   // handle cross plugin https://github.com/stringbean/sbt-dependency-lock/issues/13
   dependencyLockFile := { baseDirectory.value / s"build.scala-${CrossVersion.partialVersion(scalaVersion.value) match { case Some((2, n)) => s"2.$n" }}.sbt.lock" },
   description := "Spark data source for the Cognite Data Platform.",
