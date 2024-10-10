@@ -10,13 +10,6 @@ import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
   val fileExternalId: String = "fileContentTransformationFile"
 
-  val sourceDf: DataFrame = dataFrameReaderUsingOidc
-    .option("type", "filecontent")
-    .option("externalId", fileExternalId)
-    .load()
-  sourceDf.createOrReplaceTempView("fileContent")
-
-
   def generateNdjsonData: String = {
     // Generate NDJSON content (newline-delimited JSON strings)
     val jsonObjects = List(
@@ -57,6 +50,11 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
 
   "file content transformations" should "read from a ndjson file" in {
     makeFile.unsafeRunSync()
+    val sourceDf: DataFrame = dataFrameReaderUsingOidc
+      .option("type", "filecontent")
+      .option("externalId", fileExternalId)
+      .load()
+    sourceDf.createOrReplaceTempView("fileContent")
     spark.sqlContext.sql(s"select * from filecontent")
   }
 
