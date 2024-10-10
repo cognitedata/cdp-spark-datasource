@@ -12,21 +12,19 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
 import org.apache.spark.{Partition, TaskContext}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
-class FileContentRelation(config: RelationConfig, fileId: String)(override val sqlContext: SQLContext) extends BaseRelation
-  with TableScan
-  with PrunedFilteredScan
-  with Serializable
-{
+class FileContentRelation(config: RelationConfig, fileId: String)(override val sqlContext: SQLContext)
+    extends BaseRelation
+    with TableScan
+    with PrunedFilteredScan
+    with Serializable {
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
-  override def schema: StructType = {
+  override def schema: StructType =
     createDataFrame(sqlContext.sparkSession).schema
-  }
   def createDataFrame(sparkSession: SparkSession): DataFrame = {
-    val rowsRdd: RDD[String] = new RDD[String](sparkSession.sparkContext, Nil)
-      with Serializable {
+    val rowsRdd: RDD[String] = new RDD[String](sparkSession.sparkContext, Nil) with Serializable {
 
       import cognite.spark.v1.CdpConnector.ioRuntime
 
@@ -34,12 +32,12 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
       override def compute(split: Partition, context: TaskContext): Iterator[String] = {
 
         val validUrl = for {
-          downloadLink <- client
-            .files.downloadLink(FileDownloadExternalId(fileId))
+          downloadLink <- client.files
+            .downloadLink(FileDownloadExternalId(fileId))
             .map(_.downloadUrl)
           isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
-          if(isFileWithinLimits)
+          if (isFileWithinLimits)
             downloadLink
           else
             throw new CdfSparkException("File size too big")
@@ -59,10 +57,12 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
         Array(CdfPartition(0))
     }
     import sparkSession.implicits._
-    rowsRdd.toDS().map(x => {
-      print(x)
-      x
-    }): Unit
+    rowsRdd
+      .toDS()
+      .map(x => {
+        print(x)
+        x
+      }): Unit
     sparkSession.read.json(rowsRdd.toDS())
   }
 
