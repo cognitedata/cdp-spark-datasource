@@ -143,11 +143,7 @@ class DefaultSource
         new FilesRelation(config)(sqlContext)
       case "filecontent" =>
         val fileId = parameters.getOrElse("externalId", sys.error("File's external id must be specified"))
-        val inferSchema = true
-        val inferSchemaLimit = Some(10000) //TODO set correct value
-        val collectSchemaInferenceMetrics = toBoolean(parameters, "collectSchemaInferenceMetrics")
-
-        new FileContentRelation(config, fileId, inferSchemaLimit, collectSchemaInferenceMetrics = true)(sqlContext)
+        new FileContentRelation(config, fileId)(sqlContext)
       case "3dmodels" =>
         new ThreeDModelsRelation(config)(sqlContext)
       case "3dmodelrevisions" =>
