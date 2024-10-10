@@ -57,12 +57,6 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
         Array(CdfPartition(0))
     }
     import sparkSession.implicits._
-    rowsRdd
-      .toDS()
-      .map(x => {
-        print(x)
-        x
-      }): Unit
     sparkSession.read.json(rowsRdd.toDS())
   }
 
