@@ -8,7 +8,6 @@ import org.scalatest.{FlatSpec, Matchers}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
 import java.net.MalformedURLException
-import scala.util.Try
 
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
   val fileExternalId: String = "fileContentTransformationFile"
