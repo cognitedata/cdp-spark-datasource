@@ -8,6 +8,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
 import java.net.MalformedURLException
+import scala.util.Try
 
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
   val fileExternalId: String = "fileContentTransformationFile"
@@ -29,19 +30,36 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
       mimeType = Some("application/jsonlines")
     )
     for {
-      uploadUrl <- writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file"))).map(_.uploadUrl)
-      backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
-      request = basicRequest
-        .post(uri"${uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
-        .body(generateNdjsonData)
-      _ <- backend.use { backend =>
-        IO {
-          val response = request.send(backend)
-          if (response.code.isSuccess) {
-            println(s"NDJSON content uploaded successfully to $uploadUrl")
-          } else {
-            throw new Exception(s"Failed to upload content: ${response.statusText}")
+      existingFile <- writeClient.files.retrieveByExternalId(fileExternalId).attempt
+      file <- existingFile match {
+        case Right(value) => IO.pure(value)
+        case Left(_) =>
+          writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
+      }
+
+      isAlreadyCreated = file.uploaded
+      uploadUrl = file.uploadUrl
+
+
+
+      _ <- {
+        if (!isAlreadyCreated) {
+          val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
+          val request = basicRequest
+            .post(uri"${uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
+            .body(generateNdjsonData)
+          backend.use { backend =>
+            IO {
+              val response = request.send(backend)
+              if (response.code.isSuccess) {
+                println(s"NDJSON content uploaded successfully to $uploadUrl")
+              } else {
+                throw new Exception(s"Failed to upload content: ${response.statusText}")
+              }
+            }
           }
+        } else {
+          IO.pure(())
         }
       }
     } yield ()
