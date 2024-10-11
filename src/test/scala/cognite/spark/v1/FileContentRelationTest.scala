@@ -68,6 +68,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
   "file content transformations" should "read from a ndjson file" in {
     makeFile.unsafeRunSync()
     val sourceDf: DataFrame = dataFrameReaderUsingOidc
+      .useOIDCWrite
       .option("type", "filecontent")
       .option("externalId", fileExternalId)
       .load()
