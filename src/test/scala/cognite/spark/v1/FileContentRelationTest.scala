@@ -10,7 +10,7 @@ import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 import java.net.MalformedURLException
 
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
-  val fileExternalId: String = "fileContentTransformationFile"
+  val fileExternalId: String = "fileContentTransformationFile2"
 
   def generateNdjsonData: String = {
     // Generate NDJSON content (newline-delimited JSON strings)
@@ -38,8 +38,6 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
 
       isAlreadyCreated = file.uploaded
       uploadUrl = file.uploadUrl
-
-
 
       _ <- {
         if (!isAlreadyCreated) {
