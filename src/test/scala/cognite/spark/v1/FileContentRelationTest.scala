@@ -7,6 +7,8 @@ import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
+import java.net.MalformedURLException
+
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
   val fileExternalId: String = "fileContentTransformationFile"
 
@@ -30,7 +32,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
       uploadUrl <- writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file"))).map(_.uploadUrl)
       backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
       request = basicRequest
-        .post(uri"$uploadUrl")
+        .post(uri"${uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
         .body(generateNdjsonData)
       _ <- backend.use { backend =>
         IO {
