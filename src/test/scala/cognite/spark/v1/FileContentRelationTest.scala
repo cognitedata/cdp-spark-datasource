@@ -17,9 +17,9 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   }
 
 //  uncomment for cleanups
-//  override def afterAll(): Unit = {
-//    writeClient.files.deleteByExternalIds(Seq(fileExternalId)).unsafeRunSync()
-//  }
+  override def afterAll(): Unit = {
+    writeClient.files.deleteByExternalIds(Seq(fileExternalId)).unsafeRunSync()
+  }
 
   def generateNdjsonData: String = {
     val jsonObjects = List(
