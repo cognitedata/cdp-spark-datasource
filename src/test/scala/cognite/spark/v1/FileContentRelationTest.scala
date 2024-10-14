@@ -56,8 +56,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       _ <- {
         if (!file.uploaded) {
           val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
-          val request = basicRequest
-            .post(uri"${file.uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
+          val request = basicRequest.put(uri"${file.uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
             .body(generateNdjsonData)
           backend.use { backend =>
             IO {
@@ -87,13 +86,13 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   }
 
   it should "fail with a sensible error if the mimetype is wrong" in {
-    val sourceDf: DataFrame = dataFrameReaderUsingOidc
-      .useOIDCWrite
-      .option("type", "filecontent")
-      .option("externalId", fileWithWrongMimeTypeExternalId)
-      .load()
-    sourceDf.createOrReplaceTempView("fileContent")
     val exception = sparkIntercept {
+      val sourceDf: DataFrame = dataFrameReaderUsingOidc
+        .useOIDCWrite
+        .option("type", "filecontent")
+        .option("externalId", fileWithWrongMimeTypeExternalId)
+        .load()
+      sourceDf.createOrReplaceTempView("fileContent")
       spark.sqlContext.sql(s"select * from filecontent").collect()
     }
     assert(exception.getMessage.contains("Wrong mimetype"))
