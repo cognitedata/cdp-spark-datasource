@@ -10,10 +10,12 @@ import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 import java.net.MalformedURLException
 
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
-  val fileExternalId: String = "fileContentTransformationFile3"
+  val fileExternalId: String = "fileContentTransformationFile"
+  val fileWithWrongMimeTypeExternalId: String = "fileContentTransformationFileWrongMimeType"
 
   override def beforeAll(): Unit = {
-    makeFile.unsafeRunSync()
+    makeFile(fileExternalId).unsafeRunSync()
+    makeFile(fileWithWrongMimeTypeExternalId, Some("application/json"))//bad mimetype
   }
 
 //  uncomment for cleanups
@@ -30,11 +32,11 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     jsonObjects.mkString("\n")
   }
 
-  def makeFile: IO[Unit]  = {
+  def makeFile(externalId: String, mimeType: Option[String] = Some("application/jsonlines")): IO[Unit]  = {
     val toCreate: FileCreate = FileCreate(
       name = "test file for file content transformation",
-      externalId = Some(fileExternalId),
-      mimeType = Some("application/jsonlines"),
+      externalId = Some(externalId),
+      mimeType = mimeType,
     )
     for {
       existingFile <- writeClient.files.retrieveByExternalId(fileExternalId).attempt
@@ -84,5 +86,16 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     spark.sqlContext.sql(s"select * from filecontent")
   }
 
+  it should "fail with a sensible error if the mimetype is wrong" in {
+    val sourceDf: DataFrame = dataFrameReaderUsingOidc
+      .useOIDCWrite
+      .option("type", "filecontent")
+      .option("externalId", fileWithWrongMimeTypeExternalId)
+      .load()
+    sourceDf.createOrReplaceTempView("fileContent")
+    spark.sqlContext.sql(s"select * from filecontent")
+    val exception = sparkIntercept(spark.sqlContext.sql(s"select * from filecontent").collect())
+    assert(exception.getMessage.contains(""))
+  }
 
 }

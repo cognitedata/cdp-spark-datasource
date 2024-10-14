@@ -25,6 +25,7 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
 
   override def schema: StructType =
     createDataFrame(sqlContext.sparkSession).schema
+
   def createDataFrame(sparkSession: SparkSession): DataFrame = {
     val rowsRdd: RDD[String] = new RDD[String](sparkSession.sparkContext, Nil) with Serializable {
 
@@ -34,15 +35,18 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
       override def compute(split: Partition, context: TaskContext): Iterator[String] = {
 
         val validUrl = for {
+          mimeType <- client.files.retrieveByExternalId(fileId).map(_.mimeType)
           downloadLink <- client.files
             .downloadLink(FileDownloadExternalId(fileId))
             .map(_.downloadUrl)
           isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
-          if (isFileWithinLimits)
-            downloadLink
-          else
+          if (!isFileWithinLimits)
             throw new CdfSparkException("File size too big")
+          if(!mimeType.contains("application/jsonlines"))
+            throw new CdfSparkException("Wrong mimetype")
+          else
+            downloadLink
         }
 
         StreamIterator(
