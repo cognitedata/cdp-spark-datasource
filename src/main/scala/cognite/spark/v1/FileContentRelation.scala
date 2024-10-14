@@ -43,7 +43,7 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
         } yield {
           if (!isFileWithinLimits)
             throw new CdfSparkException("File size too big")
-          if(!mimeType.contains("application/jsonlines"))
+          if (!mimeType.contains("application/jsonlines"))
             throw new CdfSparkException("Wrong mimetype")
           else
             downloadLink
