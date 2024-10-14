@@ -3,12 +3,15 @@ package cognite.spark.v1
 import cats.effect.IO
 import com.cognite.sdk.scala.v1.{FileDownloadExternalId, GenericClient}
 import fs2.Stream
-import fs2.io.file.{Files, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
 import org.apache.spark.{Partition, TaskContext}
+
+import java.net.URL
+import scala.io.Source
+
 class FileContentRelation(config: RelationConfig, fileId: String)(override val sqlContext: SQLContext)
     extends BaseRelation
     with TableScan
@@ -43,8 +46,7 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
         StreamIterator(
           Stream
             .eval(validUrl)
-            .map(url => "https://" + url.stripPrefix("https:/"))
-            .flatMap(url => Files[IO].readUtf8Lines(Path(url))),
+            .flatMap(readUrlContent),
           maxParallelism,
           None
         )
@@ -58,7 +60,16 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
     sparkSession.read.json(rowsRdd.toDS())
   }
 
-//  private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
+  def readUrlContent(url: String): Stream[IO, String] =
+    Stream
+      .bracket(IO(new URL(url).openStream())) { inStream =>
+        IO(inStream.close()) // Ensure the InputStream is closed properly
+      }
+      .flatMap { inStream =>
+        val source = Source.fromInputStream(inStream)
+        Stream.fromIterator[IO](source.getLines(), chunkSize = 4096)
+      }
+  //  private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
 //    val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
 //    val request = basicRequest.head(uri"$downloadUrl")
 //
