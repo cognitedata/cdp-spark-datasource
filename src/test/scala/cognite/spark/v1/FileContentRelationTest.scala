@@ -94,7 +94,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       .load()
     sourceDf.createOrReplaceTempView("fileContent")
     val exception = sparkIntercept(spark.sqlContext.sql(s"select * from filecontent").collect())
-    assert(exception.getCause.getMessage.contains("Wrong mimetype"))
+    assert(exception.getMessage.contains("Wrong mimetype"))
   }
 
 }
