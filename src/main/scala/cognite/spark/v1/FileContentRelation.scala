@@ -1,13 +1,15 @@
 package cognite.spark.v1
 
-import cats.effect.IO
+import cats.effect.{IO, Resource}
 import com.cognite.sdk.scala.v1.{FileDownloadExternalId, GenericClient}
 import fs2.Stream
+import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
 import org.apache.spark.{Partition, TaskContext}
+import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
 import java.net.URL
 import scala.io.Source
@@ -35,12 +37,12 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
           downloadLink <- client.files
             .downloadLink(FileDownloadExternalId(fileId))
             .map(_.downloadUrl)
-          //isFileWithinLimits <- isFileWithinLimits(downloadLink)
+          isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
-          //if (isFileWithinLimits)
-          downloadLink
-          //else
-          //  throw new CdfSparkException("File size too big")
+          if (isFileWithinLimits)
+            downloadLink
+          else
+            throw new CdfSparkException("File size too big")
         }
 
         StreamIterator(
@@ -60,7 +62,7 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
     sparkSession.read.json(rowsRdd.toDS())
   }
 
-  def readUrlContent(url: String): Stream[IO, String] =
+  private def readUrlContent(url: String): Stream[IO, String] =
     Stream
       .bracket(IO(new URL(url).openStream())) { inStream =>
         IO(inStream.close()) // Ensure the InputStream is closed properly
@@ -69,19 +71,21 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
         val source = Source.fromInputStream(inStream)
         Stream.fromIterator[IO](source.getLines(), chunkSize = 4096)
       }
-  //  private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
-//    val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
-//    val request = basicRequest.head(uri"$downloadUrl")
-//
-//    backend.use { backend =>
-//      IO {
-//        val response = request.send(backend)
-//        response.header("Content-Length").exists { sizeStr =>
-//          sizeStr.toLong < FileUtils.ONE_GB * 5
-//        }
-//      }
-//    }
-//  }
+
+  private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
+    val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
+    val request = basicRequest.head(uri"$downloadUrl")
+
+    backend.use { backend =>
+      IO {
+        val response = request.send(backend)
+        response.header("Content-Length").exists { sizeStr =>
+          sizeStr.toLong < FileUtils.ONE_GB * 5
+        }
+      }
+    }
+  }
+
   override def buildScan(): RDD[Row] =
     createDataFrame(sqlContext.sparkSession).rdd
 
