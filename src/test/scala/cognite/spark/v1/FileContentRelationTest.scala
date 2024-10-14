@@ -93,7 +93,9 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       .option("externalId", fileWithWrongMimeTypeExternalId)
       .load()
     sourceDf.createOrReplaceTempView("fileContent")
-    val exception = sparkIntercept(spark.sqlContext.sql(s"select * from filecontent").collect())
+    val exception = sparkIntercept {
+      spark.sqlContext.sql(s"select * from filecontent").collect()
+    }
     assert(exception.getMessage.contains("Wrong mimetype"))
   }
 
