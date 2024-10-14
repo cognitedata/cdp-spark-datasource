@@ -4,16 +4,24 @@ import cats.effect.unsafe.implicits.global
 import cats.effect.{IO, Resource}
 import com.cognite.sdk.scala.v1.FileCreate
 import org.apache.spark.sql.DataFrame
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
 import java.net.MalformedURLException
 
-class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
-  val fileExternalId: String = "fileContentTransformationFile2"
+class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
+  val fileExternalId: String = "fileContentTransformationFile3"
+
+  override def beforeAll(): Unit = {
+    makeFile.unsafeRunSync()
+  }
+
+//  uncomment for cleanups
+//  override def afterAll(): Unit = {
+//    writeClient.files.deleteByExternalIds(Seq(fileExternalId)).unsafeRunSync()
+//  }
 
   def generateNdjsonData: String = {
-    // Generate NDJSON content (newline-delimited JSON strings)
     val jsonObjects = List(
       """{"name": "Alice", "age": 30}""",
       """{"name": "Bob", "age": 25}""",
@@ -26,30 +34,34 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
     val toCreate: FileCreate = FileCreate(
       name = "test file for file content transformation",
       externalId = Some(fileExternalId),
-      mimeType = Some("application/jsonlines")
+      mimeType = Some("application/jsonlines"),
     )
     for {
       existingFile <- writeClient.files.retrieveByExternalId(fileExternalId).attempt
+
+      // delete file if it wasn't uploaded so we can get an uploadUrl
+      _ <- existingFile match {
+        case Right(value) if !value.uploaded => writeClient.files.deleteByExternalIds(Seq(fileExternalId))
+        case _ => IO.pure(())
+      }
+
       file <- existingFile match {
-        case Right(value) => IO.pure(value)
-        case Left(_) =>
+        case Right(value) if value.uploaded => IO.pure(value)
+        case _ =>
           writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
       }
 
-      isAlreadyCreated = file.uploaded
-      uploadUrl = file.uploadUrl
-
       _ <- {
-        if (!isAlreadyCreated) {
+        if (!file.uploaded) {
           val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
           val request = basicRequest
-            .post(uri"${uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
+            .post(uri"${file.uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
             .body(generateNdjsonData)
           backend.use { backend =>
             IO {
               val response = request.send(backend)
               if (response.code.isSuccess) {
-                println(s"NDJSON content uploaded successfully to $uploadUrl")
+                println(s"NDJSON content uploaded successfully to ${file.uploadUrl}")
               } else {
                 throw new Exception(s"Failed to upload content: ${response.statusText}")
               }
@@ -62,11 +74,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest {
     } yield ()
   }
 
-  //TODO execute once and ensure it's run before the tests
-
-
   "file content transformations" should "read from a ndjson file" in {
-    makeFile.unsafeRunSync()
     val sourceDf: DataFrame = dataFrameReaderUsingOidc
       .useOIDCWrite
       .option("type", "filecontent")
