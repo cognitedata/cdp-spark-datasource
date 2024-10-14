@@ -39,11 +39,11 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       mimeType = mimeType,
     )
     for {
-      existingFile <- writeClient.files.retrieveByExternalId(fileExternalId).attempt
+      existingFile <- writeClient.files.retrieveByExternalId(externalId).attempt
 
       // delete file if it wasn't uploaded so we can get an uploadUrl
       _ <- existingFile match {
-        case Right(value) if !value.uploaded => writeClient.files.deleteByExternalIds(Seq(fileExternalId))
+        case Right(value) if !value.uploaded => writeClient.files.deleteByExternalIds(Seq(externalId))
         case _ => IO.pure(())
       }
 
