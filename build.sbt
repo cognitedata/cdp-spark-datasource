@@ -171,7 +171,7 @@ lazy val library = (project in file("."))
         exclude("org.typelevel", "cats-effect_2.13")
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
-      "org.slf4j" % "slf4j-api" % "2.0.9" % Provided,
+      "org.slf4j" % "slf4j-api" % "2.0.16" % Provided,
       "io.circe" %% "circe-generic" % circeVersion
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
