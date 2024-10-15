@@ -19,7 +19,8 @@ trait WithSizeLimit {
   val sizeLimit: Long
 }
 
-class FileContentRelation(config: RelationConfig, fileExternalId: String)(override val sqlContext: SQLContext)
+class FileContentRelation(config: RelationConfig, fileExternalId: String)(
+    override val sqlContext: SQLContext)
     extends BaseRelation
     with TableScan
     with PrunedFilteredScan
