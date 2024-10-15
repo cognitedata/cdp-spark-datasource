@@ -19,7 +19,7 @@ trait WithSizeLimit {
   val sizeLimit: Long
 }
 
-class FileContentRelation(config: RelationConfig, fileId: String)(override val sqlContext: SQLContext)
+class FileContentRelation(config: RelationConfig, fileExternalId: String)(override val sqlContext: SQLContext)
     extends BaseRelation
     with TableScan
     with PrunedFilteredScan
@@ -43,9 +43,9 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
       override def compute(split: Partition, context: TaskContext): Iterator[String] = {
 
         val validUrl = for {
-          mimeType <- client.files.retrieveByExternalId(fileId).map(_.mimeType)
+          mimeType <- client.files.retrieveByExternalId(fileExternalId).map(_.mimeType)
           downloadLink <- client.files
-            .downloadLink(FileDownloadExternalId(fileId))
+            .downloadLink(FileDownloadExternalId(fileExternalId))
             .map(_.downloadUrl)
           isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
