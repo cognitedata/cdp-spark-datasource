@@ -142,7 +142,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
 
   it should "get size from endpoint and check for it" in {
     val relation = new FileContentRelation(
-      getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = testProject, cluster = testCluster, applicationName = Some("jetfire-test")),
+      getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
       fileExternalId = fileExternalId
     )(spark.sqlContext) {
       override val sizeLimit: Long = 100
