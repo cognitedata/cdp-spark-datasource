@@ -51,9 +51,9 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
           isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
           if (!isFileWithinLimits)
-            throw new CdfSparkException("File size too big")
+            throw new CdfSparkException("File size above 5Gb limit")
           if (mimeType.isEmpty || !mimeType.contains("application/jsonlines"))
-            throw new CdfSparkException("Wrong mimetype")
+            throw new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
           else
             downloadLink
         }

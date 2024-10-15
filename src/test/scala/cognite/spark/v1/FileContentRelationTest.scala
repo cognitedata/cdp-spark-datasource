@@ -105,7 +105,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       sourceDf.createOrReplaceTempView("fileContent")
       spark.sqlContext.sql(s"select * from filecontent").collect()
     }
-    assert(exception.getMessage.contains("Wrong mimetype"))
+    assert(exception.getMessage.contains("Wrong mimetype. Expects application/jsonlines"))
   }
 
   it should "infer the schema" in {
@@ -151,7 +151,9 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     val exception = sparkIntercept {
       relation.createDataFrame(spark.sqlContext.sparkSession)
     }
-    exception.getMessage.contains("File size too big") should be(true)
+    withClue(s"Expected 'File size too big' but got: '${exception.getMessage}'") {
+      exception.getMessage.contains("File size above 5Gb limit") should be(true)
+    }
   }
 }
 
