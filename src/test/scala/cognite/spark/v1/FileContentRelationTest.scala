@@ -4,6 +4,7 @@ import cats.effect.unsafe.implicits.global
 import cats.effect.{IO, Resource}
 import com.cognite.sdk.scala.v1.FileCreate
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.types.{LongType, StringType, StructField}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
@@ -27,7 +28,9 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     val jsonObjects = List(
       """{"name": "Alice", "age": 30}""",
       """{"name": "Bob", "age": 25}""",
-      """{"name": "Charlie", "age": 35}"""
+      """{"name": "Charlie", "age": 35}""",
+      """{"name": "Charlie2", "age": 35, "test": "test"}"""
+
     )
     jsonObjects.mkString("\n")
   }
@@ -41,7 +44,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     for {
       existingFile <- writeClient.files.retrieveByExternalId(externalId).attempt
 
-      // delete file if it wasn't uploaded so we can get an uploadUrl
+      // delete file if it was created but the actual file wasn't uploaded so we can get an uploadUrl
       _ <- existingFile match {
         case Right(value) if !value.uploaded => writeClient.files.deleteByExternalIds(Seq(externalId))
         case _ => IO.pure(())
@@ -98,4 +101,34 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     assert(exception.getMessage.contains("Wrong mimetype"))
   }
 
+  it should "infer the schema" in {
+    val sourceDf: DataFrame = dataFrameReaderUsingOidc
+      .useOIDCWrite
+      .option("type", "filecontent")
+      .option("inferSchema", value = true)
+      .option("externalId", fileExternalId)
+      .load()
+    sourceDf.createOrReplaceTempView("fileContent")
+    sourceDf.schema.fields should contain allElementsOf Seq(
+        StructField("name", StringType, nullable = true),
+        StructField("test", StringType, nullable = true),
+        StructField("age", LongType, nullable = true)
+      )
+  }
+
+  it should "get size from endpoint and check for it" in {
+    val relation = new FileContentRelation(
+      getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = testProject, cluster = testCluster, applicationName = Some("jetfire-test")),
+      fileId = fileExternalId
+    )(spark.sqlContext) {
+      override val sizeLimit: Long = 100
+    }
+
+    val exception = sparkIntercept {
+      relation.createDataFrame(spark.sqlContext.sparkSession)
+    }
+    exception.getMessage.contains("File size too big") should be(true)
+  }
 }
+
+

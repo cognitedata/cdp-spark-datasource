@@ -14,11 +14,18 @@ import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 import java.net.URL
 import scala.io.Source
 
+trait WithSizeLimit {
+  val sizeLimit: Long
+}
+
 class FileContentRelation(config: RelationConfig, fileId: String)(override val sqlContext: SQLContext)
     extends BaseRelation
     with TableScan
     with PrunedFilteredScan
-    with Serializable {
+    with Serializable
+    with WithSizeLimit {
+
+  override val sizeLimit: Long = 5 * FileUtils.ONE_GB
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
@@ -43,7 +50,7 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
         } yield {
           if (!isFileWithinLimits)
             throw new CdfSparkException("File size too big")
-          if (!mimeType.contains("application/jsonlines"))
+          if (mimeType.isEmpty || !mimeType.contains("application/jsonlines"))
             throw new CdfSparkException("Wrong mimetype")
           else
             downloadLink
@@ -84,7 +91,7 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
       IO {
         val response = request.send(backend)
         response.header("Content-Length").exists { sizeStr =>
-          sizeStr.toLong < FileUtils.ONE_GB * 5
+          sizeStr.toLong < sizeLimit
         }
       }
     }
