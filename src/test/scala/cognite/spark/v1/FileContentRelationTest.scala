@@ -85,7 +85,14 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       .option("externalId", fileExternalId)
       .load()
     sourceDf.createOrReplaceTempView("fileContent")
-    spark.sqlContext.sql(s"select * from filecontent")
+    val result = spark.sqlContext.sql(s"select * from filecontent").collect()
+    result.map(_.toSeq.toList) should contain theSameElementsAs
+      Array(
+        List(30, "Alice", null),
+        List(25, "Bob", null),
+        List(35, "Charlie", null),
+        List(35, "Charlie2", "test")
+      )
   }
 
   it should "fail with a sensible error if the mimetype is wrong" in {
@@ -115,6 +122,24 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
         StructField("age", LongType, nullable = true)
       )
   }
+
+  it should "select specific columns" in {
+    val sourceDf: DataFrame = dataFrameReaderUsingOidc
+      .useOIDCWrite
+      .option("type", "filecontent")
+      .option("externalId", fileExternalId)
+      .load()
+    sourceDf.createOrReplaceTempView("fileContent")
+    val result = spark.sqlContext.sql(s"select name, test from filecontent").collect()
+    result.map(_.toSeq.toList) should contain theSameElementsAs
+      Seq(
+        List("Alice", null),
+        List("Bob", null),
+        List("Charlie", null),
+        List("Charlie2", "test")
+      )
+  }
+
 
   it should "get size from endpoint and check for it" in {
     val relation = new FileContentRelation(

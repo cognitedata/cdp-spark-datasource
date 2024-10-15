@@ -5,6 +5,7 @@ import com.cognite.sdk.scala.v1.{FileDownloadExternalId, GenericClient}
 import fs2.Stream
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
@@ -101,7 +102,6 @@ class FileContentRelation(config: RelationConfig, fileId: String)(override val s
     createDataFrame(sqlContext.sparkSession).rdd
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    //createDataFrame(sqlContext.sparkSession).select(requiredColumns.map(col): _*).rdd
-    createDataFrame(sqlContext.sparkSession).rdd
+    createDataFrame(sqlContext.sparkSession).select(requiredColumns.map(col).toIndexedSeq: _*).rdd
 
 }
