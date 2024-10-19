@@ -141,6 +141,10 @@ class DefaultSource
         new EventsRelation(config)(sqlContext)
       case "files" =>
         new FilesRelation(config)(sqlContext)
+      case "filecontent" =>
+        val fileExternalId =
+          parameters.getOrElse("externalId", sys.error("File's external id must be specified"))
+        new FileContentRelation(config, fileExternalId)(sqlContext)
       case "3dmodels" =>
         new ThreeDModelsRelation(config)(sqlContext)
       case "3dmodelrevisions" =>
