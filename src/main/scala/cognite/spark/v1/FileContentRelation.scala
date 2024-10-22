@@ -85,7 +85,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
       }
 
   private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
-    val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
+    val backend = Resource.fromAutoCloseable(IO(HttpURLConnectionBackend()))
     val request = basicRequest.head(uri"$downloadUrl")
 
     backend.use { backend =>
