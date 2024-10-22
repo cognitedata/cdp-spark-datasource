@@ -53,7 +53,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
           if (mimeType.isDefined && Seq("application/jsonlines", "application/x-ndjson", "application/jsonl").contains(mimeType.get))
             throw new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
           if (!isFileWithinLimits)
-            throw new CdfSparkException(f"File size above size limit")
+            throw new CdfSparkException(f"File size above size limit, or file size header absent from head request")
           downloadLink
         }
 
@@ -71,7 +71,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
         Array(CdfPartition(0))
     }
     import sparkSession.implicits._
-    sparkSession.read.json(rowsRdd.toDS())
+    sparkSession.read.schema(schema).json(rowsRdd.toDS())
   }
 
   private def readUrlContent(url: String): Stream[IO, String] =
