@@ -50,12 +50,11 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
             .map(_.downloadUrl)
           isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
-          if (!isFileWithinLimits)
-            throw new CdfSparkException("File size above 5Gb limit")
-          if (mimeType.isDefined && !mimeType.contains("application/jsonlines"))
+          if (mimeType.isDefined && Seq("application/jsonlines", "application/x-ndjson", "application/jsonl").contains(mimeType.get))
             throw new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
-          else
-            downloadLink
+          if (!isFileWithinLimits)
+            throw new CdfSparkException(f"File size above size limit")
+          downloadLink
         }
 
         StreamIterator(
