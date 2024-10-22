@@ -52,7 +52,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
         } yield {
           if (!isFileWithinLimits)
             throw new CdfSparkException("File size above 5Gb limit")
-          if (mimeType.isEmpty || !mimeType.contains("application/jsonlines"))
+          if (mimeType.isDefined && !mimeType.contains("application/jsonlines"))
             throw new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
           else
             downloadLink
