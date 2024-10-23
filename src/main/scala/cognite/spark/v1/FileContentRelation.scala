@@ -1,6 +1,6 @@
 package cognite.spark.v1
 
-import cats.effect.{IO, Resource}
+import cats.effect.IO
 import com.cognite.sdk.scala.v1.{FileDownloadExternalId, GenericClient}
 import fs2.Stream
 import org.apache.commons.io.FileUtils
@@ -10,10 +10,8 @@ import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, T
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
 import org.apache.spark.{Partition, TaskContext}
-import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
-
-import java.net.URL
-import scala.io.Source
+import sttp.client3.{UriContext, asByteArray}
+import sttp.model.Header
 
 trait WithSizeLimit {
   val sizeLimit: Long
@@ -50,7 +48,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
             .map(_.downloadUrl)
           isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
-          if (mimeType.isDefined && Seq("application/jsonlines", "application/x-ndjson", "application/jsonl").contains(mimeType.get))
+          if (mimeType.isDefined && !Seq("application/jsonlines", "application/x-ndjson", "application/jsonl").contains(mimeType.get))
             throw new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
           if (!isFileWithinLimits)
             throw new CdfSparkException(f"File size above size limit, or file size header absent from head request")
@@ -71,30 +69,29 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
         Array(CdfPartition(0))
     }
     import sparkSession.implicits._
-    sparkSession.read.schema(schema).json(rowsRdd.toDS())
+    sparkSession.read.json(rowsRdd.toDS())
   }
 
-  private def readUrlContent(url: String): Stream[IO, String] =
-    Stream
-      .bracket(IO(new URL(url).openStream())) { inStream =>
-        IO(inStream.close()) // Ensure the InputStream is closed properly
+  private def readUrlContent(link: String): Stream[IO, String] = {
+    val request = client.requestSession.send { request =>
+      request
+        .get(uri"$link")
+        .response(asByteArray)
+    }
+    Stream.eval(request).flatMap { response =>
+      response.body match {
+        case Right(byteArray) => Stream.emits(new String(byteArray).split("\n").toList)
+        case _ => throw new IllegalArgumentException("eps")
       }
-      .flatMap { inStream =>
-        val source = Source.fromInputStream(inStream)
-        Stream.fromIterator[IO](source.getLines(), chunkSize = 4096)
-      }
+    }
+  }
 
   private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
-    val backend = Resource.fromAutoCloseable(IO(HttpURLConnectionBackend()))
-    val request = basicRequest.head(uri"$downloadUrl")
+    val headers: IO[Seq[Header]] = client.requestSession.head(uri"$downloadUrl")()
 
-    backend.use { backend =>
-      IO {
-        val response = request.send(backend)
-        response.header("Content-Length").exists { sizeStr =>
-          sizeStr.toLong < sizeLimit
-        }
-      }
+    headers.map { headerSeq =>
+      val sizeHeader = headerSeq.find(_.name.equalsIgnoreCase("content-length"))
+      sizeHeader.exists(_.value.toLong < sizeLimit)
     }
   }
 

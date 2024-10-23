@@ -11,7 +11,7 @@ val circeVersion = "0.14.9"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.30.853"
+val cogniteSdkVersion = "2.30.0-SNAPSHOT"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -160,8 +160,9 @@ lazy val library = (project in file("."))
         exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
         exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
+      "com.softwaremill.sttp.client3" %% "fs2" % sttpVersion,
       "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion
-        // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
+      // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
         exclude("io.netty", "netty-buffer")
         exclude("io.netty", "netty-handler")
         exclude("io.netty", "netty-transport-native-epoll")
@@ -171,6 +172,7 @@ lazy val library = (project in file("."))
         exclude("org.typelevel", "cats-effect_2.13")
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
+
       "org.slf4j" % "slf4j-api" % "2.0.9" % Provided,
       "io.circe" %% "circe-generic" % circeVersion
         exclude("org.typelevel", "cats-core_2.12")
