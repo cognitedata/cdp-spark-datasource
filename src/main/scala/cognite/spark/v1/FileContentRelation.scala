@@ -13,11 +13,13 @@ import org.apache.spark.{Partition, TaskContext}
 import sttp.client3.{UriContext, asByteArray}
 import sttp.model.Header
 
+
+
 trait WithSizeLimit {
   val sizeLimit: Long
 }
 
-class FileContentRelation(config: RelationConfig, fileExternalId: String)(
+class FileContentRelation(config: RelationConfig, fileExternalId: String, inferSchema: Boolean)(
     override val sqlContext: SQLContext)
     extends BaseRelation
     with TableScan
@@ -30,11 +32,16 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
-  override def schema: StructType =
-    createDataFrame(sqlContext.sparkSession).schema
+  private lazy val dataFrame: DataFrame = createDataFrame(sparkSession = sqlContext.sparkSession)
+
+
+  override def schema: StructType = {
+    dataFrame.schema
+  }
+
 
   def createDataFrame(sparkSession: SparkSession): DataFrame = {
-    val rowsRdd: RDD[String] = new RDD[String](sparkSession.sparkContext, Nil) with Serializable {
+    val rdd: RDD[String] = new RDD[String](sparkSession.sparkContext, Nil) with Serializable {
 
       import cognite.spark.v1.CdpConnector.ioRuntime
 
@@ -69,7 +76,12 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
         Array(CdfPartition(0))
     }
     import sparkSession.implicits._
-    sparkSession.read.json(rowsRdd.toDS())
+    val dataset = rdd.toDS()
+
+    inferSchema match {
+      case true =>  sqlContext.sparkSession.read.json(dataset)
+      case false => dataset.toDF()
+    }
   }
 
   private def readUrlContent(link: String): Stream[IO, String] = {
@@ -81,7 +93,8 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
     Stream.eval(request).flatMap { response =>
       response.body match {
         case Right(byteArray) => Stream.emits(new String(byteArray).split("\n").toList)
-        case _ => throw new IllegalArgumentException("eps")
+        case Left(error) => throw new CdfSparkException(f"Error while requesting underlying file: $error")
+        case _ => throw new CdfSparkException("Error while requesting underlying file")
       }
     }
   }
@@ -95,10 +108,11 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String)(
     }
   }
 
-  override def buildScan(): RDD[Row] =
-    createDataFrame(sqlContext.sparkSession).rdd
+  override def buildScan(): RDD[Row] = {
+    dataFrame.rdd
+  }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
-    createDataFrame(sqlContext.sparkSession).select(requiredColumns.map(col).toIndexedSeq: _*).rdd
+    dataFrame.select(requiredColumns.map(col).toIndexedSeq: _*).rdd
 
 }

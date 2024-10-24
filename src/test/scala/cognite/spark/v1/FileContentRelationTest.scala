@@ -83,6 +83,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       .useOIDCWrite
       .option("type", "filecontent")
       .option("externalId", fileExternalId)
+      .option("inferSchema", true)
       .load()
     sourceDf.createOrReplaceTempView("fileContent")
     val result = spark.sqlContext.sql(s"select * from filecontent").collect()
@@ -128,6 +129,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       .useOIDCWrite
       .option("type", "filecontent")
       .option("externalId", fileExternalId)
+      .option("inferSchema", true)
       .load()
     sourceDf.createOrReplaceTempView("fileContent")
     val result = spark.sqlContext.sql(s"select name, test from filecontent").collect()
@@ -140,10 +142,29 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       )
   }
 
+  it should "not infer schema is not asked to" in {
+    val sourceDf: DataFrame = dataFrameReaderUsingOidc
+      .useOIDCWrite
+      .option("type", "filecontent")
+      .option("externalId", fileExternalId)
+      .option("inferSchema", false)
+      .load()
+    sourceDf.createOrReplaceTempView("fileContent")
+    val result = spark.sqlContext.sql(s"select * from filecontent").collect()
+
+    result.map(_.toSeq.toList) should contain theSameElementsAs Array(
+      List("""{"name": "Alice", "age": 30}"""),
+      List("""{"name": "Bob", "age": 25}"""),
+      List("""{"name": "Charlie", "age": 35}"""),
+      List("""{"name": "Charlie2", "age": 35, "test": "test"}""")
+    )
+  }
+
   it should "get size from endpoint and check for it" in {
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
-      fileExternalId = fileExternalId
+      fileExternalId = fileExternalId,
+      true
     )(spark.sqlContext) {
       override val sizeLimit: Long = 100
     }
