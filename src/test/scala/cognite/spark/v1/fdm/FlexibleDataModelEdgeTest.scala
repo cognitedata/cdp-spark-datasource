@@ -1,59 +1,76 @@
-package cognite.spark.v1
+package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cognite.spark.v1.utils.fdm.FDMContainerPropertyTypes
+import cognite.spark.v1.SparkTest
+import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
+import cognite.spark.v1.fdm.utils.FDMTestConstants._
+import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{getUpsertedMetricsCount, getUpsertedMetricsCountForModel}
+import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMTestInitializer}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
-import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, DirectRelationReference, Usage}
+import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.datamodels.DataModelCreate
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.EdgeWrite
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceDefinition, InstanceRetrieve, InstanceType, SlimNodeOrEdge}
-import com.cognite.sdk.scala.v1.fdm.views.{ConnectionDirection, ViewCreateDefinition, ViewDefinition, ViewPropertyCreateDefinition, ViewReference}
+import com.cognite.sdk.scala.v1.fdm.instances._
+import com.cognite.sdk.scala.v1.fdm.views._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
-import scala.concurrent.duration.DurationInt
 import scala.util.{Success, Try}
 
-class FlexibleDataModelConnectionRelationTest
+class FlexibleDataModelEdgeTest
     extends FlatSpec
     with Matchers
     with SparkTest
-    with FlexibleDataModelsTestBase {
+    with FDMTestInitializer {
 
   private val startEndNodeContainerExternalId = "sparkDsConnectionsTestContainerStartEndNodes1"
   private val startEndNodeViewExternalId = "sparkDsConnectionsTestViewStartEndNodes1"
   private val propsMap = Map(
-    "stringProp1" -> FDMContainerPropertyTypes.TextPropertyNonListWithoutDefaultValueNullable
+    "stringProp1" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable
   )
-  private val connectionsViewExtId = "sparkDsTestConnectionsView1"
+  private val connectionsViewExtId = "sparkDsTestConnectionsView2"
 
-  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
-  private val testDataModelExternalId = "testDataModelConnectionsExternalId1"
+  private val edgeTestDataModelExternalId = "testDataModelConnectionsExternalId1"
   private val edgeTypeExtId = s"sparkDsConnectionsEdgeTypeExternalId"
 
-  private val duplicateViewExtId1 = s"sparkDsConnectionsDuplicatePropertyViewExternalId1"
-  private val duplicateViewExtId2 = s"sparkDsConnectionsDuplicatePropertyViewExternalId2"
+  private val duplicateViewExtId1 = s"sparkDsConnectionsDuplicatePropertyViewExternalId3"
+  private val duplicateViewExtId2 = s"sparkDsConnectionsDuplicatePropertyViewExternalId4"
+
   private val duplicateEdgeTypeExtId1 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId1"
   private val duplicateEdgeTypeExtId2 = s"sparkDsConnectionsDuplicateEdgeTypeExternalId2"
   private val duplicatePropertyName = "testDataModelDuplicatePropertyName"
+
+  client.spacesv3.createItems(Seq(SpaceCreateDefinition(spaceExternalId))).unsafeRunSync()
 
   client.dataModelsV3
     .createItems(
       Seq(DataModelCreate(
         spaceExternalId,
-        testDataModelExternalId,
+        edgeTestDataModelExternalId,
         Some("SparkDatasourceConnectionsTestModel"),
         Some("Spark Datasource connections test model"),
         viewVersion,
         views = Some(
           Seq(
-            ViewReference(
-              spaceExternalId,
-              connectionsViewExtId,
-              viewVersion
+            ViewCreateDefinition(
+              space=spaceExternalId,
+              externalId=connectionsViewExtId,
+              version=viewVersion,
+              properties=Map(
+                duplicatePropertyName -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
+                  EdgeConnection(
+                    `type` = DirectRelationReference(spaceExternalId, externalId = edgeTypeExtId),
+                    source = ViewReference(spaceExternalId, connectionsViewExtId, viewVersion),
+                    name = None,
+                    description = None,
+                    direction = None,
+                    connectionType = None,
+                  ),
+                ),
+              ),
             ),
             ViewCreateDefinition(
               space=spaceExternalId,
@@ -94,7 +111,9 @@ class FlexibleDataModelConnectionRelationTest
       )))
     .unsafeRunSync()
 
-  it should "fetch connection instances with filters" in {
+
+
+  it should "fetch edges with filters" in {
     val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
     val endNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchEndNode"
 
@@ -119,20 +138,6 @@ class FlexibleDataModelConnectionRelationTest
         startEndNodeView.toSourceReference,
       )
 
-      connectionsSourceContainer <- createContainerIfNotExists(
-        usage = Usage.Edge,
-        propsMap,
-        "connectionSourceContainer1")
-      connectionSourceView <- createViewWithCorePropsIfNotExists(
-        connectionsSourceContainer,
-        "connectionSourceView1",
-        viewVersion)
-      _ <- createViewWithConnectionsIfNotExists(
-        connectionSourceView.toSourceReference,
-        `type` = DirectRelationReference(spaceExternalId, externalId = edgeTypeExtId),
-        connectionsViewExtId,
-        viewVersion
-      )
       c1 <- createConnectionWriteInstances(
         externalId = "edge1",
         typeNode = DirectRelationReference(space = spaceExternalId, externalId = edgeTypeExtId),
@@ -149,7 +154,6 @@ class FlexibleDataModelConnectionRelationTest
         endNode =
           DirectRelationReference(space = spaceExternalId, externalId = s"${endNodeExtIdPrefix}2")
       )
-      _ <- IO.sleep(5.seconds)
     } yield c1 ++ c2).unsafeRunSync()
 
     val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = edgeTypeExtId)
@@ -168,10 +172,10 @@ class FlexibleDataModelConnectionRelationTest
     (instExtIds should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "fetch connection instances from a data model" in {
+  it should "fetch edges from a data model" in {
     val df = readRowsFromModel(
       spaceExternalId,
-      testDataModelExternalId,
+      edgeTestDataModelExternalId,
       viewVersion,
       spaceExternalId,
       edgeTypeExtId)
@@ -194,7 +198,7 @@ class FlexibleDataModelConnectionRelationTest
     (toExternalIds(rows) should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "insert connection instance to a data model" in {
+  it should "insert edge to a data model" in {
     val df = spark
       .sql(s"""
            |select
@@ -211,20 +215,21 @@ class FlexibleDataModelConnectionRelationTest
     val result = Try {
       insertRowsToModel(
         spaceExternalId,
-        testDataModelExternalId,
+        edgeTestDataModelExternalId,
         viewVersion,
         connectionsViewExtId,
-        "connectionProp",
         Some(spaceExternalId),
-        df
+        df,
+        connectionPropertyName = Some("connectionProp")
       )
     }
 
     result shouldBe Success(())
-    getUpsertedMetricsCountForModel(testDataModelExternalId, viewVersion) shouldBe 1
+    getUpsertedMetricsCountForModel(edgeTestDataModelExternalId, viewVersion) shouldBe 1
   }
 
-  it should "pick the right property even though views have same property names" in {
+  it should "pick the right property as default for _type even though two views in the data models have same property names" in {
+
     val df = spark
       .sql(
         s"""
@@ -242,12 +247,12 @@ class FlexibleDataModelConnectionRelationTest
     val result = Try {
       insertRowsToModel(
         spaceExternalId,
-        testDataModelExternalId,
+        edgeTestDataModelExternalId,
         viewVersion,
         duplicateViewExtId1,
-        duplicatePropertyName,
         Some(spaceExternalId),
-        df
+        df,
+        connectionPropertyName = Some(duplicatePropertyName)
       )
     }
     result shouldBe Success(())
@@ -269,12 +274,12 @@ class FlexibleDataModelConnectionRelationTest
     val result2 = Try {
       insertRowsToModel(
         spaceExternalId,
-        testDataModelExternalId,
+        edgeTestDataModelExternalId,
         viewVersion,
         duplicateViewExtId2,
-        duplicatePropertyName,
         Some(spaceExternalId),
-        df2
+        df2,
+        connectionPropertyName = Some(duplicatePropertyName)
       )
     }
     result2 shouldBe Success(())
@@ -295,7 +300,7 @@ class FlexibleDataModelConnectionRelationTest
     }
   }
 
-  it should "insert connection instances" in {
+  it should "insert edges" in {
     val edgeExternalId = s"edgeInstExtId${apiCompatibleRandomString()}"
     val startNodeExtId = s"${startEndNodeViewExternalId}InsertStartNode"
     val endNodeExtId = s"${startEndNodeViewExternalId}InsertEndNode"
@@ -326,7 +331,7 @@ class FlexibleDataModelConnectionRelationTest
              |""".stripMargin)
 
     val insertionResult = Try {
-      insertRows(
+      insertEdgeRows(
         edgeTypeSpace = spaceExternalId,
         edgeTypeExternalId = edgeExternalId,
         insertionDf(edgeExternalId)
@@ -355,147 +360,4 @@ class FlexibleDataModelConnectionRelationTest
     client.instances.createItems(InstanceCreate(connectionInstances, replace = Some(true)))
   }
 
-  private def createViewWithConnectionsIfNotExists(
-      connectionSource: ViewReference,
-      `type`: DirectRelationReference,
-      viewExternalId: String,
-      viewVersion: String): IO[ViewDefinition] =
-    client.views
-      .retrieveItems(items = Seq(DataModelReference(spaceExternalId, viewExternalId, Some(viewVersion))))
-      .flatMap { views =>
-        if (views.isEmpty) {
-          val viewToCreate = ViewCreateDefinition(
-            space = spaceExternalId,
-            externalId = viewExternalId,
-            version = viewVersion,
-            name = Some(s"Test-View-Connections-Spark-DS"),
-            description = Some("Test View For Connections Spark Datasource"),
-            filter = None,
-            properties = Map(
-              "connectionProp" -> ViewPropertyCreateDefinition.CreateConnectionDefinition(
-                EdgeConnection(
-                  name = Some("connectionProp"),
-                  description = Some("connectionProp"),
-                  `type` = `type`,
-                  source = connectionSource,
-                  direction = Some(ConnectionDirection.Outwards),
-                  connectionType = None,
-                ),
-              )
-            ),
-            implements = None,
-          )
-
-          client.views
-            .createItems(items = Seq(viewToCreate))
-            .flatTap(_ => IO.sleep(3.seconds))
-        } else {
-          IO.delay(views)
-        }
-      }
-      .map(_.head)
-
-  private def insertRows(
-      edgeTypeSpace: String,
-      edgeTypeExternalId: String,
-      df: DataFrame,
-      onConflict: String = "upsert"): Unit =
-    df.write
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("edgeTypeSpace", edgeTypeSpace)
-      .option("edgeTypeExternalId", edgeTypeExternalId)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", true)
-      .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
-      .save()
-
-  private def readRows(edgeSpace: String, edgeExternalId: String): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("edgeTypeSpace", edgeSpace)
-      .option("edgeTypeExternalId", edgeExternalId)
-      .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
-      .option("collectMetrics", true)
-      .load()
-
-  private def readRowsFromModel(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      edgeTypeSpace: String,
-      edgeTypeExternalId: String): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("edgeTypeSpace", edgeTypeSpace)
-      .option("edgeTypeExternalId", edgeTypeExternalId)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("collectMetrics", true)
-      .load()
-
-  private def insertRowsToModel(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      viewExternalId: String,
-      connectionPropertyName: String,
-      instanceSpace: Option[String],
-      df: DataFrame,
-      onConflict: String = "upsert"): Unit =
-    df.write
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("viewExternalId", viewExternalId)
-      .option("connectionPropertyName", connectionPropertyName)
-      .option("instanceSpace", instanceSpace.orNull)
-      .option("onconflict", onConflict)
-      .option("collectMetrics", true)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .save()
-
-  private def getUpsertedMetricsCount(edgeTypeSpace: String, edgeTypeExternalId: String): Long =
-    getNumberOfRowsUpserted(
-      s"$edgeTypeSpace-$edgeTypeExternalId",
-      FlexibleDataModelRelationFactory.ResourceType)
-
-  private def getUpsertedMetricsCountForModel(modelExternalId: String, modelVersion: String): Long =
-    getNumberOfRowsUpserted(
-      s"$modelExternalId-$modelVersion",
-      FlexibleDataModelRelationFactory.ResourceType)
 }

@@ -129,7 +129,6 @@ object PushdownUtilities {
   // Spark will still filter the result after pushdown filters are applied, see source code for
   // PrunedFilteredScan, hence it's ok that our pushdown filter reads some data that should ideally
   // be filtered out
-  // scalastyle:off
   def getFilter(filter: Filter): PushdownExpression = {
     def toStr(v: Any): String =
       v match {

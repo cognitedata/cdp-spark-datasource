@@ -77,7 +77,6 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
     (aggregations, granularities)
   }
 
-  // scalastyle:off cyclomatic.complexity
   def toAggregationFilter(aggregation: String): AggregationFilter = {
     val allowedAggregations = Seq(
       "average",

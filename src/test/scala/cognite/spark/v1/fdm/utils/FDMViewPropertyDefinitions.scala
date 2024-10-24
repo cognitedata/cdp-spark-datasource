@@ -1,14 +1,10 @@
-package cognite.spark.v1.utils.fdm
+package cognite.spark.v1.fdm.utils
 
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewCorePropertyDefinition
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.DirectNodeRelationProperty
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  PrimitivePropType,
-  PropertyDefaultValue,
-  PropertyType
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumValueMetadata}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefaultValue, PropertyType}
 
-object FDMViewPropertyTypes {
+object FDMViewPropertyDefinitions {
 
   val DateNonListWithDefaultValueNonNullable: ViewCorePropertyDefinition = ViewCorePropertyDefinition(
     nullable = Some(false),
@@ -567,6 +563,41 @@ object FDMViewPropertyTypes {
       containerPropertyIdentifier = None
     )
 
+  val EnumPropertyNonListWithoutDefaultValueNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Enum EnumProperty NonList WithoutDefaultValue Nullable Description"),
+      name = Some("Enum-EnumProperty-NonList-WithoutDefaultValue-Nullable-Name"),
+      `type` = PropertyType.EnumProperty(
+        values = Map(
+          "VAL1" -> EnumValueMetadata(Some("value1"), Some("value 1")),
+          "VAL2" -> EnumValueMetadata(None, None)
+        ),
+        unknownValue = Some("VAL2")
+      ),
+      container = None,
+      containerPropertyIdentifier = None
+    )
+  val EnumPropertyNonListWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
+    ViewCorePropertyDefinition(
+      nullable = Some(false),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Enum EnumProperty NonList WithoutDefaultValue NonNullable Description"),
+      name = Some("Enum-EnumProperty-NonList-WithoutDefaultValue-NonNullable-Name"),
+      `type` = PropertyType.EnumProperty(
+        values = Map(
+          "VAL1" -> EnumValueMetadata(Some("value1"), Some("value 1")),
+          "VAL2" -> EnumValueMetadata(None, None)
+        ),
+        unknownValue = Some("VAL2")
+      ),
+      container = None,
+      containerPropertyIdentifier = None
+    )
+
   val Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable: ViewCorePropertyDefinition =
     ViewCorePropertyDefinition(
       nullable = Some(false),
@@ -735,69 +766,4 @@ object FDMViewPropertyTypes {
       name = Some("Test-Sequence-Name"),
       `type` = PropertyType.SequenceReference(),
     )
-
-  val AllPossibleViewPropertyDefs: Vector[ViewCorePropertyDefinition] = Vector(
-    DateNonListWithDefaultValueNonNullable,
-    JsonNonListWithoutDefaultValueNullable,
-    DateNonListWithoutDefaultValueNonNullable,
-    Float32NonListWithoutDefaultValueNonNullable,
-    BooleanListWithoutDefaultValueNullable,
-    TextPropertyNonListWithoutDefaultValueNullable,
-    JsonListWithoutDefaultValueNonNullable,
-    Int32NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-    Int32NonListWithAutoIncrementWithoutDefaultValueNullable,
-    Int32NonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
-    Float64NonListWithoutDefaultValueNullable,
-    Int64NonListWithoutAutoIncrementWithoutDefaultValueNonNullable,
-    Float64NonListWithDefaultValueNullable,
-    Float64NonListWithDefaultValueNonNullable,
-    JsonNonListWithoutDefaultValueNonNullable,
-    Int32NonListWithoutAutoIncrementWithDefaultValueNullable,
-    Int32NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    Float64NonListWithoutDefaultValueNonNullable,
-    JsonListWithoutDefaultValueNullable,
-    DateNonListWithDefaultValueNullable,
-    Float32NonListWithDefaultValueNullable,
-    Int64ListWithoutDefaultValueNullable,
-    TextPropertyListWithoutDefaultValueNonNullable,
-    TextPropertyNonListWithoutDefaultValueNonNullable,
-    TimestampListWithoutDefaultValueNullable,
-    JsonNonListWithDefaultValueNonNullable,
-    DateListWithoutDefaultValueNonNullable,
-    TimestampNonListWithoutDefaultValueNonNullable,
-    DateNonListWithoutDefaultValueNullable,
-    Int64NonListWithoutAutoIncrementWithDefaultValueNullable,
-    Int64NonListWithoutAutoIncrementWithDefaultValueNonNullable,
-    Float32ListWithoutDefaultValueNonNullable,
-    DateListWithoutDefaultValueNullable,
-    Float32NonListWithoutDefaultValueNullable,
-    BooleanListWithoutDefaultValueNonNullable,
-    TextPropertyNonListWithDefaultValueNullable,
-    BooleanNonListWithDefaultValueNullable,
-    TimestampNonListWithoutDefaultValueNullable,
-    Int32ListWithoutDefaultValueNonNullable,
-    Int64NonListWithoutAutoIncrementWithoutDefaultValueNullable,
-    Int64ListWithoutDefaultValueNonNullable,
-    JsonNonListWithDefaultValueNullable,
-    TimestampListWithoutDefaultValueNonNullable,
-    Int32NonListWithoutAutoIncrementWithDefaultValueNonNullable,
-    Float64ListWithoutDefaultValueNonNullable,
-    TextPropertyNonListWithDefaultValueNonNullable,
-    Int64NonListWithAutoIncrementWithoutDefaultValueNonNullable,
-    Int64NonListWithAutoIncrementWithoutDefaultValueNullable,
-    TimestampNonListWithDefaultValueNonNullable,
-    BooleanNonListWithoutDefaultValueNullable,
-    BooleanNonListWithoutDefaultValueNonNullable,
-    TimestampNonListWithDefaultValueNullable,
-    TextPropertyListWithoutDefaultValueNullable,
-    Int32ListWithoutDefaultValueNullable,
-    Float32ListWithoutDefaultValueNullable,
-    BooleanNonListWithDefaultValueNonNullable,
-    Float64ListWithoutDefaultValueNullable,
-    Float32NonListWithDefaultValueNonNullable,
-    TimeSeriesReference,
-    FileReference,
-    SequenceReference
-  )
 }

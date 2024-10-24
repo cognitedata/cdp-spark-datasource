@@ -3,7 +3,8 @@ package cognite.spark.v1
 import cats.{Apply, Functor}
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationFactory.{
+import cognite.spark.v1.fdm.{FlexibleDataModelBaseRelation, FlexibleDataModelRelationFactory}
+import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.{
   ConnectionConfig,
   DataModelConnectionConfig,
   DataModelViewConfig,
@@ -36,7 +37,7 @@ class DefaultSource
   override def shortName(): String = "cognite"
 
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation =
-    createRelation(sqlContext, parameters, null) // scalastyle:off null
+    createRelation(sqlContext, parameters, null)
 
   private def createSequenceRows(
       parameters: Map[String, String],
@@ -95,7 +96,6 @@ class DefaultSource
   /**
     * Create a spark relation for reading.
     */
-  // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
       sqlContext: SQLContext,
       parameters: Map[String, String],
@@ -381,7 +381,7 @@ object DefaultSource {
   def saveTracingHeaders[F[_]: Functor: Trace](): F[Seq[(String, String)]] =
     Trace[F].kernel.map(saveTracingHeaders(_))
 
-  def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
+  def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
     val initialRetryDelayMillis = toPositiveInt(parameters, "initialRetryDelayMs")

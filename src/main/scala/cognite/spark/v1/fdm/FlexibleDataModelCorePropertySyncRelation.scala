@@ -1,9 +1,10 @@
-package cognite.spark.v1
+package cognite.spark.v1.fdm
 
 import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
-import cognite.spark.v1.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
+import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
+import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
+import cognite.spark.v1.{CdfSparkIllegalArgumentException, RelationConfig, SyncCursorCallback}
 import com.cognite.sdk.scala.common.{CdpApiException, ItemsWithCursor}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
@@ -61,13 +62,15 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
       HasData(List(viewRef))
     }
     val requestFilters: Seq[FilterDefinition] = (filters.map {
-      toNodeOrEdgeAttributeFilter(instanceType, _).toOption
+      // don't specify viewReference to avoid filter pushdown for non-reserved attributes
+      // for performance reasons, sync is incremental and filtering is done in spark to
+      // avoid edge cases where too much needs to be filtered out and service request would
+      // time out filtering it
+      toFilter(instanceType, _, viewReference = None, isSyncRequest = true).toOption
     } ++ Array(hasData)).flatten.toSeq
     FilterDefinition.And(requestFilters)
   }
 
-  // scalastyle:off cyclomatic.complexity
-  // scalastyle:off method.length
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
@@ -85,31 +88,40 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
 
     val syncFilter = createSyncFilter(filters, instanceType)
     val tableExpression = generateTableExpression(instanceType, syncFilter)
-    val sourceReference: Seq[SourceSelector] = viewReference
-      .map(
-        r =>
-          SourceSelector(
-            source = r,
-            properties = selectedInstanceProps.toIndexedSeq.filter(p =>
-              !p.startsWith("node.") && !p.startsWith("edge.") && !p.startsWith("metadata.") &&
-                p != "startNode" && p != "endNode" && p != "space" && p != "externalId" && p != "type")
-        ))
-      .toSeq
+    def sourceReference(instanceType: InstanceType): Seq[SourceSelector] =
+      viewReference
+        .map(
+          r =>
+            SourceSelector(
+              source = r,
+              properties = selectedInstanceProps.toIndexedSeq.filter(p =>
+                !p.startsWith("node.") && !p.startsWith("edge.") && !p
+                  .startsWith("metadata.") && !reservedPropertyNames(instanceType).contains(p))
+          ))
+        .toSeq
+
+    def reservedPropertyNames(instanceType: InstanceType): Seq[String] = {
+      val result = Seq("space", "externalId", "_type")
+      instanceType match {
+        case InstanceType.Node => result
+        case InstanceType.Edge => result ++ Seq("startNode", "endNode", "type")
+      }
+    }
+
     val cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None
-    val select = Map("sync" -> SelectExpression(sources = sourceReference))
+    def select(instanceType: InstanceType) =
+      Map("sync" -> SelectExpression(sources = sourceReference(instanceType)))
     val syncMode =
-      decideSyncMode(cursors, instanceType, select).unsafeRunSync()
+      decideSyncMode(cursors, instanceType, select(instanceType)).unsafeRunSync()
 
     Seq(
       syncOut(
         syncMode,
         `with` = Map("sync" -> tableExpression),
-        select,
+        select(instanceType),
         selectedColumns
       ))
   }
-  // scalastyle:on method.length
-  // scalastyle:on cyclomatic.complexity
 
   private val matchNothingFilter: FilterDefinition =
     FilterDefinition.Not(MatchAll(JsonObject()))

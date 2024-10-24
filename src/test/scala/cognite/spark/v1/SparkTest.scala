@@ -199,7 +199,6 @@ trait SparkTest {
   class RetryException(private val message: String, private val cause: Throwable = None.orNull)
       extends Exception(message, cause) {}
 
-  // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](
       ioa: IO[A],
       initialDelay: FiniteDuration,
@@ -220,7 +219,6 @@ trait SparkTest {
       case error => IO.raiseError(error)
     }
   }
-  // scalastyle:on cyclomatic.complexity
 
   def retryWhileIO[A](action: IO[A], shouldRetry: A => Boolean)(
       implicit prettifier: Prettifier,

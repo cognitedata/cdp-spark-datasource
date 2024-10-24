@@ -48,7 +48,6 @@ class SparkSchemaHelperImpl(val c: Context) {
     c.Expr[Row](q"$row(..$params)")
   }
 
-  // scalastyle:off
   def fromRow[T: c.WeakTypeTag](row: c.Expr[Row]): c.Expr[T] = {
     import c.universe._
     val optionType = typeOf[Option[_]]
@@ -189,7 +188,6 @@ class SparkSchemaHelperImpl(val c: Context) {
     }
     c.Expr[T](fromRowRecurse(weakTypeOf[T], row))
   }
-  // scalastyle:on
 
   def structType[T: c.WeakTypeTag](): c.Tree = {
     import c.universe._
