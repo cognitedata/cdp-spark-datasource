@@ -92,7 +92,9 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     }
     Stream.eval(request).flatMap { response =>
       response.body match {
-        case Right(byteArray) => Stream.emits(new String(byteArray).split("\n").toList)
+        case Right(byteArray) => Stream.emits(byteArray)
+          .through(fs2.text.utf8.decode)
+          .through(fs2.text.lines)
         case Left(error) => throw new CdfSparkException(f"Error while requesting underlying file: $error")
         case _ => throw new CdfSparkException("Error while requesting underlying file")
       }
