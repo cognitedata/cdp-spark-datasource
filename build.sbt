@@ -46,7 +46,7 @@ lazy val commonSettings = Seq(
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
-  scalaVersion := scala213, // default to Scala 2.12
+  scalaVersion := scala212, // default to Scala 2.12
   // handle cross plugin https://github.com/stringbean/sbt-dependency-lock/issues/13
   dependencyLockFile := { baseDirectory.value / s"build.scala-${CrossVersion.partialVersion(scalaVersion.value) match { case Some((2, n)) => s"2.$n" }}.sbt.lock" },
   description := "Spark data source for the Cognite Data Platform.",
@@ -160,10 +160,8 @@ lazy val library = (project in file("."))
         exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
         exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
-      "com.softwaremill.sttp.client3" %% "fs2" % sttpVersion,
-      "com.softwaremill.sttp.client3" %% "async-http-client-backend-fs2" % sttpVersion,
       "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion
-      // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
+        // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
         exclude("io.netty", "netty-buffer")
         exclude("io.netty", "netty-handler")
         exclude("io.netty", "netty-transport-native-epoll")
@@ -173,7 +171,6 @@ lazy val library = (project in file("."))
         exclude("org.typelevel", "cats-effect_2.13")
         exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
-
       "org.slf4j" % "slf4j-api" % "2.0.9" % Provided,
       "io.circe" %% "circe-generic" % circeVersion
         exclude("org.typelevel", "cats-core_2.12")
