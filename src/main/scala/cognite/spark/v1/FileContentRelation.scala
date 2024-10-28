@@ -11,7 +11,6 @@ import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, T
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
 import org.apache.spark.{Partition, TaskContext}
-import org.asynchttpclient.{AsyncHttpClient, DefaultAsyncHttpClient}
 import sttp.capabilities.WebSockets
 import sttp.capabilities.fs2.Fs2Streams
 import sttp.client3.asynchttpclient.SttpClientBackendFactory
