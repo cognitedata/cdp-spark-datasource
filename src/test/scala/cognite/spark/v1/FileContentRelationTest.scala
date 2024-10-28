@@ -4,7 +4,7 @@ import cats.effect.unsafe.implicits.global
 import cats.effect.{IO, Resource}
 import com.cognite.sdk.scala.v1.FileCreate
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.types.{LongType, StringType, StructField}
+import org.apache.spark.sql.types.{ArrayType, LongType, StringType, StructField, StructType}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
@@ -12,10 +12,15 @@ import java.net.MalformedURLException
 
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
   val fileExternalId: String = "fileContentTransformationFile"
+  val fileExternalIdWithNestedJson: String = "fileContentTransformationFileNestedJson"
+  val fileExternalIdWithConflicts: String = "fileContentTransformationFileConflicts"
   val fileWithWrongMimeTypeExternalId: String = "fileContentTransformationFileWrongMimeType"
 
   override def beforeAll(): Unit = {
     makeFile(fileExternalId).unsafeRunSync()
+    makeFile(fileExternalIdWithNestedJson, None, generateNdjsonDataNested).unsafeRunSync()
+    makeFile(fileExternalIdWithConflicts, None, generateNdjsonDataConflicting).unsafeRunSync()
+
     makeFile(fileWithWrongMimeTypeExternalId, Some("application/json")).unsafeRunSync()//bad mimetype
   }
 
@@ -24,18 +29,37 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     writeClient.files.deleteByExternalIds(Seq(fileExternalId)).unsafeRunSync()
   }
 
-  def generateNdjsonData: String = {
+  val generateNdjsonData: String = {
     val jsonObjects = List(
       """{"name": "Alice", "age": 30}""",
       """{"name": "Bob", "age": 25}""",
       """{"name": "Charlie", "age": 35}""",
       """{"name": "Charlie2", "age": 35, "test": "test"}"""
-
     )
     jsonObjects.mkString("\n")
   }
 
-  def makeFile(externalId: String, mimeType: Option[String] = Some("application/jsonlines")): IO[Unit]  = {
+  val generateNdjsonDataNested: String = {
+    val jsonObjects = List(
+      """{"name": "Alice", "age": 30}""",
+      """{"name": "Bob", "age": 25}""",
+      """{"name": "Charlie", "age": 35}""",
+      """{"name": "Charlie2", "age": 35, "test": [{"key": "value", "key2": "value2"}, {"key": "value"}]}"""
+    )
+    jsonObjects.mkString("\n")
+  }
+
+  val generateNdjsonDataConflicting: String = {
+    val jsonObjects = List(
+      """{"name": "Alice", "age": 30}""",
+      """{"name": "Bob", "age": 25}""",
+      """{"name": "Charlie", "age": 35, "test": "content"}""",
+      """{"name": "Charlie2", "age": 35, "test": [{"key": "value", "key2": "value2"}, {"key": "value"}]}"""
+    )
+    jsonObjects.mkString("\n")
+  }
+
+  def makeFile(externalId: String, mimeType: Option[String] = Some("application/jsonlines"), content: String = generateNdjsonData): IO[Unit]  = {
     val toCreate: FileCreate = FileCreate(
       name = "test file for file content transformation",
       externalId = Some(externalId),
@@ -60,7 +84,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
         if (!file.uploaded) {
           val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
           val request = basicRequest.put(uri"${file.uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
-            .body(generateNdjsonData)
+            .body(content)
           backend.use { backend =>
             IO {
               val response = request.send(backend)
@@ -118,11 +142,53 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       .load()
     sourceDf.createOrReplaceTempView("fileContent")
     sourceDf.schema.fields should contain allElementsOf Seq(
-        StructField("name", StringType, nullable = true),
-        StructField("test", StringType, nullable = true),
-        StructField("age", LongType, nullable = true)
-      )
+      StructField("name", StringType, nullable = true),
+      StructField("test", StringType, nullable = true),
+      StructField("age", LongType, nullable = true)
+    )
   }
+
+  it should "infer the schema correctly with nested json" in {
+    val sourceDf: DataFrame = dataFrameReaderUsingOidc
+      .useOIDCWrite
+      .option("type", "filecontent")
+      .option("inferSchema", value = true)
+      .option("externalId", fileExternalIdWithNestedJson)
+      .load()
+    sourceDf.createOrReplaceTempView("fileContent")
+    sourceDf.schema.fields should contain allElementsOf Seq(
+      StructField("name", StringType, nullable = true),
+      StructField("test",
+        ArrayType(
+          StructType(
+            Seq(
+              StructField("key",StringType, nullable = true),
+              StructField("key2",StringType, nullable = true)
+            )
+          ),
+          containsNull = true
+        ),
+        nullable = true
+      ),
+      StructField("age", LongType, nullable = true)
+    )
+  }
+
+  it should "infer the schema correctly with conflicting types" in {
+    val sourceDf: DataFrame = dataFrameReaderUsingOidc
+      .useOIDCWrite
+      .option("type", "filecontent")
+      .option("inferSchema", value = true)
+      .option("externalId", fileExternalIdWithConflicts)
+      .load()
+    sourceDf.createOrReplaceTempView("fileContent")
+    sourceDf.schema.fields should contain allElementsOf Seq(
+      StructField("name", StringType, nullable = true),
+      StructField("test", StringType, nullable = true),
+      StructField("age", LongType, nullable = true)
+    )
+  }
+
 
   it should "select specific columns" in {
     val sourceDf: DataFrame = dataFrameReaderUsingOidc
