@@ -11,6 +11,7 @@ import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, T
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
 import org.apache.spark.{Partition, TaskContext}
+import org.asynchttpclient.{AsyncHttpClient, DefaultAsyncHttpClient}
 import sttp.capabilities.WebSockets
 import sttp.capabilities.fs2.Fs2Streams
 import sttp.client3.asynchttpclient.SttpClientBackendFactory
@@ -35,12 +36,17 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
+
   @transient private lazy val sttpFileContentStreamingBackendResource: Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
-    Dispatcher.parallel[IO].flatMap { dispatcher =>
-      Resource.eval(IO {
-        AsyncHttpClientFs2Backend.usingClient[IO](SttpClientBackendFactory.create("file-download-client"), dispatcher)
-      })
-    }
+    for {
+      dispatcher <- Dispatcher.parallel[IO]
+      backend <- Resource.make(
+        IO(AsyncHttpClientFs2Backend.usingClient[IO](SttpClientBackendFactory.create("file content download"), dispatcher))
+      )(backend => backend.close())
+    } yield backend
+
+
+
 
   private lazy val dataFrame: DataFrame = createDataFrame(sparkSession = sqlContext.sparkSession)
 
@@ -100,9 +106,8 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     Stream.resource(sttpFileContentStreamingBackendResource).flatMap { backend =>
       val request = basicRequest
         .get(uri"$link")
-        .response(asStreamUnsafe(Fs2Streams[IO])) // Unsafe stream, requires manual resource management
+        .response(asStreamUnsafe(Fs2Streams[IO]))
 
-      // Send the request and handle the response as a stream
       Stream.eval(backend.send(request)).flatMap { response =>
         response.body match {
           case Right(byteStream) =>
