@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
-import cats.effect.IO
+import cats.effect.std.Dispatcher
+import cats.effect.{IO, Resource}
 import com.cognite.sdk.scala.v1.{FileDownloadExternalId, GenericClient}
 import fs2.Stream
 import org.apache.commons.io.FileUtils
@@ -10,10 +11,12 @@ import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, T
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
 import org.apache.spark.{Partition, TaskContext}
-import sttp.client3.{UriContext, asByteArray}
+import sttp.capabilities.WebSockets
+import sttp.capabilities.fs2.Fs2Streams
+import sttp.client3.asynchttpclient.SttpClientBackendFactory
+import sttp.client3.asynchttpclient.fs2.AsyncHttpClientFs2Backend
+import sttp.client3.{SttpBackend, UriContext, asStreamUnsafe, basicRequest}
 import sttp.model.Header
-
-
 
 trait WithSizeLimit {
   val sizeLimit: Long
@@ -31,6 +34,13 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
+
+  @transient private lazy val sttpFileContentStreamingBackendResource: Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
+    Dispatcher.parallel[IO].flatMap { dispatcher =>
+      Resource.eval(IO {
+        AsyncHttpClientFs2Backend.usingClient[IO](SttpClientBackendFactory.create("file-download-client"), dispatcher)
+      })
+    }
 
   private lazy val dataFrame: DataFrame = createDataFrame(sparkSession = sqlContext.sparkSession)
 
@@ -78,28 +88,34 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     import sparkSession.implicits._
     val dataset = rdd.toDS()
 
-    inferSchema match {
-      case true =>  sqlContext.sparkSession.read.json(dataset)
-      case false => dataset.toDF()
+    if (inferSchema) {
+      sqlContext.sparkSession.read.json(dataset)
+    } else {
+      dataset.toDF()
     }
   }
 
+
   private def readUrlContent(link: String): Stream[IO, String] = {
-    val request = client.requestSession.send { request =>
-      request
+    Stream.resource(sttpFileContentStreamingBackendResource).flatMap { backend =>
+      val request = basicRequest
         .get(uri"$link")
-        .response(asByteArray)
-    }
-    Stream.eval(request).flatMap { response =>
-      response.body match {
-        case Right(byteArray) => Stream.emits(byteArray)
-          .through(fs2.text.utf8.decode)
-          .through(fs2.text.lines)
-        case Left(error) => throw new CdfSparkException(f"Error while requesting underlying file: $error")
-        case _ => throw new CdfSparkException("Error while requesting underlying file")
+        .response(asStreamUnsafe(Fs2Streams[IO])) // Unsafe stream, requires manual resource management
+
+      // Send the request and handle the response as a stream
+      Stream.eval(backend.send(request)).flatMap { response =>
+        response.body match {
+          case Right(byteStream) =>
+            byteStream
+              .through(fs2.text.utf8.decode)
+              .through(fs2.text.lines)
+          case Left(error) =>
+            Stream.raiseError[IO](new Exception(s"Error while requesting underlying file: $error"))
+        }
       }
     }
   }
+
 
   private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
     val headers: IO[Seq[Header]] = client.requestSession.head(uri"$downloadUrl")()
