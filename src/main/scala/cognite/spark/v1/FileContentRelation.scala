@@ -35,26 +35,21 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
-
-
-  @transient private lazy val sttpFileContentStreamingBackendResource: Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
+  @transient private lazy val sttpFileContentStreamingBackendResource
+    : Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
     for {
       dispatcher <- Dispatcher.parallel[IO]
       backend <- Resource.make(
-        IO(AsyncHttpClientFs2Backend.usingClient[IO](SttpClientBackendFactory.create("file content download"), dispatcher))
+        IO(
+          AsyncHttpClientFs2Backend
+            .usingClient[IO](SttpClientBackendFactory.create("file content download"), dispatcher))
       )(backend => backend.close())
     } yield backend
 
-
-
-
   private lazy val dataFrame: DataFrame = createDataFrame(sparkSession = sqlContext.sparkSession)
 
-
-  override def schema: StructType = {
+  override def schema: StructType =
     dataFrame.schema
-  }
-
 
   def createDataFrame(sparkSession: SparkSession): DataFrame = {
     val rdd: RDD[String] = new RDD[String](sparkSession.sparkContext, Nil) with Serializable {
@@ -71,10 +66,14 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
             .map(_.downloadUrl)
           isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
-          if (mimeType.isDefined && !Seq("application/jsonlines", "application/x-ndjson", "application/jsonl").contains(mimeType.get))
+          if (mimeType.isDefined && !Seq(
+              "application/jsonlines",
+              "application/x-ndjson",
+              "application/jsonl").contains(mimeType.get))
             throw new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
           if (!isFileWithinLimits)
-            throw new CdfSparkException(f"File size above size limit, or file size header absent from head request")
+            throw new CdfSparkException(
+              f"File size above size limit, or file size header absent from head request")
           downloadLink
         }
 
@@ -101,8 +100,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     }
   }
 
-
-  private def readUrlContent(link: String): Stream[IO, String] = {
+  private def readUrlContent(link: String): Stream[IO, String] =
     Stream.resource(sttpFileContentStreamingBackendResource).flatMap { backend =>
       val request = basicRequest
         .get(uri"$link")
@@ -119,8 +117,6 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
         }
       }
     }
-  }
-
 
   private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
     val headers: IO[Seq[Header]] = client.requestSession.head(uri"$downloadUrl")()
@@ -131,9 +127,8 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     }
   }
 
-  override def buildScan(): RDD[Row] = {
+  override def buildScan(): RDD[Row] =
     dataFrame.rdd
-  }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
     dataFrame.select(requiredColumns.map(col).toIndexedSeq: _*).rdd
