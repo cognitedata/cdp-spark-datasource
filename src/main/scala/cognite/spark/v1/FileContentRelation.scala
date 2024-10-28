@@ -118,7 +118,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     }
 
   private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
-    val headers: IO[Seq[Header]] = client.requestSession.head(uri"$downloadUrl")()
+    val headers: IO[Seq[Header]] = client.requestSession.head(uri"$downloadUrl")
 
     headers.map { headerSeq =>
       val sizeHeader = headerSeq.find(_.name.equalsIgnoreCase("content-length"))
