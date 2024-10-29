@@ -9,14 +9,14 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.{Partition, TaskContext}
 import sttp.capabilities.WebSockets
 import sttp.capabilities.fs2.Fs2Streams
 import sttp.client3.asynchttpclient.SttpClientBackendFactory
 import sttp.client3.asynchttpclient.fs2.AsyncHttpClientFs2Backend
 import sttp.client3.{SttpBackend, UriContext, asStreamUnsafe, basicRequest}
-import sttp.model.Header
+import sttp.model.{Header, Uri}
 
 trait WithSizeLimit {
   val sizeLimit: Long
@@ -46,13 +46,18 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       )(backend => backend.close())
     } yield backend
 
-  private lazy val dataFrame: DataFrame = createDataFrame(sparkSession = sqlContext.sparkSession)
+  val acceptedMimeTypes: Seq[String] = Seq(
+    "application/jsonlines",
+    "application/x-ndjson",
+    "application/jsonl")
+
+  private lazy val dataFrame: DataFrame = createDataFrame
 
   override def schema: StructType =
     dataFrame.schema
 
-  def createDataFrame(sparkSession: SparkSession): DataFrame = {
-    val rdd: RDD[String] = new RDD[String](sparkSession.sparkContext, Nil) with Serializable {
+  lazy val createDataFrame: DataFrame = {
+    val rdd: RDD[String] = new RDD[String](sqlContext.sparkContext, Nil) with Serializable {
 
       import cognite.spark.v1.CdpConnector.ioRuntime
 
@@ -64,22 +69,18 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
           downloadLink <- client.files
             .downloadLink(FileDownloadExternalId(fileExternalId))
             .map(_.downloadUrl)
-          _ <- IO.pure(
-            if (!downloadLink.startsWith("https")) {
-              throw new CdfSparkException("File storage is not using https protocol")
-            }
-          )
+          uri <- IO.pure(uri"$downloadLink")
+          _ <- IO.raiseWhen(!uri.scheme.exists(_.equals("https")) || uri.host.isEmpty)(
+              new CdfSparkException("Invalid download uri, it should be a valid url using https")
+            )
           isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
-          if (mimeType.isDefined && !Seq(
-              "application/jsonlines",
-              "application/x-ndjson",
-              "application/jsonl").contains(mimeType.get))
+          if (mimeType.isDefined && !acceptedMimeTypes.contains(mimeType.get))
             throw new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
           if (!isFileWithinLimits)
             throw new CdfSparkException(
               f"File size above size limit, or file size header absent from head request")
-          downloadLink
+          uri
         }
 
         StreamIterator(
@@ -95,7 +96,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       override protected def getPartitions: Array[Partition] =
         Array(CdfPartition(0))
     }
-    import sparkSession.implicits._
+    import sqlContext.sparkSession.implicits._
     val dataset = rdd.toDS()
 
     if (inferSchema) {
@@ -105,7 +106,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     }
   }
 
-  private def readUrlContent(link: String): Stream[IO, String] =
+  private def readUrlContent(link: Uri): Stream[IO, String] =
     Stream.resource(sttpFileContentStreamingBackendResource).flatMap { backend =>
       val request = basicRequest
         .get(uri"$link")

@@ -208,7 +208,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       )
   }
 
-  it should "not infer schema is not asked to" in {
+  it should "not infer schema if not asked to" in {
     val sourceDf: DataFrame = dataFrameReaderUsingOidc
       .useOIDCWrite
       .option("type", "filecontent")
@@ -217,6 +217,8 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       .load()
     sourceDf.createOrReplaceTempView("fileContent")
     val result = spark.sqlContext.sql(s"select * from filecontent").collect()
+
+    sourceDf.schema.fields should contain only StructField("value", StringType, nullable = true)
 
     result.map(_.toSeq.toList) should contain theSameElementsAs Array(
       List("""{"name": "Alice", "age": 30}"""),
@@ -237,7 +239,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
 
     val expectedMessage = "File size above size limit, or file size header absent from head request"
     val exception = sparkIntercept {
-      relation.createDataFrame(spark.sqlContext.sparkSession)
+      relation.createDataFrame
     }
     withClue(s"Expected '$expectedMessage' but got: '${exception.getMessage}'") {
       exception.getMessage.contains(expectedMessage) should be(true)
