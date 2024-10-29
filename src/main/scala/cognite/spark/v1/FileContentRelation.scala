@@ -34,6 +34,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
+
   @transient private lazy val sttpFileContentStreamingBackendResource
     : Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
     for {
@@ -64,7 +65,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
             .downloadLink(FileDownloadExternalId(fileExternalId))
             .map(_.downloadUrl)
           _ <- IO.pure(
-            if(!downloadLink.startsWith("https")) {
+            if (!downloadLink.startsWith("https")) {
               throw new CdfSparkException("File storage is not using https protocol")
             }
           )
