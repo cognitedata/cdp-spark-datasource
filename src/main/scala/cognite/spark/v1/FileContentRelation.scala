@@ -46,12 +46,10 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       )(backend => backend.close())
     } yield backend
 
-  val acceptedMimeTypes: Seq[String] = Seq(
-    "application/jsonlines",
-    "application/x-ndjson",
-    "application/jsonl")
+  val acceptedMimeTypes: Seq[String] =
+    Seq("application/jsonlines", "application/x-ndjson", "application/jsonl")
 
-  private lazy val dataFrame: DataFrame = createDataFrame
+  @transient private lazy val dataFrame: DataFrame = createDataFrame
 
   override def schema: StructType =
     dataFrame.schema
@@ -71,17 +69,17 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
             .map(_.downloadUrl)
           uri <- IO.pure(uri"$downloadLink")
           _ <- IO.raiseWhen(!uri.scheme.exists(_.equals("https")) || uri.host.isEmpty)(
-              new CdfSparkException("Invalid download uri, it should be a valid url using https")
-            )
-          isFileWithinLimits <- isFileWithinLimits(downloadLink)
-        } yield {
-          if (mimeType.isDefined && !acceptedMimeTypes.contains(mimeType.get))
-            throw new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
-          if (!isFileWithinLimits)
-            throw new CdfSparkException(
+            new CdfSparkException("Invalid download uri, it should be a valid url using https")
+          )
+          _ <- IO.raiseWhen(mimeType.isDefined && !acceptedMimeTypes.contains(mimeType.get))(
+            new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
+          )
+          isFileWithinLimits <- isFileWithinLimits(uri)
+          _ <- IO.raiseWhen(!isFileWithinLimits)(
+            new CdfSparkException(
               f"File size above size limit, or file size header absent from head request")
-          uri
-        }
+          )
+        } yield uri
 
         StreamIterator(
           Stream
@@ -109,7 +107,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
   private def readUrlContent(link: Uri): Stream[IO, String] =
     Stream.resource(sttpFileContentStreamingBackendResource).flatMap { backend =>
       val request = basicRequest
-        .get(uri"$link")
+        .get(link)
         .response(asStreamUnsafe(Fs2Streams[IO]))
 
       Stream.eval(backend.send(request)).flatMap { response =>
@@ -124,8 +122,8 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       }
     }
 
-  private def isFileWithinLimits(downloadUrl: String): IO[Boolean] = {
-    val headers: IO[Seq[Header]] = client.requestSession.head(uri"$downloadUrl")
+  private def isFileWithinLimits(downloadUrl: Uri): IO[Boolean] = {
+    val headers: IO[Seq[Header]] = client.requestSession.head(downloadUrl)
 
     headers.map { headerSeq =>
       val sizeHeader = headerSeq.find(_.name.equalsIgnoreCase("content-length"))
