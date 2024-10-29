@@ -54,7 +54,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
   override def schema: StructType =
     dataFrame.schema
 
-  lazy val createDataFrame: DataFrame = {
+  @transient lazy val createDataFrame: DataFrame = {
     val rdd: RDD[String] = new RDD[String](sqlContext.sparkContext, Nil) with Serializable {
 
       import cognite.spark.v1.CdpConnector.ioRuntime
