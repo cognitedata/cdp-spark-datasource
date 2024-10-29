@@ -63,6 +63,11 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
           downloadLink <- client.files
             .downloadLink(FileDownloadExternalId(fileExternalId))
             .map(_.downloadUrl)
+          _ <- IO.pure(
+            if(!downloadLink.startsWith("https")) {
+              throw new CdfSparkException("File storage is not using https protocol")
+            }
+          )
           isFileWithinLimits <- isFileWithinLimits(downloadLink)
         } yield {
           if (mimeType.isDefined && !Seq(
