@@ -68,10 +68,10 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
             .downloadLink(FileDownloadExternalId(fileExternalId))
             .map(_.downloadUrl)
           uri <- IO.pure(uri"$downloadLink")
-          _ <- IO.raiseWhen(!uri.scheme.exists(_.equals("https")) || uri.host.isEmpty)(
+          _ <- IO.raiseWhen(!uri.scheme.contains("https"))(
             new CdfSparkException("Invalid download uri, it should be a valid url using https")
           )
-          _ <- IO.raiseWhen(mimeType.isDefined && !acceptedMimeTypes.contains(mimeType.get))(
+          _ <- IO.raiseWhen(mimeType.exists(!acceptedMimeTypes.contains(_)))(
             new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
           )
           isFileWithinLimits <- isFileWithinLimits(uri)
@@ -84,7 +84,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
         StreamIterator(
           Stream
             .eval(validUrl)
-            .flatMap(readUrlContent),
+            .flatMap(readUrlContentLines),
           maxParallelism,
           None
         )
@@ -104,7 +104,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     }
   }
 
-  private def readUrlContent(link: Uri): Stream[IO, String] =
+  private def readUrlContentLines(link: Uri): Stream[IO, String] =
     Stream.resource(sttpFileContentStreamingBackendResource).flatMap { backend =>
       val request = basicRequest
         .get(link)
