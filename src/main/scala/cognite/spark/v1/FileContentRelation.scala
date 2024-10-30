@@ -18,6 +18,7 @@ import sttp.client3.asynchttpclient.fs2.AsyncHttpClientFs2Backend
 import sttp.client3.{SttpBackend, UriContext, asStreamUnsafe, basicRequest}
 import sttp.model.{Header, Uri}
 
+//The trait exist for testing purposes
 trait WithSizeLimit {
   val sizeLimit: Long
 }
@@ -74,18 +75,14 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
           _ <- IO.raiseWhen(mimeType.exists(!acceptedMimeTypes.contains(_)))(
             new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
           )
-          isFileWithinLimits <- isFileWithinLimits(uri)
-          _ <- IO.raiseWhen(!isFileWithinLimits)(
-            new CdfSparkException(
-              f"File size above size limit, or file size header absent from head request")
-          )
+          _ <- isFileWithinLimits(uri).flatMap(IO.fromEither)
         } yield uri
 
         StreamIterator(
           Stream
             .eval(validUrl)
             .flatMap(readUrlContentLines),
-          maxParallelism,
+          maxParallelism * 2,
           None
         )
 
@@ -122,12 +119,19 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       }
     }
 
-  private def isFileWithinLimits(downloadUrl: Uri): IO[Boolean] = {
-    val headers: IO[Seq[Header]] = client.requestSession.head(downloadUrl)
-
-    headers.map { headerSeq =>
-      val sizeHeader = headerSeq.find(_.name.equalsIgnoreCase("content-length"))
-      sizeHeader.exists(_.value.toLong < sizeLimit)
+  private def isFileWithinLimits(downloadUrl: Uri): IO[Either[CdfSparkException, Long]] = {
+    for {
+      headers <- client.requestSession.head(downloadUrl)
+    } yield {
+      val sizeHeader =  headers.find(_.name.equalsIgnoreCase("content-length"))
+      sizeHeader match {
+        case None => Left(FileSizeUnknown())
+        case Some(header: Header) =>
+          if(header.value.toLong > sizeLimit)
+            Left(FileSizeTooBig(header.value.toLong, sizeLimit))
+          else
+            Right(header.value.toLong)
+      }
     }
   }
 
@@ -138,3 +142,6 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     dataFrame.select(requiredColumns.map(col).toIndexedSeq: _*).rdd
 
 }
+
+final case class FileSizeTooBig(size: Long, sizeLimit: Long) extends CdfSparkException(s"File size too big. Size: $size SizeLimit: $sizeLimit")
+final case class FileSizeUnknown() extends CdfSparkException("Unknown file size: No content-length header on the download endpoint")

@@ -237,7 +237,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       override val sizeLimit: Long = 100
     }
 
-    val expectedMessage = "File size above size limit, or file size header absent from head request"
+    val expectedMessage = "File size too big. Size: 134 SizeLimit: 100"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
