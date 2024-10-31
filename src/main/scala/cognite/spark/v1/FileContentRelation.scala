@@ -64,11 +64,17 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       override def compute(split: Partition, context: TaskContext): Iterator[String] = {
 
         val validUrl = for {
-          mimeType <- client.files.retrieveByExternalId(fileExternalId).map(_.mimeType)
+          file <- client.files.retrieveByExternalId(fileExternalId)
+          mimeType <- IO.pure(file.mimeType)
+          _ <- IO.raiseWhen(!file.uploaded)(
+            new CdfSparkException(
+              f"Could not read file because no file was uploaded for externalId: $fileExternalId")
+          )
+
           downloadLink <- client.files
             .downloadLink(FileDownloadExternalId(fileExternalId))
-            .map(_.downloadUrl)
-          uri <- IO.pure(uri"$downloadLink")
+
+          uri <- IO.pure(uri"${downloadLink.downloadUrl}")
           _ <- IO.raiseWhen(!uri.scheme.contains("https"))(
             new CdfSparkException("Invalid download uri, it should be a valid url using https")
           )
@@ -119,21 +125,20 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       }
     }
 
-  private def isFileWithinLimits(downloadUrl: Uri): IO[Either[CdfSparkException, Long]] = {
+  private def isFileWithinLimits(downloadUrl: Uri): IO[Either[CdfSparkException, Long]] =
     for {
       headers <- client.requestSession.head(downloadUrl)
     } yield {
-      val sizeHeader =  headers.find(_.name.equalsIgnoreCase("content-length"))
+      val sizeHeader = headers.find(_.name.equalsIgnoreCase("content-length"))
       sizeHeader match {
         case None => Left(FileSizeUnknown())
         case Some(header: Header) =>
-          if(header.value.toLong > sizeLimit)
+          if (header.value.toLong > sizeLimit)
             Left(FileSizeTooBig(header.value.toLong, sizeLimit))
           else
             Right(header.value.toLong)
       }
     }
-  }
 
   override def buildScan(): RDD[Row] =
     dataFrame.rdd
@@ -143,5 +148,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
 
 }
 
-final case class FileSizeTooBig(size: Long, sizeLimit: Long) extends CdfSparkException(s"File size too big. Size: $size SizeLimit: $sizeLimit")
-final case class FileSizeUnknown() extends CdfSparkException("Unknown file size: No content-length header on the download endpoint")
+final case class FileSizeTooBig(size: Long, sizeLimit: Long)
+    extends CdfSparkException(s"File size too big. Size: $size SizeLimit: $sizeLimit")
+final case class FileSizeUnknown()
+    extends CdfSparkException("Unknown file size: No content-length header on the download endpoint")

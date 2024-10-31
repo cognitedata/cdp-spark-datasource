@@ -15,6 +15,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   val fileExternalIdWithNestedJson: String = "fileContentTransformationFileNestedJson"
   val fileExternalIdWithConflicts: String = "fileContentTransformationFileConflicts"
   val fileWithWrongMimeTypeExternalId: String = "fileContentTransformationFileWrongMimeType"
+  val fileWithoutUploadExternalId: String = "fileWithoutUploadExternalId"
 
   override def beforeAll(): Unit = {
     makeFile(fileExternalId).unsafeRunSync()
@@ -238,6 +239,37 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     }
 
     val expectedMessage = "File size too big. Size: 134 SizeLimit: 100"
+    val exception = sparkIntercept {
+      relation.createDataFrame
+    }
+    withClue(s"Expected '$expectedMessage' but got: '${exception.getMessage}'") {
+      exception.getMessage.contains(expectedMessage) should be(true)
+    }
+  }
+
+  it should "throw if the file was never uploaded" in {
+
+    val toCreate: FileCreate = FileCreate(
+      name = "test file for file content transformation",
+      externalId = Some(fileWithoutUploadExternalId),
+      mimeType = None,
+    )
+    for {
+      existingFile <- writeClient.files.retrieveByExternalId(fileWithoutUploadExternalId).attempt
+      _ <- existingFile match {
+        case Right(value) if value.uploaded => IO.pure(value)
+        case _ =>
+          writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
+      }
+    } yield ()
+
+    val relation = new FileContentRelation(
+      getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
+      fileExternalId = fileWithoutUploadExternalId,
+      true
+    )(spark.sqlContext)
+
+    val expectedMessage = "Could not read file because no file was uploaded for externalId: fileWithoutUploadExternalId"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
