@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.std.Dispatcher
 import cats.effect.{IO, Resource}
 import com.cognite.sdk.scala.v1.{FileDownloadExternalId, GenericClient}
-import fs2.Stream
+import fs2.{Pipe, Stream}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.col
@@ -16,8 +16,8 @@ import sttp.capabilities.fs2.Fs2Streams
 import sttp.client3.asynchttpclient.SttpClientBackendFactory
 import sttp.client3.asynchttpclient.fs2.AsyncHttpClientFs2Backend
 import sttp.client3.{SttpBackend, UriContext, asStreamUnsafe, basicRequest}
-import sttp.model.{Header, Uri}
-import scala.collection.immutable.Seq
+import sttp.model.Uri
+import scala.collection.immutable._
 
 //The trait exist for testing purposes
 trait WithSizeLimit {
@@ -83,7 +83,6 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
             new CdfSparkException("Invalid download uri, it should be a valid url using https")
           )
 
-          _ <- isFileWithinLimits(uri).flatMap(IO.fromEither)
         } yield uri
 
         StreamIterator(
@@ -119,26 +118,12 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
         response.body match {
           case Right(byteStream) =>
             byteStream
+              .through(enforceSizeLimit)
               .through(fs2.text.utf8.decode)
               .through(fs2.text.lines)
           case Left(error) =>
             Stream.raiseError[IO](new Exception(s"Error while requesting underlying file: $error"))
         }
-      }
-    }
-
-  private def isFileWithinLimits(downloadUrl: Uri): IO[Either[CdfSparkException, Long]] =
-    for {
-      headers <- client.requestSession.head(downloadUrl, Seq(Header("Accept-Encoding", "")))
-    } yield {
-      val sizeHeader = headers.find(_.name.equalsIgnoreCase("content-length"))
-      sizeHeader match {
-        case None => Left(FileSizeUnknown())
-        case Some(header: Header) =>
-          if (header.value.toLong > sizeLimit)
-            Left(FileSizeTooBig(header.value.toLong, sizeLimit))
-          else
-            Right(header.value.toLong)
       }
     }
 
@@ -148,9 +133,14 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
     dataFrame.select(requiredColumns.map(col).toIndexedSeq: _*).rdd
 
-}
+  private val enforceSizeLimit: Pipe[IO, Byte, Byte] =
+    in =>
+      in.scanChunks(0L) { (acc, chunk) =>
+        val newSize = acc + chunk.size
+        if (newSize > sizeLimit)
+          throw new CdfSparkException(s"File size too big. SizeLimit: $sizeLimit")
+        else
+          (newSize, chunk)
+    }
 
-final case class FileSizeTooBig(size: Long, sizeLimit: Long)
-    extends CdfSparkException(s"File size too big. Size: $size SizeLimit: $sizeLimit")
-final case class FileSizeUnknown()
-    extends CdfSparkException("Unknown file size: No content-length header on the download endpoint")
+}

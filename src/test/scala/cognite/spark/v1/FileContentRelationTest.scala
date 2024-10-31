@@ -8,6 +8,7 @@ import org.apache.spark.sql.types.{ArrayType, LongType, StringType, StructField,
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
+import scala.collection.immutable._
 import java.net.MalformedURLException
 
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
@@ -25,10 +26,17 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     makeFile(fileWithWrongMimeTypeExternalId, Some("application/json")).unsafeRunSync()//bad mimetype
   }
 
+
 //  uncomment for cleanups
-  override def afterAll(): Unit = {
-    writeClient.files.deleteByExternalIds(Seq(fileExternalId)).unsafeRunSync()
-  }
+//  override def afterAll(): Unit = {
+//    writeClient.files.deleteByExternalIds(Seq(
+//      fileExternalId,
+//      fileExternalIdWithNestedJson,
+//      fileExternalIdWithConflicts,
+//      fileWithWrongMimeTypeExternalId,
+//      fileWithoutUploadExternalId
+//    )).unsafeRunSync()
+//  }
 
   val generateNdjsonData: String = {
     val jsonObjects = List(
@@ -238,7 +246,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       override val sizeLimit: Long = 100
     }
 
-    val expectedMessage = "File size too big. Size: 134 SizeLimit: 100"
+    val expectedMessage = "File size too big. SizeLimit: 100"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
