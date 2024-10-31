@@ -17,6 +17,7 @@ import sttp.client3.asynchttpclient.SttpClientBackendFactory
 import sttp.client3.asynchttpclient.fs2.AsyncHttpClientFs2Backend
 import sttp.client3.{SttpBackend, UriContext, asStreamUnsafe, basicRequest}
 import sttp.model.{Header, Uri}
+import scala.collection.immutable.Seq
 
 //The trait exist for testing purposes
 trait WithSizeLimit {
@@ -70,17 +71,18 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
             new CdfSparkException(
               f"Could not read file because no file was uploaded for externalId: $fileExternalId")
           )
-
-          downloadLink <- client.files
-            .downloadLink(FileDownloadExternalId(fileExternalId))
-
-          uri <- IO.pure(uri"${downloadLink.downloadUrl}")
-          _ <- IO.raiseWhen(!uri.scheme.contains("https"))(
-            new CdfSparkException("Invalid download uri, it should be a valid url using https")
-          )
           _ <- IO.raiseWhen(mimeType.exists(!acceptedMimeTypes.contains(_)))(
             new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
           )
+
+          downloadLink <- client.files
+            .downloadLink(FileDownloadExternalId(fileExternalId))
+          uri <- IO.pure(uri"${downloadLink.downloadUrl}")
+
+          _ <- IO.raiseWhen(!uri.scheme.contains("https"))(
+            new CdfSparkException("Invalid download uri, it should be a valid url using https")
+          )
+
           _ <- isFileWithinLimits(uri).flatMap(IO.fromEither)
         } yield uri
 
@@ -127,7 +129,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
 
   private def isFileWithinLimits(downloadUrl: Uri): IO[Either[CdfSparkException, Long]] =
     for {
-      headers <- client.requestSession.head(downloadUrl)
+      headers <- client.requestSession.head(downloadUrl, Seq(Header("Accept-Encoding", "")))
     } yield {
       val sizeHeader = headers.find(_.name.equalsIgnoreCase("content-length"))
       sizeHeader match {
