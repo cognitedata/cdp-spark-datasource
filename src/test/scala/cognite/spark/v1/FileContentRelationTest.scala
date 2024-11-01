@@ -262,14 +262,15 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       externalId = Some(fileWithoutUploadExternalId),
       mimeType = None,
     )
-    for {
+    val file = for {
       existingFile <- writeClient.files.retrieveByExternalId(fileWithoutUploadExternalId).attempt
       _ <- existingFile match {
-        case Right(value) if value.uploaded => IO.pure(value)
+        case Right(value) if !value.uploaded => IO.pure(value)
         case _ =>
           writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
       }
     } yield ()
+    file.unsafeRunSync()
 
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
