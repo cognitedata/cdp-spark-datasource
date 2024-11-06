@@ -27,6 +27,3 @@ class ThreeDModelRevisionMappingsRelation(config: RelationConfig, modelId: Long,
 object ThreeDModelRevisionMappingsRelation extends NamedRelation {
   override val name: String = "3dmodelrevisionmappings"
 }
-
-
-
