@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
+import cognite.spark.v1.AssetsRelation.name
 import com.cognite.sdk.scala.common._
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Assets
@@ -18,7 +19,7 @@ import scala.annotation.unused
 
 class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]] = None)(
     val sqlContext: SQLContext)
-    extends SdkV1InsertableRelation[AssetsReadSchema, Long](config, "assets")
+    extends SdkV1InsertableRelation[AssetsReadSchema, Long](config, name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
@@ -115,7 +116,8 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
   override def uniqueId(a: AssetsReadSchema): Long = a.id
 }
 
-object AssetsRelation extends UpsertSchema {
+object AssetsRelation extends UpsertSchema with NamedRelation {
+  override val name = "assets"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[AssetsUpsertSchema]()

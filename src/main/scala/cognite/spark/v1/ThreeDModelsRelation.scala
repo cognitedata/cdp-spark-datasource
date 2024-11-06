@@ -23,3 +23,7 @@ class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client: GenericClient[IO]): Seq[Stream[IO, ThreeDModel]] =
     Seq(client.threeDModels.list(config.limitPerPartition))
 }
+
+object ThreeDModelsRelation extends NamedRelation {
+  override val name: String = "3dmodels"
+}

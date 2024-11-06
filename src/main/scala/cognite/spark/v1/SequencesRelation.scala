@@ -21,7 +21,7 @@ import cognite.spark.v1.CdpConnector.ioRuntime
 import scala.annotation.unused
 
 class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1InsertableRelation[SequenceReadSchema, Long](config, "sequences")
+    extends SdkV1InsertableRelation[SequenceReadSchema, Long](config, SequenceRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(sparkFilters: Array[Filter])(
@@ -218,7 +218,8 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: SequenceReadSchema): Long = a.id
 }
 
-object SequenceRelation extends UpsertSchema {
+object SequenceRelation extends UpsertSchema with NamedRelation {
+  override val name: String = "sequences"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[SequenceUpsertSchema]()

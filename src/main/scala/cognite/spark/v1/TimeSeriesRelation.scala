@@ -15,7 +15,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1InsertableRelation[TimeSeries, Long](config, "timeseries")
+    extends SdkV1InsertableRelation[TimeSeries, Long](config, TimeSeriesRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def insert(rows: Seq[Row]): IO[Unit] =
@@ -90,7 +90,8 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       unitExternalId = m.get("unitExternalId")
     )
 }
-object TimeSeriesRelation extends UpsertSchema {
+object TimeSeriesRelation extends UpsertSchema with NamedRelation {
+  override val name: String = "timeseries"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]()

@@ -32,7 +32,7 @@ final case class StringDataPointsInsertItem(
 ) extends RowWithCogniteId("inserting string data points")
 
 class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext: SQLContext)
-    extends DataPointsRelationV1[StringDataPointsItem](config, "stringdatapoints")(sqlContext)
+    extends DataPointsRelationV1[StringDataPointsItem](config, StringDataPointsRelation.name)(sqlContext)
     with WritableRelation {
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Insert not supported for stringdatapoints. Please use upsert instead.")
@@ -99,7 +99,8 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
   }
 }
 
-object StringDataPointsRelation extends UpsertSchema {
+object StringDataPointsRelation extends UpsertSchema with NamedRelation {
+  override val name: String = "stringdatapoints"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   // We should use StringDataPointsItem here, but doing that gives the error: "constructor Timestamp encapsulates
   // multiple overloaded alternatives and cannot be treated as a method. Consider invoking

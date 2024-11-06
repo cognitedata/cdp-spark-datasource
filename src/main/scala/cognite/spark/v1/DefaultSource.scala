@@ -105,13 +105,13 @@ class DefaultSource
     val config = parseRelationConfig(parameters, sqlContext)
 
     resourceType match {
-      case "datapoints" =>
+      case NumericDataPointsRelation.name =>
         new NumericDataPointsRelationV1(config)(sqlContext)
-      case "stringdatapoints" =>
+      case StringDataPointsRelation.name =>
         new StringDataPointsRelationV1(config)(sqlContext)
-      case "timeseries" =>
+      case TimeSeriesRelation.name =>
         new TimeSeriesRelation(config)(sqlContext)
-      case "raw" =>
+      case RawTableRelation.name =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
 
@@ -132,47 +132,47 @@ class DefaultSource
           inferSchema,
           inferSchemaLimit,
           collectSchemaInferenceMetrics)(sqlContext)
-      case "sequencerows" =>
+      case SequenceRowsRelation.name =>
         createSequenceRows(parameters, config, sqlContext)
-      case "assets" =>
+      case AssetsRelation.name =>
         val subtreeIds = parameters.get("assetSubtreeIds").map(parseCogniteIds)
         new AssetsRelation(config, subtreeIds)(sqlContext)
-      case "events" =>
+      case EventsRelation.name =>
         new EventsRelation(config)(sqlContext)
-      case "files" =>
+      case FilesRelation.name =>
         new FilesRelation(config)(sqlContext)
-      case "filecontent" =>
+      case FileContentRelation.name =>
         val inferSchema = toBoolean(parameters, "inferSchema")
         val fileExternalId =
           parameters.getOrElse("externalId", sys.error("File's external id must be specified"))
         new FileContentRelation(config, fileExternalId, inferSchema)(sqlContext)
-      case "3dmodels" =>
+      case ThreeDModelsRelation.name =>
         new ThreeDModelsRelation(config)(sqlContext)
-      case "3dmodelrevisions" =>
+      case ThreeDModelRevisionsRelation.name =>
         val modelId =
           parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
         new ThreeDModelRevisionsRelation(config, modelId)(sqlContext)
-      case "3dmodelrevisionmappings" =>
+      case ThreeDModelRevisionMappingsRelation.name =>
         val modelId =
           parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
         val revisionId =
           parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
         new ThreeDModelRevisionMappingsRelation(config, modelId, revisionId)(sqlContext)
-      case "3dmodelrevisionnodes" =>
+      case ThreeDModelRevisionNodesRelation.name =>
         val modelId =
           parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
         val revisionId =
           parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
         new ThreeDModelRevisionNodesRelation(config, modelId, revisionId)(sqlContext)
-      case "sequences" =>
+      case SequenceRelation.name =>
         new SequencesRelation(config)(sqlContext)
-      case "labels" =>
+      case LabelsRelation.name =>
         new LabelsRelation(config)(sqlContext)
-      case "relationships" =>
+      case RelationshipsRelation.name =>
         new RelationshipsRelation(config)(sqlContext)
-      case "datasets" =>
+      case DataSetsRelation.name =>
         new DataSetsRelation(config)(sqlContext)
-      case FlexibleDataModelRelationFactory.ResourceType =>
+      case FlexibleDataModelBaseRelation.name =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
@@ -188,105 +188,108 @@ class DefaultSource
       data: DataFrame): BaseRelation = {
     val config = parseRelationConfig(parameters, sqlContext)
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
-    if (resourceType == "assethierarchy") {
-      val relation = new AssetHierarchyBuilder(config)(sqlContext)
-      config.onConflict match {
-        case OnConflictOption.Delete =>
-          relation.delete(data)
-        case _ =>
-          relation.buildFromDf(data)
-      }
-      relation
-    } else if (resourceType == "datapoints" || resourceType == "stringdatapoints") {
-      val relation = resourceType match {
-        case "datapoints" =>
-          new NumericDataPointsRelationV1(config)(sqlContext)
-        case "stringdatapoints" =>
-          new StringDataPointsRelationV1(config)(sqlContext)
-      }
-      if (config.onConflict == OnConflictOption.Delete) {
-        // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
-        val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
-        data.foreachPartition((rows: Iterator[Row]) => {
-          import CdpConnector.ioRuntime
-          val batches = rows.grouped(batchSize).toVector
-          batches.parTraverse_(relation.delete).unsafeRunSync()
-        })
-      } else {
-        // datapoints need special handling of dataframes and batches
-        relation.insert(data, overwrite = true)
-      }
-      relation
-    } else {
-      val relation = resourceType match {
-        case "events" =>
-          new EventsRelation(config)(sqlContext)
-        case "timeseries" =>
-          new TimeSeriesRelation(config)(sqlContext)
-        case "assets" =>
-          new AssetsRelation(config)(sqlContext)
-        case "files" =>
-          new FilesRelation(config)(sqlContext)
-        case "sequences" =>
-          new SequencesRelation(config)(sqlContext)
-        case "labels" =>
-          new LabelsRelation(config)(sqlContext)
-        case "sequencerows" =>
-          createSequenceRows(parameters, config, sqlContext)
-        case "relationships" =>
-          new RelationshipsRelation(config)(sqlContext)
-        case "datasets" =>
-          new DataSetsRelation(config)(sqlContext)
-        case FlexibleDataModelRelationFactory.ResourceType =>
-          createFlexibleDataModelRelation(parameters, config, sqlContext)
-        case _ => sys.error(s"Resource type $resourceType does not support save()")
-      }
-      val batchSizeDefault = relation match {
-        case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
-        case _ => Constants.DefaultBatchSize
-      }
-      val batchSize = config.batchSize.getOrElse(batchSizeDefault)
-      val originalNumberOfPartitions = data.rdd.getNumPartitions
-      val idealNumberOfPartitions = config.sparkPartitions
 
-      // If we have very many partitions, it's quite likely that they are significantly uneven.
-      // And we will have to limit parallelism on each partition to low number, so the operation could
-      // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
-      // If the number of partitions is reasonable, we avoid the data shuffling
-      val dataRepartitioned =
-        if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-          data.repartition(idealNumberOfPartitions)
-        } else {
-          data
-        }
-
-      dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
-        import CdpConnector.ioRuntime
-
-        val maxParallelism = config.parallelismPerPartition
-        val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
-
-        val operation: Seq[Row] => IO[Unit] = config.onConflict match {
-          case OnConflictOption.Abort =>
-            relation.insert
-          case OnConflictOption.Upsert =>
-            relation.upsert
-          case OnConflictOption.Update =>
-            relation.update
-          case OnConflictOption.Delete =>
-            relation.delete
-        }
-
-        batches
-          .parEvalMapUnordered(maxParallelism) { chunk =>
-            operation(chunk.toVector)
-          }
-          .compile
-          .drain
-          .unsafeRunSync()
-      })
-      relation
+    val relation: CdfRelation = resourceType match {
+      case AssetHierarchyBuilder.name =>
+        new AssetHierarchyBuilder(config)(sqlContext)
+      case NumericDataPointsRelation.name =>
+        new NumericDataPointsRelationV1(config)(sqlContext)
+      case StringDataPointsRelation.name =>
+        new StringDataPointsRelationV1(config)(sqlContext)
+      case EventsRelation.name =>
+        new EventsRelation(config)(sqlContext)
+      case TimeSeriesRelation.name =>
+        new TimeSeriesRelation(config)(sqlContext)
+      case AssetsRelation.name =>
+        new AssetsRelation(config)(sqlContext)
+      case FilesRelation.name =>
+        new FilesRelation(config)(sqlContext)
+      case SequenceRelation.name =>
+        new SequencesRelation(config)(sqlContext)
+      case LabelsRelation.name =>
+        new LabelsRelation(config)(sqlContext)
+      case SequenceRowsRelation.name =>
+        createSequenceRows(parameters, config, sqlContext)
+      case RelationshipsRelation.name =>
+        new RelationshipsRelation(config)(sqlContext)
+      case DataSetsRelation.name =>
+        new DataSetsRelation(config)(sqlContext)
+      case FlexibleDataModelBaseRelation.name =>
+        createFlexibleDataModelRelation(parameters, config, sqlContext)
+      case _ => sys.error(s"Resource type $resourceType does not support save()")
     }
+
+    relation match {
+      case rel: DataPointsRelationV1[_] =>
+        if (config.onConflict == OnConflictOption.Delete) {
+          // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
+          val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
+          data.foreachPartition((rows: Iterator[Row]) => {
+            import CdpConnector.ioRuntime
+            val batches = rows.grouped(batchSize).toVector
+            batches.parTraverse_(rel.delete).unsafeRunSync()
+          })
+        } else {
+          // datapoints need special handling of dataframes and batches
+          rel.insert(data, overwrite = true)
+        }
+      case rel: AssetHierarchyBuilder =>
+        config.onConflict match {
+          case OnConflictOption.Delete =>
+            rel.delete(data)
+          case _ =>
+            rel.buildFromDf(data)
+        }
+      case relation: CdfRelation with WritableRelation => {
+        val batchSizeDefault = relation match {
+          case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
+          case _ => Constants.DefaultBatchSize
+        }
+        val batchSize = config.batchSize.getOrElse(batchSizeDefault)
+        val originalNumberOfPartitions = data.rdd.getNumPartitions
+        val idealNumberOfPartitions = config.sparkPartitions
+
+        // If we have very many partitions, it's quite likely that they are significantly uneven.
+        // And we will have to limit parallelism on each partition to low number, so the operation could
+        // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
+        // If the number of partitions is reasonable, we avoid the data shuffling
+        val dataRepartitioned =
+          if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
+            data.repartition(idealNumberOfPartitions)
+          } else {
+            data
+          }
+
+        dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
+          import CdpConnector.ioRuntime
+
+          val maxParallelism = config.parallelismPerPartition
+          val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
+
+          val operation: Seq[Row] => IO[Unit] = config.onConflict match {
+            case OnConflictOption.Abort =>
+              relation.insert
+            case OnConflictOption.Upsert =>
+              relation.upsert
+            case OnConflictOption.Update =>
+              relation.update
+            case OnConflictOption.Delete =>
+              relation.delete
+          }
+
+          batches
+            .parEvalMapUnordered(maxParallelism) { chunk =>
+              operation(chunk.toVector)
+            }
+            .compile
+            .drain
+            .unsafeRunSync()
+        })
+      }
+      case _ =>
+        sys.error(s"Resource type $resourceType does not support save")
+    }
+    relation
   }
 }
 

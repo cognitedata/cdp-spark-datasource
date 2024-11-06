@@ -15,7 +15,7 @@ import java.time.Instant
 import scala.annotation.unused
 
 class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1InsertableRelation[Event, Long](config, "events")
+    extends SdkV1InsertableRelation[Event, Long](config, EventsRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(sparkFilters: Array[Filter])(
@@ -88,7 +88,8 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: Event): Long = a.id
 }
-object EventsRelation extends UpsertSchema {
+object EventsRelation extends UpsertSchema with NamedRelation {
+  override val name: String = "events"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[EventsUpsertSchema]()

@@ -16,7 +16,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 case class SequenceRowWithId(id: CogniteId, sequenceRow: SequenceRow)
 
 class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sqlContext: SQLContext)
-    extends CdfRelation(config, "sequencerows")
+    extends CdfRelation(config, SequenceRowsRelation.name)
     with WritableRelation
     with PrunedFilteredScan {
   import CdpConnector._
@@ -272,8 +272,8 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   }
 }
 
-object SequenceRowsRelation {
-
+object SequenceRowsRelation extends NamedRelation {
+  override val name = "sequencerows"
   private def parseValue(value: Long, offset: Long = 0) = Some(value + offset)
   def getSeqFilter(filter: Filter): Seq[SequenceRowFilter] =
     filter match {

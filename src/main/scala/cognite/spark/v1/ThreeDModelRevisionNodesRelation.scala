@@ -23,3 +23,7 @@ class ThreeDModelRevisionNodesRelation(config: RelationConfig, modelId: Long, re
       client: GenericClient[IO]): Seq[Stream[IO, ThreeDNode]] =
     Seq(client.threeDNodes(modelId, revisionId).list(config.limitPerPartition))
 }
+
+object ThreeDModelRevisionNodesRelation extends NamedRelation {
+  override val name: String = "3dmodelrevisionnodes"
+}

@@ -23,3 +23,10 @@ class ThreeDModelRevisionMappingsRelation(config: RelationConfig, modelId: Long,
       client: GenericClient[IO]): Seq[Stream[IO, ThreeDAssetMapping]] =
     Seq(client.threeDAssetMappings(modelId, revisionId).list(config.limitPerPartition))
 }
+
+object ThreeDModelRevisionMappingsRelation extends NamedRelation {
+  override val name: String = "3dmodelrevisionmappings"
+}
+
+
+

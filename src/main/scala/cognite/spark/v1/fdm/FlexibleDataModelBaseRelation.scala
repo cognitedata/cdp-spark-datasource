@@ -3,20 +3,10 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.{
-  CdfRelation,
-  CdfSparkException,
-  CdfSparkIllegalArgumentException,
-  RelationConfig,
-  SdkV1Rdd,
-  WritableRelation
-}
+import cognite.spark.v1.{CdfRelation, CdfSparkException, CdfSparkIllegalArgumentException, NamedRelation, RelationConfig, SdkV1Rdd, WritableRelation}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
-  ComparableFilterValue,
-  SeqFilterValue
-}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{ComparableFilterValue, SeqFilterValue}
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
@@ -582,7 +572,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
 }
 
-object FlexibleDataModelBaseRelation {
+object FlexibleDataModelBaseRelation extends NamedRelation {
+  override val name = "instances"
   final case class ProjectedFlexibleDataModelInstance(
       space: String,
       externalId: String,

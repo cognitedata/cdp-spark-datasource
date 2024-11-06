@@ -144,3 +144,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     }
 
 }
+
+object FileContentRelation extends NamedRelation {
+  override val name: String = "filecontent"
+}

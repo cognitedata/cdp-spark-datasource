@@ -379,6 +379,10 @@ object PushdownUtilities {
   }
 }
 
+trait NamedRelation {
+  val name: String
+}
+
 trait InsertSchema {
   val insertSchema: StructType
 }
