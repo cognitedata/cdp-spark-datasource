@@ -11,7 +11,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 final case class ModelItem(id: Long, name: String, createdTime: Long)
 
 class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDModel, Long](config, "threeDModels.read") {
+    extends SdkV1Relation[ThreeDModel, Long](config, ThreeDModelsRelation.name) {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[ThreeDModel]()
 

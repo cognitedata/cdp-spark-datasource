@@ -10,7 +10,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 
 class ThreeDModelRevisionMappingsRelation(config: RelationConfig, modelId: Long, revisionId: Long)(
     val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDAssetMapping, String](config, "3dmodelrevisionmappings") {
+    extends SdkV1Relation[ThreeDAssetMapping, String](config, ThreeDModelRevisionMappingsRelation.name) {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override def schema: StructType = structType[ThreeDAssetMapping]()
