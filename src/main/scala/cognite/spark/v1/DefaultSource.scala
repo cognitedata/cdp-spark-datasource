@@ -220,26 +220,28 @@ class DefaultSource
     }
 
     relation match {
-      case rel: DataPointsRelationV1[_] =>
+      case relation: DataPointsRelationV1[_] =>
         if (config.onConflict == OnConflictOption.Delete) {
           // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
           val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
           data.foreachPartition((rows: Iterator[Row]) => {
             import CdpConnector.ioRuntime
             val batches = rows.grouped(batchSize).toVector
-            batches.parTraverse_(rel.delete).unsafeRunSync()
+            batches.parTraverse_(relation.delete).unsafeRunSync()
           })
         } else {
           // datapoints need special handling of dataframes and batches
-          rel.insert(data, overwrite = true)
+          relation.insert(data, overwrite = true)
         }
-      case rel: AssetHierarchyBuilder =>
+        relation
+      case relation: AssetHierarchyBuilder =>
         config.onConflict match {
           case OnConflictOption.Delete =>
-            rel.delete(data)
+            relation.delete(data)
           case _ =>
-            rel.buildFromDf(data)
+            relation.buildFromDf(data)
         }
+        relation
       case relation: CdfRelation with WritableRelation => {
         val batchSizeDefault = relation match {
           case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
@@ -285,11 +287,11 @@ class DefaultSource
             .drain
             .unsafeRunSync()
         })
+        relation
       }
       case _ =>
         sys.error(s"Resource type $resourceType does not support save")
     }
-    relation
   }
 }
 
