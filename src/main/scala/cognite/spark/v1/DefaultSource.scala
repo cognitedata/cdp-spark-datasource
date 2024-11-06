@@ -242,7 +242,7 @@ class DefaultSource
             relation.buildFromDf(data)
         }
         relation
-      case relation: CdfRelation with WritableRelation => {
+      case relation: CdfRelation with WritableRelation =>
         val batchSizeDefault = relation match {
           case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
           case _ => Constants.DefaultBatchSize
@@ -288,7 +288,6 @@ class DefaultSource
             .unsafeRunSync()
         })
         relation
-      }
       case _ =>
         sys.error(s"Resource type $resourceType does not support save")
     }
