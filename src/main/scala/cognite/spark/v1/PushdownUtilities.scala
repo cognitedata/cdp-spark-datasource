@@ -15,7 +15,6 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 
 import java.time.Instant
-import scala.collection.immutable.Seq
 import scala.util.Try
 
 final case class DeleteItem(id: Long)

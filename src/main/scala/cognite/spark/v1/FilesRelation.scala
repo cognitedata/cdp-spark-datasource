@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
-import com.cognite.sdk.scala.common.{WithId, instantDecoder}
+import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.Files
 import com.cognite.sdk.scala.v1.{
   CogniteInternalId,

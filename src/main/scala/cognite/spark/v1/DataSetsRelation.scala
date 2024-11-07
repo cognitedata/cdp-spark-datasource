@@ -3,7 +3,6 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities.{executeFilterOnePartition, pushdownToFilters, timeRange}
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
-import cognite.spark.v1.LabelsRelation.insertSchema
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.DataSets
 import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, DataSetFilter, DataSetUpdate, GenericClient}

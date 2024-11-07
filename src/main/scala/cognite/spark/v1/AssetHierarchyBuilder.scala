@@ -2,20 +2,13 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{fromRow, structType}
+import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
-import com.cognite.sdk.scala.v1.{
-  Asset,
-  AssetCreate,
-  AssetUpdate,
-  AssetsFilter,
-  CogniteExternalId,
-  CogniteInternalId
-}
+import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, CogniteExternalId, CogniteInternalId}
 import fs2.{Chunk, Stream}
 import io.scalaland.chimney.dsl._
-import org.apache.spark.sql.types.{DataTypes, StructType}
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 import scala.collection.mutable
@@ -73,8 +66,6 @@ final case class InvalidRootChangeException(assetIds: Seq[String], subtreeId: St
 
 class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     extends CdfRelation(config, AssetHierarchyBuilder.name) {
-
-  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   import CdpConnector.ioRuntime
 
@@ -420,7 +411,6 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
 object AssetHierarchyBuilder extends NamedRelation with UpsertSchema with DeleteWithIdSchema {
   override val name = "assethierarchy"
-  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[AssetsIngestSchema]()
 }

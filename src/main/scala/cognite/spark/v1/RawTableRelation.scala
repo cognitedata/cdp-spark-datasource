@@ -16,7 +16,6 @@ import org.apache.spark.sql.types.{DataTypes, StringType, StructField, StructTyp
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 import java.time.Instant
-import scala.collection.immutable.Seq
 import scala.util.Try
 
 class RawTableRelation(
