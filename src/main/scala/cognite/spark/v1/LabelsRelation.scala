@@ -10,7 +10,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[Label, String](config, "labels")
+    extends SdkV1Relation[Label, String](config, LabelsRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[Label]()
@@ -44,7 +44,8 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     throw new CdfSparkException("Update is not supported for labels.")
 }
 
-object LabelsRelation {
+object LabelsRelation extends NamedRelation {
+  override val name: String = "labels"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val insertSchema: StructType = structType[LabelInsertSchema]()

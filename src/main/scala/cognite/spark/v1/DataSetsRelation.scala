@@ -14,7 +14,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[DataSet, String](config, "datasets")
+    extends SdkV1Relation[DataSet, String](config, DataSetsRelation.name)
     with WritableRelation {
 
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
@@ -69,7 +69,8 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def delete(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Delete is not supported for data sets.")
 }
-object DataSetsRelation extends UpsertSchema {
+object DataSetsRelation extends UpsertSchema with NamedRelation {
+  override val name = "datasets"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[DataSetsUpsertSchema]()

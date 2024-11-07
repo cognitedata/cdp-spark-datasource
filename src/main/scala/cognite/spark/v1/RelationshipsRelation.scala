@@ -16,7 +16,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[RelationshipsReadSchema, String](config, "relationships")
+    extends SdkV1Relation[RelationshipsReadSchema, String](config, RelationshipsRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[RelationshipsReadSchema]()
@@ -138,7 +138,8 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
 }
 
-object RelationshipsRelation {
+object RelationshipsRelation extends NamedRelation {
+  override val name: String = "relationships"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val insertSchema: StructType = structType[RelationshipsInsertSchema]()

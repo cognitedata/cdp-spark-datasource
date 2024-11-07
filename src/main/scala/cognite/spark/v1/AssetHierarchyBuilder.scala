@@ -72,7 +72,7 @@ final case class InvalidRootChangeException(assetIds: Seq[String], subtreeId: St
     )
 
 class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
-    extends CdfRelation(config, "assethierarchy") {
+    extends CdfRelation(config, AssetHierarchyBuilder.name) {
 
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
@@ -418,7 +418,8 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     }
 }
 
-object AssetHierarchyBuilder {
+object AssetHierarchyBuilder extends NamedRelation {
+  override val name = "assethierarchy"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[AssetsIngestSchema]()
