@@ -8,7 +8,7 @@ import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Events
 import fs2.Stream
 import org.apache.spark.sql.sources.Filter
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
@@ -80,6 +80,7 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
       client.events,
       doUpsert = true)
   }
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override def schema: StructType = structType[Event]()
 
@@ -94,6 +95,7 @@ object EventsRelation
     with AbortSchema
     with DeleteWithIdSchema {
   override val name: String = "events"
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[EventsUpsertSchema]()
   val abortSchema: StructType = structType[EventsInsertSchema]()
