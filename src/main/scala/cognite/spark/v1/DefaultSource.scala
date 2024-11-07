@@ -289,7 +289,7 @@ class DefaultSource
         })
         relation
       case _ =>
-        sys.error(s"Resource type $resourceType does not support save")
+        sys.error(s"Resource type $resourceType does not support save()")
     }
   }
 }
