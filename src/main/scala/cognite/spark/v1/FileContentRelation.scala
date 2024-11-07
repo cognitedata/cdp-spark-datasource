@@ -2,12 +2,12 @@ package cognite.spark.v1
 
 import cats.effect.std.Dispatcher
 import cats.effect.{IO, Resource}
-import com.cognite.sdk.scala.v1.{FileDownloadExternalId, GenericClient}
+import com.cognite.sdk.scala.v1.FileDownloadExternalId
 import fs2.{Pipe, Stream}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
+import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.{Partition, TaskContext}
@@ -17,6 +17,7 @@ import sttp.client3.asynchttpclient.SttpClientBackendFactory
 import sttp.client3.asynchttpclient.fs2.AsyncHttpClientFs2Backend
 import sttp.client3.{SttpBackend, UriContext, asStreamUnsafe, basicRequest}
 import sttp.model.Uri
+
 import scala.collection.immutable._
 
 //The trait exist for testing purposes
