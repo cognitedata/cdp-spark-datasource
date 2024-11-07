@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities.{executeFilterOnePartition, pushdownToFilters, timeRange}
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
+import cognite.spark.v1.LabelsRelation.insertSchema
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.DataSets
 import com.cognite.sdk.scala.v1.{DataSet, DataSetCreate, DataSetFilter, DataSetUpdate, GenericClient}
@@ -69,13 +70,14 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def delete(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Delete is not supported for data sets.")
 }
-object DataSetsRelation extends UpsertSchema with NamedRelation {
+object DataSetsRelation extends UpsertSchema with ReadSchema with AbortSchema with NamedRelation {
   override val name = "datasets"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[DataSetsUpsertSchema]()
-  val insertSchema: StructType = structType[DataSetsInsertSchema]()
+  val abortSchema: StructType = structType[DataSetsInsertSchema]()
   val readSchema: StructType = structType[DataSetsReadSchema]()
+
 }
 
 case class DataSetsUpsertSchema(

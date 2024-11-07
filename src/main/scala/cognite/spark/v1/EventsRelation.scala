@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
-import com.cognite.sdk.scala.common.{WithExternalIdGeneric, WithId}
+import com.cognite.sdk.scala.common.{WithExternalIdGeneric, WithId, instantDecoder}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.Events
 import fs2.Stream
@@ -88,12 +88,17 @@ class EventsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: Event): Long = a.id
 }
-object EventsRelation extends UpsertSchema with NamedRelation {
+object EventsRelation
+    extends UpsertSchema
+    with ReadSchema
+    with NamedRelation
+    with AbortSchema
+    with DeleteWithIdSchema {
   override val name: String = "events"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[EventsUpsertSchema]()
-  val insertSchema: StructType = structType[EventsInsertSchema]()
+  val abortSchema: StructType = structType[EventsInsertSchema]()
   val readSchema: StructType = structType[EventsReadSchema]()
 }
 

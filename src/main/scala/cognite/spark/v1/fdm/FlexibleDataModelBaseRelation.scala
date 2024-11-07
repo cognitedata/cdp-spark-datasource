@@ -7,9 +7,11 @@ import cognite.spark.v1.{
   CdfRelation,
   CdfSparkException,
   CdfSparkIllegalArgumentException,
+  DeleteSchema,
   NamedRelation,
   RelationConfig,
   SdkV1Rdd,
+  UpsertSchema,
   WritableRelation
 }
 import com.cognite.sdk.scala.v1.GenericClient
@@ -36,6 +38,7 @@ import java.math.BigInteger
 import java.sql.{Date, Timestamp}
 import java.time._
 import java.util.Locale
+import scala.collection.immutable.Seq
 import scala.util.Try
 
 abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext: SQLContext)
@@ -583,7 +586,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
 }
 
-object FlexibleDataModelBaseRelation extends NamedRelation {
+object FlexibleDataModelBaseRelation extends NamedRelation with UpsertSchema with DeleteSchema {
+  override val upsertSchema: StructType = StructType(
+    Seq(StructField("externalId", DataTypes.StringType)))
+  override val deleteSchema: StructType = upsertSchema
+
   override val name = "instances"
   final case class ProjectedFlexibleDataModelInstance(
       space: String,

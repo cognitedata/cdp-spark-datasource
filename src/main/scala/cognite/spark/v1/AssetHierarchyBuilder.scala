@@ -418,7 +418,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     }
 }
 
-object AssetHierarchyBuilder extends NamedRelation {
+object AssetHierarchyBuilder extends NamedRelation with UpsertSchema with DeleteWithIdSchema {
   override val name = "assethierarchy"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 

@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
-import com.cognite.sdk.scala.common.WithId
+import com.cognite.sdk.scala.common.{WithId, instantDecoder}
 import com.cognite.sdk.scala.v1.resources.Files
 import com.cognite.sdk.scala.v1.{
   CogniteInternalId,
@@ -110,13 +110,19 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: FilesReadSchema): Long = a.id
 }
-object FilesRelation extends UpsertSchema with NamedRelation {
+object FilesRelation
+    extends UpsertSchema
+    with ReadSchema
+    with AbortSchema
+    with DeleteWithIdSchema
+    with NamedRelation {
   override val name: String = "files"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[FilesUpsertSchema]()
-  val insertSchema: StructType = structType[FilesInsertSchema]()
+  val abortSchema: StructType = structType[FilesInsertSchema]()
   val readSchema: StructType = structType[FilesReadSchema]()
+
 }
 
 final case class FilesUpsertSchema(

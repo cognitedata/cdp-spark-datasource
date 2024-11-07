@@ -65,7 +65,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val relationshipIds = rows.map(fromRow[RelationshipsDeleteSchema](_)).map(_.externalId)
+    val relationshipIds = rows.map(fromRow[DeleteSchemaWithExternalId](_)).map(_.externalId)
     client.relationships
       .deleteByExternalIds(relationshipIds)
       .flatTap(_ => incMetrics(itemsDeleted, relationshipIds.length))
@@ -138,19 +138,19 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
 }
 
-object RelationshipsRelation extends NamedRelation {
+object RelationshipsRelation
+    extends UpsertSchema
+    with ReadSchema
+    with DeleteWithExternalIdSchema
+    with AbortSchema
+    with NamedRelation {
   override val name: String = "relationships"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val insertSchema: StructType = structType[RelationshipsInsertSchema]()
+  val abortSchema: StructType = structType[RelationshipsInsertSchema]()
   val readSchema: StructType = structType[RelationshipsReadSchema]()
-  val deleteSchema: StructType = structType[RelationshipsDeleteSchema]()
   val upsertSchema: StructType = structType[RelationshipsUpsertSchema]()
 }
-
-final case class RelationshipsDeleteSchema(
-    externalId: String
-)
 
 final case class RelationshipsInsertSchema(
     externalId: String,

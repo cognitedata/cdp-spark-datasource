@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
-import com.cognite.sdk.scala.common.WithId
+import com.cognite.sdk.scala.common.{WithId, instantDecoder}
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
@@ -90,13 +90,19 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       unitExternalId = m.get("unitExternalId")
     )
 }
-object TimeSeriesRelation extends UpsertSchema with NamedRelation {
+object TimeSeriesRelation
+    extends UpsertSchema
+    with ReadSchema
+    with AbortSchema
+    with NamedRelation
+    with DeleteWithIdSchema {
   override val name: String = "timeseries"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]()
-  val insertSchema: StructType = structType[TimeSeriesInsertSchema]()
+  val abortSchema: StructType = structType[TimeSeriesInsertSchema]()
   val readSchema: StructType = structType[TimeSeriesReadSchema]()
+
 }
 
 final case class TimeSeriesUpsertSchema(

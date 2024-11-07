@@ -116,13 +116,19 @@ class AssetsRelation(config: RelationConfig, subtreeIds: Option[List[CogniteId]]
   override def uniqueId(a: AssetsReadSchema): Long = a.id
 }
 
-object AssetsRelation extends UpsertSchema with NamedRelation {
+object AssetsRelation
+    extends UpsertSchema
+    with ReadSchema
+    with NamedRelation
+    with AbortSchema
+    with DeleteWithIdSchema {
   override val name = "assets"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   val upsertSchema: StructType = structType[AssetsUpsertSchema]()
-  val insertSchema: StructType = structType[AssetsInsertSchema]()
+  val abortSchema: StructType = structType[AssetsInsertSchema]()
   val readSchema: StructType = structType[AssetsReadSchema]()
+
 }
 
 final case class AssetsUpsertSchema(

@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.Concurrent
+import cognite.spark.compiletime.macros.SparkSchemaHelper.structType
 import com.cognite.sdk.scala.common.{
   PartitionedFilter,
   RetrieveByExternalIdsWithIgnoreUnknownIds,
@@ -14,6 +15,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 
 import java.time.Instant
+import scala.collection.immutable.Seq
 import scala.util.Try
 
 final case class DeleteItem(id: Long)
@@ -383,18 +385,30 @@ trait NamedRelation {
   val name: String
 }
 
-trait InsertSchema {
-  val insertSchema: StructType
+trait AbortSchema {
+  val abortSchema: StructType
 }
 
 trait UpsertSchema {
   val upsertSchema: StructType
 }
 
-trait UpdateSchema {
-  val updateSchema: StructType
+trait ReadSchema {
+  val readSchema: StructType
 }
 
-abstract class DeleteSchema {
-  val deleteSchema: StructType = StructType(Seq(StructField("id", DataTypes.LongType)))
+trait DeleteSchema {
+  val deleteSchema: StructType
 }
+
+trait DeleteWithIdSchema extends DeleteSchema {
+  override val deleteSchema: StructType = StructType(Seq(StructField("id", DataTypes.LongType)))
+}
+
+trait DeleteWithExternalIdSchema extends DeleteSchema {
+  override val deleteSchema: StructType = structType[DeleteSchemaWithExternalId]()
+}
+
+final case class DeleteSchemaWithExternalId(
+    externalId: String
+)
