@@ -38,7 +38,6 @@ import java.math.BigInteger
 import java.sql.{Date, Timestamp}
 import java.time._
 import java.util.Locale
-import scala.collection.immutable.Seq
 import scala.util.Try
 
 abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext: SQLContext)
