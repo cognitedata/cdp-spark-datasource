@@ -5,7 +5,14 @@ import cats.implicits._
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{fromRow, structType}
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
-import com.cognite.sdk.scala.v1.{Asset, AssetCreate, AssetUpdate, AssetsFilter, CogniteExternalId, CogniteInternalId}
+import com.cognite.sdk.scala.v1.{
+  Asset,
+  AssetCreate,
+  AssetUpdate,
+  AssetsFilter,
+  CogniteExternalId,
+  CogniteInternalId
+}
 import fs2.{Chunk, Stream}
 import io.scalaland.chimney.dsl._
 import org.apache.spark.sql.types.{DataTypes, StructType}
