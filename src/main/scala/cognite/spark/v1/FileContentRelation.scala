@@ -26,16 +26,13 @@ trait WithSizeLimit {
 
 class FileContentRelation(config: RelationConfig, fileExternalId: String, inferSchema: Boolean)(
     override val sqlContext: SQLContext)
-    extends BaseRelation
+    extends CdfRelation(config, FileContentRelation.name)
     with TableScan
     with PrunedFilteredScan
     with Serializable
     with WithSizeLimit {
 
   override val sizeLimit: Long = 5 * FileUtils.ONE_GB
-
-  @transient lazy val client: GenericClient[IO] =
-    CdpConnector.clientFromConfig(config)
 
   @transient private lazy val sttpFileContentStreamingBackendResource
     : Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
