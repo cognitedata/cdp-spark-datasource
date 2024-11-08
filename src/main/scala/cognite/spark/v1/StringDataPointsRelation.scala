@@ -103,7 +103,7 @@ object StringDataPointsRelation
     extends UpsertSchema
     with ReadSchema
     with DeleteSchema
-    with AbortSchema
+    with InsertSchema
     with NamedRelation {
   override val name: String = "stringdatapoints"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
@@ -113,7 +113,7 @@ object StringDataPointsRelation
   // because TimeStamp has multiple constructors. Issue in backlog for investigating this.
   override val upsertSchema: StructType = structType[StringDataPointsInsertItem]()
   override val readSchema: StructType = structType[StringDataPointsItem]()
-  override val abortSchema: StructType = structType[StringDataPointsInsertItem]()
+  override val insertSchema: StructType = structType[StringDataPointsInsertItem]()
   override val deleteSchema: StructType = structType[DeleteDataPointsItem]()
 
 }

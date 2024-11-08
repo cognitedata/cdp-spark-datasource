@@ -47,12 +47,12 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 object LabelsRelation
     extends ReadSchema
     with DeleteWithExternalIdSchema
-    with AbortSchema
+    with InsertSchema
     with NamedRelation {
   override val name: String = "labels"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  override val abortSchema: StructType = structType[LabelInsertSchema]()
+  override val insertSchema: StructType = structType[LabelInsertSchema]()
   override val readSchema: StructType = structType[LabelReadSchema]()
 }
 

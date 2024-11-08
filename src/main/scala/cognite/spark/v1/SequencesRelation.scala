@@ -221,14 +221,14 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 object SequenceRelation
     extends UpsertSchema
     with ReadSchema
-    with AbortSchema
+    with InsertSchema
     with DeleteWithIdSchema
     with NamedRelation {
   override val name: String = "sequences"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override val upsertSchema: StructType = structType[SequenceUpsertSchema]()
-  override val abortSchema: StructType = structType[SequenceInsertSchema]()
+  override val insertSchema: StructType = structType[SequenceInsertSchema]()
   override val readSchema: StructType = structType[SequenceReadSchema]()
 
 }

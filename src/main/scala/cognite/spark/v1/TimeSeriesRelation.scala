@@ -93,14 +93,14 @@ class TimeSeriesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 object TimeSeriesRelation
     extends UpsertSchema
     with ReadSchema
-    with AbortSchema
+    with InsertSchema
     with NamedRelation
     with DeleteWithIdSchema {
   override val name: String = "timeseries"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]()
-  override val abortSchema: StructType = structType[TimeSeriesInsertSchema]()
+  override val insertSchema: StructType = structType[TimeSeriesInsertSchema]()
   override val readSchema: StructType = structType[TimeSeriesReadSchema]()
 
 }

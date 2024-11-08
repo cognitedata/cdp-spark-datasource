@@ -142,12 +142,12 @@ object RelationshipsRelation
     extends UpsertSchema
     with ReadSchema
     with DeleteWithExternalIdSchema
-    with AbortSchema
+    with InsertSchema
     with NamedRelation {
   override val name: String = "relationships"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  override val abortSchema: StructType = structType[RelationshipsInsertSchema]()
+  override val insertSchema: StructType = structType[RelationshipsInsertSchema]()
   override val readSchema: StructType = structType[RelationshipsReadSchema]()
   override val upsertSchema: StructType = structType[RelationshipsUpsertSchema]()
 }

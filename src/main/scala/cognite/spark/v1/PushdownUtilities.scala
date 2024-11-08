@@ -384,8 +384,8 @@ trait NamedRelation {
   val name: String
 }
 
-trait AbortSchema {
-  val abortSchema: StructType
+trait InsertSchema {
+  val insertSchema: StructType
 }
 
 trait UpsertSchema {

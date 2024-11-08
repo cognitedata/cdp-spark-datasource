@@ -92,13 +92,13 @@ object EventsRelation
     extends UpsertSchema
     with ReadSchema
     with NamedRelation
-    with AbortSchema
+    with InsertSchema
     with DeleteWithIdSchema {
   override val name: String = "events"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override val upsertSchema: StructType = structType[EventsUpsertSchema]()
-  override val abortSchema: StructType = structType[EventsInsertSchema]()
+  override val insertSchema: StructType = structType[EventsInsertSchema]()
   override val readSchema: StructType = structType[EventsReadSchema]()
 }
 
