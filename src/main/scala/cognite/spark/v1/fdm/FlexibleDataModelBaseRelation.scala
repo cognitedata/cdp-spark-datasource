@@ -7,7 +7,6 @@ import cognite.spark.v1.{
   CdfRelation,
   CdfSparkException,
   CdfSparkIllegalArgumentException,
-  DeleteSchema,
   DeleteWithExternalIdSchema,
   NamedRelation,
   RelationConfig,
