@@ -3,23 +3,10 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.{
-  CdfRelation,
-  CdfSparkException,
-  CdfSparkIllegalArgumentException,
-  DeleteSchema,
-  NamedRelation,
-  RelationConfig,
-  SdkV1Rdd,
-  UpsertSchema,
-  WritableRelation
-}
+import cognite.spark.v1.{CdfRelation, CdfSparkException, CdfSparkIllegalArgumentException, DeleteSchema, DeleteWithExternalIdSchema, NamedRelation, RelationConfig, SdkV1Rdd, UpsertSchema, WritableRelation}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
-  ComparableFilterValue,
-  SeqFilterValue
-}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{ComparableFilterValue, SeqFilterValue}
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
@@ -585,10 +572,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
 }
 
-object FlexibleDataModelBaseRelation extends NamedRelation with UpsertSchema with DeleteSchema {
+object FlexibleDataModelBaseRelation extends NamedRelation with UpsertSchema with DeleteWithExternalIdSchema {
   override val upsertSchema: StructType = StructType(
     Seq(StructField("externalId", DataTypes.StringType)))
-  override val deleteSchema: StructType = upsertSchema
 
   override val name = "instances"
   final case class ProjectedFlexibleDataModelInstance(
