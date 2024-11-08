@@ -119,9 +119,9 @@ object FilesRelation
   override val name: String = "files"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[FilesUpsertSchema]()
-  val abortSchema: StructType = structType[FilesInsertSchema]()
-  val readSchema: StructType = structType[FilesReadSchema]()
+  override val upsertSchema: StructType = structType[FilesUpsertSchema]()
+  override val abortSchema: StructType = structType[FilesInsertSchema]()
+  override val readSchema: StructType = structType[FilesReadSchema]()
 
 }
 

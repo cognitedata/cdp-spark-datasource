@@ -227,9 +227,9 @@ object SequenceRelation
   override val name: String = "sequences"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[SequenceUpsertSchema]()
-  val abortSchema: StructType = structType[SequenceInsertSchema]()
-  val readSchema: StructType = structType[SequenceReadSchema]()
+  override val upsertSchema: StructType = structType[SequenceUpsertSchema]()
+  override val abortSchema: StructType = structType[SequenceInsertSchema]()
+  override val readSchema: StructType = structType[SequenceReadSchema]()
 
 }
 

@@ -147,9 +147,9 @@ object RelationshipsRelation
   override val name: String = "relationships"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val abortSchema: StructType = structType[RelationshipsInsertSchema]()
-  val readSchema: StructType = structType[RelationshipsReadSchema]()
-  val upsertSchema: StructType = structType[RelationshipsUpsertSchema]()
+  override val abortSchema: StructType = structType[RelationshipsInsertSchema]()
+  override val readSchema: StructType = structType[RelationshipsReadSchema]()
+  override val upsertSchema: StructType = structType[RelationshipsUpsertSchema]()
 }
 
 final case class RelationshipsInsertSchema(

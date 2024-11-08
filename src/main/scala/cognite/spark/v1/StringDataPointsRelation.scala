@@ -111,9 +111,9 @@ object StringDataPointsRelation
   // multiple overloaded alternatives and cannot be treated as a method. Consider invoking
   // `<offending symbol>.asTerm.alternatives` and manually picking the required method" in StructTypeEncoder, probably
   // because TimeStamp has multiple constructors. Issue in backlog for investigating this.
-  val upsertSchema: StructType = structType[StringDataPointsInsertItem]()
-  val readSchema: StructType = structType[StringDataPointsItem]()
-  val abortSchema: StructType = structType[StringDataPointsInsertItem]()
-  val deleteSchema: StructType = structType[DeleteDataPointsItem]()
+  override val upsertSchema: StructType = structType[StringDataPointsInsertItem]()
+  override val readSchema: StructType = structType[StringDataPointsItem]()
+  override val abortSchema: StructType = structType[StringDataPointsInsertItem]()
+  override val deleteSchema: StructType = structType[DeleteDataPointsItem]()
 
 }

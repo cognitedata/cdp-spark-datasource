@@ -97,9 +97,9 @@ object EventsRelation
   override val name: String = "events"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[EventsUpsertSchema]()
-  val abortSchema: StructType = structType[EventsInsertSchema]()
-  val readSchema: StructType = structType[EventsReadSchema]()
+  override val upsertSchema: StructType = structType[EventsUpsertSchema]()
+  override val abortSchema: StructType = structType[EventsInsertSchema]()
+  override val readSchema: StructType = structType[EventsReadSchema]()
 }
 
 trait WithNullableExtenalId extends WithExternalIdGeneric[OptionalField] {

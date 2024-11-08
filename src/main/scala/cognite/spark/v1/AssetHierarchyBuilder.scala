@@ -423,5 +423,5 @@ object AssetHierarchyBuilder extends NamedRelation with UpsertSchema with Delete
 
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[AssetsIngestSchema]()
+  override val upsertSchema: StructType = structType[AssetsIngestSchema]()
 }

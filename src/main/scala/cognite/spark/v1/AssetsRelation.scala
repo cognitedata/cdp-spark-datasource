@@ -125,9 +125,9 @@ object AssetsRelation
   override val name = "assets"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[AssetsUpsertSchema]()
-  val abortSchema: StructType = structType[AssetsInsertSchema]()
-  val readSchema: StructType = structType[AssetsReadSchema]()
+  override val upsertSchema: StructType = structType[AssetsUpsertSchema]()
+  override val abortSchema: StructType = structType[AssetsInsertSchema]()
+  override val readSchema: StructType = structType[AssetsReadSchema]()
 
 }
 

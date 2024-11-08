@@ -99,9 +99,9 @@ object TimeSeriesRelation
   override val name: String = "timeseries"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]()
-  val abortSchema: StructType = structType[TimeSeriesInsertSchema]()
-  val readSchema: StructType = structType[TimeSeriesReadSchema]()
+  override val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]()
+  override val abortSchema: StructType = structType[TimeSeriesInsertSchema]()
+  override val readSchema: StructType = structType[TimeSeriesReadSchema]()
 
 }
 

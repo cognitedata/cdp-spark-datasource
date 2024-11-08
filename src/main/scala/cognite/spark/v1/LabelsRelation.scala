@@ -52,8 +52,8 @@ object LabelsRelation
   override val name: String = "labels"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val abortSchema: StructType = structType[LabelInsertSchema]()
-  val readSchema: StructType = structType[LabelReadSchema]()
+  override val abortSchema: StructType = structType[LabelInsertSchema]()
+  override val readSchema: StructType = structType[LabelReadSchema]()
 }
 
 final case class LabelInsertSchema(

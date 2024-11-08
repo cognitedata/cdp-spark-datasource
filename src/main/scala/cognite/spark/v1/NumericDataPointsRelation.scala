@@ -231,9 +231,9 @@ object NumericDataPointsRelation
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override val name = "datapoints"
 
-  val upsertSchema: StructType = structType[InsertDataPointsItem]()
-  val readSchema: StructType = structType[DataPointsItem]()
-  val abortSchema: StructType = structType[InsertDataPointsItem]()
-  val deleteSchema: StructType = structType[DeleteDataPointsItem]()
+  override val upsertSchema: StructType = structType[InsertDataPointsItem]()
+  override val readSchema: StructType = structType[DataPointsItem]()
+  override val abortSchema: StructType = structType[InsertDataPointsItem]()
+  override val deleteSchema: StructType = structType[DeleteDataPointsItem]()
 
 }
