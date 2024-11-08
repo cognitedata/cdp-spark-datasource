@@ -95,7 +95,8 @@ object TimeSeriesRelation
     with ReadSchema
     with InsertSchema
     with NamedRelation
-    with DeleteWithIdSchema {
+    with DeleteWithIdSchema
+    with UpdateSchemaFromUpsertSchema {
   override val name: String = "timeseries"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 

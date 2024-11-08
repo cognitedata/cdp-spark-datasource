@@ -392,6 +392,14 @@ trait UpsertSchema {
   val upsertSchema: StructType
 }
 
+trait UpdateSchema {
+  val updateSchema: StructType
+}
+
+trait UpdateSchemaFromUpsertSchema extends UpsertSchema with UpdateSchema {
+  override val updateSchema: StructType = upsertSchema
+}
+
 trait ReadSchema {
   val readSchema: StructType
 }

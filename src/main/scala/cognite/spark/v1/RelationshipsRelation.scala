@@ -143,6 +143,7 @@ object RelationshipsRelation
     with ReadSchema
     with DeleteWithExternalIdSchema
     with InsertSchema
+    with UpdateSchemaFromUpsertSchema
     with NamedRelation {
   override val name: String = "relationships"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._

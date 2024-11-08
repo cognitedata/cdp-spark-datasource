@@ -93,7 +93,8 @@ object EventsRelation
     with ReadSchema
     with NamedRelation
     with InsertSchema
-    with DeleteWithIdSchema {
+    with DeleteWithIdSchema
+    with UpdateSchemaFromUpsertSchema {
   override val name: String = "events"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 

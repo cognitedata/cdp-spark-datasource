@@ -121,7 +121,8 @@ object AssetsRelation
     with ReadSchema
     with NamedRelation
     with InsertSchema
-    with DeleteWithIdSchema {
+    with DeleteWithIdSchema
+    with UpdateSchemaFromUpsertSchema {
   override val name = "assets"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
