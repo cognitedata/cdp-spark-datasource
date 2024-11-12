@@ -65,7 +65,7 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val relationshipIds = rows.map(fromRow[DeleteSchemaWithExternalId](_)).map(_.externalId)
+    val relationshipIds = rows.map(fromRow[DeleteByExternalId](_)).map(_.externalId)
     client.relationships
       .deleteByExternalIds(relationshipIds)
       .flatTap(_ => incMetrics(itemsDeleted, relationshipIds.length))

@@ -31,7 +31,7 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val labelIds = rows.map(fromRow[DeleteSchemaWithExternalId](_)).map(_.externalId)
+    val labelIds = rows.map(fromRow[DeleteByExternalId](_)).map(_.externalId)
     client.labels
       .deleteByExternalIds(labelIds)
       .flatTap(_ => incMetrics(itemsDeleted, labelIds.length))
