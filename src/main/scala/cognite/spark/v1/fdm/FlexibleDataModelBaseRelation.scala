@@ -591,12 +591,12 @@ object FlexibleDataModelBaseRelation extends NamedRelation with UpsertSchema wit
   import cognite.spark.compiletime.macros.SparkSchemaHelper.structType
 
   // TODO: this seems to be incomplete or fully wrong schema
-  final case class DataModelBaseRelationUpsertSchema(externalId: String)
+  final case class DataModelBaseRelationUpsertSchema(externalId: String) {}
 
   override val upsertSchema: StructType = structType[DataModelBaseRelationUpsertSchema]()
 
   // TODO: this seems to be missing optional "space" parameter
-  final case class DataModelBaseRelationDeleteSchema(externalId: String)
+  final case class DataModelBaseRelationDeleteSchema(externalId: String) {}
 
   override val deleteSchema: StructType = structType[DataModelBaseRelationDeleteSchema]()
 
