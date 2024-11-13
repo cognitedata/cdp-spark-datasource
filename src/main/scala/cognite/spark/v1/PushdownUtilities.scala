@@ -1,7 +1,6 @@
 package cognite.spark.v1
 
 import cats.effect.Concurrent
-import cognite.spark.compiletime.macros.SparkSchemaHelper.structType
 import com.cognite.sdk.scala.common.{
   PartitionedFilter,
   RetrieveByExternalIdsWithIgnoreUnknownIds,
@@ -12,7 +11,6 @@ import com.cognite.sdk.scala.common.{
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, ContainsAny, TimeRange}
 import fs2.Stream
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 
 import java.time.Instant
 import scala.util.Try
