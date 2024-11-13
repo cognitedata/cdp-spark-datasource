@@ -8,7 +8,6 @@ import cognite.spark.v1.{
   CdfSparkException,
   CdfSparkIllegalArgumentException,
   DeleteSchema,
-  DeleteWithExternalIdSchema,
   NamedRelation,
   RelationConfig,
   SdkV1Rdd,
@@ -587,8 +586,9 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
 }
 
 object FlexibleDataModelBaseRelation extends NamedRelation with UpsertSchema with DeleteSchema {
-  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   import cognite.spark.compiletime.macros.SparkSchemaHelper.structType
+  import cognite.spark.v1.StructTypeEncoder
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   // TODO: this seems to be incomplete or fully wrong schema
   final case class DataModelBaseRelationUpsertSchema(externalId: String) {}
