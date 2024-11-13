@@ -29,7 +29,7 @@ final case class RelationConfig(
     tracingParent: Kernel,
     initialRetryDelayMillis: Int,
     useSharedThrottle: Boolean,
-    filterNullsOnNonSchemaQueries: Boolean,
+    serverSideFilterNullValuesOnNonSchemaRawQueries: Boolean,
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */

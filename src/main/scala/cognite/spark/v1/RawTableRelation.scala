@@ -213,7 +213,7 @@ class RawTableRelation(
         rawRowFilter,
         requestedKeys,
         jsonSchema,
-        config.filterNullsOnNonSchemaQueries)
+        config.serverSideFilterNullValuesOnNonSchemaRawQueries)
 
     rdd.map(row => {
       val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))

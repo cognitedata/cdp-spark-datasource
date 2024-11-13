@@ -261,7 +261,7 @@ class RawTableRelationTest
       .option("inferSchema", inferSchema)
       .option("inferSchemaLimit", "100")
 
-    filterNullFields.foreach(v => df.option("filterNullsOnNonSchemaQueries", v.toString))
+    filterNullFields.foreach(v => df.option("filterNullFieldsOnNonSchemaRawQueries", v.toString))
 
     metricsPrefix match {
       case Some(prefix) =>

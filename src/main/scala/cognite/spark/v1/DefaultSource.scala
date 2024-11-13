@@ -478,8 +478,8 @@ object DefaultSource {
       enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy,
       tracingParent = extractTracingHeadersKernel(parameters),
       useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false),
-      filterNullsOnNonSchemaQueries =
-        toBoolean(parameters, "filterNullsOnNonSchemaQueries", defaultValue = false)
+      serverSideFilterNullValuesOnNonSchemaRawQueries =
+        toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false)
     )
   }
 
