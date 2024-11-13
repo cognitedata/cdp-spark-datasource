@@ -28,12 +28,14 @@ trait DeleteSchema {
 }
 
 trait DeleteWithIdSchema extends DeleteSchema {
+  import org.apache.spark.sql.types._
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override val deleteSchema: StructType = structType[DeleteByInternalId]()
 }
 
 trait DeleteWithExternalIdSchema extends DeleteSchema {
+  import org.apache.spark.sql.types._
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override val deleteSchema: StructType = structType[DeleteByExternalId]()
