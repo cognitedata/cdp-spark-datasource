@@ -5,7 +5,7 @@ import cats.implicits._
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{RawDatabase, RawRow, RawTable}
-import io.circe.Json
+import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
@@ -117,6 +117,16 @@ class RawTableRelationTest
     RawRow("k2", Map("bool" -> Json.fromBoolean(java.lang.Boolean.parseBoolean("true")))),
     RawRow("k3", Map("bool" -> Json.fromBoolean(false)))
   )
+  private val dataWithNullFieldValue = Seq(
+    RawRow("k1", Map("toBeFiltered" -> Json.Null)),
+    RawRow("k2", Map("toBeFiltered" -> Json.Null, "notFiltered" -> Json.fromString("string"))),
+    RawRow("k3", Map("toBeFiltered" -> Json.fromString("but not here"), "notFiltered" -> Json.fromString("string2")))
+  )
+  private val dataWithEmptyColumn = Seq(
+    RawRow("k1", Map("toBeFiltered" -> Json.Null, "notFiltered" -> Json.fromString("string_k1"))),
+    RawRow("k2", Map("toBeFiltered" -> Json.Null, "notFiltered" -> Json.fromString("string_k2"))),
+    RawRow("k3", Map("toBeFiltered" -> Json.Null, "notFiltered" -> Json.fromString("string_k3"))),
+  )
 
   case class TestTable(name: String, data: Seq[RawRow])
   case class TestData(dbName: String, tables: Seq[TestTable])
@@ -137,6 +147,8 @@ class RawTableRelationTest
       TestTable("with-long-empty-str", dataWithEmptyStringInLongField),
       TestTable("with-number-empty-str", dataWithEmptyStringInDoubleField),
       TestTable("with-boolean-empty-str", dataWithEmptyStringInBooleanField),
+      TestTable("with-some-null-values", dataWithNullFieldValue),
+      TestTable("with-only-null-values-for-field", dataWithEmptyColumn),
       TestTable("cryptoAssets", (1 to 500).map(i =>
         RawRow(i.toString, Map("i" -> Json.fromString("exist")))
       )),
@@ -237,7 +249,8 @@ class RawTableRelationTest
       table: String,
       database: String = "spark-test-database",
       inferSchema: Boolean = true,
-      metricsPrefix: Option[String] = None): DataFrame = {
+      metricsPrefix: Option[String] = None,
+      filterNullFields: Option[Boolean] = None): DataFrame = {
     val df = spark.read
       .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
@@ -247,6 +260,8 @@ class RawTableRelationTest
       .option("table", table)
       .option("inferSchema", inferSchema)
       .option("inferSchemaLimit", "100")
+
+    filterNullFields.foreach(v => df.option("filterNullsOnNonSchemaQueries", v.toString))
 
     metricsPrefix match {
       case Some(prefix) =>
@@ -894,4 +909,40 @@ class RawTableRelationTest
     err.getMessage shouldBe "Error while loading RAW row [key='k'] in column 'value': java.lang.NumberFormatException: For input string: \"test\""
 
   }
+
+  it should "filter out fields with null value but not impact schema inference" in {
+    val tableName = "with-some-null-values"
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = true, filterNullFields = Some(true))
+    df.count() shouldBe 3
+    df.schema.fieldNames.toSet shouldBe Set("key", "lastUpdatedTime", "notFiltered", "toBeFiltered")
+    val items = RawJsonConverter.rowsToRawItems(df.columns, "key", df.collect().toSeq).map(r => (r.key, r.columns)).toMap
+    items("k1")("toBeFiltered") shouldBe Json.Null
+    items("k2")("toBeFiltered") shouldBe Json.Null
+    items("k2")("notFiltered") shouldBe Json.fromString("string")
+    items("k3")("toBeFiltered") shouldBe Json.fromString("but not here")
+    items("k3")("notFiltered") shouldBe Json.fromString("string2")
+  }
+
+  it should "filter out columns completely when not inferring schema (confirming it filters from RAW)" in {
+    val tableName = "with-some-null-values"
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = false, filterNullFields = Some(true))
+    df.count() shouldBe 3
+    val items = RawJsonConverter.rowsToRawItems(df.columns, "key", df.collect().toSeq).map(r => (r.key, r.columns)).toMap
+    items("k1")("columns") shouldBe Json.fromString("{}")
+    items("k2")("columns") shouldBe Json.fromString("{\"notFiltered\":\"string\"}")
+    val columnsParsed: Option[JsonObject] = io.circe.parser.parse(items("k3")("columns").asString.get) match {
+      case Right(json) => json.asObject
+      case Left(error) => throw error
+    }
+    columnsParsed.get("notFiltered") shouldBe Some(Json.fromString("string2"))
+    columnsParsed.get("toBeFiltered") shouldBe Some(Json.fromString("but not here"))
+  }
+
+  it should "return column in schema, even if every row has it filtered out" in {
+    val tableName = "with-only-null-values-for-field"
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = true, filterNullFields = Some(true))
+    df.count() shouldBe 3
+    df.schema.fieldNames.toSet shouldBe Set("key", "lastUpdatedTime", "notFiltered", "toBeFiltered")
+  }
+
 }

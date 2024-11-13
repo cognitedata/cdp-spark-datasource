@@ -66,6 +66,7 @@ class RawTableRelation(
           filter = RawRowFilter(),
           requestedKeys = None,
           schema = None,
+          filterNulls = false,
           collectMetrics = collectSchemaInferenceMetrics,
           collectTestMetrics = false
         )
@@ -83,15 +84,17 @@ class RawTableRelation(
     }
   }
 
-  private def getStreams(filter: RawRowFilter, cursors: Vector[String])(
+  private def getStreams(filter: RawRowFilter, filterNullFields: Boolean, cursors: Vector[String])(
       limit: Option[Int],
       numPartitions: Int)(client: GenericClient[IO]): Seq[Stream[IO, RawRow]] = {
     assert(numPartitions == cursors.length)
-    val rawClient = client.rawRows(database, table)
+    val rawClient = client.rawRows(database, table, filterNullFields)
     cursors.map(rawClient.filterOnePartition(filter, _, limit))
   }
 
   private def getStreamByKeys(client: GenericClient[IO], keys: Set[String]): Stream[IO, RawRow] = {
+    // Note that retrieveByKey does not currently support filtering out null fields. When/If that is
+    // added, we should also pass in the flag to filter out those here.
     val rawClient = client.rawRows(database, table)
     Stream
       .emits(keys.toSeq)
@@ -127,6 +130,7 @@ class RawTableRelation(
       filter: RawRowFilter,
       requestedKeys: Option[Set[String]],
       schema: Option[StructType],
+      filterNulls: Boolean,
       collectMetrics: Boolean = config.collectMetrics,
       collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
     val configWithLimit =
@@ -142,11 +146,11 @@ class RawTableRelation(
           val partitionCursors =
             CdpConnector
               .clientFromConfig(config)
-              .rawRows(database, table)
+              .rawRows(database, table, filterNulls)
               .getPartitionCursors(filter, configWithLimit.partitions)
               .unsafeRunSync()
               .toVector
-          getStreams(filter, partitionCursors)(
+          getStreams(filter, filterNulls, partitionCursors)(
             configWithLimit.limitPerPartition,
             configWithLimit.partitions)
       }
@@ -203,7 +207,13 @@ class RawTableRelation(
     }
 
     val rdd =
-      readRows(config.limitPerPartition, None, rawRowFilter, requestedKeys, jsonSchema)
+      readRows(
+        config.limitPerPartition,
+        None,
+        rawRowFilter,
+        requestedKeys,
+        jsonSchema,
+        config.filterNullsOnNonSchemaQueries)
 
     rdd.map(row => {
       val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
