@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cognite.spark.compiletime.macros.SparkSchemaHelper.structType
-import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+import org.apache.spark.sql.types.StructType
 
 trait InsertSchema {
   val insertSchema: StructType
@@ -28,14 +28,16 @@ trait DeleteSchema {
 }
 
 trait DeleteWithIdSchema extends DeleteSchema {
-  override val deleteSchema: StructType = StructType(Seq(StructField("id", DataTypes.LongType)))
+  override val deleteSchema: StructType = StructType[DeleteByInternalId]()
 }
 
 trait DeleteWithExternalIdSchema extends DeleteSchema {
-  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
-
   override val deleteSchema: StructType = structType[DeleteByExternalId]()
 }
+
+final case class DeleteByInternalId(
+    id: Long
+)
 
 final case class DeleteByExternalId(
     externalId: String
