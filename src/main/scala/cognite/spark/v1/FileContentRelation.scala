@@ -97,7 +97,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
         Array(CdfPartition(0))
     }
     import sqlContext.sparkSession.implicits._
-    val dataset = rdd.toDS()
+    val dataset = rdd.cache().toDS()
 
     if (inferSchema) {
       sqlContext.sparkSession.read.json(dataset)
