@@ -481,7 +481,9 @@ object DefaultSource {
       rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
       enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy,
       tracingParent = extractTracingHeadersKernel(parameters),
-      useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false)
+      useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false),
+      serverSideFilterNullValuesOnNonSchemaRawQueries =
+        toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false)
     )
   }
 
