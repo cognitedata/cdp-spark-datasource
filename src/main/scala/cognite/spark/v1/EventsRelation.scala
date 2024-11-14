@@ -103,7 +103,7 @@ object EventsRelation
   override val readSchema: StructType = structType[EventsReadSchema]()
 }
 
-trait WithNullableExtenalId extends WithExternalIdGeneric[OptionalField] {
+trait WithNullableExternalId extends WithExternalIdGeneric[OptionalField] {
   val externalId: OptionalField[String]
   override def getExternalId: Option[String] = externalId.toOption
 }
@@ -120,7 +120,7 @@ final case class EventsUpsertSchema(
     source: OptionalField[String] = FieldNotSpecified,
     externalId: OptionalField[String] = FieldNotSpecified,
     dataSetId: OptionalField[Long] = FieldNotSpecified
-) extends WithNullableExtenalId
+) extends WithNullableExternalId
     with WithId[Option[Long]]
 
 final case class EventsInsertSchema(
