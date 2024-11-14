@@ -140,7 +140,7 @@ final case class FilesUpsertSchema(
     sourceModifiedTime: OptionalField[Instant] = FieldNotSpecified,
     securityCategories: Option[Seq[Long]] = None,
     labels: Option[Seq[String]] = None
-) extends WithNullableExtenalId
+) extends WithNullableExternalId
     with WithId[Option[Long]]
 
 object FilesUpsertSchema {
