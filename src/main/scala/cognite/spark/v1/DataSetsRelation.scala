@@ -91,7 +91,7 @@ case class DataSetsUpsertSchema(
     description: OptionalField[String] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
     writeProtected: Option[Boolean] = None)
-    extends WithNullableExtenalId
+    extends WithNullableExternalId
     with WithId[Option[Long]]
 object DataSetsUpsertSchema {
   implicit val toCreate: Transformer[DataSetsUpsertSchema, DataSetCreate] =

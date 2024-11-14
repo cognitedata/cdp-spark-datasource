@@ -145,7 +145,7 @@ final case class AssetsUpsertSchema(
     parentExternalId: Option[String] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified,
     labels: Option[Seq[String]] = None
-) extends WithNullableExtenalId
+) extends WithNullableExternalId
     with WithId[Option[Long]]
 
 object AssetsUpsertSchema {

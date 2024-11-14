@@ -268,7 +268,7 @@ final case class SequenceUpsertSchema(
     metadata: Option[Map[String, String]] = None,
     columns: Option[Seq[SequenceColumnUpsertSchema]] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified
-) extends WithNullableExtenalId
+) extends WithNullableExternalId
     with WithId[Option[Long]] {
 
   def getSequenceColumnCreate: NonEmptyList[SequenceColumnCreate] = {

@@ -119,7 +119,7 @@ final case class TimeSeriesUpsertSchema(
     isString: Option[Boolean] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified,
     unitExternalId: OptionalField[String] = FieldNotSpecified
-) extends WithNullableExtenalId
+) extends WithNullableExternalId
     with WithId[Option[Long]]
 
 object TimeSeriesUpsertSchema {
