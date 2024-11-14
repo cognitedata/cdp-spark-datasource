@@ -9,6 +9,10 @@ import org.apache.spark.TaskContext
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources.BaseRelation
 
+trait NamedRelation {
+  val name: String
+}
+
 abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
     extends BaseRelation
     with Serializable

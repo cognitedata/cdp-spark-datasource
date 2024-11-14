@@ -110,13 +110,20 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: FilesReadSchema): Long = a.id
 }
-object FilesRelation extends UpsertSchema with NamedRelation {
+object FilesRelation
+    extends UpsertSchema
+    with ReadSchema
+    with InsertSchema
+    with DeleteWithIdSchema
+    with UpdateSchemaFromUpsertSchema
+    with NamedRelation {
   override val name: String = "files"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[FilesUpsertSchema]()
-  val insertSchema: StructType = structType[FilesInsertSchema]()
-  val readSchema: StructType = structType[FilesReadSchema]()
+  override val upsertSchema: StructType = structType[FilesUpsertSchema]()
+  override val insertSchema: StructType = structType[FilesInsertSchema]()
+  override val readSchema: StructType = structType[FilesReadSchema]()
+
 }
 
 final case class FilesUpsertSchema(

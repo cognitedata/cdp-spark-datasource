@@ -12,7 +12,7 @@ import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+import org.apache.spark.sql.types.{DataTypes, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 import java.time.Instant
@@ -308,12 +308,14 @@ class RawTableRelation(
   }
 }
 
-object RawTableRelation extends NamedRelation {
+object RawTableRelation extends NamedRelation with UpsertSchema {
   override val name = "raw"
   private val lastUpdatedTimeColName = "lastUpdatedTime"
   private val keyColumnPattern = """^_*key$""".r
   private val lastUpdatedTimeColumnPattern = """^_*lastUpdatedTime$""".r
 
+  override val upsertSchema: StructType = StructType(
+    Seq(StructField("key", StringType, nullable = false)))
   val defaultSchema: StructType = StructType(
     Seq(
       StructField("key", DataTypes.StringType),
