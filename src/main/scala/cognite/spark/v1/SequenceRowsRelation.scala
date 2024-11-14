@@ -272,8 +272,17 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
   }
 }
 
-object SequenceRowsRelation extends NamedRelation {
+object SequenceRowsRelation extends NamedRelation with UpsertSchema with DeleteSchema {
   override val name = "sequencerows"
+  override val upsertSchema: StructType = StructType(
+    Seq(
+      StructField("id", DataTypes.LongType),
+      StructField("externalId", DataTypes.StringType),
+      StructField("rowNumber", DataTypes.LongType, nullable = false)
+    )
+  )
+  override val deleteSchema: StructType = upsertSchema
+
   private def parseValue(value: Long, offset: Long = 0) = Some(value + offset)
   def getSeqFilter(filter: Filter): Seq[SequenceRowFilter] =
     filter match {

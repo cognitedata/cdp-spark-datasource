@@ -218,13 +218,19 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: SequenceReadSchema): Long = a.id
 }
 
-object SequenceRelation extends UpsertSchema with NamedRelation {
+object SequenceRelation
+    extends UpsertSchema
+    with ReadSchema
+    with InsertSchema
+    with DeleteWithIdSchema
+    with NamedRelation {
   override val name: String = "sequences"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[SequenceUpsertSchema]()
-  val insertSchema: StructType = structType[SequenceInsertSchema]()
-  val readSchema: StructType = structType[SequenceReadSchema]()
+  override val upsertSchema: StructType = structType[SequenceUpsertSchema]()
+  override val insertSchema: StructType = structType[SequenceInsertSchema]()
+  override val readSchema: StructType = structType[SequenceReadSchema]()
+
 }
 
 final case class SequenceColumnUpsertSchema(

@@ -99,15 +99,21 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
   }
 }
 
-object StringDataPointsRelation extends UpsertSchema with NamedRelation {
+object StringDataPointsRelation
+    extends UpsertSchema
+    with ReadSchema
+    with DeleteSchema
+    with InsertSchema
+    with NamedRelation {
   override val name: String = "stringdatapoints"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   // We should use StringDataPointsItem here, but doing that gives the error: "constructor Timestamp encapsulates
   // multiple overloaded alternatives and cannot be treated as a method. Consider invoking
   // `<offending symbol>.asTerm.alternatives` and manually picking the required method" in StructTypeEncoder, probably
   // because TimeStamp has multiple constructors. Issue in backlog for investigating this.
-  val upsertSchema = structType[StringDataPointsInsertItem]()
-  val readSchema = structType[StringDataPointsItem]()
-  val insertSchema = structType[StringDataPointsInsertItem]()
-  val deleteSchema = structType[DeleteDataPointsItem]()
+  override val upsertSchema: StructType = structType[StringDataPointsInsertItem]()
+  override val readSchema: StructType = structType[StringDataPointsItem]()
+  override val insertSchema: StructType = structType[StringDataPointsInsertItem]()
+  override val deleteSchema: StructType = structType[DeleteDataPointsItem]()
+
 }

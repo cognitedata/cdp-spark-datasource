@@ -7,9 +7,11 @@ import cognite.spark.v1.{
   CdfRelation,
   CdfSparkException,
   CdfSparkIllegalArgumentException,
+  DeleteSchema,
   NamedRelation,
   RelationConfig,
   SdkV1Rdd,
+  UpsertSchema,
   WritableRelation
 }
 import com.cognite.sdk.scala.v1.GenericClient
@@ -583,7 +585,21 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
 }
 
-object FlexibleDataModelBaseRelation extends NamedRelation {
+object FlexibleDataModelBaseRelation extends NamedRelation with UpsertSchema with DeleteSchema {
+  import cognite.spark.compiletime.macros.SparkSchemaHelper.structType
+  import cognite.spark.v1.StructTypeEncoder
+  import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+
+  // TODO: this seems to be incomplete or fully wrong schema
+  final case class DataModelBaseRelationUpsertSchema(externalId: String) {}
+
+  override val upsertSchema: StructType = structType[DataModelBaseRelationUpsertSchema]()
+
+  // TODO: this seems to be missing optional "space" parameter
+  final case class DataModelBaseRelationDeleteSchema(externalId: String) {}
+
+  override val deleteSchema: StructType = structType[DataModelBaseRelationDeleteSchema]()
+
   override val name = "instances"
   final case class ProjectedFlexibleDataModelInstance(
       space: String,
