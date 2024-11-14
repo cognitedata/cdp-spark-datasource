@@ -958,7 +958,7 @@ class RawTableRelationTest
     validateWhenFilteringIsNotEnabled(df)
   }
 
-  private def validateWhenFilteringIsNotEnabled(df: DataFrame): Unit {
+  private def validateWhenFilteringIsNotEnabled(df: DataFrame): Unit = {
     val rows: Map[String, Map[String, Json]] = RawJsonConverter.rowsToRawItems(df.columns, "key", df.collect().toSeq)
       .map(r => (r.key, r.columns))
       .toMap
