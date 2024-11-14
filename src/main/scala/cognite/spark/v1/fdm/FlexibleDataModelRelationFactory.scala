@@ -17,7 +17,7 @@ import org.apache.spark.sql.SQLContext
 sealed trait FlexibleDataModelRelationFactory
 
 object FlexibleDataModelRelationFactory {
-  val ResourceType = "instances"
+  val ResourceType = FlexibleDataModelBaseRelation.name
 
   final case class ViewCorePropertyConfig(
       intendedUsage: Usage,

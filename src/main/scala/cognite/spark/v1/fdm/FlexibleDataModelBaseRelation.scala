@@ -7,6 +7,7 @@ import cognite.spark.v1.{
   CdfRelation,
   CdfSparkException,
   CdfSparkIllegalArgumentException,
+  NamedRelation,
   RelationConfig,
   SdkV1Rdd,
   WritableRelation
@@ -582,7 +583,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     }
 }
 
-object FlexibleDataModelBaseRelation {
+object FlexibleDataModelBaseRelation extends NamedRelation {
+  override val name = "instances"
   final case class ProjectedFlexibleDataModelInstance(
       space: String,
       externalId: String,

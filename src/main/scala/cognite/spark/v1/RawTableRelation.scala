@@ -308,7 +308,8 @@ class RawTableRelation(
   }
 }
 
-object RawTableRelation {
+object RawTableRelation extends NamedRelation {
+  override val name = "raw"
   private val lastUpdatedTimeColName = "lastUpdatedTime"
   private val keyColumnPattern = """^_*key$""".r
   private val lastUpdatedTimeColumnPattern = """^_*lastUpdatedTime$""".r

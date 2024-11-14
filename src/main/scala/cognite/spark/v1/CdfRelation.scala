@@ -11,14 +11,15 @@ import org.apache.spark.sql.sources.BaseRelation
 
 abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
     extends BaseRelation
-    with Serializable {
-  protected val shortName: String = shortNameStr
+    with Serializable
+    with NamedRelation {
+  override val name: String = shortNameStr
 
   private def getOrCreateCounter(action: String): Counter =
     MetricsSource.getOrCreateAttemptTrackingCounter(
       config.metricsTrackAttempts,
       config.metricsPrefix,
-      s"$shortName.$action",
+      s"$name.$action",
       Option(TaskContext.get()))
 
   @transient lazy protected val itemsRead: Counter = getOrCreateCounter("read")
