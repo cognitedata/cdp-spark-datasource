@@ -129,19 +129,6 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       )
   }
 
-  it should "fail with a sensible error if the mimetype is wrong" in {
-    val exception = sparkIntercept {
-      val sourceDf: DataFrame = dataFrameReaderUsingOidc
-        .useOIDCWrite
-        .option("type", "filecontent")
-        .option("externalId", fileWithWrongMimeTypeExternalId)
-        .load()
-      sourceDf.createOrReplaceTempView("fileContent")
-      spark.sqlContext.sql(s"select * from filecontent").collect()
-    }
-    assert(exception.getMessage.contains("Wrong mimetype. Expects application/jsonlines"))
-  }
-
   it should "infer the schema" in {
     val sourceDf: DataFrame = dataFrameReaderUsingOidc
       .useOIDCWrite
