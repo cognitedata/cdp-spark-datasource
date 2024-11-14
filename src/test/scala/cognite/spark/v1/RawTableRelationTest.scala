@@ -930,12 +930,9 @@ class RawTableRelationTest
     val items = RawJsonConverter.rowsToRawItems(df.columns, "key", df.collect().toSeq).map(r => (r.key, r.columns)).toMap
     items("k1")("columns") shouldBe Json.fromString("{}")
     items("k2")("columns") shouldBe Json.fromString("{\"notFiltered\":\"string\"}")
-    val columnsParsed: Option[JsonObject] = io.circe.parser.parse(items("k3")("columns").asString.get) match {
-      case Right(json) => json.asObject
-      case Left(error) => throw error
-    }
-    columnsParsed.get("notFiltered") shouldBe Some(Json.fromString("string2"))
-    columnsParsed.get("toBeFiltered") shouldBe Some(Json.fromString("but not here"))
+    val columnsParsed: JsonObject = parseColumns(items("k3"))
+    columnsParsed("notFiltered") shouldBe Some(Json.fromString("string2"))
+    columnsParsed("toBeFiltered") shouldBe Some(Json.fromString("but not here"))
   }
 
   it should "return column in schema, even if every row has it filtered out" in {
@@ -943,6 +940,46 @@ class RawTableRelationTest
     val df = rawRead(table = tableName, database = testData.dbName, inferSchema = true, filterNullFields = Some(true))
     df.count() shouldBe 3
     df.schema.fieldNames.toSet shouldBe Set("key", "lastUpdatedTime", "notFiltered", "toBeFiltered")
+  }
+
+  it should "not filter out null column values when filtering is not set" in {
+    val tableName = "with-some-null-values"
+    // We run this without inferSchema, as schema would hide whether the fields are filtered or not.
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = false)
+    df.count() shouldBe 3
+    validateWhenFilteringIsNotEnabled(df)
+  }
+
+  it should "not filter out null column values when filtering is explicitly disabled" in {
+    val tableName = "with-some-null-values"
+    // We run this without inferSchema, as schema would hide whether the fields are filtered or not.
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = false, filterNullFields = Some(false))
+    df.count() shouldBe 3
+    validateWhenFilteringIsNotEnabled(df)
+  }
+
+  private def validateWhenFilteringIsNotEnabled(df: DataFrame) {
+    val rows: Map[String, Map[String, Json]] = RawJsonConverter.rowsToRawItems(df.columns, "key", df.collect().toSeq)
+      .map(r => (r.key, r.columns))
+      .toMap
+
+    rows("k1")("columns") shouldBe Json.fromString("{\"toBeFiltered\":null}")
+
+    val columnsParsedk2: JsonObject = parseColumns(rows("k2"))
+    columnsParsedk2("toBeFiltered") shouldBe Some(Json.Null)
+    columnsParsedk2("notFiltered") shouldBe Some(Json.fromString("string"))
+
+    val columnsParsedk3 = parseColumns(rows("k3"))
+    columnsParsedk3("toBeFiltered") shouldBe Some(Json.fromString("but not here"))
+    columnsParsedk3("notFiltered") shouldBe Some(Json.fromString("string2"))
+    ()
+  }
+
+  private def parseColumns(row: Map[String, Json]): JsonObject = {
+    io.circe.parser.parse(row("columns").asString.get) match {
+      case Right(json) => json.asObject.get
+      case Left(error) => throw error
+    }
   }
 
 }
