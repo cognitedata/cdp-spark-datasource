@@ -19,6 +19,7 @@ import sttp.client3.{SttpBackend, UriContext, asStreamUnsafe, basicRequest}
 import sttp.model.Uri
 
 import scala.collection.immutable._
+import scala.concurrent.duration.Duration
 
 //The trait exist for testing purposes
 trait WithSizeLimit {
@@ -105,6 +106,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       val request = basicRequest
         .get(link)
         .response(asStreamUnsafe(Fs2Streams[IO]))
+        .readTimeout(Duration.Inf)
 
       Stream.eval(backend.send(request)).flatMap { response =>
         response.body match {
