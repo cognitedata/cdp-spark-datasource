@@ -6,7 +6,7 @@ import org.asynchttpclient.AsyncHttpClient
 import sttp.client3.SttpBackendOptions
 
 object SttpClientBackendFactory {
-  def create(prefix: String = "Cdf-Spark"): AsyncHttpClient = {
+  def create(prefix: String = "Cdf-Spark", requestTimeoutMs: Option[Int] = None): AsyncHttpClient = {
     // It's important that the threads made by the async http client is daemon threads,
     // so that we don't hang applications using our library during exit.
     // See for more info https://github.com/cognitedata/cdp-spark-datasource/pull/415/files#r396774391
@@ -22,10 +22,14 @@ object SttpClientBackendFactory {
         .build()
     AsyncHttpClientBackend.clientWithModifiedOptions(
       SttpBackendOptions.Default,
-      options =>
+      options => {
         options
           .setThreadFactory(clientThreadFactory)
           .setNettyTimer(new HashedWheelTimer(timerThreadFactory))
+        //Timeout override for potentially long stream operation
+        requestTimeoutMs.foreach(options.setRequestTimeout)
+        options
+      }
     )
   }
 }
