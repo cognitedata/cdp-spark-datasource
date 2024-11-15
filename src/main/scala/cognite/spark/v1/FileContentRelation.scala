@@ -48,9 +48,6 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       )(backend => backend.close())
     } yield backend
 
-  val acceptedMimeTypes: Seq[String] =
-    Seq("application/jsonlines", "application/x-ndjson", "application/jsonl")
-
   @transient private lazy val dataFrame: DataFrame = createDataFrame
 
   override def schema: StructType =
@@ -66,15 +63,10 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
 
         val validUrl = for {
           file <- client.files.retrieveByExternalId(fileExternalId)
-          mimeType <- IO.pure(file.mimeType)
           _ <- IO.raiseWhen(!file.uploaded)(
             new CdfSparkException(
               f"Could not read file because no file was uploaded for externalId: $fileExternalId")
           )
-          _ <- IO.raiseWhen(mimeType.exists(!acceptedMimeTypes.contains(_)))(
-            new CdfSparkException("Wrong mimetype. Expects application/jsonlines")
-          )
-
           downloadLink <- client.files
             .downloadLink(FileDownloadExternalId(fileExternalId))
           uri <- IO.pure(uri"${downloadLink.downloadUrl}")
