@@ -73,7 +73,7 @@ object DataSetsRelation
     extends UpsertSchema
     with ReadSchema
     with InsertSchema
-    with UpdateSchemaFromUpsertSchema
+    with UpdateSchema
     with NamedRelation {
   override val name = "datasets"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
@@ -81,6 +81,7 @@ object DataSetsRelation
   override val upsertSchema: StructType = structType[DataSetsUpsertSchema]()
   override val insertSchema: StructType = structType[DataSetsInsertSchema]()
   override val readSchema: StructType = structType[DataSetsReadSchema]()
+  override val updateSchema: StructType = upsertSchema
 
 }
 
