@@ -30,10 +30,6 @@ trait UpdateSchema {
   val updateSchema: StructType
 }
 
-trait UpdateSchemaFromUpsertSchema extends UpsertSchema with UpdateSchema {
-  override val updateSchema: StructType = upsertSchema
-}
-
 // TODO: this isn't applied to some relations that have read support
 trait ReadSchema {
   val readSchema: StructType

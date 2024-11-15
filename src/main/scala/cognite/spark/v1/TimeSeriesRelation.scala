@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
-import com.cognite.sdk.scala.common.{WithId}
+import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1._
 import com.cognite.sdk.scala.v1.resources.TimeSeriesResource
 import fs2.Stream
@@ -96,14 +96,14 @@ object TimeSeriesRelation
     with InsertSchema
     with NamedRelation
     with DeleteWithIdSchema
-    with UpdateSchemaFromUpsertSchema {
+    with UpdateSchema {
   override val name: String = "timeseries"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override val upsertSchema: StructType = structType[TimeSeriesUpsertSchema]()
   override val insertSchema: StructType = structType[TimeSeriesInsertSchema]()
   override val readSchema: StructType = structType[TimeSeriesReadSchema]()
-
+  override val updateSchema: StructType = upsertSchema
 }
 
 final case class TimeSeriesUpsertSchema(

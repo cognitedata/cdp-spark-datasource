@@ -5,14 +5,7 @@ import cognite.spark.v1.PushdownUtilities._
 import cognite.spark.compiletime.macros.SparkSchemaHelper._
 import com.cognite.sdk.scala.common.WithId
 import com.cognite.sdk.scala.v1.resources.Files
-import com.cognite.sdk.scala.v1.{
-  CogniteInternalId,
-  File,
-  FileCreate,
-  FileUpdate,
-  FilesFilter,
-  GenericClient
-}
+import com.cognite.sdk.scala.v1.{CogniteInternalId, File, FileCreate, FileUpdate, FilesFilter, GenericClient}
 import fs2.Stream
 import io.scalaland.chimney.Transformer
 import io.scalaland.chimney.dsl._
@@ -115,7 +108,7 @@ object FilesRelation
     with ReadSchema
     with InsertSchema
     with DeleteWithIdSchema
-    with UpdateSchemaFromUpsertSchema
+    with UpdateSchema
     with NamedRelation {
   override val name: String = "files"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
@@ -123,7 +116,7 @@ object FilesRelation
   override val upsertSchema: StructType = structType[FilesUpsertSchema]()
   override val insertSchema: StructType = structType[FilesInsertSchema]()
   override val readSchema: StructType = structType[FilesReadSchema]()
-
+  override val updateSchema: StructType = upsertSchema
 }
 
 final case class FilesUpsertSchema(
