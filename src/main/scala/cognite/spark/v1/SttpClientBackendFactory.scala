@@ -2,7 +2,7 @@ package sttp.client3.asynchttpclient
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import io.netty.util.HashedWheelTimer
-import org.asynchttpclient.{AsyncHttpClient, DefaultAsyncHttpClientConfig}
+import org.asynchttpclient.AsyncHttpClient
 import sttp.client3.SttpBackendOptions
 
 object SttpClientBackendFactory {
