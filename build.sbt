@@ -46,7 +46,7 @@ lazy val commonSettings = Seq(
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
-  scalaVersion := scala213, // default to Scala 2.12
+  scalaVersion := scala212, // default to Scala 2.12
   // handle cross plugin https://github.com/stringbean/sbt-dependency-lock/issues/13
   dependencyLockFile := { baseDirectory.value / s"build.scala-${CrossVersion.partialVersion(scalaVersion.value) match { case Some((2, n)) => s"2.$n" }}.sbt.lock" },
   description := "Spark data source for the Cognite Data Platform.",
