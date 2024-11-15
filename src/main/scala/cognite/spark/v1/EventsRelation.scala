@@ -94,13 +94,14 @@ object EventsRelation
     with NamedRelation
     with InsertSchema
     with DeleteWithIdSchema
-    with UpdateSchemaFromUpsertSchema {
+    with UpdateSchema {
   override val name: String = "events"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override val upsertSchema: StructType = structType[EventsUpsertSchema]()
   override val insertSchema: StructType = structType[EventsInsertSchema]()
   override val readSchema: StructType = structType[EventsReadSchema]()
+  override val updateSchema: StructType = upsertSchema
 }
 
 trait WithNullableExternalId extends WithExternalIdGeneric[OptionalField] {

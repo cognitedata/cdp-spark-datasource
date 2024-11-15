@@ -115,7 +115,7 @@ object FilesRelation
     with ReadSchema
     with InsertSchema
     with DeleteWithIdSchema
-    with UpdateSchemaFromUpsertSchema
+    with UpdateSchema
     with NamedRelation {
   override val name: String = "files"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
@@ -123,7 +123,7 @@ object FilesRelation
   override val upsertSchema: StructType = structType[FilesUpsertSchema]()
   override val insertSchema: StructType = structType[FilesInsertSchema]()
   override val readSchema: StructType = structType[FilesReadSchema]()
-
+  override val updateSchema: StructType = upsertSchema
 }
 
 final case class FilesUpsertSchema(
