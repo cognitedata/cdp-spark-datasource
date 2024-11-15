@@ -5,7 +5,6 @@ import sttp.client3.asynchttpclient.SttpClientBackendFactory
 
 class SttpClientBackendFactoryTest extends FlatSpec with Matchers {
 
-
   class DummyTestThread extends Runnable {
     def run(): Unit = ()
   }
