@@ -27,7 +27,7 @@ object SttpClientBackendFactory {
           .setThreadFactory(clientThreadFactory)
           .setNettyTimer(new HashedWheelTimer(timerThreadFactory))
         //Timeout override for potentially long stream operation
-        requestTimeout.foreach(options.setRequestTimeout)
+        requestTimeoutMs.foreach(options.setRequestTimeout)
         options
       }
     )
