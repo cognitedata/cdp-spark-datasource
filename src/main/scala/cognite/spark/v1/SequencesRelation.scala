@@ -223,6 +223,7 @@ object SequenceRelation
     with ReadSchema
     with InsertSchema
     with DeleteWithIdSchema
+    with UpdateSchema
     with NamedRelation {
   override val name: String = "sequences"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
@@ -230,7 +231,7 @@ object SequenceRelation
   override val upsertSchema: StructType = structType[SequenceUpsertSchema]()
   override val insertSchema: StructType = structType[SequenceInsertSchema]()
   override val readSchema: StructType = structType[SequenceReadSchema]()
-
+  override val updateSchema: StructType = upsertSchema
 }
 
 final case class SequenceColumnUpsertSchema(
