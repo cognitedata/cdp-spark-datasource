@@ -18,6 +18,7 @@ import sttp.client3.asynchttpclient.fs2.AsyncHttpClientFs2Backend
 import sttp.client3.{SttpBackend, UriContext, asStreamUnsafe, basicRequest}
 import sttp.model.Uri
 
+import java.time.temporal.ChronoUnit
 import scala.collection.immutable._
 
 //The trait exist for testing purposes
@@ -42,7 +43,8 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       backend <- Resource.make(
         IO(
           AsyncHttpClientFs2Backend
-            .usingClient[IO](SttpClientBackendFactory.create("file content download"), dispatcher))
+            .usingClient[IO](SttpClientBackendFactory.create("file content download", Some(3600000)), dispatcher))
+
       )(backend => backend.close())
     } yield backend
 
