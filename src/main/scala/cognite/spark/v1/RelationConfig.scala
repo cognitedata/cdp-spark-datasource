@@ -28,7 +28,8 @@ final case class RelationConfig(
     enableSinglePartitionDeleteAssetHierarchy: Boolean, // flag to test whether single partition helps avoid NPE in asset hierarchy builder
     tracingParent: Kernel,
     initialRetryDelayMillis: Int,
-    useSharedThrottle: Boolean
+    useSharedThrottle: Boolean,
+    serverSideFilterNullValuesOnNonSchemaRawQueries: Boolean,
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */

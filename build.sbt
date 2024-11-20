@@ -11,7 +11,7 @@ val circeVersion = "0.14.9"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.28.844"
+val cogniteSdkVersion = "2.31.861"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -41,7 +41,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.20." + patchVersion,
+  version := "3.21." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -160,6 +160,7 @@ lazy val library = (project in file("."))
         exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
         exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
+      "com.softwaremill.sttp.client3" %% "async-http-client-backend-fs2" % sttpVersion,
       "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion
         // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
         exclude("io.netty", "netty-buffer")

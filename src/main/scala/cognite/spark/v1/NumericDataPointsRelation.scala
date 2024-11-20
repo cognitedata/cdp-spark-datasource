@@ -120,7 +120,7 @@ object Granularity {
 }
 
 class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)
-    extends DataPointsRelationV1[DataPointsItem](config, "datapoints")(sqlContext)
+    extends DataPointsRelationV1[DataPointsItem](config, NumericDataPointsRelation.name)(sqlContext)
     with WritableRelation {
   import PushdownUtilities.filtersToTimestampLimits
   override def insert(rows: Seq[Row]): IO[Unit] =
@@ -222,11 +222,18 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
   }
 }
 
-object NumericDataPointsRelation extends UpsertSchema {
+object NumericDataPointsRelation
+    extends UpsertSchema
+    with ReadSchema
+    with DeleteSchema
+    with InsertSchema
+    with NamedRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+  override val name = "datapoints"
 
-  val upsertSchema: StructType = structType[InsertDataPointsItem]()
-  val readSchema: StructType = structType[DataPointsItem]()
-  val insertSchema: StructType = structType[InsertDataPointsItem]()
-  val deleteSchema: StructType = structType[DeleteDataPointsItem]()
+  override val upsertSchema: StructType = structType[InsertDataPointsItem]()
+  override val readSchema: StructType = structType[DataPointsItem]()
+  override val insertSchema: StructType = structType[InsertDataPointsItem]()
+  override val deleteSchema: StructType = structType[DeleteDataPointsItem]()
+
 }

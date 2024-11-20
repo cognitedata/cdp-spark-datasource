@@ -23,7 +23,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1InsertableRelation[FilesReadSchema, Long](config, "files")
+    extends SdkV1InsertableRelation[FilesReadSchema, Long](config, FilesRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getFromRowsAndCreate(rows: Seq[Row], doUpsert: Boolean = true): IO[Unit] = {
@@ -110,12 +110,20 @@ class FilesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def uniqueId(a: FilesReadSchema): Long = a.id
 }
-object FilesRelation extends UpsertSchema {
+object FilesRelation
+    extends UpsertSchema
+    with ReadSchema
+    with InsertSchema
+    with DeleteWithIdSchema
+    with UpdateSchema
+    with NamedRelation {
+  override val name: String = "files"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[FilesUpsertSchema]()
-  val insertSchema: StructType = structType[FilesInsertSchema]()
-  val readSchema: StructType = structType[FilesReadSchema]()
+  override val upsertSchema: StructType = structType[FilesUpsertSchema]()
+  override val insertSchema: StructType = structType[FilesInsertSchema]()
+  override val readSchema: StructType = structType[FilesReadSchema]()
+  override val updateSchema: StructType = upsertSchema
 }
 
 final case class FilesUpsertSchema(
@@ -132,7 +140,7 @@ final case class FilesUpsertSchema(
     sourceModifiedTime: OptionalField[Instant] = FieldNotSpecified,
     securityCategories: Option[Seq[Long]] = None,
     labels: Option[Seq[String]] = None
-) extends WithNullableExtenalId
+) extends WithNullableExternalId
     with WithId[Option[Long]]
 
 object FilesUpsertSchema {
@@ -145,7 +153,6 @@ object FilesUpsertSchema {
           throw new CdfSparkIllegalArgumentException("The name field must be set when creating files.")))
       .withFieldComputed(_.labels, u => stringSeqToCogniteExternalIdSeq(u.labels))
       .buildTransformer
-
 }
 
 final case class FilesInsertSchema(

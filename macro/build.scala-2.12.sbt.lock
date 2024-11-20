@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-08-20T11:20:33.759356Z",
+  "timestamp" : "2024-11-13T11:30:59.215321253Z",
   "configurations" : [
     "compile",
     "optional",
@@ -13,11 +13,11 @@
     {
       "org" : "co.fs2",
       "name" : "fs2-core_2.12",
-      "version" : "3.10.2",
+      "version" : "3.11.0",
       "artifacts" : [
         {
           "name" : "fs2-core_2.12.jar",
-          "hash" : "sha1:413c7d123f943eea68f6c77907318e58e0410ad4"
+          "hash" : "sha1:3651a652ea778dea12d9ec8083896f05ba489439"
         }
       ],
       "configurations" : [
@@ -29,11 +29,11 @@
     {
       "org" : "co.fs2",
       "name" : "fs2-io_2.12",
-      "version" : "3.10.2",
+      "version" : "3.11.0",
       "artifacts" : [
         {
           "name" : "fs2-io_2.12.jar",
-          "hash" : "sha1:89cefd0c05480d603e26d4b92a3d8284b8ec7b4a"
+          "hash" : "sha1:eb83f8a4387e935926d00d81999adbae49756a30"
         }
       ],
       "configurations" : [
@@ -75,11 +75,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.12",
-      "version" : "2.28.844",
+      "version" : "2.31.861",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.12.jar",
-          "hash" : "sha1:a020427c9c31f27e6ec0028f0f3e12f4b8e6fc8f"
+          "hash" : "sha1:ae52606e613a31e1979830a6036f265328033908"
         }
       ],
       "configurations" : [
@@ -91,11 +91,11 @@
     {
       "org" : "com.comcast",
       "name" : "ip4s-core_2.12",
-      "version" : "3.5.0",
+      "version" : "3.6.0",
       "artifacts" : [
         {
           "name" : "ip4s-core_2.12.jar",
-          "hash" : "sha1:19d582e20c3cb27c1481b7e43baea0fa90aa7cd6"
+          "hash" : "sha1:d5b15a847dbd0ca35a281d140ef4d26b00d33b60"
         }
       ],
       "configurations" : [
@@ -513,11 +513,11 @@
     {
       "org" : "commons-io",
       "name" : "commons-io",
-      "version" : "2.16.1",
+      "version" : "2.17.0",
       "artifacts" : [
         {
           "name" : "commons-io.jar",
-          "hash" : "sha1:377d592e740dc77124e0901291dbfaa6810a200e"
+          "hash" : "sha1:ddcc8433eb019fb48fe25207c0278143f3e1d7e2"
         }
       ],
       "configurations" : [
@@ -2290,11 +2290,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-core_2.12",
-      "version" : "2.10.0",
+      "version" : "2.11.0",
       "artifacts" : [
         {
           "name" : "cats-core_2.12.jar",
-          "hash" : "sha1:100bc0d103c5bd9ddcd4e2b5c24e88483e2a77d5"
+          "hash" : "sha1:44f89a95aed47e43f85896b1243b7dc6a7e1feae"
         }
       ],
       "configurations" : [
@@ -2354,11 +2354,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-kernel_2.12",
-      "version" : "2.10.0",
+      "version" : "2.11.0",
       "artifacts" : [
         {
           "name" : "cats-kernel_2.12.jar",
-          "hash" : "sha1:94b372f873e763186c3cccc9e76492553d01350e"
+          "hash" : "sha1:dd67f32ab72c3aa2045432992cdf3f0a42484645"
         }
       ],
       "configurations" : [

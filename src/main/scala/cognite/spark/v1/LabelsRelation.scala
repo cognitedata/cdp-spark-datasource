@@ -10,7 +10,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[Label, String](config, "labels")
+    extends SdkV1Relation[Label, String](config, LabelsRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[Label]()
@@ -31,7 +31,7 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val labelIds = rows.map(fromRow[LabelDeleteSchema](_)).map(_.externalId)
+    val labelIds = rows.map(fromRow[DeleteByExternalId](_)).map(_.externalId)
     client.labels
       .deleteByExternalIds(labelIds)
       .flatTap(_ => incMetrics(itemsDeleted, labelIds.length))
@@ -44,17 +44,17 @@ class LabelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     throw new CdfSparkException("Update is not supported for labels.")
 }
 
-object LabelsRelation {
+object LabelsRelation
+    extends ReadSchema
+    with DeleteWithExternalIdSchema
+    with InsertSchema
+    with NamedRelation {
+  override val name: String = "labels"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val insertSchema: StructType = structType[LabelInsertSchema]()
-  val readSchema: StructType = structType[LabelReadSchema]()
-  val deleteSchema: StructType = structType[LabelDeleteSchema]()
+  override val insertSchema: StructType = structType[LabelInsertSchema]()
+  override val readSchema: StructType = structType[LabelReadSchema]()
 }
-
-final case class LabelDeleteSchema(
-    externalId: String
-)
 
 final case class LabelInsertSchema(
     externalId: String,

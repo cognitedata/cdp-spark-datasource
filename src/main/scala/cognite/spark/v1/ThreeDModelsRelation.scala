@@ -11,7 +11,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 final case class ModelItem(id: Long, name: String, createdTime: Long)
 
 class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDModel, Long](config, "threeDModels.read") {
+    extends SdkV1Relation[ThreeDModel, Long](config, ThreeDModelsRelation.name) {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[ThreeDModel]()
 
@@ -22,4 +22,8 @@ class ThreeDModelsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO]): Seq[Stream[IO, ThreeDModel]] =
     Seq(client.threeDModels.list(config.limitPerPartition))
+}
+
+object ThreeDModelsRelation extends NamedRelation {
+  override val name: String = "3dmodels"
 }

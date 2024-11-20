@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-08-20T11:20:27.551661Z",
+  "timestamp" : "2024-11-13T11:30:40.138510863Z",
   "configurations" : [
     "compile",
     "optional",
@@ -13,11 +13,11 @@
     {
       "org" : "co.fs2",
       "name" : "fs2-core_2.12",
-      "version" : "3.10.2",
+      "version" : "3.11.0",
       "artifacts" : [
         {
           "name" : "fs2-core_2.12.jar",
-          "hash" : "sha1:413c7d123f943eea68f6c77907318e58e0410ad4"
+          "hash" : "sha1:3651a652ea778dea12d9ec8083896f05ba489439"
         }
       ],
       "configurations" : [
@@ -30,16 +30,32 @@
     {
       "org" : "co.fs2",
       "name" : "fs2-io_2.12",
-      "version" : "3.10.2",
+      "version" : "3.11.0",
       "artifacts" : [
         {
           "name" : "fs2-io_2.12.jar",
-          "hash" : "sha1:89cefd0c05480d603e26d4b92a3d8284b8ec7b4a"
+          "hash" : "sha1:eb83f8a4387e935926d00d81999adbae49756a30"
         }
       ],
       "configurations" : [
         "compile",
         "provided",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "co.fs2",
+      "name" : "fs2-reactive-streams_2.12",
+      "version" : "3.2.7",
+      "artifacts" : [
+        {
+          "name" : "fs2-reactive-streams_2.12.jar",
+          "hash" : "sha1:4b959071b733d9759dcb324dd15216003e511f41"
+        }
+      ],
+      "configurations" : [
+        "compile",
         "runtime",
         "test"
       ]
@@ -78,11 +94,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.12",
-      "version" : "2.28.844",
+      "version" : "2.31.861",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.12.jar",
-          "hash" : "sha1:a020427c9c31f27e6ec0028f0f3e12f4b8e6fc8f"
+          "hash" : "sha1:ae52606e613a31e1979830a6036f265328033908"
         }
       ],
       "configurations" : [
@@ -95,11 +111,11 @@
     {
       "org" : "com.comcast",
       "name" : "ip4s-core_2.12",
-      "version" : "3.5.0",
+      "version" : "3.6.0",
       "artifacts" : [
         {
           "name" : "ip4s-core_2.12.jar",
-          "hash" : "sha1:19d582e20c3cb27c1481b7e43baea0fa90aa7cd6"
+          "hash" : "sha1:d5b15a847dbd0ca35a281d140ef4d26b00d33b60"
         }
       ],
       "configurations" : [
@@ -326,6 +342,22 @@
     },
     {
       "org" : "com.softwaremill.sttp.client3",
+      "name" : "async-http-client-backend-fs2_2.12",
+      "version" : "3.5.2",
+      "artifacts" : [
+        {
+          "name" : "async-http-client-backend-fs2_2.12.jar",
+          "hash" : "sha1:fadae6ca5d30cd1d2eb90ad18c679969f027a94e"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "com.softwaremill.sttp.client3",
       "name" : "async-http-client-backend_2.12",
       "version" : "3.5.2",
       "artifacts" : [
@@ -392,6 +424,22 @@
     },
     {
       "org" : "com.softwaremill.sttp.client3",
+      "name" : "fs2_2.12",
+      "version" : "3.5.2",
+      "artifacts" : [
+        {
+          "name" : "fs2_2.12.jar",
+          "hash" : "sha1:8dde4d364d013efd245e5d4b849ff3b1e202d5f2"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "com.softwaremill.sttp.client3",
       "name" : "json-common_2.12",
       "version" : "3.5.2",
       "artifacts" : [
@@ -437,6 +485,22 @@
       "configurations" : [
         "compile",
         "provided",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "com.softwaremill.sttp.shared",
+      "name" : "fs2_2.12",
+      "version" : "1.3.4",
+      "artifacts" : [
+        {
+          "name" : "fs2_2.12.jar",
+          "hash" : "sha1:a53a923369b494da9283bd0bb9c34639f9d63f8a"
+        }
+      ],
+      "configurations" : [
+        "compile",
         "runtime",
         "test"
       ]
@@ -577,11 +641,11 @@
     {
       "org" : "commons-io",
       "name" : "commons-io",
-      "version" : "2.16.1",
+      "version" : "2.17.0",
       "artifacts" : [
         {
           "name" : "commons-io.jar",
-          "hash" : "sha1:377d592e740dc77124e0901291dbfaa6810a200e"
+          "hash" : "sha1:ddcc8433eb019fb48fe25207c0278143f3e1d7e2"
         }
       ],
       "configurations" : [
@@ -821,6 +885,22 @@
     {
       "org" : "io.netty",
       "name" : "netty-buffer",
+      "version" : "4.1.60.Final",
+      "artifacts" : [
+        {
+          "name" : "netty-buffer.jar",
+          "hash" : "sha1:9d213d090deeca2541ad6827eb3345bcd6e1e701"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "io.netty",
+      "name" : "netty-buffer",
       "version" : "4.1.74.Final",
       "artifacts" : [
         {
@@ -922,6 +1002,22 @@
       ],
       "configurations" : [
         "provided"
+      ]
+    },
+    {
+      "org" : "io.netty",
+      "name" : "netty-handler",
+      "version" : "4.1.60.Final",
+      "artifacts" : [
+        {
+          "name" : "netty-handler.jar",
+          "hash" : "sha1:14e28bab0173be10c9631a85069636a0d0221dfe"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "runtime",
+        "test"
       ]
     },
     {
@@ -2817,11 +2913,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-core_2.12",
-      "version" : "2.10.0",
+      "version" : "2.11.0",
       "artifacts" : [
         {
           "name" : "cats-core_2.12.jar",
-          "hash" : "sha1:100bc0d103c5bd9ddcd4e2b5c24e88483e2a77d5"
+          "hash" : "sha1:44f89a95aed47e43f85896b1243b7dc6a7e1feae"
         }
       ],
       "configurations" : [
@@ -2885,11 +2981,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-kernel_2.12",
-      "version" : "2.10.0",
+      "version" : "2.11.0",
       "artifacts" : [
         {
           "name" : "cats-kernel_2.12.jar",
-          "hash" : "sha1:94b372f873e763186c3cccc9e76492553d01350e"
+          "hash" : "sha1:dd67f32ab72c3aa2045432992cdf3f0a42484645"
         }
       ],
       "configurations" : [

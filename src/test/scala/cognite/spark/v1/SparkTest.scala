@@ -246,11 +246,11 @@ trait SparkTest {
 
   val updateAndUpsert: TableFor1[String] = Table(heading = "mode", "upsert", "update")
 
-  def getDefaultConfig(auth: CdfSparkAuth, projectName: String): RelationConfig =
+  def getDefaultConfig(auth: CdfSparkAuth, projectName: String, cluster: String = "api", applicationName: Option[String] = Some("SparkDatasourceTestApp")): RelationConfig =
     RelationConfig(
       auth = auth,
       clientTag = Some("SparkDatasourceTestTag"),
-      applicationName = Some("SparkDatasourceTestApp"),
+      applicationName = applicationName,
       projectName = projectName,
       batchSize = Some(Constants.DefaultBatchSize),
       limitPerPartition = None,
@@ -262,7 +262,7 @@ trait SparkTest {
       collectTestMetrics = false,
       metricsTrackAttempts = false,
       metricsPrefix = "",
-      baseUrl = Constants.DefaultBaseUrl,
+      baseUrl = s"https://${cluster}.cognitedata.com",
       onConflict = OnConflictOption.Abort,
       applicationId = spark.sparkContext.applicationId,
       parallelismPerPartition = Constants.DefaultParallelismPerPartition,
@@ -273,7 +273,8 @@ trait SparkTest {
       rawEnsureParent = false,
       enableSinglePartitionDeleteAssetHierarchy = false,
       tracingParent = new Kernel(Map.empty),
-      useSharedThrottle = false
+      useSharedThrottle = false,
+      serverSideFilterNullValuesOnNonSchemaRawQueries = false
     )
 
   private def getCounterSafe(metricsNamespace: String, resource: String): Option[Long] = {
