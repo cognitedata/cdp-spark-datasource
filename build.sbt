@@ -53,17 +53,12 @@ lazy val commonSettings = Seq(
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature") ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((3, _)) => Seq(
-          "-Wconf:msg=unused value of type org.scalatest.Assertion:s",
-          "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s",
-          "-Wconf:msg=discarded non-Unit value of type org.scalatest.Assertion:s",
-          "-Wconf:msg=discarded non-Unit value of type org.scalatest.compatible.Assertion:s",
-    )
     // We use JavaConverters to remain backwards compatible with Scala 2.12,
     // and to avoid a dependency on scala-collection-compat
     case Some((2, 13)) => Seq(
       "-Wconf:src=src/test/scala/cognite/spark/v1/SparkTest.scala&cat=deprecation:i",
-      "-Wconf:src=src/test/scala/.*&cat=other-pure-statement:i"
+      "-Wconf:src=src/test/scala/.*&cat=other-pure-statement:i",
+      "-Wconf:src=src/test/scala/.*&msg=unused value of type org.scalatest.Assertion:s"
     )
     case Some((2, 12)) => Seq(
       "-Wconf:src=src/test/scala/.*&cat=unused:i"
