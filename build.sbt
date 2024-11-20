@@ -54,6 +54,8 @@ lazy val commonSettings = Seq(
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature") ++ (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, _)) => Seq(
+          "-Wconf:msg=unused value of type org.scalatest.Assertion:s",
+          "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s",
           "-Wconf:msg=discarded non-Unit value of type org.scalatest.Assertion:s",
           "-Wconf:msg=discarded non-Unit value of type org.scalatest.compatible.Assertion:s",
     )
