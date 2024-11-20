@@ -122,10 +122,10 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     val result = spark.sqlContext.sql(s"select * from filecontent").collect()
     result.map(_.toSeq.toList) should contain theSameElementsAs
       Array(
-        List(30, "Alice", null),
-        List(25, "Bob", null),
-        List(35, "Charlie", null),
-        List(35, "Charlie2", "test")
+        List[Any](30, "Alice", null),
+        List[Any](25, "Bob", null),
+        List[Any](35, "Charlie", null),
+        List[Any](35, "Charlie2", "test")
       )
   }
 

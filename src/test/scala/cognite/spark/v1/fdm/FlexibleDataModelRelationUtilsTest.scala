@@ -69,8 +69,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values = Seq[Array[Any]](
-      Array("stringProp1", "extId1", null),
-      Array(null, null, 5)
+      Array[Any]("stringProp1", "extId1", null),
+      Array[Any](null, null, 5)
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
@@ -94,7 +94,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Seq[Array[Any]](Array("stringProp1", "extId1", 1), Array(null, "extId1", null))
+    val values = Seq[Array[Any]](Array[Any]("stringProp1", "extId1", 1), Array[Any](null, "extId1", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodes(rows, schema, propertyMap, Some(destRef), Some("instanceSpaceExternalId1"))
@@ -116,7 +116,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Seq[Array[Any]](Array("extId1", 1), Array("extId2", null))
+    val values = Seq[Array[Any]](Array[Any]("extId1", 1), Array[Any]("extId2", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodes(rows, schema, propertyMap, Some(destRef), Some("instanceSpaceExternalId1"))
@@ -146,8 +146,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values =
       Seq[Array[Any]](
-        Array("space1", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
-        Array("space1", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+        Array[Any]("space1", "stringProp1", "extId1", null, Seq[Any](1.1, 1.2, null), Array[Any](2.1, null)),
+        Array[Any]("space1", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodes(rows, schema, propertyMap, Some(destRef), None)
@@ -181,7 +181,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "space1",
         "stringProp1",
         null,
@@ -189,8 +189,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
-        Seq(1.1, 1.2, null),
-        Array(2.1, null)
+        Seq[Any](1.1, 1.2, null),
+        Array[Any](2.1, null)
       ),
       Array(
         "space1",
@@ -269,7 +269,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         null,
         "extId1",
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
@@ -375,8 +375,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values =
       Seq[Array[Any]](
-        Array("stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
-        Array("stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+        Array[Any]("stringProp1", "extId1", null, Seq[Any](1.1, 1.2, null), Array[Any](2.1, null)),
+        Array[Any]("stringProp2", "extId2", 5, Array(2.1, 2.2), null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodes(rows, schema, propertyMap, Some(destRef), Some("instanceSpaceExternalId1"))
@@ -425,7 +425,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values = Seq[Array[Any]](
-      Array("stringProp1", "extId1", Seq(1.1, 1.2, null)),
+      Array[Any]("stringProp1", "extId1", Seq[Any](1.1, 1.2, null)),
       Array("stringProp2", "extId2", Array(2.1, 2.2)))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
@@ -477,8 +477,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values =
       Seq[Array[Any]](
-        Array("stringProp1", "extId1", 1, "unrelatedProp1", Seq(1.1, 1.2, null), Array(2.1, null)),
-        Array("stringProp2", "extId2", null, "unrelatedProp2", Array(2.1, 2.2), null)
+        Array[Any]("stringProp1", "extId1", 1, "unrelatedProp1", Seq[Any](1.1, 1.2, null), Array[Any](2.1, null)),
+        Array[Any]("stringProp2", "extId2", null, "unrelatedProp2", Array(2.1, 2.2), null)
       )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
@@ -532,8 +532,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values =
       Seq[Array[Any]](
-        Array("space1", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
-        Array(null, "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+        Array[Any]("space1", "stringProp1", "extId1", null, Seq[Any](1.1, 1.2, null), Array[Any](2.1, null)),
+        Array[Any](null, "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodes(rows, schema, propertyMap, Some(destRef), None)
@@ -559,7 +559,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Seq[Array[Any]](Array("str1", 1), Array("str2", null))
+    val values = Seq[Array[Any]](Array[Any]("str1", 1), Array[Any]("str2", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createEdges(rows, schema, propertyMap, Some(destRef), Some("instanceSpaceExternalId1"))
@@ -581,7 +581,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
     )
 
-    val values = Seq[Array[Any]](Array("str1", null, "externalId1"), Array("str2", 2, "externalId2"))
+    val values = Seq[Array[Any]](Array[Any]("str1", null, "externalId1"), Array[Any]("str2", 2, "externalId2"))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createEdges(rows, schema, propertyMap, Some(destRef), Some("instanceSpaceExternalId1"))
@@ -681,7 +681,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "space1",
         "str1",
         null,
@@ -690,7 +690,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema)
       ),
-      Array(
+      Array[Any](
         null,
         "str2",
         2,
@@ -731,7 +731,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "VAL1",
         "stringProp1",
         null,
@@ -739,10 +739,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
-        Seq(1.1, 1.2, null),
-        Array(2.1, null)
+        Seq[Any](1.1, 1.2, null),
+        Array[Any](2.1, null)
       ),
-      Array(
+      Array[Any](
         "VAL1",
         "stringProp2",
         2,
@@ -806,15 +806,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "stringProp1",
         "extId1",
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
-        Seq(1.1, 1.2, null)
+        Seq[Any](1.1, 1.2, null)
       ),
-      Array(
+      Array[Any](
         "stringProp2",
         "extId2",
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
@@ -874,7 +874,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "stringProp1",
         null,
         "extId1",
@@ -882,10 +882,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
         "unrelatedProp1",
-        Seq(1.1, 1.2, null),
-        Array(2.1, null)
+        Seq[Any](1.1, 1.2, null),
+        Array[Any](2.1, null)
       ),
-      Array(
+      Array[Any](
         "stringProp2",
         2,
         "extId2",
@@ -964,8 +964,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values = Seq[Array[Any]](
-      Array("stringProp1", "extId1", null),
-      Array(null, null, 5)
+      Array[Any]("stringProp1", "extId1", null),
+      Array[Any](null, null, 5)
     )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
@@ -989,7 +989,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         )
       )
 
-    val values = Seq[Array[Any]](Array("stringProp1", "extId1", 1), Array(null, "extId1", null))
+    val values = Seq[Array[Any]](Array("stringProp1", "extId1", 1), Array[Any](null, "extId1", null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodesOrEdges(rows, schema, propertyMap, Some(destRef), Some("instanceSpaceExternalId1"))
@@ -1018,8 +1018,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values =
       Seq[Array[Any]](
-        Array("stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
-        Array("stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+        Array[Any]("stringProp1", "extId1", null, Seq[Any](1.1, 1.2, null), Array[Any](2.1, null)),
+        Array[Any]("stringProp2", "extId2", 5, Array(2.1, 2.2), null))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodesOrEdges(rows, schema, propertyMap, Some(destRef), Some("instanceSpaceExternalId1"))
@@ -1069,8 +1069,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values = Seq[Array[Any]](
-      Array("stringProp1", "extId1", Seq(1.1, 1.2, null)),
-      Array("stringProp2", "extId2", Array(2.1, 2.2)))
+      Array[Any]("stringProp1", "extId1", Seq[Any](1.1, 1.2, null)),
+      Array[Any]("stringProp2", "extId2", Array(2.1, 2.2)))
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
     val result = createNodesOrEdges(rows, schema, propertyMap, Some(destRef), Some("instanceSpaceExternalId1"))
@@ -1121,8 +1121,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values =
       Seq[Array[Any]](
-        Array("stringProp1", "extId1", 1, "unrelatedProp1", Seq(1.1, 1.2, null), Array(2.1, null)),
-        Array("stringProp2", "extId2", null, "unrelatedProp2", Array(2.1, 2.2), null)
+        Array[Any]("stringProp1", "extId1", 1, "unrelatedProp1", Seq[Any](1.1, 1.2, null), Array[Any](2.1, null)),
+        Array[Any]("stringProp2", "extId2", null, "unrelatedProp2", Array[Any](2.1, 2.2), null)
       )
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
@@ -1176,17 +1176,17 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "stringProp1",
         null,
         "extId1",
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
-        Seq(1.1, 1.2, null),
-        Array(2.1, null)
+        Seq[Any](1.1, 1.2, null),
+        Array[Any](2.1, null)
       ),
-      Array(
+      Array[Any](
         "stringProp2",
         5,
         "extId2",
@@ -1248,15 +1248,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "stringProp1",
         "extId1",
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
-        Seq(1.1, 1.2, null)
+        Seq[Any](1.1, 1.2, null)
       ),
-      Array(
+      Array[Any](
         "stringProp2",
         "extId2",
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
@@ -1317,7 +1317,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
       )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "stringProp1",
         null,
         "extId1",
@@ -1325,10 +1325,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
         "unrelatedProp1",
-        Seq(1.1, 1.2, null),
-        Array(2.1, null)
+        Seq[Any](1.1, 1.2, null),
+        Array[Any](2.1, null)
       ),
-      Array(
+      Array[Any](
         "stringProp2",
         5,
         "extId2",
@@ -1530,17 +1530,17 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "stringProp1",
         null,
         "extId1",
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
-        Seq(1.1, 1.2, null),
-        Array(2.1, null)
+        Seq[Any](1.1, 1.2, null),
+        Array[Any](2.1, null)
       ),
-      Array(
+      Array[Any](
         "stringProp2",
         2,
         "extId2",
@@ -1550,7 +1550,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         Array(2.1, 2.2),
         null
       ),
-      Array(
+      Array[Any](
         "stringProp3",
         3,
         "extId3",
@@ -1625,15 +1625,15 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "stringProp1",
         "extId1",
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
-        Seq(1.1, 1.2, null)
+        Seq[Any](1.1, 1.2, null)
       ),
-      Array(
+      Array[Any](
         "stringProp2",
         "extId2",
         new GenericRowWithSchema(Array("typeSpace1", "typeExtId2"), relationRefSchema),
@@ -1641,7 +1641,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId2"), relationRefSchema),
         Array(2.1, 2.2)
       ),
-      Array(
+      Array[Any](
         "stringProp3",
         "extId3",
         null,
@@ -1713,7 +1713,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "stringProp1",
         null,
         "extId1",
@@ -1721,10 +1721,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
         "unrelatedProp1",
-        Seq(1.1, 1.2, null),
-        Array(2.1, null)
+        Seq[Any](1.1, 1.2, null),
+        Array[Any](2.1, null)
       ),
-      Array(
+      Array[Any](
         "stringProp2",
         5,
         "extId2",
@@ -1734,7 +1734,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         "unrelatedProp2",
         Array(2.1, 2.2)
       ),
-      Array(
+      Array[Any](
         "stringProp3",
         6,
         "extId3",
@@ -1905,8 +1905,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values =
       Seq[Array[Any]](
-        Array("space2", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
-        Array("space2", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+        Array[Any]("space2", "stringProp1", "extId1", null, Seq[Any](1.1, 1.2, null), Array[Any](2.1, null)),
+        Array[Any]("space2", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
 
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
@@ -1940,8 +1940,8 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
 
     val values =
       Seq[Array[Any]](
-        Array("space2", "stringProp1", "extId1", null, Seq(1.1, 1.2, null), Array(2.1, null)),
-        Array("space2", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
+        Array[Any]("space2", "stringProp1", "extId1", null, Seq[Any](1.1, 1.2, null), Array[Any](2.1, null)),
+        Array[Any]("space2", "stringProp2", "extId2", 5, Array(2.1, 2.2), null))
 
     val rows = values.map(r => new GenericRowWithSchema(r, schema))
 
@@ -1977,7 +1977,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "space2",
         "stringProp1",
         null,
@@ -1986,10 +1986,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
         "unrelatedProp1",
-        Seq(1.1, 1.2, null),
-        Array(2.1, null)
+        Seq[Any](1.1, 1.2, null),
+        Array[Any](2.1, null)
       ),
-      Array(
+      Array[Any](
         "space2",
         "stringProp2",
         2,
@@ -2037,7 +2037,7 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
     )
 
     val values = Seq[Array[Any]](
-      Array(
+      Array[Any](
         "space2",
         "stringProp1",
         null,
@@ -2046,10 +2046,10 @@ class FlexibleDataModelRelationUtilsTest extends FlatSpec with Matchers {
         new GenericRowWithSchema(Array("startNodeSpace1", "startNodeExtId1"), relationRefSchema),
         new GenericRowWithSchema(Array("endNodeSpace1", "endNodeExtId1"), relationRefSchema),
         "unrelatedProp1",
-        Seq(1.1, 1.2, null),
-        Array(2.1, null)
+        Seq[Any](1.1, 1.2, null),
+        Array[Any](2.1, null)
       ),
-      Array(
+      Array[Any](
         "space2",
         "stringProp2",
         2,

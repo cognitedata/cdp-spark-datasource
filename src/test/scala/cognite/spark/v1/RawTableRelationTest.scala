@@ -313,7 +313,7 @@ class RawTableRelationTest
 
     collectToSet[java.sql.Timestamp](dfWithManylastUpdatedTime.select($"lastUpdatedTime"))
     collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(
-      Set(null, 2))
+      Set[Any](null, 2))
     collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(
       Set(11, 22))
     collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
@@ -343,7 +343,7 @@ class RawTableRelationTest
     val (columnNames2, unRenamed2) = prepareForInsert(dfWithManylastUpdatedTime)
     columnNames2.toSet should equal(
       Set("lastUpdatedTime", "__lastUpdatedTime", "___lastUpdatedTime", "value"))
-    collectToSet[JavaLong](unRenamed2.select($"lastUpdatedTime")) should equal(Set(null, 2))
+    collectToSet[JavaLong](unRenamed2.select($"lastUpdatedTime")) should equal(Set[Any](null, 2))
     collectToSet[JavaLong](unRenamed2.select($"__lastUpdatedTime")) should equal(Set(11, 22))
     collectToSet[JavaLong](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
   }
@@ -836,7 +836,7 @@ class RawTableRelationTest
     dfWithEmptyStringInByteField
       .collect()
       .map(_.getAs[Any]("byte"))
-      .toSet shouldBe Set(null, 1.toByte)
+      .toSet shouldBe Set[Any](null, 1.toByte)
   }
 
   it should "handle empty string as null for Short type" in {
@@ -846,7 +846,7 @@ class RawTableRelationTest
     dfWithEmptyStringInShortField
       .collect()
       .map(_.getAs[Any]("short"))
-      .toSet shouldBe Set(null, 12.toShort)
+      .toSet shouldBe Set[Any](null, 12.toShort)
   }
 
   it should "handle empty string as null for Integer type" in {
@@ -856,7 +856,7 @@ class RawTableRelationTest
     dfWithEmptyStringInIntegerField
       .collect()
       .map(_.getAs[Any]("integer"))
-      .toSet shouldBe Set(null, 123)
+      .toSet shouldBe Set[Any](null, 123)
   }
 
   it should "handle empty string as null for Long type" in {
@@ -866,7 +866,7 @@ class RawTableRelationTest
     dfWithEmptyStringInLongField
       .collect()
       .map(_.getAs[Any]("long"))
-      .toSet shouldBe Set(null, 12345L)
+      .toSet shouldBe Set[Any](null, 12345L)
   }
 
   it should "handle empty string as null for Double type" in {
@@ -876,7 +876,7 @@ class RawTableRelationTest
     dfWithEmptyStringInDoubleField
       .collect()
       .map(_.getAs[Any]("num"))
-      .toSet shouldBe Set(null, 12.3)
+      .toSet shouldBe Set[Any](null, 12.3)
   }
 
   it should "handle empty string as null for Boolean type" in {
@@ -889,7 +889,7 @@ class RawTableRelationTest
     dfWithEmptyStringInBooleanField
       .collect()
       .map(_.getAs[Any]("bool"))
-      .toSet shouldBe Set(null, true, false)
+      .toSet shouldBe Set[Any](null, true, false)
   }
 
   it should "fail reasonably on invalid types" in {
