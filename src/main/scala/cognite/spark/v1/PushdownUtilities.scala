@@ -11,7 +11,6 @@ import com.cognite.sdk.scala.common.{
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, ContainsAny, TimeRange}
 import fs2.Stream
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 
 import java.time.Instant
 import scala.util.Try
@@ -377,20 +376,4 @@ object PushdownUtilities {
 
     partitionStreams
   }
-}
-
-trait InsertSchema {
-  val insertSchema: StructType
-}
-
-trait UpsertSchema {
-  val upsertSchema: StructType
-}
-
-trait UpdateSchema {
-  val updateSchema: StructType
-}
-
-abstract class DeleteSchema {
-  val deleteSchema: StructType = StructType(Seq(StructField("id", DataTypes.LongType)))
 }

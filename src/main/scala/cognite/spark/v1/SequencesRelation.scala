@@ -21,7 +21,7 @@ import cognite.spark.v1.CdpConnector.ioRuntime
 import scala.annotation.unused
 
 class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1InsertableRelation[SequenceReadSchema, Long](config, "sequences")
+    extends SdkV1InsertableRelation[SequenceReadSchema, Long](config, SequenceRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def getStreams(sparkFilters: Array[Filter])(
@@ -218,12 +218,20 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: SequenceReadSchema): Long = a.id
 }
 
-object SequenceRelation extends UpsertSchema {
+object SequenceRelation
+    extends UpsertSchema
+    with ReadSchema
+    with InsertSchema
+    with DeleteWithIdSchema
+    with UpdateSchema
+    with NamedRelation {
+  override val name: String = "sequences"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[SequenceUpsertSchema]()
-  val insertSchema: StructType = structType[SequenceInsertSchema]()
-  val readSchema: StructType = structType[SequenceReadSchema]()
+  override val upsertSchema: StructType = structType[SequenceUpsertSchema]()
+  override val insertSchema: StructType = structType[SequenceInsertSchema]()
+  override val readSchema: StructType = structType[SequenceReadSchema]()
+  override val updateSchema: StructType = upsertSchema
 }
 
 final case class SequenceColumnUpsertSchema(
@@ -261,7 +269,7 @@ final case class SequenceUpsertSchema(
     metadata: Option[Map[String, String]] = None,
     columns: Option[Seq[SequenceColumnUpsertSchema]] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified
-) extends WithNullableExtenalId
+) extends WithNullableExternalId
     with WithId[Option[Long]] {
 
   def getSequenceColumnCreate: NonEmptyList[SequenceColumnCreate] = {
