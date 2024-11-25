@@ -3,7 +3,7 @@ package cognite.spark.v1
 import cats.effect.std.Dispatcher
 import cats.effect.{IO, Resource}
 import com.cognite.sdk.scala.v1.FileDownloadExternalId
-import fs2.{Pipe, Stream}
+import fs2.{Chunk, Pipe, Stream}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.col
@@ -18,12 +18,14 @@ import sttp.client3.asynchttpclient.fs2.AsyncHttpClientFs2Backend
 import sttp.client3.{SttpBackend, UriContext, asStreamUnsafe, basicRequest}
 import sttp.model.Uri
 
+import java.nio.charset.Charset
 import scala.collection.immutable._
 import scala.concurrent.duration.Duration
 
 //The trait exist for testing purposes
 trait WithSizeLimit {
   val sizeLimit: Long
+  val lineSizeLimit: Long
 }
 
 class FileContentRelation(config: RelationConfig, fileExternalId: String, inferSchema: Boolean)(
@@ -35,6 +37,9 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     with WithSizeLimit {
 
   override val sizeLimit: Long = 5 * FileUtils.ONE_GB
+
+  //In utf-8 2.5MB is 2.5 million characters at most
+  override val lineSizeLimit: Long = 2500 * FileUtils.ONE_KB
 
   @transient private lazy val sttpFileContentStreamingBackendResource
     : Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
@@ -114,6 +119,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
             byteStream
               .through(enforceSizeLimit)
               .through(fs2.text.utf8.decode)
+              .through(enforceLineSizeLimit)
               .through(fs2.text.lines)
           case Left(error) =>
             Stream.raiseError[IO](new Exception(s"Error while requesting underlying file: $error"))
@@ -137,6 +143,24 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
           (newSize, chunk)
     }
 
+  private val enforceLineSizeLimit: Pipe[IO, String, String] =
+    in =>
+      in.scanChunks(0L) { (acc, chunk: Chunk[String]) =>
+
+        val stringChunk = chunk.asSeq.mkString
+        val totalLineSize = acc + stringChunk.split("\n")(0).getBytes(Charset.forName("UTF-8")).length.toLong
+        val newSize = {
+          if(stringChunk.contains("\n")) {
+            stringChunk.split("\n")(1).getBytes(Charset.forName("UTF-8")).length.toLong
+          } else {
+            acc + stringChunk.getBytes(Charset.forName("UTF-8")).length.toLong
+          }
+        }
+        if (totalLineSize > lineSizeLimit || newSize > lineSizeLimit)
+          throw new CdfSparkException(s"Line size too big. SizeLimit: $lineSizeLimit")
+        else
+          (newSize, chunk)
+      }
 }
 
 object FileContentRelation extends NamedRelation {

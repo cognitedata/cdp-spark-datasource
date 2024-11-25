@@ -224,7 +224,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     )
   }
 
-  it should "get size from endpoint and check for it" in {
+  it should "limit by total size" in {
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
       fileExternalId = fileExternalId,
@@ -234,6 +234,24 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     }
 
     val expectedMessage = "File size too big. SizeLimit: 100"
+    val exception = sparkIntercept {
+      relation.createDataFrame
+    }
+    withClue(s"Expected '$expectedMessage' but got: '${exception.getMessage}'") {
+      exception.getMessage.contains(expectedMessage) should be(true)
+    }
+  }
+
+  it should "limit by line size" in {
+    val relation = new FileContentRelation(
+      getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
+      fileExternalId = fileExternalId,
+      true
+    )(spark.sqlContext) {
+      override val lineSizeLimit: Long = 10
+    }
+
+    val expectedMessage = "Line size too big. SizeLimit: 10"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
