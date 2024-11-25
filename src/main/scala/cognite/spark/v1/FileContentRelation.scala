@@ -118,9 +118,11 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
               .through(enforceSizeLimit)
               .through(fs2.text.utf8.decode)
               .through(fs2.text.linesLimited(lineSizeLimitCharacters))
-              .handleErrorWith{
+              .handleErrorWith {
                 case e: fs2.text.LineTooLongException =>
-                  throw new CdfSparkException(s"""Line too long in file with external id: "$fileExternalId" SizeLimit in characters: $lineSizeLimitCharacters""", e)
+                  throw new CdfSparkException(
+                    s"""Line too long in file with external id: "$fileExternalId" SizeLimit in characters: $lineSizeLimitCharacters""",
+                    e)
                 case other =>
                   throw other
               }
@@ -141,7 +143,8 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       in.scanChunks(0L) { (acc, chunk) =>
         val newSize = acc + chunk.size
         if (newSize > fileSizeLimitBytes)
-          throw new CdfSparkException(s"""File with external id: "$fileExternalId" size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
+          throw new CdfSparkException(
+            s"""File with external id: "$fileExternalId" size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
         else
           (newSize, chunk)
     }
