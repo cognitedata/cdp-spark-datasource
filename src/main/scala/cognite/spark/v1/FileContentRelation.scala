@@ -36,6 +36,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     with WithSizeLimit {
 
   override val fileSizeLimitBytes: Long = 5 * FileUtils.ONE_GB
+  //We enforce a 2.5MB limit per line. In jvm each character takes 2bytes so we divide by two to get the limit in characters.
   private val lineSizeLimitBytes: Int = (2.5 * FileUtils.ONE_MB).toInt
   override val lineSizeLimitCharacters: Int = lineSizeLimitBytes / 2
 
