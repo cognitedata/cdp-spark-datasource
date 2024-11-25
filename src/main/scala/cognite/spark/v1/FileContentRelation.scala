@@ -146,11 +146,14 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
   private val enforceLineSizeLimit: Pipe[IO, String, String] =
     in =>
       in.scanChunks(0L) { (acc, chunk: Chunk[String]) =>
-
         val stringChunk = chunk.asSeq.mkString
-        val totalLineSize = acc + stringChunk.split("\n")(0).getBytes(Charset.forName("UTF-8")).length.toLong
+        val totalLineSize = acc + stringChunk
+          .split("\n")(0)
+          .getBytes(Charset.forName("UTF-8"))
+          .length
+          .toLong
         val newSize = {
-          if(stringChunk.contains("\n")) {
+          if (stringChunk.contains("\n")) {
             stringChunk.split("\n")(1).getBytes(Charset.forName("UTF-8")).length.toLong
           } else {
             acc + stringChunk.getBytes(Charset.forName("UTF-8")).length.toLong
@@ -160,7 +163,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
           throw new CdfSparkException(s"Line size too big. SizeLimit: $lineSizeLimit")
         else
           (newSize, chunk)
-      }
+    }
 }
 
 object FileContentRelation extends NamedRelation {
