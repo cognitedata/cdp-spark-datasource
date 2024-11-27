@@ -122,7 +122,7 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
               .handleErrorWith {
                 case e: fs2.text.LineTooLongException =>
                   throw new CdfSparkException(
-                    s"""Line too long in file with external id: "$fileExternalId" SizeLimit in characters: $lineSizeLimitCharacters""",
+                    s"""Line too long in file with external id: "$fileExternalId" SizeLimit in characters: $e.max, but $e.length characters accumulated""",
                     e)
                 case other =>
                   throw other
