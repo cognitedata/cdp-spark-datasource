@@ -251,7 +251,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       override val lineSizeLimitCharacters: Int = 5
     }
 
-    val expectedMessage = "Line too long in file with external id: \"fileContentTransformationFile\" SizeLimit in characters: 5"
+    val expectedMessage = "Line too long in file with external id: \"fileContentTransformationFile\" SizeLimit in characters: 5, but 47 characters accumulated"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
