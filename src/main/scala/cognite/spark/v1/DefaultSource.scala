@@ -72,8 +72,8 @@ class DefaultSource
 
     corePropertySyncRelation
       .orElse(corePropertyRelation)
-      .orElse(datamodelBasedSync)
       .orElse(dataModelBasedConnectionRelation)
+      .orElse(datamodelBasedSync)
       .orElse(dataModelBasedCorePropertyRelation)
       .orElse(connectionRelation)
       .getOrElse(throw new CdfSparkException(
