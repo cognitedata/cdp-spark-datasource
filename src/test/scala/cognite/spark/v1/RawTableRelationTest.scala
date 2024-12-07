@@ -173,6 +173,8 @@ class RawTableRelationTest
         RawRow(i.toString, Map("i" -> Json.fromString("exist")))
       )),
       TestTable("raw-write-test", Seq.empty), // used for writes
+      TestTable("raw-write-no-throttling", Seq.empty),
+      TestTable("raw-write-with-throttling", Seq.empty),
       TestTable("MegaColumnTable", Seq(
         RawRow("rowkey", (1 to 384).map(i =>
           (i.toString -> Json.fromString("value"))).toMap
@@ -346,6 +348,60 @@ class RawTableRelationTest
     collectToSet[JavaLong](unRenamed2.select($"lastUpdatedTime")) should equal(Set[Any](null, 2))
     collectToSet[JavaLong](unRenamed2.select($"__lastUpdatedTime")) should equal(Set(11, 22))
     collectToSet[JavaLong](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
+  }
+
+  it should "insert data correctly when no throttling is present, but multiple queries" taggedAs (WriteTest) in {
+    val ships = RawTableRelationSupportingTestData.starships.toDF("key", "name", "model", "class")
+    ships.createTempView("ships2")
+
+    val destinationDataframe = spark.read
+      .format(DefaultSource.sparkFormatString)
+      .useOIDCWrite
+      .option("type", "raw")
+      .option("database", testData.dbName)
+      .option("table", "raw-write-no-throttling")
+      .option("inferSchema", false)
+      .option("batchSize", "5")
+      .schema(ships.schema)
+      .load()
+    destinationDataframe.createTempView("destinationTableNoThrottling")
+
+    spark.sql("select key, name, model, class from ships2")
+      .select(destinationDataframe.columns.map(col).toIndexedSeq: _*)
+      .write
+      .insertInto("destinationTableNoThrottling")
+
+    val verification: DataFrame = rawRead("raw-write-no-throttling", testData.dbName)
+    verification.count() should equal(ships.count())
+    verification.collect().foreach ( row => verifyRow(row, Array("name", "model", "class").toIndexedSeq, RawTableRelationSupportingTestData.starshipsMap) )
+  }
+
+
+  it should "insert data correctly when throttling of outstanding requests is set, and has multiple queries" taggedAs (WriteTest) in {
+    val ships = RawTableRelationSupportingTestData.starships.toDF("key", "name", "model", "class")
+    ships.createTempView("ships")
+
+    val destinationDataframe = spark.read
+      .format(DefaultSource.sparkFormatString)
+      .useOIDCWrite
+      .option("type", "raw")
+      .option("database", testData.dbName)
+      .option("table", "raw-write-with-throttling")
+      .option("inferSchema", false)
+      .option("batchSize", "5")
+      .option("maxOutstandingRawInsertRequests", "2")
+      .schema(ships.schema)
+      .load()
+    destinationDataframe.createTempView("destinationTableWithThrottling")
+
+    spark.sql("select key, name, model, class from ships")
+      .select(destinationDataframe.columns.map(col).toIndexedSeq: _*)
+      .write
+      .insertInto("destinationTableWithThrottling")
+
+    val verification: DataFrame = rawRead("raw-write-with-throttling", testData.dbName)
+    verification.count() should equal(ships.count())
+    verification.collect().foreach(row => verifyRow(row, Array("name", "model", "class").toIndexedSeq, RawTableRelationSupportingTestData.starshipsMap))
   }
 
   it should "read nested StructType" in {
@@ -982,4 +1038,10 @@ class RawTableRelationTest
     }
   }
 
+  private def verifyRow(row: Row, columns: Seq[String], expected: Map[String, Map[String, String]]): Unit = {
+    val rowKey = row.getAs[String]("key")
+    columns.foreach { column =>
+      row.getAs[String](column) should equal(expected(rowKey)(column))
+    }
+  }
 }
