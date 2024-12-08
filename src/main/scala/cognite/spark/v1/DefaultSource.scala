@@ -483,7 +483,8 @@ object DefaultSource {
       tracingParent = extractTracingHeadersKernel(parameters),
       useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false),
       serverSideFilterNullValuesOnNonSchemaRawQueries =
-        toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false)
+        toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false),
+      maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests")
     )
   }
 

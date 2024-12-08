@@ -30,6 +30,7 @@ final case class RelationConfig(
     initialRetryDelayMillis: Int,
     useSharedThrottle: Boolean,
     serverSideFilterNullValuesOnNonSchemaRawQueries: Boolean,
+    maxOutstandingRawInsertRequests: Option[Int]
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */

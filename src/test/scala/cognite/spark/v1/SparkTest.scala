@@ -274,7 +274,8 @@ trait SparkTest {
       enableSinglePartitionDeleteAssetHierarchy = false,
       tracingParent = new Kernel(Map.empty),
       useSharedThrottle = false,
-      serverSideFilterNullValuesOnNonSchemaRawQueries = false
+      serverSideFilterNullValuesOnNonSchemaRawQueries = false,
+      maxOutstandingRawInsertRequests = None
     )
 
   private def getCounterSafe(metricsNamespace: String, resource: String): Option[Long] = {
