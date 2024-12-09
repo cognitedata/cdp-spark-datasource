@@ -294,9 +294,7 @@ class RawTableRelation(
           // start on the next batch (this limitation used to be per partition). Instead, we should
           // have a cats.effect.std.Semaphore permit with X number of outstanding requests
           // or cats.effect.concurrent.Backpressure.
-          rows
-            .grouped(batchSize)
-            .toSeq
+          (rows.grouped(batchSize): Iterator[Seq[Row]])
             .grouped(maxOutstandingRawInsertRequests)
             .foreach { batch =>
               batch.toVector
