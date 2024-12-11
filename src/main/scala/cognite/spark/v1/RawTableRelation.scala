@@ -290,7 +290,7 @@ class RawTableRelation(
         case Some(maxOutstandingRawInsertRequests) =>
           Backpressure[IO](Backpressure.Strategy.Lossless, maxOutstandingRawInsertRequests)
             .flatMap { backpressure =>
-              rows.grouped(batchSize).toVector.traverse_ { batch: Seq[Row] =>
+              rows.grouped(batchSize).toVector.parTraverse_ { batch: Seq[Row] =>
                 backpressure.metered(postRows(columnNames, batch))
               }
             }
