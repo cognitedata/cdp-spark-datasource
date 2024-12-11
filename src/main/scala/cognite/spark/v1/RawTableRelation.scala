@@ -289,9 +289,9 @@ class RawTableRelation(
       config.maxOutstandingRawInsertRequests match {
         case Some(maxOutstandingRawInsertRequests) =>
           Backpressure[IO](Backpressure.Strategy.Lossless, maxOutstandingRawInsertRequests)
-            .map { backpressure =>
-              rows.grouped(batchSize).toVector.foreach { batch: Seq[Row] =>
-                backpressure.metered(postRows(columnNames, batch)).unsafeRunSync()
+            .flatMap { backpressure =>
+              rows.grouped(batchSize).toVector.traverse_ { batch: Seq[Row] =>
+                backpressure.metered(postRows(columnNames, batch))
               }
             }
             .unsafeRunSync()
