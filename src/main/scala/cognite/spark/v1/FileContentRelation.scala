@@ -23,7 +23,8 @@ import scala.concurrent.duration.Duration
 
 //The trait exist for testing purposes
 trait WithSizeLimit {
-  val sizeLimit: Long
+  val fileSizeLimitBytes: Long
+  val lineSizeLimitCharacters: Int
 }
 
 class FileContentRelation(config: RelationConfig, fileExternalId: String, inferSchema: Boolean)(
@@ -34,7 +35,10 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     with Serializable
     with WithSizeLimit {
 
-  override val sizeLimit: Long = 5 * FileUtils.ONE_GB
+  override val fileSizeLimitBytes: Long = 5 * FileUtils.ONE_GB
+  //We enforce an arbitrarily chosen 2.5MB JVM mem limit per line. In jvm each character takes 2bytes so we divide by two to get the limit in characters.
+  private val lineSizeLimitBytes: Int = (2.5 * FileUtils.ONE_MB).toInt
+  override val lineSizeLimitCharacters: Int = lineSizeLimitBytes / 2
 
   @transient private lazy val sttpFileContentStreamingBackendResource
     : Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
@@ -114,7 +118,15 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
             byteStream
               .through(enforceSizeLimit)
               .through(fs2.text.utf8.decode)
-              .through(fs2.text.lines)
+              .through(fs2.text.linesLimited(lineSizeLimitCharacters))
+              .handleErrorWith {
+                case e: fs2.text.LineTooLongException =>
+                  throw new CdfSparkException(
+                    s"""Line too long in file with external id: "$fileExternalId" SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
+                    e)
+                case other =>
+                  throw other
+              }
           case Left(error) =>
             Stream.raiseError[IO](new Exception(s"Error while requesting underlying file: $error"))
         }
@@ -131,8 +143,9 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
     in =>
       in.scanChunks(0L) { (acc, chunk) =>
         val newSize = acc + chunk.size
-        if (newSize > sizeLimit)
-          throw new CdfSparkException(s"File size too big. SizeLimit: $sizeLimit")
+        if (newSize > fileSizeLimitBytes)
+          throw new CdfSparkException(
+            s"""File with external id: "$fileExternalId" size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
         else
           (newSize, chunk)
     }

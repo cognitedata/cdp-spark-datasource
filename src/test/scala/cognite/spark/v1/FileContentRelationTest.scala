@@ -122,10 +122,10 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     val result = spark.sqlContext.sql(s"select * from filecontent").collect()
     result.map(_.toSeq.toList) should contain theSameElementsAs
       Array(
-        List(30, "Alice", null),
-        List(25, "Bob", null),
-        List(35, "Charlie", null),
-        List(35, "Charlie2", "test")
+        List[Any](30, "Alice", null),
+        List[Any](25, "Bob", null),
+        List[Any](35, "Charlie", null),
+        List[Any](35, "Charlie2", "test")
       )
   }
 
@@ -224,16 +224,34 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     )
   }
 
-  it should "get size from endpoint and check for it" in {
+  it should "limit by file size in byte" in {
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
       fileExternalId = fileExternalId,
       true
     )(spark.sqlContext) {
-      override val sizeLimit: Long = 100
+      override val fileSizeLimitBytes: Long = 100
     }
 
-    val expectedMessage = "File size too big. SizeLimit: 100"
+    val expectedMessage = "File with external id: \"fileContentTransformationFile\" size too big. SizeLimit in bytes: 100"
+    val exception = sparkIntercept {
+      relation.createDataFrame
+    }
+    withClue(s"Expected '$expectedMessage' but got: '${exception.getMessage}'") {
+      exception.getMessage.contains(expectedMessage) should be(true)
+    }
+  }
+
+  it should "limit by line size in character" in {
+    val relation = new FileContentRelation(
+      getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
+      fileExternalId = fileExternalId,
+      true
+    )(spark.sqlContext) {
+      override val lineSizeLimitCharacters: Int = 5
+    }
+
+    val expectedMessage = "Line too long in file with external id: \"fileContentTransformationFile\" SizeLimit in characters: 5, but 47 characters accumulated"
     val exception = sparkIntercept {
       relation.createDataFrame
     }

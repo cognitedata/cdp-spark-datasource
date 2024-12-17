@@ -4,7 +4,7 @@ import scala.xml.{Node => XmlNode, NodeSeq => XmlNodeSeq, _}
 import scala.xml.transform.{RewriteRule, RuleTransformer}
 
 val scala212 = "2.12.19"
-val scala213 = "2.13.14"
+val scala213 = "2.13.15"
 val supportedScalaVersions = List(scala212, scala213)
 val sparkVersion = "3.3.4"
 val circeVersion = "0.14.9"
@@ -57,7 +57,8 @@ lazy val commonSettings = Seq(
     // and to avoid a dependency on scala-collection-compat
     case Some((2, 13)) => Seq(
       "-Wconf:src=src/test/scala/cognite/spark/v1/SparkTest.scala&cat=deprecation:i",
-      "-Wconf:src=src/test/scala/.*&cat=other-pure-statement:i"
+      "-Wconf:src=src/test/scala/.*&cat=other-pure-statement:i",
+      "-Wconf:src=src/test/scala/.*&msg=unused value of type org.scalatest.Assertion:s"
     )
     case Some((2, 12)) => Seq(
       "-Wconf:src=src/test/scala/.*&cat=unused:i"
