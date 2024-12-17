@@ -17,9 +17,10 @@ jobs:
       - uses: coursier/setup-action@v1
         with:
           jvm: adopt:8
+          apps: sbt
       - name: Compile
         run: |
-          find / | grep sbt
+          find / 2>/dev/null | grep sbt
           sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
           sbt +compile
       - name: Run tests
