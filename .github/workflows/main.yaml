@@ -68,7 +68,7 @@ jobs:
       - run: |
           git rev-list --count --first-parent HEAD > patch_version.txt
       - name: Set up JDK 8
-        uses: coursier/setup-action@v1
+        uses: coursier/setup-action@v1.3.8
         with:
           jvm: adopt:8
       - name: Build JAR file
