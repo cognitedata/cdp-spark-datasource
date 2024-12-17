@@ -20,7 +20,6 @@ jobs:
           apps: sbt
       - name: Compile
         run: |
-          find / 2>/dev/null | grep sbt
           sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
           sbt +compile
       - name: Run tests
