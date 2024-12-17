@@ -1,1 +1,0 @@
-{"name": "well-1", "wellhead": {"x": 10.0, "y": 60.0, "crs": "EPSG:4326"}, "waterDepth": {"value": 150.0, "unit": "meter"}, "field": "Tryvann", "source": {"assetExternalId": "well:1", "sourceName": "EDM"}}

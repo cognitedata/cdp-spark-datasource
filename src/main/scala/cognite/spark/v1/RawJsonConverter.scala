@@ -9,7 +9,7 @@ import org.apache.spark.sql.types._
 import java.util.Base64
 
 object RawJsonConverter {
-  // scalastyle:off cyclomatic.complexity
+
   /** Maps the object from Spark into circe Json object. This is the types we need to cover (according to Row.get javadoc):
     * BooleanType -> java.lang.Boolean
        ByteType -> java.lang.Byte
@@ -33,7 +33,7 @@ object RawJsonConverter {
        StructType -> org.apache.spark.sql.Row */
   def anyToRawJson(v: Any): Json =
     v match {
-      case null => Json.Null // scalastyle:off null
+      case null => Json.Null
       case v: java.lang.Boolean => Json.fromBoolean(v.booleanValue)
       case v: java.lang.Float => Json.fromFloatOrString(v.floatValue)
       case v: java.lang.Double => Json.fromDoubleOrString(v.doubleValue)
@@ -178,7 +178,6 @@ object RawJsonConverter {
       }
   }
 
-  // scalastyle:off method.length
   /** Copied and adjusted from Spark's JacksonParser
     * We want to use Circe's model, because that's what Scala SDK uses,
     * so we don't need to go through a conversion back to JSON string and then parse it again with Jackson

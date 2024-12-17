@@ -1,15 +1,17 @@
-import com.typesafe.sbt.packager.docker.Cmd
 import sbtassembly.AssemblyPlugin.autoImport._
 import sbtassembly.MergeStrategy
+import scala.xml.{Node => XmlNode, NodeSeq => XmlNodeSeq, _}
+import scala.xml.transform.{RewriteRule, RuleTransformer}
 
-val scala212 = "2.12.15"
-val scala213 = "2.13.8"
+val scala212 = "2.12.19"
+val scala213 = "2.13.15"
 val supportedScalaVersions = List(scala212, scala213)
-val sparkVersion = "3.3.3"
-val circeVersion = "0.14.6"
+val sparkVersion = "3.3.4"
+val circeVersion = "0.14.9"
 val sttpVersion = "3.5.2"
-val Specs2Version = "4.20.2"
-val cogniteSdkVersion = "2.7.758"
+val natchezVersion = "0.3.1"
+val Specs2Version = "4.20.3"
+val cogniteSdkVersion = "2.31.861"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -22,24 +24,48 @@ ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0
 
 lazy val patchVersion = scala.io.Source.fromFile("patch_version.txt").mkString.trim
 
+credentials += Credentials("Sonatype Nexus Repository Manager",
+  "oss.sonatype.org",
+  System.getenv("SONATYPE_USERNAME"),
+  System.getenv("SONATYPE_PASSWORD"),
+)
+credentials += Credentials("Artifactory Realm",
+  "cognite.jfrog.io",
+  System.getenv("JFROG_USERNAME"),
+  System.getenv("JFROG_PASSWORD"),
+)
+
+val artifactory = "https://cognite.jfrog.io/cognite"
+
 lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.0." + patchVersion,
+  version := "3.21." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
   scalaVersion := scala212, // default to Scala 2.12
+  // handle cross plugin https://github.com/stringbean/sbt-dependency-lock/issues/13
+  dependencyLockFile := { baseDirectory.value / s"build.scala-${CrossVersion.partialVersion(scalaVersion.value) match { case Some((2, n)) => s"2.$n" }}.sbt.lock" },
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
-  libraryDependencies ++= Seq("io.scalaland" %% "chimney" % "0.5.3"),
-  scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature"),
-  resolvers ++= Seq(
-    Resolver.sonatypeRepo("releases")
-  ),
+  scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature") ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+    // We use JavaConverters to remain backwards compatible with Scala 2.12,
+    // and to avoid a dependency on scala-collection-compat
+    case Some((2, 13)) => Seq(
+      "-Wconf:src=src/test/scala/cognite/spark/v1/SparkTest.scala&cat=deprecation:i",
+      "-Wconf:src=src/test/scala/.*&cat=other-pure-statement:i",
+      "-Wconf:src=src/test/scala/.*&msg=unused value of type org.scalatest.Assertion:s"
+    )
+    case Some((2, 12)) => Seq(
+      "-Wconf:src=src/test/scala/.*&cat=unused:i"
+    )
+    case _ => Seq.empty
+  }),
+  resolvers ++= Resolver.sonatypeOssRepos("releases"),
   developers := List(
     Developer(
       id = "wjoel",
@@ -68,11 +94,16 @@ lazy val commonSettings = Seq(
   ),
   // Remove all additional repository other than Maven Central from POM
   pomIncludeRepository := { _ => false },
-  publishTo := {
+  publishTo := (if (System.getenv("PUBLISH_TO_JFROG") == "true") {
+    if (isSnapshot.value)
+      Some("snapshots".at(s"$artifactory/libs-snapshot-local/"))
+    else
+      Some("local-releases".at(s"$artifactory/libs-release-local/"))
+  } else {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value) { Some("snapshots" at nexus + "content/repositories/snapshots") }
     else { Some("releases" at nexus + "service/local/staging/deploy/maven2") }
-  },
+  }),
   publishMavenStyle := true,
   pgpPassphrase := {
     if (gpgPass.isDefined) { gpgPass.map(_.toCharArray) }
@@ -82,7 +113,9 @@ lazy val commonSettings = Seq(
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
   // Yell at tests that take longer than 120 seconds to finish.
   // Yell at them once every 60 seconds.
-  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60")
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60"),
+  // no need to lock submodules
+  dependencyLockModuleFilter := moduleFilter(organization = "com.cognite.spark.datasource", name = "*")
 )
 
 lazy val structType = (project in file("struct_type"))
@@ -91,6 +124,7 @@ lazy val structType = (project in file("struct_type"))
     name := "cdf-spark-datasource-struct-type",
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
+      "io.scalaland" %% "chimney" % "1.1.0",
       "org.typelevel" %% "cats-core" % "2.9.0",
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
     ),
@@ -118,17 +152,16 @@ lazy val library = (project in file("."))
     buildInfoUsePackageAsPath := true,
     commonSettings,
     name := "cdf-spark-datasource",
-    scalastyleFailOnWarning := true,
-    scalastyleFailOnError := true,
     crossScalaVersions := supportedScalaVersions,
     libraryDependencies ++= Seq(
       "com.cognite" %% "cognite-sdk-scala" % cogniteSdkVersion changing(),
-      "io.scalaland" %% "chimney" % "0.6.1"
-        // scala-collection-compat is used in TransformerF, but we don't use that,
+      "io.scalaland" %% "chimney" % "1.1.0"
+        // scala-collection-compat is used in stdlib collections conversion,
         // and this dependency causes issues with Livy.
         exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
         exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
+      "com.softwaremill.sttp.client3" %% "async-http-client-backend-fs2" % sttpVersion,
       "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion
         // Netty is included in Spark as jars/netty-all-4.<minor>.<patch>.Final.jar
         exclude("io.netty", "netty-buffer")
@@ -153,36 +186,13 @@ lazy val library = (project in file("."))
         exclude("org.glassfish.hk2.external", "javax.inject"),
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided
         exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.log4s" %% "log4s" % log4sVersion
+      "org.log4s" %% "log4s" % log4sVersion,
+      "org.tpolecat" %% "natchez-core" % natchezVersion,
+      "org.tpolecat" %% "natchez-noop" % natchezVersion,
     ),
     coverageExcludedPackages := "com.cognite.data.*",
     buildInfoKeys := Seq[BuildInfoKey](organization, version, organizationName),
     buildInfoPackage := "cognite.spark.cdf_spark_datasource"
-  )
-
-lazy val performancebench = (project in file("performancebench"))
-  .enablePlugins(JavaAppPackaging, UniversalPlugin, DockerPlugin)
-  .dependsOn(library)
-  .settings(
-    commonSettings,
-    publish / skip := true,
-    name := "cdf-spark-performance-bench",
-    fork := true,
-    libraryDependencies ++= Seq(
-      "io.prometheus" % "simpleclient" % prometheusVersion,
-      "io.prometheus" % "simpleclient_httpserver" % prometheusVersion,
-      "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
-      "org.log4s" %% "log4s" % log4sVersion,
-      "org.apache.spark" %% "spark-core" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-      "org.apache.spark" %% "spark-sql" % sparkVersion
-        exclude("org.glassfish.hk2.external", "javax.inject"),
-    ),
-    dockerBaseImage := "eu.gcr.io/cognitedata/cognite-jre:8-slim",
-    dockerCommands ++= Seq(
-      Cmd("ENV", s"JAVA_MAIN_CLASS=${(Compile / mainClass).value.get}"),
-      Cmd("ENV", "JAVA_APP_DIR=/opt/docker/lib")
-    ),
   )
 
 lazy val fatJarShaded = project
@@ -211,8 +221,26 @@ lazy val fatJarShaded = project
       )
     },
     assembly / assemblyOption := (assembly / assemblyOption).value.withIncludeScala(false),
+    pomPostProcess := { (node: XmlNode) =>
+      new RuleTransformer(new RewriteRule {
+        override def transform(node: XmlNode): XmlNodeSeq = node match {
+          case e: Elem if e.label == "dependency"
+                          && e.child.filter(_.label == "groupId").flatMap(_.text).mkString == "com.cognite.spark.datasource"
+                          && e.child.filter(_.label == "artifactId").flatMap(_.text).mkString.startsWith("cdf-spark-datasource") =>
+            // Omit library artifact from pom's dependencies.
+            // All sbt-assembly settings are kept here and we can't depend on
+            //   Compile / packageBin := (library / assembly).value
+            // as it would try to run sbt-assembly on library too and it doesn't have
+            // all the configuration.
+            // Otoh library itself should remain pure non-fatjar library and know nothing about sbt-assembly.
+            // There could be other ways to achieve the same effect, so far this one is found and it is simple enough.
+            Seq()
+          case _ => node
+        }
+      }).transform(node).head
+    }
   )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
 
-javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
+javaOptions ++= Seq("-Xms512M", "-Xmx2048M")

@@ -2,8 +2,8 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cognite.spark.v1.PushdownUtilities.{
-  getIdFromMap,
-  pushdownToParameters,
+  getIdFromAndFilter,
+  pushdownToSimpleOr,
   toPushdownFilterExpression
 }
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
@@ -32,7 +32,7 @@ final case class StringDataPointsInsertItem(
 ) extends RowWithCogniteId("inserting string data points")
 
 class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext: SQLContext)
-    extends DataPointsRelationV1[StringDataPointsItem](config, "stringdatapoints")(sqlContext)
+    extends DataPointsRelationV1[StringDataPointsItem](config, StringDataPointsRelation.name)(sqlContext)
     with WritableRelation {
   override def insert(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Insert not supported for stringdatapoints. Please use upsert instead.")
@@ -75,8 +75,8 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
-    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-    val ids = filtersAsMaps.flatMap(getIdFromMap).distinct
+    val filtersAsMaps = pushdownToSimpleOr(pushdownFilterExpression).filters
+    val ids = filtersAsMaps.flatMap(getIdFromAndFilter).distinct
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
     if (ids.isEmpty) {
@@ -99,14 +99,21 @@ class StringDataPointsRelationV1(config: RelationConfig)(override val sqlContext
   }
 }
 
-object StringDataPointsRelation extends UpsertSchema {
+object StringDataPointsRelation
+    extends UpsertSchema
+    with ReadSchema
+    with DeleteSchema
+    with InsertSchema
+    with NamedRelation {
+  override val name: String = "stringdatapoints"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   // We should use StringDataPointsItem here, but doing that gives the error: "constructor Timestamp encapsulates
   // multiple overloaded alternatives and cannot be treated as a method. Consider invoking
   // `<offending symbol>.asTerm.alternatives` and manually picking the required method" in StructTypeEncoder, probably
   // because TimeStamp has multiple constructors. Issue in backlog for investigating this.
-  val upsertSchema = structType[StringDataPointsInsertItem]()
-  val readSchema = structType[StringDataPointsItem]()
-  val insertSchema = structType[StringDataPointsInsertItem]()
-  val deleteSchema = structType[DeleteDataPointsItem]()
+  override val upsertSchema: StructType = structType[StringDataPointsInsertItem]()
+  override val readSchema: StructType = structType[StringDataPointsItem]()
+  override val insertSchema: StructType = structType[StringDataPointsInsertItem]()
+  override val deleteSchema: StructType = structType[DeleteDataPointsItem]()
+
 }

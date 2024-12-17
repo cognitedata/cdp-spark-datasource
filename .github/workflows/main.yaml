@@ -6,6 +6,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     timeout-minutes: 80
+    environment: ${{ github.ref == 'refs/heads/master' && 'CD' || 'CI' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -16,66 +17,136 @@ jobs:
       - uses: coursier/setup-action@v1
         with:
           jvm: adopt:8
-      - name: Set variables
+      - name: Compile
         run: |
-          IMAGE_REVISION=$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)
-          BUILD_DATE=$(date +%Y-%m-%dT%H%M)
-
-          echo "DOCKER_IMAGE_NAME=eu.gcr.io/cognitedata/cdf-spark-performance-bench" >> $GITHUB_ENV
-          echo "DOCKER_IMAGE_TAG=$BUILD_DATE-$IMAGE_REVISION" >> $GITHUB_ENV
-      - name: Install SBT config and credentials
-        env:
-          SECRETS_KEY: ${{ secrets.SECRETS_KEY }}
-        run: |
-          mkdir -p ~/.sbt
-          ./secrets/decrypt.sh secrets/repositories.gpg ~/.sbt/repositories
-
-          mkdir -p ~/.sbt/1.0
-          ./secrets/decrypt.sh secrets/credentials.sbt.gpg ~/.sbt/1.0/credentials.sbt
-
-          mkdir -p ~/.sbt/gpg
-          ./secrets/decrypt.sh secrets/pubring.asc.gpg ~/.sbt/gpg/pubring.asc
-          ./secrets/decrypt.sh secrets/secring.asc.gpg ~/.sbt/gpg/secring.asc
+          sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
+          sbt +compile
       - name: Run tests
         env:
           TEST_OIDC_READ_CLIENT_ID: ${{ secrets.TEST_OIDC_READ_CLIENT_ID }}
           TEST_OIDC_READ_CLIENT_SECRET: ${{ secrets.TEST_OIDC_READ_CLIENT_SECRET }}
           TEST_OIDC_READ_TENANT: ${{ secrets.TEST_OIDC_READ_TENANT }}
-          TEST_CLIENT_ID_BLUEFIELD: ${{ secrets.BLUEFIELD_CLIENT_ID }}
-          TEST_CLIENT_SECRET_BLUEFIELD: ${{ secrets.BLUEFIELD_CLIENT_SECRET }}
-          TEST_AAD_TENANT_BLUEFIELD: "b86328db-09aa-4f0e-9a03-0136f604d20a"
-          AIZE_CLIENT_ID: ${{ secrets.AIZE_CLIENT_ID }}
-          AIZE_CLIENT_SECRET: ${{ secrets.AIZE_CLIENT_SECRET }}
+          TEST_OIDC_READ_PROJECT: "publicdata"
+          TEST_CLIENT_ID: ${{ secrets.BLUEFIELD_CLIENT_ID }}
+          TEST_CLIENT_SECRET: ${{ secrets.BLUEFIELD_CLIENT_SECRET }}
+          TEST_AAD_TENANT: "b86328db-09aa-4f0e-9a03-0136f604d20a"
+          TEST_CLUSTER: "bluefield"
+          TEST_PROJECT: "extractor-bluefield-testing"
+          TEST_CLIENT_ID2: ${{ secrets.BLUEFIELD_CLIENT_ID }}
+          TEST_CLIENT_SECRET2: ${{ secrets.BLUEFIELD_CLIENT_SECRET }}
+          TEST_AAD_TENANT2: "b86328db-09aa-4f0e-9a03-0136f604d20a"
+          TEST_CLUSTER2: "api"
+          TEST_PROJECT2: "jetfiretest2"
         run: |
           TEST="test +Test/compile"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
             TEST="+test"
           fi
-          sbt -Dsbt.log.noformat=true scalastyle scalafmtCheck coverage $TEST coverageReport
+          sbt -Dsbt.log.noformat=true scalafmtCheck coverage $TEST coverageReport
       - name: Upload Test Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always() # always run even if the previous step fails
         with:
           name: junit-test-results
           path: 'target/test-reports/**/*.xml'
           retention-days: 1
       - name: Upload report to codecov.io
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
+  publish_jfrog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build-and-push
+    if: github.ref == 'refs/heads/master'
+    environment: CD
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git rev-list --count --first-parent HEAD > patch_version.txt
+      - name: Set up JDK 8
+        uses: coursier/setup-action@v1
+        with:
+          jvm: adopt:8
       - name: Build JAR file
         run: |
           LIB_PACKAGE="+library/package"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
             LIB_PACKAGE="+fatJarShaded/assembly"
           fi
-          sbt -Dsbt.log.noformat=true "set library/test := {}" $LIB_PACKAGE performancebench/docker:stage
-      - name: Deploy JAR
-        if: github.ref == 'refs/heads/master'
-        env:
-          SECRETS_KEY: ${{ secrets.SECRETS_KEY }}
+      - name: Check dependencies
         run: |
-          ./secrets/decrypt.sh secrets/gpg-key-password.gpg secrets/gpg-key-password
-          export GPG_KEY_PASSWORD=$(cat secrets/gpg-key-password)
+          sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
+      - name: Install GPG & Sonatype credentials for SBT
+        env:
+          GPG_PUBLIC_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PUBLIC_KEY }}
+          GPG_PRIVATE_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PRIVATE_KEY }}
+          GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
+        run: |
+          set -x
+
+          echo "$GPG_PUBLIC_KEY" > public.key
+          gpg --import public.key
+          echo "$GPG_PRIVATE_KEY" > private.key
+          gpg --verbose --batch --import-options import-show --import private.key
+
+          mkdir -p ~/.sbt/gpg
+          echo "$GPG_PRIVATE_KEY_PASSPHRASE" | gpg --verbose --batch -a --export-secret-keys --pinentry-mode loopback --passphrase-fd 0 > ~/.sbt/gpg/secring.asc
+      - name: Deploy JAR
+        env:
+          GPG_KEY_PASSWORD: ${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
+          JFROG_USERNAME: ${{ secrets.ARTIFACTORY_PUBLISH_TOKEN_USER }}
+          JFROG_PASSWORD: ${{ secrets.ARTIFACTORY_PUBLISH_TOKEN }}
+          PUBLISH_TO_JFROG: "true"
+        run: |
+          sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +structType/publishSigned +publishSigned
+  publish_sonatype:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build-and-push
+    if: github.ref == 'refs/heads/master'
+    environment: CD
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git rev-list --count --first-parent HEAD > patch_version.txt
+      - name: Set up JDK 8
+        uses: coursier/setup-action@v1
+        with:
+          jvm: adopt:8
+      - name: Build JAR file
+        run: |
+          LIB_PACKAGE="+library/package"
+          if [ ${{github.ref }} == "refs/heads/master" ]; then
+            LIB_PACKAGE="+fatJarShaded/assembly"
+          fi
+      - name: Check dependencies
+        run: |
+          sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
+      - name: Install GPG & Sonatype credentials for SBT
+        env:
+          GPG_PUBLIC_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PUBLIC_KEY }}
+          GPG_PRIVATE_KEY: ${{ secrets.SONATYPE_OSSRH_GPG_PRIVATE_KEY }}
+          GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
+        run: |
+          set -x
+
+          echo "$GPG_PUBLIC_KEY" > public.key
+          gpg --import public.key
+          echo "$GPG_PRIVATE_KEY" > private.key
+          gpg --verbose --batch --import-options import-show --import private.key
+
+          mkdir -p ~/.sbt/gpg
+          echo "$GPG_PRIVATE_KEY_PASSPHRASE" | gpg --verbose --batch -a --export-secret-keys --pinentry-mode loopback --passphrase-fd 0 > ~/.sbt/gpg/secring.asc
+      - name: Deploy JAR
+        env:
+          GPG_KEY_PASSWORD: ${{ secrets.SONATYPE_OSSRH_GPG_KEY_PASSPHRASE }}
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_OSSRH_USER }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_OSSRH_PASSWORD }}
+        run: |
           sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +structType/publishSigned +publishSigned sonatypeReleaseAll

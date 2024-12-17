@@ -190,6 +190,7 @@ class StringDataPointsRelationTest
                    |true as isString,
                    |false as isStep,
                    |'someunit' as unit,
+                   |null as unitExternalId,
                    |bigint(123456789) as timestamp,
                    |"somevalue" as value
       """.stripMargin)
@@ -225,6 +226,7 @@ class StringDataPointsRelationTest
               |true as isString,
               |metadata,
               |'$testUnit' as unit,
+              |null as unitExternalId,
               |null as assetId,
               |isStep,
               |cast(array() as array<long>) as securityCategories,

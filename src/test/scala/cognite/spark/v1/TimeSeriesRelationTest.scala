@@ -85,7 +85,7 @@ class TimeSeriesRelationTest
     assert(df.count() == 0)
 
     // Metrics counter does not create a Map key until reading the first row
-    assertThrows[NullPointerException](getNumberOfRowsRead(metricsPrefix, "timeseries"))
+    assertThrows[NoSuchElementException](getNumberOfRowsRead(metricsPrefix, "timeseries"))
   }
 
   it should "not fetch all items if filter on id" taggedAs WriteTest in {
@@ -133,6 +133,7 @@ class TimeSeriesRelationTest
                 |isString,
                 |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
                 |'$insertNoNameUnit' as unit,
+                |null as unitExternalId,
                 |null as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,
@@ -183,8 +184,8 @@ class TimeSeriesRelationTest
         .load()
       df.createOrReplaceTempView("destinationTimeSeriesInsertAndUpdate")
 
-      a[NullPointerException] should be thrownBy getNumberOfRowsCreated(metricsPrefix, "timeseries")
-      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+      a[NoSuchElementException] should be thrownBy getNumberOfRowsCreated(metricsPrefix, "timeseries")
+      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
 
       val randomSuffix = shortRandomString()
       // Insert new time series test data
@@ -195,6 +196,7 @@ class TimeSeriesRelationTest
                 |isString,
                 |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
                 |'$insertTestUnit' as unit,
+                |null as unitExternalId,
                 |null as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,
@@ -210,7 +212,7 @@ class TimeSeriesRelationTest
         .write
         .insertInto("destinationTimeSeriesInsertAndUpdate")
 
-      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
       val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
       assert(rowsCreated == 5)
 
@@ -235,6 +237,7 @@ class TimeSeriesRelationTest
                 |isString,
                 |map("foo", null, "bar", "test") as metadata,
                 |unit,
+                |null as unitExternalId,
                 |null as assetId,
                 |isStep,
                 |securityCategories,
@@ -305,6 +308,7 @@ class TimeSeriesRelationTest
                 |concat('TEST_', name) as name,
                 |map("foo", null, "bar", "test") as metadata,
                 |'$abortUnit' as unit,
+                |null as unitExternalId,
                 |NULL as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,
@@ -323,7 +327,7 @@ class TimeSeriesRelationTest
         .option("metricsPrefix", metricsPrefix)
         .save()
 
-      a[NullPointerException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
+      a[NoSuchElementException] should be thrownBy getNumberOfRowsUpdated(metricsPrefix, "timeseries")
       val rowsCreated = getNumberOfRowsCreated(metricsPrefix, "timeseries")
       assert(rowsCreated == 7)
 
@@ -350,7 +354,7 @@ class TimeSeriesRelationTest
       assert(insertCdpApiException.code == 409)
       val rowsCreatedAfterAbort = getNumberOfRowsCreated(metricsPrefix, "timeseries")
       assert(rowsCreatedAfterAbort == 7)
-      assertThrows[NullPointerException](getNumberOfRowsUpdated(metricsPrefix, "timeseries"))
+      assertThrows[NoSuchElementException](getNumberOfRowsUpdated(metricsPrefix, "timeseries"))
     } finally {
       try {
         cleanUpTimeSeriesTestDataByUnit(abortUnit)
@@ -376,6 +380,7 @@ class TimeSeriesRelationTest
                 |concat('TEST_', name) as name,
                 |map("foo", null, "bar", "test") as metadata,
                 |'$partialUpdateUnit' as unit,
+                |null as unitExternalId,
                 |NULL as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,
@@ -474,6 +479,7 @@ class TimeSeriesRelationTest
                   |name,
                   |metadata,
                   |unit,
+                  |null as unitExternalId,
                   |assetId,
                   |isStep,
                   |securityCategories,
@@ -519,7 +525,7 @@ class TimeSeriesRelationTest
         None,
         None,
         isString = false,
-        Some(Map("foo" -> null, "bar" -> "test")), // scalastyle:off null
+        Some(Map("foo" -> null, "bar" -> "test")),
         Some(upsertUnit),
         None,
         isStep = false,
@@ -635,6 +641,7 @@ class TimeSeriesRelationTest
                    |name,
                    |map() as metadata,
                    |'$updateTestUnit' as unit,
+                   |null as unitExternalId,
                    |assetId,
                    |isStep,
                    |securityCategories,
@@ -704,6 +711,7 @@ class TimeSeriesRelationTest
                 |false as isString,
                 |'name-$testUnit' name,
                 |'$testUnit' as unit,
+                |null as unitExternalId,
                 |false as isStep,
                 |"id_$testUnit" as externalId
                 """.stripMargin)
@@ -808,6 +816,7 @@ class TimeSeriesRelationTest
                 |isString,
                 |map("foo", null, "bar", "test", "some more", "test data", "nullValue", null) as metadata,
                 |'$deleteUnit' as unit,
+                |null as unitExternalId,
                 |null as assetId,
                 |isStep,
                 |cast(array() as array<long>) as securityCategories,

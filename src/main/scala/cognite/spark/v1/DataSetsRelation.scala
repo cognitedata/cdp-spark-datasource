@@ -14,7 +14,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[DataSet, String](config, "datasets")
+    extends SdkV1Relation[DataSet, String](config, DataSetsRelation.name)
     with WritableRelation {
 
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
@@ -26,7 +26,8 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO]): Seq[fs2.Stream[IO, DataSet]] = {
-    val (ids, filters) = pushdownToFilters(sparkFilters, dataSetFilterFromMap, DataSetFilter())
+    val (ids, filters) =
+      pushdownToFilters(sparkFilters, f => dataSetFilterFromMap(f.fieldValues), DataSetFilter())
     Seq(executeFilterOnePartition(client.dataSets, filters, ids, config.limitPerPartition))
   }
 
@@ -68,12 +69,20 @@ class DataSetsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def delete(rows: Seq[Row]): IO[Unit] =
     throw new CdfSparkException("Delete is not supported for data sets.")
 }
-object DataSetsRelation extends UpsertSchema {
+object DataSetsRelation
+    extends UpsertSchema
+    with ReadSchema
+    with InsertSchema
+    with UpdateSchema
+    with NamedRelation {
+  override val name = "datasets"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[DataSetsUpsertSchema]()
-  val insertSchema: StructType = structType[DataSetsInsertSchema]()
-  val readSchema: StructType = structType[DataSetsReadSchema]()
+  override val upsertSchema: StructType = structType[DataSetsUpsertSchema]()
+  override val insertSchema: StructType = structType[DataSetsInsertSchema]()
+  override val readSchema: StructType = structType[DataSetsReadSchema]()
+  override val updateSchema: StructType = upsertSchema
+
 }
 
 case class DataSetsUpsertSchema(
@@ -83,7 +92,7 @@ case class DataSetsUpsertSchema(
     description: OptionalField[String] = FieldNotSpecified,
     metadata: Option[Map[String, String]] = None,
     writeProtected: Option[Boolean] = None)
-    extends WithNullableExtenalId
+    extends WithNullableExternalId
     with WithId[Option[Long]]
 object DataSetsUpsertSchema {
   implicit val toCreate: Transformer[DataSetsUpsertSchema, DataSetCreate] =

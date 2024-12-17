@@ -1,16 +1,28 @@
 package cognite.spark.v1
 
+import cats.effect.IO
+import cats.implicits._
 import cognite.spark.v1.CdpConnector.ioRuntime
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{RawDatabase, RawRow, RawTable}
-import io.circe.Json
+import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, LoneElement, Matchers, ParallelTestExecution}
 
 import java.lang.{Long => JavaLong}
+import java.time.format.DateTimeFormatter
+import java.time.{Instant, LocalDateTime, ZoneId}
+import java.util.UUID
 import scala.reflect.ClassTag
+
+object RawTableRelationTest {
+  // With ParallelTestExecution it's not trivial to have before/after hooks
+  // do the shared setup as each thread gets own test class instance
+  // Namely we should have shared random part, quick hack it to put it statically here
+  val randomDbNameForTests = s"spark-test-database-${UUID.randomUUID().toString.substring(0, 8)}"
+}
 
 class RawTableRelationTest
     extends FlatSpec
@@ -105,35 +117,97 @@ class RawTableRelationTest
     RawRow("k2", Map("bool" -> Json.fromBoolean(java.lang.Boolean.parseBoolean("true")))),
     RawRow("k3", Map("bool" -> Json.fromBoolean(false)))
   )
+  private val dataWithNullFieldValue = Seq(
+    RawRow("k1", Map("toBeFiltered" -> Json.Null)),
+    RawRow("k2", Map("toBeFiltered" -> Json.Null, "notFiltered" -> Json.fromString("string"))),
+    RawRow("k3", Map("toBeFiltered" -> Json.fromString("but not here"), "notFiltered" -> Json.fromString("string2")))
+  )
+  private val dataWithEmptyColumn = Seq(
+    RawRow("k1", Map("toBeFiltered" -> Json.Null, "notFiltered" -> Json.fromString("string_k1"))),
+    RawRow("k2", Map("toBeFiltered" -> Json.Null, "notFiltered" -> Json.fromString("string_k2"))),
+    RawRow("k3", Map("toBeFiltered" -> Json.Null, "notFiltered" -> Json.fromString("string_k3"))),
+  )
+
+  case class TestTable(name: String, data: Seq[RawRow])
+  case class TestData(dbName: String, tables: Seq[TestTable])
+
+  private val testData = TestData(
+    dbName = RawTableRelationTest.randomDbNameForTests,
+    tables = Seq(
+      TestTable("without-key", dataWithoutKey),
+      TestTable("with-key", dataWithKey),
+      TestTable("with-many-keys", dataWithManyKeys),
+      TestTable("without-lastUpdatedTime", dataWithoutlastUpdatedTime),
+      TestTable("with-lastUpdatedTime", dataWithlastUpdatedTime),
+      TestTable("with-many-lastUpdatedTime", dataWithManylastUpdatedTime),
+      TestTable("with-nesting", dataWithSimpleNestedStruct),
+      TestTable("with-byte-empty-str", dataWithEmptyStringInByteField),
+      TestTable("with-short-empty-str", dataWithEmptyStringInShortField),
+      TestTable("with-integer-empty-str", dataWithEmptyStringInIntegerField),
+      TestTable("with-long-empty-str", dataWithEmptyStringInLongField),
+      TestTable("with-number-empty-str", dataWithEmptyStringInDoubleField),
+      TestTable("with-boolean-empty-str", dataWithEmptyStringInBooleanField),
+      TestTable("with-some-null-values", dataWithNullFieldValue),
+      TestTable("with-only-null-values-for-field", dataWithEmptyColumn),
+      TestTable("cryptoAssets", (1 to 500).map(i =>
+        RawRow(i.toString, Map("i" -> Json.fromString("exist")))
+      )),
+      TestTable("future-event", (1 to 100).map(i => {
+        val time = if (i >= 20 && i < 30) {
+            Instant.from(DateTimeFormatter.ISO_INSTANT.parse("2019-06-21T11:48:01.000Z")).atZone(ZoneId.of("UTC"))
+          } else {
+            LocalDateTime.now().atZone(ZoneId.of("UTC"))
+          }
+        RawRow(i.toString, Map(
+          "key" -> i.toString,
+          "startTime" -> s"${time.plusDays(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)}",
+          "endTime" -> s"${time.plusDays(2).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)}",
+          "description" -> s"event $i",
+          "source" -> "generator",
+          "sourceId" -> s"test id $i",
+          "subtype" -> "past",
+          "type" -> "test type"
+        ).map { case (k, v) => (k, Json.fromString(v)) })
+      })),
+      TestTable("bigTable", (1 to 1000).map(i =>
+        RawRow(i.toString, Map("i" -> Json.fromString("exist")))
+      )),
+      TestTable("raw-write-test", Seq.empty), // used for writes
+      TestTable("raw-write-no-throttling", Seq.empty),
+      TestTable("raw-write-with-throttling", Seq.empty),
+      TestTable("MegaColumnTable", Seq(
+        RawRow("rowkey", (1 to 384).map(i =>
+          (i.toString -> Json.fromString("value"))).toMap
+        )
+      )),
+      TestTable("MegaColumnTableDuplicate", Seq(
+        RawRow("rowkey", (1 to 384).map(i =>
+          (i.toString -> Json.fromString("value"))).toMap
+        )
+      )),
+      TestTable("MegaColumnTableDuplicate2", Seq.empty), // used for writes
+      TestTable("struct-test", Seq.empty) // used for writes
+    )
+  )
+
+  def createTestData: IO[Unit] = for {
+    _ <- writeClient.rawDatabases.createOne(RawDatabase(testData.dbName))
+    _ <- writeClient.rawTables(testData.dbName).create(testData.tables.map(_.name).map(RawTable))
+    _ <- testData.tables.filterNot(_.data.isEmpty).toList.traverse(t =>
+      writeClient.rawRows(testData.dbName, t.name).create(t.data))
+  } yield ()
+
+  def cleanupTestData: IO[Unit] = for {
+    _ <- writeClient.rawTables(testData.dbName).deleteByIds(testData.tables.map(_.name))
+    _ <- writeClient.rawDatabases.deleteById(testData.dbName)
+  } yield ()
 
   override def beforeAll(): Unit = {
-    val db = "spark-test-database"
-    val tables = Seq(
-      ("without-key", dataWithoutKey),
-      ("with-key", dataWithKey),
-      ("with-many-keys", dataWithManyKeys),
-      ("without-lastUpdatedTime", dataWithoutlastUpdatedTime),
-      ("with-lastUpdatedTime", dataWithlastUpdatedTime),
-      ("with-many-lastUpdatedTime", dataWithManylastUpdatedTime),
-      ("with-nesting", dataWithSimpleNestedStruct),
-      ("with-byte-empty-str", dataWithEmptyStringInByteField),
-      ("with-short-empty-str", dataWithEmptyStringInShortField),
-      ("with-integer-empty-str", dataWithEmptyStringInIntegerField),
-      ("with-long-empty-str", dataWithEmptyStringInLongField),
-      ("with-number-empty-str", dataWithEmptyStringInDoubleField),
-      ("with-boolean-empty-str", dataWithEmptyStringInBooleanField)
-    )
-    if (!writeClient.rawDatabases.list().compile.toVector.unsafeRunSync().exists(_.name == db)) {
-      writeClient.rawDatabases.createOne(RawDatabase(db)).unsafeRunSync()
-    }
-    writeClient.rawTables(db).list().compile.toVector.unsafeRunSync().map(_.name).foreach {
-      writeClient.rawTables(db).deleteById(_).unsafeRunSync()
-    }
-    writeClient.rawTables(db).create(tables.map(t => RawTable(t._1))).unsafeRunSync()
+    createTestData.unsafeRunSync()
+  }
 
-    for ((n, data) <- tables) {
-      writeClient.rawRows(db, n).create(data).unsafeRunSync()
-    }
+  override def afterAll(): Unit = {
+    cleanupTestData.unsafeRunSync()
   }
 
   lazy private val dfWithoutKey = rawRead("without-key")
@@ -154,18 +228,18 @@ class RawTableRelationTest
   lazy private val dfWithEmptyStringInBooleanField = rawRead("with-boolean-empty-str")
 
   it should "smoke test raw" taggedAs WriteTest in {
-    val limit = 100L
-    val partitions = 10L
+    val limit = 7L
+    val partitions = 1L
     val df = spark.read
       .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
       .option("limitPerPartition", limit)
       .option("partitions", partitions)
-      .option("database", "testdb")
+      .option("database", testData.dbName)
       .option("table", "cryptoAssets")
       .option("inferSchema", "true")
-      .option("inferSchemaLimit", "100")
+      .option("inferSchemaLimit", "7")
       .load()
     df.createTempView("raw")
     val res = spark.sqlContext
@@ -177,7 +251,8 @@ class RawTableRelationTest
       table: String,
       database: String = "spark-test-database",
       inferSchema: Boolean = true,
-      metricsPrefix: Option[String] = None): DataFrame = {
+      metricsPrefix: Option[String] = None,
+      filterNullFields: Option[Boolean] = None): DataFrame = {
     val df = spark.read
       .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
@@ -187,6 +262,8 @@ class RawTableRelationTest
       .option("table", table)
       .option("inferSchema", inferSchema)
       .option("inferSchemaLimit", "100")
+
+    filterNullFields.foreach(v => df.option("filterNullFieldsOnNonSchemaRawQueries", v.toString))
 
     metricsPrefix match {
       case Some(prefix) =>
@@ -238,7 +315,7 @@ class RawTableRelationTest
 
     collectToSet[java.sql.Timestamp](dfWithManylastUpdatedTime.select($"lastUpdatedTime"))
     collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"_lastUpdatedTime")) should equal(
-      Set(null, 2))
+      Set[Any](null, 2))
     collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"___lastUpdatedTime")) should equal(
       Set(11, 22))
     collectToSet[JavaLong](dfWithManylastUpdatedTime.select($"____lastUpdatedTime")) should equal(
@@ -268,9 +345,63 @@ class RawTableRelationTest
     val (columnNames2, unRenamed2) = prepareForInsert(dfWithManylastUpdatedTime)
     columnNames2.toSet should equal(
       Set("lastUpdatedTime", "__lastUpdatedTime", "___lastUpdatedTime", "value"))
-    collectToSet[JavaLong](unRenamed2.select($"lastUpdatedTime")) should equal(Set(null, 2))
+    collectToSet[JavaLong](unRenamed2.select($"lastUpdatedTime")) should equal(Set[Any](null, 2))
     collectToSet[JavaLong](unRenamed2.select($"__lastUpdatedTime")) should equal(Set(11, 22))
     collectToSet[JavaLong](unRenamed2.select($"___lastUpdatedTime")) should equal(Set(111, 222))
+  }
+
+  it should "insert data correctly when no throttling is present, but multiple queries" taggedAs (WriteTest) in {
+    val ships = RawTableRelationSupportingTestData.starships.toDF("key", "name", "model", "class")
+    ships.createTempView("ships2")
+
+    val destinationDataframe = spark.read
+      .format(DefaultSource.sparkFormatString)
+      .useOIDCWrite
+      .option("type", "raw")
+      .option("database", testData.dbName)
+      .option("table", "raw-write-no-throttling")
+      .option("inferSchema", false)
+      .option("batchSize", "5")
+      .schema(ships.schema)
+      .load()
+    destinationDataframe.createTempView("destinationTableNoThrottling")
+
+    spark.sql("select key, name, model, class from ships2")
+      .select(destinationDataframe.columns.map(col).toIndexedSeq: _*)
+      .write
+      .insertInto("destinationTableNoThrottling")
+
+    val verification: DataFrame = rawRead("raw-write-no-throttling", testData.dbName)
+    verification.count() should equal(ships.count())
+    verification.collect().foreach ( row => verifyRow(row, Array("name", "model", "class").toIndexedSeq, RawTableRelationSupportingTestData.starshipsMap) )
+  }
+
+
+  it should "insert data correctly when throttling of outstanding requests is set, and has multiple queries" taggedAs (WriteTest) in {
+    val ships = RawTableRelationSupportingTestData.starships.toDF("key", "name", "model", "class")
+    ships.createTempView("ships")
+
+    val destinationDataframe = spark.read
+      .format(DefaultSource.sparkFormatString)
+      .useOIDCWrite
+      .option("type", "raw")
+      .option("database", testData.dbName)
+      .option("table", "raw-write-with-throttling")
+      .option("inferSchema", false)
+      .option("batchSize", "5")
+      .option("maxOutstandingRawInsertRequests", "2")
+      .schema(ships.schema)
+      .load()
+    destinationDataframe.createTempView("destinationTableWithThrottling")
+
+    spark.sql("select key, name, model, class from ships")
+      .select(destinationDataframe.columns.map(col).toIndexedSeq: _*)
+      .write
+      .insertInto("destinationTableWithThrottling")
+
+    val verification: DataFrame = rawRead("raw-write-with-throttling", testData.dbName)
+    verification.count() should equal(ships.count())
+    verification.collect().foreach(row => verifyRow(row, Array("name", "model", "class").toIndexedSeq, RawTableRelationSupportingTestData.starshipsMap))
   }
 
   it should "read nested StructType" in {
@@ -330,7 +461,7 @@ class RawTableRelationTest
 
   "Infer Schema" should "use a different limit for infer schema" in {
     val metricsPrefix = "infer_schema_1"
-    val database = "testdb"
+    val database = testData.dbName
     val table = "future-event"
     val inferSchemaLimit = 1L
     val partitions = 10L
@@ -361,7 +492,7 @@ class RawTableRelationTest
       .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
-      .option("database", "testdb")
+      .option("database", testData.dbName)
       .option("table", "raw-write-test")
       .option("inferSchema", false)
       .load()
@@ -383,12 +514,26 @@ class RawTableRelationTest
       .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
-      .option("database", "testdb")
+      .option("database", testData.dbName)
       .option("table", "future-event")
       .option("inferSchema", true)
       .option("partitions", "5")
       .load()
-      .where(s"lastUpdatedTime >= timestamp('2019-06-21 11:48:00.000Z') and lastUpdatedTime <= timestamp('2019-06-21 11:50:00.000Z')")
+      .where(s"lastUpdatedTime >= timestamp('2019-06-21 11:48:00.000Z')")
+    assert(df.count() == 100)
+  }
+
+  it should "test that startTime filters are handled correctly" taggedAs (ReadTest) in {
+    val df = spark.read
+      .format(DefaultSource.sparkFormatString)
+      .useOIDCWrite
+      .option("type", "raw")
+      .option("database", testData.dbName)
+      .option("table", "future-event")
+      .option("inferSchema", true)
+      .option("partitions", "5")
+      .load()
+      .where(s"startTime >= timestamp('2019-06-22 11:48:00.000Z') and startTime <= timestamp('2019-06-22 11:50:00.000Z')")
     assert(df.count() == 10)
   }
 
@@ -396,7 +541,7 @@ class RawTableRelationTest
     val shortRand = shortRandomString()
     val metricsPrefix = s"partitionSizeTest$shortRand"
     val tablename = "bigTable"
-    val resourceType = s"raw.testdb.$tablename"
+    val resourceType = s"raw.${RawTableRelationTest.randomDbNameForTests}.$tablename"
     val partitions = 10L
 
     val df = spark.read
@@ -405,7 +550,7 @@ class RawTableRelationTest
       .option("type", "raw")
       .option("metricsPrefix", metricsPrefix)
       .option("partitions", partitions)
-      .option("database", "testdb")
+      .option("database", testData.dbName)
       .option("table", tablename)
       .option("inferSchema", "true")
       .option("collectTestMetrics", true)
@@ -430,13 +575,13 @@ class RawTableRelationTest
         .format(DefaultSource.sparkFormatString)
         .useOIDCWrite
         .option("type", "raw")
-        .option("database", "testdb")
+        .option("database", testData.dbName)
         .option("table", "future-event")
         .option("inferSchema", true)
         .option("partitions", partitions)
         .load()
-        .where(s"lastUpdatedTime >= timestamp('2019-06-21 11:48:00.000Z') and lastUpdatedTime <= timestamp('2019-06-21 11:50:00.000Z')")
-      assert(df.count() == 10)
+        .where(s"startTime >= timestamp('2019-06-21 11:48:00.000Z')")
+      assert(df.count() == 100)
     }
   }
 
@@ -445,7 +590,7 @@ class RawTableRelationTest
       .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
-      .option("database", "testdb")
+      .option("database", testData.dbName)
       .option("table", "future-event")
       .option("inferSchema", true)
       .load()
@@ -459,14 +604,7 @@ class RawTableRelationTest
   }
 
   it should "write nested struct values" in {
-    val database = "testdb"
-    val table = "struct-test"
-
-    try {
-      writeClient.rawTables(database).createOne(RawTable(table)).unsafeRunSync()
-    } catch {
-      case e: CdpApiException if e.code == 400 => // Ignore if already exists
-    }
+    val database = testData.dbName
 
     val key = shortRandomString()
     val tempView = "struct_test_" + shortRandomString()
@@ -488,7 +626,7 @@ class RawTableRelationTest
       .useOIDCWrite
       .option("type", "raw")
       .option("database", database)
-      .option("table", table)
+      .option("table", "struct-test")
       .load()
     destination.createTempView(tempView)
     source
@@ -496,46 +634,42 @@ class RawTableRelationTest
       .write
       .insertInto(tempView)
 
-    try {
-      val df = spark.read
-        .format(DefaultSource.sparkFormatString)
-        .useOIDCWrite
-        .option("type", "raw")
-        .option("database", database)
-        .option("table", table)
-        .option("inferSchema", true)
-        .load()
-        .where(s"key = '$key'")
+    val df = spark.read
+      .format(DefaultSource.sparkFormatString)
+      .useOIDCWrite
+      .option("type", "raw")
+      .option("database", database)
+      .option("table", "struct-test")
+      .option("inferSchema", true)
+      .load()
+      .where(s"key = '$key'")
 
-      assert(df.count() == 1)
-      val row = df.first()
+    assert(df.count() == 1)
+    val row = df.first()
 
-      val struct = row.getStruct(row.fieldIndex("value"))
+    val struct = row.getStruct(row.fieldIndex("value"))
 
-      assert(struct.getAs[Long]("long") == 123L)
-      assert(struct.getAs[String]("string") == "foo")
-      assert(struct.getAs[String]("null") == null)
-      assert(struct.getAs[Row]("namedstruct").getAs[String]("message") == "asd")
+    assert(struct.getAs[Long]("long") == 123L)
+    assert(struct.getAs[String]("string") == "foo")
+    assert(struct.getAs[String]("null") == null)
+    assert(struct.getAs[Row]("namedstruct").getAs[String]("message") == "asd")
 
-      val nestedStruct = struct.getStruct(struct.fieldIndex("struct"))
-      assert(nestedStruct.schema != null)
-      nestedStruct.schema.fieldNames.toSeq.loneElement shouldBe "foo"
-      nestedStruct.toSeq.loneElement shouldBe 123L
+    val nestedStruct = struct.getStruct(struct.fieldIndex("struct"))
+    assert(nestedStruct.schema != null)
+    nestedStruct.schema.fieldNames.toSeq.loneElement shouldBe "foo"
+    nestedStruct.toSeq.loneElement shouldBe 123L
 
-      val arrayOfStruct = struct.getSeq[Row](struct.fieldIndex("array_of_struct"))
-      val structInArray = arrayOfStruct.loneElement
+    val arrayOfStruct = struct.getSeq[Row](struct.fieldIndex("array_of_struct"))
+    val structInArray = arrayOfStruct.loneElement
 
-      assert(structInArray.schema != null)
-      structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
-      structInArray.toSeq.loneElement shouldBe 123L
-    } finally {
-      writeClient.rawRows(database, table).deleteById(key).unsafeRunSync()
-    }
+    assert(structInArray.schema != null)
+    structInArray.schema.fieldNames.toSeq.loneElement shouldBe "foo"
+    structInArray.toSeq.loneElement shouldBe 123L
   }
 
   it should "create the table with ensureParent option" in {
-    val database = "testdb"
-    val table = "ensureParent-test-" + shortRandomString()
+    val database = testData.dbName
+    val table = "ensureParent-test"
 
     // remove the DB to be sure
     try {
@@ -580,7 +714,7 @@ class RawTableRelationTest
       .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
-      .option("database", "testdb")
+      .option("database", testData.dbName)
       .option("table", "MegaColumnTable")
       .option("inferSchema", "true")
       .option("inferSchemaLimit", "100")
@@ -591,7 +725,7 @@ class RawTableRelationTest
       .schema(source.schema)
       .useOIDCWrite
       .option("type", "raw")
-      .option("database", "testdb")
+      .option("database", testData.dbName)
       .option("table", "MegaColumnTableDuplicate")
       .option("inferSchema", "true")
       .option("inferSchemaLimit", "100")
@@ -611,7 +745,7 @@ class RawTableRelationTest
       .format(DefaultSource.sparkFormatString)
       .useOIDCWrite
       .option("type", "raw")
-      .option("database", "testdb")
+      .option("database", testData.dbName)
       .option("table", "MegaColumnTable")
       .option("inferSchema", "true")
       .option("inferSchemaLimit", "100")
@@ -622,7 +756,7 @@ class RawTableRelationTest
       .schema(source.schema)
       .useOIDCWrite
       .option("type", "raw")
-      .option("database", "testdb")
+      .option("database", testData.dbName)
       .option("table", "MegaColumnTableDuplicate2")
       .option("inferSchema", "true")
       .option("inferSchemaLimit", "100")
@@ -696,7 +830,7 @@ class RawTableRelationTest
     assert(df.count() == 0)
 
     // No rows should have been read, so the metric should not exist.
-    a[NullPointerException] should be thrownBy getNumberOfRowsRead(
+    a[NoSuchElementException] should be thrownBy getNumberOfRowsRead(
       metricsPrefix,
       s"raw.spark-test-database.$tableName.rows")
   }
@@ -758,7 +892,7 @@ class RawTableRelationTest
     dfWithEmptyStringInByteField
       .collect()
       .map(_.getAs[Any]("byte"))
-      .toSet shouldBe Set(null, 1.toByte) // scalastyle:off null
+      .toSet shouldBe Set[Any](null, 1.toByte)
   }
 
   it should "handle empty string as null for Short type" in {
@@ -768,7 +902,7 @@ class RawTableRelationTest
     dfWithEmptyStringInShortField
       .collect()
       .map(_.getAs[Any]("short"))
-      .toSet shouldBe Set(null, 12.toShort) // scalastyle:off null
+      .toSet shouldBe Set[Any](null, 12.toShort)
   }
 
   it should "handle empty string as null for Integer type" in {
@@ -778,7 +912,7 @@ class RawTableRelationTest
     dfWithEmptyStringInIntegerField
       .collect()
       .map(_.getAs[Any]("integer"))
-      .toSet shouldBe Set(null, 123) // scalastyle:off null
+      .toSet shouldBe Set[Any](null, 123)
   }
 
   it should "handle empty string as null for Long type" in {
@@ -788,7 +922,7 @@ class RawTableRelationTest
     dfWithEmptyStringInLongField
       .collect()
       .map(_.getAs[Any]("long"))
-      .toSet shouldBe Set(null, 12345L) // scalastyle:off null
+      .toSet shouldBe Set[Any](null, 12345L)
   }
 
   it should "handle empty string as null for Double type" in {
@@ -798,7 +932,7 @@ class RawTableRelationTest
     dfWithEmptyStringInDoubleField
       .collect()
       .map(_.getAs[Any]("num"))
-      .toSet shouldBe Set(null, 12.3) // scalastyle:off null
+      .toSet shouldBe Set[Any](null, 12.3)
   }
 
   it should "handle empty string as null for Boolean type" in {
@@ -811,7 +945,7 @@ class RawTableRelationTest
     dfWithEmptyStringInBooleanField
       .collect()
       .map(_.getAs[Any]("bool"))
-      .toSet shouldBe Set(null, true, false) // scalastyle:off null
+      .toSet shouldBe Set[Any](null, true, false)
   }
 
   it should "fail reasonably on invalid types" in {
@@ -830,5 +964,84 @@ class RawTableRelationTest
 
     err.getMessage shouldBe "Error while loading RAW row [key='k'] in column 'value': java.lang.NumberFormatException: For input string: \"test\""
 
+  }
+
+  it should "filter out fields with null value but not impact schema inference" in {
+    val tableName = "with-some-null-values"
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = true, filterNullFields = Some(true))
+    df.count() shouldBe 3
+    df.schema.fieldNames.toSet shouldBe Set("key", "lastUpdatedTime", "notFiltered", "toBeFiltered")
+    val items = RawJsonConverter.rowsToRawItems(df.columns, "key", df.collect().toSeq).map(r => (r.key, r.columns)).toMap
+    items("k1")("toBeFiltered") shouldBe Json.Null
+    items("k2")("toBeFiltered") shouldBe Json.Null
+    items("k2")("notFiltered") shouldBe Json.fromString("string")
+    items("k3")("toBeFiltered") shouldBe Json.fromString("but not here")
+    items("k3")("notFiltered") shouldBe Json.fromString("string2")
+  }
+
+  it should "filter out columns completely when not inferring schema (confirming it filters from RAW)" in {
+    val tableName = "with-some-null-values"
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = false, filterNullFields = Some(true))
+    df.count() shouldBe 3
+    val items = RawJsonConverter.rowsToRawItems(df.columns, "key", df.collect().toSeq).map(r => (r.key, r.columns)).toMap
+    items("k1")("columns") shouldBe Json.fromString("{}")
+    items("k2")("columns") shouldBe Json.fromString("{\"notFiltered\":\"string\"}")
+    val columnsParsed: JsonObject = parseColumns(items("k3"))
+    columnsParsed("notFiltered") shouldBe Some(Json.fromString("string2"))
+    columnsParsed("toBeFiltered") shouldBe Some(Json.fromString("but not here"))
+  }
+
+  it should "return column in schema, even if every row has it filtered out" in {
+    val tableName = "with-only-null-values-for-field"
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = true, filterNullFields = Some(true))
+    df.count() shouldBe 3
+    df.schema.fieldNames.toSet shouldBe Set("key", "lastUpdatedTime", "notFiltered", "toBeFiltered")
+  }
+
+  it should "not filter out null column values when filtering is not set" in {
+    val tableName = "with-some-null-values"
+    // We run this without inferSchema, as schema would hide whether the fields are filtered or not.
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = false)
+    df.count() shouldBe 3
+    validateWhenFilteringIsNotEnabled(df)
+  }
+
+  it should "not filter out null column values when filtering is explicitly disabled" in {
+    val tableName = "with-some-null-values"
+    // We run this without inferSchema, as schema would hide whether the fields are filtered or not.
+    val df = rawRead(table = tableName, database = testData.dbName, inferSchema = false, filterNullFields = Some(false))
+    df.count() shouldBe 3
+    validateWhenFilteringIsNotEnabled(df)
+  }
+
+  private def validateWhenFilteringIsNotEnabled(df: DataFrame): Unit = {
+    val rows: Map[String, Map[String, Json]] = RawJsonConverter.rowsToRawItems(df.columns, "key", df.collect().toSeq)
+      .map(r => (r.key, r.columns))
+      .toMap
+
+    rows("k1")("columns") shouldBe Json.fromString("{\"toBeFiltered\":null}")
+
+    val columnsParsedk2: JsonObject = parseColumns(rows("k2"))
+    columnsParsedk2("toBeFiltered") shouldBe Some(Json.Null)
+    columnsParsedk2("notFiltered") shouldBe Some(Json.fromString("string"))
+
+    val columnsParsedk3 = parseColumns(rows("k3"))
+    columnsParsedk3("toBeFiltered") shouldBe Some(Json.fromString("but not here"))
+    columnsParsedk3("notFiltered") shouldBe Some(Json.fromString("string2"))
+    ()
+  }
+
+  private def parseColumns(row: Map[String, Json]): JsonObject = {
+    io.circe.parser.parse(row("columns").asString.get) match {
+      case Right(json) => json.asObject.get
+      case Left(error) => throw error
+    }
+  }
+
+  private def verifyRow(row: Row, columns: Seq[String], expected: Map[String, Map[String, String]]): Unit = {
+    val rowKey = row.getAs[String]("key")
+    columns.foreach { column =>
+      row.getAs[String](column) should equal(expected(rowKey)(column))
+    }
   }
 }

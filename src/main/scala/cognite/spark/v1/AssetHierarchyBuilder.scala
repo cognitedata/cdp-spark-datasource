@@ -2,8 +2,8 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{fromRow, structType}
+import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
 import com.cognite.sdk.scala.v1.{
   Asset,
@@ -72,14 +72,20 @@ final case class InvalidRootChangeException(assetIds: Seq[String], subtreeId: St
     )
 
 class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
-    extends CdfRelation(config, "assethierarchy") {
+    extends CdfRelation(config, AssetHierarchyBuilder.name) {
 
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   import CdpConnector.ioRuntime
 
-  def delete(data: DataFrame): Unit =
-    data.foreachPartition((rows: Iterator[Row]) => {
+  def delete(data: DataFrame): Unit = {
+    val partitionedData = if (config.enableSinglePartitionDeleteAssetHierarchy) {
+      data.repartition(numPartitions = 1)
+    } else {
+      data
+    }
+
+    partitionedData.foreachPartition((rows: Iterator[Row]) => {
       val deletes = rows.map(r => fromRow[DeleteItemByCogniteId](r))
       Stream
         .fromIterator[IO](deletes, chunkSize = batchSize)
@@ -96,6 +102,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         .drain
         .unsafeRunSync()
     })
+  }
 
   def buildFromDf(data: DataFrame): Unit =
     // Do not use .collect to run the builder on one of the executors and not on the driver
@@ -244,7 +251,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
           .retrieveByExternalIds(batch, ignoreUnknownIds = true)
     ).map(_.map(a => a.externalId.get -> a).toMap)
 
-  def upsertRoots( // scalastyle:off
+  def upsertRoots(
       newRoots: Vector[AssetsIngestSchema],
       sourceRoots: Map[String, Asset]): IO[Vector[Asset]] = {
 
@@ -402,7 +409,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
       Stream
         .fromIterator[IO](list.iterator, chunkSize = batchSize)
         .chunks
-        .parEvalMapUnordered(config.parallelismPerPartition)(chunk => op(chunk.toVector).map(Chunk.seq))
+        .parEvalMapUnordered(config.parallelismPerPartition)(chunk => op(chunk.toVector).map(Chunk.from))
         .flatMap(Stream.chunk)
         .compile
         .toVector
@@ -411,8 +418,10 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     }
 }
 
-object AssetHierarchyBuilder {
+object AssetHierarchyBuilder extends NamedRelation with UpsertSchema with DeleteWithIdSchema {
+  override val name = "assethierarchy"
+
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[AssetsIngestSchema]()
+  override val upsertSchema: StructType = structType[AssetsIngestSchema]()
 }

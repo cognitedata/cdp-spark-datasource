@@ -57,6 +57,7 @@ class AssetHierarchyBuilderTest
       .option("batchSize", batchSize)
       .option("metricsPrefix", metricsPrefix.getOrElse(""))
       .save()
+      
   }
 
   private def cleanDB(key: String) =

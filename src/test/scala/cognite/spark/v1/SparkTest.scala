@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import com.cognite.sdk.scala.common.OAuth2
 import com.cognite.sdk.scala.v1._
+import natchez.Kernel
 import org.apache.spark.SparkException
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.types.StructType
@@ -21,6 +22,7 @@ import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
+import scala.collection.JavaConverters._
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
@@ -41,15 +43,20 @@ trait SparkTest {
     }
 
   object OIDCWrite {
-    val clientId = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-    val clientSecret = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-    private val aadTenant = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-    // TODO: allow customizing all parameters below via env vars
-    val tokenUri = s"https://login.microsoftonline.com/$aadTenant/oauth2/v2.0/token"
-    val project = "jetfiretest2"
-    val scopes = "https://api.cognitedata.com/.default"
-    val audience = "https://api.cognitedata.com"
-    val baseUrl = "https://api.cognitedata.com"
+    val clientId = sys.env("TEST_CLIENT_ID2")
+    val clientSecret = sys.env("TEST_CLIENT_SECRET2")
+    val tokenUri: String = sys.env
+      .get("TEST_TOKEN_URL2")
+      .orElse(
+        sys.env
+          .get("TEST_AAD_TENANT2")
+          .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
+      .getOrElse("https://sometokenurl")
+    val project = sys.env("TEST_PROJECT2")
+    val cluster = sys.env("TEST_CLUSTER2")
+    val scopes = s"https://${cluster}.cognitedata.com/.default"
+    val audience = s"https://${cluster}.cognitedata.com"
+    val baseUrl = s"https://${cluster}.cognitedata.com"
   }
 
   val writeCredentials = OAuth2.ClientCredentials(
@@ -60,13 +67,13 @@ trait SparkTest {
     audience = Some(OIDCWrite.audience),
     cdfProjectName = OIDCWrite.project,
   )
-  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(5, 5)
+  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(false, 15, 30)
 
   val writeAuthProvider =
     OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
   val writeClient: GenericClient[IO] = new GenericClient(
     applicationName = "jetfire-test",
-    projectName = writeCredentials.cdfProjectName,
+    projectName = OIDCWrite.project,
     baseUrl = OIDCWrite.baseUrl,
     authProvider = writeAuthProvider,
     apiVersion = None,
@@ -100,6 +107,7 @@ trait SparkTest {
   // readClientSecret has to be renewed every 180 days at https://hub.cognite.com/open-industrial-data-211
   private val readClientSecret = System.getenv("TEST_OIDC_READ_CLIENT_SECRET")
   private val readAadTenant = System.getenv("TEST_OIDC_READ_TENANT")
+  val readProject = System.getenv("TEST_OIDC_READ_PROJECT")
 
   assert(
     readClientId != null && !readClientId.isEmpty,
@@ -110,6 +118,9 @@ trait SparkTest {
   assert(
     readAadTenant != null && !readAadTenant.isEmpty,
     "Environment variable \"TEST_OIDC_READ_TENANT\" was not set")
+  assert(
+    readProject != null && !readProject.isEmpty,
+    "Environment variable \"TEST_OIDC_READ_PROJECT\" was not set")
 
   private val readTokenUri = s"https://login.microsoftonline.com/$readAadTenant/oauth2/v2.0/token"
 
@@ -118,7 +129,7 @@ trait SparkTest {
     clientId = readClientId,
     clientSecret = readClientSecret,
     scopes = List("https://api.cognitedata.com/.default"),
-    cdfProjectName = "publicdata"
+    cdfProjectName = readProject
   )
 
   def dataFrameReaderUsingOidc: DataFrameReader =
@@ -127,7 +138,7 @@ trait SparkTest {
       .option("tokenUri", readTokenUri)
       .option("clientId", readClientId)
       .option("clientSecret", readClientSecret)
-      .option("project", "publicdata")
+      .option("project", readProject)
       .option("scopes", "https://api.cognitedata.com/.default")
 
   val testDataSetId = 86163806167772L
@@ -145,28 +156,37 @@ trait SparkTest {
   // We have many tests with expected Spark errors. Remove this if you're troubleshooting a test.
   spark.sparkContext.setLogLevel("OFF")
 
-  val bluefieldClientId: String = sys.env("TEST_CLIENT_ID_BLUEFIELD")
-  val bluefieldClientSecret: String = sys.env("TEST_CLIENT_SECRET_BLUEFIELD")
-  val bluefieldAADTenant: String = sys.env("TEST_AAD_TENANT_BLUEFIELD")
-  val bluefieldTokenUriStr = s"https://login.microsoftonline.com/$bluefieldAADTenant/oauth2/v2.0/token"
-  val bluefieldTokenUri = uri"https://login.microsoftonline.com/$bluefieldAADTenant/oauth2/v2.0/token"
+  val testClientId: String = sys.env("TEST_CLIENT_ID")
+  val testClientSecret: String = sys.env("TEST_CLIENT_SECRET")
+  val testCluster: String = sys.env("TEST_CLUSTER")
+  val testProject: String = sys.env("TEST_PROJECT")
+  val testTokenUriStr: String = sys.env
+    .get("TEST_TOKEN_URL")
+    .orElse(
+      sys.env
+        .get("TEST_AAD_TENANT")
+        .map(tenant => s"https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"))
+    .getOrElse("https://sometokenurl")
+  val testAudience = s"https://${testCluster}.cognitedata.com"
+  val testTokenUri = uri"$testTokenUriStr"
 
-  def getBlufieldClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
+  def getTestClient(cdfVersion: Option[String] = None): GenericClient[IO] = {
     implicit val sttpBackend: SttpBackend[IO, Any] = AsyncHttpClientCatsBackend[IO]().unsafeRunSync()
     val credentials = OAuth2.ClientCredentials(
-      tokenUri = bluefieldTokenUri,
-      clientId = bluefieldClientId,
-      clientSecret = bluefieldClientSecret,
-      scopes = List("https://bluefield.cognitedata.com/.default"),
-      cdfProjectName = "extractor-bluefield-testing"
+      tokenUri = testTokenUri,
+      clientId = testClientId,
+      clientSecret = testClientSecret,
+      scopes = List(s"https://${testCluster}.cognitedata.com/.default"),
+      audience = Some(testAudience),
+      cdfProjectName = testProject
     )
 
     val authProvider =
       OAuth2.ClientCredentialsProvider[IO](credentials).unsafeRunTimed(1.second).get
     new GenericClient[IO](
       applicationName = "CogniteScalaSDK-OAuth-Test",
-      projectName = "extractor-bluefield-testing",
-      baseUrl = "https://bluefield.cognitedata.com",
+      projectName = testProject,
+      baseUrl = s"https://${testCluster}.cognitedata.com",
       authProvider = authProvider,
       apiVersion = None,
       clientTag = None,
@@ -176,18 +196,17 @@ trait SparkTest {
 
   def shortRandomString(): String = UUID.randomUUID().toString.substring(0, 8)
 
-  class RetryException(private val message: String,
-                       private val cause: Throwable = None.orNull)
-    extends Exception(message, cause) {}
+  class RetryException(private val message: String, private val cause: Throwable = None.orNull)
+      extends Exception(message, cause) {}
 
-  // scalastyle:off cyclomatic.complexity
   def retryWithBackoff[A](
       ioa: IO[A],
       initialDelay: FiniteDuration,
       maxRetries: Int,
       maxDelay: FiniteDuration = 20.seconds): IO[A] = {
-    val exponentialDelay = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2)
-    val randomDelayScale = (Constants.DefaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
+    val defaultMaxBackoffDelay: FiniteDuration = 120.seconds
+    val exponentialDelay = (defaultMaxBackoffDelay / 2).min(initialDelay * 2)
+    val randomDelayScale = (defaultMaxBackoffDelay / 2).min(initialDelay * 2).toMillis
     val nextDelay = Random.nextInt(randomDelayScale.toInt).millis + exponentialDelay
     ioa.handleErrorWith {
       case exception @ (_: RetryException | _: TimeoutException | _: IOException) =>
@@ -200,7 +219,6 @@ trait SparkTest {
       case error => IO.raiseError(error)
     }
   }
-  // scalastyle:on cyclomatic.complexity
 
   def retryWhileIO[A](action: IO[A], shouldRetry: A => Boolean)(
       implicit prettifier: Prettifier,
@@ -208,87 +226,100 @@ trait SparkTest {
     retryWithBackoff(
       for {
         actionValue <- action
-        _ <- IO.delay { if (shouldRetry(actionValue)) {
-          throw new RetryException(
-            s"Retry needed at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
-        } }
+        _ <- IO.delay {
+          if (shouldRetry(actionValue)) {
+            throw new RetryException(
+              s"Retry needed at ${pos.fileName}:${pos.lineNumber}, value = ${prettifier(actionValue)}")
+          }
+        }
       } yield actionValue,
       1.second,
       20
     )
 
   def retryWhile[A](action: => A, shouldRetry: A => Boolean)(
-    implicit prettifier: Prettifier,
-    pos: source.Position): A =
+      implicit prettifier: Prettifier,
+      pos: source.Position): A =
     retryWhileIO(IO.unit.map(_ => action), shouldRetry)
-      .unsafeRunTimed(5.minutes).getOrElse(throw new RuntimeException("Test timed out during retries"))
+      .unsafeRunTimed(5.minutes)
+      .getOrElse(throw new RuntimeException("Test timed out during retries"))
 
   val updateAndUpsert: TableFor1[String] = Table(heading = "mode", "upsert", "update")
 
-  def getDefaultConfig(auth: CdfSparkAuth, projectName: String): RelationConfig =
+  def getDefaultConfig(auth: CdfSparkAuth, projectName: String, cluster: String = "api", applicationName: Option[String] = Some("SparkDatasourceTestApp")): RelationConfig =
     RelationConfig(
-      auth,
-      Some("SparkDatasourceTestTag"),
-      Some("SparkDatasourceTestApp"),
-      projectName,
-      Some(Constants.DefaultBatchSize),
-      None,
+      auth = auth,
+      clientTag = Some("SparkDatasourceTestTag"),
+      applicationName = applicationName,
+      projectName = projectName,
+      batchSize = Some(Constants.DefaultBatchSize),
+      limitPerPartition = None,
       partitions = Constants.DefaultPartitions,
-      Constants.DefaultMaxRetries,
-      Constants.DefaultMaxRetryDelaySeconds,
+      maxRetries = Constants.DefaultMaxRetries,
+      maxRetryDelaySeconds = Constants.DefaultMaxRetryDelaySeconds,
+      initialRetryDelayMillis = Constants.DefaultInitialRetryDelay.toMillis.toInt,
       collectMetrics = false,
       collectTestMetrics = false,
-      "",
-      Constants.DefaultBaseUrl,
-      OnConflictOption.Abort,
-      spark.sparkContext.applicationId,
-      Constants.DefaultParallelismPerPartition,
+      metricsTrackAttempts = false,
+      metricsPrefix = "",
+      baseUrl = s"https://${cluster}.cognitedata.com",
+      onConflict = OnConflictOption.Abort,
+      applicationId = spark.sparkContext.applicationId,
+      parallelismPerPartition = Constants.DefaultParallelismPerPartition,
       ignoreUnknownIds = true,
       deleteMissingAssets = false,
       subtrees = AssetSubtreeOption.Ingest,
       ignoreNullFields = true,
-      rawEnsureParent = false
+      rawEnsureParent = false,
+      enableSinglePartitionDeleteAssetHierarchy = false,
+      tracingParent = new Kernel(Map.empty),
+      useSharedThrottle = false,
+      serverSideFilterNullValuesOnNonSchemaRawQueries = false,
+      maxOutstandingRawInsertRequests = None
     )
 
-  private def getCounterSafe(metricName: String): Option[Long] =
-    Option(MetricsSource.metricsMap
-      .get(metricName))
-      .map(_.value.getCount)
+  private def getCounterSafe(metricsNamespace: String, resource: String): Option[Long] = {
+    val counters = MetricsSource.metricsMap.asScala
+      .filterKeys(key => key.startsWith(metricsNamespace) && key.endsWith(resource))
+      .values
 
-  private def getCounter(metricName: String): Long =
-    MetricsSource.metricsMap
-      .get(metricName)
-      .value
-      .getCount
+    if (counters.isEmpty) {
+      Option.empty
+    } else {
+      Some(
+        counters
+          .map(v => v.value.getCount)
+          .sum)
+    }
+  }
+
+  private def getCounter(metricsNamespace: String, resource: String): Long =
+    getCounterSafe(metricsNamespace, resource).get
 
   def getNumberOfRowsRead(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.read")
+    getCounter(metricsPrefix, s"$resourceType.read")
 
   def getNumberOfRowsReadSafe(metricsPrefix: String, resourceType: String): Option[Long] =
-    getCounterSafe(s"$metricsPrefix.$resourceType.read")
+    getCounterSafe(metricsPrefix, s"$resourceType.read")
 
   def getNumberOfRowsCreated(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.created")
+    getCounter(metricsPrefix, s"$resourceType.created")
 
   def getNumberOfRowsUpserted(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.upserted")
+    getCounter(metricsPrefix, s"$resourceType.upserted")
 
   def getNumberOfRequests(metricsPrefix: String): Long =
-    getCounter(s"$metricsPrefix.requestsWithoutRetries")
+    getCounter(metricsPrefix, "requestsWithoutRetries")
 
   def getNumberOfRowsDeleted(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.deleted")
+    getCounter(metricsPrefix, s"$resourceType.deleted")
 
   def getNumberOfRowsUpdated(metricsPrefix: String, resourceType: String): Long =
-    getCounter(s"$metricsPrefix.$resourceType.updated")
+    getCounter(metricsPrefix, s"$resourceType.updated")
 
   def getPartitionSize(metricsPrefix: String, resourceType: String, partitionIndex: Long): Long = {
-    val metricName = s"$metricsPrefix.$resourceType.$partitionIndex.partitionSize"
-    if (MetricsSource.metricsMap.containsKey(metricName)) {
-      getCounter(metricName)
-    } else {
-      0
-    }
+    val resource = s"$resourceType.$partitionIndex.partitionSize"
+    getCounterSafe(metricsPrefix, resource).getOrElse(0)
   }
 
   def sparkIntercept(f: => Any)(implicit pos: source.Position): Throwable =

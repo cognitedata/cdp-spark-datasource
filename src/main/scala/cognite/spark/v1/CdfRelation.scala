@@ -5,30 +5,36 @@ import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.{NonNullableSetter, SetNull, SetValue, Setter}
 import com.cognite.sdk.scala.v1._
 import io.scalaland.chimney.Transformer
+import org.apache.spark.TaskContext
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.sources.BaseRelation
 
+trait NamedRelation {
+  val name: String
+}
+
 abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
     extends BaseRelation
-    with Serializable {
-  protected val shortName: String = shortNameStr
-  @transient lazy protected val itemsRead: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.read")
-  @transient lazy protected val itemsCreated: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.created")
-  @transient lazy protected val itemsUpdated: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.updated")
-  @transient lazy protected val itemsDeleted: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.deleted")
+    with Serializable
+    with NamedRelation {
+  override val name: String = shortNameStr
+
+  private def getOrCreateCounter(action: String): Counter =
+    MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsTrackAttempts,
+      config.metricsPrefix,
+      s"$name.$action",
+      Option(TaskContext.get()))
+
+  @transient lazy protected val itemsRead: Counter = getOrCreateCounter("read")
+  @transient lazy protected val itemsCreated: Counter = getOrCreateCounter("created")
+  @transient lazy protected val itemsUpdated: Counter = getOrCreateCounter("updated")
+  @transient lazy protected val itemsDeleted: Counter = getOrCreateCounter("deleted")
   // We are not aware if it is `created` or `updated in flexible data modelling case
-  @transient lazy protected val itemsUpserted: Counter =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"$shortName.upserted")
+  @transient lazy protected val itemsUpserted: Counter = getOrCreateCounter("upserted")
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
-
-  @transient lazy val alphaClient: GenericClient[IO] =
-    CdpConnector.clientFromConfig(config, Some("alpha"))
 
   def incMetrics(counter: Counter, count: Int): IO[Unit] =
     IO(
@@ -51,7 +57,7 @@ abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
   implicit def fieldToSetter[T]: Transformer[OptionalField[T], Option[Setter[T]]] =
     new Transformer[OptionalField[T], Option[Setter[T]]] {
       override def transform(src: OptionalField[T]): Option[Setter[T]] = src match {
-        case FieldSpecified(null) => // scalastyle:ignore null
+        case FieldSpecified(null) =>
           throw new Exception(
             "FieldSpecified(null) observed, that's bad. Please reach out to Cognite support.")
         case FieldSpecified(x) => Some(SetValue(x))

@@ -16,5 +16,4 @@ class SttpClientBackendFactoryTest extends FlatSpec with Matchers {
     asyncHttpClient.close()
     asyncHttpClient.isClosed shouldBe true
   }
-
 }

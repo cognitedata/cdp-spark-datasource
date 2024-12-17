@@ -3,14 +3,16 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.getTimestampLimit
+import com.codahale.metrics.Counter
 import com.cognite.sdk.scala.common.{CdpApiException, Items}
 import com.cognite.sdk.scala.v1._
 import fs2.Stream
+import org.apache.spark.TaskContext
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+import org.apache.spark.sql.types.{DataTypes, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 import java.time.Instant
@@ -32,6 +34,8 @@ class RawTableRelation(
   import CdpConnector._
   import RawTableRelation._
 
+  override def toString: String = s"RawTableRelation(db=${database}, table=${table})"
+
   private val MaxKeysAllowedForFiltering = 10000L
 
   @transient lazy val client: GenericClient[IO] =
@@ -40,10 +44,18 @@ class RawTableRelation(
   @transient lazy private val batchSize = config.batchSize.getOrElse(Constants.DefaultRawBatchSize)
 
   // TODO: check if we need to sanitize the database and table names, or if they are reasonably named
-  @transient lazy private val rowsCreated =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.created")
-  @transient lazy private val rowsRead =
-    MetricsSource.getOrCreateCounter(config.metricsPrefix, s"raw.$database.$table.rows.read")
+  @transient lazy private val rowsCreated: Counter =
+    MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsTrackAttempts,
+      config.metricsPrefix,
+      s"raw.$database.$table.rows.created",
+      Option(TaskContext.get()))
+  @transient lazy private val rowsRead: Counter =
+    MetricsSource.getOrCreateAttemptTrackingCounter(
+      config.metricsTrackAttempts,
+      config.metricsPrefix,
+      s"raw.$database.$table.rows.read",
+      Option(TaskContext.get()))
 
   override val schema: StructType = userSchema.getOrElse {
     if (inferSchema) {
@@ -54,6 +66,7 @@ class RawTableRelation(
           filter = RawRowFilter(),
           requestedKeys = None,
           schema = None,
+          filterNulls = false,
           collectMetrics = collectSchemaInferenceMetrics,
           collectTestMetrics = false
         )
@@ -71,15 +84,17 @@ class RawTableRelation(
     }
   }
 
-  private def getStreams(filter: RawRowFilter, cursors: Vector[String])(
+  private def getStreams(filter: RawRowFilter, filterNullFields: Boolean, cursors: Vector[String])(
       limit: Option[Int],
       numPartitions: Int)(client: GenericClient[IO]): Seq[Stream[IO, RawRow]] = {
     assert(numPartitions == cursors.length)
-    val rawClient = client.rawRows(database, table)
+    val rawClient = client.rawRows(database, table, filterNullFields)
     cursors.map(rawClient.filterOnePartition(filter, _, limit))
   }
 
   private def getStreamByKeys(client: GenericClient[IO], keys: Set[String]): Stream[IO, RawRow] = {
+    // Note that retrieveByKey does not currently support filtering out null fields. When/If that is
+    // added, we should also pass in the flag to filter out those here.
     val rawClient = client.rawRows(database, table)
     Stream
       .emits(keys.toSeq)
@@ -109,13 +124,13 @@ class RawTableRelation(
         RawJsonConverter.untypedRowConverter
     }
 
-  // scalastyle:off method.length
   private def readRows(
       limit: Option[Int],
       numPartitions: Option[Int],
       filter: RawRowFilter,
       requestedKeys: Option[Set[String]],
       schema: Option[StructType],
+      filterNulls: Boolean,
       collectMetrics: Boolean = config.collectMetrics,
       collectTestMetrics: Boolean = config.collectTestMetrics): RDD[Row] = {
     val configWithLimit =
@@ -131,11 +146,11 @@ class RawTableRelation(
           val partitionCursors =
             CdpConnector
               .clientFromConfig(config)
-              .rawRows(database, table)
+              .rawRows(database, table, filterNulls)
               .getPartitionCursors(filter, configWithLimit.partitions)
               .unsafeRunSync()
               .toVector
-          getStreams(filter, partitionCursors)(
+          getStreams(filter, filterNulls, partitionCursors)(
             configWithLimit.limitPerPartition,
             configWithLimit.partitions)
       }
@@ -150,9 +165,12 @@ class RawTableRelation(
         }
         if (collectTestMetrics) {
           @transient lazy val partitionSize =
-            MetricsSource.getOrCreateCounter(
-              config.metricsPrefix,
-              s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize")
+            MetricsSource
+              .getOrCreateAttemptTrackingCounter(
+                config.metricsTrackAttempts,
+                config.metricsPrefix,
+                s"raw.$database.$table.${partitionIndex.getOrElse(0)}.partitionSize",
+                Option(TaskContext.get()))
           partitionSize.inc()
         }
         rowConverter(item)
@@ -162,7 +180,6 @@ class RawTableRelation(
       deduplicateRows = true // if false we might end up with 429 when trying to update assets with multiple same request
     )
   }
-  // scalastyle:on method.length
 
   override def buildScan(): RDD[Row] = buildScan(schema.fieldNames, Array.empty)
 
@@ -190,7 +207,13 @@ class RawTableRelation(
     }
 
     val rdd =
-      readRows(config.limitPerPartition, None, rawRowFilter, requestedKeys, jsonSchema)
+      readRows(
+        config.limitPerPartition,
+        None,
+        rawRowFilter,
+        requestedKeys,
+        jsonSchema,
+        config.serverSideFilterNullValuesOnNonSchemaRawQueries)
 
     rdd.map(row => {
       val filteredCols = requiredColumns.map(colName => row.get(schema.fieldIndex(colName)))
@@ -262,10 +285,32 @@ class RawTableRelation(
 
     val (columnNames, dfWithUnRenamedKeyColumns) = prepareForInsert(df.drop(lastUpdatedTimeColName))
     dfWithUnRenamedKeyColumns.foreachPartition((rows: Iterator[Row]) => {
-      val batches = rows.grouped(batchSize).toVector
-      batches
-        .parTraverse_(postRows(columnNames, _))
-        .unsafeRunSync()
+      config.maxOutstandingRawInsertRequests match {
+        case Some(maxOutstandingRawInsertRequests) =>
+          // We first group by batch size of a write, and then group that by the number of allowed parallel
+          // outstanding requests to avoid queueing up too many requests towards the RAW API (and this potentially
+          // leading to an OutOfMemory)
+          // Note: This is a suboptimal fix, as if one of the requests in a batch is slow, we will not
+          // start on the next batch (this limitation used to be per partition). Instead, we should
+          // have a cats.effect.std.Semaphore permit with X number of outstanding requests
+          // or cats.effect.concurrent.Backpressure.
+          rows
+            .grouped(batchSize)
+            .toSeq
+            .grouped(maxOutstandingRawInsertRequests)
+            .foreach { batch =>
+              batch.toVector
+                .parTraverse_(postRows(columnNames, _))
+                .unsafeRunSync()
+            }
+        case None =>
+          // Same behavior as before, which is prone to OutOfMemory if the RAW API calls are too slow
+          // to finish
+          val batches = rows.grouped(batchSize).toVector
+          batches
+            .parTraverse_(postRows(columnNames, _))
+            .unsafeRunSync()
+      }
     })
   }
 
@@ -285,11 +330,14 @@ class RawTableRelation(
   }
 }
 
-object RawTableRelation {
+object RawTableRelation extends NamedRelation with UpsertSchema {
+  override val name = "raw"
   private val lastUpdatedTimeColName = "lastUpdatedTime"
   private val keyColumnPattern = """^_*key$""".r
   private val lastUpdatedTimeColumnPattern = """^_*lastUpdatedTime$""".r
 
+  override val upsertSchema: StructType = StructType(
+    Seq(StructField("key", StringType, nullable = false)))
   val defaultSchema: StructType = StructType(
     Seq(
       StructField("key", DataTypes.StringType),

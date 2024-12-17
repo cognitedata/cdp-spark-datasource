@@ -16,7 +16,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.time.Instant
 
 class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1Relation[RelationshipsReadSchema, String](config, "relationships")
+    extends SdkV1Relation[RelationshipsReadSchema, String](config, RelationshipsRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
   override def schema: StructType = structType[RelationshipsReadSchema]()
@@ -28,7 +28,10 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def getStreams(sparkFilters: Array[Filter])(
       client: GenericClient[IO]): Seq[Stream[IO, RelationshipsReadSchema]] = {
     val (ids, filters) =
-      pushdownToFilters(sparkFilters, relationshipsFilterFromMap, RelationshipsFilter())
+      pushdownToFilters(
+        sparkFilters,
+        f => relationshipsFilterFromMap(f.fieldValues),
+        RelationshipsFilter())
 
     // TODO: support parallel retrival using partitions
     Seq(
@@ -62,13 +65,12 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
   }
 
   override def delete(rows: Seq[Row]): IO[Unit] = {
-    val relationshipIds = rows.map(fromRow[RelationshipsDeleteSchema](_)).map(_.externalId)
+    val relationshipIds = rows.map(fromRow[DeleteByExternalId](_)).map(_.externalId)
     client.relationships
       .deleteByExternalIds(relationshipIds)
       .flatTap(_ => incMetrics(itemsDeleted, relationshipIds.length))
   }
 
-  // scalastyle:off no.whitespace.after.left.bracket method.length
   override def upsert(rows: Seq[Row]): IO[Unit] = {
     val relationships = rows.map(fromRow[RelationshipsUpsertSchema](_))
     createOrUpdateByExternalId[
@@ -136,18 +138,21 @@ class RelationshipsRelation(config: RelationConfig)(val sqlContext: SQLContext)
     }
 }
 
-object RelationshipsRelation {
+object RelationshipsRelation
+    extends UpsertSchema
+    with ReadSchema
+    with DeleteWithExternalIdSchema
+    with InsertSchema
+    with UpdateSchema
+    with NamedRelation {
+  override val name: String = "relationships"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val insertSchema: StructType = structType[RelationshipsInsertSchema]()
-  val readSchema: StructType = structType[RelationshipsReadSchema]()
-  val deleteSchema: StructType = structType[RelationshipsDeleteSchema]()
-  val upsertSchema: StructType = structType[RelationshipsUpsertSchema]()
+  override val insertSchema: StructType = structType[RelationshipsInsertSchema]()
+  override val readSchema: StructType = structType[RelationshipsReadSchema]()
+  override val upsertSchema: StructType = structType[RelationshipsUpsertSchema]()
+  override val updateSchema: StructType = upsertSchema
 }
-
-final case class RelationshipsDeleteSchema(
-    externalId: String
-)
 
 final case class RelationshipsInsertSchema(
     externalId: String,

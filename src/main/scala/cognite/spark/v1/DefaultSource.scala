@@ -1,15 +1,15 @@
 package cognite.spark.v1
 
-import cats.Apply
+import cats.{Apply, Functor}
 import cats.effect.IO
 import cats.implicits._
-import cognite.spark.v1.FlexibleDataModelRelationFactory.{
+import cognite.spark.v1.fdm.{FlexibleDataModelBaseRelation, FlexibleDataModelRelationFactory}
+import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.{
   ConnectionConfig,
   DataModelConnectionConfig,
   DataModelViewConfig,
   ViewCorePropertyConfig
 }
-import cognite.spark.v1.wdl.WellDataLayerRelation
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
@@ -17,9 +17,11 @@ import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
+import natchez.{Kernel, Trace}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
+import org.typelevel.ci.CIString
 import sttp.model.Uri
 
 import scala.reflect.classTag
@@ -35,7 +37,7 @@ class DefaultSource
   override def shortName(): String = "cognite"
 
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation =
-    createRelation(sqlContext, parameters, null) // scalastyle:off null
+    createRelation(sqlContext, parameters, null)
 
   private def createSequenceRows(
       parameters: Map[String, String],
@@ -55,51 +57,45 @@ class DefaultSource
     new SequenceRowsRelation(config, sequenceId)(sqlContext)
   }
 
-  private def createWellDataLayer(
-      parameters: Map[String, String],
-      config: RelationConfig,
-      sqlContext: SQLContext
-  ): WellDataLayerRelation = {
-    val model =
-      parameters.getOrElse("wdlDataType", throw new CdfSparkException("wdlDataType must be specified"))
-    new WellDataLayerRelation(config, model)(sqlContext)
-  }
-
   private def createFlexibleDataModelRelation(
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
+    val corePropertySyncRelation = extractCorePropertySyncRelation(parameters, config, sqlContext)
     val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext)
+    val datamodelBasedSync = extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext)
     val dataModelBasedConnectionRelation =
       extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
     val dataModelBasedCorePropertyRelation =
       extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
     val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
 
-    corePropertyRelation
+    corePropertySyncRelation
+      .orElse(corePropertyRelation)
+      .orElse(datamodelBasedSync)
       .orElse(dataModelBasedConnectionRelation)
       .orElse(dataModelBasedCorePropertyRelation)
       .orElse(connectionRelation)
-      .getOrElse(
-        throw new CdfSparkException(
-          s"""
+      .getOrElse(throw new CdfSparkException(
+        s"""
              |Invalid combination of arguments!
              |
-             | Expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
+             | Expecting 'instanceType' and 'cursor' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
+             | 'instanceSpace') for CorePropertySyncRelation,
+             | or expecting 'instanceType' with optional arguments ('viewSpace', 'viewExternalId', 'viewVersion',
              | 'instanceSpace') for CorePropertyRelation,
              | or expecting ('edgeTypeSpace', 'edgeTypeExternalId') with optional 'instanceSpace' for ConnectionRelation,
              | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', 'viewExternalId') with optional
-             | 'instanceSpace' for data model based CorePropertyRelation,
+             | 'instanceSpace' and optional 'cursor' for data model based CorePropertyRelation,
              | or expecting ('modelSpace', 'modelExternalId', 'modelVersion', viewExternalId', 'connectionPropertyName')
              | with optional 'instanceSpace' for data model based  ConnectionRelation,
              |""".stripMargin
-        ))
+      ))
   }
 
   /**
     * Create a spark relation for reading.
     */
-  // scalastyle:off cyclomatic.complexity method.length
   override def createRelation(
       sqlContext: SQLContext,
       parameters: Map[String, String],
@@ -109,13 +105,13 @@ class DefaultSource
     val config = parseRelationConfig(parameters, sqlContext)
 
     resourceType match {
-      case "datapoints" =>
+      case NumericDataPointsRelation.name =>
         new NumericDataPointsRelationV1(config)(sqlContext)
-      case "stringdatapoints" =>
+      case StringDataPointsRelation.name =>
         new StringDataPointsRelationV1(config)(sqlContext)
-      case "timeseries" =>
+      case TimeSeriesRelation.name =>
         new TimeSeriesRelation(config)(sqlContext)
-      case "raw" =>
+      case RawTableRelation.name =>
         val database = parameters.getOrElse("database", sys.error("Database must be specified"))
         val tableName = parameters.getOrElse("table", sys.error("Table must be specified"))
 
@@ -136,45 +132,48 @@ class DefaultSource
           inferSchema,
           inferSchemaLimit,
           collectSchemaInferenceMetrics)(sqlContext)
-      case "sequencerows" =>
+      case SequenceRowsRelation.name =>
         createSequenceRows(parameters, config, sqlContext)
-      case "assets" =>
+      case AssetsRelation.name =>
         val subtreeIds = parameters.get("assetSubtreeIds").map(parseCogniteIds)
         new AssetsRelation(config, subtreeIds)(sqlContext)
-      case "events" =>
+      case EventsRelation.name =>
         new EventsRelation(config)(sqlContext)
-      case "files" =>
+      case FilesRelation.name =>
         new FilesRelation(config)(sqlContext)
-      case "3dmodels" =>
+      case FileContentRelation.name =>
+        val inferSchema = toBoolean(parameters, "inferSchema")
+        val fileExternalId =
+          parameters.getOrElse("externalId", sys.error("File's external id must be specified"))
+        new FileContentRelation(config, fileExternalId, inferSchema)(sqlContext)
+      case ThreeDModelsRelation.name =>
         new ThreeDModelsRelation(config)(sqlContext)
-      case "3dmodelrevisions" =>
+      case ThreeDModelRevisionsRelation.name =>
         val modelId =
           parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
         new ThreeDModelRevisionsRelation(config, modelId)(sqlContext)
-      case "3dmodelrevisionmappings" =>
+      case ThreeDModelRevisionMappingsRelation.name =>
         val modelId =
           parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
         val revisionId =
           parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
         new ThreeDModelRevisionMappingsRelation(config, modelId, revisionId)(sqlContext)
-      case "3dmodelrevisionnodes" =>
+      case ThreeDModelRevisionNodesRelation.name =>
         val modelId =
           parameters.getOrElse("modelId", sys.error("Model id must be specified")).toLong
         val revisionId =
           parameters.getOrElse("revisionId", sys.error("Revision id must be specified")).toLong
         new ThreeDModelRevisionNodesRelation(config, modelId, revisionId)(sqlContext)
-      case "sequences" =>
+      case SequenceRelation.name =>
         new SequencesRelation(config)(sqlContext)
-      case "labels" =>
+      case LabelsRelation.name =>
         new LabelsRelation(config)(sqlContext)
-      case "relationships" =>
+      case RelationshipsRelation.name =>
         new RelationshipsRelation(config)(sqlContext)
-      case "datasets" =>
+      case DataSetsRelation.name =>
         new DataSetsRelation(config)(sqlContext)
-      case FlexibleDataModelRelationFactory.ResourceType =>
+      case FlexibleDataModelBaseRelation.name =>
         createFlexibleDataModelRelation(parameters, config, sqlContext)
-      case "welldatalayer" =>
-        createWellDataLayer(parameters, config, sqlContext)
       case _ => sys.error("Unknown resource type: " + resourceType)
     }
   }
@@ -189,112 +188,116 @@ class DefaultSource
       data: DataFrame): BaseRelation = {
     val config = parseRelationConfig(parameters, sqlContext)
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
-    if (resourceType == "assethierarchy") {
-      val relation = new AssetHierarchyBuilder(config)(sqlContext)
-      config.onConflict match {
-        case OnConflictOption.Delete =>
-          relation.delete(data)
-        case _ =>
-          relation.buildFromDf(data)
-      }
-      relation
-    } else if (resourceType == "datapoints" || resourceType == "stringdatapoints") {
-      val relation = resourceType match {
-        case "datapoints" =>
-          new NumericDataPointsRelationV1(config)(sqlContext)
-        case "stringdatapoints" =>
-          new StringDataPointsRelationV1(config)(sqlContext)
-      }
-      if (config.onConflict == OnConflictOption.Delete) {
-        // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
-        val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
-        data.foreachPartition((rows: Iterator[Row]) => {
-          import CdpConnector.ioRuntime
-          val batches = rows.grouped(batchSize).toVector
-          batches.parTraverse_(relation.delete).unsafeRunSync()
-        })
-      } else {
-        // datapoints need special handling of dataframes and batches
-        relation.insert(data, overwrite = true)
-      }
-      relation
-    } else {
-      val relation = resourceType match {
-        case "events" =>
-          new EventsRelation(config)(sqlContext)
-        case "timeseries" =>
-          new TimeSeriesRelation(config)(sqlContext)
-        case "assets" =>
-          new AssetsRelation(config)(sqlContext)
-        case "files" =>
-          new FilesRelation(config)(sqlContext)
-        case "sequences" =>
-          new SequencesRelation(config)(sqlContext)
-        case "labels" =>
-          new LabelsRelation(config)(sqlContext)
-        case "sequencerows" =>
-          createSequenceRows(parameters, config, sqlContext)
-        case "relationships" =>
-          new RelationshipsRelation(config)(sqlContext)
-        case "datasets" =>
-          new DataSetsRelation(config)(sqlContext)
-        case FlexibleDataModelRelationFactory.ResourceType =>
-          createFlexibleDataModelRelation(parameters, config, sqlContext)
-        case "welldatalayer" =>
-          createWellDataLayer(parameters, config, sqlContext)
-        case _ => sys.error(s"Resource type $resourceType does not support save()")
-      }
-      val batchSizeDefault = relation match {
-        case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
-        case _ => Constants.DefaultBatchSize
-      }
-      val batchSize = config.batchSize.getOrElse(batchSizeDefault)
-      val originalNumberOfPartitions = data.rdd.getNumPartitions
-      val idealNumberOfPartitions = config.sparkPartitions
 
-      // If we have very many partitions, it's quite likely that they are significantly uneven.
-      // And we will have to limit parallelism on each partition to low number, so the operation could
-      // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
-      // If the number of partitions is reasonable, we avoid the data shuffling
-      val dataRepartitioned =
-        if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
-          data.repartition(idealNumberOfPartitions)
+    val relation: CdfRelation = resourceType match {
+      case AssetHierarchyBuilder.name =>
+        new AssetHierarchyBuilder(config)(sqlContext)
+      case NumericDataPointsRelation.name =>
+        new NumericDataPointsRelationV1(config)(sqlContext)
+      case StringDataPointsRelation.name =>
+        new StringDataPointsRelationV1(config)(sqlContext)
+      case EventsRelation.name =>
+        new EventsRelation(config)(sqlContext)
+      case TimeSeriesRelation.name =>
+        new TimeSeriesRelation(config)(sqlContext)
+      case AssetsRelation.name =>
+        new AssetsRelation(config)(sqlContext)
+      case FilesRelation.name =>
+        new FilesRelation(config)(sqlContext)
+      case SequenceRelation.name =>
+        new SequencesRelation(config)(sqlContext)
+      case LabelsRelation.name =>
+        new LabelsRelation(config)(sqlContext)
+      case SequenceRowsRelation.name =>
+        createSequenceRows(parameters, config, sqlContext)
+      case RelationshipsRelation.name =>
+        new RelationshipsRelation(config)(sqlContext)
+      case DataSetsRelation.name =>
+        new DataSetsRelation(config)(sqlContext)
+      case FlexibleDataModelBaseRelation.name =>
+        createFlexibleDataModelRelation(parameters, config, sqlContext)
+      case _ => sys.error(s"Resource type $resourceType does not support save()")
+    }
+
+    relation match {
+      case relation: DataPointsRelationV1[_] =>
+        if (config.onConflict == OnConflictOption.Delete) {
+          // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
+          val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
+          data.foreachPartition((rows: Iterator[Row]) => {
+            import CdpConnector.ioRuntime
+            val batches = rows.grouped(batchSize).toVector
+            batches.parTraverse_(relation.delete).unsafeRunSync()
+          })
         } else {
-          data
+          // datapoints need special handling of dataframes and batches
+          relation.insert(data, overwrite = true)
         }
-
-      dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
-        import CdpConnector.ioRuntime
-
-        val maxParallelism = config.parallelismPerPartition
-        val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
-
-        val operation: Seq[Row] => IO[Unit] = config.onConflict match {
-          case OnConflictOption.Abort =>
-            relation.insert
-          case OnConflictOption.Upsert =>
-            relation.upsert
-          case OnConflictOption.Update =>
-            relation.update
+        relation
+      case relation: AssetHierarchyBuilder =>
+        config.onConflict match {
           case OnConflictOption.Delete =>
-            relation.delete
+            relation.delete(data)
+          case _ =>
+            relation.buildFromDf(data)
         }
+        relation
+      case relation: CdfRelation with WritableRelation =>
+        val batchSizeDefault = relation match {
+          case _: SequenceRowsRelation => Constants.DefaultSequenceRowsBatchSize
+          case _ => Constants.DefaultBatchSize
+        }
+        val batchSize = config.batchSize.getOrElse(batchSizeDefault)
+        val originalNumberOfPartitions = data.rdd.getNumPartitions
+        val idealNumberOfPartitions = config.sparkPartitions
 
-        batches
-          .parEvalMapUnordered(maxParallelism) { chunk =>
-            operation(chunk.toVector)
+        // If we have very many partitions, it's quite likely that they are significantly uneven.
+        // And we will have to limit parallelism on each partition to low number, so the operation could
+        // take unnecessarily long time. Rather than risking this, we'll just repartition data in such case.
+        // If the number of partitions is reasonable, we avoid the data shuffling
+        val dataRepartitioned =
+          if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
+            data.repartition(idealNumberOfPartitions)
+          } else {
+            data
           }
-          .compile
-          .drain
-          .unsafeRunSync()
-      })
-      relation
+
+        dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
+          import CdpConnector.ioRuntime
+
+          val maxParallelism = config.parallelismPerPartition
+          val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
+
+          val operation: Seq[Row] => IO[Unit] = config.onConflict match {
+            case OnConflictOption.Abort =>
+              relation.insert
+            case OnConflictOption.Upsert =>
+              relation.upsert
+            case OnConflictOption.Update =>
+              relation.update
+            case OnConflictOption.Delete =>
+              relation.delete
+          }
+
+          batches
+            .parEvalMapUnordered(maxParallelism) { chunk =>
+              operation(chunk.toVector)
+            }
+            .compile
+            .drain
+            .unsafeRunSync()
+        })
+        relation
+      case _ =>
+        sys.error(s"Resource type $resourceType does not support save()")
     }
   }
 }
 
 object DefaultSource {
   val sparkFormatString: String = classTag[DefaultSource].runtimeClass.getCanonicalName
+
+  val TRACING_PARAMETER_PREFIX: String = "com.cognite.tracing.parameter."
 
   private def toBoolean(
       parameters: Map[String, String],
@@ -374,9 +377,24 @@ object DefaultSource {
       .orElse(clientCredentials)
   }
 
-  def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = { // scalastyle:off
+  def extractTracingHeadersKernel(parameters: Map[String, String]): Kernel =
+    new Kernel(
+      parameters.toSeq
+        .filter(_._1.startsWith(TRACING_PARAMETER_PREFIX))
+        .map(kv => (CIString(kv._1.substring(TRACING_PARAMETER_PREFIX.length)), kv._2))
+        .toMap)
+
+  def saveTracingHeaders(knl: Kernel): Seq[(String, String)] =
+    knl.toHeaders.toList.map(kv => (TRACING_PARAMETER_PREFIX + kv._1, kv._2))
+
+  def saveTracingHeaders[F[_]: Functor: Trace](): F[Seq[(String, String)]] =
+    Trace[F].kernel.map(saveTracingHeaders(_))
+
+  def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
+    val initialRetryDelayMillis = toPositiveInt(parameters, "initialRetryDelayMs")
+      .getOrElse(Constants.DefaultInitialRetryDelay.toMillis.toInt)
     val maxRetryDelaySeconds = toPositiveInt(parameters, "maxRetryDelay")
       .getOrElse(Constants.DefaultMaxRetryDelaySeconds)
     val baseUrl = parameters.getOrElse("baseUrl", Constants.DefaultBaseUrl)
@@ -402,8 +420,12 @@ object DefaultSource {
       case Some(prefix) => s"$prefix"
       case None => ""
     }
+    val metricsTrackAttempts = toBoolean(parameters, "metricsTrackAttempts")
     val collectMetrics = toBoolean(parameters, "collectMetrics")
     val collectTestMetrics = toBoolean(parameters, "collectTestMetrics")
+
+    val enableSinglePartitionDeleteAssetHierarchy =
+      toBoolean(parameters, "enableSinglePartitionDeleteHierarchy", defaultValue = false)
 
     val saveMode = parseSaveMode(parameters)
     val parallelismPerPartition = {
@@ -442,10 +464,12 @@ object DefaultSource {
       limitPerPartition = limitPerPartition,
       partitions = partitions,
       maxRetries = maxRetries,
+      initialRetryDelayMillis = initialRetryDelayMillis,
       maxRetryDelaySeconds = maxRetryDelaySeconds,
       collectMetrics = collectMetrics,
       collectTestMetrics = collectTestMetrics,
       metricsPrefix = metricsPrefix,
+      metricsTrackAttempts = metricsTrackAttempts,
       baseUrl = baseUrl,
       onConflict = saveMode,
       applicationId = Option(sqlContext).map(_.sparkContext.applicationId).getOrElse("CDF"),
@@ -454,7 +478,13 @@ object DefaultSource {
       deleteMissingAssets = toBoolean(parameters, "deleteMissingAssets"),
       subtrees = subtreesOption,
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
-      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true)
+      rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
+      enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy,
+      tracingParent = extractTracingHeadersKernel(parameters),
+      useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false),
+      serverSideFilterNullValuesOnNonSchemaRawQueries =
+        toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false),
+      maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests")
     )
   }
 
@@ -510,6 +540,31 @@ object DefaultSource {
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
   }
 
+  private def extractDataModelBasedConnectionRelationSync(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext): Option[FlexibleDataModelBaseRelation] = {
+    val instanceSpace = parameters.get("instanceSpace")
+    Apply[Option]
+      .map5(
+        parameters.get("modelSpace"),
+        parameters.get("modelExternalId"),
+        parameters.get("modelVersion"),
+        parameters.get("viewExternalId"),
+        parameters.get("cursor")
+      )(Tuple5(_, _, _, _, _))
+      .map(t =>
+        FlexibleDataModelRelationFactory.dataModelRelationSync(
+          t._5,
+          parameters.get("cursorName"),
+          parameters.get("jobId"),
+          parameters.get("syncCursorSaveCallbackUrl"),
+          config,
+          sqlContext,
+          DataModelViewConfig(t._1, t._2, t._3, t._4, instanceSpace)
+      ))
+  }
+
   private def extractConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
@@ -522,6 +577,45 @@ object DefaultSource {
       )(ConnectionConfig(_, _, instanceSpace))
       .map(FlexibleDataModelRelationFactory.connectionRelation(config, sqlContext, _))
   }
+
+  private def extractCorePropertySyncRelation(
+      parameters: Map[String, String],
+      config: RelationConfig,
+      sqlContext: SQLContext) =
+    Apply[Option]
+      .map2(
+        parameters.get("instanceType"),
+        parameters.get("cursor")
+      )(Tuple2(_, _))
+      .map { usageAndCursor =>
+        val usage = usageAndCursor._1 match {
+          case t if t.equalsIgnoreCase("edge") => Usage.Edge
+          case t if t.equalsIgnoreCase("node") => Usage.Node
+        }
+        val viewReference = Apply[Option]
+          .map3(
+            parameters.get("viewSpace"),
+            parameters.get("viewExternalId"),
+            parameters.get("viewVersion")
+          )(ViewReference.apply)
+
+        val cursorName = parameters.get("cursorName")
+        val jobId = parameters.get("jobId")
+        val syncCursorSaveCallbackUrl = parameters.get("syncCursorSaveCallbackUrl")
+
+        FlexibleDataModelRelationFactory.corePropertySyncRelation(
+          usageAndCursor._2,
+          config = config,
+          sqlContext = sqlContext,
+          cursorName = cursorName,
+          jobId = jobId,
+          syncCursorSaveCallbackUrl = syncCursorSaveCallbackUrl,
+          viewCorePropConfig = ViewCorePropertyConfig(
+            intendedUsage = usage,
+            viewReference = viewReference,
+            instanceSpace = parameters.get("instanceSpace"))
+        )
+      }
 
   private def extractCorePropertyRelation(
       parameters: Map[String, String],

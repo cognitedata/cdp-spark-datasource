@@ -4,8 +4,8 @@ import cats.data.Validated.{Invalid, Valid}
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.PushdownUtilities.{
-  getIdFromMap,
-  pushdownToParameters,
+  getIdFromAndFilter,
+  pushdownToSimpleOr,
   toPushdownFilterExpression
 }
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
@@ -120,7 +120,7 @@ object Granularity {
 }
 
 class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext)
-    extends DataPointsRelationV1[DataPointsItem](config, "datapoints")(sqlContext)
+    extends DataPointsRelationV1[DataPointsItem](config, NumericDataPointsRelation.name)(sqlContext)
     with WritableRelation {
   import PushdownUtilities.filtersToTimestampLimits
   override def insert(rows: Seq[Row]): IO[Unit] =
@@ -183,8 +183,8 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val pushdownFilterExpression = toPushdownFilterExpression(filters)
     val timestampLimits = filtersToTimestampLimits(filters, "timestamp")
-    val filtersAsMaps = pushdownToParameters(pushdownFilterExpression)
-    val ids = filtersAsMaps.flatMap(getIdFromMap).distinct
+    val filtersAsMaps = pushdownToSimpleOr(pushdownFilterExpression).filters
+    val ids = filtersAsMaps.flatMap(getIdFromAndFilter).distinct
 
     // Notify users that they need to supply one or more ids/externalIds when reading data points
     if (ids.isEmpty) {
@@ -222,11 +222,18 @@ class NumericDataPointsRelationV1(config: RelationConfig)(sqlContext: SQLContext
   }
 }
 
-object NumericDataPointsRelation extends UpsertSchema {
+object NumericDataPointsRelation
+    extends UpsertSchema
+    with ReadSchema
+    with DeleteSchema
+    with InsertSchema
+    with NamedRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
+  override val name = "datapoints"
 
-  val upsertSchema: StructType = structType[InsertDataPointsItem]()
-  val readSchema: StructType = structType[DataPointsItem]()
-  val insertSchema: StructType = structType[InsertDataPointsItem]()
-  val deleteSchema: StructType = structType[DeleteDataPointsItem]()
+  override val upsertSchema: StructType = structType[InsertDataPointsItem]()
+  override val readSchema: StructType = structType[DataPointsItem]()
+  override val insertSchema: StructType = structType[InsertDataPointsItem]()
+  override val deleteSchema: StructType = structType[DeleteDataPointsItem]()
+
 }

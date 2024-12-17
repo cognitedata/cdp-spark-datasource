@@ -23,7 +23,7 @@ final case class ModelRevisionItem(
     createdTime: Long)
 
 class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(val sqlContext: SQLContext)
-    extends SdkV1Relation[ThreeDRevision, Long](config, "3dmodelrevision") {
+    extends SdkV1Relation[ThreeDRevision, Long](config, ThreeDModelRevisionsRelation.name) {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
   override def schema: StructType = structType[ThreeDRevision]()
@@ -35,4 +35,8 @@ class ThreeDModelRevisionsRelation(config: RelationConfig, modelId: Long)(val sq
   override def getStreams(filters: Array[Filter])(
       client: GenericClient[IO]): Seq[Stream[IO, ThreeDRevision]] =
     Seq(client.threeDRevisions(modelId).list(config.limitPerPartition))
+}
+
+object ThreeDModelRevisionsRelation extends NamedRelation {
+  override val name: String = "3dmodelrevisions"
 }

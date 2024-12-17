@@ -40,8 +40,8 @@ private[spark] object SparkSchemaHelperRuntime {
     val mapStringString = mapAny.collect {
       case (k: String, v: String) =>
         (k, v)
-      case (k: String, null) => // scalastyle:ignore null
-        (k, null: String) // scalastyle:ignore null
+      case (k: String, null) =>
+        (k, null: String)
     }
     val maybeError = mapAny.view
       .map {

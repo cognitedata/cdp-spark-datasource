@@ -1474,6 +1474,8 @@ Optionally, you can have Spark infer the DataFrame schema with the following opt
 
 - `rawEnsureParent`: When set to true, the parent database and table will be creates if it does not exists already.
 
+- `filterNullFieldsOnNonSchemaRawQueries`: Set this to `"true"`to enable experimental support for filtering empty columns server side in the Raw API, without impacting the inferred schema. Aimed to become enabled by default in the future once it has been fully tested.
+
 ```scala
 val df = spark.read.format("cognite.spark.v1")
   .option("type", "raw")

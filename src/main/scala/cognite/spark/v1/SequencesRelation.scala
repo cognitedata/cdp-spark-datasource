@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.PushdownUtilities.{executeFilter, pushdownToFilters}
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{asRow, fromRow, structType}
 import com.cognite.sdk.scala.common.{SetValue, Setter, WithExternalId, WithId}
 import com.cognite.sdk.scala.v1._
@@ -20,15 +21,24 @@ import cognite.spark.v1.CdpConnector.ioRuntime
 import scala.annotation.unused
 
 class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
-    extends SdkV1InsertableRelation[SequenceReadSchema, Long](config, "sequences")
+    extends SdkV1InsertableRelation[SequenceReadSchema, Long](config, SequenceRelation.name)
     with WritableRelation {
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
-  override def getStreams(filters: Array[Filter])(
-      client: GenericClient[IO]): Seq[Stream[IO, SequenceReadSchema]] =
-    // TODO: filters
-    client.sequences
-      .listPartitions(config.partitions)
+  override def getStreams(sparkFilters: Array[Filter])(
+      client: GenericClient[IO]): Seq[Stream[IO, SequenceReadSchema]] = {
+    val (ids, filters) =
+      pushdownToFilters(sparkFilters, f => sequencesFilterFromMap(f.fieldValues), SequenceFilter())
+
+    executeFilter(client.sequences, filters, ids, config.partitions, config.limitPerPartition)
       .map(_.map(_.into[SequenceReadSchema].withFieldComputed(_.columns, _.columns.toList).transform))
+  }
+
+  private def sequencesFilterFromMap(m: Map[String, String]): SequenceFilter =
+    // TODO: handle more filters
+    SequenceFilter(
+      externalIdPrefix = m.get("externalIdPrefix"),
+      name = m.get("name")
+    )
 
   /*
      Sequence API does not support more than 200 columns per sequence,
@@ -173,7 +183,6 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       sequences,
       (s: SequenceUpsertSchema) => s.columns.map(_.size).getOrElse(0))
 
-    // scalastyle:off no.whitespace.after.left.bracket
     groupedSequences.toList.traverse_ { sequencesToCreate =>
       genericUpsert[
         Sequence,
@@ -182,10 +191,8 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
         SequenceUpdate,
         SequencesResource[IO]](sequencesToCreate, isUpdateEmpty, client.sequences)
     }
-    // scalastyle:on no.whitespace.after.left.bracket
   }
 
-  // scalastyle:off method.length
   override def getFromRowsAndCreate(rows: Seq[Row], @unused doUpsert: Boolean = true): IO[Unit] = {
     val sequences =
       rows
@@ -195,7 +202,6 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
 
     implicit val toUpdate = transformerUpsertToUpdate(sequences)
 
-    // scalastyle:off no.whitespace.after.left.bracket
     createOrUpdateByExternalId[
       Sequence,
       SequenceUpdate,
@@ -204,7 +210,6 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
       OptionalField,
       SequencesResource[IO]](Set.empty, sequences, client.sequences, doUpsert = true)
   }
-  // scalastyle:off method.length
 
   override def schema: StructType = structType[SequenceReadSchema]()
 
@@ -213,12 +218,20 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
   override def uniqueId(a: SequenceReadSchema): Long = a.id
 }
 
-object SequenceRelation extends UpsertSchema {
+object SequenceRelation
+    extends UpsertSchema
+    with ReadSchema
+    with InsertSchema
+    with DeleteWithIdSchema
+    with UpdateSchema
+    with NamedRelation {
+  override val name: String = "sequences"
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  val upsertSchema: StructType = structType[SequenceUpsertSchema]()
-  val insertSchema: StructType = structType[SequenceInsertSchema]()
-  val readSchema: StructType = structType[SequenceReadSchema]()
+  override val upsertSchema: StructType = structType[SequenceUpsertSchema]()
+  override val insertSchema: StructType = structType[SequenceInsertSchema]()
+  override val readSchema: StructType = structType[SequenceReadSchema]()
+  override val updateSchema: StructType = upsertSchema
 }
 
 final case class SequenceColumnUpsertSchema(
@@ -256,7 +269,7 @@ final case class SequenceUpsertSchema(
     metadata: Option[Map[String, String]] = None,
     columns: Option[Seq[SequenceColumnUpsertSchema]] = None,
     dataSetId: OptionalField[Long] = FieldNotSpecified
-) extends WithNullableExtenalId
+) extends WithNullableExternalId
     with WithId[Option[Long]] {
 
   def getSequenceColumnCreate: NonEmptyList[SequenceColumnCreate] = {
