@@ -19,6 +19,7 @@ jobs:
           jvm: adopt:8
       - name: Compile
         run: |
+          find / | grep sbt
           sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
           sbt +compile
       - name: Run tests
