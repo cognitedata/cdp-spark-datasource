@@ -121,6 +121,7 @@ jobs:
         uses: coursier/setup-action@v1
         with:
           jvm: adopt:8
+          apps: sbt
       - name: Build JAR file
         run: |
           LIB_PACKAGE="+library/package"
