@@ -14,9 +14,10 @@ jobs:
           fetch-depth: 0
       - run: |
           git rev-list --count --first-parent HEAD > patch_version.txt
-      - uses: coursier/setup-action@v1
+      - uses: coursier/setup-action@v1.3.9
         with:
           jvm: adopt:8
+          apps: sbt
       - name: Compile
         run: |
           sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockCheck
@@ -51,7 +52,7 @@ jobs:
           path: 'target/test-reports/**/*.xml'
           retention-days: 1
       - name: Upload report to codecov.io
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
@@ -68,9 +69,10 @@ jobs:
       - run: |
           git rev-list --count --first-parent HEAD > patch_version.txt
       - name: Set up JDK 8
-        uses: coursier/setup-action@v1
+        uses: coursier/setup-action@v1.3.9
         with:
           jvm: adopt:8
+          apps: sbt
       - name: Build JAR file
         run: |
           LIB_PACKAGE="+library/package"
@@ -116,9 +118,10 @@ jobs:
       - run: |
           git rev-list --count --first-parent HEAD > patch_version.txt
       - name: Set up JDK 8
-        uses: coursier/setup-action@v1
+        uses: coursier/setup-action@v1.3.9
         with:
           jvm: adopt:8
+          apps: sbt
       - name: Build JAR file
         run: |
           LIB_PACKAGE="+library/package"
