@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2024-12-18T14:43:52.410338826Z",
+  "timestamp" : "2025-01-06T12:54:26.887742144Z",
   "configurations" : [
     "compile",
     "optional",
@@ -94,11 +94,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.12",
-      "version" : "2.31.882",
+      "version" : "2.31.885",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.12.jar",
-          "hash" : "sha1:6cdf98a30c1dec669e09ceb6acfe373f32c56c9d"
+          "hash" : "sha1:59ae6bb68953c7b992f5bced7ec8e66956f76bc6"
         }
       ],
       "configurations" : [
@@ -296,11 +296,11 @@
     {
       "org" : "com.google.protobuf",
       "name" : "protobuf-java",
-      "version" : "4.29.1",
+      "version" : "4.29.2",
       "artifacts" : [
         {
           "name" : "protobuf-java.jar",
-          "hash" : "sha1:d76908167ea25bed60f40042ba4c48147bdcd30f"
+          "hash" : "sha1:695bb50e3e4a88cc10ffa94c67199d849e9398e6"
         }
       ],
       "configurations" : [
