@@ -54,6 +54,17 @@ object CdpConnector {
     () => (),
     IORuntimeConfig()
   )
+
+  implicit class ExtensionMethods[A](f: IO[A]) {
+    // Run on unbound blocking thread pool
+    // Useful to reduce chances of deadlocks in class initializers that are initiated
+    // from non-cats-effect code or not being wrapped into IO().
+    // Compute (bounded) pool may still be running .unsafeRunBlocking() indirectly and have compute
+    // thread blocked until the run completes, but hopefully being requested to run on blocking
+    // unbound pool it won't have a wait dependency on anything to be run on compute pool
+    def unsafeRunBlocking(): A = f.evalOn(blocking).unsafeRunSync()(ioRuntime)
+  }
+
   private val sttpBackend: SttpBackend[IO, Any] =
     new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
@@ -95,16 +106,20 @@ object CdpConnector {
         case _ => IO.unit
       })
 
-  def throttlingSttpBackend(sttpBackend: SttpBackend[IO, Any]): SttpBackend[IO, Any] = {
+  private def throttlingSttpBackend(sttpBackend: SttpBackend[IO, Any]): SttpBackend[IO, Any] = {
     // this backend throttles all requests when rate limiting from the service is encountered
     val makeQueueOf1 = for {
       queue <- Queue.bounded[IO, Unit](1)
       _ <- queue.offer(())
     } yield queue
-    new BackpressureThrottleBackend[IO, Any](sttpBackend, makeQueueOf1.unsafeRunSync(), 800.milliseconds)
+    new BackpressureThrottleBackend[IO, Any](
+      sttpBackend,
+      makeQueueOf1.unsafeRunBlocking(),
+      800.milliseconds)
   }
 
-  def retryingSttpBackend(
+  // package-private for tests
+  private[v1] def retryingSttpBackend(
       metricsTrackAttempts: Boolean,
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
@@ -145,7 +160,7 @@ object CdpConnector {
       maxRetryDelay = maxRetryDelaySeconds.seconds)
     // limit the number of concurrent requests
     val limitedBackend: SttpBackend[IO, Any] =
-      RateLimitingBackend[IO, Any](retryingBackend, maxParallelRequests).unsafeRunSync()
+      RateLimitingBackend[IO, Any](retryingBackend, maxParallelRequests).unsafeRunBlocking()
     metricsPrefix.fold(limitedBackend)(
       metricsPrefix =>
         new MetricsBackend[IO, Any](
@@ -186,7 +201,7 @@ object CdpConnector {
         ),
         config.tracingParent
       )
-    val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunSync()
+    val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunBlocking()
 
     implicit val sttpBackend: SttpBackend[IO, Any] = {
       new FixedTraceSttpBackend(
