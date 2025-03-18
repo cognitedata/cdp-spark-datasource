@@ -410,7 +410,7 @@ object DefaultSource {
   def saveTracingHeaders[F[_]: Functor: Trace](): F[Seq[(String, String)]] =
     Trace[F].kernel.map(saveTracingHeaders(_))
 
-  def logParamterOrDefault[A](name: String, value: Option[A], default: => A): A = value match {
+  def logParameterOrDefault[A](name: String, value: Option[A], default: => A): A = value match {
     case None => logger.info(s"using default value for ${name}: ${default}"); default
     case Some(value) => logger.info(s"using supplied value for ${name}: $value"); value
   }
@@ -439,7 +439,7 @@ object DefaultSource {
         throw new CdfSparkIllegalArgumentException(s"`project` must be specified"))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
-    val partitions = logParamterOrDefault(
+    val partitions = logParameterOrDefault(
       "partitions",
       toPositiveInt(parameters, "partitions"),
       Constants.DefaultPartitions)
@@ -455,7 +455,7 @@ object DefaultSource {
       toBoolean(parameters, "enableSinglePartitionDeleteHierarchy", defaultValue = false)
 
     val saveMode = parseSaveMode(parameters)
-    val parallelismPerPartition = logParamterOrDefault(
+    val parallelismPerPartition = logParameterOrDefault(
       "parallelismPerPartition",
       toPositiveInt(parameters, "parallelismPerPartition"),
       Constants.DefaultParallelismPerPartition)
