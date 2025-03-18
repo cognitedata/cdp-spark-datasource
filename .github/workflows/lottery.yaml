@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ !github.event.pull_request.draft }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - uses: uesteibar/reviewer-lottery@c291d74388da1cb583aff994b8be945e8eefbcd5 # v3.1
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
