@@ -56,7 +56,11 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     firstRow match {
       case Some(fr) =>
         upsertNodesOrEdges(rows, fr.schema, viewReference, allProperties, instanceSpace)
-          .flatMap(results => incMetrics(itemsUpserted, results.length))
+          .flatMap(results =>
+            for {
+              _ <- incMetrics(itemsUpserted, results.length)
+              _ <- incMetrics(itemsUpsertedNoop, results.count(!_.wasModified))
+            } yield ())
       case None => incMetrics(itemsUpserted, 0)
     }
   }
