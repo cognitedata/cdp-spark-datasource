@@ -1,5 +1,5 @@
 addSbtPlugin("org.lyranthe.sbt" % "partial-unification" % "1.1.2")
-addSbtPlugin("org.scoverage" % "sbt-scoverage" % "2.2.2")
+addSbtPlugin("org.scoverage" % "sbt-scoverage" % "2.3.0")
 addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.5.2")
 addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "3.9.21")
 addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.1.2-1")
