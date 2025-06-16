@@ -15,7 +15,7 @@
             }
         ]
     },
-    "default": {
+    "default": { 
         "certifi": {
             "hashes": [
                 "sha256:0a816057ea3cdefcef70270d2c515e4506bbc954f417fa5ade2021213bb8f0c6",
