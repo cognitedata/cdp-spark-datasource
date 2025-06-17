@@ -279,7 +279,7 @@
             "markers": "python_version >= '3.6'",
             "version": "==3.2.2"
         },
-        "protobuf": {
+        "protobuf": { 
             "hashes": [
                 "sha256:3f1c6468a2cfd102ff4703976138844f78ebd1fb45f49011afc5139e9e283079",
                 "sha256:3f76e3a3675b4a4d867b52e4a5f5b78a2ef9565549d4037e06cf7b0942b1d3fc",
