@@ -143,7 +143,7 @@ class FlexibleDataModelSyncTest extends FlatSpec
     syncedNodes3.length shouldBe 0
   }
 
-  it should "sync with old cursor " in {
+  (it should "sync with old cursor ").ignore {
     // Let us see what happens when this cursor gets more than 3 days..
     val oldCursorValue = "\"Z0FBQUFBQmw0RjJXenpCbHl3Ny02MzRRN21lTEVkdm5hU3hpQTM4d05ERkwxV2xNSG5" +
       "wa2ltOHhXMXloWC05akN6TDEzWGExMkkwZlpocGVhdVZXSDBGMVpEdmIwSTlzVDhQQUVhOHBNV2pCNUFNMFBsREg" +

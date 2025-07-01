@@ -20,9 +20,9 @@ import java.io.IOException
 import java.util.UUID
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
-import scala.collection.JavaConverters._
 
 object ReadTest extends Tag("ReadTest")
 object WriteTest extends Tag("WriteTest")
@@ -280,6 +280,7 @@ trait SparkTest {
 
   private def getCounterSafe(metricsNamespace: String, resource: String): Option[Long] = {
     val counters = MetricsSource.metricsMap.asScala
+      .view
       .filterKeys(key => key.startsWith(metricsNamespace) && key.endsWith(resource))
       .values
 

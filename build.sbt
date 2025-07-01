@@ -3,15 +3,14 @@ import sbtassembly.MergeStrategy
 import scala.xml.{Node => XmlNode, NodeSeq => XmlNodeSeq, _}
 import scala.xml.transform.{RewriteRule, RuleTransformer}
 
-val scala212 = "2.12.19"
-val scala213 = "2.13.15"
-val supportedScalaVersions = List(scala212, scala213)
+val scala213 = "2.13.16"
+val supportedScalaVersions = List(scala213)
 val sparkVersion = "3.3.4"
 val circeVersion = "0.14.9"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
 val Specs2Version = "4.20.3"
-val cogniteSdkVersion = "2.31.861"
+val cogniteSdkVersion = "2.31.900"
 
 val prometheusVersion = "0.16.0"
 val log4sVersion = "1.10.0"
@@ -46,22 +45,16 @@ lazy val commonSettings = Seq(
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
   semanticdbVersion := scalafixSemanticdb.revision,
-  scalaVersion := scala212, // default to Scala 2.12
+  scalaVersion := scala213, // default to Scala 2.13
   // handle cross plugin https://github.com/stringbean/sbt-dependency-lock/issues/13
   dependencyLockFile := { baseDirectory.value / s"build.scala-${CrossVersion.partialVersion(scalaVersion.value) match { case Some((2, n)) => s"2.$n" }}.sbt.lock" },
   description := "Spark data source for the Cognite Data Platform.",
   licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/cognitedata/cdp-spark-datasource")),
   scalacOptions ++= Seq("-Xlint:unused", "-language:higherKinds", "-deprecation", "-feature") ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-    // We use JavaConverters to remain backwards compatible with Scala 2.12,
-    // and to avoid a dependency on scala-collection-compat
     case Some((2, 13)) => Seq(
-      "-Wconf:src=src/test/scala/cognite/spark/v1/SparkTest.scala&cat=deprecation:i",
       "-Wconf:src=src/test/scala/.*&cat=other-pure-statement:i",
       "-Wconf:src=src/test/scala/.*&msg=unused value of type org.scalatest.Assertion:s"
-    )
-    case Some((2, 12)) => Seq(
-      "-Wconf:src=src/test/scala/.*&cat=unused:i"
     )
     case _ => Seq.empty
   }),
@@ -158,7 +151,6 @@ lazy val library = (project in file("."))
       "io.scalaland" %% "chimney" % "1.1.0"
         // scala-collection-compat is used in stdlib collections conversion,
         // and this dependency causes issues with Livy.
-        exclude("org.scala-lang.modules", "scala-collection-compat_2.12")
         exclude("org.scala-lang.modules", "scala-collection-compat_2.13"),
       "org.specs2" %% "specs2-core" % Specs2Version % Test,
       "com.softwaremill.sttp.client3" %% "async-http-client-backend-fs2" % sttpVersion,
@@ -167,18 +159,13 @@ lazy val library = (project in file("."))
         exclude("io.netty", "netty-buffer")
         exclude("io.netty", "netty-handler")
         exclude("io.netty", "netty-transport-native-epoll")
-        exclude("com.softwaremill.sttp", "circe_2.12")
         exclude("com.softwaremill.sttp", "circe_2.13")
-        exclude("org.typelevel", "cats-effect_2.12")
         exclude("org.typelevel", "cats-effect_2.13")
-        exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
       "org.slf4j" % "slf4j-api" % "2.0.9" % Provided,
       "io.circe" %% "circe-generic" % circeVersion
-        exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
       "io.circe" %% "circe-generic-extras" % "0.14.3"
-        exclude("org.typelevel", "cats-core_2.12")
         exclude("org.typelevel", "cats-core_2.13"),
       "org.scalatest" %% "scalatest" % "3.0.8" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.4.44.v20210927" % Provided,

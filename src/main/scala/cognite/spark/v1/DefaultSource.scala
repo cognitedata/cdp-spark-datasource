@@ -21,6 +21,7 @@ import natchez.{Kernel, Trace}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
+import org.log4s.getLogger
 import org.typelevel.ci.CIString
 import sttp.model.Uri
 
@@ -103,6 +104,12 @@ class DefaultSource
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
 
     val config = parseRelationConfig(parameters, sqlContext)
+
+    logger.info(
+      s"createRelation(reading): " +
+        s"resourceType=${resourceType}, " +
+        s"config.parallelismPerPartition=${config.parallelismPerPartition}, " +
+        s"config.sparkPartitions=${config.sparkPartitions}")
 
     resourceType match {
       case NumericDataPointsRelation.name =>
@@ -189,6 +196,13 @@ class DefaultSource
     val config = parseRelationConfig(parameters, sqlContext)
     val resourceType = parameters.getOrElse("type", sys.error("Resource type must be specified"))
 
+    logger.info(
+      s"createRelation(writing): " +
+        s"resourceType=${resourceType}, " +
+        s"data.rdd.getNumPartitions=${data.rdd.getNumPartitions}, " +
+        s"config.parallelismPerPartition=${config.parallelismPerPartition}, " +
+        s"config.sparkPartitions=${config.sparkPartitions}")
+
     val relation: CdfRelation = resourceType match {
       case AssetHierarchyBuilder.name =>
         new AssetHierarchyBuilder(config)(sqlContext)
@@ -257,6 +271,10 @@ class DefaultSource
         // If the number of partitions is reasonable, we avoid the data shuffling
         val dataRepartitioned =
           if (originalNumberOfPartitions > 50 && originalNumberOfPartitions > idealNumberOfPartitions) {
+            logger.info(
+              s"createRelation(writing): " +
+                s"repartition ${resourceType} from ${originalNumberOfPartitions} to " +
+                s"${idealNumberOfPartitions} partitions")
             data.repartition(idealNumberOfPartitions)
           } else {
             data
@@ -295,6 +313,8 @@ class DefaultSource
 }
 
 object DefaultSource {
+  @transient private val logger = getLogger
+
   val sparkFormatString: String = classTag[DefaultSource].runtimeClass.getCanonicalName
 
   val TRACING_PARAMETER_PREFIX: String = "com.cognite.tracing.parameter."
@@ -390,6 +410,11 @@ object DefaultSource {
   def saveTracingHeaders[F[_]: Functor: Trace](): F[Seq[(String, String)]] =
     Trace[F].kernel.map(saveTracingHeaders(_))
 
+  def logParameterOrDefault[A](name: String, value: Option[A], default: => A): A = value match {
+    case None => logger.info(s"using default value for ${name}: ${default}"); default
+    case Some(value) => logger.info(s"using supplied value for ${name}: $value"); value
+  }
+
   def parseRelationConfig(parameters: Map[String, String], sqlContext: SQLContext): RelationConfig = {
     val maxRetries = toPositiveInt(parameters, "maxRetries")
       .getOrElse(Constants.DefaultMaxRetries)
@@ -414,8 +439,10 @@ object DefaultSource {
         throw new CdfSparkIllegalArgumentException(s"`project` must be specified"))
     val batchSize = toPositiveInt(parameters, "batchSize")
     val limitPerPartition = toPositiveInt(parameters, "limitPerPartition")
-    val partitions = toPositiveInt(parameters, "partitions")
-      .getOrElse(Constants.DefaultPartitions)
+    val partitions = logParameterOrDefault(
+      "partitions",
+      toPositiveInt(parameters, "partitions"),
+      Constants.DefaultPartitions)
     val metricsPrefix = parameters.get("metricsPrefix") match {
       case Some(prefix) => s"$prefix"
       case None => ""
@@ -428,10 +455,10 @@ object DefaultSource {
       toBoolean(parameters, "enableSinglePartitionDeleteHierarchy", defaultValue = false)
 
     val saveMode = parseSaveMode(parameters)
-    val parallelismPerPartition = {
-      toPositiveInt(parameters, "parallelismPerPartition").getOrElse(
-        Constants.DefaultParallelismPerPartition)
-    }
+    val parallelismPerPartition = logParameterOrDefault(
+      "parallelismPerPartition",
+      toPositiveInt(parameters, "parallelismPerPartition"),
+      Constants.DefaultParallelismPerPartition)
     // keep compatibility with ignoreDisconnectedAssets
     val subtreesOption =
       (parameters.get("ignoreDisconnectedAssets"), parameters.get("subtrees")) match {

@@ -85,7 +85,8 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
         StreamIterator(
           Stream
             .eval(validUrl)
-            .flatMap(readUrlContentLines),
+            .flatMap(readUrlContentLines)
+            .evalTap(_ => IO.delay { itemsRead.inc() }),
           maxParallelism * 2,
           None
         )
