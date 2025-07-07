@@ -45,14 +45,14 @@ jobs:
           fi
           sbt -Dsbt.log.noformat=true scalafmtCheck coverage $TEST coverageReport
       - name: Upload Test Report
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() # always run even if the previous step fails
         with:
           name: junit-test-results
           path: 'target/test-reports/**/*.xml'
           retention-days: 1
       - name: Upload report to codecov.io
-        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
