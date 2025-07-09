@@ -287,25 +287,19 @@ class RawTableRelation(
     dfWithUnRenamedKeyColumns.foreachPartition((rows: Iterator[Row]) => {
       config.maxOutstandingRawInsertRequests match {
         case Some(maxOutstandingRawInsertRequests) =>
-          // We first group by batch size of a write, and then group that by the number of allowed parallel
-          // outstanding requests to avoid queueing up too many requests towards the RAW API (and this potentially
-          // leading to an OutOfMemory)
-          // Note: This is a suboptimal fix, as if one of the requests in a batch is slow, we will not
-          // start on the next batch (this limitation used to be per partition). Instead, we should
-          // have a cats.effect.std.Semaphore permit with X number of outstanding requests
-          // or cats.effect.concurrent.Backpressure.
-          rows
-            .grouped(batchSize)
-            .toSeq
-            .grouped(maxOutstandingRawInsertRequests)
-            .foreach { batch =>
-              batch.toVector
-                .parTraverse_(postRows(columnNames, _))
-                .unsafeRunSync()
-            }
+          Stream
+            .fromIterator[IO](rows, chunkSize = batchSize) // pull up to batchSize each time
+            .chunkN(batchSize) // group into batchSize chunks
+            .parEvalMap(maxConcurrent = maxOutstandingRawInsertRequests)(
+              rowsChunk => postRows(columnNames, rowsChunk.asSeq)
+            )
+            .compile
+            .drain
+            .unsafeRunSync()
+
         case None =>
           // Same behavior as before, which is prone to OutOfMemory if the RAW API calls are too slow
-          // to finish
+          // to finish and many postRows() operations become pending with write bodies kept in memory
           val batches = rows.grouped(batchSize).toVector
           batches
             .parTraverse_(postRows(columnNames, _))
