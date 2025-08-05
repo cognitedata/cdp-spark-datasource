@@ -152,4 +152,4 @@ jobs:
           SONATYPE_USERNAME: ${{ secrets.SSONATYPE_CENTRAL_PORTAL_USER }}
           SONATYPE_PASSWORD: ${{ secrets.SSONATYPE_CENTRAL_PORTAL_PASSWORD }}
         run: |
-          sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +structType/publishSigned +publishSigned sonatypeReleaseAll
+          sbt -Dsbt.log.noformat=true +fatJarShaded/publishSigned +structType/publishSigned +publishSigned sonaRelease
