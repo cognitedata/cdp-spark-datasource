@@ -24,7 +24,7 @@ ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0
 lazy val patchVersion = scala.io.Source.fromFile("patch_version.txt").mkString.trim
 
 credentials += Credentials("Sonatype Nexus Repository Manager",
-  "oss.sonatype.org",
+  "central.sonatype.org",
   System.getenv("SONATYPE_USERNAME"),
   System.getenv("SONATYPE_PASSWORD"),
 )
