@@ -227,7 +227,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   it should "limit by file size in byte" in {
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
-      fileExternalId = fileExternalId,
+      fileId = Left(fileExternalId),
       true
     )(spark.sqlContext) {
       override val fileSizeLimitBytes: Long = 100
@@ -245,7 +245,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   it should "limit by line size in character" in {
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
-      fileExternalId = fileExternalId,
+      fileId = Left(fileExternalId),
       true
     )(spark.sqlContext) {
       override val lineSizeLimitCharacters: Int = 5
@@ -279,7 +279,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
 
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
-      fileExternalId = fileWithoutUploadExternalId,
+      fileId = Left(fileExternalId),
       true
     )(spark.sqlContext)
 
