@@ -2,7 +2,13 @@ package cognite.spark.v1
 
 import cats.effect.unsafe.implicits.global
 import cats.effect.{IO, Resource}
-import com.cognite.sdk.scala.v1.FileCreate
+import cognite.spark.v1.fdm.utils.FDMTestConstants.spaceExternalId
+import com.cognite.sdk.scala.v1.fdm.Utils
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.NodeDeletionRequest
+import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate}
+import com.cognite.sdk.scala.v1.fdm.views.ViewReference
+import com.cognite.sdk.scala.v1.{CogniteInstanceId, FileCreate, InstanceId}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types.{ArrayType, LongType, StringType, StructField, StructType}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
@@ -68,26 +74,38 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     jsonObjects.mkString("\n")
   }
 
-  def makeFile(externalId: String, mimeType: Option[String] = Some("application/jsonlines"), content: String = generateNdjsonData): IO[Unit]  = {
-    val toCreate: FileCreate = FileCreate(
-      name = "test file for file content transformation",
-      externalId = Some(externalId),
-      mimeType = mimeType,
+  def makeFile(instanceId: InstanceId, mimeType: Option[String] = Some("application/jsonlines"), content: String = generateNdjsonData): IO[Unit]  = {
+    val cogniteInstanceId: CogniteInstanceId = CogniteInstanceId(instanceId)
+    val toCreate: InstanceCreate = InstanceCreate(
+      items = Seq(
+        NodeWrite(
+          space = instanceId.space,
+          externalId = instanceId.externalId,
+          Some(Seq(EdgeOrNodeData(ViewReference("cdf_cdm", "CogniteFile", "v1"), None))
+          ),
+          None
+        )),
+      None,
+      None,
+      None,
+      None
     )
     for {
-      existingFile <- writeClient.files.retrieveByExternalId(externalId).attempt
+      existingFile <- writeClient.files.retrieveByInstanceId(cogniteInstanceId).attempt
 
       // delete file if it was created but the actual file wasn't uploaded so we can get an uploadUrl
       _ <- existingFile match {
-        case Right(value) if !value.uploaded => writeClient.files.deleteByExternalIds(Seq(externalId))
+        case Right(value) if !value.uploaded => writeClient.instances.delete(Seq(NodeDeletionRequest(instanceId.space, instanceId.externalId))).attempt
         case _ => IO.pure(())
       }
 
-      file <- existingFile match {
+      fileInstance <- existingFile match {
         case Right(value) if value.uploaded => IO.pure(value)
         case _ =>
-          writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
+          writeClient.instances.createItems(toCreate).map(_.headOption.getOrElse(throw new IllegalStateException("could not create file")))
       }
+
+      file <- writeClient.files.retrieveByInstanceId(cogniteInstanceId)
 
       _ <- {
         if (!file.uploaded) {
@@ -109,6 +127,9 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
         }
       }
     } yield ()
+  }
+  def makeFileByInstanceId(externalId: String, mimeType: Option[String] = Some("application/jsonlines"), content: String = generateNdjsonData): IO[Unit]  = {
+    IO.pure()
   }
 
   "file content transformations" should "read from a ndjson file" in {
