@@ -2,7 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.std.Dispatcher
 import cats.effect.{IO, Resource}
-import com.cognite.sdk.scala.v1.FileDownloadExternalId
+import com.cognite.sdk.scala.v1.{CogniteInstanceId, FileDownloadExternalId, FileDownloadInstanceId, InstanceId}
 import fs2.{Pipe, Stream}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
@@ -27,7 +27,7 @@ trait WithSizeLimit {
   val lineSizeLimitCharacters: Int
 }
 
-class FileContentRelation(config: RelationConfig, fileExternalId: String, inferSchema: Boolean)(
+class FileContentRelation(config: RelationConfig, fileId: Either[String, InstanceId], inferSchema: Boolean)(
     override val sqlContext: SQLContext)
     extends CdfRelation(config, FileContentRelation.name)
     with TableScan
@@ -67,13 +67,31 @@ class FileContentRelation(config: RelationConfig, fileExternalId: String, inferS
       override def compute(split: Partition, context: TaskContext): Iterator[String] = {
 
         val validUrl = for {
-          file <- client.files.retrieveByExternalId(fileExternalId)
+          file <- fileId match {
+            case Left(fileExternalId: String) =>
+              client.files.retrieveByExternalId(fileExternalId)
+            case Right(instanceId: InstanceId) =>
+              client.files.retrieveByInstanceId(CogniteInstanceId(instanceId))
+          }
           _ <- IO.raiseWhen(!file.uploaded)(
-            new CdfSparkException(
-              f"Could not read file because no file was uploaded for externalId: $fileExternalId")
+            fileId match {
+              case Left(fileExternalId: String) =>
+                new CdfSparkException(
+                  f"Could not read file because no file was uploaded for externalId: $fileExternalId")
+              case Right(instanceId: InstanceId) =>
+                new CdfSparkException(
+                  f"Could not read file because no file was uploaded for instance id with externalId: ${instanceId.externalId} and space: ${instanceId.space}")
+            }
+
           )
-          downloadLink <- client.files
-            .downloadLink(FileDownloadExternalId(fileExternalId))
+          downloadLink <- fileId match {
+            case Left(fileExternalId: String) =>
+              client.files
+                .downloadLink(FileDownloadExternalId(fileExternalId))
+            case Right(instanceId: InstanceId) =>
+              client.files
+                .downloadLink(FileDownloadInstanceId(instanceId))
+          }
           uri <- IO.pure(uri"${downloadLink.downloadUrl}")
 
           _ <- IO.raiseWhen(!uri.scheme.contains("https"))(

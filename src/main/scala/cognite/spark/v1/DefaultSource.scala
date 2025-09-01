@@ -4,16 +4,11 @@ import cats.{Apply, Functor}
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.{FlexibleDataModelBaseRelation, FlexibleDataModelRelationFactory}
-import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.{
-  ConnectionConfig,
-  DataModelConnectionConfig,
-  DataModelViewConfig,
-  ViewCorePropertyConfig
-}
+import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.{ConnectionConfig, DataModelConnectionConfig, DataModelViewConfig, ViewCorePropertyConfig}
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, InstanceId}
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
@@ -148,11 +143,20 @@ class DefaultSource
         new EventsRelation(config)(sqlContext)
       case FilesRelation.name =>
         new FilesRelation(config)(sqlContext)
-      case FileContentRelation.name =>
-        val inferSchema = toBoolean(parameters, "inferSchema")
-        val fileExternalId =
-          parameters.getOrElse("externalId", sys.error("File's external id must be specified"))
-        new FileContentRelation(config, fileExternalId, inferSchema)(sqlContext)
+      case FileContentRelation.name => {
+        val externalId: Option[String] = parameters.get("externalId")
+        val instanceId: Option[InstanceId] = for {
+          externalId <- parameters.get("instanceExternalId")
+          space <- parameters.get("instanceSpace")
+        } yield InstanceId(space, externalId)
+        val inferSchema = parameters.getOrElse("inferSchema", "true").toBoolean
+        (externalId, instanceId) match {
+          case (Some(externalId), None) => new FileContentRelation(config, Left(externalId), inferSchema)(sqlContext)
+          case (None, Some(instanceId)) => new FileContentRelation(config, Right(instanceId), inferSchema)(sqlContext)
+          case (None, None) => sys.error("Trying to create a file_content_relation with neither the externalId nor the instanceId defined")
+          case (Some(_), Some(_)) => sys.error("Trying to create a file_content_relation with both externalId and instanceId defined at the same time")
+        }
+      }
       case ThreeDModelsRelation.name =>
         new ThreeDModelsRelation(config)(sqlContext)
       case ThreeDModelRevisionsRelation.name =>
