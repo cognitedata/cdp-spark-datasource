@@ -2,7 +2,12 @@ package cognite.spark.v1
 
 import cats.effect.std.Dispatcher
 import cats.effect.{IO, Resource}
-import com.cognite.sdk.scala.v1.{CogniteInstanceId, FileDownloadExternalId, FileDownloadInstanceId, InstanceId}
+import com.cognite.sdk.scala.v1.{
+  CogniteInstanceId,
+  FileDownloadExternalId,
+  FileDownloadInstanceId,
+  InstanceId
+}
 import fs2.{Pipe, Stream}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
@@ -27,8 +32,10 @@ trait WithSizeLimit {
   val lineSizeLimitCharacters: Int
 }
 
-class FileContentRelation(config: RelationConfig, fileId: Either[String, InstanceId], inferSchema: Boolean)(
-    override val sqlContext: SQLContext)
+class FileContentRelation(
+    config: RelationConfig,
+    fileId: Either[String, InstanceId],
+    inferSchema: Boolean)(override val sqlContext: SQLContext)
     extends CdfRelation(config, FileContentRelation.name)
     with TableScan
     with PrunedFilteredScan
@@ -82,7 +89,6 @@ class FileContentRelation(config: RelationConfig, fileId: Either[String, Instanc
                 new CdfSparkException(
                   f"Could not read file because no file was uploaded for instance id with externalId: ${instanceId.externalId} and space: ${instanceId.space}")
             }
-
           )
           downloadLink <- fileId match {
             case Left(fileExternalId: String) =>
@@ -149,7 +155,8 @@ class FileContentRelation(config: RelationConfig, fileId: Either[String, Instanc
                     case Right(fileInstanceId: InstanceId) =>
                       throw new CdfSparkException(
                         s"""Line too long in file having instanceId with space=${fileInstanceId.space}, externalId=${fileInstanceId.externalId}) SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
-                        e)
+                        e
+                      )
                   }
 
                 case other =>
@@ -179,9 +186,7 @@ class FileContentRelation(config: RelationConfig, fileId: Either[String, Instanc
             case Right(fileInstanceId: InstanceId) =>
               throw new CdfSparkException(
                 s"""File with external  having instanceId with space=${fileInstanceId.space}, externalId=${fileInstanceId.externalId}  size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
-          }
-
-        else
+          } else
           (newSize, chunk)
     }
 
