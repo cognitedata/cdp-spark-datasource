@@ -2,8 +2,6 @@ package cognite.spark.v1
 
 import cats.effect.unsafe.implicits.global
 import cats.effect.{IO, Resource}
-import cognite.spark.v1.fdm.utils.FDMTestConstants.spaceExternalId
-import com.cognite.sdk.scala.v1.fdm.Utils
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.NodeDeletionRequest
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate}
@@ -25,11 +23,11 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   val fileWithoutUploadExternalId: String = "fileWithoutUploadExternalId"
 
   override def beforeAll(): Unit = {
-    makeFile(fileExternalId).unsafeRunSync()
-    makeFile(fileExternalIdWithNestedJson, None, generateNdjsonDataNested).unsafeRunSync()
-    makeFile(fileExternalIdWithConflicts, None, generateNdjsonDataConflicting).unsafeRunSync()
+    makeFileByExternalId(fileExternalId).unsafeRunSync()
+    makeFileByExternalId(fileExternalIdWithNestedJson, None, generateNdjsonDataNested).unsafeRunSync()
+    makeFileByExternalId(fileExternalIdWithConflicts, None, generateNdjsonDataConflicting).unsafeRunSync()
 
-    makeFile(fileWithWrongMimeTypeExternalId, Some("application/json")).unsafeRunSync()//bad mimetype
+    makeFileByExternalId(fileWithWrongMimeTypeExternalId, Some("application/json")).unsafeRunSync()//bad mimetype
   }
 
 
@@ -74,7 +72,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     jsonObjects.mkString("\n")
   }
 
-  def makeFile(instanceId: InstanceId, mimeType: Option[String] = Some("application/jsonlines"), content: String = generateNdjsonData): IO[Unit]  = {
+  def makeFileByInstanceId(instanceId: InstanceId, content: String = generateNdjsonData): IO[Unit]  = {
     val cogniteInstanceId: CogniteInstanceId = CogniteInstanceId(instanceId)
     val toCreate: InstanceCreate = InstanceCreate(
       items = Seq(
@@ -99,7 +97,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
         case _ => IO.pure(())
       }
 
-      fileInstance <- existingFile match {
+      _ <- existingFile match {
         case Right(value) if value.uploaded => IO.pure(value)
         case _ =>
           writeClient.instances.createItems(toCreate).map(_.headOption.getOrElse(throw new IllegalStateException("could not create file")))
@@ -128,8 +126,48 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       }
     } yield ()
   }
-  def makeFileByInstanceId(externalId: String, mimeType: Option[String] = Some("application/jsonlines"), content: String = generateNdjsonData): IO[Unit]  = {
-    IO.pure()
+
+  def makeFileByExternalId(externalId: String, mimeType: Option[String] = Some("application/jsonlines"), content: String = generateNdjsonData): IO[Unit]  = {
+    val toCreate: FileCreate = FileCreate(
+      name = "test file for file content transformation",
+      externalId = Some(externalId),
+      mimeType = mimeType,
+    )
+    for {
+      existingFile <- writeClient.files.retrieveByExternalId(externalId).attempt
+
+      // delete file if it was created but the actual file wasn't uploaded so we can get an uploadUrl
+      _ <- existingFile match {
+        case Right(value) if !value.uploaded => writeClient.files.deleteByExternalIds(Seq(externalId))
+        case _ => IO.pure(())
+      }
+
+      file <- existingFile match {
+        case Right(value) if value.uploaded => IO.pure(value)
+        case _ =>
+          writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
+      }
+
+      _ <- {
+        if (!file.uploaded) {
+          val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
+          val request = basicRequest.put(uri"${file.uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
+            .body(content)
+          backend.use { backend =>
+            IO {
+              val response = request.send(backend)
+              if (response.code.isSuccess) {
+                println(s"NDJSON content uploaded successfully to ${file.uploadUrl}")
+              } else {
+                throw new Exception(s"Failed to upload content: ${response.statusText}")
+              }
+            }
+          }
+        } else {
+          IO.pure(())
+        }
+      }
+    } yield ()
   }
 
   "file content transformations" should "read from a ndjson file" in {
@@ -282,7 +320,6 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   }
 
   it should "throw if the file was never uploaded" in {
-
     val toCreate: FileCreate = FileCreate(
       name = "test file for file content transformation",
       externalId = Some(fileWithoutUploadExternalId),
@@ -290,17 +327,22 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     )
     val file = for {
       existingFile <- writeClient.files.retrieveByExternalId(fileWithoutUploadExternalId).attempt
-      _ <- existingFile match {
+      existingOrCreatedFile <- existingFile match {
         case Right(value) if !value.uploaded => IO.pure(value)
+        case Right(value) if value.uploaded => for {
+          _ <- writeClient.files.deleteByExternalId(fileWithoutUploadExternalId)
+          res <- writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not create file")))
+        } yield res
         case _ =>
-          writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
+          writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not create file")))
       }
-    } yield ()
+    } yield (existingOrCreatedFile)
+
     file.unsafeRunSync()
 
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
-      fileId = Left(fileExternalId),
+      fileId = Left(fileWithoutUploadExternalId),
       true
     )(spark.sqlContext)
 

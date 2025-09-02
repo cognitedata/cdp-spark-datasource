@@ -114,6 +114,7 @@ class FileContentRelation(config: RelationConfig, fileId: Either[String, Instanc
       override protected def getPartitions: Array[Partition] =
         Array(CdfPartition(0))
     }
+
     import sqlContext.sparkSession.implicits._
     val dataset = rdd.cache().toDS()
 
@@ -140,9 +141,17 @@ class FileContentRelation(config: RelationConfig, fileId: Either[String, Instanc
               .through(fs2.text.linesLimited(lineSizeLimitCharacters))
               .handleErrorWith {
                 case e: fs2.text.LineTooLongException =>
-                  throw new CdfSparkException(
-                    s"""Line too long in file with external id: "$fileExternalId" SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
-                    e)
+                  fileId match {
+                    case Left(fileExternalId: String) =>
+                      throw new CdfSparkException(
+                        s"""Line too long in file with external id: "$fileExternalId" SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
+                        e)
+                    case Right(fileInstanceId: InstanceId) =>
+                      throw new CdfSparkException(
+                        s"""Line too long in file having instanceId with space=${fileInstanceId.space}, externalId=${fileInstanceId.externalId}) SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
+                        e)
+                  }
+
                 case other =>
                   throw other
               }
@@ -163,8 +172,15 @@ class FileContentRelation(config: RelationConfig, fileId: Either[String, Instanc
       in.scanChunks(0L) { (acc, chunk) =>
         val newSize = acc + chunk.size
         if (newSize > fileSizeLimitBytes)
-          throw new CdfSparkException(
-            s"""File with external id: "$fileExternalId" size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
+          fileId match {
+            case Left(fileExternalId: String) =>
+              throw new CdfSparkException(
+                s"""File with external id: "$fileExternalId" size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
+            case Right(fileInstanceId: InstanceId) =>
+              throw new CdfSparkException(
+                s"""File with external  having instanceId with space=${fileInstanceId.space}, externalId=${fileInstanceId.externalId}  size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
+          }
+
         else
           (newSize, chunk)
     }
