@@ -56,12 +56,6 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     makeFile(Right(fileWithoutUploadInstanceId), None, None).unsafeRunSync()
   }
 
-
-//  uncomment for cleanups
-  override def afterAll(): Unit = {
-
-  }
-
   val generateNdjsonData: String = {
     val jsonObjects = List(
       """{"name": "Alice", "age": 30}""",
@@ -106,6 +100,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       case Left(externalId: String) => writeClient.files.deleteByExternalId(externalId)
     }
   }
+
   private def getUploadLink(id: Either[String, InstanceId]): IO[File] = {
     id match {
       case Right(instanceId: InstanceId) => writeClient.files.uploadLink(FileUploadInstanceId(instanceId))
@@ -150,31 +145,26 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       _ <- existingFile match {
         case Right(value) if value.uploaded == wantUploaded =>
           IO.unit
-        case Right(_) => deleteFile(id).attempt
+        case Right(_) => deleteFile(id)
         case Left(_) => IO.unit
       }
 
-      _ <- existingFile match {
-        case Right(value) if value.uploaded == wantUploaded => IO.unit
+      processedFile <- existingFile match {
+        case Right(value) if value.uploaded == wantUploaded => IO(value)
         case _ =>
-          createFile(id, mimeType).attempt
+          createFile(id, mimeType) *>
+            retryWhileIO[File](
+              getUploadLink(id).recoverWith(e => throw new RetryException(s"Retry needed for file upload link", e)),
+              _.uploadUrl.isEmpty
+            )
       }
 
-
-      fileWithUploadLink <- retryWhileIO[File](
-        getUploadLink(id)
-        .recoverWith(
-          e => throw new RetryException(
-            s"Retry needed for file upload link, because of exception ${e.getClass} with message ${e.getMessage}"
-          )),
-        _.uploadUrl.isEmpty)
-
       _ <- {
-        if (!fileWithUploadLink.uploaded && wantUploaded) {
+        if (!processedFile.uploaded && wantUploaded) {
           val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
-          val uploadUrl = fileWithUploadLink
+          val uploadUrl = processedFile
             .uploadUrl
-            .getOrElse(throw new MalformedURLException(s"bad url: '${fileWithUploadLink.uploadUrl}' uploaded status: ${fileWithUploadLink.uploaded}"))
+            .getOrElse(throw new MalformedURLException(s"bad url: '${processedFile.uploadUrl}' uploaded status: ${processedFile.uploaded}"))
           val request = basicRequest
             .put(uri"$uploadUrl")
             .body(optionalContent.get)
@@ -182,7 +172,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
             IO {
               val response = request.send(backend)
               if (response.code.isSuccess) {
-                println(s"NDJSON content uploaded successfully to ${fileWithUploadLink.uploadUrl}")
+                println(s"NDJSON content uploaded successfully to ${processedFile.uploadUrl}")
               } else {
                 throw new Exception(s"Failed to upload content: ${response.statusText}")
               }
