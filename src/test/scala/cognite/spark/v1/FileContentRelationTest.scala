@@ -7,7 +7,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.NodeDeleti
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import com.cognite.sdk.scala.v1.{CogniteInstanceId, File, FileCreate, InstanceId}
+import com.cognite.sdk.scala.v1.{CogniteInstanceId, File, FileCreate, FileUploadExternalId, FileUploadInstanceId, InstanceId}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types.{ArrayType, LongType, StringType, StructField, StructType}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
@@ -15,7 +15,9 @@ import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
 import scala.collection.immutable._
 import java.net.MalformedURLException
+import scala.concurrent.duration.DurationInt
 
+//This test is built with the assumption that these files are not externally modified, in order to skip recreating them if they already exist
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
   val fileExternalId: String = "fileContentTransformationFile"
   val fileExternalIdWithNestedJson: String = "fileContentTransformationFileNestedJson"
@@ -91,6 +93,12 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       case Left(externalId: String) => writeClient.files.deleteByExternalId(externalId)
     }
   }
+  private def getUploadLink(id: Either[String, InstanceId]): IO[File] = {
+    id match {
+      case Right(instanceId: InstanceId) => writeClient.files.uploadLink(FileUploadInstanceId(instanceId))
+      case Left(externalId: String) => writeClient.files.uploadLink(FileUploadExternalId(externalId))
+    }
+  }
 
   private def createFile(id: Either[String, InstanceId], mimeType: Option[String]): IO[Unit] = {
     id match {
@@ -127,28 +135,35 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
 
       // delete file if it was created but the actual file upload state doesn't match desired state
       _ <- existingFile match {
-        case Right(value) if value.uploaded == wantUploaded => deleteFile(id).attempt
-        case _ => IO.pure(())
+        case Right(value) if value.uploaded == wantUploaded =>
+          IO.unit
+        case Right(_) => deleteFile(id).attempt
+        case Left(_) => IO.unit
       }
 
       _ <- existingFile match {
-        case Right(value) if value.uploaded == wantUploaded => IO.pure(value)
+        case Right(value) if value.uploaded == wantUploaded => IO.unit
         case _ =>
-          createFile(id, mimeType)
+          createFile(id, mimeType).attempt *> IO.sleep(2.seconds)
       }
 
-      file <- getExistingFile(id)
+      _ <- IO.sleep(2.seconds)
+      fileWithUploadLink <- getUploadLink(id)
 
       _ <- {
-        if (!file.uploaded && wantUploaded) {
+        if (!fileWithUploadLink.uploaded && wantUploaded) {
           val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
-          val request = basicRequest.put(uri"${file.uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
+          val uploadUrl = fileWithUploadLink
+            .uploadUrl
+            .getOrElse(throw new MalformedURLException(s"bad url: '${fileWithUploadLink.uploadUrl}' uploaded status: ${fileWithUploadLink.uploaded}"))
+          val request = basicRequest
+            .put(uri"$uploadUrl")
             .body(optionalContent.get)
           backend.use { backend =>
             IO {
               val response = request.send(backend)
               if (response.code.isSuccess) {
-                println(s"NDJSON content uploaded successfully to ${file.uploadUrl}")
+                println(s"NDJSON content uploaded successfully to ${fileWithUploadLink.uploadUrl}")
               } else {
                 throw new Exception(s"Failed to upload content: ${response.statusText}")
               }
@@ -352,7 +367,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       true
     )(spark.sqlContext)
 
-    val expectedMessage = "Could not read file because no file was uploaded for externalId: fileWithoutUploadExternalId"
+    val expectedMessage = "Could not read file because no file was uploaded for instance id with externalId: fileWithoutUploadExternalId and space: testSpaceForSparkDatasource"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
