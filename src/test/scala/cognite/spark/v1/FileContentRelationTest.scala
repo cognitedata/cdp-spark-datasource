@@ -161,7 +161,13 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       }
 
 
-      fileWithUploadLink <- retryWhileIO[File](getUploadLink(id), _.uploadUrl.isEmpty)
+      fileWithUploadLink <- retryWhileIO[File](
+        getUploadLink(id)
+        .recoverWith(
+          e => throw new RetryException(
+            s"Retry needed for file upload link, because of exception ${e.getClass} with message ${e.getMessage}"
+          )),
+        _.uploadUrl.isEmpty)
 
       _ <- {
         if (!fileWithUploadLink.uploaded && wantUploaded) {
