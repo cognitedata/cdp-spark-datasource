@@ -370,10 +370,9 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     )(spark.sqlContext)
 
     val expectedMessage =
-      s"""
-         |Could not read file because no file was uploaded for instance id with
+      s"""Could not read file because no file was uploaded for instance id with
          |externalId: ${fileWithoutUploadInstanceId.externalId} and
-         |space: ${fileWithoutUploadInstanceId.space}""".stripMargin
+         |space: ${fileWithoutUploadInstanceId.space}""".stripMargin.replaceAll("\n", " ")
     val exception = sparkIntercept {
       relation.createDataFrame
     }
