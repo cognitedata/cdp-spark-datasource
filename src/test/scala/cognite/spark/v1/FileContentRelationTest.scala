@@ -2,19 +2,12 @@ package cognite.spark.v1
 
 import cats.effect.unsafe.implicits.global
 import cats.effect.{IO, Resource}
-import cognite.spark.v1.fdm.utils.FDMTestConstants.spaceExternalId
+import cognite.spark.v1.fdm.utils.FDMTestConstants.{client}
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.NodeDeletionRequest
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import com.cognite.sdk.scala.v1.{
-  CogniteInstanceId,
-  File,
-  FileCreate,
-  FileUploadExternalId,
-  FileUploadInstanceId,
-  InstanceId
-}
+import com.cognite.sdk.scala.v1.{CogniteInstanceId, File, FileCreate, FileUploadExternalId, FileUploadInstanceId, InstanceId, SpaceCreateDefinition}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
@@ -32,9 +25,9 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   val fileExternalIdWithNestedJson: String = "fileContentTransformationFileNestedJson"
   val fileExternalIdWithConflicts: String = "fileContentTransformationFileConflicts"
   val fileWithoutUploadExternalId: String = "fileWithoutUploadExternalId"
-
-  val fileInstanceId: InstanceId = InstanceId(space = spaceExternalId, externalId = fileExternalId)
-  val fileWithoutUploadInstanceId: InstanceId = InstanceId(space = spaceExternalId, externalId = fileWithoutUploadExternalId)
+  val fileInstanceSpaceExternalId = "fileInstanceSpace"
+  val fileInstanceId: InstanceId = InstanceId(space = fileInstanceSpaceExternalId, externalId = fileExternalId)
+  val fileWithoutUploadInstanceId: InstanceId = InstanceId(space = fileInstanceSpaceExternalId, externalId = fileWithoutUploadExternalId)
 
   override def beforeAll(): Unit = {
     if(shouldCleanup) {
@@ -52,6 +45,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     makeFile(Left(fileExternalIdWithConflicts), None, optionalContent = Some(generateNdjsonDataConflicting)).unsafeRunSync()
     makeFile(Left(fileWithoutUploadExternalId), None, None).unsafeRunSync()
 
+    client.spacesv3.createItems(Seq(SpaceCreateDefinition(fileInstanceSpaceExternalId))).unsafeRunSync()
     makeFile(Right(fileInstanceId)).unsafeRunSync()
     makeFile(Right(fileWithoutUploadInstanceId), None, None).unsafeRunSync()
   }
@@ -207,7 +201,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     val sourceDf: DataFrame = dataFrameReaderUsingOidc
       .useOIDCWrite
       .option("type", "filecontent")
-      .option("instanceSpace", spaceExternalId)
+      .option("instanceSpace", fileInstanceSpaceExternalId)
       .option("instanceExternalId", fileExternalId)
       .option("inferSchema", true)
       .load()
