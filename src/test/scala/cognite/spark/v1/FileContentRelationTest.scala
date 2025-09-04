@@ -2,7 +2,6 @@ package cognite.spark.v1
 
 import cats.effect.unsafe.implicits.global
 import cats.effect.{IO, Resource}
-import cognite.spark.v1.fdm.utils.FDMTestConstants.{client}
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.NodeDeletionRequest
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate}
