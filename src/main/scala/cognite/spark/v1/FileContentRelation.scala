@@ -47,6 +47,13 @@ class FileContentRelation(
   private val lineSizeLimitBytes: Int = (2.5 * FileUtils.ONE_MB).toInt
   override val lineSizeLimitCharacters: Int = lineSizeLimitBytes / 2
 
+  private val formattedIdentifier: String = {
+    fileId.fold(
+      externalId => s"externalId: \"$externalId\"",
+      instanceId => s"instanceId with space=\"${instanceId.space}\", externalId=\"${instanceId.externalId}\""
+    )
+  }
+
   @transient private lazy val sttpFileContentStreamingBackendResource
     : Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
     for {
@@ -81,14 +88,8 @@ class FileContentRelation(
               client.files.retrieveByInstanceId(CogniteInstanceId(instanceId))
           }
           _ <- IO.raiseWhen(!file.uploaded)(
-            fileId match {
-              case Left(fileExternalId: String) =>
-                new CdfSparkException(
-                  f"Could not read file because no file was uploaded for externalId: $fileExternalId")
-              case Right(instanceId: InstanceId) =>
-                new CdfSparkException(
-                  f"Could not read file because no file was uploaded for instance id with externalId: ${instanceId.externalId} and space: ${instanceId.space}")
-            }
+            new CdfSparkException(
+              f"Could not read file because no file identified using $formattedIdentifier was uploaded")
           )
           downloadLink <- fileId match {
             case Left(fileExternalId: String) =>
@@ -147,17 +148,9 @@ class FileContentRelation(
               .through(fs2.text.linesLimited(lineSizeLimitCharacters))
               .handleErrorWith {
                 case e: fs2.text.LineTooLongException =>
-                  fileId match {
-                    case Left(fileExternalId: String) =>
                       throw new CdfSparkException(
-                        s"""Line too long in file with external id: "$fileExternalId" SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
-                        e)
-                    case Right(fileInstanceId: InstanceId) =>
-                      throw new CdfSparkException(
-                        s"""Line too long in file having instanceId with space=${fileInstanceId.space}, externalId=${fileInstanceId.externalId}) SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
-                        e
-                      )
-                  }
+                        s"""Line too long in file identified using $formattedIdentifier SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
+                      e)
 
                 case other =>
                   throw other
@@ -179,14 +172,9 @@ class FileContentRelation(
       in.scanChunks(0L) { (acc, chunk) =>
         val newSize = acc + chunk.size
         if (newSize > fileSizeLimitBytes)
-          fileId match {
-            case Left(fileExternalId: String) =>
               throw new CdfSparkException(
-                s"""File with external id: "$fileExternalId" size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
-            case Right(fileInstanceId: InstanceId) =>
-              throw new CdfSparkException(
-                s"""File with external  having instanceId with space=${fileInstanceId.space}, externalId=${fileInstanceId.externalId}  size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
-          } else
+                s"""File identified using $formattedIdentifier size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
+           else
           (newSize, chunk)
     }
 
