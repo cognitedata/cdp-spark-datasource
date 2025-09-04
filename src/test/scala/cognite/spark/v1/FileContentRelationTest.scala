@@ -371,7 +371,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
 
     val expectedMessage =
       s"""Could not read file because no file identified using instanceId with
-         |space='${fileWithoutUploadInstanceId.space}'",
+         |space='${fileWithoutUploadInstanceId.space}',
          |externalId='${fileWithoutUploadInstanceId.externalId}'
          |was uploaded""".stripMargin.replaceAll("\n", " ")
     val exception = sparkIntercept {
