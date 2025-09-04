@@ -45,7 +45,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     makeFile(Left(fileExternalIdWithConflicts), None, optionalContent = Some(generateNdjsonDataConflicting)).unsafeRunSync()
     makeFile(Left(fileWithoutUploadExternalId), None, None).unsafeRunSync()
 
-    client.spacesv3.createItems(Seq(SpaceCreateDefinition(fileInstanceSpaceExternalId))).unsafeRunSync()
+    writeClient.spacesv3.createItems(Seq(SpaceCreateDefinition(fileInstanceSpaceExternalId))).unsafeRunSync()
     makeFile(Right(fileInstanceId)).unsafeRunSync()
     makeFile(Right(fileWithoutUploadInstanceId), None, None).unsafeRunSync()
   }
