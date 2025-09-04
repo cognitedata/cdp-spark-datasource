@@ -154,7 +154,7 @@ class DefaultSource
           externalId <- parameters.get("instanceExternalId")
           space <- parameters.get("instanceSpace")
         } yield InstanceId(space, externalId)
-        val inferSchema = parameters.getOrElse("inferSchema", "true").toBoolean
+        val inferSchema = toBoolean(parameters, "inferSchema")
         (externalId, instanceId) match {
           case (Some(externalId), None) =>
             new FileContentRelation(config, Left(externalId), inferSchema)(sqlContext)
