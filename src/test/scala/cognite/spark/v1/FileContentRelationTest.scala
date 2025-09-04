@@ -194,7 +194,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       )
   }
 
-  it should "read from a ndJson file when receiving instanceId options" in {
+  it should "read from a ndJson file (instanceId version)" in {
     val sourceDf: DataFrame = dataFrameReaderUsingOidc
       .useOIDCWrite
       .option("type", "filecontent")
