@@ -7,18 +7,27 @@ import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.NodeDeleti
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import com.cognite.sdk.scala.v1.{CogniteInstanceId, File, FileCreate, FileUploadExternalId, FileUploadInstanceId, InstanceId}
+import com.cognite.sdk.scala.v1.{
+  CogniteInstanceId,
+  File,
+  FileCreate,
+  FileUploadExternalId,
+  FileUploadInstanceId,
+  InstanceId
+}
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.types.{ArrayType, LongType, StringType, StructField, StructType}
+import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
-import scala.collection.immutable._
 import java.net.MalformedURLException
-import scala.concurrent.duration.DurationInt
+import scala.collection.immutable._
 
 //This test is built with the assumption that these files are not externally modified, in order to skip recreating them if they already exist
+
 class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
+  //if the files were externally modified, change this to true
+  val shouldCleanup: Boolean = false
   val fileExternalId: String = "fileContentTransformationFile"
   val fileExternalIdWithNestedJson: String = "fileContentTransformationFileNestedJson"
   val fileExternalIdWithConflicts: String = "fileContentTransformationFileConflicts"
@@ -28,6 +37,16 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   val fileWithoutUploadInstanceId: InstanceId = InstanceId(space = spaceExternalId, externalId = fileWithoutUploadExternalId)
 
   override def beforeAll(): Unit = {
+    if(shouldCleanup) {
+      writeClient.files.deleteByExternalIds(Seq(
+        fileExternalId,
+        fileExternalIdWithNestedJson,
+        fileExternalIdWithConflicts,
+        fileWithoutUploadExternalId
+      )).unsafeRunSync()
+      deleteFile(Right(fileInstanceId)).unsafeRunSync()
+      deleteFile(Right(fileWithoutUploadInstanceId)).unsafeRunSync()
+    }
     makeFile(Left(fileExternalId)).unsafeRunSync()
     makeFile(Left(fileExternalIdWithNestedJson), None, optionalContent = Some(generateNdjsonDataNested)).unsafeRunSync()
     makeFile(Left(fileExternalIdWithConflicts), None, optionalContent = Some(generateNdjsonDataConflicting)).unsafeRunSync()
@@ -39,15 +58,9 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
 
 
 //  uncomment for cleanups
-//  override def afterAll(): Unit = {
-//    writeClient.files.deleteByExternalIds(Seq(
-//      fileExternalId,
-//      fileExternalIdWithNestedJson,
-//      fileExternalIdWithConflicts,
-//      fileWithWrongMimeTypeExternalId,
-//      fileWithoutUploadExternalId
-//    )).unsafeRunSync()
-//  }
+  override def afterAll(): Unit = {
+
+  }
 
   val generateNdjsonData: String = {
     val jsonObjects = List(
@@ -144,11 +157,11 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       _ <- existingFile match {
         case Right(value) if value.uploaded == wantUploaded => IO.unit
         case _ =>
-          createFile(id, mimeType).attempt *> IO.sleep(2.seconds)
+          createFile(id, mimeType).attempt
       }
 
-      _ <- IO.sleep(2.seconds)
-      fileWithUploadLink <- getUploadLink(id)
+
+      fileWithUploadLink <- retryWhileIO[File](getUploadLink(id), _.uploadUrl.isEmpty)
 
       _ <- {
         if (!fileWithUploadLink.uploaded && wantUploaded) {
