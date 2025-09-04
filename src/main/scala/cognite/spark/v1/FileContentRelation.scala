@@ -49,8 +49,8 @@ class FileContentRelation(
 
   private val formattedIdentifier: String = {
     fileId.fold(
-      externalId => s"externalId: \"$externalId\"",
-      instanceId => s"instanceId with space=\"${instanceId.space}\", externalId=\"${instanceId.externalId}\""
+      externalId => s"externalId: '$externalId'",
+      instanceId => s"instanceId with space='${instanceId.space}', externalId='${instanceId.externalId}'"
     )
   }
 
@@ -148,9 +148,9 @@ class FileContentRelation(
               .through(fs2.text.linesLimited(lineSizeLimitCharacters))
               .handleErrorWith {
                 case e: fs2.text.LineTooLongException =>
-                      throw new CdfSparkException(
-                        s"""Line too long in file identified using $formattedIdentifier SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
-                      e)
+                  throw new CdfSparkException(
+                    s"""Line too long in file identified using $formattedIdentifier SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
+                    e)
 
                 case other =>
                   throw other
@@ -172,9 +172,9 @@ class FileContentRelation(
       in.scanChunks(0L) { (acc, chunk) =>
         val newSize = acc + chunk.size
         if (newSize > fileSizeLimitBytes)
-              throw new CdfSparkException(
-                s"""File identified using $formattedIdentifier size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
-           else
+          throw new CdfSparkException(
+            s"""File identified using $formattedIdentifier size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
+        else
           (newSize, chunk)
     }
 

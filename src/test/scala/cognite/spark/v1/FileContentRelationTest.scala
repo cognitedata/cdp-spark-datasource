@@ -319,7 +319,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       override val fileSizeLimitBytes: Long = 100
     }
 
-    val expectedMessage = "File identified using externalId: \"fileContentTransformationFile\" size too big. SizeLimit in bytes: 100"
+    val expectedMessage = "File identified using externalId: 'fileContentTransformationFile' size too big. SizeLimit in bytes: 100"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
@@ -337,7 +337,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       override val lineSizeLimitCharacters: Int = 5
     }
 
-    val expectedMessage = "Line too long in file identified using externalId: \"fileContentTransformationFile\" SizeLimit in characters: 5, but 47 characters accumulated"
+    val expectedMessage = "Line too long in file identified using externalId: 'fileContentTransformationFile' SizeLimit in characters: 5, but 47 characters accumulated"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
@@ -353,7 +353,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       true
     )(spark.sqlContext)
 
-    val expectedMessage = "Could not read file because no file identified using externalId: \"fileWithoutUploadExternalId\" was uploaded"
+    val expectedMessage = "Could not read file because no file identified using externalId: 'fileWithoutUploadExternalId' was uploaded"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
@@ -371,8 +371,8 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
 
     val expectedMessage =
       s"""Could not read file because no file identified using instanceId with
-         |space=\"${fileWithoutUploadInstanceId.space}\"",
-         |externalId=\"${fileWithoutUploadInstanceId.externalId}\"
+         |space='${fileWithoutUploadInstanceId.space}'",
+         |externalId='${fileWithoutUploadInstanceId.externalId}'
          |was uploaded""".stripMargin.replaceAll("\n", " ")
     val exception = sparkIntercept {
       relation.createDataFrame
