@@ -161,11 +161,11 @@ class DefaultSource
           case (None, Some(instanceId)) =>
             new FileContentRelation(config, Right(instanceId), inferSchema)(sqlContext)
           case (None, None) =>
-            sys.error(
-              "Trying to create a file_content_relation with neither the externalId nor the instanceId defined")
+            throw new CdfSparkIllegalArgumentException(
+              "Either 'externalId' or both 'instanceSpace' and 'instanceExternalId' must be specified for filecontent.")
           case (Some(_), Some(_)) =>
-            sys.error(
-              "Trying to create a file_content_relation with both externalId and instanceId defined at the same time")
+            throw new CdfSparkIllegalArgumentException(
+              "Both 'externalId' and ('instanceSpace', 'instanceExternalId') were specified for filecontent. Please provide only one identifier.")
         }
       case ThreeDModelsRelation.name =>
         new ThreeDModelsRelation(config)(sqlContext)
