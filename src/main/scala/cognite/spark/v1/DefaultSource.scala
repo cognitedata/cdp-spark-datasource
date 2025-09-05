@@ -149,7 +149,7 @@ class DefaultSource
       case FilesRelation.name =>
         new FilesRelation(config)(sqlContext)
       case FileContentRelation.name =>
-        val inferSchema = toBoolean(parameters, "inferSchema")
+        val inferSchema = toBoolean(parameters, "inferSchema", defaultValue = true)
         val fileExternalId =
           parameters.getOrElse("externalId", sys.error("File's external id must be specified"))
         new FileContentRelation(config, fileExternalId, inferSchema)(sqlContext)

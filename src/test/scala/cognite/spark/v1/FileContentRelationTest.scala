@@ -144,6 +144,20 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     )
   }
 
+  it should "infer the schema by default" in {
+    val sourceDf: DataFrame = dataFrameReaderUsingOidc
+      .useOIDCWrite
+      .option("type", "filecontent")
+      .option("externalId", fileExternalId)
+      .load()
+    sourceDf.createOrReplaceTempView("fileContent")
+    sourceDf.schema.fields should contain allElementsOf Seq(
+      StructField("name", StringType, nullable = true),
+      StructField("test", StringType, nullable = true),
+      StructField("age", LongType, nullable = true)
+    )
+  }
+
   it should "infer the schema correctly with nested json" in {
     val sourceDf: DataFrame = dataFrameReaderUsingOidc
       .useOIDCWrite
@@ -184,7 +198,6 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       StructField("age", LongType, nullable = true)
     )
   }
-
 
   it should "select specific columns" in {
     val sourceDf: DataFrame = dataFrameReaderUsingOidc
