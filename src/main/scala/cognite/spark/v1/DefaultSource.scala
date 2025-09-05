@@ -152,8 +152,8 @@ class DefaultSource
         val externalId: Option[String] = parameters.get("externalId")
         val instanceId: Option[InstanceId] = for {
           instanceExternalId <- parameters.get("instanceExternalId")
-          space <- parameters.get("instanceSpace")
-        } yield InstanceId(space, instanceExternalId)
+          instanceSpace <- parameters.get("instanceSpace")
+        } yield InstanceId(instanceSpace, instanceExternalId)
         val inferSchema = toBoolean(parameters, "inferSchema", defaultValue = true)
         (externalId, instanceId) match {
           case (Some(externalId), None) =>
