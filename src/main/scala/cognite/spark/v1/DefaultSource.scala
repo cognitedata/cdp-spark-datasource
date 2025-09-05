@@ -148,13 +148,13 @@ class DefaultSource
         new EventsRelation(config)(sqlContext)
       case FilesRelation.name =>
         new FilesRelation(config)(sqlContext)
-      case FileContentRelation.name => {
+      case FileContentRelation.name =>
         val externalId: Option[String] = parameters.get("externalId")
         val instanceId: Option[InstanceId] = for {
           externalId <- parameters.get("instanceExternalId")
           space <- parameters.get("instanceSpace")
         } yield InstanceId(space, externalId)
-        val inferSchema = toBoolean(parameters, "inferSchema")
+        val inferSchema = toBoolean(parameters, "inferSchema", defaultValue = true)
         (externalId, instanceId) match {
           case (Some(externalId), None) =>
             new FileContentRelation(config, Left(externalId), inferSchema)(sqlContext)
@@ -167,7 +167,6 @@ class DefaultSource
             sys.error(
               "Trying to create a file_content_relation with both externalId and instanceId defined at the same time")
         }
-      }
       case ThreeDModelsRelation.name =>
         new ThreeDModelsRelation(config)(sqlContext)
       case ThreeDModelRevisionsRelation.name =>
