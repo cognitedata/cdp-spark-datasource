@@ -151,9 +151,9 @@ class DefaultSource
       case FileContentRelation.name =>
         val externalId: Option[String] = parameters.get("externalId")
         val instanceId: Option[InstanceId] = for {
-          externalId <- parameters.get("instanceExternalId")
+          instanceExternalId <- parameters.get("instanceExternalId")
           space <- parameters.get("instanceSpace")
-        } yield InstanceId(space, externalId)
+        } yield InstanceId(space, instanceExternalId)
         val inferSchema = toBoolean(parameters, "inferSchema", defaultValue = true)
         (externalId, instanceId) match {
           case (Some(externalId), None) =>
