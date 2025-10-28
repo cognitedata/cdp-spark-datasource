@@ -11,7 +11,8 @@ import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 import scala.collection.immutable._
 import java.net.MalformedURLException
 
-class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
+class FileContentRelationTest extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
+  val shouldCleanup: Boolean = false
   val fileExternalId: String = "fileContentTransformationFile"
   val fileExternalIdWithNestedJson: String = "fileContentTransformationFileNestedJson"
   val fileExternalIdWithConflicts: String = "fileContentTransformationFileConflicts"
@@ -19,6 +20,16 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   val fileWithoutUploadExternalId: String = "fileWithoutUploadExternalId"
 
   override def beforeAll(): Unit = {
+
+    if(shouldCleanup)
+      writeClient.files.deleteByExternalIds(Seq(
+        fileExternalId,
+        fileExternalIdWithNestedJson,
+        fileExternalIdWithConflicts,
+        fileWithWrongMimeTypeExternalId,
+        fileWithoutUploadExternalId
+      )).unsafeRunSync()
+
     makeFile(fileExternalId).unsafeRunSync()
     makeFile(fileExternalIdWithNestedJson, None, generateNdjsonDataNested).unsafeRunSync()
     makeFile(fileExternalIdWithConflicts, None, generateNdjsonDataConflicting).unsafeRunSync()
@@ -27,16 +38,7 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   }
 
 
-//  uncomment for cleanups
-//  override def afterAll(): Unit = {
-//    writeClient.files.deleteByExternalIds(Seq(
-//      fileExternalId,
-//      fileExternalIdWithNestedJson,
-//      fileExternalIdWithConflicts,
-//      fileWithWrongMimeTypeExternalId,
-//      fileWithoutUploadExternalId
-//    )).unsafeRunSync()
-//  }
+
 
   val generateNdjsonData: String = {
     val jsonObjects = List(
