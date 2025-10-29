@@ -2,52 +2,43 @@ package cognite.spark.v1
 
 import cats.effect.unsafe.implicits.global
 import cats.effect.{IO, Resource}
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.NodeDeletionRequest
-import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
-import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceCreate}
-import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import com.cognite.sdk.scala.v1.{CogniteInstanceId, File, FileCreate, FileUploadExternalId, FileUploadInstanceId, InstanceId, SpaceCreateDefinition}
+import com.cognite.sdk.scala.v1.FileCreate
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.{ArrayType, LongType, StringType, StructField, StructType}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import sttp.client3.{HttpURLConnectionBackend, UriContext, basicRequest}
 
-import java.net.MalformedURLException
 import scala.collection.immutable._
+import java.net.MalformedURLException
 
-//This test is built with the assumption that these files are not externally modified, in order to skip recreating them if they already exist
-
-class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
-  //if the files were externally modified, change this to true
+class FileContentRelationTest extends FlatSpec with Matchers with SparkTest with BeforeAndAfterAll {
   val shouldCleanup: Boolean = false
   val fileExternalId: String = "fileContentTransformationFile"
   val fileExternalIdWithNestedJson: String = "fileContentTransformationFileNestedJson"
   val fileExternalIdWithConflicts: String = "fileContentTransformationFileConflicts"
+  val fileWithWrongMimeTypeExternalId: String = "fileContentTransformationFileWrongMimeType"
   val fileWithoutUploadExternalId: String = "fileWithoutUploadExternalId"
-  val fileInstanceSpaceExternalId = "fileInstanceSpace"
-  val fileInstanceId: InstanceId = InstanceId(space = fileInstanceSpaceExternalId, externalId = fileExternalId)
-  val fileWithoutUploadInstanceId: InstanceId = InstanceId(space = fileInstanceSpaceExternalId, externalId = fileWithoutUploadExternalId)
 
   override def beforeAll(): Unit = {
-    if(shouldCleanup) {
+
+    if(shouldCleanup)
       writeClient.files.deleteByExternalIds(Seq(
         fileExternalId,
         fileExternalIdWithNestedJson,
         fileExternalIdWithConflicts,
+        fileWithWrongMimeTypeExternalId,
         fileWithoutUploadExternalId
       )).unsafeRunSync()
-      deleteFile(Right(fileInstanceId)).unsafeRunSync()
-      deleteFile(Right(fileWithoutUploadInstanceId)).unsafeRunSync()
-    }
-    makeFile(Left(fileExternalId)).unsafeRunSync()
-    makeFile(Left(fileExternalIdWithNestedJson), None, optionalContent = Some(generateNdjsonDataNested)).unsafeRunSync()
-    makeFile(Left(fileExternalIdWithConflicts), None, optionalContent = Some(generateNdjsonDataConflicting)).unsafeRunSync()
-    makeFile(Left(fileWithoutUploadExternalId), None, None).unsafeRunSync()
 
-    writeClient.spacesv3.createItems(Seq(SpaceCreateDefinition(fileInstanceSpaceExternalId))).unsafeRunSync()
-    makeFile(Right(fileInstanceId)).unsafeRunSync()
-    makeFile(Right(fileWithoutUploadInstanceId), None, None).unsafeRunSync()
+    makeFile(fileExternalId).unsafeRunSync()
+    makeFile(fileExternalIdWithNestedJson, None, generateNdjsonDataNested).unsafeRunSync()
+    makeFile(fileExternalIdWithConflicts, None, generateNdjsonDataConflicting).unsafeRunSync()
+
+    makeFile(fileWithWrongMimeTypeExternalId, Some("application/json")).unsafeRunSync()//bad mimetype
   }
+
+
+
 
   val generateNdjsonData: String = {
     val jsonObjects = List(
@@ -79,93 +70,37 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
     jsonObjects.mkString("\n")
   }
 
-
-  private def getExistingFile(id: Either[String, InstanceId]): IO[File] = {
-    id match {
-      case Right(instanceId: InstanceId) => writeClient.files.retrieveByInstanceId(CogniteInstanceId(instanceId))
-      case Left(externalId: String) => writeClient.files.retrieveByExternalId(externalId)
-    }
-  }
-
-  private def deleteFile(id: Either[String, InstanceId]): IO[Unit] = {
-    id match {
-      case Right(instanceId: InstanceId) => writeClient.instances.delete(Seq(NodeDeletionRequest(instanceId.space, instanceId.externalId))) *> IO.unit
-      case Left(externalId: String) => writeClient.files.deleteByExternalId(externalId)
-    }
-  }
-
-  private def getUploadLink(id: Either[String, InstanceId]): IO[File] = {
-    id match {
-      case Right(instanceId: InstanceId) => writeClient.files.uploadLink(FileUploadInstanceId(instanceId))
-      case Left(externalId: String) => writeClient.files.uploadLink(FileUploadExternalId(externalId))
-    }
-  }
-
-  private def createFile(id: Either[String, InstanceId], mimeType: Option[String]): IO[Unit] = {
-    id match {
-      case Right(instanceId: InstanceId) =>
-        val toCreate: InstanceCreate = InstanceCreate(
-          items = Seq(
-            NodeWrite(
-              space = instanceId.space,
-              externalId = instanceId.externalId,
-              Some(Seq(EdgeOrNodeData(ViewReference("cdf_cdm", "CogniteFile", "v1"), None))
-              ),
-              None
-            )),
-          None,
-          None,
-          None,
-          None
-        )
-        writeClient.instances.createItems(toCreate).map(_.headOption.getOrElse(throw new IllegalStateException("could not create file"))) *> IO.unit
-      case Left(externalId: String) =>
-        val toCreate: FileCreate = FileCreate(
-          name = "test file for file content transformation",
-          externalId = Some(externalId),
-          mimeType = mimeType,
-        )
-        writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
-    }
-  }
-
-  private def makeFile(id: Either[String, InstanceId], mimeType: Option[String] = Some("application/jsonlines"), optionalContent: Option[String] = Some(generateNdjsonData)): IO[Unit]  = {
-    val wantUploaded = optionalContent.isDefined
+  def makeFile(externalId: String, mimeType: Option[String] = Some("application/jsonlines"), content: String = generateNdjsonData): IO[Unit]  = {
+    val toCreate: FileCreate = FileCreate(
+      name = "test file for file content transformation",
+      externalId = Some(externalId),
+      mimeType = mimeType,
+    )
     for {
-      existingFile <- getExistingFile(id).attempt
+      existingFile <- writeClient.files.retrieveByExternalId(externalId).attempt
 
-      // delete file if it was created but the actual file upload state doesn't match desired state
+      // delete file if it was created but the actual file wasn't uploaded so we can get an uploadUrl
       _ <- existingFile match {
-        case Right(value) if value.uploaded == wantUploaded =>
-          IO.unit
-        case Right(_) => deleteFile(id)
-        case Left(_) => IO.unit
+        case Right(value) if !value.uploaded => writeClient.files.deleteByExternalIds(Seq(externalId))
+        case _ => IO.pure(())
       }
 
-      processedFile <- existingFile match {
-        case Right(value) if value.uploaded == wantUploaded => IO(value)
+      file <- existingFile match {
+        case Right(value) if value.uploaded => IO.pure(value)
         case _ =>
-          createFile(id, mimeType) *>
-            retryWhileIO[File](
-              getUploadLink(id).recoverWith(e => throw new RetryException(s"Retry needed for file upload link", e)),
-              _.uploadUrl.isEmpty
-            )
+          writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
       }
 
       _ <- {
-        if (!processedFile.uploaded && wantUploaded) {
+        if (!file.uploaded) {
           val backend = Resource.make(IO(HttpURLConnectionBackend()))(b => IO(b.close()))
-          val uploadUrl = processedFile
-            .uploadUrl
-            .getOrElse(throw new MalformedURLException(s"bad url: '${processedFile.uploadUrl}' uploaded status: ${processedFile.uploaded}"))
-          val request = basicRequest
-            .put(uri"$uploadUrl")
-            .body(optionalContent.get)
+          val request = basicRequest.put(uri"${file.uploadUrl.getOrElse(throw new MalformedURLException("bad url"))}")
+            .body(content)
           backend.use { backend =>
             IO {
               val response = request.send(backend)
               if (response.code.isSuccess) {
-                println(s"NDJSON content uploaded successfully to ${processedFile.uploadUrl}")
+                println(s"NDJSON content uploaded successfully to ${file.uploadUrl}")
               } else {
                 throw new Exception(s"Failed to upload content: ${response.statusText}")
               }
@@ -183,25 +118,6 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       .useOIDCWrite
       .option("type", "filecontent")
       .option("externalId", fileExternalId)
-      .option("inferSchema", true)
-      .load()
-    sourceDf.createOrReplaceTempView("fileContent")
-    val result = spark.sqlContext.sql(s"select * from filecontent").collect()
-    result.map(_.toSeq.toList) should contain theSameElementsAs
-      Array(
-        List[Any](30, "Alice", null),
-        List[Any](25, "Bob", null),
-        List[Any](35, "Charlie", null),
-        List[Any](35, "Charlie2", "test")
-      )
-  }
-
-  it should "read from a ndJson file (instanceId version)" in {
-    val sourceDf: DataFrame = dataFrameReaderUsingOidc
-      .useOIDCWrite
-      .option("type", "filecontent")
-      .option("instanceSpace", fileInstanceSpaceExternalId)
-      .option("instanceExternalId", fileExternalId)
       .option("inferSchema", true)
       .load()
     sourceDf.createOrReplaceTempView("fileContent")
@@ -326,13 +242,13 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   it should "limit by file size in byte" in {
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
-      fileId = Left(fileExternalId),
+      fileExternalId = fileExternalId,
       true
     )(spark.sqlContext) {
       override val fileSizeLimitBytes: Long = 100
     }
 
-    val expectedMessage = "File identified using externalId: 'fileContentTransformationFile' size too big. SizeLimit in bytes: 100"
+    val expectedMessage = "File with external id: \"fileContentTransformationFile\" size too big. SizeLimit in bytes: 100"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
@@ -344,13 +260,13 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   it should "limit by line size in character" in {
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
-      fileId = Left(fileExternalId),
+      fileExternalId = fileExternalId,
       true
     )(spark.sqlContext) {
       override val lineSizeLimitCharacters: Int = 5
     }
 
-    val expectedMessage = "Line too long in file identified using externalId: 'fileContentTransformationFile' SizeLimit in characters: 5, but 47 characters accumulated"
+    val expectedMessage = "Line too long in file with external id: \"fileContentTransformationFile\" SizeLimit in characters: 5, but 47 characters accumulated"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
@@ -360,13 +276,29 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
   }
 
   it should "throw if the file was never uploaded" in {
+
+    val toCreate: FileCreate = FileCreate(
+      name = "test file for file content transformation",
+      externalId = Some(fileWithoutUploadExternalId),
+      mimeType = None,
+    )
+    val file = for {
+      existingFile <- writeClient.files.retrieveByExternalId(fileWithoutUploadExternalId).attempt
+      _ <- existingFile match {
+        case Right(value) if !value.uploaded => IO.pure(value)
+        case _ =>
+          writeClient.files.create(Seq(toCreate)).map(_.headOption.getOrElse(throw new IllegalStateException("could not upload file")))
+      }
+    } yield ()
+    file.unsafeRunSync()
+
     val relation = new FileContentRelation(
       getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
-      fileId = Left(fileWithoutUploadExternalId),
+      fileExternalId = fileWithoutUploadExternalId,
       true
     )(spark.sqlContext)
 
-    val expectedMessage = "Could not read file because no file identified using externalId: 'fileWithoutUploadExternalId' was uploaded"
+    val expectedMessage = "Could not read file because no file was uploaded for externalId: fileWithoutUploadExternalId"
     val exception = sparkIntercept {
       relation.createDataFrame
     }
@@ -374,23 +306,6 @@ class FileContentRelationTest  extends FlatSpec with Matchers with SparkTest wit
       exception.getMessage.contains(expectedMessage) should be(true)
     }
   }
-
-  it should "throw if the file was never uploaded (instanceId version)" in {
-    val relation = new FileContentRelation(
-      getDefaultConfig(auth = CdfSparkAuth.OAuth2ClientCredentials(credentials = writeCredentials), projectName = OIDCWrite.project, cluster = OIDCWrite.cluster, applicationName = Some("jetfire-test")),
-      fileId = Right(fileWithoutUploadInstanceId),
-      true
-    )(spark.sqlContext)
-    val formattedIdentifier = s"instanceId with space='${fileWithoutUploadInstanceId.space}', externalId='${fileWithoutUploadInstanceId.externalId}'"
-    val expectedMessage = s"Could not read file because no file identified using $formattedIdentifier was uploaded"
-    val exception = sparkIntercept {
-      relation.createDataFrame
-    }
-    withClue(s"Expected '$expectedMessage' but got: '${exception.getMessage}'") {
-      exception.getMessage.contains(expectedMessage) should be(true)
-    }
-  }
-
 }
 
 
