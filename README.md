@@ -1527,14 +1527,6 @@ from a file, you can create a file in this directory named `.env` containing env
 per line, of the format `ENVIRONMENT_VARIABLE_NAME=value`.
 See [sbt-dotenv](https://github.com/mefellows/sbt-dotenv) for more information.
 
-### Set up
-
-1. First run `sbt compile` to generate Scala sources for protobuf.
-
-2. Run the Python files `scripts/createThreeDData.py` and `scripts/createFilesMetaData.py` (You need to install the cognite-sdk-python and set the `PROJECT` environment variables).
-
-This uploads a 3D model to your project that you can use for testing.
-
 ### Run the tests
 
 To run **all tests**, run `sbt test`.
