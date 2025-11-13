@@ -16,7 +16,7 @@
       "enabled": false
     },
     {
-      "matchDatasources": ["sbt"],
+      "matchDatasources": ["sbt", "maven", "sbt-package"],
       "addLabels": ["auto-lockfile-update"]
     }
   ]
