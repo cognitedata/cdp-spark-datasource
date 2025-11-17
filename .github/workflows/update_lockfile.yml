@@ -26,7 +26,7 @@ jobs:
           apps: sbt
 
       - name: Update lock
-        run: sbt -Dsbt.log.noformat=true +dependencyLockWrite
+        run: sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockWrite
 
       - uses: EndBug/add-and-commit@v9
         with:
