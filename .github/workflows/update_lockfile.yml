@@ -1,0 +1,35 @@
+name: Update lockfile
+
+on:
+  pull_request:
+    types: [labeled,opened,reopened,synchronize]
+    branches: [ master ]
+
+jobs:
+  update_lockfile:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'auto-lockfile-update')
+    environment: CI
+
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        name: Checkout repository
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Set up JDK 11
+        uses: coursier/setup-action@039f736548afa5411c1382f40a5bd9c2d30e0383 # v1.3.9
+        with:
+          jvm: temurin:11
+          apps: sbt
+
+      - name: Update lock
+        run: sbt -Dsbt.log.noformat=true +{,macroSub/,structType/}dependencyLockWrite
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+          add: 'build*.sbt.lock'
+          message: 'Update lockfiles'
+          author_name: 'github-actions'
