@@ -6,14 +6,33 @@ import sttp.client3.{Request, Response, SttpBackend}
 import sttp.model.Header
 import sttp.monad.MonadError
 
-class FixedTraceSttpBackend[F[_], +P](delegate: SttpBackend[F, P], kernel: Kernel)
+import java.time.Instant
+import java.util.concurrent.atomic.AtomicLong
+
+class FixedTraceSttpBackend[F[_], +P](
+    delegate: SttpBackend[F, P],
+    kernel: Kernel,
+    maxRequests: Option[Long] = None,
+    maxTime: Option[Instant] = None)
     extends SttpBackend[F, P] {
+  private val requestsMade: AtomicLong = new AtomicLong(0)
+
+  private def shouldPropagate(): Boolean = {
+    val reqNo = requestsMade.incrementAndGet()
+    val now = Instant.now()
+    maxRequests.forall(reqNo <= _) && maxTime.forall(now.compareTo(_) <= 0)
+  }
+
   override def send[T, R >: P with capabilities.Effect[F]](request: Request[T, R]): F[Response[T]] =
-    delegate.send(
-      request.headers(
-        kernel.toHeaders.map { case (k, v) => Header(k.toString, v) }.toSeq: _*
+    if (shouldPropagate()) {
+      delegate.send(
+        request.headers(
+          kernel.toHeaders.map { case (k, v) => Header(k.toString, v) }.toSeq: _*
+        )
       )
-    )
+    } else {
+      delegate.send(request)
+    }
 
   override def close(): F[Unit] = delegate.close()
 

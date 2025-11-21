@@ -272,7 +272,7 @@ trait SparkTest {
       ignoreNullFields = true,
       rawEnsureParent = false,
       enableSinglePartitionDeleteAssetHierarchy = false,
-      tracingParent = new Kernel(Map.empty),
+      tracingConfig = TracingConfig(new Kernel(Map.empty), None, None),
       useSharedThrottle = false,
       serverSideFilterNullValuesOnNonSchemaRawQueries = false,
       maxOutstandingRawInsertRequests = None

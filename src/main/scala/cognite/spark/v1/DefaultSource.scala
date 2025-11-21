@@ -25,6 +25,7 @@ import org.log4s.getLogger
 import org.typelevel.ci.CIString
 import sttp.model.Uri
 
+import java.time.Instant
 import scala.reflect.classTag
 
 class DefaultSource
@@ -404,6 +405,13 @@ object DefaultSource {
         .map(kv => (CIString(kv._1.substring(TRACING_PARAMETER_PREFIX.length)), kv._2))
         .toMap)
 
+  def extractTracingConfig(parameters: Map[String, String]): TracingConfig =
+    new TracingConfig(
+      extractTracingHeadersKernel(parameters),
+      parameters.get("tracingMaxRequests").map(_.toLong),
+      parameters.get("tracingMaxTimestampSecondsUtc").map(_.toLong).map(Instant.ofEpochSecond)
+    )
+
   def saveTracingHeaders(knl: Kernel): Seq[(String, String)] =
     knl.toHeaders.toList.map(kv => (TRACING_PARAMETER_PREFIX + kv._1, kv._2))
 
@@ -507,7 +515,7 @@ object DefaultSource {
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
       rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
       enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy,
-      tracingParent = extractTracingHeadersKernel(parameters),
+      tracingConfig = extractTracingConfig(parameters),
       useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false),
       serverSideFilterNullValuesOnNonSchemaRawQueries =
         toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false),
