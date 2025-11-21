@@ -2,6 +2,14 @@ package cognite.spark.v1
 
 import natchez.Kernel
 
+import java.time.Instant
+
+final case class TracingConfig(
+    tracingParent: Kernel,
+    maxRequests: Option[Long],
+    maxTime: Option[Instant],
+)
+
 final case class RelationConfig(
     auth: CdfSparkAuth,
     clientTag: Option[String],
@@ -26,7 +34,7 @@ final case class RelationConfig(
     ignoreNullFields: Boolean,
     rawEnsureParent: Boolean,
     enableSinglePartitionDeleteAssetHierarchy: Boolean, // flag to test whether single partition helps avoid NPE in asset hierarchy builder
-    tracingParent: Kernel,
+    tracingConfig: TracingConfig,
     initialRetryDelayMillis: Int,
     useSharedThrottle: Boolean,
     serverSideFilterNullValuesOnNonSchemaRawQueries: Boolean,
