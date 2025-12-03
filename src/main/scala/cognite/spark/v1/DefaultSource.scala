@@ -13,7 +13,7 @@ import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.{
 import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.fdm.common.Usage
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
-import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId, InstanceId}
+import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteId, CogniteInternalId}
 import fs2.Stream
 import io.circe.Decoder
 import io.circe.parser.parse
@@ -25,6 +25,7 @@ import org.log4s.getLogger
 import org.typelevel.ci.CIString
 import sttp.model.Uri
 
+import java.time.Instant
 import scala.reflect.classTag
 
 class DefaultSource
@@ -149,24 +150,10 @@ class DefaultSource
       case FilesRelation.name =>
         new FilesRelation(config)(sqlContext)
       case FileContentRelation.name =>
-        val externalId: Option[String] = parameters.get("externalId")
-        val instanceId: Option[InstanceId] = for {
-          instanceExternalId <- parameters.get("instanceExternalId")
-          instanceSpace <- parameters.get("instanceSpace")
-        } yield InstanceId(instanceSpace, instanceExternalId)
         val inferSchema = toBoolean(parameters, "inferSchema", defaultValue = true)
-        (externalId, instanceId) match {
-          case (Some(externalId), None) =>
-            new FileContentRelation(config, Left(externalId), inferSchema)(sqlContext)
-          case (None, Some(instanceId)) =>
-            new FileContentRelation(config, Right(instanceId), inferSchema)(sqlContext)
-          case (None, None) =>
-            throw new CdfSparkIllegalArgumentException(
-              "Either 'externalId' or both 'instanceSpace' and 'instanceExternalId' must be specified for filecontent.")
-          case (Some(_), Some(_)) =>
-            throw new CdfSparkIllegalArgumentException(
-              "Both 'externalId' and ('instanceSpace', 'instanceExternalId') were specified for filecontent. Please provide only one identifier.")
-        }
+        val fileExternalId =
+          parameters.getOrElse("externalId", sys.error("File's external id must be specified"))
+        new FileContentRelation(config, fileExternalId, inferSchema)(sqlContext)
       case ThreeDModelsRelation.name =>
         new ThreeDModelsRelation(config)(sqlContext)
       case ThreeDModelRevisionsRelation.name =>
@@ -418,6 +405,13 @@ object DefaultSource {
         .map(kv => (CIString(kv._1.substring(TRACING_PARAMETER_PREFIX.length)), kv._2))
         .toMap)
 
+  def extractTracingConfig(parameters: Map[String, String]): TracingConfig =
+    new TracingConfig(
+      extractTracingHeadersKernel(parameters),
+      parameters.get("tracingMaxRequests").map(_.toLong),
+      parameters.get("tracingMaxTimestampSecondsUtc").map(_.toLong).map(Instant.ofEpochSecond)
+    )
+
   def saveTracingHeaders(knl: Kernel): Seq[(String, String)] =
     knl.toHeaders.toList.map(kv => (TRACING_PARAMETER_PREFIX + kv._1, kv._2))
 
@@ -521,7 +515,7 @@ object DefaultSource {
       ignoreNullFields = toBoolean(parameters, "ignoreNullFields", defaultValue = true),
       rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
       enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy,
-      tracingParent = extractTracingHeadersKernel(parameters),
+      tracingConfig = extractTracingConfig(parameters),
       useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false),
       serverSideFilterNullValuesOnNonSchemaRawQueries =
         toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false),

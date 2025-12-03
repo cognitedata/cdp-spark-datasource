@@ -2,12 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.std.Dispatcher
 import cats.effect.{IO, Resource}
-import com.cognite.sdk.scala.v1.{
-  CogniteInstanceId,
-  FileDownloadExternalId,
-  FileDownloadInstanceId,
-  InstanceId
-}
+import com.cognite.sdk.scala.v1.FileDownloadExternalId
 import fs2.{Pipe, Stream}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
@@ -32,10 +27,8 @@ trait WithSizeLimit {
   val lineSizeLimitCharacters: Int
 }
 
-class FileContentRelation(
-    config: RelationConfig,
-    fileId: Either[String, InstanceId],
-    inferSchema: Boolean)(override val sqlContext: SQLContext)
+class FileContentRelation(config: RelationConfig, fileExternalId: String, inferSchema: Boolean)(
+    override val sqlContext: SQLContext)
     extends CdfRelation(config, FileContentRelation.name)
     with TableScan
     with PrunedFilteredScan
@@ -46,13 +39,6 @@ class FileContentRelation(
   //We enforce an arbitrarily chosen 2.5MB JVM mem limit per line. In jvm each character takes 2bytes so we divide by two to get the limit in characters.
   private val lineSizeLimitBytes: Int = (2.5 * FileUtils.ONE_MB).toInt
   override val lineSizeLimitCharacters: Int = lineSizeLimitBytes / 2
-
-  private val formattedIdentifier: String = {
-    fileId.fold(
-      externalId => s"externalId: '$externalId'",
-      instanceId => s"instanceId with space='${instanceId.space}', externalId='${instanceId.externalId}'"
-    )
-  }
 
   @transient private lazy val sttpFileContentStreamingBackendResource
     : Resource[IO, SttpBackend[IO, Fs2Streams[IO] with WebSockets]] =
@@ -81,24 +67,13 @@ class FileContentRelation(
       override def compute(split: Partition, context: TaskContext): Iterator[String] = {
 
         val validUrl = for {
-          file <- fileId match {
-            case Left(fileExternalId: String) =>
-              client.files.retrieveByExternalId(fileExternalId)
-            case Right(instanceId: InstanceId) =>
-              client.files.retrieveByInstanceId(CogniteInstanceId(instanceId))
-          }
+          file <- client.files.retrieveByExternalId(fileExternalId)
           _ <- IO.raiseWhen(!file.uploaded)(
             new CdfSparkException(
-              f"Could not read file because no file identified using $formattedIdentifier was uploaded")
+              f"Could not read file because no file was uploaded for externalId: $fileExternalId")
           )
-          downloadLink <- fileId match {
-            case Left(fileExternalId: String) =>
-              client.files
-                .downloadLink(FileDownloadExternalId(fileExternalId))
-            case Right(instanceId: InstanceId) =>
-              client.files
-                .downloadLink(FileDownloadInstanceId(instanceId))
-          }
+          downloadLink <- client.files
+            .downloadLink(FileDownloadExternalId(fileExternalId))
           uri <- IO.pure(uri"${downloadLink.downloadUrl}")
 
           _ <- IO.raiseWhen(!uri.scheme.contains("https"))(
@@ -121,7 +96,6 @@ class FileContentRelation(
       override protected def getPartitions: Array[Partition] =
         Array(CdfPartition(0))
     }
-
     import sqlContext.sparkSession.implicits._
     val dataset = rdd.cache().toDS()
 
@@ -149,9 +123,8 @@ class FileContentRelation(
               .handleErrorWith {
                 case e: fs2.text.LineTooLongException =>
                   throw new CdfSparkException(
-                    s"""Line too long in file identified using $formattedIdentifier SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
+                    s"""Line too long in file with external id: "$fileExternalId" SizeLimit in characters: ${e.max}, but ${e.length} characters accumulated""",
                     e)
-
                 case other =>
                   throw other
               }
@@ -173,7 +146,7 @@ class FileContentRelation(
         val newSize = acc + chunk.size
         if (newSize > fileSizeLimitBytes)
           throw new CdfSparkException(
-            s"""File identified using $formattedIdentifier size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
+            s"""File with external id: "$fileExternalId" size too big. SizeLimit in bytes: $fileSizeLimitBytes""")
         else
           (newSize, chunk)
     }
