@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2025-01-06T12:54:40.600887003Z",
+  "timestamp" : "2025-10-06T10:03:50.627859Z",
   "configurations" : [
     "compile",
     "optional",
@@ -75,11 +75,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.13",
-      "version" : "2.31.885",
+      "version" : "2.32.926",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.13.jar",
-          "hash" : "sha1:813d7fc2f8778e1f6685c22d02c1f462c4275d04"
+          "hash" : "sha1:4bab9ef6e1ffdaaa1c03376106b88e51707bfe53"
         }
       ],
       "configurations" : [
@@ -289,11 +289,11 @@
     {
       "org" : "com.google.protobuf",
       "name" : "protobuf-java",
-      "version" : "4.29.2",
+      "version" : "4.29.3",
       "artifacts" : [
         {
           "name" : "protobuf-java.jar",
-          "hash" : "sha1:695bb50e3e4a88cc10ffa94c67199d849e9398e6"
+          "hash" : "sha1:83afa847b893932b49a8fd896608fa23cd5fb0b5"
         }
       ],
       "configurations" : [
@@ -2083,11 +2083,11 @@
     {
       "org" : "org.scala-lang",
       "name" : "scala-library",
-      "version" : "2.13.15",
+      "version" : "2.13.16",
       "artifacts" : [
         {
           "name" : "scala-library.jar",
-          "hash" : "sha1:ed6f1d58968b16c5f9067d5cac032d952552de58"
+          "hash" : "sha1:9e064d9304904fd7b6bd2b55a9e601b8c1c9006e"
         }
       ],
       "configurations" : [
@@ -2333,11 +2333,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect-kernel_2.13",
-      "version" : "3.5.7",
+      "version" : "3.6.3",
       "artifacts" : [
         {
           "name" : "cats-effect-kernel_2.13.jar",
-          "hash" : "sha1:6d390384e465493ebef73d2f6291b7ffeba6f319"
+          "hash" : "sha1:436fee2b01ccdfeacc2fc5ed362b9f6b0b46e908"
         }
       ],
       "configurations" : [
@@ -2349,11 +2349,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect-std_2.13",
-      "version" : "3.5.7",
+      "version" : "3.6.3",
       "artifacts" : [
         {
           "name" : "cats-effect-std_2.13.jar",
-          "hash" : "sha1:599fb37e21c41051df72739b355db37115dd1f9a"
+          "hash" : "sha1:e74f450eba21bda47f7b22dbb0807b2a7890b796"
         }
       ],
       "configurations" : [
@@ -2365,11 +2365,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect_2.13",
-      "version" : "3.5.7",
+      "version" : "3.6.3",
       "artifacts" : [
         {
           "name" : "cats-effect_2.13.jar",
-          "hash" : "sha1:eec69ebec033a2890cf22d6212103856a5a77094"
+          "hash" : "sha1:0f931fa3d85451292f8aeda94371f54670d32fae"
         }
       ],
       "configurations" : [
@@ -2386,6 +2386,22 @@
         {
           "name" : "cats-kernel_2.13.jar",
           "hash" : "sha1:9f46f77ebad492c1abeb6ca27df78ba1fa05eb65"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "org.typelevel",
+      "name" : "cats-mtl_2.13",
+      "version" : "1.3.1",
+      "artifacts" : [
+        {
+          "name" : "cats-mtl_2.13.jar",
+          "hash" : "sha1:efe72b3961e17a4c370c5ec630d2482865ccbaed"
         }
       ],
       "configurations" : [

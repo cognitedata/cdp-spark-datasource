@@ -199,7 +199,9 @@ object CdpConnector {
           maxParallelRequests = config.parallelismPerPartition,
           metricsPrefix = metricsPrefix
         ),
-        config.tracingParent
+        config.tracingConfig.tracingParent,
+        config.tracingConfig.maxRequests,
+        config.tracingConfig.maxTime,
       )
     val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunBlocking()
 
@@ -213,7 +215,9 @@ object CdpConnector {
           maxParallelRequests = config.parallelismPerPartition,
           metricsPrefix = metricsPrefix
         ),
-        config.tracingParent
+        config.tracingConfig.tracingParent,
+        config.tracingConfig.maxRequests,
+        config.tracingConfig.maxTime,
       )
     }
 

@@ -1,8 +1,0 @@
-groups:
-  - name: r-alliance
-    reviewers: 1
-    internal_reviewers: 1
-    usernames:
-      - mr-celo
-      - dmivankov
-      - silvavelosa
