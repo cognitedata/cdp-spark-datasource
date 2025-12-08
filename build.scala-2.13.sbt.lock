@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2025-12-08T11:41:26.003887Z",
+  "timestamp" : "2025-12-08T12:10:22.456705Z",
   "configurations" : [
     "compile",
     "optional",
@@ -10,6 +10,23 @@
     "test"
   ],
   "dependencies" : [
+    {
+      "org" : "co.fs2",
+      "name" : "fs2-core_2.13",
+      "version" : "3.11.0",
+      "artifacts" : [
+        {
+          "name" : "fs2-core_2.13.jar",
+          "hash" : "sha1:c826e98190d0f45cd1ab52fb4675f2890dd21ce9"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "provided",
+        "runtime",
+        "test"
+      ]
+    },
     {
       "org" : "co.fs2",
       "name" : "fs2-io_2.13",
