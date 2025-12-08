@@ -67,7 +67,12 @@ trait SparkTest {
     audience = Some(OIDCWrite.audience),
     cdfProjectName = OIDCWrite.project,
   )
-  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(false, 15, 30)
+  implicit val sttpBackend: SttpBackend[IO, Any] = CdpConnector.wrapWithRetryingSttpBackend(
+    AsyncHttpClientCatsBackend[IO]().unsafeRunSync(),
+    metricsTrackAttempts = false,
+    maxRetries = 15,
+    maxRetryDelaySeconds = 30
+  )
 
   val writeAuthProvider =
     OAuth2.ClientCredentialsProvider[IO](writeCredentials).unsafeRunTimed(1.second).get
