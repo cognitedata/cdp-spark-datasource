@@ -9,7 +9,7 @@ jobs:
     environment: ${{ github.ref == 'refs/heads/master' && 'CD' || 'CI' }}
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
       - run: |
@@ -52,7 +52,7 @@ jobs:
           path: 'target/test-reports/**/*.xml'
           retention-days: 1
       - name: Upload report to codecov.io
-        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
@@ -63,7 +63,7 @@ jobs:
     if: github.ref == 'refs/heads/master'
     environment: CD
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
       - run: |
@@ -112,7 +112,7 @@ jobs:
     if: github.ref == 'refs/heads/master'
     environment: CD
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
       - run: |
