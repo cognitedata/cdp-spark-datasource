@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2025-12-08T12:10:22.456705Z",
+  "timestamp" : "2025-12-09T13:20:20.181862Z",
   "configurations" : [
     "compile",
     "optional",
@@ -2765,11 +2765,11 @@
     {
       "org" : "org.slf4j",
       "name" : "slf4j-api",
-      "version" : "2.0.9",
+      "version" : "2.0.17",
       "artifacts" : [
         {
           "name" : "slf4j-api.jar",
-          "hash" : "sha1:7cf2726fdcfbc8610f9a71fb3ed639871f315340"
+          "hash" : "sha1:d9e58ac9c7779ba3bf8142aff6c830617a7fe60f"
         }
       ],
       "configurations" : [
