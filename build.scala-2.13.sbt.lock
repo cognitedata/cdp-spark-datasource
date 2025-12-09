@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2025-12-08T12:10:22.456705Z",
+  "timestamp" : "2025-12-09T12:17:08.590464Z",
   "configurations" : [
     "compile",
     "optional",
@@ -717,11 +717,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-generic-extras_2.13",
-      "version" : "0.14.3",
+      "version" : "0.14.4",
       "artifacts" : [
         {
           "name" : "circe-generic-extras_2.13.jar",
-          "hash" : "sha1:459deb21ddd4f4239c19aaf931078fba37f93265"
+          "hash" : "sha1:70f912adddd9146b0107c31df393f17b85fe3259"
         }
       ],
       "configurations" : [
