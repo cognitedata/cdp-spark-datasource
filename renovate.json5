@@ -7,7 +7,10 @@
   "packageRules": [
     {
       "matchDatasources": ["maven", "sbt-package"],
-      "registryUrls": ["https://oss.sonatype.org/service/local/repositories/releases/content/"]
+      "registryUrls": [
+        "https://s01.oss.sonatype.org/service/local/repositories/releases/content/",
+        "https://repo.maven.apache.org/maven2"
+      ]
     },
     {
       "description": "Keep separate minor/major scala versions in place and only create patch updates",
