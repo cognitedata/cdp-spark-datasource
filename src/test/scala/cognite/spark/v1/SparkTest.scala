@@ -78,7 +78,9 @@ trait SparkTest {
     authProvider = writeAuthProvider,
     apiVersion = None,
     clientTag = None,
-    cdfVersion = None
+    cdfVersion = None,
+    sttpBackend = sttpBackend,
+    wrapSttpBackend = identity
   )
 
   implicit class DataFrameWriterHelper[T](df: DataFrameWriter[T]) {
@@ -190,7 +192,9 @@ trait SparkTest {
       authProvider = authProvider,
       apiVersion = None,
       clientTag = None,
-      cdfVersion = cdfVersion
+      cdfVersion = cdfVersion,
+      sttpBackend = sttpBackend,
+      wrapSttpBackend = identity
     )
   }
 

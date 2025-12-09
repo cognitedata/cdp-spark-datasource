@@ -205,7 +205,7 @@ object CdpConnector {
       )
     val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunBlocking()
 
-    implicit val sttpBackend: SttpBackend[IO, Any] = {
+    val sttpBackend: SttpBackend[IO, Any] = {
       new FixedTraceSttpBackend(
         retryingSttpBackend(
           config.metricsTrackAttempts,
@@ -228,7 +228,9 @@ object CdpConnector {
       baseUrl = config.baseUrl,
       apiVersion = None,
       clientTag = config.clientTag,
-      cdfVersion = cdfVersion
+      cdfVersion = cdfVersion,
+      sttpBackend = sttpBackend,
+      wrapSttpBackend = identity
     )
   }
 }
