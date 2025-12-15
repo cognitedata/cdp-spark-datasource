@@ -5,10 +5,17 @@ import com.cognite.sdk.scala.common.{BearerTokenAuth, OAuth2, TicketAuth}
 import com.cognite.sdk.scala.v1.{CogniteExternalId, CogniteInternalId}
 import org.scalatest.{Matchers, WordSpec}
 import sttp.client3.{SttpBackend, UriContext}
+import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 
 class DefaultSourceTest extends WordSpec with Matchers {
+  import CdpConnector.ioRuntime
 
-  implicit val backend: SttpBackend[IO, Any] = CdpConnector.retryingSttpBackend(false, 3, 5)
+  implicit val backend: SttpBackend[IO, Any] = CdpConnector.wrapWithRetryingSttpBackend(
+    AsyncHttpClientCatsBackend[IO]().unsafeRunSync(),
+    metricsTrackAttempts = false,
+    maxRetries = 3,
+    maxRetryDelaySeconds = 5
+  )
 
   "DefaultSource" should {
     "parseAuth and fall back in order" should {
