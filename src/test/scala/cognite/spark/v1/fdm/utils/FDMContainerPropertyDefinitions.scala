@@ -625,6 +625,15 @@ object FDMContainerPropertyDefinitions {
       name = Some("Test-File-Name"),
       `type` = PropertyType.FileReference(),
     )
+  val FileReferenceList: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test File List Description"),
+      name = Some("Test-File-List-Name"),
+      `type` = PropertyType.FileReference(list = Some(true)),
+    )
 
   val SequenceReference: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
@@ -634,5 +643,14 @@ object FDMContainerPropertyDefinitions {
       description = Some("Test Sequence Description"),
       name = Some("Test-Sequence-Name"),
       `type` = PropertyType.SequenceReference(),
+    )
+  val SequenceReferenceList: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = None,
+      description = Some("Test Sequence List Description"),
+      name = Some("Test-Sequence-List-Name"),
+      `type` = PropertyType.SequenceReference(list = Some(true)),
     )
 }

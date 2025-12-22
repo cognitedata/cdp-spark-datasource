@@ -1557,9 +1557,9 @@ class FlexibleDataModelNodeTest
                 externalId = containerStartNodeAndEndNodesExternalId)),
             source = None)),
       "directRelation2" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
-//      "file" -> FDMContainerPropertyTypes.FileReference,
-      "timeseries" -> FDMContainerPropertyDefinitions.TimeSeriesReference
-//      "sequence" -> FDMContainerPropertyTypes.SequenceReference,
+      "file" -> FDMContainerPropertyDefinitions.FileReference,
+      "timeseries" -> FDMContainerPropertyDefinitions.TimeSeriesReference,
+      "sequence" -> FDMContainerPropertyDefinitions.SequenceReference,
     )
 
     for {
@@ -1593,6 +1593,8 @@ class FlexibleDataModelNodeTest
       "timestampListProp2" -> FDMContainerPropertyDefinitions.TimestampListWithoutDefaultValueNullable,
       "jsonListProp1" -> FDMContainerPropertyDefinitions.JsonListWithoutDefaultValueNonNullable,
       "jsonListProp2" -> FDMContainerPropertyDefinitions.JsonListWithoutDefaultValueNullable,
+      "sequenceListProp" -> FDMContainerPropertyDefinitions.SequenceReferenceList,
+      "fileListProp" -> FDMContainerPropertyDefinitions.FileReferenceList,
     )
 
     for {
@@ -1652,9 +1654,9 @@ class FlexibleDataModelNodeTest
       "dateProp1" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNonNullable,
       "forIsNotNullFilter" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNullable,
       "forIsNullFilter" -> FDMContainerPropertyDefinitions.JsonNonListWithoutDefaultValueNullable,
-      "forTimeseriesRef" -> FDMContainerPropertyDefinitions.TimeSeriesReference
-//      "forFileRef" -> FDMContainerPropertyTypes.FileReference,
-//      "forSequenceRef" -> FDMContainerPropertyTypes.SequenceReference,
+      "forTimeseriesRef" -> FDMContainerPropertyDefinitions.TimeSeriesReference,
+      "forFileRef" -> FDMContainerPropertyDefinitions.FileReference,
+      "forSequenceRef" -> FDMContainerPropertyDefinitions.SequenceReference,
     )
 
     for {
