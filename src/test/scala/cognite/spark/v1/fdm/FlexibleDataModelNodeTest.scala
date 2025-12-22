@@ -196,7 +196,7 @@ class FlexibleDataModelNodeTest
                 |) as directRelation1,
                 |null as directRelation2,
                 |'file1' as fileReference,
-                |'sequence1' as sequenceReference,
+                |'sequence1' as sequenceReference
                 |""".stripMargin)
 
     val insertionResults = Try {
