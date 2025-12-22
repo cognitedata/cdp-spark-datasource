@@ -195,6 +195,7 @@ class FlexibleDataModelNodeTest
                 |    'externalId', '$startNodeExtId'
                 |) as directRelation1,
                 |null as directRelation2
+                |'file1' as file
                 |""".stripMargin)
 
     val insertionResults = Try {
@@ -1500,6 +1501,12 @@ class FlexibleDataModelNodeTest
             source = None)),
       "directRelation2" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
       "directRelation3" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
+      "fileReference" -> FDMContainerPropertyDefinitions.FileReference,
+      "fileReferenceList" -> FDMContainerPropertyDefinitions.FileReferenceList,
+      "sequenceReference" -> FDMContainerPropertyDefinitions.SequenceReference,
+      "sequenceReferenceList" -> FDMContainerPropertyDefinitions.SequenceReferenceList,
+      "timeSeriesReference" -> FDMContainerPropertyDefinitions.TimeSeriesReference,
+      "timeSeriesReferenceList" -> FDMContainerPropertyDefinitions.TimeSeriesReferenceList,
       "listOfDirectRelations" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
     )
 
@@ -1595,6 +1602,7 @@ class FlexibleDataModelNodeTest
       "jsonListProp2" -> FDMContainerPropertyDefinitions.JsonListWithoutDefaultValueNullable,
       "sequenceListProp" -> FDMContainerPropertyDefinitions.SequenceReferenceList,
       "fileListProp" -> FDMContainerPropertyDefinitions.FileReferenceList,
+      "timeSeriesListProp" -> FDMContainerPropertyDefinitions.TimeSeriesReferenceList,
     )
 
     for {
@@ -1654,7 +1662,7 @@ class FlexibleDataModelNodeTest
       "dateProp1" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNonNullable,
       "forIsNotNullFilter" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNullable,
       "forIsNullFilter" -> FDMContainerPropertyDefinitions.JsonNonListWithoutDefaultValueNullable,
-      "forTimeseriesRef" -> FDMContainerPropertyDefinitions.TimeSeriesReference,
+      "forTimeSeriesRef" -> FDMContainerPropertyDefinitions.TimeSeriesReference,
       "forFileRef" -> FDMContainerPropertyDefinitions.FileReference,
       "forSequenceRef" -> FDMContainerPropertyDefinitions.SequenceReference,
     )

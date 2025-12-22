@@ -615,6 +615,15 @@ object FDMContainerPropertyDefinitions {
       name = Some("Test-Time-Series-Name"),
       `type` = PropertyType.TimeSeriesReference(),
     )
+  val TimeSeriesReferenceList: ContainerPropertyDefinition =
+    ContainerPropertyDefinition(
+      nullable = Some(true),
+      autoIncrement = Some(false),
+      defaultValue = Some(PropertyDefaultValue.TimeSeriesReference("timeseries1")),
+      description = Some("Test Time Series Description"),
+      name = Some("Test-Time-Series-Name"),
+      `type` = PropertyType.TimeSeriesReference(list = Some(true)),
+    )
 
   val FileReference: ContainerPropertyDefinition =
     ContainerPropertyDefinition(
