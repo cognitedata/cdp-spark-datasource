@@ -194,8 +194,9 @@ class FlexibleDataModelNodeTest
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
                 |) as directRelation1,
-                |null as directRelation2
-                |'file1' as file
+                |null as directRelation2,
+                |'file1' as fileReference,
+                |'sequence1' as sequenceReference,
                 |""".stripMargin)
 
     val insertionResults = Try {
@@ -610,6 +611,8 @@ class FlexibleDataModelNodeTest
                 |array(null, 104.2, 104.3, 104.4) as doubleListProp1,
                 |null as doubleListProp2,
                 |array(true, true, false, null, false) as boolListProp1,
+                |array('fileRef1', 'fileRef2') as fileReferenceList,
+                |array('seqRef1', 'seqRef2') as sequenceReferenceList,
                 |null as boolListProp2,
                 |array('${LocalDate
           .now()
