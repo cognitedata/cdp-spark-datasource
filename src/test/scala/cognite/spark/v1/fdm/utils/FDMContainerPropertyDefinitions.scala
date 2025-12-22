@@ -619,9 +619,9 @@ object FDMContainerPropertyDefinitions {
     ContainerPropertyDefinition(
       nullable = Some(true),
       autoIncrement = Some(false),
-      defaultValue = Some(PropertyDefaultValue.TimeSeriesReference("timeseries1")),
-      description = Some("Test Time Series Description"),
-      name = Some("Test-Time-Series-Name"),
+      defaultValue = None,
+      description = Some("Test Time Series List Description"),
+      name = Some("Test-Time-Series-List-Name"),
       `type` = PropertyType.TimeSeriesReference(list = Some(true)),
     )
 
