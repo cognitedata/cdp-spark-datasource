@@ -3,7 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
-import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
+import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations.{readRows, _}
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMTestInitializer}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
@@ -16,7 +16,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.lit
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -25,6 +25,7 @@ import scala.concurrent.duration.DurationInt
 import scala.util.{Success, Try}
 import cognite.spark.v1.fdm.utils.FDMTestMetricOperations._
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
+import org.apache.spark.sql.types.{ArrayType, StringType, StructField}
 
 class FlexibleDataModelNodeTest
     extends FlatSpec
@@ -1201,35 +1202,23 @@ class FlexibleDataModelNodeTest
         df
       )
     }
-
+    val readDf = readRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewDef.externalId,
+      viewVersion = viewDef.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+    readDf.createTempView(s"file_reference_table")
+    val rows: Array[Row] = spark
+      .sql(s"""select * from file_reference_table
+              | where externalId = '$nodeExtId1'
+              | """.stripMargin)
+      .collect()
     result shouldBe Success(())
-
-    val propertyMapForInstances = (IO.sleep(2.seconds) *> client.instances
-      .retrieveByExternalIds(
-        Vector(
-          InstanceRetrieve(
-            instanceType = InstanceType.Node,
-            externalId = nodeExtId1,
-            space = spaceExternalId
-          )
-        ),
-        includeTyping = true,
-        sources = Some(Seq(InstanceSource(viewDef.toSourceReference)))
-      )
-      .map { instances =>
-        instances.items.collect {
-          case n: InstanceDefinition.NodeDefinition =>
-            n.externalId -> n.properties
-              .getOrElse(Map.empty)
-              .values
-              .flatMap(_.values)
-              .fold(Map.empty)(_ ++ _)
-        }
-      }
-      .map(_.toMap))
-      .unsafeRunSync()
-
-    propertyMapForInstances(nodeExtId1)("fileReferenceList") shouldBe InstancePropertyValue.FileReferenceList(Seq("extId1", "extId2"))
+    rows.isEmpty shouldBe false
+    rows(0).schema should contain(StructField("fileReferenceList", ArrayType(StringType, containsNull = true), nullable = true))
+    rows(0).toSeq should contain(Seq("extId1", "extId2"))
   }
 
 
