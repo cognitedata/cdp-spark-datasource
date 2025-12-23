@@ -77,6 +77,10 @@ class FlexibleDataModelNodeTest
   private val containerFilterByProps = "sparkDsTestContainerFilterByProps2"
   private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
 
+  private val containerExternalIdReferenceProps = "sparkDsTestContainerExternalIdProps"
+  private val viewAllExternalIdProps = "sparkDsTestViewExternaldProps2"
+
+
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
   private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
   private val typedContainerNodeExternalId = "sparkDsTestContainerTypedNodes6"
@@ -1176,6 +1180,59 @@ class FlexibleDataModelNodeTest
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
+  it should "successfully read from list of external id refs (files/Sequences)" in {
+    val viewDef = setupExternalIdReferenceTest.unsafeRunSync()
+    val nodeExtId1 = s"${viewDef.externalId}Files1"
+
+    val df = spark
+      .sql(s"""
+              |select
+              |'$nodeExtId1' as externalId,
+              |array('extId1', 'extId2') as fileReferenceList
+              |""".stripMargin)
+
+    val result = Try {
+      insertNodeRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = viewDef.space,
+        viewExternalId = viewDef.externalId,
+        viewVersion = viewDef.version,
+        instanceSpaceExternalId = viewDef.space,
+        df
+      )
+    }
+
+    result shouldBe Success(())
+
+    val propertyMapForInstances = (IO.sleep(2.seconds) *> client.instances
+      .retrieveByExternalIds(
+        Vector(
+          InstanceRetrieve(
+            instanceType = InstanceType.Node,
+            externalId = nodeExtId1,
+            space = spaceExternalId
+          )
+        ),
+        includeTyping = true,
+        sources = Some(Seq(InstanceSource(viewDef.toSourceReference)))
+      )
+      .map { instances =>
+        instances.items.collect {
+          case n: InstanceDefinition.NodeDefinition =>
+            n.externalId -> n.properties
+              .getOrElse(Map.empty)
+              .values
+              .flatMap(_.values)
+              .fold(Map.empty)(_ ++ _)
+        }
+      }
+      .map(_.toMap))
+      .unsafeRunSync()
+
+    propertyMapForInstances(nodeExtId1)("fileReferenceList") shouldBe InstancePropertyValue.FileReferenceList(Seq("extId1", "extId2"))
+  }
+
+
   it should "successfully filter instances from a data model" in {
     setUpDataModel()
     val df = readRowsFromModel(
@@ -1787,6 +1844,17 @@ class FlexibleDataModelNodeTest
     for {
       container <- createContainerIfNotExists(Usage.All, containerProps, containerAllNumericProps)
       view <- createViewWithCorePropsIfNotExists(container, viewAllNumericProps, viewVersion)
+    } yield view
+  }
+
+  private def setupExternalIdReferenceTest: IO[ViewDefinition] = {
+    val containerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "fileReferenceList" -> FDMContainerPropertyDefinitions.FileReferenceList,
+    )
+
+    for {
+      container <- createContainerIfNotExists(Usage.All, containerProps, containerExternalIdReferenceProps)
+      view <- createViewWithCorePropsIfNotExists(container, viewAllExternalIdProps, viewVersion)
     } yield view
   }
 
