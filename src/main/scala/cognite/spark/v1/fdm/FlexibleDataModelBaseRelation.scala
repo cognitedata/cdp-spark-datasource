@@ -325,8 +325,10 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
               case PrimitiveProperty(ppt, _) =>
                 Vector(
                   DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable))
-              case p: CDFExternalIdReference if p.isList=>
+              case p: CDFExternalIdReference if p.isList =>
                 Vector(DataTypes.createStructField(propName,  DataTypes.createArrayType(DataTypes.StringType, nullable), nullable))
+              case _: CDFExternalIdReference =>
+                Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
             }
           case _ => Vector.empty
         }
