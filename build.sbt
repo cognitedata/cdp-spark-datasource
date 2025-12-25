@@ -165,7 +165,7 @@ lazy val library = (project in file("."))
       "org.slf4j" % "slf4j-api" % "2.0.9" % Provided,
       "io.circe" %% "circe-generic" % circeVersion
         exclude("org.typelevel", "cats-core_2.13"),
-      "io.circe" %% "circe-generic-extras" % "0.14.3"
+      "io.circe" %% "circe-generic-extras" % "0.14.4"
         exclude("org.typelevel", "cats-core_2.13"),
       "org.scalatest" %% "scalatest" % "3.0.8" % Test,
       "org.eclipse.jetty" % "jetty-servlet" % "9.4.44.v20210927" % Provided,
