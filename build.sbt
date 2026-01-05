@@ -19,7 +19,7 @@ sonatypeProfileName := "com.cognite" // default is same as organization and lead
 
 lazy val gpgPass = Option(System.getenv("GPG_KEY_PASSWORD"))
 
-ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.1.4"
+ThisBuild / scalafixDependencies += "org.typelevel" %% "typelevel-scalafix" % "0.5.0"
 
 lazy val patchVersion = scala.io.Source.fromFile("patch_version.txt").mkString.trim
 
