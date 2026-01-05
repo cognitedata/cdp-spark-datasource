@@ -78,8 +78,8 @@ class FlexibleDataModelNodeTest
   private val containerFilterByProps = "sparkDsTestContainerFilterByProps2"
   private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
 
-  private val containerExternalIdReferenceProps = "sparkDsTestContainerExternalIdProps"
-  private val viewAllExternalIdProps = "sparkDsTestViewExternaldProps2"
+  private val containerExternalIdReferenceProps = "sparkDsTestContainerExternalIdProps3"
+  private val viewAllExternalIdProps = "sparkDsTestViewExternaldProps3"
 
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
@@ -1183,13 +1183,14 @@ class FlexibleDataModelNodeTest
 
   it should "successfully read from list of external id refs (files/Sequences)" in {
     val viewDef = setupExternalIdReferenceTest.unsafeRunSync()
-    val nodeExtId1 = s"${viewDef.externalId}Files1"
+    val nodeExtId1 = s"${viewDef.externalId}FilesSeq1"
 
     val df = spark
       .sql(s"""
               |select
               |'$nodeExtId1' as externalId,
-              |array('extId1', 'extId2') as fileReferenceList
+              |array('extId1', 'extId2') as fileReferenceList,
+              |array('extId2', 'extId3') as sequenceReferenceList
               |""".stripMargin)
 
     val result = Try {
@@ -1218,7 +1219,9 @@ class FlexibleDataModelNodeTest
     result shouldBe Success(())
     rows.isEmpty shouldBe false
     rows(0).schema should contain(StructField("fileReferenceList", ArrayType(StringType, containsNull = true), nullable = true))
-    rows(0).toSeq should contain(Seq("extId1", "extId2"))
+    rows(0).schema should contain(StructField("sequenceReferenceList", ArrayType(StringType, containsNull = true), nullable = true))
+    rows(0).getSeq[String](rows(0).fieldIndex("fileReferenceList")) should contain theSameElementsAs Seq("extId1", "extId2")
+    rows(0).getSeq[String](rows(0).fieldIndex("sequenceReferenceList")) should contain theSameElementsAs Seq("extId2", "extId3")
   }
 
 
@@ -1839,6 +1842,7 @@ class FlexibleDataModelNodeTest
   private def setupExternalIdReferenceTest: IO[ViewDefinition] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
       "fileReferenceList" -> FDMContainerPropertyDefinitions.FileReferenceList,
+      "sequenceReferenceList" -> FDMContainerPropertyDefinitions.SequenceReferenceList,
     )
 
     for {
