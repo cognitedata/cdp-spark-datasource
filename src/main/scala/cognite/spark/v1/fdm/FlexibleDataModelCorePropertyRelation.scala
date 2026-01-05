@@ -190,7 +190,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         .flatMap {
           case None =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
-                 |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}')
+                 |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}') \n
                  |Ensure that the transformation's credentials have access to the view's space"
                  |""".stripMargin))
           case Some(viewDef)
