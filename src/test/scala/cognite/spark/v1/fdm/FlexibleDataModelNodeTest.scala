@@ -3,7 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
-import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
+import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations.{readRows, _}
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMTestInitializer}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
@@ -16,7 +16,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.NodeWrite
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.lit
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -25,6 +25,7 @@ import scala.concurrent.duration.DurationInt
 import scala.util.{Success, Try}
 import cognite.spark.v1.fdm.utils.FDMTestMetricOperations._
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
+import org.apache.spark.sql.types.{ArrayType, StringType, StructField}
 
 class FlexibleDataModelNodeTest
     extends FlatSpec
@@ -76,6 +77,10 @@ class FlexibleDataModelNodeTest
 
   private val containerFilterByProps = "sparkDsTestContainerFilterByProps2"
   private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
+
+  private val containerExternalIdReferenceProps = "sparkDsTestContainerExternalIdProps3"
+  private val viewAllExternalIdProps = "sparkDsTestViewExternalIdProps3"
+
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
   private val viewStartNodeAndEndNodesExternalId = "sparkDsTestViewStartAndEndNodes2"
@@ -194,7 +199,9 @@ class FlexibleDataModelNodeTest
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$startNodeExtId'
                 |) as directRelation1,
-                |null as directRelation2
+                |null as directRelation2,
+                |'file1' as fileReference,
+                |'sequence1' as sequenceReference
                 |""".stripMargin)
 
     val insertionResults = Try {
@@ -609,6 +616,8 @@ class FlexibleDataModelNodeTest
                 |array(null, 104.2, 104.3, 104.4) as doubleListProp1,
                 |null as doubleListProp2,
                 |array(true, true, false, null, false) as boolListProp1,
+                |array('fileRef1', 'fileRef2') as fileReferenceList,
+                |array('seqRef1', 'seqRef2') as sequenceReferenceList,
                 |null as boolListProp2,
                 |array('${LocalDate
           .now()
@@ -1172,6 +1181,50 @@ class FlexibleDataModelNodeTest
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
+  it should "successfully read from list of external id refs (files/Sequences)" in {
+    val viewDef = setupExternalIdReferenceTest.unsafeRunSync()
+    val nodeExtId1 = s"${viewDef.externalId}FilesSeq1"
+
+    val df = spark
+      .sql(s"""
+              |select
+              |'$nodeExtId1' as externalId,
+              |array('extId1', 'extId2') as fileReferenceList,
+              |array('extId2', 'extId3') as sequenceReferenceList
+              |""".stripMargin)
+
+    val result = Try {
+      insertNodeRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = viewDef.space,
+        viewExternalId = viewDef.externalId,
+        viewVersion = viewDef.version,
+        instanceSpaceExternalId = viewDef.space,
+        df
+      )
+    }
+    val readDf = readRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = viewDef.externalId,
+      viewVersion = viewDef.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+    readDf.createTempView(s"file_reference_table")
+    val rows: Array[Row] = spark
+      .sql(s"""select * from file_reference_table
+              | where externalId = '$nodeExtId1'
+              | """.stripMargin)
+      .collect()
+    result shouldBe Success(())
+    rows.isEmpty shouldBe false
+    rows(0).schema should contain(StructField("fileReferenceList", ArrayType(StringType, containsNull = true), nullable = true))
+    rows(0).schema should contain(StructField("sequenceReferenceList", ArrayType(StringType, containsNull = true), nullable = true))
+    rows(0).getSeq[String](rows(0).fieldIndex("fileReferenceList")) should contain theSameElementsAs Seq("extId1", "extId2")
+    rows(0).getSeq[String](rows(0).fieldIndex("sequenceReferenceList")) should contain theSameElementsAs Seq("extId2", "extId3")
+  }
+
+
   it should "successfully filter instances from a data model" in {
     setUpDataModel()
     val df = readRowsFromModel(
@@ -1500,6 +1553,12 @@ class FlexibleDataModelNodeTest
             source = None)),
       "directRelation2" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
       "directRelation3" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
+      "fileReference" -> FDMContainerPropertyDefinitions.FileReference,
+      "fileReferenceList" -> FDMContainerPropertyDefinitions.FileReferenceList,
+      "sequenceReference" -> FDMContainerPropertyDefinitions.SequenceReference,
+      "sequenceReferenceList" -> FDMContainerPropertyDefinitions.SequenceReferenceList,
+      "timeSeriesReference" -> FDMContainerPropertyDefinitions.TimeSeriesReference,
+      "timeSeriesReferenceList" -> FDMContainerPropertyDefinitions.TimeSeriesReferenceList,
       "listOfDirectRelations" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyListWithoutDefaultValueNullable,
     )
 
@@ -1557,9 +1616,9 @@ class FlexibleDataModelNodeTest
                 externalId = containerStartNodeAndEndNodesExternalId)),
             source = None)),
       "directRelation2" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
-//      "file" -> FDMContainerPropertyTypes.FileReference,
-      "timeseries" -> FDMContainerPropertyDefinitions.TimeSeriesReference
-//      "sequence" -> FDMContainerPropertyTypes.SequenceReference,
+      "file" -> FDMContainerPropertyDefinitions.FileReference,
+      "timeseries" -> FDMContainerPropertyDefinitions.TimeSeriesReference,
+      "sequence" -> FDMContainerPropertyDefinitions.SequenceReference,
     )
 
     for {
@@ -1593,6 +1652,9 @@ class FlexibleDataModelNodeTest
       "timestampListProp2" -> FDMContainerPropertyDefinitions.TimestampListWithoutDefaultValueNullable,
       "jsonListProp1" -> FDMContainerPropertyDefinitions.JsonListWithoutDefaultValueNonNullable,
       "jsonListProp2" -> FDMContainerPropertyDefinitions.JsonListWithoutDefaultValueNullable,
+      "sequenceListProp" -> FDMContainerPropertyDefinitions.SequenceReferenceList,
+      "fileListProp" -> FDMContainerPropertyDefinitions.FileReferenceList,
+      "timeSeriesListProp" -> FDMContainerPropertyDefinitions.TimeSeriesReferenceList,
     )
 
     for {
@@ -1652,9 +1714,9 @@ class FlexibleDataModelNodeTest
       "dateProp1" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNonNullable,
       "forIsNotNullFilter" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNullable,
       "forIsNullFilter" -> FDMContainerPropertyDefinitions.JsonNonListWithoutDefaultValueNullable,
-      "forTimeseriesRef" -> FDMContainerPropertyDefinitions.TimeSeriesReference
-//      "forFileRef" -> FDMContainerPropertyTypes.FileReference,
-//      "forSequenceRef" -> FDMContainerPropertyTypes.SequenceReference,
+      "forTimeSeriesRef" -> FDMContainerPropertyDefinitions.TimeSeriesReference,
+      "forFileRef" -> FDMContainerPropertyDefinitions.FileReference,
+      "forSequenceRef" -> FDMContainerPropertyDefinitions.SequenceReference,
     )
 
     for {
@@ -1774,6 +1836,18 @@ class FlexibleDataModelNodeTest
     for {
       container <- createContainerIfNotExists(Usage.All, containerProps, containerAllNumericProps)
       view <- createViewWithCorePropsIfNotExists(container, viewAllNumericProps, viewVersion)
+    } yield view
+  }
+
+  private def setupExternalIdReferenceTest: IO[ViewDefinition] = {
+    val containerProps: Map[String, ContainerPropertyDefinition] = Map(
+      "fileReferenceList" -> FDMContainerPropertyDefinitions.FileReferenceList,
+      "sequenceReferenceList" -> FDMContainerPropertyDefinitions.SequenceReferenceList,
+    )
+
+    for {
+      container <- createContainerIfNotExists(Usage.All, containerProps, containerExternalIdReferenceProps)
+      view <- createViewWithCorePropsIfNotExists(container, viewAllExternalIdProps, viewVersion)
     } yield view
   }
 
