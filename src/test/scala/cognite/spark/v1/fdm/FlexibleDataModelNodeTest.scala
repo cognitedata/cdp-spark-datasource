@@ -79,7 +79,7 @@ class FlexibleDataModelNodeTest
   private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
 
   private val containerExternalIdReferenceProps = "sparkDsTestContainerExternalIdProps3"
-  private val viewAllExternalIdProps = "sparkDsTestViewExternaldProps3"
+  private val viewAllExternalIdProps = "sparkDsTestViewExternalIdProps3"
 
 
   private val containerStartNodeAndEndNodesExternalId = "sparkDsTestContainerStartAndEndNodes2"
