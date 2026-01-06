@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2025-12-08T12:10:22.456705Z",
+  "timestamp" : "2026-01-06T08:09:47.034455Z",
   "configurations" : [
     "compile",
     "optional",
@@ -21,8 +21,21 @@
         }
       ],
       "configurations" : [
+        "provided"
+      ]
+    },
+    {
+      "org" : "co.fs2",
+      "name" : "fs2-core_2.13",
+      "version" : "3.12.0",
+      "artifacts" : [
+        {
+          "name" : "fs2-core_2.13.jar",
+          "hash" : "sha1:cd2d9ce7616098215fade61e6c884052d43d2487"
+        }
+      ],
+      "configurations" : [
         "compile",
-        "provided",
         "runtime",
         "test"
       ]
@@ -38,8 +51,21 @@
         }
       ],
       "configurations" : [
+        "provided"
+      ]
+    },
+    {
+      "org" : "co.fs2",
+      "name" : "fs2-io_2.13",
+      "version" : "3.12.0",
+      "artifacts" : [
+        {
+          "name" : "fs2-io_2.13.jar",
+          "hash" : "sha1:f39052d02f2d362205657e9ae2cf068db375d1d9"
+        }
+      ],
+      "configurations" : [
         "compile",
-        "provided",
         "runtime",
         "test"
       ]
@@ -2871,8 +2897,21 @@
         }
       ],
       "configurations" : [
+        "provided"
+      ]
+    },
+    {
+      "org" : "org.tpolecat",
+      "name" : "natchez-core_2.13",
+      "version" : "0.3.8",
+      "artifacts" : [
+        {
+          "name" : "natchez-core_2.13.jar",
+          "hash" : "sha1:c3b5b9b622cf70192af9a1c4e4a9260f6b916cbd"
+        }
+      ],
+      "configurations" : [
         "compile",
-        "provided",
         "runtime",
         "test"
       ]
@@ -2880,11 +2919,11 @@
     {
       "org" : "org.tpolecat",
       "name" : "natchez-noop_2.13",
-      "version" : "0.3.1",
+      "version" : "0.3.8",
       "artifacts" : [
         {
           "name" : "natchez-noop_2.13.jar",
-          "hash" : "sha1:1ae1a118cbdf33b533d303e98bef83aeae7329ce"
+          "hash" : "sha1:c134ef7a2002e568b149adc42e8fdd9c69cac304"
         }
       ],
       "configurations" : [
