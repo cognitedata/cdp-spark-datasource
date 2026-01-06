@@ -8,7 +8,7 @@ val supportedScalaVersions = List(scala213)
 val sparkVersion = "3.3.4"
 val circeVersion = "0.14.9"
 val sttpVersion = "3.5.2"
-val natchezVersion = "0.3.1"
+val natchezVersion = "0.3.8"
 val Specs2Version = "4.20.3"
 val cogniteSdkVersion = "2.35.953"
 
