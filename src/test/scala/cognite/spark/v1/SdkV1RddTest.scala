@@ -25,6 +25,7 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         None,
         None,
         None,
+        None,
         None))))
 
     val toRow = (_: String, _: Option[Int]) => Row.empty
