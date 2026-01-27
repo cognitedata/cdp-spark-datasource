@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2025-01-06T12:54:40.600887003Z",
+  "timestamp" : "2026-01-15T12:31:11.520391Z",
   "configurations" : [
     "compile",
     "optional",
@@ -45,11 +45,11 @@
     {
       "org" : "com.chuusai",
       "name" : "shapeless_2.13",
-      "version" : "2.3.12",
+      "version" : "2.3.13",
       "artifacts" : [
         {
           "name" : "shapeless_2.13.jar",
-          "hash" : "sha1:95fad9c171019294e0a0b7de12d5e892f95e764a"
+          "hash" : "sha1:ad096ac4c21b4bed4efca36e32e0c62ba00a8d3f"
         }
       ],
       "configurations" : [
@@ -75,11 +75,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.13",
-      "version" : "2.31.885",
+      "version" : "2.35.958",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.13.jar",
-          "hash" : "sha1:813d7fc2f8778e1f6685c22d02c1f462c4275d04"
+          "hash" : "sha1:b7a029aef22cbd979da13508e052cc7237b36ed0"
         }
       ],
       "configurations" : [
@@ -289,11 +289,11 @@
     {
       "org" : "com.google.protobuf",
       "name" : "protobuf-java",
-      "version" : "4.29.2",
+      "version" : "4.33.0",
       "artifacts" : [
         {
           "name" : "protobuf-java.jar",
-          "hash" : "sha1:695bb50e3e4a88cc10ffa94c67199d849e9398e6"
+          "hash" : "sha1:5f82a81e6e7b6b7434d05a7bdd666b84d9eb0bc5"
         }
       ],
       "configurations" : [
@@ -319,11 +319,11 @@
     {
       "org" : "com.softwaremill.sttp.client3",
       "name" : "circe_2.13",
-      "version" : "3.5.2",
+      "version" : "3.11.0",
       "artifacts" : [
         {
           "name" : "circe_2.13.jar",
-          "hash" : "sha1:235cd40423f2e97bbcb250234f8991f34d98ad0e"
+          "hash" : "sha1:4feb2967d5668fb3134a5ec7cc4376f6a0c806ac"
         }
       ],
       "configurations" : [
@@ -335,11 +335,11 @@
     {
       "org" : "com.softwaremill.sttp.client3",
       "name" : "core_2.13",
-      "version" : "3.5.2",
+      "version" : "3.11.0",
       "artifacts" : [
         {
           "name" : "core_2.13.jar",
-          "hash" : "sha1:c40e81feaafdec5f8d1861a9298d9c4dd755d25e"
+          "hash" : "sha1:764d0d7aa324bca8e5f1c3cf01c09589dca9f10d"
         }
       ],
       "configurations" : [
@@ -351,11 +351,11 @@
     {
       "org" : "com.softwaremill.sttp.client3",
       "name" : "json-common_2.13",
-      "version" : "3.5.2",
+      "version" : "3.11.0",
       "artifacts" : [
         {
           "name" : "json-common_2.13.jar",
-          "hash" : "sha1:c87a1b7b38b576a6b83433de14e199e12281102e"
+          "hash" : "sha1:35391c36542ad2e6db5d77813fe54e6753a576ed"
         }
       ],
       "configurations" : [
@@ -367,11 +367,11 @@
     {
       "org" : "com.softwaremill.sttp.model",
       "name" : "core_2.13",
-      "version" : "1.4.25",
+      "version" : "1.7.11",
       "artifacts" : [
         {
           "name" : "core_2.13.jar",
-          "hash" : "sha1:a984e346d7ba5bcd3786cdfd0f06db8379d97163"
+          "hash" : "sha1:5dffcef3f964767472774af9e1abe50de6e69d46"
         }
       ],
       "configurations" : [
@@ -383,11 +383,11 @@
     {
       "org" : "com.softwaremill.sttp.shared",
       "name" : "core_2.13",
-      "version" : "1.3.4",
+      "version" : "1.3.22",
       "artifacts" : [
         {
           "name" : "core_2.13.jar",
-          "hash" : "sha1:b5044b1e624d1db20edfbd75409e903843b9786a"
+          "hash" : "sha1:c4ac7e85a26548e102ee83b543c0a5771f56ceda"
         }
       ],
       "configurations" : [
@@ -399,11 +399,11 @@
     {
       "org" : "com.softwaremill.sttp.shared",
       "name" : "ws_2.13",
-      "version" : "1.3.4",
+      "version" : "1.3.22",
       "artifacts" : [
         {
           "name" : "ws_2.13.jar",
-          "hash" : "sha1:7afdc7333ed514b5fc7822509909669b681cb162"
+          "hash" : "sha1:92599a2a3aec353538b061cee9d545f1ed00492a"
         }
       ],
       "configurations" : [
@@ -571,11 +571,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-core_2.13",
-      "version" : "0.14.10",
+      "version" : "0.14.15",
       "artifacts" : [
         {
           "name" : "circe-core_2.13.jar",
-          "hash" : "sha1:abfa4a837a3fea8d14d9ec0a90601f1ee7229afb"
+          "hash" : "sha1:076ed0f888531eed523446e6c822839cb91fad96"
         }
       ],
       "configurations" : [
@@ -587,11 +587,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-generic_2.13",
-      "version" : "0.14.10",
+      "version" : "0.14.15",
       "artifacts" : [
         {
           "name" : "circe-generic_2.13.jar",
-          "hash" : "sha1:8014d564077d23dc4fca9f21f29ae23c1c2b50f0"
+          "hash" : "sha1:cc200bb213c2eb395a10ecabd6adf73e8e92e62b"
         }
       ],
       "configurations" : [
@@ -603,11 +603,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-jawn_2.13",
-      "version" : "0.14.10",
+      "version" : "0.14.15",
       "artifacts" : [
         {
           "name" : "circe-jawn_2.13.jar",
-          "hash" : "sha1:69f6d1c2ba671b4639a45e99d68c10dca4c1dbb5"
+          "hash" : "sha1:d8655398e491159a6bf6dfe6517444c066c7c68a"
         }
       ],
       "configurations" : [
@@ -619,11 +619,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-numbers_2.13",
-      "version" : "0.14.10",
+      "version" : "0.14.15",
       "artifacts" : [
         {
           "name" : "circe-numbers_2.13.jar",
-          "hash" : "sha1:4dae1e727452813dabe602f000b1d40dbeb671d0"
+          "hash" : "sha1:31f66d856cfd7f05a94dbce829caabbc9d402dda"
         }
       ],
       "configurations" : [
@@ -635,11 +635,11 @@
     {
       "org" : "io.circe",
       "name" : "circe-parser_2.13",
-      "version" : "0.14.10",
+      "version" : "0.14.15",
       "artifacts" : [
         {
           "name" : "circe-parser_2.13.jar",
-          "hash" : "sha1:5357050af6d70eb1205ad93039c0519496134606"
+          "hash" : "sha1:844627b3c56ea78ccb63ebaee066068963e610ca"
         }
       ],
       "configurations" : [
@@ -2083,11 +2083,11 @@
     {
       "org" : "org.scala-lang",
       "name" : "scala-library",
-      "version" : "2.13.15",
+      "version" : "2.13.18",
       "artifacts" : [
         {
           "name" : "scala-library.jar",
-          "hash" : "sha1:ed6f1d58968b16c5f9067d5cac032d952552de58"
+          "hash" : "sha1:eb2086988c25b08705472cc750654570900362e5"
         }
       ],
       "configurations" : [
@@ -2333,11 +2333,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect-kernel_2.13",
-      "version" : "3.5.7",
+      "version" : "3.6.3",
       "artifacts" : [
         {
           "name" : "cats-effect-kernel_2.13.jar",
-          "hash" : "sha1:6d390384e465493ebef73d2f6291b7ffeba6f319"
+          "hash" : "sha1:436fee2b01ccdfeacc2fc5ed362b9f6b0b46e908"
         }
       ],
       "configurations" : [
@@ -2349,11 +2349,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect-std_2.13",
-      "version" : "3.5.7",
+      "version" : "3.6.3",
       "artifacts" : [
         {
           "name" : "cats-effect-std_2.13.jar",
-          "hash" : "sha1:599fb37e21c41051df72739b355db37115dd1f9a"
+          "hash" : "sha1:e74f450eba21bda47f7b22dbb0807b2a7890b796"
         }
       ],
       "configurations" : [
@@ -2365,11 +2365,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect_2.13",
-      "version" : "3.5.7",
+      "version" : "3.6.3",
       "artifacts" : [
         {
           "name" : "cats-effect_2.13.jar",
-          "hash" : "sha1:eec69ebec033a2890cf22d6212103856a5a77094"
+          "hash" : "sha1:0f931fa3d85451292f8aeda94371f54670d32fae"
         }
       ],
       "configurations" : [
@@ -2386,6 +2386,22 @@
         {
           "name" : "cats-kernel_2.13.jar",
           "hash" : "sha1:9f46f77ebad492c1abeb6ca27df78ba1fa05eb65"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "org.typelevel",
+      "name" : "cats-mtl_2.13",
+      "version" : "1.3.1",
+      "artifacts" : [
+        {
+          "name" : "cats-mtl_2.13.jar",
+          "hash" : "sha1:efe72b3961e17a4c370c5ec630d2482865ccbaed"
         }
       ],
       "configurations" : [

@@ -32,6 +32,7 @@ abstract class CdfRelation(config: RelationConfig, shortNameStr: String)
   @transient lazy protected val itemsDeleted: Counter = getOrCreateCounter("deleted")
   // We are not aware if it is `created` or `updated in flexible data modelling case
   @transient lazy protected val itemsUpserted: Counter = getOrCreateCounter("upserted")
+  @transient lazy protected val itemsUpsertedNoop: Counter = getOrCreateCounter("upsertedNoop")
 
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)

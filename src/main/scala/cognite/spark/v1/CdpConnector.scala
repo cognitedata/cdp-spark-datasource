@@ -65,7 +65,7 @@ object CdpConnector {
     def unsafeRunBlocking(): A = f.evalOn(blocking).unsafeRunSync()(ioRuntime)
   }
 
-  private val sttpBackend: SttpBackend[IO, Any] =
+  private val baseSttpBackend: SttpBackend[IO, Any] =
     new GzipBackend[IO, Any](AsyncHttpClientCatsBackend.usingClient(SttpClientBackendFactory.create()))
 
   private def incMetrics(
@@ -119,7 +119,8 @@ object CdpConnector {
   }
 
   // package-private for tests
-  private[v1] def retryingSttpBackend(
+  private[v1] def wrapWithRetryingSttpBackend(
+      sttpBackend: SttpBackend[IO, Any],
       metricsTrackAttempts: Boolean,
       maxRetries: Int,
       maxRetryDelaySeconds: Int,
@@ -190,30 +191,28 @@ object CdpConnector {
 
     //Use separate backend for auth, so we should not retry as much as maxRetries config
     val authSttpBackend =
-      new FixedTraceSttpBackend(
-        retryingSttpBackend(
-          config.metricsTrackAttempts,
-          maxRetries = 5,
-          initialRetryDelayMillis = config.initialRetryDelayMillis,
-          maxRetryDelaySeconds = config.maxRetryDelaySeconds,
-          maxParallelRequests = config.parallelismPerPartition,
-          metricsPrefix = metricsPrefix
+      wrapWithRetryingSttpBackend(
+        new FixedTraceSttpBackend(
+          baseSttpBackend,
+          config.tracingConfig.tracingParent,
+          config.tracingConfig.maxRequests,
+          config.tracingConfig.maxTime,
         ),
-        config.tracingParent
+        config.metricsTrackAttempts,
+        maxRetries = 5,
+        initialRetryDelayMillis = config.initialRetryDelayMillis,
+        maxRetryDelaySeconds = config.maxRetryDelaySeconds,
+        maxParallelRequests = config.parallelismPerPartition,
+        metricsPrefix = metricsPrefix
       )
     val authProvider = config.auth.provider(implicitly, authSttpBackend).unsafeRunBlocking()
 
-    implicit val sttpBackend: SttpBackend[IO, Any] = {
+    val sttpBackend: SttpBackend[IO, Any] = {
       new FixedTraceSttpBackend(
-        retryingSttpBackend(
-          config.metricsTrackAttempts,
-          maxRetries = config.maxRetries,
-          initialRetryDelayMillis = config.initialRetryDelayMillis,
-          maxRetryDelaySeconds = config.maxRetryDelaySeconds,
-          maxParallelRequests = config.parallelismPerPartition,
-          metricsPrefix = metricsPrefix
-        ),
-        config.tracingParent
+        baseSttpBackend,
+        config.tracingConfig.tracingParent,
+        config.tracingConfig.maxRequests,
+        config.tracingConfig.maxTime,
       )
     }
 
@@ -224,7 +223,17 @@ object CdpConnector {
       baseUrl = config.baseUrl,
       apiVersion = None,
       clientTag = config.clientTag,
-      cdfVersion = cdfVersion
+      cdfVersion = cdfVersion,
+      sttpBackend = sttpBackend,
+      wrapSttpBackend = wrapWithRetryingSttpBackend(
+        _,
+        config.metricsTrackAttempts,
+        maxRetries = config.maxRetries,
+        initialRetryDelayMillis = config.initialRetryDelayMillis,
+        maxRetryDelaySeconds = config.maxRetryDelaySeconds,
+        maxParallelRequests = config.parallelismPerPartition,
+        metricsPrefix = metricsPrefix
+      ),
     )
   }
 }

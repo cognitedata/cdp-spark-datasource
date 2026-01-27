@@ -56,7 +56,11 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     firstRow match {
       case Some(fr) =>
         upsertNodesOrEdges(rows, fr.schema, viewReference, allProperties, instanceSpace)
-          .flatMap(results => incMetrics(itemsUpserted, results.length))
+          .flatMap(results =>
+            for {
+              _ <- incMetrics(itemsUpserted, results.length)
+              _ <- incMetrics(itemsUpsertedNoop, results.count(!_.wasModified))
+            } yield ())
       case None => incMetrics(itemsUpserted, 0)
     }
   }
@@ -186,7 +190,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         .flatMap {
           case None =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
-                 |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}')
+                 |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}').
+                 |Ensure that the transformation's credentials have access to the view's space.
                  |""".stripMargin))
           case Some(viewDef)
               if compatibleUsageTypes(viewUsage = viewDef.usedFor, intendedUsage = intendedUsage) =>
