@@ -20,7 +20,7 @@ jobs:
           ref: ${{ github.head_ref }}
 
       - name: Set up JDK 11
-        uses: coursier/setup-action@0ed4d7e7c42eae80e14370990582092c749253c4 # v2.0.0
+        uses: coursier/setup-action@f7be3eb3dcef84a4e16fc8cd75c87beb2e5cbcc9 # v2.0.2
         with:
           jvm: temurin:11
           apps: sbt
