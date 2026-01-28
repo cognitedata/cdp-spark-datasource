@@ -77,8 +77,6 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  import CdpConnector.ioRuntime
-
   def delete(data: DataFrame): Unit = {
     val partitionedData = if (config.enableSinglePartitionDeleteAssetHierarchy) {
       data.repartition(numPartitions = 1)

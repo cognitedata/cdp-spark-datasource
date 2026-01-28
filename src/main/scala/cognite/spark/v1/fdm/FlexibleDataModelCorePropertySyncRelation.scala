@@ -1,7 +1,7 @@
 package cognite.spark.v1.fdm
 
 import cats.effect.IO
-import cognite.spark.v1.CdpConnector.{ExtensionMethods, ioRuntime}
+import cognite.spark.v1.CdpConnector.ExtensionMethods
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.{CdfSparkIllegalArgumentException, RelationConfig, SyncCursorCallback}

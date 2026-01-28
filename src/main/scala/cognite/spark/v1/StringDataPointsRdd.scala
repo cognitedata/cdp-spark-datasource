@@ -19,7 +19,6 @@ final case class StringDataPointsRdd(
     ids: Seq[CogniteId],
     toRow: StringDataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
-  import CdpConnector.ioRuntime
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 

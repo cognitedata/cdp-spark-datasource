@@ -16,7 +16,7 @@ import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
-import cognite.spark.v1.CdpConnector.{ExtensionMethods, ioRuntime}
+import cognite.spark.v1.CdpConnector.ExtensionMethods
 
 import scala.annotation.unused
 

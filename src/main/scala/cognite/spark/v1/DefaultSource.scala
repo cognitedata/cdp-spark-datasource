@@ -241,7 +241,6 @@ class DefaultSource
           // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
           val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
           data.foreachPartition((rows: Iterator[Row]) => {
-            import CdpConnector.ioRuntime
             val batches = rows.grouped(batchSize).toVector
             batches.parTraverse_(relation.delete).unsafeRunBlocking()
           })
@@ -283,8 +282,6 @@ class DefaultSource
           }
 
         dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
-          import CdpConnector.ioRuntime
-
           val maxParallelism = config.parallelismPerPartition
           val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
