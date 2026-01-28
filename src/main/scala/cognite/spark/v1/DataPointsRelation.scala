@@ -53,7 +53,7 @@ abstract class DataPointsRelationV1[A](config: RelationConfig, shortName: String
     data
       .repartition(partitions, partitionCols.map(col).toIndexedSeq: _*)
       .foreachPartition((rows: Iterator[Row]) => {
-        insertRowIterator(rows).unsafeRunSync()
+        insertRowIterator(rows).unsafeRunBlocking()
       })
   }
 

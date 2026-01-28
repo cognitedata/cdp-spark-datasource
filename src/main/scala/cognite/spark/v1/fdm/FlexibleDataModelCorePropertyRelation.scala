@@ -41,7 +41,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   private val instanceSpace = corePropConfig.instanceSpace
 
   private val (allProperties, propertySchema) = retrieveAllViewPropsAndSchema
-    .unsafeRunSync()
+    .unsafeRunBlocking()
     .getOrElse {
       (
         Map.empty[String, ViewPropertyDefinition],
