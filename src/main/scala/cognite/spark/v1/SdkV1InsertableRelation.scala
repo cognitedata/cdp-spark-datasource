@@ -20,7 +20,7 @@ abstract class SdkV1InsertableRelation[A <: Product, I](config: RelationConfig, 
         rows.grouped(config.batchSize.getOrElse(cognite.spark.v1.Constants.DefaultBatchSize)).toVector
       batches
         .parTraverse_(getFromRowsAndCreate(_))
-        .unsafeRunSync()
+        .unsafeRunBlocking()
     })
 
 }

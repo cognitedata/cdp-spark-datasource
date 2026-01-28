@@ -16,7 +16,7 @@ import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 import java.time.Instant
-import cognite.spark.v1.CdpConnector.ioRuntime
+import cognite.spark.v1.CdpConnector.{ExtensionMethods, ioRuntime}
 
 import scala.annotation.unused
 
@@ -99,7 +99,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     if (ids.nonEmpty) {
       client.sequences
         .retrieveByIds(ids, ignoreUnknownIds = true)
-        .unsafeRunSync()
+        .unsafeRunBlocking()
         .map(s => Some(s.id) -> s.columns.toList.map(c => (c.externalId.getOrElse(""), c.valueType)))
         .toMap
     } else {
@@ -115,7 +115,7 @@ class SequencesRelation(config: RelationConfig)(val sqlContext: SQLContext)
     if (externalIds.nonEmpty) {
       client.sequences
         .retrieveByExternalIds(externalIds, ignoreUnknownIds = true)
-        .unsafeRunSync()
+        .unsafeRunBlocking()
         .collect {
           case s if s.externalId.nonEmpty =>
             s.externalId -> s.columns.toList.map(c => (c.externalId.getOrElse(""), c.valueType))

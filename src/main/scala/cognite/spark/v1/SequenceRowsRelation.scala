@@ -29,7 +29,7 @@ class SequenceRowsRelation(config: RelationConfig, sequenceId: CogniteId)(val sq
       case e: CdpApiException =>
         new CdfSparkException(s"Could not resolve schema of sequence $sequenceId.", e)
     }
-    .unsafeRunSync()
+    .unsafeRunBlocking()
 
   private val columnsWithoutExternalId =
     sequenceInfo.columns.zipWithIndex

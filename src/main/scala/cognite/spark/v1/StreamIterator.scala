@@ -2,6 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
+import cognite.spark.v1.CdpConnector.ExtensionMethods
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import fs2.{Chunk, Stream}
 import org.log4s._
@@ -44,7 +45,7 @@ object StreamIterator {
     // Continuously read the stream data into the queue on a separate thread pool
     val streamsToQueue: Future[Unit] = Future {
       try {
-        putOnQueueStream.compile.drain.unsafeRunSync()
+        putOnQueueStream.compile.drain.unsafeRunBlocking()
       } catch {
         case _: InterruptedException =>
         // Ignore this, as it means there was an exception thrown while draining the
