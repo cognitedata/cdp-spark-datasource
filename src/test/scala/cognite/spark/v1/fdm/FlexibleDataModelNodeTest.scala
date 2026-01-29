@@ -18,7 +18,7 @@ import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.lit
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{Assertion, FlatSpec, Matchers}
 
 import java.time.{LocalDate, ZonedDateTime}
 import scala.concurrent.duration.DurationInt
@@ -26,6 +26,8 @@ import scala.util.{Success, Try}
 import cognite.spark.v1.fdm.utils.FDMTestMetricOperations._
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
 import org.apache.spark.sql.types.{ArrayType, StringType, StructField}
+
+import java.util.UUID
 
 class FlexibleDataModelNodeTest
     extends FlatSpec
@@ -1225,7 +1227,7 @@ class FlexibleDataModelNodeTest
   }
 
 
-  def testFilterInstance(debug: Boolean) = {
+  def testFilterInstance(debug: Boolean): Assertion = {
     setUpDataModel()
     val df = readRowsFromModel(
       modelSpace = spaceExternalId,
@@ -1236,10 +1238,11 @@ class FlexibleDataModelNodeTest
       debug
     )
 
-    df.createTempView("data_model_read_table")
+    val tempViewUUID = UUID.randomUUID()
+    df.createTempView(f"data_model_read_table_$tempViewUUID")
 
     val rows = spark
-      .sql(s"""select * from data_model_read_table
+      .sql(s"""select * from data_model_read_table_$tempViewUUID
               | where externalId = '${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode'
               | """.stripMargin)
       .collect()
