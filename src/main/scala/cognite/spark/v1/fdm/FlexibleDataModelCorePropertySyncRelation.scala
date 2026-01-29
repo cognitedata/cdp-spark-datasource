@@ -3,6 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ioRuntime
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
+import cognite.spark.v1.fdm.FlexibleDataModelQuery.generateTableExpression
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.{CdfSparkIllegalArgumentException, RelationConfig, SyncCursorCallback}
 import com.cognite.sdk.scala.common.{CdpApiException, ItemsWithCursor}
@@ -163,16 +164,6 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
         },
         IO.pure
       )
-
-  private def generateTableExpression(
-      instanceType: InstanceType,
-      filters: FilterDefinition): TableExpression =
-    instanceType match {
-      case InstanceType.Edge =>
-        TableExpression(edges = Some(EdgeTableExpression(filter = Some(filters))))
-      case InstanceType.Node =>
-        TableExpression(nodes = Some(NodesTableExpression(filter = Some(filters))))
-    }
 
   private def fetchData(
       useQueryEndpoint: Boolean,
