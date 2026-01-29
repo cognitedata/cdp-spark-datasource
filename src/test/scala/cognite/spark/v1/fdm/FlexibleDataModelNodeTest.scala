@@ -1238,7 +1238,7 @@ class FlexibleDataModelNodeTest
       debug
     )
 
-    val tempViewUUID = UUID.randomUUID()
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
     df.createTempView(f"data_model_read_table_$tempViewUUID")
 
     val rows = spark
