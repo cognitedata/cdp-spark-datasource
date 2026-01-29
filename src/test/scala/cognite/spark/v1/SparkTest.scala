@@ -284,7 +284,8 @@ trait SparkTest {
       tracingConfig = TracingConfig(new Kernel(Map.empty), None, None),
       useSharedThrottle = false,
       serverSideFilterNullValuesOnNonSchemaRawQueries = false,
-      maxOutstandingRawInsertRequests = None
+      maxOutstandingRawInsertRequests = None,
+      sendDebugFlag = false,
     )
 
   private def getCounterSafe(metricsNamespace: String, resource: String): Option[Long] = {
