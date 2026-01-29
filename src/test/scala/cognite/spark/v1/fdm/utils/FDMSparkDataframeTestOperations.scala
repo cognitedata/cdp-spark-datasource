@@ -161,21 +161,6 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("sendDebugFlag", value = debug)
       .load()
 
-  def readRowsFromModelDebugFlag(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      viewExternalId: String,
-      instanceSpace: Option[String]): DataFrame =
-    readRowsFromModel(
-      modelSpace,
-      modelExternalId,
-      modelVersion,
-      viewExternalId,
-      instanceSpace,
-      debug = true
-    )
-
   def readRowsFromModel(
      modelSpace: String,
      modelExternalId: String,

@@ -1225,39 +1225,15 @@ class FlexibleDataModelNodeTest
   }
 
 
-  it should "successfully filter instances from a data model" in {
+  def testFilterInstance(debug: Boolean) = {
     setUpDataModel()
     val df = readRowsFromModel(
       modelSpace = spaceExternalId,
       modelExternalId = testDataModelExternalId,
       modelVersion = viewVersion,
       viewExternalId = viewStartNodeAndEndNodesExternalId,
-      instanceSpace = None
-    )
-
-    df.createTempView("data_model_read_table")
-
-    val rows = spark
-      .sql(s"""select * from data_model_read_table
-           | where externalId = '${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode'
-           | """.stripMargin)
-      .collect()
-
-    rows.isEmpty shouldBe false
-    toExternalIds(rows).toVector shouldBe Vector(
-      s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
-    toPropVal(rows, "stringProp1").toVector shouldBe Vector("stringProp1Val")
-    toPropVal(rows, "stringProp2").toVector shouldBe Vector("stringProp2Val")
-  }
-
-  it should "successfully filter instances from a data model with debug flag enabled" in {
-    setUpDataModel()
-    val df = readRowsFromModelDebugFlag(
-      modelSpace = spaceExternalId,
-      modelExternalId = testDataModelExternalId,
-      modelVersion = viewVersion,
-      viewExternalId = viewStartNodeAndEndNodesExternalId,
-      instanceSpace = None
+      instanceSpace = None,
+      debug
     )
 
     df.createTempView("data_model_read_table")
@@ -1273,6 +1249,11 @@ class FlexibleDataModelNodeTest
       s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
     toPropVal(rows, "stringProp1").toVector shouldBe Vector("stringProp1Val")
     toPropVal(rows, "stringProp2").toVector shouldBe Vector("stringProp2Val")
+  }
+
+  it should "successfully filter instances from a data model, and debug flag should have no impact on results" in {
+    testFilterInstance(false)
+    testFilterInstance(true)
   }
 
   it should "successfully insert instances to a data model" in {
