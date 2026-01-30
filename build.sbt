@@ -58,7 +58,6 @@ lazy val commonSettings = Seq(
     )
     case _ => Seq.empty
   }),
-  resolvers ++= Resolver.sonatypeOssRepos("releases"),
   developers := List(
     Developer(
       id = "wjoel",
