@@ -103,7 +103,8 @@ private[spark] class FlexibleDataModelConnectionRelation(
       limit = config.limitPerPartition,
       cursor = None,
       sources = None,
-      includeTyping = Some(true)
+      includeTyping = Some(true),
+      debug = optionalDebug(config.sendDebugFlag)
     )
 
     Vector(

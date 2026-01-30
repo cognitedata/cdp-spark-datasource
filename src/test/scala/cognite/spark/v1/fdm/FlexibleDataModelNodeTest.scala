@@ -18,7 +18,7 @@ import com.cognite.sdk.scala.v1.fdm.views._
 import io.circe.{Json, JsonObject}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions.lit
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{Assertion, FlatSpec, Matchers}
 
 import java.time.{LocalDate, ZonedDateTime}
 import scala.concurrent.duration.DurationInt
@@ -26,6 +26,8 @@ import scala.util.{Success, Try}
 import cognite.spark.v1.fdm.utils.FDMTestMetricOperations._
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
 import org.apache.spark.sql.types.{ArrayType, StringType, StructField}
+
+import java.util.UUID
 
 class FlexibleDataModelNodeTest
     extends FlatSpec
@@ -1225,22 +1227,24 @@ class FlexibleDataModelNodeTest
   }
 
 
-  it should "successfully filter instances from a data model" in {
+  def testFilterInstance(debug: Boolean): Assertion = {
     setUpDataModel()
     val df = readRowsFromModel(
       modelSpace = spaceExternalId,
       modelExternalId = testDataModelExternalId,
       modelVersion = viewVersion,
       viewExternalId = viewStartNodeAndEndNodesExternalId,
-      instanceSpace = None
+      instanceSpace = None,
+      debug
     )
 
-    df.createTempView("data_model_read_table")
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
+    df.createTempView(f"data_model_read_table_$tempViewUUID")
 
     val rows = spark
-      .sql(s"""select * from data_model_read_table
-           | where externalId = '${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode'
-           | """.stripMargin)
+      .sql(s"""select * from data_model_read_table_$tempViewUUID
+              | where externalId = '${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode'
+              | """.stripMargin)
       .collect()
 
     rows.isEmpty shouldBe false
@@ -1248,6 +1252,11 @@ class FlexibleDataModelNodeTest
       s"${viewStartNodeAndEndNodesExternalId}InsertNonListStartNode")
     toPropVal(rows, "stringProp1").toVector shouldBe Vector("stringProp1Val")
     toPropVal(rows, "stringProp2").toVector shouldBe Vector("stringProp2Val")
+  }
+
+  it should "successfully filter instances from a data model, and debug flag should have no impact on results" in {
+    testFilterInstance(false)
+    testFilterInstance(true)
   }
 
   it should "successfully insert instances to a data model" in {
