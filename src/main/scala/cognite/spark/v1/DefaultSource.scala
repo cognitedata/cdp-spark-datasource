@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.{Apply, Functor}
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.CdpConnector.ExtensionMethods
 import cognite.spark.v1.fdm.{FlexibleDataModelBaseRelation, FlexibleDataModelRelationFactory}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.{
   ConnectionConfig,
@@ -240,9 +241,8 @@ class DefaultSource
           // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
           val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
           data.foreachPartition((rows: Iterator[Row]) => {
-            import CdpConnector.ioRuntime
             val batches = rows.grouped(batchSize).toVector
-            batches.parTraverse_(relation.delete).unsafeRunSync()
+            batches.parTraverse_(relation.delete).unsafeRunBlocking()
           })
         } else {
           // datapoints need special handling of dataframes and batches
@@ -282,8 +282,6 @@ class DefaultSource
           }
 
         dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
-          import CdpConnector.ioRuntime
-
           val maxParallelism = config.parallelismPerPartition
           val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
@@ -304,7 +302,7 @@ class DefaultSource
             }
             .compile
             .drain
-            .unsafeRunSync()
+            .unsafeRunBlocking()
         })
         relation
       case _ =>
