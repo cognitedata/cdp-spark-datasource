@@ -139,7 +139,8 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       modelExternalId: String,
       modelVersion: String,
       viewExternalId: String,
-      instanceSpace: Option[String]): DataFrame =
+      instanceSpace: Option[String],
+      debug: Boolean = false): DataFrame =
     spark.read
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -157,6 +158,7 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("viewExternalId", viewExternalId)
       .option("metricsPrefix", s"$modelExternalId-$modelVersion")
       .option("collectMetrics", value = true)
+      .option("sendDebugFlag", value = debug)
       .load()
 
   def readRowsFromModel(

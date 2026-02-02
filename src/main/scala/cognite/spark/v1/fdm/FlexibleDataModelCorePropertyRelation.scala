@@ -117,7 +117,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         limit = config.limitPerPartition,
         cursor = None,
         sources = viewReference.map(r => Vector(InstanceSource(r))),
-        includeTyping = Some(true)
+        includeTyping = Some(true),
+        debug = optionalDebug(config.sendDebugFlag)
       )
     }
 

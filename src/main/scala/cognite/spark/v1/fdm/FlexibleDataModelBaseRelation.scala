@@ -69,6 +69,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     })
   }
 
+  protected def optionalDebug(shouldEnable: Boolean): Option[InstanceDebugParameters] =
+    if (shouldEnable) {
+      Some(InstanceDebugParameters(timeout = None, emitResults = Some(true), profile = None))
+    } else {
+      None
+    }
+
   private def isReservedAttribute(instanceType: InstanceType, attribute: String) = {
     val alwaysReservedAttributes: Set[String] = Set("space", "externalId", "_type")
 
