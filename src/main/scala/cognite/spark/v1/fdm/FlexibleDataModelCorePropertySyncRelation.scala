@@ -88,7 +88,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     }
 
     val syncFilter = createSyncFilter(filters, instanceType)
-    val tableExpression = generateTableExpression(instanceType, syncFilter)
+    val tableExpression = generateTableExpression(instanceType, Some(syncFilter))
     def sourceReference(instanceType: InstanceType): Seq[SourceSelector] =
       viewReference
         .map(
@@ -141,7 +141,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     fetchData(
       useQueryEndpoint = false,
       cursors = cursors,
-      `with` = Map("sync" -> generateTableExpression(instanceType, matchNothingFilter)),
+      `with` = Map("sync" -> generateTableExpression(instanceType, Some(matchNothingFilter))),
       select = select)
       .flatMap { sr =>
         (sr.nextCursor, cursors) match {

@@ -4,14 +4,10 @@ import cats.Apply
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
+import cognite.spark.v1.fdm.FlexibleDataModelQuery.generateTableExpression
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
-import cognite.spark.v1.{
-  CdfSparkException,
-  CdfSparkIllegalArgumentException,
-  CdpConnector,
-  RelationConfig
-}
+import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
@@ -119,6 +115,27 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         sources = viewReference.map(r => Vector(InstanceSource(r))),
         includeTyping = Some(true)
       )
+    }
+
+    val req = {
+      if(config.useQuery) {
+        val tableExpression = generateTableExpression(InstanceType.Edge, instanceFilter)
+        InstanceQueryRequest(
+          `with` = Map("instances" -> tableExpression),
+          cursors = None,
+          select =
+        )
+      } else {
+        InstanceFilterRequest(
+          instanceType = Some(InstanceType.Edge),
+          filter = instanceFilter,
+          sort = None,
+          limit = config.limitPerPartition,
+          cursor = None,
+          sources = None,
+          includeTyping = Some(true)
+        )
+      }
     }
 
     filterRequests.distinct.map { fr =>
