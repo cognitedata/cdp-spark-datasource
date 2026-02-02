@@ -1,8 +1,8 @@
 package cognite.spark.v1.fdm
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import cats.implicits._
+import cognite.spark.v1.CdpConnector.ExtensionMethods
 import cognite.spark.v1.{CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
@@ -87,7 +87,7 @@ object FlexibleDataModelRelationFactory {
       sqlContext: SQLContext,
       dataModelConfig: DataModelConfig): FlexibleDataModelBaseRelation = {
     val viewCorePropertyConfig = (dataModelConfig match {
-      case vc: DataModelViewConfig => resolveViewCorePropertyConfig(config, vc).unsafeRunSync()
+      case vc: DataModelViewConfig => resolveViewCorePropertyConfig(config, vc).unsafeRunBlocking()
       case cc: DataModelConnectionConfig => ViewCorePropertyConfig(Usage.Edge, None, cc.instanceSpace)
     })
     new FlexibleDataModelCorePropertySyncRelation(
@@ -108,7 +108,7 @@ object FlexibleDataModelRelationFactory {
     (dataModelConfig match {
       case vc: DataModelViewConfig => createCorePropertyRelationForDataModel(config, sqlContext, vc)
       case cc: DataModelConnectionConfig => createConnectionRelationForDataModel(config, sqlContext, cc)
-    }).unsafeRunSync()
+    }).unsafeRunBlocking()
 
   private def resolveViewCorePropertyConfig(
       config: RelationConfig,

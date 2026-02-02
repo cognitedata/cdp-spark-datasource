@@ -148,7 +148,7 @@ class RawTableRelation(
               .clientFromConfig(config)
               .rawRows(database, table, filterNulls)
               .getPartitionCursors(filter, configWithLimit.partitions)
-              .unsafeRunSync()
+              .unsafeRunBlocking()
               .toVector
           getStreams(filter, filterNulls, partitionCursors)(
             configWithLimit.limitPerPartition,
@@ -295,7 +295,7 @@ class RawTableRelation(
             )
             .compile
             .drain
-            .unsafeRunSync()
+            .unsafeRunBlocking()
 
         case None =>
           // Same behavior as before, which is prone to OutOfMemory if the RAW API calls are too slow
@@ -303,7 +303,7 @@ class RawTableRelation(
           val batches = rows.grouped(batchSize).toVector
           batches
             .parTraverse_(postRows(columnNames, _))
-            .unsafeRunSync()
+            .unsafeRunBlocking()
       }
     })
   }

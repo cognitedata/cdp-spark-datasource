@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.compiletime.macros.SparkSchemaHelper.{fromRow, structType}
+import cognite.spark.v1.CdpConnector.ExtensionMethods
 import cognite.spark.v1.PushdownUtilities.stringSeqToCogniteExternalIdSeq
 import com.cognite.sdk.scala.common.{CdpApiException, SetValue}
 import com.cognite.sdk.scala.v1.{
@@ -76,8 +77,6 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
 
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
 
-  import CdpConnector.ioRuntime
-
   def delete(data: DataFrame): Unit = {
     val partitionedData = if (config.enableSinglePartitionDeleteAssetHierarchy) {
       data.repartition(numPartitions = 1)
@@ -100,7 +99,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
         }
         .compile
         .drain
-        .unsafeRunSync()
+        .unsafeRunBlocking()
     })
   }
 
@@ -109,7 +108,7 @@ class AssetHierarchyBuilder(config: RelationConfig)(val sqlContext: SQLContext)
     data
       .repartition(numPartitions = 1)
       .foreachPartition((rows: Iterator[Row]) => {
-        build(rows).unsafeRunSync()
+        build(rows).unsafeRunBlocking()
       })
 
   private val batchSize = config.batchSize.getOrElse(Constants.DefaultBatchSize)
