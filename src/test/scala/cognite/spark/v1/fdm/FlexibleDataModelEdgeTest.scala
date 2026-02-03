@@ -199,10 +199,10 @@ class FlexibleDataModelEdgeTest
 
     val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = "edgeType")
 
-    readConnectionsDf.createTempView("connection_instances_table")
+    readConnectionsDf.createTempView("connection_instances_table_edgetype")
 
     val selectedConnectionInstances = spark
-      .sql(s"""select * from connection_instances_table""".stripMargin)
+      .sql(s"""select * from connection_instances_table_edgetype""".stripMargin)
       .collect()
 
     val instExtIds = toExternalIds(selectedConnectionInstances)
