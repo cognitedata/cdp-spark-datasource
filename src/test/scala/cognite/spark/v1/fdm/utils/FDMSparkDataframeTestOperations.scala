@@ -130,6 +130,7 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("scopes", s"https://$cluster.cognitedata.com/.default")
       .option("edgeTypeSpace", edgeSpace)
       .option("edgeTypeExternalId", edgeExternalId)
+      .option("instanceType", InstanceType.Edge.productPrefix)
       .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
       .option("collectMetrics", value = true)
       .load()
