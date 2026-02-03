@@ -8,6 +8,7 @@ import cognite.spark.v1.fdm.FlexibleDataModelQuery.generateTableExpression
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
+import com.cognite.sdk.scala.common.ItemsWithCursor
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
@@ -100,34 +101,40 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       selectedColumns
     }
 
+    def reservedPropertyNames(instanceType: InstanceType): Seq[String] = {
+      val result = Seq("space", "externalId", "_type")
+      instanceType match {
+        case InstanceType.Node => result
+        case InstanceType.Edge => result ++ Seq("startNode", "endNode", "type")
+      }
+    }
+
+    def sourceReference(instanceType: InstanceType): Seq[SourceSelector] =
+      viewReference
+        .map(
+          r =>
+            SourceSelector(
+              source = r,
+              properties = selectedInstanceProps.toIndexedSeq.filter(p =>
+                !p.startsWith("node.") && !p.startsWith("edge.") && !p
+                  .startsWith("metadata.") && !reservedPropertyNames(instanceType).contains(p))
+            ))
+        .toSeq
+
     val instanceFilter = usageBasedPropertyFilter(intendedUsage, filters, viewReference) match {
       case Right(filters) => filters
       case Left(err) => throw err
     }
 
-    val filterRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
-      InstanceFilterRequest(
-        instanceType = Some(instanceType),
-        filter = instanceFilter,
-        sort = None,
-        limit = config.limitPerPartition,
-        cursor = None,
-        sources = viewReference.map(r => Vector(InstanceSource(r))),
-        includeTyping = Some(true)
-      )
-    }
+
+    val instanceType = InstanceType.Edge//TODO this is temp
 
     val req = {
       if(config.useQuery) {
-        val tableExpression = generateTableExpression(InstanceType.Edge, instanceFilter)
-        InstanceQueryRequest(
-          `with` = Map("instances" -> tableExpression),
-          cursors = None,
-          select =
-        )
+
       } else {
         InstanceFilterRequest(
-          instanceType = Some(InstanceType.Edge),
+          instanceType = Some(instanceType),
           filter = instanceFilter,
           sort = None,
           limit = config.limitPerPartition,
@@ -137,12 +144,46 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         )
       }
     }
+    if (config.useQuery) {
+      val queryRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
+        val tableExpression = generateTableExpression(instanceType, instanceFilter, config.limitPerPartition)
+        InstanceQueryRequest(
+          `with` = Map("instances" -> tableExpression),
+          cursors = None,
+          select = Map("instances" -> SelectExpression(sources = sourceReference(instanceType))),
+          includeTyping = Some(true),
+        )
+      }
+      queryRequests.distinct.map(
+        qr =>
+          client
+            .instances
+            .queryRequest(qr)
+            .map(qr =>
+              qr.items.flatMap(_.getOrElse("instances", Vector.empty))
+                .map(toProjectedInstance(_, None, selectedInstanceProps))
+            )
 
-    filterRequests.distinct.map { fr =>
-      client.instances
-        .filterStream(fr, config.limitPerPartition)
-        .map(toProjectedInstance(_, None, selectedInstanceProps))
+      )
+    } else {
+      val filterRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
+        InstanceFilterRequest(
+          instanceType = Some(instanceType),
+          filter = instanceFilter,
+          sort = None,
+          limit = config.limitPerPartition,
+          cursor = None,
+          sources = viewReference.map(r => Vector(InstanceSource(r))),
+          includeTyping = Some(true)
+        )
+      }
+      filterRequests.distinct.map { fr =>
+        client.instances
+          .filterStream(fr, config.limitPerPartition)
+          .map(toProjectedInstance(_, None, selectedInstanceProps))
+      }
     }
+
   }
 
   private def usageBasedPropertyFilter(

@@ -6,11 +6,12 @@ import com.cognite.sdk.scala.v1.fdm.instances.{EdgeTableExpression, InstanceType
 object FlexibleDataModelQuery {
   def generateTableExpression(
     instanceType: InstanceType,
-    filters: Option[FilterDefinition]): TableExpression =
+    filters: Option[FilterDefinition],
+    limit: Option[Int] = Some(1000)): TableExpression =
     instanceType match {
       case InstanceType.Edge =>
-        TableExpression(edges = Some(EdgeTableExpression(filter = filters)))
+        TableExpression(edges = Some(EdgeTableExpression(filter = filters)), limit = limit)
       case InstanceType.Node =>
-        TableExpression(nodes = Some(NodesTableExpression(filter = filters)))
+        TableExpression(nodes = Some(NodesTableExpression(filter = filters)), limit = limit)
     }
 }
