@@ -5,7 +5,10 @@ import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
 import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
-import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{getUpsertedMetricsCount, getUpsertedMetricsCountForModel}
+import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{
+  getUpsertedMetricsCount,
+  getUpsertedMetricsCountForModel
+}
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMTestInitializer}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
@@ -117,7 +120,7 @@ class FlexibleDataModelEdgeTest
     val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
     val endNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchEndNode"
 
-    val results = (for {
+    val created = (for {
       startEndNodeContainer <- createContainerIfNotExists(
         usage = Usage.Node,
         propsMap,
@@ -168,8 +171,44 @@ class FlexibleDataModelEdgeTest
       .collect()
 
     val instExtIds = toExternalIds(selectedConnectionInstances)
-    results.size shouldBe 2
+    created.size shouldBe 2
     (instExtIds should contain).allElementsOf(Array("edge1"))
+  }
+
+  it should "filter on edgeType when specifying edgeType in df" in {
+    val created = (for {
+      c1 <- createConnectionWriteInstances(
+        externalId = "edge1",
+        typeNode = DirectRelationReference(space = spaceExternalId, externalId = "edgeType"),
+        startNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"start1"),
+        endNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"end1"),
+        autoCreateNodes = true
+      )
+      c2 <- createConnectionWriteInstances(
+        externalId = "edge2",
+        typeNode = DirectRelationReference(space = spaceExternalId, externalId = "wongEdgeType"),
+        startNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"start2"),
+        endNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"end2"),
+        autoCreateNodes = true
+      )
+    } yield c1 ++ c2).unsafeRunSync()
+
+    val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = "edgeType")
+
+    readConnectionsDf.createTempView("connection_instances_table")
+
+    val selectedConnectionInstances = spark
+      .sql(s"""select * from connection_instances_table""".stripMargin)
+      .collect()
+
+    val instExtIds = toExternalIds(selectedConnectionInstances)
+    created.size shouldBe 2
+    instExtIds.size shouldBe 1
+    instExtIds should be(Seq("edge1"))
   }
 
   it should "fetch edges from a data model" in {
@@ -346,7 +385,8 @@ class FlexibleDataModelEdgeTest
       externalId: String,
       typeNode: DirectRelationReference,
       startNode: DirectRelationReference,
-      endNode: DirectRelationReference): IO[Seq[SlimNodeOrEdge]] = {
+      endNode: DirectRelationReference,
+      autoCreateNodes: Boolean = false): IO[Seq[SlimNodeOrEdge]] = {
     val connectionInstances = Seq(
       EdgeWrite(
         `type` = typeNode,
@@ -357,7 +397,7 @@ class FlexibleDataModelEdgeTest
         sources = None
       )
     )
-    client.instances.createItems(InstanceCreate(connectionInstances, replace = Some(true)))
+    client.instances.createItems(InstanceCreate(connectionInstances, replace = Some(true), autoCreateEndNodes = Some(autoCreateNodes), autoCreateStartNodes = Some(autoCreateNodes)))
   }
 
 }
