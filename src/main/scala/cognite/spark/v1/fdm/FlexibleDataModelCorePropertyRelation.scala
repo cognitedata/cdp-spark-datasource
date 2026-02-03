@@ -109,6 +109,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       }
     }
 
+    //TODO move to sdk and fix
+    def streamQuery(queryRequest: InstanceQueryRequest): Stream[F, ProjectedFlexibleDataModelInstance] = Stream.empty
+
     def sourceReference(instanceType: InstanceType): Seq[SourceSelector] =
       viewReference
         .map(
