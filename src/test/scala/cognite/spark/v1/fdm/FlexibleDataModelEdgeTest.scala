@@ -178,7 +178,7 @@ class FlexibleDataModelEdgeTest
   it should "filter on edgeType when specifying edgeType in df" in {
     val created = (for {
       c1 <- createConnectionWriteInstances(
-        externalId = "edge1",
+        externalId = "edgeForEdgeTypeFilter1",
         typeNode = DirectRelationReference(space = spaceExternalId, externalId = "edgeType"),
         startNode =
           DirectRelationReference(space = spaceExternalId, externalId = s"start1"),
@@ -187,7 +187,7 @@ class FlexibleDataModelEdgeTest
         autoCreateNodes = true
       )
       c2 <- createConnectionWriteInstances(
-        externalId = "edge2",
+        externalId = "edgeForEdgeTypeFilter2",
         typeNode = DirectRelationReference(space = spaceExternalId, externalId = "wongEdgeType"),
         startNode =
           DirectRelationReference(space = spaceExternalId, externalId = s"start2"),
@@ -268,7 +268,6 @@ class FlexibleDataModelEdgeTest
   }
 
   it should "pick the right property as default for _type even though two views in the data models have same property names" in {
-
     val df = spark
       .sql(
         s"""
