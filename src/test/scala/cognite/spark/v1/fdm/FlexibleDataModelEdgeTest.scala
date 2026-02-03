@@ -208,7 +208,7 @@ class FlexibleDataModelEdgeTest
     val instExtIds = toExternalIds(selectedConnectionInstances)
     created.size shouldBe 2
     instExtIds.size shouldBe 1
-    instExtIds should be(Seq("edge1"))
+    instExtIds should be(Seq("edgeForEdgeTypeFilter1"))
   }
 
   it should "fetch edges from a data model" in {
