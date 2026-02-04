@@ -31,7 +31,7 @@ class MetricsBackend[F[_]: Sync, +S](
       .send(request)
       .onError {
         case cdpError: CdpApiException => cb(Some(StatusCode(cdpError.code)))
-        case SdkException(_, _, _, Some(code)) => cb(Some(StatusCode(code)))
+        case SdkException(_, _, _, Some(code), _) => cb(Some(StatusCode(code)))
         case _ =>
           cb(None)
       }
