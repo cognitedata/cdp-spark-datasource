@@ -1,3 +1,11 @@
+# 2.4.0
+
+## Enhancements
+
+* Add `autoCreateStartNodes` and `autoCreateEndNodes` options for Data Modeling instances (nodes/edges).
+  These options allow enabling "strict mode" where writes fail if referenced nodes don't exist,
+  instead of automatically creating placeholder nodes. Both default to `true` for backwards compatibility.
+
 # 2.3.2
 
 ## Fix

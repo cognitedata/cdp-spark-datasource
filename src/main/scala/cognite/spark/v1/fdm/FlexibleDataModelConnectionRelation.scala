@@ -62,8 +62,8 @@ private[spark] class FlexibleDataModelConnectionRelation(
             val instanceCreate = InstanceCreate(
               items = instances,
               replace = Some(false),
-              autoCreateStartNodes = Some(true),
-              autoCreateEndNodes = Some(true)
+              autoCreateStartNodes = Some(connectionConfig.autoCreateStartNodes),
+              autoCreateEndNodes = Some(connectionConfig.autoCreateEndNodes)
             )
             client.instances.createItems(instanceCreate)
           }
