@@ -519,7 +519,8 @@ object DefaultSource {
       useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false),
       serverSideFilterNullValuesOnNonSchemaRawQueries =
         toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false),
-      maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests")
+      maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests"),
+      useQuery = false
     )
   }
 

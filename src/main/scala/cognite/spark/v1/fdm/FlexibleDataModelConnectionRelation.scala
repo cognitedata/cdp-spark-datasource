@@ -5,12 +5,20 @@ import cats.implicits.toTraverseOps
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.fdm.FlexibleDataModelQuery.generateTableExpression
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ConnectionConfig
-import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils.{createConnectionInstances, createEdgeDeleteData}
+import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils.{
+  createConnectionInstances,
+  createEdgeDeleteData
+}
 import cognite.spark.v1.{CdfSparkException, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceFilterRequest, InstanceQueryRequest, InstanceType}
+import com.cognite.sdk.scala.v1.fdm.instances.{
+  InstanceCreate,
+  InstanceFilterRequest,
+  InstanceQueryRequest,
+  InstanceType
+}
 import fs2.Stream
 import io.circe.Json
 import org.apache.spark.sql.sources._
@@ -93,28 +101,17 @@ private[spark] class FlexibleDataModelConnectionRelation(
       case Right(v) => v
       case Left(err) => throw err
     }
-    val req = {
-      if(config.useQuery) {
-        val tableExpression = generateTableExpression(InstanceType.Edge, instanceFilters)
-        InstanceQueryRequest(
-          `with` = Map("instances" -> tableExpression),
-          cursors = None,
 
-        )
-      } else {
-        InstanceFilterRequest(
-          instanceType = Some(InstanceType.Edge),
-          filter = Some(instanceFilters),
-          sort = None,
-          limit = config.limitPerPartition,
-          cursor = None,
-          sources = None,
-          includeTyping = Some(true)
-        )
-      }
-    }
-
-
+    val filterReq =
+      InstanceFilterRequest(
+        instanceType = Some(InstanceType.Edge),
+        filter = Some(instanceFilters),
+        sort = None,
+        limit = config.limitPerPartition,
+        cursor = None,
+        sources = None,
+        includeTyping = Some(true)
+      )
 
     Vector(
       client.instances
