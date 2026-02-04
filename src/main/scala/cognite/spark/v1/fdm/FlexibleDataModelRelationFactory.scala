@@ -22,13 +22,17 @@ object FlexibleDataModelRelationFactory {
   final case class ViewCorePropertyConfig(
       intendedUsage: Usage,
       viewReference: Option[ViewReference],
-      instanceSpace: Option[String])
+      instanceSpace: Option[String],
+      autoCreateStartNodes: Boolean = true,
+      autoCreateEndNodes: Boolean = true)
       extends FlexibleDataModelRelationFactory
 
   final case class ConnectionConfig(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
-      instanceSpace: Option[String])
+      instanceSpace: Option[String],
+      autoCreateStartNodes: Boolean = true,
+      autoCreateEndNodes: Boolean = true)
       extends FlexibleDataModelRelationFactory
 
   sealed trait DataModelConfig extends FlexibleDataModelRelationFactory
@@ -38,7 +42,9 @@ object FlexibleDataModelRelationFactory {
       modelExternalId: String,
       modelVersion: String,
       viewExternalId: String,
-      instanceSpace: Option[String])
+      instanceSpace: Option[String],
+      autoCreateStartNodes: Boolean = true,
+      autoCreateEndNodes: Boolean = true)
       extends DataModelConfig
 
   final case class DataModelConnectionConfig(
@@ -47,7 +53,9 @@ object FlexibleDataModelRelationFactory {
       modelVersion: String,
       viewExternalId: String,
       connectionPropertyName: String,
-      instanceSpace: Option[String])
+      instanceSpace: Option[String],
+      autoCreateStartNodes: Boolean = true,
+      autoCreateEndNodes: Boolean = true)
       extends DataModelConfig
 
   def corePropertyRelation(
@@ -88,7 +96,13 @@ object FlexibleDataModelRelationFactory {
       dataModelConfig: DataModelConfig): FlexibleDataModelBaseRelation = {
     val viewCorePropertyConfig = (dataModelConfig match {
       case vc: DataModelViewConfig => resolveViewCorePropertyConfig(config, vc).unsafeRunBlocking()
-      case cc: DataModelConnectionConfig => ViewCorePropertyConfig(Usage.Edge, None, cc.instanceSpace)
+      case cc: DataModelConnectionConfig =>
+        ViewCorePropertyConfig(
+          Usage.Edge,
+          None,
+          cc.instanceSpace,
+          cc.autoCreateStartNodes,
+          cc.autoCreateEndNodes)
     })
     new FlexibleDataModelCorePropertySyncRelation(
       cursor,
@@ -133,7 +147,9 @@ object FlexibleDataModelRelationFactory {
             ViewCorePropertyConfig(
               intendedUsage = vc.usedFor,
               viewReference = Some(vc.toSourceReference),
-              instanceSpace = modelViewConfig.instanceSpace
+              instanceSpace = modelViewConfig.instanceSpace,
+              autoCreateStartNodes = modelViewConfig.autoCreateStartNodes,
+              autoCreateEndNodes = modelViewConfig.autoCreateEndNodes
             )
           )
         case None =>
@@ -188,7 +204,9 @@ object FlexibleDataModelRelationFactory {
               ConnectionConfig(
                 edgeTypeSpace = cDef.`type`.space,
                 edgeTypeExternalId = cDef.`type`.externalId,
-                instanceSpace = modelConnectionConfig.instanceSpace)
+                instanceSpace = modelConnectionConfig.instanceSpace,
+                autoCreateStartNodes = modelConnectionConfig.autoCreateStartNodes,
+                autoCreateEndNodes = modelConnectionConfig.autoCreateEndNodes)
             )(sqlContext))
         case _ =>
           IO.raiseError(
