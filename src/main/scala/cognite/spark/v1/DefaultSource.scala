@@ -64,14 +64,46 @@ class DefaultSource
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
-    val corePropertySyncRelation = extractCorePropertySyncRelation(parameters, config, sqlContext)
-    val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext)
-    val datamodelBasedSync = extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext)
+    // Extract auto-create options once and pass to all helper methods
+    val (autoCreateStartNodes, autoCreateEndNodes) = extractAutoCreateNodeOptions(parameters)
+
+    val corePropertySyncRelation =
+      extractCorePropertySyncRelation(
+        parameters,
+        config,
+        sqlContext,
+        autoCreateStartNodes,
+        autoCreateEndNodes)
+    val corePropertyRelation =
+      extractCorePropertyRelation(
+        parameters,
+        config,
+        sqlContext,
+        autoCreateStartNodes,
+        autoCreateEndNodes)
+    val datamodelBasedSync =
+      extractDataModelBasedConnectionRelationSync(
+        parameters,
+        config,
+        sqlContext,
+        autoCreateStartNodes,
+        autoCreateEndNodes)
     val dataModelBasedConnectionRelation =
-      extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
+      extractDataModelBasedConnectionRelation(
+        parameters,
+        config,
+        sqlContext,
+        autoCreateStartNodes,
+        autoCreateEndNodes)
     val dataModelBasedCorePropertyRelation =
-      extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
-    val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
+      extractDataModelBasedCorePropertyRelation(
+        parameters,
+        config,
+        sqlContext,
+        autoCreateStartNodes,
+        autoCreateEndNodes)
+    val connectionRelation =
+      extractConnectionRelation(parameters, config, sqlContext, autoCreateStartNodes, autoCreateEndNodes)
 
     corePropertySyncRelation
       .orElse(connectionRelation)
@@ -552,9 +584,10 @@ object DefaultSource {
   private def extractDataModelBasedCorePropertyRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
+      sqlContext: SQLContext,
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean) = {
     val instanceSpace = parameters.get("instanceSpace")
-    val (autoCreateStartNodes, autoCreateEndNodes) = extractAutoCreateNodeOptions(parameters)
     Apply[Option]
       .map4(
         parameters.get("modelSpace"),
@@ -568,9 +601,10 @@ object DefaultSource {
   private def extractDataModelBasedConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
+      sqlContext: SQLContext,
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean) = {
     val instanceSpace = parameters.get("instanceSpace")
-    val (autoCreateStartNodes, autoCreateEndNodes) = extractAutoCreateNodeOptions(parameters)
     Apply[Option]
       .map5(
         parameters.get("modelSpace"),
@@ -594,9 +628,10 @@ object DefaultSource {
   private def extractDataModelBasedConnectionRelationSync(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext): Option[FlexibleDataModelBaseRelation] = {
+      sqlContext: SQLContext,
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean): Option[FlexibleDataModelBaseRelation] = {
     val instanceSpace = parameters.get("instanceSpace")
-    val (autoCreateStartNodes, autoCreateEndNodes) = extractAutoCreateNodeOptions(parameters)
     Apply[Option]
       .map5(
         parameters.get("modelSpace"),
@@ -627,9 +662,10 @@ object DefaultSource {
   private def extractConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
+      sqlContext: SQLContext,
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean) = {
     val instanceSpace = parameters.get("instanceSpace")
-    val (autoCreateStartNodes, autoCreateEndNodes) = extractAutoCreateNodeOptions(parameters)
     Apply[Option]
       .map2(
         parameters.get("edgeTypeSpace"),
@@ -641,7 +677,9 @@ object DefaultSource {
   private def extractCorePropertySyncRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) =
+      sqlContext: SQLContext,
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean) =
     Apply[Option]
       .map2(
         parameters.get("instanceType"),
@@ -663,8 +701,6 @@ object DefaultSource {
         val jobId = parameters.get("jobId")
         val syncCursorSaveCallbackUrl = parameters.get("syncCursorSaveCallbackUrl")
 
-        val (autoCreateStartNodes, autoCreateEndNodes) = extractAutoCreateNodeOptions(parameters)
-
         FlexibleDataModelRelationFactory.corePropertySyncRelation(
           usageAndCursor._2,
           config = config,
@@ -685,8 +721,9 @@ object DefaultSource {
   private def extractCorePropertyRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
-    val (autoCreateStartNodes, autoCreateEndNodes) = extractAutoCreateNodeOptions(parameters)
+      sqlContext: SQLContext,
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean) =
     parameters
       .get("instanceType")
       .collect {
@@ -712,5 +749,4 @@ object DefaultSource {
           )
         )
       }
-  }
 }
