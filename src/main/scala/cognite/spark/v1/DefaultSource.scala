@@ -578,7 +578,16 @@ object DefaultSource {
         parameters.get("modelVersion"),
         parameters.get("viewExternalId"),
         parameters.get("connectionPropertyName")
-      )(DataModelConnectionConfig(_, _, _, _, _, instanceSpace, autoCreateStartNodes, autoCreateEndNodes))
+      )(
+        DataModelConnectionConfig(
+          _,
+          _,
+          _,
+          _,
+          _,
+          instanceSpace,
+          autoCreateStartNodes,
+          autoCreateEndNodes))
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
   }
 
@@ -604,7 +613,14 @@ object DefaultSource {
           parameters.get("syncCursorSaveCallbackUrl"),
           config,
           sqlContext,
-          DataModelViewConfig(t._1, t._2, t._3, t._4, instanceSpace, autoCreateStartNodes, autoCreateEndNodes)
+          DataModelViewConfig(
+            t._1,
+            t._2,
+            t._3,
+            t._4,
+            instanceSpace,
+            autoCreateStartNodes,
+            autoCreateEndNodes)
       ))
   }
 
@@ -661,7 +677,8 @@ object DefaultSource {
             viewReference = viewReference,
             instanceSpace = parameters.get("instanceSpace"),
             autoCreateStartNodes = autoCreateStartNodes,
-            autoCreateEndNodes = autoCreateEndNodes)
+            autoCreateEndNodes = autoCreateEndNodes
+          )
         )
       }
 
