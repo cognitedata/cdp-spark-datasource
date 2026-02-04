@@ -74,11 +74,11 @@ class DefaultSource
     val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
 
     corePropertySyncRelation
+      .orElse(connectionRelation)
       .orElse(corePropertyRelation)
       .orElse(datamodelBasedSync)
       .orElse(dataModelBasedConnectionRelation)
       .orElse(dataModelBasedCorePropertyRelation)
-      .orElse(connectionRelation)
       .getOrElse(throw new CdfSparkException(
         s"""
              |Invalid combination of arguments!
