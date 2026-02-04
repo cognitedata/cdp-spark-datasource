@@ -206,7 +206,8 @@ object FlexibleDataModelRelationFactory {
                 edgeTypeExternalId = cDef.`type`.externalId,
                 instanceSpace = modelConnectionConfig.instanceSpace,
                 autoCreateStartNodes = modelConnectionConfig.autoCreateStartNodes,
-                autoCreateEndNodes = modelConnectionConfig.autoCreateEndNodes)
+                autoCreateEndNodes = modelConnectionConfig.autoCreateEndNodes
+              )
             )(sqlContext))
         case _ =>
           IO.raiseError(
