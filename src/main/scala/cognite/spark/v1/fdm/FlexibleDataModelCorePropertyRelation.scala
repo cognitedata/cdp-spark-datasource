@@ -8,7 +8,6 @@ import cognite.spark.v1.fdm.FlexibleDataModelQuery.{generateTableExpression, sou
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
-import com.cognite.sdk.scala.common.ItemsWithCursor
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
@@ -20,6 +19,8 @@ import fs2.Stream
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
+
+import scala.annotation.unused
 
 /**
  * Flexible Data Model Relation for Nodes or Edges with properties
@@ -106,25 +107,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => throw err
     }
 
-    def streamQuery(queryRequest: InstanceQueryRequest): fs2.Stream[IO, InstanceDefinition]  = Stream.empty
+    def streamQuery(@unused queryRequest: InstanceQueryRequest): fs2.Stream[IO, InstanceDefinition]  = Stream.empty
 
-    val instanceType = InstanceType.Edge//TODO this is temp
-
-    val req = {
-      if(config.useQuery) {
-
-      } else {
-        InstanceFilterRequest(
-          instanceType = Some(instanceType),
-          filter = instanceFilter,
-          sort = None,
-          limit = config.limitPerPartition,
-          cursor = None,
-          sources = None,
-          includeTyping = Some(true)
-        )
-      }
-    }
     if (config.useQuery) {
       val queryRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
         val tableExpression = generateTableExpression(instanceType, instanceFilter, config.limitPerPartition)
