@@ -10,7 +10,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
 }
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 
-object FlexibleDataModelQuery {
+object FlexibleDataModelQueryUtils {
   def generateTableExpression(
       instanceType: InstanceType,
       filters: Option[FilterDefinition],
@@ -22,7 +22,7 @@ object FlexibleDataModelQuery {
         TableExpression(nodes = Some(NodesTableExpression(filter = filters)), limit = limit)
     }
 
-  def reservedPropertyNames(instanceType: InstanceType): Seq[String] = {
+  private def reservedPropertyNames(instanceType: InstanceType): Seq[String] = {
     val result = Seq("space", "externalId", "_type")
     instanceType match {
       case InstanceType.Node => result

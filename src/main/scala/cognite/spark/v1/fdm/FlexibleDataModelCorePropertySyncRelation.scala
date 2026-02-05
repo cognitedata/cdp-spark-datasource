@@ -3,7 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ExtensionMethods
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.fdm.FlexibleDataModelQuery.sourceReference
+import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.sourceReference
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.{CdfSparkIllegalArgumentException, RelationConfig, SyncCursorCallback}
 import com.cognite.sdk.scala.common.{CdpApiException, ItemsWithCursor}
