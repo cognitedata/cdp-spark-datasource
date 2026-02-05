@@ -3,6 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ExtensionMethods
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
+import cognite.spark.v1.fdm.FlexibleDataModelQuery.{reservedPropertyNames, sourceReference}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.{CdfSparkIllegalArgumentException, RelationConfig, SyncCursorCallback}
 import com.cognite.sdk.scala.common.{CdpApiException, ItemsWithCursor}
@@ -88,29 +89,10 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
 
     val syncFilter = createSyncFilter(filters, instanceType)
     val tableExpression = generateTableExpression(instanceType, syncFilter)
-    def sourceReference(instanceType: InstanceType): Seq[SourceSelector] =
-      viewReference
-        .map(
-          r =>
-            SourceSelector(
-              source = r,
-              properties = selectedInstanceProps.toIndexedSeq.filter(p =>
-                !p.startsWith("node.") && !p.startsWith("edge.") && !p
-                  .startsWith("metadata.") && !reservedPropertyNames(instanceType).contains(p))
-          ))
-        .toSeq
-
-    def reservedPropertyNames(instanceType: InstanceType): Seq[String] = {
-      val result = Seq("space", "externalId", "_type")
-      instanceType match {
-        case InstanceType.Node => result
-        case InstanceType.Edge => result ++ Seq("startNode", "endNode", "type")
-      }
-    }
 
     val cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None
     def select(instanceType: InstanceType) =
-      Map("sync" -> SelectExpression(sources = sourceReference(instanceType)))
+      Map("sync" -> SelectExpression(sources = sourceReference(instanceType, viewReference, selectedInstanceProps)))
     val syncMode =
       decideSyncMode(cursors, instanceType, select(instanceType)).unsafeRunBlocking()
 
