@@ -92,7 +92,9 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
 
     val cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None
     def select(instanceType: InstanceType) =
-      Map("sync" -> SelectExpression(sources = sourceReference(instanceType, viewReference, selectedInstanceProps)))
+      Map(
+        "sync" -> SelectExpression(
+          sources = sourceReference(instanceType, viewReference, selectedInstanceProps)))
     val syncMode =
       decideSyncMode(cursors, instanceType, select(instanceType)).unsafeRunBlocking()
 

@@ -7,7 +7,12 @@ import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataM
 import cognite.spark.v1.fdm.FlexibleDataModelQuery.{generateTableExpression, sourceReference}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
-import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
+import cognite.spark.v1.{
+  CdfSparkException,
+  CdfSparkIllegalArgumentException,
+  CdpConnector,
+  RelationConfig
+}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
@@ -23,15 +28,15 @@ import org.apache.spark.sql.{Row, SQLContext}
 import scala.annotation.unused
 
 /**
- * Flexible Data Model Relation for Nodes or Edges with properties
- * @param config common relation configs
- * @param corePropConfig view core property config
- * @param sqlContext sql context
- */
+  * Flexible Data Model Relation for Nodes or Edges with properties
+  * @param config common relation configs
+  * @param corePropConfig view core property config
+  * @param sqlContext sql context
+  */
 private[spark] class FlexibleDataModelCorePropertyRelation(
-  config: RelationConfig,
-  corePropConfig: ViewCorePropertyConfig)(val sqlContext: SQLContext)
-  extends FlexibleDataModelBaseRelation(config, sqlContext) {
+    config: RelationConfig,
+    corePropConfig: ViewCorePropertyConfig)(val sqlContext: SQLContext)
+    extends FlexibleDataModelBaseRelation(config, sqlContext) {
   import CdpConnector._
 
   protected val intendedUsage: Usage = corePropConfig.intendedUsage
@@ -95,7 +100,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       new CdfSparkException("Update is not supported for data model instances. Use upsert instead."))
 
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-    client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
+      client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
     val selectedInstanceProps = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
@@ -107,21 +112,26 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => throw err
     }
 
-    def streamQuery(@unused queryRequest: InstanceQueryRequest): fs2.Stream[IO, InstanceDefinition]  = Stream.empty
+    def streamQuery(@unused queryRequest: InstanceQueryRequest): fs2.Stream[IO, InstanceDefinition] =
+      Stream.empty
 
     if (config.useQuery) {
       val queryRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
-        val tableExpression = generateTableExpression(instanceType, instanceFilter, config.limitPerPartition)
+        val tableExpression =
+          generateTableExpression(instanceType, instanceFilter, config.limitPerPartition)
         InstanceQueryRequest(
           `with` = Map("instances" -> tableExpression),
           cursors = None,
-          select = Map("instances" -> SelectExpression(sources = sourceReference(instanceType, viewReference, selectedInstanceProps))),
+          select = Map(
+            "instances" -> SelectExpression(
+              sources = sourceReference(instanceType, viewReference, selectedInstanceProps))),
           includeTyping = Some(true),
         )
       }
       queryRequests.distinct.map(
-        qr =>streamQuery(qr)
-          .map(toProjectedInstance(_, None, selectedInstanceProps))
+        qr =>
+          streamQuery(qr)
+            .map(toProjectedInstance(_, None, selectedInstanceProps))
       )
     } else {
       val filterRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
@@ -145,9 +155,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   }
 
   private def usageBasedPropertyFilter(
-    usage: Usage,
-    filters: Array[Filter],
-    ref: Option[ViewReference]): Either[CdfSparkException, Option[FilterDefinition]] =
+      usage: Usage,
+      filters: Array[Filter],
+      ref: Option[ViewReference]): Either[CdfSparkException, Option[FilterDefinition]] =
     usage match {
       case Usage.Node =>
         filters.toVector
@@ -192,7 +202,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
 
   private def retrieveAllViewPropsAndSchema
-  : IO[Option[(Map[String, ViewPropertyDefinition], StructType)]] =
+    : IO[Option[(Map[String, ViewPropertyDefinition], StructType)]] =
     corePropConfig.viewReference.flatTraverse { viewRef =>
       client.views
         .retrieveItems(
@@ -210,7 +220,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
                                                                   |Ensure that the transformation's credentials have access to the view's space.
                                                                   |""".stripMargin))
           case Some(viewDef)
-            if compatibleUsageTypes(viewUsage = viewDef.usedFor, intendedUsage = intendedUsage) =>
+              if compatibleUsageTypes(viewUsage = viewDef.usedFor, intendedUsage = intendedUsage) =>
             IO.delay(
               Some(
                 (
@@ -226,11 +236,11 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
 
   private def upsertNodesOrEdges(
-    rows: Seq[Row],
-    schema: StructType,
-    source: Option[SourceReference],
-    propDefMap: Map[String, ViewPropertyDefinition],
-    instanceSpace: Option[String]) = {
+      rows: Seq[Row],
+      schema: StructType,
+      source: Option[SourceReference],
+      propDefMap: Map[String, ViewPropertyDefinition],
+      instanceSpace: Option[String]) = {
     val nodesOrEdges = intendedUsage match {
       case Usage.Node =>
         createNodes(rows, schema, propDefMap, source, instanceSpace, config.ignoreNullFields)

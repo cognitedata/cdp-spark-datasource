@@ -70,8 +70,6 @@ class DefaultSource
     val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
     val corePropertySyncRelation = extractCorePropertySyncRelation(parameters, config, sqlContext)
 
-
-
     //datamodelBased are used if the dataModel is specified (and a view within that datamodel). It uses the datamodel space/version to decide which space and version to use for the view.
     val dataModelBasedConnectionRelation =
       extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
@@ -79,9 +77,8 @@ class DefaultSource
       extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
     val datamodelBasedSync = extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext)
 
-
     corePropertySyncRelation
-      //Used if edgeTypeExternalId and edgeTypeSpace are defined
+    //Used if edgeTypeExternalId and edgeTypeSpace are defined
       .orElse(connectionRelation)
       //Used if instanceType is defined to node or edge
       .orElse(corePropertyRelation)
