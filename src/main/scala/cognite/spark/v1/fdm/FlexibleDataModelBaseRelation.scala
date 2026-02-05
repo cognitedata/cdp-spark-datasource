@@ -260,7 +260,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("node.lastUpdatedTime") => n.lastUpdatedTime
             case s if s.equalsIgnoreCase("node.deletedTime") => n.deletedTime.getOrElse(0L)
             case s if s.equalsIgnoreCase("node.createdTime") => n.createdTime
-            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(schema, p, it)).orNull
+            case p =>
+              allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(schema, p, it)).orNull
           },
           space = n.space
         )
@@ -280,7 +281,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("edge.lastUpdatedTime") => e.lastUpdatedTime
             case s if s.equalsIgnoreCase("edge.deletedTime") => e.deletedTime.getOrElse(0L)
             case s if s.equalsIgnoreCase("edge.createdTime") => e.createdTime
-            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(schema, p, it)).orNull
+            case p =>
+              allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(schema, p, it)).orNull
           },
           space = e.space
         )
