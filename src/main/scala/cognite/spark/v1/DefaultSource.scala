@@ -530,7 +530,8 @@ object DefaultSource {
       serverSideFilterNullValuesOnNonSchemaRawQueries =
         toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false),
       maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests"),
-      sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false)
+      sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false),
+      useQuery = false,
     )
   }
 
