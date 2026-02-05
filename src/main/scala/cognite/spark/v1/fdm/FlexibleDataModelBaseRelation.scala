@@ -3,7 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.fdm.RelationUtils.FlexibleDataModelRelationUtils
+import cognite.spark.v1.fdm.RelationUtils.RowDataExtractors.extractInstancePropertyValue
 import cognite.spark.v1.{
   CdfRelation,
   CdfSparkException,
@@ -85,9 +85,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     alwaysReservedAttributes.contains(attribute) ||
     (instanceType == InstanceType.Edge && edgeReservedAttributes.contains(attribute))
   }
-
-  private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any =
-    FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema.apply(key).dataType, value)
 
   private def getVersionedViewExternalId(viewReference: ViewReference): String =
     s"${viewReference.externalId}/${viewReference.version}"
@@ -263,7 +260,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("node.lastUpdatedTime") => n.lastUpdatedTime
             case s if s.equalsIgnoreCase("node.deletedTime") => n.deletedTime.getOrElse(0L)
             case s if s.equalsIgnoreCase("node.createdTime") => n.createdTime
-            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(p, it)).orNull
+            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(schema, p, it)).orNull
           },
           space = n.space
         )
@@ -283,7 +280,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
             case s if s.equalsIgnoreCase("edge.lastUpdatedTime") => e.lastUpdatedTime
             case s if s.equalsIgnoreCase("edge.deletedTime") => e.deletedTime.getOrElse(0L)
             case s if s.equalsIgnoreCase("edge.createdTime") => e.createdTime
-            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(p, it)).orNull
+            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(schema, p, it)).orNull
           },
           space = e.space
         )
@@ -603,7 +600,6 @@ object FlexibleDataModelBaseRelation extends NamedRelation with UpsertSchema wit
   import cognite.spark.compiletime.macros.SparkSchemaHelper.structType
   import cognite.spark.v1.StructTypeEncoder
   import cognite.spark.compiletime.macros.StructTypeEncoderMacro._
-
   // TODO: this seems to be incomplete or fully wrong schema
   final case class DataModelBaseRelationUpsertSchema(externalId: String) {}
 

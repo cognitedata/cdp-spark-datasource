@@ -35,6 +35,9 @@ import scala.util.{Failure, Success, Try}
 
 object RowDataExtractors {
 
+  def extractInstancePropertyValue(schema: StructType, key: String, value: InstancePropertyValue): Any =
+    extractInstancePropertyValue(schema.apply(key).dataType, value)
+
   def extractExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
     Try {
       Option(row.get(schema.fieldIndex("externalId")))

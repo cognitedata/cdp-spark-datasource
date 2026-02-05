@@ -2,30 +2,14 @@ package cognite.spark.v1.fdm.RelationUtils
 
 import cats.implicits._
 import cognite.spark.v1.CdfSparkException
-import cognite.spark.v1.fdm.RelationUtils.RowDataExtractors.{
-  extractEdgeEndNodeDirectRelation,
-  extractEdgeStartNodeDirectRelation,
-  extractExternalId,
-  extractInstancePropertyValues,
-  extractNodeTypeDirectRelation,
-  extractSpaceOrDefault,
-  rowToString
-}
+import cognite.spark.v1.fdm.RelationUtils.RowDataExtractors.{extractEdgeEndNodeDirectRelation, extractEdgeStartNodeDirectRelation, extractEdgeTypeDirectRelation, extractExternalId, extractInstancePropertyValues, extractNodeTypeDirectRelation, extractSpaceOrDefault, rowToString}
 import cognite.spark.v1.fdm.RelationUtils.Validators.validateSourceSchema
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
-  EdgeDeletionRequest,
-  NodeDeletionRequest
-}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{EdgeDeletionRequest, NodeDeletionRequest}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  EdgeOrNodeData,
-  InstanceDeletionRequest,
-  InstancePropertyValue,
-  NodeOrEdgeCreate
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceDeletionRequest, InstancePropertyValue, NodeOrEdgeCreate}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
