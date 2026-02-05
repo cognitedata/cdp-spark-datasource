@@ -104,7 +104,7 @@ class RawTableRelation(
           .map(Option(_))
           .recover {
             // It's fine to request keys that don't exist, so we just ignore 404 responses.
-            case CdpApiException(_, 404, _, _, _, _, _, _, _) => None
+            case CdpApiException(_, 404, _, _, _, _, _, _, _, _) => None
           }
       )
       .collect { case Some(v) => v }
