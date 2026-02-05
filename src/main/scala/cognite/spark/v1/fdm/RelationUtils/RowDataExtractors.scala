@@ -1,6 +1,7 @@
-package cognite.spark.v1.fdm
+package cognite.spark.v1.fdm.RelationUtils
 
 import cats.implicits._
+import cognite.spark.v1.fdm.RelationUtils.Convertors._
 import cognite.spark.v1.{
   CdfSparkException,
   CdfSparkIllegalArgumentException,
@@ -25,283 +26,16 @@ import com.cognite.sdk.scala.v1.fdm.common.properties.{
   PrimitivePropType,
   PropertyDefinition
 }
-import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
-  EdgeDeletionRequest,
-  NodeDeletionRequest
-}
-import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  EdgeOrNodeData,
-  InstanceDeletionRequest,
-  InstancePropertyValue,
-  NodeOrEdgeCreate
-}
+import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
-import java.time._
 import scala.util.{Failure, Success, Try}
 
-object FlexibleDataModelRelationUtils {
-  private[spark] def createNodes(
-      rows: Seq[Row],
-      schema: StructType,
-      propertyDefMap: Map[String, ViewPropertyDefinition],
-      source: Option[SourceReference],
-      instanceSpace: Option[String],
-      ignoreNullFields: Boolean = true): Either[CdfSparkException, Vector[NodeWrite]] =
-    validateSourceSchema(source, schema, propertyDefMap) *> createNodeWriteData(
-      schema,
-      source,
-      propertyDefMap,
-      rows,
-      instanceSpace,
-      ignoreNullFields)
+object RowDataExtractors {
 
-  private[spark] def createEdges(
-      rows: Seq[Row],
-      schema: StructType,
-      propertyDefMap: Map[String, ViewPropertyDefinition],
-      source: Option[SourceReference],
-      instanceSpace: Option[String],
-      ignoreNullFields: Boolean = true): Either[CdfSparkException, Vector[EdgeWrite]] =
-    validateSourceSchema(source, schema, propertyDefMap) *> createEdgeWriteData(
-      schema,
-      source,
-      propertyDefMap,
-      rows,
-      instanceSpace,
-      ignoreNullFields)
-
-  private[spark] def createNodesOrEdges(
-      rows: Seq[Row],
-      schema: StructType,
-      propertyDefMap: Map[String, ViewPropertyDefinition],
-      source: Option[SourceReference],
-      instanceSpace: Option[String],
-      ignoreNullFields: Boolean = true
-  ): Either[CdfSparkException, Vector[NodeOrEdgeCreate]] =
-    rows.toVector.traverse { row =>
-      for {
-        space <- extractSpaceOrDefault(schema, row, instanceSpace)
-        externalId <- extractExternalId(schema, row)
-        props <- extractInstancePropertyValues(
-          propertyDefMap,
-          schema,
-          instanceSpace.orElse(Some(space)),
-          ignoreNullFields,
-          row)
-        writeData <- createNodeOrEdgeWriteData(
-          externalId = externalId,
-          instanceSpace = space,
-          source,
-          nodeTypeDirectRelation =
-            extractNodeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
-          edgeTypeDirectRelation =
-            extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
-          startNodeRelation =
-            extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
-          endNodeRelation =
-            extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption,
-          props,
-          row
-        )
-      } yield writeData
-    }
-
-  private[spark] def createConnectionInstances(
-      edgeType: DirectRelationReference,
-      schema: StructType,
-      rows: Seq[Row],
-      instanceSpace: Option[String]): Either[CdfSparkException, Vector[EdgeWrite]] =
-    createConnectionInstanceWriteData(
-      schema,
-      edgeType,
-      rows,
-      instanceSpace
-    )
-
-  private[spark] def createNodeDeleteData(
-      schema: StructType,
-      rows: Seq[Row],
-      instanceSpace: Option[String]): Either[CdfSparkException, Vector[InstanceDeletionRequest]] =
-    rows.toVector.traverse { row =>
-      for {
-        spaceExtId <- extractSpaceOrDefault(schema, row, instanceSpace)
-        extId <- extractExternalId(schema, row)
-      } yield NodeDeletionRequest(space = spaceExtId, externalId = extId)
-    }
-
-  private[spark] def createEdgeDeleteData(
-      schema: StructType,
-      rows: Seq[Row],
-      instanceSpace: Option[String]): Either[CdfSparkException, Vector[InstanceDeletionRequest]] =
-    rows.toVector.traverse { row =>
-      for {
-        spaceExtId <- extractSpaceOrDefault(schema, row, instanceSpace)
-        extId <- extractExternalId(schema, row)
-      } yield
-        EdgeDeletionRequest(
-          space = spaceExtId,
-          externalId = extId
-        )
-    }
-
-  private def createEdgeWriteData(
-      schema: StructType,
-      source: Option[SourceReference],
-      propertyDefMap: Map[String, ViewPropertyDefinition],
-      rows: Seq[Row],
-      instanceSpace: Option[String],
-      ignoreNullFields: Boolean): Either[CdfSparkException, Vector[EdgeWrite]] =
-    rows.toVector.traverse { row =>
-      for {
-        space <- extractSpaceOrDefault(schema, row, instanceSpace)
-        extId <- extractExternalId(schema, row)
-        edgeType <- extractEdgeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
-        startNode <- extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
-        endNode <- extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
-        props <- extractInstancePropertyValues(
-          propertyDefMap,
-          schema,
-          instanceSpace.orElse(Some(space)),
-          ignoreNullFields,
-          row)
-      } yield
-        EdgeWrite(
-          `type` = edgeType,
-          space = space,
-          externalId = extId,
-          startNode = startNode,
-          endNode = endNode,
-          sources = source.map(
-            src =>
-              Seq(
-                EdgeOrNodeData(
-                  source = src,
-                  properties = Some(props.toMap)
-                )
-            ))
-        )
-    }
-
-  private def createNodeOrEdgeWriteData(
-      externalId: String,
-      instanceSpace: String,
-      source: Option[SourceReference],
-      nodeTypeDirectRelation: Option[DirectRelationReference],
-      edgeTypeDirectRelation: Option[DirectRelationReference],
-      startNodeRelation: Option[DirectRelationReference],
-      endNodeRelation: Option[DirectRelationReference],
-      props: Vector[(String, Option[InstancePropertyValue])],
-      row: Row): Either[CdfSparkException, NodeOrEdgeCreate] =
-    (edgeTypeDirectRelation, startNodeRelation, endNodeRelation) match {
-      case (Some(edgeType), Some(startNode), Some(endNode)) =>
-        Right(
-          EdgeWrite(
-            `type` = edgeType,
-            space = instanceSpace,
-            externalId = externalId,
-            startNode = startNode,
-            endNode = endNode,
-            sources = source.map(
-              src =>
-                Seq(
-                  EdgeOrNodeData(
-                    source = src,
-                    properties = Some(props.toMap)
-                  )
-              ))
-          )
-        )
-      case (_, None, None) =>
-        Right(
-          NodeWrite(
-            space = instanceSpace,
-            externalId = externalId,
-            sources = source.map(
-              src =>
-                Seq(
-                  EdgeOrNodeData(
-                    source = src,
-                    properties = Some(props.toMap)
-                  )
-              )),
-            `type` = nodeTypeDirectRelation
-          )
-        )
-      case _ =>
-        val relationRefNames = Vector(
-          edgeTypeDirectRelation.map(_ => "'type'"),
-          startNodeRelation.map(_ => "'startNode'"),
-          endNodeRelation.map(_ => "'endNode'")
-        ).flatten
-        Left(new CdfSparkException(s"""
-          |Fields 'type', 'externalId', 'startNode' & 'endNode' fields are required to create an Edge.
-          |Field 'externalId' is required to create a Node
-          |Only found: 'externalId', ${relationRefNames.mkString(", ")}
-          |in data row: ${rowToString(row)}
-          |""".stripMargin))
-    }
-
-  private def createNodeWriteData(
-      schema: StructType,
-      source: Option[SourceReference],
-      propertyDefMap: Map[String, ViewPropertyDefinition],
-      rows: Seq[Row],
-      instanceSpace: Option[String],
-      ignoreNullFields: Boolean): Either[CdfSparkException, Vector[NodeWrite]] =
-    rows.toVector.traverse { row =>
-      for {
-        space <- extractSpaceOrDefault(schema, row, instanceSpace)
-        externalId <- extractExternalId(schema, row)
-        props <- extractInstancePropertyValues(
-          propertyDefMap,
-          schema,
-          instanceSpace.orElse(Some(space)),
-          ignoreNullFields,
-          row)
-      } yield
-        NodeWrite(
-          space = space,
-          externalId = externalId,
-          sources = source.map(
-            src =>
-              Seq(
-                EdgeOrNodeData(
-                  source = src,
-                  properties = Some(props.toMap)
-                )
-            )),
-          `type` = extractNodeTypeDirectRelation(schema, instanceSpace.orElse(Some(space)), row).toOption
-        )
-    }
-
-  private def createConnectionInstanceWriteData(
-      schema: StructType,
-      edgeType: DirectRelationReference,
-      rows: Seq[Row],
-      instanceSpace: Option[String]): Either[CdfSparkException, Vector[EdgeWrite]] =
-    rows.toVector.traverse { row =>
-      for {
-        space <- extractSpaceOrDefault(schema, row, instanceSpace)
-        extId <- extractExternalId(schema, row)
-        startNode <- extractEdgeStartNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
-        endNode <- extractEdgeEndNodeDirectRelation(schema, instanceSpace.orElse(Some(space)), row)
-      } yield
-        EdgeWrite(
-          `type` = edgeType,
-          space = space,
-          externalId = extId,
-          startNode = startNode,
-          endNode = endNode,
-          sources = None
-        )
-    }
-
-  private def extractExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
+  def extractExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
     Try {
       Option(row.get(schema.fieldIndex("externalId")))
     } match {
@@ -341,14 +75,14 @@ object FlexibleDataModelRelationUtils {
                                       |""".stripMargin))
     }
 
-  private def extractNodeTypeDirectRelation(
+  def extractNodeTypeDirectRelation(
       schema: StructType,
       instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     extractDirectRelation("_type", "Node type", schema, instanceSpace, row)
 
   //For edge we support using "type" as an alias for "_type" for legacy reasons
-  private def extractEdgeTypeDirectRelation(
+  def extractEdgeTypeDirectRelation(
       schema: StructType,
       instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
@@ -357,13 +91,13 @@ object FlexibleDataModelRelationUtils {
       case _ => extractDirectRelation("type", "Edge type", schema, instanceSpace, row)
     }
 
-  private def extractEdgeStartNodeDirectRelation(
+  def extractEdgeStartNodeDirectRelation(
       schema: StructType,
       defaultSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     extractDirectRelation("startNode", "Edge start node", schema, defaultSpace, row)
 
-  private def extractEdgeEndNodeDirectRelation(
+  def extractEdgeEndNodeDirectRelation(
       schema: StructType,
       defaultSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
@@ -382,19 +116,20 @@ object FlexibleDataModelRelationUtils {
     (space, externalId) match {
       case (Some(s), Some(e)) =>
         Right(DirectRelationReference(space = String.valueOf(s), externalId = String.valueOf(e)))
-      case (_, None) => Left(new CdfSparkException(s"""
-        |'$propertyName' ($descriptiveName) cannot contain null values.
-        |Please verify that 'externalId' values are not null for '$propertyName'
-        |in data row: ${rowToString(struct)}
-        |""".stripMargin))
-      case (None, _) => Left(new CdfSparkException(s"""
-        |'$propertyName' ($descriptiveName) cannot contain null values.
-        |Please verify that 'space' values are not null for '$propertyName'
-        |in data row: ${rowToString(struct)}
-        |""".stripMargin))
+      case (_, None) =>
+        Left(new CdfSparkException(s"""
+                                                      |'$propertyName' ($descriptiveName) cannot contain null values.
+                                                      |Please verify that 'externalId' values are not null for '$propertyName'
+                                                      |in data row: ${rowToString(struct)}
+                                                      |""".stripMargin))
+      case (None, _) =>
+        Left(new CdfSparkException(s"""
+                                                      |'$propertyName' ($descriptiveName) cannot contain null values.
+                                                      |Please verify that 'space' values are not null for '$propertyName'
+                                                      |in data row: ${rowToString(struct)}
+                                                      |""".stripMargin))
     }
   }
-
   private def extractDirectRelation(
       propertyName: String,
       descriptiveName: String,
@@ -412,16 +147,14 @@ object FlexibleDataModelRelationUtils {
       case Success(relation) => relation
       case Failure(err) =>
         Left(new CdfSparkException(s"""
-            |Could not find required property '$propertyName'
-            |'$propertyName' ($descriptiveName) should be a
-            | 'StructType' with 'space' & 'externalId' properties: ${err.getMessage}
-            |in data row: ${rowToString(row)}
-            |""".stripMargin))
+                                      |Could not find required property '$propertyName'
+                                      |'$propertyName' ($descriptiveName) should be a
+                                      | 'StructType' with 'space' & 'externalId' properties: ${err.getMessage}
+                                      |in data row: ${rowToString(row)}
+                                      |""".stripMargin))
     }
 
-  private[spark] def extractInstancePropertyValue(
-      propType: DataType,
-      value: InstancePropertyValue): Any =
+  def extractInstancePropertyValue(propType: DataType, value: InstancePropertyValue): Any =
     (propType, value) match {
       case (StringType, InstancePropertyValue.Date(v)) => v.toString
       case (StringType, InstancePropertyValue.Timestamp(v)) => v.toString
@@ -484,7 +217,7 @@ object FlexibleDataModelRelationUtils {
         value.map(r => Array(r.space, r.externalId)).toArray
     }
 
-  private def extractInstancePropertyValues(
+  def extractInstancePropertyValues(
       propertyDefMap: Map[String, ViewPropertyDefinition],
       schema: StructType,
       instanceSpace: Option[String],
@@ -504,39 +237,7 @@ object FlexibleDataModelRelationUtils {
         }
     }
 
-  private def validateSourceSchema(
-      source: Option[SourceReference],
-      schema: StructType,
-      propertyDefMap: Map[String, ViewPropertyDefinition]): Either[CdfSparkException, Boolean] =
-    source match {
-      case Some(_) =>
-        validateRowFieldsWithPropertyDefinitions(schema, propertyDefMap)
-      case None =>
-        Right(true)
-    }
-
-  private def validateRowFieldsWithPropertyDefinitions(
-      schema: StructType,
-      propertyDefMap: Map[String, ViewPropertyDefinition]): Either[CdfSparkException, Boolean] = {
-
-    val (_, propsMissingInSchema) = propertyDefMap.partition {
-      case (propName, _) => Try(schema.fieldIndex(propName)).isSuccess
-    }
-    val (_, nonNullablePropsMissingInSchema) =
-      propsMissingInSchema.partition {
-        case (_, corePropDef: ViewCorePropertyDefinition) => corePropDef.nullable.getOrElse(true)
-        case (_, _: ConnectionDefinition) => true
-      }
-
-    if (nonNullablePropsMissingInSchema.nonEmpty) {
-      val propsAsStr = nonNullablePropsMissingInSchema.keys.mkString(", ")
-      Left(new CdfSparkException(s"Could not find required properties: [$propsAsStr]"))
-    } else {
-      Right(true)
-    }
-  }
-
-  private def propertyDefinitionToInstancePropertyValue(
+  def propertyDefinitionToInstancePropertyValue(
       row: Row,
       schema: StructType,
       propertyName: String,
@@ -576,37 +277,7 @@ object FlexibleDataModelRelationUtils {
     }
   }
 
-  private val timezoneId: ZoneId = ZoneId.of("UTC")
-
-  private def lookupFieldInRow(row: Row, schema: StructType, propertyName: String, nullable: Boolean)(
-      get: => Int => Either[Throwable, InstancePropertyValue])
-    : Either[Throwable, OptionalField[InstancePropertyValue]] =
-    Try(schema.fieldIndex(propertyName)) match {
-      case Failure(_) => Right(FieldNotSpecified)
-      case Success(i) if i >= row.length || i < 0 => Right(FieldNotSpecified)
-      case Success(i) if row.isNullAt(i) =>
-        if (nullable) {
-          Right(FieldNull)
-        } else {
-          Left(new CdfSparkException(s"'$propertyName' cannot be null"))
-        }
-      case Success(i) => get(i).map(FieldSpecified(_))
-    }
-
-  private def getListPropAsSeq[T](propertyName: String, row: Row, index: Integer): Seq[T] =
-    Try(row.getSeq[T](index)) match {
-      case Success(x) => x
-      case Failure(_) =>
-        Try(row.getAs[Array[T]](index).toSeq) match {
-          case Success(x) => x
-          case Failure(err) =>
-            throw new CdfSparkException(
-              f"""Could not deserialize property $propertyName as an array of the expected type""",
-              err)
-        }
-    }
-
-  private def toInstancePropertyValueOfList(
+  def toInstancePropertyValueOfList(
       row: Row,
       schema: StructType,
       propertyName: String,
@@ -672,7 +343,7 @@ object FlexibleDataModelRelationUtils {
       }
     }
 
-  private def toInstancePropertyValueOfNonList(
+  def toInstancePropertyValueOfNonList(
       row: Row,
       schema: StructType,
       propertyName: String,
@@ -724,69 +395,47 @@ object FlexibleDataModelRelationUtils {
       }
     }
 
-  private def safeConvertToLong(n: BigDecimal): Long =
-    if (n.isValidLong) {
-      n.longValue
-    } else {
-      throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Long")
-    }
-  private def safeConvertToInt(n: BigDecimal): Int =
-    if (n.isValidInt) {
-      n.intValue
-    } else {
-      throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Int")
-    }
-  private def safeConvertToDouble(n: BigDecimal): Double =
-    if (n.isDecimalDouble) {
-      n.doubleValue
-    } else {
-      throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Double")
-    }
-  private def safeConvertToFloat(n: BigDecimal): Float =
-    if (n.isDecimalFloat) {
-      n.floatValue
-    } else {
-      throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Float")
+  def extractSpaceOrDefault(
+      schema: StructType,
+      row: Row,
+      defaultSpace: Option[String]): Either[CdfSparkIllegalArgumentException, String] =
+    defaultSpace.map(Right(_)).getOrElse(extractSpace(schema, row)).leftMap { e =>
+      new CdfSparkIllegalArgumentException(
+        s"""
+           |There's no 'instanceSpace' specified to be used as default space and could not extract 'space' from data.
+           | If the intention is to not use a default space then please make sure the data is correct.
+           | ${e.getMessage}
+           |""".stripMargin
+      )
     }
 
-  private def tryConvertNumber[T](
-      n: Any,
-      propertyName: String,
-      expectedType: String,
-      safeConvert: (BigDecimal) => T
-  ): Either[CdfSparkException, T] =
-    Try {
-      val asBigDecimal = BigDecimal(String.valueOf(n))
-      safeConvert(asBigDecimal)
-    }.toEither
-      .leftMap(exception =>
-        new CdfSparkException(
-          s"""Error parsing value for field '$propertyName'.
-                                 |Expecting a $expectedType but found '${String.valueOf(n)}'
-                                 |""".stripMargin,
-          exception
-      ))
+  private def lookupFieldInRow(row: Row, schema: StructType, propertyName: String, nullable: Boolean)(
+      get: => Int => Either[Throwable, InstancePropertyValue])
+    : Either[Throwable, OptionalField[InstancePropertyValue]] =
+    Try(schema.fieldIndex(propertyName)) match {
+      case Failure(_) => Right(FieldNotSpecified)
+      case Success(i) if i >= row.length || i < 0 => Right(FieldNotSpecified)
+      case Success(i) if row.isNullAt(i) =>
+        if (nullable) {
+          Right(FieldNull)
+        } else {
+          Left(new CdfSparkException(s"'$propertyName' cannot be null"))
+        }
+      case Success(i) => get(i).map(FieldSpecified(_))
+    }
 
-  private def tryConvertNumberSeq[T](
-      ns: Seq[Any],
-      propertyName: String,
-      expectedType: String,
-      safeConvert: (BigDecimal) => T): Either[CdfSparkException, Seq[T]] =
-    Try {
-      skipNulls(ns).map { n =>
-        val asBigDecimal = BigDecimal(String.valueOf(n))
-        safeConvert(asBigDecimal)
-      }
-    }.toEither
-      .leftMap(exception => {
-        val seqAsStr = ns.map(String.valueOf).mkString(",")
-        new CdfSparkException(
-          s"""Error parsing value for field '$propertyName'.
-                                 |Expecting a Array[$expectedType] but found '[$seqAsStr]'
-                                 |""".stripMargin,
-          exception
-        )
-      })
+  private def getListPropAsSeq[T](propertyName: String, row: Row, index: Integer): Seq[T] =
+    Try(row.getSeq[T](index)) match {
+      case Success(x) => x
+      case Failure(_) =>
+        Try(row.getAs[Array[T]](index).toSeq) match {
+          case Success(x) => x
+          case Failure(err) =>
+            throw new CdfSparkException(
+              f"""Could not deserialize property $propertyName as an array of the expected type""",
+              err)
+        }
+    }
 
   private def tryAsDirectNodeRelationList(
       value: Seq[Row],
@@ -813,60 +462,7 @@ object FlexibleDataModelRelationUtils {
                                       |""".stripMargin))
     }
 
-  private def tryAsDate(value: Any, propertyName: String): Either[CdfSparkException, LocalDate] =
-    Try(value.asInstanceOf[java.sql.Date].toLocalDate)
-      .orElse(Try(LocalDate.parse(String.valueOf(value))))
-      .toEither
-      .orElse(tryAsTimestamp(value, propertyName).map(_.toLocalDate))
-      .leftMap { e =>
-        new CdfSparkException(
-          s"""Error parsing value of field '$propertyName' as a date: ${e.getMessage}""".stripMargin)
-      }
-
-  private def tryAsDates(
-      value: Seq[Any],
-      propertyName: String): Either[CdfSparkException, Vector[LocalDate]] =
-    skipNulls(value).toVector.traverse(tryAsDate(_, propertyName)).leftMap { e =>
-      new CdfSparkException(
-        s"""Error parsing value of field '$propertyName' as an array of dates: ${e.getMessage}""".stripMargin)
-    }
-
-  private def tryAsTimestamp(
-      value: Any,
-      propertyName: String): Either[CdfSparkException, ZonedDateTime] =
-    Try(
-      ZonedDateTime
-        .ofLocal(value.asInstanceOf[java.sql.Timestamp].toLocalDateTime, timezoneId, ZoneOffset.UTC))
-      .orElse(Try(ZonedDateTime.parse(String.valueOf(value))))
-      .orElse(Try(LocalDateTime.parse(String.valueOf(value)).atZone(timezoneId)))
-      .toEither
-      .leftMap { e =>
-        new CdfSparkException(
-          s"""Error parsing value of field '$propertyName' as a timestamp: ${e.getMessage}""".stripMargin)
-      }
-
-  private def tryAsTimestamps(
-      value: Seq[Any],
-      propertyName: String): Either[CdfSparkException, Vector[ZonedDateTime]] =
-    skipNulls(value).toVector.traverse(tryAsTimestamp(_, propertyName)).leftMap { e =>
-      new CdfSparkException(
-        s"""Error parsing value of field '$propertyName' as an array of timestamps: ${e.getMessage}""".stripMargin)
-    }
-
-  private def extractSpaceOrDefault(schema: StructType, row: Row, defaultSpace: Option[String]) =
-    defaultSpace.map(Right(_)).getOrElse(extractSpace(schema, row)).leftMap { e =>
-      new CdfSparkIllegalArgumentException(
-        s"""
-           |There's no 'instanceSpace' specified to be used as default space and could not extract 'space' from data.
-           | If the intention is to not use a default space then please make sure the data is correct.
-           | ${e.getMessage}
-           |""".stripMargin
-      )
-    }
-
-  private def skipNulls[T](seq: Seq[T]): Seq[T] =
-    seq.filter(_ != null)
-
-  private def rowToString(row: Row): String =
+  def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
+
 }

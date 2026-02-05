@@ -5,7 +5,7 @@ import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
-import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
+import cognite.spark.v1.fdm.RelationUtils.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.{
   CdfSparkException,
   CdfSparkIllegalArgumentException,

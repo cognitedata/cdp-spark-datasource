@@ -3,6 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
+import cognite.spark.v1.fdm.RelationUtils.FlexibleDataModelRelationUtils
 import cognite.spark.v1.{
   CdfRelation,
   CdfSparkException,

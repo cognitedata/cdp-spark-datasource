@@ -4,7 +4,7 @@ import cats.effect.IO
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ConnectionConfig
-import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils.{
+import cognite.spark.v1.fdm.RelationUtils.FlexibleDataModelRelationUtils.{
   createConnectionInstances,
   createEdgeDeleteData
 }
