@@ -64,20 +64,32 @@ class DefaultSource
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
-    val corePropertySyncRelation = extractCorePropertySyncRelation(parameters, config, sqlContext)
+
+    // If a view is specified with its own space and extId or no view is defined at all but just a instanceType and/or edgeType then we use one of these
     val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext)
-    val datamodelBasedSync = extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext)
+    val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
+    val corePropertySyncRelation = extractCorePropertySyncRelation(parameters, config, sqlContext)
+
+
+
+    //datamodelBased are used if the dataModel is specified (and a view within that datamodel). It uses the datamodel space/version to decide which space and version to use for the view.
     val dataModelBasedConnectionRelation =
       extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
     val dataModelBasedCorePropertyRelation =
       extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
-    val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
+    val datamodelBasedSync = extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext)
+
 
     corePropertySyncRelation
+      //Used if edgeTypeExternalId and edgeTypeSpace are defined
       .orElse(connectionRelation)
+      //Used if instanceType is defined to node or edge
       .orElse(corePropertyRelation)
+      //sync checks for presence of cursor otherwize behave the same as dataModelBasedCoreProperty/ConnectionRelation
       .orElse(datamodelBasedSync)
+      // instanceType is not defined but connectionPropertyName is defined along with a model's space/externalId/version and a view version
       .orElse(dataModelBasedConnectionRelation)
+      // instanceType is not defined but space/externalId/version and a view version are defined.
       .orElse(dataModelBasedCorePropertyRelation)
       .getOrElse(throw new CdfSparkException(
         s"""
