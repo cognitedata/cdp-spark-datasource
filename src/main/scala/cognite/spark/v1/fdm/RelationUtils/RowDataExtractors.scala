@@ -35,7 +35,10 @@ import scala.util.{Failure, Success, Try}
 
 object RowDataExtractors {
 
-  private[spark] def extractInstancePropertyValue(schema: StructType, key: String, value: InstancePropertyValue): Any =
+  private[spark] def extractInstancePropertyValue(
+      schema: StructType,
+      key: String,
+      value: InstancePropertyValue): Any =
     extractInstancePropertyValue(schema.apply(key).dataType, value)
 
   private[spark] def extractExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
@@ -59,9 +62,9 @@ object RowDataExtractors {
     }
 
   private[spark] def extractSpaceOrDefault(
-    schema: StructType,
-    row: Row,
-    defaultSpace: Option[String]): Either[CdfSparkIllegalArgumentException, String] =
+      schema: StructType,
+      row: Row,
+      defaultSpace: Option[String]): Either[CdfSparkIllegalArgumentException, String] =
     defaultSpace.map(Right(_)).getOrElse(extractSpace(schema, row)).leftMap { e =>
       new CdfSparkIllegalArgumentException(
         s"""
@@ -235,11 +238,11 @@ object RowDataExtractors {
     }
 
   def extractInstancePropertyValues(
-    propertyDefMap: Map[String, ViewPropertyDefinition],
-    schema: StructType,
-    instanceSpace: Option[String],
-    ignoreNullFields: Boolean,
-    row: Row
+      propertyDefMap: Map[String, ViewPropertyDefinition],
+      schema: StructType,
+      instanceSpace: Option[String],
+      ignoreNullFields: Boolean,
+      row: Row
   ): Either[CdfSparkException, Vector[(String, Option[InstancePropertyValue])]] =
     propertyDefMap.toVector.flatTraverse {
       case (propName, propDef) =>
@@ -412,7 +415,6 @@ object RowDataExtractors {
         case t => Left(new CdfSparkException(s"Unhandled non-list type: ${t.toString}"))
       }
     }
-
 
   private def lookupFieldInRow(row: Row, schema: StructType, propertyName: String, nullable: Boolean)(
       get: => Int => Either[Throwable, InstancePropertyValue])
