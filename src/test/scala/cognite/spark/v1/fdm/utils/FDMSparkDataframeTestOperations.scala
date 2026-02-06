@@ -48,7 +48,9 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       viewVersion: String,
       instanceSpaceExternalId: String,
       df: DataFrame,
-      onConflict: String = "upsert"): Unit =
+      onConflict: String = "upsert",
+      autoCreateStartNodes: Boolean = true,
+      autoCreateEndNodes: Boolean = true): Unit =
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -67,13 +69,17 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("onconflict", onConflict)
       .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
+      .option("autoCreateStartNodes", autoCreateStartNodes)
+      .option("autoCreateEndNodes", autoCreateEndNodes)
       .save()
 
   def insertEdgeRows(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
       df: DataFrame,
-      onConflict: String = "upsert"): Unit =
+      onConflict: String = "upsert",
+      autoCreateStartNodes: Boolean = true,
+      autoCreateEndNodes: Boolean = true): Unit =
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -89,6 +95,8 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("onconflict", onConflict)
       .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
+      .option("autoCreateStartNodes", autoCreateStartNodes)
+      .option("autoCreateEndNodes", autoCreateEndNodes)
       .save()
 
 

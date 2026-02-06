@@ -208,6 +208,45 @@ however it makes it impossible to null a field in CDF. When the `ignoreNullField
 to `false`, NULLs are written to CDF (when possible). Fields which are not specified are still ignored.
 See an example of using `.save()` under [Events below](#events).
 
+#### Data Modeling Instance Options (Nodes and Edges)
+
+When writing nodes or edges to CDF Data Modeling Service (DMS), the following options control how node references are handled:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `autoCreateStartNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced start node doesn't exist. Set to `false` for strict validation mode. |
+| `autoCreateEndNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced end node doesn't exist. Set to `false` for strict validation mode. |
+
+**Strict Mode (Validation)**
+
+By default, when you create edges or direct relations that reference nodes that don't exist, DMS automatically creates empty placeholder nodes. This is convenient for initial data onboarding but can lead to data quality issues.
+
+To enable **strict mode** where writes fail if referenced nodes don't exist, set both options to `false`:
+
+```python
+# Python Example - Strict mode for edges
+df.write.format("cognite.spark.v1") \
+    .option("type", "instances") \
+    .option("instanceType", "edge") \
+    .option("autoCreateStartNodes", "false") \
+    .option("autoCreateEndNodes", "false") \
+    .option("onConflict", "upsert") \
+    .save()
+```
+
+```scala
+// Scala Example - Strict mode for edges
+df.write.format("cognite.spark.v1")
+  .option("type", "instances")
+  .option("instanceType", "edge")
+  .option("autoCreateStartNodes", "false")
+  .option("autoCreateEndNodes", "false")
+  .option("onConflict", "upsert")
+  .save()
+```
+
+When strict mode is enabled and a referenced node doesn't exist, the write operation will fail with an error, ensuring data integrity.
+
 ### Delete data
 
 We currently support deleting with `.save()` for assets, events and time series.
