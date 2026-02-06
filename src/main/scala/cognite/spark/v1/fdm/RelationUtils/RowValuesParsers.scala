@@ -6,7 +6,7 @@ import cognite.spark.v1.CdfSparkException
 import java.time._
 import scala.util.Try
 
-object Convertors {
+object RowValuesParsers {
   def skipNulls[T](seq: Seq[T]): Seq[T] =
     seq.filter(_ != null)
 
@@ -54,18 +54,21 @@ object Convertors {
     } else {
       throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Long")
     }
+
   def safeConvertToInt(n: BigDecimal): Int =
     if (n.isValidInt) {
       n.intValue
     } else {
       throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Int")
     }
+
   def safeConvertToDouble(n: BigDecimal): Double =
     if (n.isDecimalDouble) {
       n.doubleValue
     } else {
       throw new IllegalArgumentException(s"'${String.valueOf(n)}' is not a valid Double")
     }
+
   def safeConvertToFloat(n: BigDecimal): Float =
     if (n.isDecimalFloat) {
       n.floatValue
@@ -111,5 +114,4 @@ object Convertors {
           exception
         )
       })
-
 }

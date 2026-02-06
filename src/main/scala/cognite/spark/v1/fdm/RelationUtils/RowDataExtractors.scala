@@ -1,7 +1,7 @@
 package cognite.spark.v1.fdm.RelationUtils
 
 import cats.implicits._
-import cognite.spark.v1.fdm.RelationUtils.Convertors._
+import cognite.spark.v1.fdm.RelationUtils.RowValuesParsers._
 import cognite.spark.v1.{
   CdfSparkException,
   CdfSparkIllegalArgumentException,
@@ -35,10 +35,10 @@ import scala.util.{Failure, Success, Try}
 
 object RowDataExtractors {
 
-  def extractInstancePropertyValue(schema: StructType, key: String, value: InstancePropertyValue): Any =
+  private[spark] def extractInstancePropertyValue(schema: StructType, key: String, value: InstancePropertyValue): Any =
     extractInstancePropertyValue(schema.apply(key).dataType, value)
 
-  def extractExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
+  private[spark] def extractExternalId(schema: StructType, row: Row): Either[CdfSparkException, String] =
     Try {
       Option(row.get(schema.fieldIndex("externalId")))
     } match {
@@ -56,6 +56,20 @@ object RowDataExtractors {
                                       |Couldn't find required string property 'externalId': ${err.getMessage}
                                       |in data row: ${rowToString(row)}
                                       |""".stripMargin))
+    }
+
+  private[spark] def extractSpaceOrDefault(
+    schema: StructType,
+    row: Row,
+    defaultSpace: Option[String]): Either[CdfSparkIllegalArgumentException, String] =
+    defaultSpace.map(Right(_)).getOrElse(extractSpace(schema, row)).leftMap { e =>
+      new CdfSparkIllegalArgumentException(
+        s"""
+           |There's no 'instanceSpace' specified to be used as default space and could not extract 'space' from data.
+           | If the intention is to not use a default space then please make sure the data is correct.
+           | ${e.getMessage}
+           |""".stripMargin
+      )
     }
 
   private def extractSpace(schema: StructType, row: Row): Either[CdfSparkException, String] =
@@ -78,14 +92,14 @@ object RowDataExtractors {
                                       |""".stripMargin))
     }
 
-  def extractNodeTypeDirectRelation(
+  private[spark] def extractNodeTypeDirectRelation(
       schema: StructType,
       instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
     extractDirectRelation("_type", "Node type", schema, instanceSpace, row)
 
   //For edge we support using "type" as an alias for "_type" for legacy reasons
-  def extractEdgeTypeDirectRelation(
+  private[spark] def extractEdgeTypeDirectRelation(
       schema: StructType,
       instanceSpace: Option[String],
       row: Row): Either[CdfSparkException, DirectRelationReference] =
@@ -121,16 +135,16 @@ object RowDataExtractors {
         Right(DirectRelationReference(space = String.valueOf(s), externalId = String.valueOf(e)))
       case (_, None) =>
         Left(new CdfSparkException(s"""
-                                                      |'$propertyName' ($descriptiveName) cannot contain null values.
-                                                      |Please verify that 'externalId' values are not null for '$propertyName'
-                                                      |in data row: ${rowToString(struct)}
-                                                      |""".stripMargin))
+          |'$propertyName' ($descriptiveName) cannot contain null values.
+          |Please verify that 'externalId' values are not null for '$propertyName'
+          |in data row: ${rowToString(struct)}
+          |""".stripMargin))
       case (None, _) =>
         Left(new CdfSparkException(s"""
-                                                      |'$propertyName' ($descriptiveName) cannot contain null values.
-                                                      |Please verify that 'space' values are not null for '$propertyName'
-                                                      |in data row: ${rowToString(struct)}
-                                                      |""".stripMargin))
+          |'$propertyName' ($descriptiveName) cannot contain null values.
+          |Please verify that 'space' values are not null for '$propertyName'
+          |in data row: ${rowToString(struct)}
+          |""".stripMargin))
     }
   }
   private def extractDirectRelation(
@@ -150,11 +164,11 @@ object RowDataExtractors {
       case Success(relation) => relation
       case Failure(err) =>
         Left(new CdfSparkException(s"""
-                                      |Could not find required property '$propertyName'
-                                      |'$propertyName' ($descriptiveName) should be a
-                                      | 'StructType' with 'space' & 'externalId' properties: ${err.getMessage}
-                                      |in data row: ${rowToString(row)}
-                                      |""".stripMargin))
+          |Could not find required property '$propertyName'
+          |'$propertyName' ($descriptiveName) should be a
+          | 'StructType' with 'space' & 'externalId' properties: ${err.getMessage}
+          |in data row: ${rowToString(row)}
+          |""".stripMargin))
     }
 
   def extractInstancePropertyValue(propType: DataType, value: InstancePropertyValue): Any =
@@ -221,11 +235,12 @@ object RowDataExtractors {
     }
 
   def extractInstancePropertyValues(
-      propertyDefMap: Map[String, ViewPropertyDefinition],
-      schema: StructType,
-      instanceSpace: Option[String],
-      ignoreNullFields: Boolean,
-      row: Row): Either[CdfSparkException, Vector[(String, Option[InstancePropertyValue])]] =
+    propertyDefMap: Map[String, ViewPropertyDefinition],
+    schema: StructType,
+    instanceSpace: Option[String],
+    ignoreNullFields: Boolean,
+    row: Row
+  ): Either[CdfSparkException, Vector[(String, Option[InstancePropertyValue])]] =
     propertyDefMap.toVector.flatTraverse {
       case (propName, propDef) =>
         propertyDefinitionToInstancePropertyValue(row, schema, propName, propDef, instanceSpace).map {
@@ -240,7 +255,7 @@ object RowDataExtractors {
         }
     }
 
-  def propertyDefinitionToInstancePropertyValue(
+  private def propertyDefinitionToInstancePropertyValue(
       row: Row,
       schema: StructType,
       propertyName: String,
@@ -280,7 +295,7 @@ object RowDataExtractors {
     }
   }
 
-  def toInstancePropertyValueOfList(
+  private def toInstancePropertyValueOfList(
       row: Row,
       schema: StructType,
       propertyName: String,
@@ -346,7 +361,7 @@ object RowDataExtractors {
       }
     }
 
-  def toInstancePropertyValueOfNonList(
+  private def toInstancePropertyValueOfNonList(
       row: Row,
       schema: StructType,
       propertyName: String,
@@ -398,19 +413,6 @@ object RowDataExtractors {
       }
     }
 
-  def extractSpaceOrDefault(
-      schema: StructType,
-      row: Row,
-      defaultSpace: Option[String]): Either[CdfSparkIllegalArgumentException, String] =
-    defaultSpace.map(Right(_)).getOrElse(extractSpace(schema, row)).leftMap { e =>
-      new CdfSparkIllegalArgumentException(
-        s"""
-           |There's no 'instanceSpace' specified to be used as default space and could not extract 'space' from data.
-           | If the intention is to not use a default space then please make sure the data is correct.
-           | ${e.getMessage}
-           |""".stripMargin
-      )
-    }
 
   private def lookupFieldInRow(row: Row, schema: StructType, propertyName: String, nullable: Boolean)(
       get: => Int => Either[Throwable, InstancePropertyValue])
@@ -458,11 +460,11 @@ object RowDataExtractors {
       case Success(relation) => relation
       case Failure(err) =>
         Left(new CdfSparkException(s"""
-                                      |Could not find required property '$propertyName'
-                                      |'$propertyName' ($descriptiveName) should be a
-                                      | 'StructType' with 'space' & 'externalId' properties: ${err.getMessage}
-                                      |in data row: ${rowToString(row)}
-                                      |""".stripMargin))
+          |Could not find required property '$propertyName'
+          |'$propertyName' ($descriptiveName) should be a
+          | 'StructType' with 'space' & 'externalId' properties: ${err.getMessage}
+          |in data row: ${rowToString(row)}
+          |""".stripMargin))
     }
 
   def rowToString(row: Row): String =

@@ -1,6 +1,6 @@
 package cognite.spark.v1.fdm
 
-import cognite.spark.v1.fdm.RelationUtils.FlexibleDataModelRelationUtils._
+import cognite.spark.v1.fdm.RelationUtils.RowToFDMPayloadConverters._
 import cognite.spark.v1.fdm.RelationUtils.RowDataExtractors.extractInstancePropertyValue
 import cognite.spark.v1.fdm.utils.FDMViewPropertyDefinitions._
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference

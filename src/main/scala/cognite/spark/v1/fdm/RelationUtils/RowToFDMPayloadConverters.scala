@@ -30,7 +30,7 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
-object FlexibleDataModelRelationUtils {
+object RowToFDMPayloadConverters {
   private[spark] def createNodes(
       rows: Seq[Row],
       schema: StructType,
