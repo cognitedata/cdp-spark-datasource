@@ -53,9 +53,9 @@ object RowDataExtractors {
           ))
       case Failure(err) =>
         Left(new CdfSparkException(s"""
-                                      |Couldn't find required string property 'externalId': ${err.getMessage}
-                                      |in data row: ${rowToString(row)}
-                                      |""".stripMargin))
+          |Couldn't find required string property 'externalId': ${err.getMessage}
+          |in data row: ${rowToString(row)}
+          |""".stripMargin))
     }
 
   private[spark] def extractSpaceOrDefault(
@@ -87,9 +87,9 @@ object RowDataExtractors {
           ))
       case Failure(err) =>
         Left(new CdfSparkException(s"""
-                                      |Couldn't find required string property 'space': ${err.getMessage}
-                                      |in data row: ${rowToString(row)}
-                                      |""".stripMargin))
+          |Couldn't find required string property 'space': ${err.getMessage}
+          |in data row: ${rowToString(row)}
+          |""".stripMargin))
     }
 
   private[spark] def extractNodeTypeDirectRelation(
