@@ -94,11 +94,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.13",
-      "version" : "2.35.961",
+      "version" : "2.35.962",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.13.jar",
-          "hash" : "sha1:956182b672b1e37ef52631a8e5c7573d4940d0d0"
+          "hash" : "sha1:f224bcd1d16852b39047bcf704b523cda0a8f4a5"
         }
       ],
       "configurations" : [
