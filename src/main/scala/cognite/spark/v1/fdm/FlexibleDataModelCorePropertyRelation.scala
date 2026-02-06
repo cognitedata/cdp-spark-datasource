@@ -112,8 +112,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => throw err
     }
 
-    def streamQuery(@unused queryRequest: InstanceQueryRequest): fs2.Stream[IO, InstanceDefinition] =
-      Stream.empty
+    def streamQuery(@unused queryRequest: InstanceQueryRequest): fs2.Stream[IO, InstanceDefinition] = ???
 
     if (config.useQuery) {
       val queryRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
