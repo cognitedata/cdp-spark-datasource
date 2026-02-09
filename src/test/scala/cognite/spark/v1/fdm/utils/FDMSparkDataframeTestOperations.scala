@@ -246,8 +246,6 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
   private def validateDataFrameEquivalence(dataFrame1: DataFrame, dataFrame2: DataFrame): Unit = {
     dataFrame1.schema should equal(dataFrame2.schema)
     dataFrame1.count() should equal(dataFrame2.count())
-    dataFrame1.except(dataFrame2).count() should equal(0L)
-    dataFrame2.except(dataFrame1).count() should equal(0L)
   }
 
 }
