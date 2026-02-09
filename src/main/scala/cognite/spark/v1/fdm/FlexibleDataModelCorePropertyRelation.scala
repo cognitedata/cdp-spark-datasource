@@ -7,7 +7,12 @@ import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataM
 import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{generateTableExpression, sourceReference}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
-import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
+import cognite.spark.v1.{
+  CdfSparkException,
+  CdfSparkIllegalArgumentException,
+  CdpConnector,
+  RelationConfig
+}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
@@ -106,26 +111,31 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => throw err
     }
 
-    def queryFilterWithHasData(instanceFilter: Option[FilterDefinition], viewReference: Option[ViewReference]): Option[FilterDefinition] = {
+    def queryFilterWithHasData(
+        instanceFilter: Option[FilterDefinition],
+        viewReference: Option[ViewReference]): Option[FilterDefinition] =
       viewReference.map(
-        ref => FilterDefinition.And(
-          Seq(
-            instanceFilter,
-            Some(HasData(Seq(ref)))
-          ).flatten
+        ref =>
+          FilterDefinition.And(
+            Seq(
+              instanceFilter,
+              Some(HasData(Seq(ref)))
+            ).flatten
         )
       )
-    }
 
     if (config.useQuery) {
       compatibleInstanceTypes(intendedUsage).distinct.map { instanceType =>
-
         val tableExpression =
-          generateTableExpression(instanceType, queryFilterWithHasData(instanceFilter, viewReference), config.limitPerPartition)
+          generateTableExpression(
+            instanceType,
+            queryFilterWithHasData(instanceFilter, viewReference),
+            config.limitPerPartition)
         val selectExpression = SelectExpression(
-              sources = sourceReference(instanceType, viewReference, selectedInstanceProps),
+          sources = sourceReference(instanceType, viewReference, selectedInstanceProps),
         )
-        client.instances.queryStream(tableExpression, selectExpression, config.limitPerPartition)
+        client.instances
+          .queryStream(tableExpression, selectExpression, config.limitPerPartition)
           .map(toProjectedInstance(_, None, selectedInstanceProps))
       }
     } else {
