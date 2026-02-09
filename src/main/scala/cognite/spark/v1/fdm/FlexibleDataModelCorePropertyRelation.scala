@@ -7,25 +7,19 @@ import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataM
 import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{generateTableExpression, sourceReference}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
-import cognite.spark.v1.{
-  CdfSparkException,
-  CdfSparkIllegalArgumentException,
-  CdpConnector,
-  RelationConfig
-}
+import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import fs2.Stream
-import org.apache.spark.sql.sources._
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-
-import scala.annotation.unused
 
 /**
   * Flexible Data Model Relation for Nodes or Edges with properties
@@ -112,26 +106,28 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => throw err
     }
 
-    def streamQuery(@unused queryRequest: InstanceQueryRequest): fs2.Stream[IO, InstanceDefinition] = ???
+    def queryFilterWithHasData(instanceFilter: Option[FilterDefinition], viewReference: Option[ViewReference]): Option[FilterDefinition] = {
+      viewReference.map(
+        ref => FilterDefinition.And(
+          Seq(
+            instanceFilter,
+            Some(HasData(Seq(ref)))
+          ).flatten
+        )
+      )
+    }
 
     if (config.useQuery) {
-      val queryRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
+      compatibleInstanceTypes(intendedUsage).distinct.map { instanceType =>
+
         val tableExpression =
-          generateTableExpression(instanceType, instanceFilter, config.limitPerPartition)
-        InstanceQueryRequest(
-          `with` = Map("instances" -> tableExpression),
-          cursors = None,
-          select = Map(
-            "instances" -> SelectExpression(
-              sources = sourceReference(instanceType, viewReference, selectedInstanceProps))),
-          includeTyping = Some(true),
+          generateTableExpression(instanceType, queryFilterWithHasData(instanceFilter, viewReference), config.limitPerPartition)
+        val selectExpression = SelectExpression(
+              sources = sourceReference(instanceType, viewReference, selectedInstanceProps),
         )
+        client.instances.queryStream(tableExpression, selectExpression, config.limitPerPartition)
+          .map(toProjectedInstance(_, None, selectedInstanceProps))
       }
-      queryRequests.distinct.map(
-        qr =>
-          streamQuery(qr)
-            .map(toProjectedInstance(_, None, selectedInstanceProps))
-      )
     } else {
       val filterRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
         InstanceFilterRequest(
