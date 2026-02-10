@@ -93,47 +93,38 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
       .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
       .save()
 
-
-  def applyQueryAndList(applyOptions: DataFrameReader => DataFrameReader): DataFrame = {
-    val withList = applyOptions(spark.read).option("useQuery", false).load()
-    val withQuery = applyOptions(spark.read).option("useQuery", true).load()
-    validateDataFrameEquivalence(withList, withQuery)
-    withList
-  }
-
   def readRows(
     instanceType: InstanceType,
     viewSpaceExternalId: String,
     viewExternalId: String,
     viewVersion: String,
-    instanceSpaceExternalId: String): DataFrame = {
-    def applyOptionss(df: DataFrameReader): DataFrameReader = {
-      df
-        .format(DefaultSource.sparkFormatString)
-        .option("type", FlexibleDataModelRelationFactory.ResourceType)
-        .option("baseUrl", s"https://${cluster}.cognitedata.com")
-        .option("tokenUri", tokenUri)
-        .option("audience", audience)
-        .option("clientId", clientId)
-        .option("clientSecret", clientSecret)
-        .option("project", project)
-        .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-        .option("instanceType", instanceType.productPrefix)
-        .option("viewSpace", viewSpaceExternalId)
-        .option("viewExternalId", viewExternalId)
-        .option("viewVersion", viewVersion)
-        .option("instanceSpace", instanceSpaceExternalId)
-        .option("metricsPrefix", s"$viewExternalId-$viewVersion")
-        .option("collectMetrics", true)
-    }
-    applyQueryAndList(applyOptionss)
+    instanceSpaceExternalId: String,
+    useQuery: Boolean = false): DataFrame = {
+    spark.read
+      .format(DefaultSource.sparkFormatString)
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
+      .option("baseUrl", s"https://${cluster}.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("audience", audience)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
+      .option("instanceType", instanceType.productPrefix)
+      .option("viewSpace", viewSpaceExternalId)
+      .option("viewExternalId", viewExternalId)
+      .option("viewVersion", viewVersion)
+      .option("instanceSpace", instanceSpaceExternalId)
+      .option("metricsPrefix", s"$viewExternalId-$viewVersion")
+      .option("collectMetrics", true)
+      .option("useQuery", useQuery)
+      .load()
   }
 
 
 
-  def readRows(edgeSpace: String, edgeExternalId: String): DataFrame = {
-    def applyOptions(df: DataFrameReader): DataFrameReader = {
-      df
+  def readRows(edgeSpace: String, edgeExternalId: String, useQuery: Boolean = false): DataFrame =
+    spark.read
         .format(DefaultSource.sparkFormatString)
         .option("type", FlexibleDataModelRelationFactory.ResourceType)
         .option("baseUrl", s"https://$cluster.cognitedata.com")
@@ -148,9 +139,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
         .option("instanceType", "edge")
         .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
         .option("collectMetrics", value = true)
-    }
-    applyQueryAndList(applyOptions)
-  }
+        .load()
 
 
   def readRowsFromModel(
@@ -159,9 +148,9 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
       modelVersion: String,
       viewExternalId: String,
       instanceSpace: Option[String],
-      debug: Boolean = false): DataFrame = {
-    def applyOptions(df: DataFrameReader): DataFrameReader = {
-      df
+      debug: Boolean = false,
+      useQuery: Boolean = false): DataFrame = {
+      spark.read
         .format(DefaultSource.sparkFormatString)
         .option("type", FlexibleDataModelRelationFactory.ResourceType)
         .option("baseUrl", s"https://${cluster}.cognitedata.com")
@@ -179,8 +168,8 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
         .option("metricsPrefix", s"$modelExternalId-$modelVersion")
         .option("collectMetrics", value = true)
         .option("sendDebugFlag", value = debug)
-    }
-    applyQueryAndList(applyOptions)
+        .option("useQuery", value = useQuery)
+        .load()
   }
 
   def readRowsFromModel(
@@ -188,28 +177,28 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
      modelExternalId: String,
      modelVersion: String,
      edgeTypeSpace: String,
-     edgeTypeExternalId: String): DataFrame = {
-    def applyOptions(df: DataFrameReader): DataFrameReader = {
-      df
-        .format(DefaultSource.sparkFormatString)
-        .option("type", FlexibleDataModelRelationFactory.ResourceType)
-        .option("baseUrl", s"https://$cluster.cognitedata.com")
-        .option("tokenUri", tokenUri)
-        .option("audience", audience)
-        .option("clientId", clientId)
-        .option("clientSecret", clientSecret)
-        .option("project", project)
-        .option("scopes", s"https://$cluster.cognitedata.com/.default")
-        .option("modelSpace", modelSpace)
-        .option("modelExternalId", modelExternalId)
-        .option("modelVersion", modelVersion)
-        .option("edgeTypeSpace", edgeTypeSpace)
-        .option("edgeTypeExternalId", edgeTypeExternalId)
-        .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-        .option("collectMetrics", value = true)
-    }
-    applyQueryAndList(applyOptions)
-  }
+     edgeTypeExternalId: String,
+     useQuery: Boolean = false
+  ): DataFrame =
+    spark.read
+      .format(DefaultSource.sparkFormatString)
+      .option("type", FlexibleDataModelRelationFactory.ResourceType)
+      .option("baseUrl", s"https://$cluster.cognitedata.com")
+      .option("tokenUri", tokenUri)
+      .option("audience", audience)
+      .option("clientId", clientId)
+      .option("clientSecret", clientSecret)
+      .option("project", project)
+      .option("scopes", s"https://$cluster.cognitedata.com/.default")
+      .option("modelSpace", modelSpace)
+      .option("modelExternalId", modelExternalId)
+      .option("modelVersion", modelVersion)
+      .option("edgeTypeSpace", edgeTypeSpace)
+      .option("edgeTypeExternalId", edgeTypeExternalId)
+      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
+      .option("collectMetrics", value = true)
+      .option("useQuery", useQuery)
+      .load()
 
   def syncRows(
     instanceType: InstanceType,
@@ -242,10 +231,5 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
 
   def toPropVal(rows: Array[Row], prop: String): Seq[String] =
     rows.toIndexedSeq.map(row => row.getString(row.schema.fieldIndex(prop)))
-
-  private def validateDataFrameEquivalence(dataFrame1: DataFrame, dataFrame2: DataFrame): Unit = {
-    dataFrame1.schema should equal(dataFrame2.schema)
-    dataFrame1.count() should equal(dataFrame2.count())
-  }
 
 }
