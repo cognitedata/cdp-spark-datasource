@@ -3,7 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
-import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations.{readRows, _}
+import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMTestInitializer}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ContainerPropertyDefinition
@@ -1227,7 +1227,7 @@ class FlexibleDataModelNodeTest
   }
 
 
-  def testFilterInstance(debug: Boolean): Assertion = {
+  def testFilterInstance(debug: Boolean, useQuery: Boolean): Assertion = {
     setUpDataModel()
     val df = readRowsFromModel(
       modelSpace = spaceExternalId,
@@ -1235,7 +1235,8 @@ class FlexibleDataModelNodeTest
       modelVersion = viewVersion,
       viewExternalId = viewStartNodeAndEndNodesExternalId,
       instanceSpace = None,
-      debug
+      debug,
+      useQuery
     )
 
     val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
@@ -1255,8 +1256,13 @@ class FlexibleDataModelNodeTest
   }
 
   it should "successfully filter instances from a data model, and debug flag should have no impact on results" in {
-    testFilterInstance(false)
-    testFilterInstance(true)
+    testFilterInstance(debug = false, useQuery = true)
+    testFilterInstance(debug = true, useQuery = true)
+  }
+
+  it should "successfully filter instances from a data model, and query vs list flag should have no impact on results" in {
+    testFilterInstance(debug = true, useQuery = true)
+    testFilterInstance(debug = true, useQuery = true)
   }
 
   it should "successfully insert instances to a data model" in {

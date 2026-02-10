@@ -4,6 +4,7 @@ import cats.Apply
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
+import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{generateTableExpression, sourceReference}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
 import cognite.spark.v1.{
@@ -14,13 +15,14 @@ import cognite.spark.v1.{
 }
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import fs2.Stream
-import org.apache.spark.sql.sources._
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -41,7 +43,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
   private val instanceSpace = corePropConfig.instanceSpace
 
   private val (allProperties, propertySchema) = retrieveAllViewPropsAndSchema
-    .unsafeRunBlocking()
+    .unsafeRunSync()
     .getOrElse {
       (
         Map.empty[String, ViewPropertyDefinition],
@@ -109,24 +111,53 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => throw err
     }
 
-    val filterRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
-      InstanceFilterRequest(
-        instanceType = Some(instanceType),
-        filter = instanceFilter,
-        sort = None,
-        limit = config.limitPerPartition,
-        cursor = None,
-        sources = viewReference.map(r => Vector(InstanceSource(r))),
-        includeTyping = Some(true),
-        debug = optionalDebug(config.sendDebugFlag)
+    def queryFilterWithHasData(
+        instanceFilter: Option[FilterDefinition],
+        viewReference: Option[ViewReference]): Option[FilterDefinition] =
+      viewReference.map(
+        ref =>
+          FilterDefinition.And(
+            Seq(
+              instanceFilter,
+              Some(HasData(Seq(ref)))
+            ).flatten
+        )
       )
+
+    if (config.useQuery) {
+      compatibleInstanceTypes(intendedUsage).distinct.map { instanceType =>
+        val tableExpression =
+          generateTableExpression(
+            instanceType,
+            queryFilterWithHasData(instanceFilter, viewReference),
+            config.limitPerPartition)
+        val selectExpression = SelectExpression(
+          sources = sourceReference(instanceType, viewReference, selectedInstanceProps),
+        )
+        client.instances
+          .queryStream(tableExpression, selectExpression, config.limitPerPartition)
+          .map(toProjectedInstance(_, None, selectedInstanceProps))
+      }
+    } else {
+      val filterRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
+        InstanceFilterRequest(
+          instanceType = Some(instanceType),
+          filter = instanceFilter,
+          sort = None,
+          limit = config.limitPerPartition,
+          cursor = None,
+          sources = viewReference.map(r => Vector(InstanceSource(r))),
+          includeTyping = Some(true),
+          debug = optionalDebug(config.sendDebugFlag)
+        )
+      }
+      filterRequests.distinct.map { fr =>
+        client.instances
+          .filterStream(fr, config.limitPerPartition)
+          .map(toProjectedInstance(_, None, selectedInstanceProps))
+      }
     }
 
-    filterRequests.distinct.map { fr =>
-      client.instances
-        .filterStream(fr, config.limitPerPartition)
-        .map(toProjectedInstance(_, None, selectedInstanceProps))
-    }
   }
 
   private def usageBasedPropertyFilter(
@@ -191,9 +222,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         .flatMap {
           case None =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
-                 |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}').
-                 |Ensure that the transformation's credentials have access to the view's space.
-                 |""".stripMargin))
+                                                                  |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}').
+                                                                  |Ensure that the transformation's credentials have access to the view's space.
+                                                                  |""".stripMargin))
           case Some(viewDef)
               if compatibleUsageTypes(viewUsage = viewDef.usedFor, intendedUsage = intendedUsage) =>
             IO.delay(
@@ -204,9 +235,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
                 )))
           case Some(viewDef) =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
-               | View with (space: '${viewDef.space}', externalId: '${viewDef.externalId}', version: '${viewDef.version}')
-               | is not compatible with '${intendedUsage.productPrefix}s'
-               |""".stripMargin))
+                                                                  | View with (space: '${viewDef.space}', externalId: '${viewDef.externalId}', version: '${viewDef.version}')
+                                                                  | is not compatible with '${intendedUsage.productPrefix}s'
+                                                                  |""".stripMargin))
         }
     }
 
@@ -240,7 +271,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
   }
 
-  protected def compatibleInstanceTypes(usage: Usage): Vector[InstanceType] =
+  private def compatibleInstanceTypes(usage: Usage): Vector[InstanceType] =
     usage match {
       case Usage.Node => Vector(InstanceType.Node)
       case Usage.Edge => Vector(InstanceType.Edge)
