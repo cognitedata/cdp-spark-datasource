@@ -4,7 +4,7 @@ import cognite.spark.v1.{DefaultSource, SparkTest}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
-import org.apache.spark.sql.{DataFrame, DataFrameReader, Row}
+import org.apache.spark.sql.{DataFrame, Row}
 import org.scalatest.Matchers
 
 object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
@@ -123,7 +123,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
 
 
 
-  def readRows(edgeSpace: String, edgeExternalId: String, useQuery: Boolean = false): DataFrame =
+  def readEdgeWithEdgeType(edgeSpace: String, edgeExternalId: String, useQuery: Boolean = false): DataFrame =
     spark.read
         .format(DefaultSource.sparkFormatString)
         .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -139,6 +139,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
         .option("instanceType", "edge")
         .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
         .option("collectMetrics", value = true)
+        .option("useQuery", useQuery)
         .load()
 
 
@@ -172,7 +173,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
         .load()
   }
 
-  def readRowsFromModel(
+  def readRowsFromModelWithEdgeType(
      modelSpace: String,
      modelExternalId: String,
      modelVersion: String,

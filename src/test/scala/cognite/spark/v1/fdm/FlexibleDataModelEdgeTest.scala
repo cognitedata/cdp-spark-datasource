@@ -159,7 +159,7 @@ class FlexibleDataModelEdgeTest
       )
     } yield c1 ++ c2).unsafeRunSync()
 
-    val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = edgeTypeExtId)
+    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = edgeTypeExtId)
 
     readConnectionsDf.createTempView("connection_instances_table")
 
@@ -197,7 +197,7 @@ class FlexibleDataModelEdgeTest
       )
     } yield c1 ++ c2).unsafeRunSync()
 
-    val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = "edgeType")
+    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = "edgeType")
 
     readConnectionsDf.createTempView("connection_instances_table_edgetype")
 
@@ -212,7 +212,7 @@ class FlexibleDataModelEdgeTest
   }
 
   it should "fetch edges from a data model" in {
-    val df = readRowsFromModel(
+    val df = readRowsFromModelWithEdgeType(
       spaceExternalId,
       edgeTestDataModelExternalId,
       viewVersion,

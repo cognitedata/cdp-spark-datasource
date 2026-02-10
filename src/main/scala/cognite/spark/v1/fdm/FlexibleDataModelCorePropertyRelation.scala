@@ -271,7 +271,7 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     }
   }
 
-  protected def compatibleInstanceTypes(usage: Usage): Vector[InstanceType] =
+  private def compatibleInstanceTypes(usage: Usage): Vector[InstanceType] =
     usage match {
       case Usage.Node => Vector(InstanceType.Node)
       case Usage.Edge => Vector(InstanceType.Edge)
