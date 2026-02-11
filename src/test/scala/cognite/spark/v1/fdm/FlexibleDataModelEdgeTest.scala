@@ -175,7 +175,7 @@ class FlexibleDataModelEdgeTest
     (instExtIds should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "filter on edgeType when specifying edgeType in df" in {
+  def testFetchEdgeEdgeType(useQuery: Boolean): Unit = {
     val created = (for {
       c1 <- createConnectionWriteInstances(
         externalId = "edgeForEdgeTypeFilter1",
@@ -197,7 +197,7 @@ class FlexibleDataModelEdgeTest
       )
     } yield c1 ++ c2).unsafeRunSync()
 
-    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = "edgeType")
+    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = "edgeType", useQuery = useQuery)
 
     readConnectionsDf.createTempView("connection_instances_table_edgetype")
 
@@ -211,13 +211,20 @@ class FlexibleDataModelEdgeTest
     instExtIds should be(Seq("edgeForEdgeTypeFilter1"))
   }
 
-  it should "fetch edges from a data model" in {
+  it should "fetch edge with edgeType with both query and list" in {
+    testFetchEdgeEdgeType(true)
+    testFetchEdgeEdgeType(false)
+  }
+
+  def testFetchEdgeDataModel(useQuery: Boolean): Unit = {
     val df = readRowsFromModelWithEdgeType(
       spaceExternalId,
       edgeTestDataModelExternalId,
       viewVersion,
       spaceExternalId,
-      edgeTypeExtId)
+      edgeTypeExtId,
+      useQuery = useQuery,
+    )
 
     df.createTempView("data_model_read_connections_table")
 
@@ -237,7 +244,13 @@ class FlexibleDataModelEdgeTest
     (toExternalIds(rows) should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "insert edge to a data model" in {
+  it should "fetch edges from a data model both with query and list" in {
+    testFetchEdgeDataModel(true)
+    testFetchEdgeDataModel(false)
+  }
+
+
+    it should "insert edge to a data model" in {
     val df = spark
       .sql(s"""
            |select
