@@ -14,12 +14,14 @@ import org.scalatest.{FlatSpec, Matchers}
 import scala.util.{Failure, Success, Try}
 
 /**
- * Integration tests for the autoCreateStartNodes and autoCreateEndNodes options.
- *
- * These tests verify that:
- * 1. When autoCreate is disabled (strict mode), edge creation fails if referenced nodes don't exist
- * 2. When autoCreate is enabled (default), edge creation succeeds even if referenced nodes don't exist
- * 3. When autoCreate is disabled but referenced nodes exist, edge creation succeeds
+  Integration tests for autoCreateStartNodes, autoCreateEndNodes, and autoCreateDirectRelations options.
+ 
+  These tests verify that:
+  1. When autoCreate is disabled (strict mode), edge creation fails if referenced nodes don't exist
+  2. When autoCreate is enabled (default), edge creation succeeds even if referenced nodes don't exist
+  3. When autoCreate is disabled but referenced nodes exist, edge creation succeeds
+  4. When autoCreateDirectRelations is disabled, node creation fails if direct relation target doesn't exist
+  5. When autoCreateDirectRelations is enabled (default), node creation succeeds with non-existent targets
  */
 class FlexibleDataModelAutoCreateNodeTest
     extends FlatSpec
@@ -74,8 +76,8 @@ class FlexibleDataModelAutoCreateNodeTest
         edgeTypeSpace = spaceExternalId,
         edgeTypeExternalId = autoCreateEdgeTypeExtId,
         df = edgeDf,
-        autoCreateStartNodes = false,
-        autoCreateEndNodes = true
+        autoCreateStartNodes = Some(false),
+        autoCreateEndNodes = Some(true)
       )
     }
 
@@ -126,8 +128,8 @@ class FlexibleDataModelAutoCreateNodeTest
         edgeTypeSpace = spaceExternalId,
         edgeTypeExternalId = autoCreateEdgeTypeExtId,
         df = edgeDf,
-        autoCreateStartNodes = true,
-        autoCreateEndNodes = false
+        autoCreateStartNodes = Some(true),
+        autoCreateEndNodes = Some(false)
       )
     }
 
@@ -165,18 +167,18 @@ class FlexibleDataModelAutoCreateNodeTest
          |  named_struct('space', '$spaceExternalId', 'externalId', '$autoCreatedEndNodeExtId') as endNode
          |""".stripMargin)
 
-    // Insert with autoCreate enabled (default behavior)
+    // Insert with default behavior (not specifying autoCreate options at all)
     val result = Try {
       insertEdgeRows(
         edgeTypeSpace = spaceExternalId,
         edgeTypeExternalId = autoCreateEdgeTypeExtId,
-        df = edgeDf,
-        autoCreateStartNodes = true,
-        autoCreateEndNodes = true
+        df = edgeDf
+        // Not passing autoCreateStartNodes, autoCreateEndNodes, or autoCreateDirectRelations
+        // to test default behavior where user doesn't specify these options
       )
     }
 
-    // Should succeed - nodes will be auto-created
+    // Should succeed - nodes will be auto-created by default
     result shouldBe Success(())
   }
 
@@ -214,8 +216,8 @@ class FlexibleDataModelAutoCreateNodeTest
         edgeTypeSpace = spaceExternalId,
         edgeTypeExternalId = autoCreateEdgeTypeExtId,
         df = edgeDf,
-        autoCreateStartNodes = false,
-        autoCreateEndNodes = false
+        autoCreateStartNodes = Some(false),
+        autoCreateEndNodes = Some(false)
       )
     }
 
@@ -252,8 +254,8 @@ class FlexibleDataModelAutoCreateNodeTest
         edgeTypeSpace = spaceExternalId,
         edgeTypeExternalId = autoCreateEdgeTypeExtId,
         df = edgeDf,
-        autoCreateStartNodes = false,
-        autoCreateEndNodes = false
+        autoCreateStartNodes = Some(false),
+        autoCreateEndNodes = Some(false)
       )
     }
 
@@ -302,12 +304,164 @@ class FlexibleDataModelAutoCreateNodeTest
         viewVersion = viewVersion,
         instanceSpaceExternalId = spaceExternalId,
         df = nodeDf,
-        autoCreateStartNodes = false,
-        autoCreateEndNodes = false
+        autoCreateStartNodes = Some(false),
+        autoCreateEndNodes = Some(false)
       )
     }
 
     // Should succeed - we're creating a simple node with no direct relations
+    result shouldBe Success(())
+  }
+
+  // Tests for autoCreateDirectRelations option
+  private val directRelationContainerExternalId = "sparkDsAutoCreateDirectRelContainer1"
+  private val directRelationViewExternalId = "sparkDsAutoCreateDirectRelView1"
+
+  private val directRelationPropsMap = Map(
+    "stringProp1" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable,
+    "relatedNode" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable
+  )
+
+  it should "fail to create node with direct relation when target doesn't exist and autoCreateDirectRelations is false" in {
+    val testPrefix = apiCompatibleRandomString()
+    val sourceNodeExtId = s"directRelSourceNode$testPrefix"
+    val nonExistentTargetExtId = s"nonExistentDirectRelTarget$testPrefix"
+
+    // Setup: Create container and view with direct relation property (no target node)
+    val setup = for {
+      container <- createContainerIfNotExists(
+        Usage.Node,
+        directRelationPropsMap,
+        directRelationContainerExternalId
+      )
+      _ <- createViewWithCorePropsIfNotExists(container, directRelationViewExternalId, viewVersion)
+    } yield ()
+    setup.unsafeRunSync()
+
+    // Create node with a direct relation property pointing to non-existent node
+    val nodeDf: DataFrame = spark.sql(
+      s"""
+         |SELECT
+         |  '$spaceExternalId' as space,
+         |  '$sourceNodeExtId' as externalId,
+         |  'testValue' as stringProp1,
+         |  named_struct('space', '$spaceExternalId', 'externalId', '$nonExistentTargetExtId') as relatedNode
+         |""".stripMargin)
+
+    // Try to insert with autoCreateDirectRelations = false (strict mode)
+    val result = Try {
+      insertNodeRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = spaceExternalId,
+        viewExternalId = directRelationViewExternalId,
+        viewVersion = viewVersion,
+        instanceSpaceExternalId = spaceExternalId,
+        df = nodeDf,
+        autoCreateDirectRelations = Some(false)
+      )
+    }
+
+    // Should fail because target node doesn't exist and autoCreateDirectRelations is disabled
+    result shouldBe a[Failure[_]]
+
+    // Print the DMS error message for visibility
+    val errorMessage = result.failed.get.getMessage
+    println(s"\n[DMS Error - Direct Relation Target Missing] $errorMessage\n")
+
+    // The error message from DMS mentions the node doesn't exist
+    errorMessage should include("does not exist")
+  }
+
+  it should "succeed to create node with direct relation when target doesn't exist but autoCreateDirectRelations is enabled (default)" in {
+    val testPrefix = apiCompatibleRandomString()
+    val sourceNodeExtId = s"directRelSourceNode$testPrefix"
+    val autoCreatedTargetExtId = s"autoCreatedDirectRelTarget$testPrefix"
+
+    // Setup: Create container and view with direct relation property (no target node)
+    val setup = for {
+      container <- createContainerIfNotExists(
+        Usage.Node,
+        directRelationPropsMap,
+        directRelationContainerExternalId
+      )
+      _ <- createViewWithCorePropsIfNotExists(container, directRelationViewExternalId, viewVersion)
+    } yield ()
+    setup.unsafeRunSync()
+
+    // Create node with a direct relation property pointing to non-existent node
+    val nodeDf: DataFrame = spark.sql(
+      s"""
+         |SELECT
+         |  '$spaceExternalId' as space,
+         |  '$sourceNodeExtId' as externalId,
+         |  'testValue' as stringProp1,
+         |  named_struct('space', '$spaceExternalId', 'externalId', '$autoCreatedTargetExtId') as relatedNode
+         |""".stripMargin)
+
+    // Insert with default behavior (not specifying autoCreateDirectRelations)
+    val result = Try {
+      insertNodeRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = spaceExternalId,
+        viewExternalId = directRelationViewExternalId,
+        viewVersion = viewVersion,
+        instanceSpaceExternalId = spaceExternalId,
+        df = nodeDf
+        // Not passing autoCreateDirectRelations to test default behavior
+      )
+    }
+
+    // Should succeed - target node will be auto-created by default
+    result shouldBe Success(())
+  }
+
+  it should "succeed to create node with direct relation when target exists even with autoCreateDirectRelations disabled" in {
+    val testPrefix = apiCompatibleRandomString()
+    val sourceNodeExtId = s"directRelSourceNode$testPrefix"
+    val existingTargetExtId = s"existingDirectRelTarget$testPrefix"
+    val dummyNodeExtId = s"dummyNode$testPrefix"
+
+    // Setup: Create container, view with direct relation property, and target node
+    val setup = for {
+      container <- createContainerIfNotExists(
+        Usage.Node,
+        directRelationPropsMap,
+        directRelationContainerExternalId
+      )
+      view <- createViewWithCorePropsIfNotExists(container, directRelationViewExternalId, viewVersion)
+      // Create target node that we'll reference
+      _ <- createNodesForEdgesIfNotExists(
+        existingTargetExtId,
+        dummyNodeExtId,
+        view.toSourceReference
+      )
+    } yield ()
+    setup.unsafeRunSync()
+
+    // Create node with a direct relation property pointing to existing node
+    val nodeDf: DataFrame = spark.sql(
+      s"""
+         |SELECT
+         |  '$spaceExternalId' as space,
+         |  '$sourceNodeExtId' as externalId,
+         |  'testValue' as stringProp1,
+         |  named_struct('space', '$spaceExternalId', 'externalId', '$existingTargetExtId') as relatedNode
+         |""".stripMargin)
+
+    // Insert with autoCreateDirectRelations disabled
+    val result = Try {
+      insertNodeRows(
+        instanceType = InstanceType.Node,
+        viewSpaceExternalId = spaceExternalId,
+        viewExternalId = directRelationViewExternalId,
+        viewVersion = viewVersion,
+        instanceSpaceExternalId = spaceExternalId,
+        df = nodeDf,
+        autoCreateDirectRelations = Some(false)
+      )
+    }
+
+    // Should succeed because target node exists
     result shouldBe Success(())
   }
 }

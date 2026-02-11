@@ -214,22 +214,28 @@ When writing nodes or edges to CDF Data Modeling Service (DMS), the following op
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `autoCreateStartNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced start node doesn't exist. Set to `false` for strict validation mode. |
-| `autoCreateEndNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced end node doesn't exist. Set to `false` for strict validation mode. |
+| `autoCreateStartNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced start node doesn't exist (edges only). Set to `false` for strict validation mode. |
+| `autoCreateEndNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced end node doesn't exist (edges only). Set to `false` for strict validation mode. |
+| `autoCreateDirectRelations` | `true` | When `true`, automatically creates placeholder nodes if a direct relation property references a node that doesn't exist. Set to `false` for strict validation mode. |
+
+**Auto-Create Behavior:**
+- `autoCreateStartNodes` / `autoCreateEndNodes`: Apply to **edges** - controls whether start/end nodes are auto-created when creating edges.
+- `autoCreateDirectRelations`: Applies to **nodes and edges** - controls whether target nodes referenced by direct relation properties are auto-created.
 
 **Strict Mode (Validation)**
 
 By default, when you create edges or direct relations that reference nodes that don't exist, DMS automatically creates empty placeholder nodes. This is convenient for initial data onboarding but can lead to data quality issues.
 
-To enable **strict mode** where writes fail if referenced nodes don't exist, set both options to `false`:
+To enable **strict mode** where writes fail if referenced nodes don't exist, set all auto-create options to `false`:
 
 ```python
-# Python Example - Strict mode for edges
+# Python Example - Strict mode for edges (all auto-create disabled)
 df.write.format("cognite.spark.v1") \
     .option("type", "instances") \
     .option("instanceType", "edge") \
     .option("autoCreateStartNodes", "false") \
     .option("autoCreateEndNodes", "false") \
+    .option("autoCreateDirectRelations", "false") \
     .option("onConflict", "upsert") \
     .save()
 ```
@@ -241,8 +247,19 @@ df.write.format("cognite.spark.v1")
   .option("instanceType", "edge")
   .option("autoCreateStartNodes", "false")
   .option("autoCreateEndNodes", "false")
+  .option("autoCreateDirectRelations", "false")
   .option("onConflict", "upsert")
   .save()
+```
+
+```python
+# Python Example - Strict mode for nodes with direct relations
+df.write.format("cognite.spark.v1") \
+    .option("type", "instances") \
+    .option("instanceType", "node") \
+    .option("autoCreateDirectRelations", "false") \
+    .option("onConflict", "upsert") \
+    .save()
 ```
 
 When strict mode is enabled and a referenced node doesn't exist, the write operation will fail with an error, ensuring data integrity.

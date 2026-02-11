@@ -230,7 +230,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           items = items,
           replace = Some(false),
           autoCreateStartNodes = Some(corePropConfig.autoCreateStartNodes),
-          autoCreateEndNodes = Some(corePropConfig.autoCreateEndNodes)
+          autoCreateEndNodes = Some(corePropConfig.autoCreateEndNodes),
+          autoCreateDirectRelations = Some(corePropConfig.autoCreateDirectRelations)
         )
         client.instances.createItems(instanceCreate)
       case Right(_) => IO.pure(Vector.empty)

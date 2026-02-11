@@ -49,8 +49,9 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       instanceSpaceExternalId: String,
       df: DataFrame,
       onConflict: String = "upsert",
-      autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true): Unit =
+      autoCreateStartNodes: Option[Boolean] = None,
+      autoCreateEndNodes: Option[Boolean] = None,
+      autoCreateDirectRelations: Option[Boolean] = None): Unit =
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -69,8 +70,9 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("onconflict", onConflict)
       .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
-      .option("autoCreateStartNodes", autoCreateStartNodes)
-      .option("autoCreateEndNodes", autoCreateEndNodes)
+      .options(autoCreateStartNodes.map("autoCreateStartNodes" -> _.toString).toMap)
+      .options(autoCreateEndNodes.map("autoCreateEndNodes" -> _.toString).toMap)
+      .options(autoCreateDirectRelations.map("autoCreateDirectRelations" -> _.toString).toMap)
       .save()
 
   def insertEdgeRows(
@@ -78,8 +80,9 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       edgeTypeExternalId: String,
       df: DataFrame,
       onConflict: String = "upsert",
-      autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true): Unit =
+      autoCreateStartNodes: Option[Boolean] = None,
+      autoCreateEndNodes: Option[Boolean] = None,
+      autoCreateDirectRelations: Option[Boolean] = None): Unit =
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -95,8 +98,9 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("onconflict", onConflict)
       .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
-      .option("autoCreateStartNodes", autoCreateStartNodes)
-      .option("autoCreateEndNodes", autoCreateEndNodes)
+      .options(autoCreateStartNodes.map("autoCreateStartNodes" -> _.toString).toMap)
+      .options(autoCreateEndNodes.map("autoCreateEndNodes" -> _.toString).toMap)
+      .options(autoCreateDirectRelations.map("autoCreateDirectRelations" -> _.toString).toMap)
       .save()
 
 

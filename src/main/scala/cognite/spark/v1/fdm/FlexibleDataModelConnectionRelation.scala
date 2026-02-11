@@ -63,7 +63,8 @@ private[spark] class FlexibleDataModelConnectionRelation(
               items = instances,
               replace = Some(false),
               autoCreateStartNodes = Some(connectionConfig.autoCreateStartNodes),
-              autoCreateEndNodes = Some(connectionConfig.autoCreateEndNodes)
+              autoCreateEndNodes = Some(connectionConfig.autoCreateEndNodes),
+              autoCreateDirectRelations = Some(connectionConfig.autoCreateDirectRelations)
             )
             client.instances.createItems(instanceCreate)
           }

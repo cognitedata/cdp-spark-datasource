@@ -24,7 +24,8 @@ object FlexibleDataModelRelationFactory {
       viewReference: Option[ViewReference],
       instanceSpace: Option[String],
       autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true)
+      autoCreateEndNodes: Boolean = true,
+      autoCreateDirectRelations: Boolean = true)
       extends FlexibleDataModelRelationFactory
 
   final case class ConnectionConfig(
@@ -32,7 +33,8 @@ object FlexibleDataModelRelationFactory {
       edgeTypeExternalId: String,
       instanceSpace: Option[String],
       autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true)
+      autoCreateEndNodes: Boolean = true,
+      autoCreateDirectRelations: Boolean = true)
       extends FlexibleDataModelRelationFactory
 
   sealed trait DataModelConfig extends FlexibleDataModelRelationFactory
@@ -44,7 +46,8 @@ object FlexibleDataModelRelationFactory {
       viewExternalId: String,
       instanceSpace: Option[String],
       autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true)
+      autoCreateEndNodes: Boolean = true,
+      autoCreateDirectRelations: Boolean = true)
       extends DataModelConfig
 
   final case class DataModelConnectionConfig(
@@ -55,7 +58,8 @@ object FlexibleDataModelRelationFactory {
       connectionPropertyName: String,
       instanceSpace: Option[String],
       autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true)
+      autoCreateEndNodes: Boolean = true,
+      autoCreateDirectRelations: Boolean = true)
       extends DataModelConfig
 
   def corePropertyRelation(
@@ -102,7 +106,8 @@ object FlexibleDataModelRelationFactory {
           None,
           cc.instanceSpace,
           cc.autoCreateStartNodes,
-          cc.autoCreateEndNodes)
+          cc.autoCreateEndNodes,
+          cc.autoCreateDirectRelations)
     })
     new FlexibleDataModelCorePropertySyncRelation(
       cursor,
@@ -149,7 +154,8 @@ object FlexibleDataModelRelationFactory {
               viewReference = Some(vc.toSourceReference),
               instanceSpace = modelViewConfig.instanceSpace,
               autoCreateStartNodes = modelViewConfig.autoCreateStartNodes,
-              autoCreateEndNodes = modelViewConfig.autoCreateEndNodes
+              autoCreateEndNodes = modelViewConfig.autoCreateEndNodes,
+              autoCreateDirectRelations = modelViewConfig.autoCreateDirectRelations
             )
           )
         case None =>
@@ -206,7 +212,8 @@ object FlexibleDataModelRelationFactory {
                 edgeTypeExternalId = cDef.`type`.externalId,
                 instanceSpace = modelConnectionConfig.instanceSpace,
                 autoCreateStartNodes = modelConnectionConfig.autoCreateStartNodes,
-                autoCreateEndNodes = modelConnectionConfig.autoCreateEndNodes
+                autoCreateEndNodes = modelConnectionConfig.autoCreateEndNodes,
+                autoCreateDirectRelations = modelConnectionConfig.autoCreateDirectRelations
               )
             )(sqlContext))
         case _ =>
