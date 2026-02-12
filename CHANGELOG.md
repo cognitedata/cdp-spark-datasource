@@ -1,19 +1,10 @@
-# 2.4.1
-
-## Enhancements
-
-* Add `autoCreateDirectRelations` option for Data Modeling instances (nodes/edges).
-  This option controls whether target nodes referenced by direct relation properties are 
-  automatically created if they don't exist. Defaults to `true` for backwards compatibility.
-  Set to `false` to enable strict validation mode where writes fail if referenced nodes don't exist.
-
 # 2.4.0
 
 ## Enhancements
 
-* Add `autoCreateStartNodes` and `autoCreateEndNodes` options for Data Modeling instances (nodes/edges).
-  These options allow enabling "strict mode" where writes fail if referenced nodes don't exist,
-  instead of automatically creating placeholder nodes. Both default to `true` for backwards compatibility.
+* Add `autoCreateStartNodes`, `autoCreateEndNodes` and `autoCreateDirectRelations` options for Data Modeling instances (nodes/edges).
+  These options allow enabling "strict mode" where writes fail if referenced nodes don't exist or whether target nodes referenced by direct relation properties are 
+  automatically created if they don't exist, instead of automatically creating placeholder nodes. Defaults to `true` for backwards compatibility.
 
 # 2.3.2
 

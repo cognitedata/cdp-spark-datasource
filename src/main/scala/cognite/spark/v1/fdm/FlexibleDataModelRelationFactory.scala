@@ -23,18 +23,18 @@ object FlexibleDataModelRelationFactory {
       intendedUsage: Usage,
       viewReference: Option[ViewReference],
       instanceSpace: Option[String],
-      autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true,
-      autoCreateDirectRelations: Boolean = true)
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean,
+      autoCreateDirectRelations: Boolean)
       extends FlexibleDataModelRelationFactory
 
   final case class ConnectionConfig(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
       instanceSpace: Option[String],
-      autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true,
-      autoCreateDirectRelations: Boolean = true)
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean,
+      autoCreateDirectRelations: Boolean)
       extends FlexibleDataModelRelationFactory
 
   sealed trait DataModelConfig extends FlexibleDataModelRelationFactory
@@ -45,9 +45,9 @@ object FlexibleDataModelRelationFactory {
       modelVersion: String,
       viewExternalId: String,
       instanceSpace: Option[String],
-      autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true,
-      autoCreateDirectRelations: Boolean = true)
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean,
+      autoCreateDirectRelations: Boolean)
       extends DataModelConfig
 
   final case class DataModelConnectionConfig(
@@ -57,9 +57,9 @@ object FlexibleDataModelRelationFactory {
       viewExternalId: String,
       connectionPropertyName: String,
       instanceSpace: Option[String],
-      autoCreateStartNodes: Boolean = true,
-      autoCreateEndNodes: Boolean = true,
-      autoCreateDirectRelations: Boolean = true)
+      autoCreateStartNodes: Boolean,
+      autoCreateEndNodes: Boolean,
+      autoCreateDirectRelations: Boolean)
       extends DataModelConfig
 
   def corePropertyRelation(
