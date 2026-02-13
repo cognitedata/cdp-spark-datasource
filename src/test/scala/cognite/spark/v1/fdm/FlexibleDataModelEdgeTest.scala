@@ -5,10 +5,7 @@ import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
 import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
-import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{
-  getUpsertedMetricsCount,
-  getUpsertedMetricsCountForModel
-}
+import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{getUpsertedMetricsCount, getUpsertedMetricsCountForModel}
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMTestInitializer}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
@@ -20,6 +17,7 @@ import com.cognite.sdk.scala.v1.fdm.views._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
+import java.util.UUID
 import scala.util.{Success, Try}
 
 class FlexibleDataModelEdgeTest
@@ -199,10 +197,11 @@ class FlexibleDataModelEdgeTest
 
     val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = "edgeType", useQuery = useQuery)
 
-    readConnectionsDf.createTempView("connection_instances_table_edgetype")
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
+    readConnectionsDf.createTempView("connection_instances_table_edgetype" + tempViewUUID)
 
     val selectedConnectionInstances = spark
-      .sql(s"""select * from connection_instances_table_edgetype""".stripMargin)
+      .sql(s"""select * from connection_instances_table_edgetype$tempViewUUID""".stripMargin)
       .collect()
 
     val instExtIds = toExternalIds(selectedConnectionInstances)
@@ -226,10 +225,11 @@ class FlexibleDataModelEdgeTest
       useQuery = useQuery,
     )
 
-    df.createTempView("data_model_read_connections_table")
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
+    df.createTempView("data_model_read_connections_table" + tempViewUUID)
 
     val rows = spark
-      .sql(s"""select * from data_model_read_connections_table
+      .sql(s"""select * from data_model_read_connections_table$tempViewUUID
            | where startNode = named_struct(
            |    'space', '$spaceExternalId',
            |    'externalId', '${startEndNodeViewExternalId}FetchStartNode1'
