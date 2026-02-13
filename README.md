@@ -218,18 +218,12 @@ When writing nodes or edges to CDF Data Modeling Service (DMS), the following op
 | `autoCreateEndNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced end node doesn't exist (edges only). Set to `false` for strict validation mode. |
 | `autoCreateDirectRelations` | `true` | When `true`, automatically creates placeholder nodes if a direct relation property references a node that doesn't exist. Set to `false` for strict validation mode. |
 
-**Auto-Create Behavior:**
-- `autoCreateStartNodes` / `autoCreateEndNodes`: Apply to **edges** - controls whether start/end nodes are auto-created when creating edges.
-- `autoCreateDirectRelations`: Applies to **nodes and edges** - controls whether target nodes referenced by direct relation properties are auto-created.
+**Disabling Auto-Create**
 
-**Strict Mode (Validation)**
-
-By default, when you create edges or direct relations that reference nodes that don't exist, DMS automatically creates empty placeholder nodes. This is convenient for initial data onboarding but can lead to data quality issues.
-
-To enable **strict mode** where writes fail if referenced nodes don't exist, set all auto-create options to `false`:
+By default, the Spark Datasource sets these options to `true`, which means placeholder nodes are automatically created when referenced nodes don't exist. If you want writes to fail instead when referenced nodes are missing, set the relevant options to `false`:
 
 ```python
-# Python Example - Strict mode for edges (all auto-create disabled)
+# Python Example - Disable auto-create
 df.write.format("cognite.spark.v1") \
     .option("type", "instances") \
     .option("instanceType", "edge") \
@@ -241,7 +235,7 @@ df.write.format("cognite.spark.v1") \
 ```
 
 ```scala
-// Scala Example - Strict mode for edges
+// Scala Example - Disabling auto-create
 df.write.format("cognite.spark.v1")
   .option("type", "instances")
   .option("instanceType", "edge")
@@ -251,18 +245,6 @@ df.write.format("cognite.spark.v1")
   .option("onConflict", "upsert")
   .save()
 ```
-
-```python
-# Python Example - Strict mode for nodes with direct relations
-df.write.format("cognite.spark.v1") \
-    .option("type", "instances") \
-    .option("instanceType", "node") \
-    .option("autoCreateDirectRelations", "false") \
-    .option("onConflict", "upsert") \
-    .save()
-```
-
-When strict mode is enabled and a referenced node doesn't exist, the write operation will fail with an error, ensuring data integrity.
 
 ### Delete data
 

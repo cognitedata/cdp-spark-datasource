@@ -65,57 +65,20 @@ class DefaultSource
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
     // Extract auto-create options once and pass to all helper methods
-    val (autoCreateStartNodes, autoCreateEndNodes, autoCreateDirectRelations) =
-      extractAutoCreateNodeOptions(parameters)
+    val autoCreate = extractAutoCreateOptions(parameters)
 
     val corePropertySyncRelation =
-      extractCorePropertySyncRelation(
-        parameters,
-        config,
-        sqlContext,
-        autoCreateStartNodes,
-        autoCreateEndNodes,
-        autoCreateDirectRelations)
+      extractCorePropertySyncRelation(parameters, config, sqlContext, autoCreate)
     val corePropertyRelation =
-      extractCorePropertyRelation(
-        parameters,
-        config,
-        sqlContext,
-        autoCreateStartNodes,
-        autoCreateEndNodes,
-        autoCreateDirectRelations)
+      extractCorePropertyRelation(parameters, config, sqlContext, autoCreate)
     val datamodelBasedSync =
-      extractDataModelBasedConnectionRelationSync(
-        parameters,
-        config,
-        sqlContext,
-        autoCreateStartNodes,
-        autoCreateEndNodes,
-        autoCreateDirectRelations)
+      extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext, autoCreate)
     val dataModelBasedConnectionRelation =
-      extractDataModelBasedConnectionRelation(
-        parameters,
-        config,
-        sqlContext,
-        autoCreateStartNodes,
-        autoCreateEndNodes,
-        autoCreateDirectRelations)
+      extractDataModelBasedConnectionRelation(parameters, config, sqlContext, autoCreate)
     val dataModelBasedCorePropertyRelation =
-      extractDataModelBasedCorePropertyRelation(
-        parameters,
-        config,
-        sqlContext,
-        autoCreateStartNodes,
-        autoCreateEndNodes,
-        autoCreateDirectRelations)
+      extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext, autoCreate)
     val connectionRelation =
-      extractConnectionRelation(
-        parameters,
-        config,
-        sqlContext,
-        autoCreateStartNodes,
-        autoCreateEndNodes,
-        autoCreateDirectRelations)
+      extractConnectionRelation(parameters, config, sqlContext, autoCreate)
 
     corePropertySyncRelation
       .orElse(connectionRelation)
@@ -360,6 +323,13 @@ object DefaultSource {
 
   val sparkFormatString: String = classTag[DefaultSource].runtimeClass.getCanonicalName
 
+  /** Options for auto-creating referenced nodes during instance creation */
+  final case class AutoCreateOptions(
+      startNodes: Boolean,
+      endNodes: Boolean,
+      directRelations: Boolean
+  )
+
   val TRACING_PARAMETER_PREFIX: String = "com.cognite.tracing.parameter."
 
   private def toBoolean(
@@ -566,14 +536,12 @@ object DefaultSource {
     )
   }
 
-  private def extractAutoCreateNodeOptions(
-      parameters: Map[String, String]): (Boolean, Boolean, Boolean) = {
-    val autoCreateStartNodes = toBoolean(parameters, "autoCreateStartNodes", defaultValue = true)
-    val autoCreateEndNodes = toBoolean(parameters, "autoCreateEndNodes", defaultValue = true)
-    val autoCreateDirectRelations =
-      toBoolean(parameters, "autoCreateDirectRelations", defaultValue = true)
-    (autoCreateStartNodes, autoCreateEndNodes, autoCreateDirectRelations)
-  }
+  private def extractAutoCreateOptions(parameters: Map[String, String]): AutoCreateOptions =
+    AutoCreateOptions(
+      startNodes = toBoolean(parameters, "autoCreateStartNodes", defaultValue = true),
+      endNodes = toBoolean(parameters, "autoCreateEndNodes", defaultValue = true),
+      directRelations = toBoolean(parameters, "autoCreateDirectRelations", defaultValue = true)
+    )
 
   private[v1] def parseCogniteIds(jsonIds: String): List[CogniteId] = {
 
@@ -600,9 +568,7 @@ object DefaultSource {
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext,
-      autoCreateStartNodes: Boolean,
-      autoCreateEndNodes: Boolean,
-      autoCreateDirectRelations: Boolean) = {
+      autoCreate: AutoCreateOptions) = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map4(
@@ -617,9 +583,9 @@ object DefaultSource {
           _,
           _,
           instanceSpace,
-          autoCreateStartNodes,
-          autoCreateEndNodes,
-          autoCreateDirectRelations))
+          autoCreate.startNodes,
+          autoCreate.endNodes,
+          autoCreate.directRelations))
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
   }
 
@@ -627,9 +593,7 @@ object DefaultSource {
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext,
-      autoCreateStartNodes: Boolean,
-      autoCreateEndNodes: Boolean,
-      autoCreateDirectRelations: Boolean) = {
+      autoCreate: AutoCreateOptions) = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map5(
@@ -646,9 +610,9 @@ object DefaultSource {
           _,
           _,
           instanceSpace,
-          autoCreateStartNodes,
-          autoCreateEndNodes,
-          autoCreateDirectRelations))
+          autoCreate.startNodes,
+          autoCreate.endNodes,
+          autoCreate.directRelations))
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
   }
 
@@ -656,9 +620,7 @@ object DefaultSource {
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext,
-      autoCreateStartNodes: Boolean,
-      autoCreateEndNodes: Boolean,
-      autoCreateDirectRelations: Boolean): Option[FlexibleDataModelBaseRelation] = {
+      autoCreate: AutoCreateOptions): Option[FlexibleDataModelBaseRelation] = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map5(
@@ -682,9 +644,9 @@ object DefaultSource {
             t._3,
             t._4,
             instanceSpace,
-            autoCreateStartNodes,
-            autoCreateEndNodes,
-            autoCreateDirectRelations)
+            autoCreate.startNodes,
+            autoCreate.endNodes,
+            autoCreate.directRelations)
       ))
   }
 
@@ -692,9 +654,7 @@ object DefaultSource {
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext,
-      autoCreateStartNodes: Boolean,
-      autoCreateEndNodes: Boolean,
-      autoCreateDirectRelations: Boolean) = {
+      autoCreate: AutoCreateOptions) = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map2(
@@ -705,9 +665,9 @@ object DefaultSource {
           _,
           _,
           instanceSpace,
-          autoCreateStartNodes,
-          autoCreateEndNodes,
-          autoCreateDirectRelations))
+          autoCreate.startNodes,
+          autoCreate.endNodes,
+          autoCreate.directRelations))
       .map(FlexibleDataModelRelationFactory.connectionRelation(config, sqlContext, _))
   }
 
@@ -715,9 +675,7 @@ object DefaultSource {
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext,
-      autoCreateStartNodes: Boolean,
-      autoCreateEndNodes: Boolean,
-      autoCreateDirectRelations: Boolean) =
+      autoCreate: AutoCreateOptions) =
     Apply[Option]
       .map2(
         parameters.get("instanceType"),
@@ -750,9 +708,9 @@ object DefaultSource {
             intendedUsage = usage,
             viewReference = viewReference,
             instanceSpace = parameters.get("instanceSpace"),
-            autoCreateStartNodes = autoCreateStartNodes,
-            autoCreateEndNodes = autoCreateEndNodes,
-            autoCreateDirectRelations = autoCreateDirectRelations
+            autoCreateStartNodes = autoCreate.startNodes,
+            autoCreateEndNodes = autoCreate.endNodes,
+            autoCreateDirectRelations = autoCreate.directRelations
           )
         )
       }
@@ -761,9 +719,7 @@ object DefaultSource {
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext,
-      autoCreateStartNodes: Boolean,
-      autoCreateEndNodes: Boolean,
-      autoCreateDirectRelations: Boolean) =
+      autoCreate: AutoCreateOptions) =
     parameters
       .get("instanceType")
       .collect {
@@ -784,9 +740,9 @@ object DefaultSource {
                 parameters.get("viewVersion")
               )(ViewReference.apply),
             instanceSpace = parameters.get("instanceSpace"),
-            autoCreateStartNodes = autoCreateStartNodes,
-            autoCreateEndNodes = autoCreateEndNodes,
-            autoCreateDirectRelations = autoCreateDirectRelations
+            autoCreateStartNodes = autoCreate.startNodes,
+            autoCreateEndNodes = autoCreate.endNodes,
+            autoCreateDirectRelations = autoCreate.directRelations
           )
         )
       }
