@@ -48,7 +48,10 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       viewVersion: String,
       instanceSpaceExternalId: String,
       df: DataFrame,
-      onConflict: String = "upsert"): Unit =
+      onConflict: String = "upsert",
+      autoCreateStartNodes: Option[Boolean] = None,
+      autoCreateEndNodes: Option[Boolean] = None,
+      autoCreateDirectRelations: Option[Boolean] = None): Unit =
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -67,13 +70,19 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("onconflict", onConflict)
       .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
+      .options(autoCreateStartNodes.map("autoCreateStartNodes" -> _.toString).toMap)
+      .options(autoCreateEndNodes.map("autoCreateEndNodes" -> _.toString).toMap)
+      .options(autoCreateDirectRelations.map("autoCreateDirectRelations" -> _.toString).toMap)
       .save()
 
   def insertEdgeRows(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
       df: DataFrame,
-      onConflict: String = "upsert"): Unit =
+      onConflict: String = "upsert",
+      autoCreateStartNodes: Option[Boolean] = None,
+      autoCreateEndNodes: Option[Boolean] = None,
+      autoCreateDirectRelations: Option[Boolean] = None): Unit =
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -89,6 +98,9 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("onconflict", onConflict)
       .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
+      .options(autoCreateStartNodes.map("autoCreateStartNodes" -> _.toString).toMap)
+      .options(autoCreateEndNodes.map("autoCreateEndNodes" -> _.toString).toMap)
+      .options(autoCreateDirectRelations.map("autoCreateDirectRelations" -> _.toString).toMap)
       .save()
 
 

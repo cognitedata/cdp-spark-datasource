@@ -229,10 +229,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         val instanceCreate = InstanceCreate(
           items = items,
           replace = Some(false),
-          // These options need to made dynamic by moving to frontend
-          // https://cognitedata.slack.com/archives/C03G11UNHBJ/p1678971213050319
-          autoCreateStartNodes = Some(true),
-          autoCreateEndNodes = Some(true)
+          autoCreateStartNodes = Some(corePropConfig.autoCreateStartNodes),
+          autoCreateEndNodes = Some(corePropConfig.autoCreateEndNodes),
+          autoCreateDirectRelations = Some(corePropConfig.autoCreateDirectRelations)
         )
         client.instances.createItems(instanceCreate)
       case Right(_) => IO.pure(Vector.empty)
