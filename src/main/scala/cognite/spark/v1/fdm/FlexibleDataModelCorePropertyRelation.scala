@@ -135,7 +135,13 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           sources = sourceReference(instanceType, viewReference, selectedInstanceProps),
         )
         client.instances
-          .queryStream(tableExpression, selectExpression, config.limitPerPartition)
+          .queryStream(
+            inputTableExpression = tableExpression,
+            inputSelectExpression = selectExpression,
+            limit = config.limitPerPartition,
+            additionalFlags = config.enabledAdditionalFlag.map(_ -> true).toMap,
+            batchSize = config.batchSize
+          )
           .map(toProjectedInstance(_, None, selectedInstanceProps))
       }
     } else {
