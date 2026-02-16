@@ -97,15 +97,15 @@ lazy val commonSettings = Seq(
     false
   },
   publishTo := (if (System.getenv("PUBLISH_TO_JFROG") == "true") {
-    if (isSnapshot.value)
-      Some("snapshots".at(s"$artifactory/libs-snapshot-local/"))
-    else
-      Some("local-releases".at(s"$artifactory/libs-release-local/"))
-  } else {
-    val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
-    if (isSnapshot.value) Some("central-snapshots".at(centralSnapshots))
-    else localStaging.value
-  }),
+                  if (isSnapshot.value)
+                    Some("snapshots".at(s"$artifactory/libs-snapshot-local/"))
+                  else
+                    Some("local-releases".at(s"$artifactory/libs-release-local/"))
+                } else {
+                  val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
+                  if (isSnapshot.value) Some("central-snapshots".at(centralSnapshots))
+                  else localStaging.value
+                }),
   publishMavenStyle := true,
   pgpPassphrase := {
     if (gpgPass.isDefined) { gpgPass.map(_.toCharArray) } else { None }
