@@ -14,7 +14,7 @@ object FlexibleDataModelQueryUtils {
   def generateTableExpression(
       instanceType: InstanceType,
       filters: Option[FilterDefinition],
-      limit: Option[Int] = None): TableExpression =
+      limit: Option[Int] = Some(1000)): TableExpression =
     instanceType match {
       case InstanceType.Edge =>
         TableExpression(edges = Some(EdgeTableExpression(filter = filters)), limit = limit)
