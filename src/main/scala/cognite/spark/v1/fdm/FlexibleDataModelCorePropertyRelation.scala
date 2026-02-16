@@ -120,7 +120,8 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           generateTableExpression(
             instanceType,
             queryFilterWithHasData(instanceFilter, viewReference),
-            config.limitPerPartition)
+            None
+          )
         val selectExpression = SelectExpression(
           sources = sourceReference(instanceType, viewReference, selectedInstanceProps),
         )
