@@ -543,6 +543,7 @@ object DefaultSource {
       sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false),
       useQuery = toBoolean(parameters, "useQuery", defaultValue = false),
       additionalFlags = None,
+      // TODO        toMap(parameters, "additionalFlags"),
     )
   }
 

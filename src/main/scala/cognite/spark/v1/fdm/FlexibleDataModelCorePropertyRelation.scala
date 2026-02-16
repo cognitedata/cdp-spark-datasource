@@ -114,14 +114,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
     def queryFilterWithHasData(
         instanceFilter: Option[FilterDefinition],
         viewReference: Option[ViewReference]): Option[FilterDefinition] =
-      viewReference match {
-        case Some(ref) =>
-          instanceFilter match {
-            case Some(filter) => Some(FilterDefinition.And(Seq(filter, HasData(Seq(ref)))))
-            case None => Some(HasData(Seq(ref)))
-          }
-        case None => instanceFilter
-      }
+      toAndFilter(
+        viewReference.map(ref => HasData(Seq(ref))).toVector ++ instanceFilter.toVector
+      )
 
     if (config.useQuery) {
       compatibleInstanceTypes(intendedUsage).distinct.map { instanceType =>
