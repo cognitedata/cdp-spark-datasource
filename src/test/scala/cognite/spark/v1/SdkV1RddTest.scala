@@ -123,8 +123,8 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         "clientSecret" -> OIDCWrite.clientSecret,
         "project" -> OIDCWrite.project,
         "scopes" -> OIDCWrite.scopes,
-        "additionalFlag_parseThisToTrue" -> "true",
-        "additionalFlag_parseThisToFalse" -> "false",
+        DefaultSource.toAdditionalFlagKey("parseThisToTrue") -> "true",
+        DefaultSource.toAdditionalFlagKey("parseThisToFalse") -> "false",
       ),
       spark.sqlContext
     ).additionalFlags shouldBe(
