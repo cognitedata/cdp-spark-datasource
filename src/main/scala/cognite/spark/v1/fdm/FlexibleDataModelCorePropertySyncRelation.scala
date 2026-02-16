@@ -88,7 +88,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     }
 
     val syncFilter = createSyncFilter(filters, instanceType)
-    val tableExpression = generateTableExpression(instanceType, syncFilter)
+    val tableExpression = generateTableExpression(instanceType, Some(syncFilter))
 
     val cursors = if (cursor.nonEmpty) Some(Map("sync" -> cursor)) else None
     def select(instanceType: InstanceType) =
