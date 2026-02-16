@@ -64,27 +64,35 @@ class DefaultSource
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
+
     // Extract auto-create options once and pass to all helper methods
     val autoCreate = extractAutoCreateOptions(parameters)
 
+    // If a view is specified with its own space and extId or no view is defined at all but just a instanceType and/or edgeType then we use one of these
+    val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext, autoCreate)
+    val connectionRelation = extractConnectionRelation(parameters, config, sqlContext, autoCreate)
     val corePropertySyncRelation =
       extractCorePropertySyncRelation(parameters, config, sqlContext, autoCreate)
-    val corePropertyRelation =
-      extractCorePropertyRelation(parameters, config, sqlContext, autoCreate)
-    val datamodelBasedSync =
-      extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext, autoCreate)
+
+    //datamodelBased are used if the dataModel is specified (and a view within that datamodel). It uses the datamodel space/version to decide which space and version to use for the view.
+
     val dataModelBasedConnectionRelation =
       extractDataModelBasedConnectionRelation(parameters, config, sqlContext, autoCreate)
     val dataModelBasedCorePropertyRelation =
       extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext, autoCreate)
-    val connectionRelation =
-      extractConnectionRelation(parameters, config, sqlContext, autoCreate)
+    val datamodelBasedSync =
+      extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext, autoCreate)
 
     corePropertySyncRelation
+    //Used if edgeTypeExternalId and edgeTypeSpace are defined
       .orElse(connectionRelation)
+      //Used if instanceType is defined to node or edge
       .orElse(corePropertyRelation)
+      //sync checks for presence of cursor otherwise behave the same as dataModelBasedCoreProperty/ConnectionRelation
       .orElse(datamodelBasedSync)
+      // instanceType is not defined but connectionPropertyName is defined along with a model's space/externalId/version and a view version
       .orElse(dataModelBasedConnectionRelation)
+      // instanceType is not defined but space/externalId/version and a view version are defined.
       .orElse(dataModelBasedCorePropertyRelation)
       .getOrElse(throw new CdfSparkException(
         s"""
@@ -331,6 +339,7 @@ object DefaultSource {
   )
 
   val TRACING_PARAMETER_PREFIX: String = "com.cognite.tracing.parameter."
+  val ADDITIONAL_FLAGS_PREFIX: String = "com.cognite.additional.flag."
 
   private def toBoolean(
       parameters: Map[String, String],
@@ -347,6 +356,17 @@ object DefaultSource {
         }
       case None => defaultValue
     }
+
+  private def getAdditionalFlags(
+      parameters: Map[String, String]
+  ): Map[String, Boolean] =
+    parameters.collect {
+      case (key, _) if key.startsWith(ADDITIONAL_FLAGS_PREFIX) =>
+        key.stripPrefix(ADDITIONAL_FLAGS_PREFIX) -> toBoolean(parameters, key)
+    }
+
+  def toAdditionalFlagKey(flag: String): String =
+    ADDITIONAL_FLAGS_PREFIX + flag
 
   private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
     parameters.get(parameterName).map { intString =>
@@ -532,7 +552,9 @@ object DefaultSource {
       serverSideFilterNullValuesOnNonSchemaRawQueries =
         toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false),
       maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests"),
-      sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false)
+      sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false),
+      useQuery = toBoolean(parameters, "useQuery", defaultValue = false),
+      additionalFlags = getAdditionalFlags(parameters),
     )
   }
 

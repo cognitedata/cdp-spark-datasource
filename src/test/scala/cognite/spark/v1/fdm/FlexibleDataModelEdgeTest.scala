@@ -5,10 +5,7 @@ import cats.effect.unsafe.implicits.global
 import cognite.spark.v1.SparkTest
 import cognite.spark.v1.fdm.utils.FDMSparkDataframeTestOperations._
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
-import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{
-  getUpsertedMetricsCount,
-  getUpsertedMetricsCountForModel
-}
+import cognite.spark.v1.fdm.utils.FDMTestMetricOperations.{getUpsertedMetricsCount, getUpsertedMetricsCountForModel}
 import cognite.spark.v1.fdm.utils.{FDMContainerPropertyDefinitions, FDMTestInitializer}
 import com.cognite.sdk.scala.v1.SpaceCreateDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.EdgeConnection
@@ -20,6 +17,7 @@ import com.cognite.sdk.scala.v1.fdm.views._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
+import java.util.UUID
 import scala.util.{Success, Try}
 
 class FlexibleDataModelEdgeTest
@@ -159,7 +157,7 @@ class FlexibleDataModelEdgeTest
       )
     } yield c1 ++ c2).unsafeRunSync()
 
-    val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = edgeTypeExtId)
+    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = edgeTypeExtId)
 
     readConnectionsDf.createTempView("connection_instances_table")
 
@@ -175,7 +173,7 @@ class FlexibleDataModelEdgeTest
     (instExtIds should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "filter on edgeType when specifying edgeType in df" in {
+  def testFetchEdgeEdgeType(useQuery: Boolean): Unit = {
     val created = (for {
       c1 <- createConnectionWriteInstances(
         externalId = "edgeForEdgeTypeFilter1",
@@ -197,12 +195,13 @@ class FlexibleDataModelEdgeTest
       )
     } yield c1 ++ c2).unsafeRunSync()
 
-    val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = "edgeType")
+    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = "edgeType", useQuery = useQuery)
 
-    readConnectionsDf.createTempView("connection_instances_table_edgetype")
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
+    readConnectionsDf.createTempView("connection_instances_table_edgetype" + tempViewUUID)
 
     val selectedConnectionInstances = spark
-      .sql(s"""select * from connection_instances_table_edgetype""".stripMargin)
+      .sql(s"""select * from connection_instances_table_edgetype$tempViewUUID""".stripMargin)
       .collect()
 
     val instExtIds = toExternalIds(selectedConnectionInstances)
@@ -211,18 +210,26 @@ class FlexibleDataModelEdgeTest
     instExtIds should be(Seq("edgeForEdgeTypeFilter1"))
   }
 
-  it should "fetch edges from a data model" in {
-    val df = readRowsFromModel(
+  it should "fetch edge with edgeType with both query and list" in {
+    testFetchEdgeEdgeType(true)
+    testFetchEdgeEdgeType(false)
+  }
+
+  def testFetchEdgeDataModel(useQuery: Boolean): Unit = {
+    val df = readRowsFromModelWithEdgeType(
       spaceExternalId,
       edgeTestDataModelExternalId,
       viewVersion,
       spaceExternalId,
-      edgeTypeExtId)
+      edgeTypeExtId,
+      useQuery = useQuery,
+    )
 
-    df.createTempView("data_model_read_connections_table")
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
+    df.createTempView("data_model_read_connections_table" + tempViewUUID)
 
     val rows = spark
-      .sql(s"""select * from data_model_read_connections_table
+      .sql(s"""select * from data_model_read_connections_table$tempViewUUID
            | where startNode = named_struct(
            |    'space', '$spaceExternalId',
            |    'externalId', '${startEndNodeViewExternalId}FetchStartNode1'
@@ -237,7 +244,13 @@ class FlexibleDataModelEdgeTest
     (toExternalIds(rows) should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "insert edge to a data model" in {
+  it should "fetch edges from a data model both with query and list" in {
+    testFetchEdgeDataModel(true)
+    testFetchEdgeDataModel(false)
+  }
+
+
+    it should "insert edge to a data model" in {
     val df = spark
       .sql(s"""
            |select

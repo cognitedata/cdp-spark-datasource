@@ -114,4 +114,24 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
     assert(rdd.partitions.length == 1)
     assert(rdd.compute(CdfPartition(0), TaskContext.get()).size == nStreams * nItemsPerStream * 3) // * 3 because we duplicate the allStreams 3 times
   }
+
+  it should "parse additional flags from relation config" in {
+    DefaultSource.parseRelationConfig(
+      Map(
+        "tokenUri" -> OIDCWrite.tokenUri,
+        "clientId" -> OIDCWrite.clientId,
+        "clientSecret" -> OIDCWrite.clientSecret,
+        "project" -> OIDCWrite.project,
+        "scopes" -> OIDCWrite.scopes,
+        DefaultSource.toAdditionalFlagKey("parseThisToTrue") -> "true",
+        DefaultSource.toAdditionalFlagKey("parseThisToFalse") -> "false",
+      ),
+      spark.sqlContext
+    ).additionalFlags shouldBe(
+      Map(
+        "parseThisToTrue" -> true,
+        "parseThisToFalse" -> false
+      )
+    )
+  }
 }

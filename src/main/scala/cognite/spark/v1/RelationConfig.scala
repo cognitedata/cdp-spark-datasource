@@ -39,7 +39,10 @@ final case class RelationConfig(
     useSharedThrottle: Boolean,
     serverSideFilterNullValuesOnNonSchemaRawQueries: Boolean,
     maxOutstandingRawInsertRequests: Option[Int],
-    sendDebugFlag: Boolean
+    sendDebugFlag: Boolean,
+    //When using query instead of list, by default DM will not send a next cursor if there is no index as it would be a performance hazard
+    useQuery: Boolean,
+    additionalFlags: Map[String, Boolean]
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */
