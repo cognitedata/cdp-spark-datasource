@@ -542,7 +542,7 @@ object DefaultSource {
       maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests"),
       sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false),
       useQuery = toBoolean(parameters, "useQuery", defaultValue = true),
-      enabledAdditionalFlag = None,
+      additionalFlags = Map.empty,
     )
   }
 

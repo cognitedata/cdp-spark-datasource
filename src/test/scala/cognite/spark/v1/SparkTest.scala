@@ -287,7 +287,7 @@ trait SparkTest {
       maxOutstandingRawInsertRequests = None,
       sendDebugFlag = false,
       useQuery = false,
-      enabledAdditionalFlag = None
+      additionalFlags = Map.empty
     )
 
   private def getCounterSafe(metricsNamespace: String, resource: String): Option[Long] = {

@@ -41,7 +41,7 @@ final case class RelationConfig(
     maxOutstandingRawInsertRequests: Option[Int],
     sendDebugFlag: Boolean,
     useQuery: Boolean,
-    enabledAdditionalFlag: Option[String]
+    additionalFlags: Option[Map[String, Boolean]]
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */
