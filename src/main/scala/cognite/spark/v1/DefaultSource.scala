@@ -339,7 +339,7 @@ object DefaultSource {
   )
 
   val TRACING_PARAMETER_PREFIX: String = "com.cognite.tracing.parameter."
-  val ADDITIONAL_FLAGS_PREFIX: String = "additionalFlag_"
+  val ADDITIONAL_FLAGS_PREFIX: String = "com.cognite.additional.flag."
 
   private def toBoolean(
       parameters: Map[String, String],
