@@ -356,6 +356,12 @@ object DefaultSource {
       case None => defaultValue
     }
 
+  private def toMap(
+    parameters: Map[String, String],
+    parameterName: String,
+    defaultValue: Map[String, String] = false)
+  )
+
   private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
     parameters.get(parameterName).map { intString =>
       val intValue = intString.toInt
@@ -542,8 +548,7 @@ object DefaultSource {
       maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests"),
       sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false),
       useQuery = toBoolean(parameters, "useQuery", defaultValue = false),
-      additionalFlags = None,
-      // TODO        toMap(parameters, "additionalFlags"),
+      additionalFlags = toMap(parameters, "additionalFlags"),
     )
   }
 

@@ -4,15 +4,10 @@ import cats.Apply
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{generateTableExpression, sourceReference}
+import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{generateTableExpression, queryFilterWithHasData, sourceReference}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils._
-import cognite.spark.v1.{
-  CdfSparkException,
-  CdfSparkIllegalArgumentException,
-  CdpConnector,
-  RelationConfig
-}
+import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
@@ -111,13 +106,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => throw err
     }
 
-    def queryFilterWithHasData(
-        instanceFilter: Option[FilterDefinition],
-        viewReference: Option[ViewReference]): Option[FilterDefinition] =
-      toAndFilter(
-        viewReference.map(ref => HasData(Seq(ref))).toVector ++ instanceFilter.toVector
-      )
-
     if (config.useQuery) {
       compatibleInstanceTypes(intendedUsage).distinct.map { instanceType =>
         val tableExpression =
@@ -196,15 +184,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
               .orElse(ef)
           }
         }
-    }
-
-  private def toAndFilter(filters: Vector[FilterDefinition]): Option[FilterDefinition] =
-    if (filters.isEmpty) {
-      None
-    } else if (filters.length == 1) {
-      filters.headOption
-    } else {
-      Some(FilterDefinition.And(filters))
     }
 
   private def retrieveAllViewPropsAndSchema

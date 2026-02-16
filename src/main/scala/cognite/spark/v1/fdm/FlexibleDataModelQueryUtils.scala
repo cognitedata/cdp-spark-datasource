@@ -1,16 +1,19 @@
 package cognite.spark.v1.fdm
 
+import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils.toAndFilter
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  EdgeTableExpression,
-  InstanceType,
-  NodesTableExpression,
-  SourceSelector,
-  TableExpression
-}
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeTableExpression, InstanceType, NodesTableExpression, SourceSelector, TableExpression}
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 
 object FlexibleDataModelQueryUtils {
+  def queryFilterWithHasData(
+    instanceFilter: Option[FilterDefinition],
+    viewReference: Option[ViewReference]): Option[FilterDefinition] =
+    toAndFilter(
+      viewReference.map(ref => HasData(Seq(ref))).toVector ++ instanceFilter.toVector
+    )
+
   def generateTableExpression(
       instanceType: InstanceType,
       filters: Option[FilterDefinition],
