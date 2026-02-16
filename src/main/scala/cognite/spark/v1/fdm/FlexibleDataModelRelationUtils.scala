@@ -872,11 +872,9 @@ object FlexibleDataModelRelationUtils {
     Try(row.json).getOrElse(row.mkString(", "))
 
   private[spark] def toAndFilter(filters: Vector[FilterDefinition]): Option[FilterDefinition] =
-    if (filters.isEmpty) {
-      None
-    } else if (filters.length == 1) {
-      filters.headOption
-    } else {
-      Some(FilterDefinition.And(filters))
+    filters match {
+      case Vector() => None
+      case Vector(single) => Some(single)
+      case multiple => Some(FilterDefinition.And(multiple))
     }
 }

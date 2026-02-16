@@ -339,6 +339,7 @@ object DefaultSource {
   )
 
   val TRACING_PARAMETER_PREFIX: String = "com.cognite.tracing.parameter."
+  val ADDITIONAL_FLAGS_PREFIX: String = "additionalFlag_"
 
   private def toBoolean(
       parameters: Map[String, String],
@@ -360,8 +361,8 @@ object DefaultSource {
       parameters: Map[String, String]
   ): Map[String, Boolean] =
     parameters.collect {
-      case (key, _) if key.startsWith("additionalFlag_") =>
-        key.stripPrefix("additionalFlag_") -> toBoolean(parameters, key)
+      case (key, _) if key.startsWith(ADDITIONAL_FLAGS_PREFIX) =>
+        key.stripPrefix(ADDITIONAL_FLAGS_PREFIX) -> toBoolean(parameters, key)
     }
 
   private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
