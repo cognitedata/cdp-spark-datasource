@@ -124,7 +124,7 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
     fetchData(
       useQueryEndpoint = false,
       cursors = cursors,
-      `with` = Map("sync" -> generateTableExpression(instanceType, matchNothingFilter)),
+      `with` = Map("sync" -> generateTableExpression(instanceType, Some(matchNothingFilter))),
       select = select)
       .flatMap { sr =>
         (sr.nextCursor, cursors) match {
