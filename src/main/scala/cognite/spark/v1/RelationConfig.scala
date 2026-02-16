@@ -42,7 +42,7 @@ final case class RelationConfig(
     sendDebugFlag: Boolean,
     //When using query instead of list, by default DM will not send a next cursor if there is no index as it would be a performance hazard
     useQuery: Boolean,
-    additionalFlags: Option[Map[String, Boolean]]
+    additionalFlags: Map[String, Boolean]
 ) {
 
   /** Desired number of Spark partitions ~= partitions / parallelismPerPartition */
