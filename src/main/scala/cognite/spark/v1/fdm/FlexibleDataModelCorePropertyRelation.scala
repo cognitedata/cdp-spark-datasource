@@ -19,7 +19,6 @@ import cognite.spark.v1.{
 }
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
 import com.cognite.sdk.scala.v1.fdm.common.{DataModelReference, Usage}
