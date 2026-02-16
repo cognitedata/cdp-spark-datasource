@@ -365,6 +365,10 @@ object DefaultSource {
         key.stripPrefix(ADDITIONAL_FLAGS_PREFIX) -> toBoolean(parameters, key)
     }
 
+  def toAdditionalFlagKey(flag: String): String = {
+    ADDITIONAL_FLAGS_PREFIX + flag
+  }
+
   private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
     parameters.get(parameterName).map { intString =>
       val intValue = intString.toInt
