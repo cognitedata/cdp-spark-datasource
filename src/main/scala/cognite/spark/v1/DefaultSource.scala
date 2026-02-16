@@ -357,13 +357,12 @@ object DefaultSource {
     }
 
   private def getAdditionalFlags(
-    parameters: Map[String, String]
-  ): Map[String, Boolean] = {
+      parameters: Map[String, String]
+  ): Map[String, Boolean] =
     parameters.collect {
-      case (key, _) if key.startsWith("additionalFlag") =>
-        key.stripPrefix("additionalFlag") -> toBoolean(parameters, key)
+      case (key, _) if key.startsWith("additionalFlag_") =>
+        key.stripPrefix("additionalFlag_") -> toBoolean(parameters, key)
     }
-  }
 
   private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
     parameters.get(parameterName).map { intString =>
