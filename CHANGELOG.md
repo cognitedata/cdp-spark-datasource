@@ -1,3 +1,12 @@
+# 3.24.x
+
+## Enhancements
+
+* Add `autoCreateStartNodes`, `autoCreateEndNodes` and `autoCreateDirectRelations` options for Data Modeling instances (nodes/edges).
+  - `autoCreateStartNodes` / `autoCreateEndNodes`: Control whether start/end nodes are auto-created when creating edges.
+  - `autoCreateDirectRelations`: Controls whether target nodes referenced by direct relation properties are auto-created.
+  - All options default to `true` for backwards compatibility. Set to `false` to fail writes when referenced nodes don't exist.
+
 # 2.3.2
 
 ## Fix
