@@ -88,7 +88,7 @@ class DefaultSource
       .orElse(connectionRelation)
       //Used if instanceType is defined to node or edge
       .orElse(corePropertyRelation)
-      //sync checks for presence of cursor otherwize behave the same as dataModelBasedCoreProperty/ConnectionRelation
+      //sync checks for presence of cursor otherwise behave the same as dataModelBasedCoreProperty/ConnectionRelation
       .orElse(datamodelBasedSync)
       // instanceType is not defined but connectionPropertyName is defined along with a model's space/externalId/version and a view version
       .orElse(dataModelBasedConnectionRelation)
