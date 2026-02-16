@@ -1262,7 +1262,7 @@ class FlexibleDataModelNodeTest
 
   it should "successfully filter instances from a data model, and query vs list flag should have no impact on results" in {
     testFilterInstance(debug = true, useQuery = true)
-    testFilterInstance(debug = true, useQuery = true)
+    testFilterInstance(debug = true, useQuery = false)
   }
 
   it should "successfully insert instances to a data model" in {
