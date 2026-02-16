@@ -228,9 +228,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
         .flatMap {
           case None =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
-                                                                  |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}').
-                                                                  |Ensure that the transformation's credentials have access to the view's space.
-                                                                  |""".stripMargin))
+              |Could not retrieve view with (space: '${viewRef.space}', externalId: '${viewRef.externalId}', version: '${viewRef.version}').
+              |Ensure that the transformation's credentials have access to the view's space.
+              |""".stripMargin))
           case Some(viewDef)
               if compatibleUsageTypes(viewUsage = viewDef.usedFor, intendedUsage = intendedUsage) =>
             IO.delay(
@@ -241,9 +241,9 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
                 )))
           case Some(viewDef) =>
             IO.raiseError(new CdfSparkIllegalArgumentException(s"""
-                                                                  | View with (space: '${viewDef.space}', externalId: '${viewDef.externalId}', version: '${viewDef.version}')
-                                                                  | is not compatible with '${intendedUsage.productPrefix}s'
-                                                                  |""".stripMargin))
+              | View with (space: '${viewDef.space}', externalId: '${viewDef.externalId}', version: '${viewDef.version}')
+              | is not compatible with '${intendedUsage.productPrefix}s'
+              |""".stripMargin))
         }
     }
 
