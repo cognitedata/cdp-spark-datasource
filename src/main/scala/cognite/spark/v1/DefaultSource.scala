@@ -342,12 +342,11 @@ object DefaultSource {
   val ENABLED_ADDITIONAL_FLAG_KEY: String = "com.cognite.additional.flag.enabled."
   val DISABLED_ADDITIONAL_FLAG_KEY: String = "com.cognite.additional.flag.disabled."
 
-  //name is a case_insensitive descriptive name, set the value to the boolean flag's value
-  def toAdditionalFlagKey(name: String, enabled: Boolean): String =
+  def toAdditionalFlagKey(key: String, enabled: Boolean): String =
     if (enabled) {
-      ENABLED_ADDITIONAL_FLAG_KEY + name
+      ENABLED_ADDITIONAL_FLAG_KEY + key
     } else {
-      DISABLED_ADDITIONAL_FLAG_KEY + name
+      DISABLED_ADDITIONAL_FLAG_KEY + key
     }
 
   private def toBoolean(
