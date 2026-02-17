@@ -343,13 +343,12 @@ object DefaultSource {
   val DISABLED_ADDITIONAL_FLAG_KEY: String = "com.cognite.additional.flag.disabled."
 
   //name is a case_insensitive descriptive name, set the value to the boolean flag's value
-  def toAdditionalFlagKey(name: String, enabled: Boolean): String = {
-    if(enabled) {
+  def toAdditionalFlagKey(name: String, enabled: Boolean): String =
+    if (enabled) {
       ENABLED_ADDITIONAL_FLAG_KEY + name
     } else {
       DISABLED_ADDITIONAL_FLAG_KEY + name
     }
-  }
 
   private def toBoolean(
       parameters: Map[String, String],
@@ -368,15 +367,14 @@ object DefaultSource {
     }
 
   private def getAdditionalFlags(
-    parameters: Map[String, String]
-  ): Map[String, Boolean] = {
+      parameters: Map[String, String]
+  ): Map[String, Boolean] =
     parameters.collect {
       case (key, value) if key.startsWith(ENABLED_ADDITIONAL_FLAG_KEY) =>
         value -> true
       case (key, value) if key.startsWith(DISABLED_ADDITIONAL_FLAG_KEY) =>
         value -> false
     }
-  }
 
   private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
     parameters.get(parameterName).map { intString =>
