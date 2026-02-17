@@ -1,13 +1,14 @@
 package cognite.spark.v1
 
 import cats.effect.IO
+import cognite.spark.compiletime.macros.SparkSchemaHelper.asRow
+import cognite.spark.v1.DefaultSource.toAdditionalFlagKey
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{Event, GenericClient}
 import fs2.{Chunk, Stream}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import cognite.spark.compiletime.macros.SparkSchemaHelper.asRow
 import sttp.client3._
 
 import scala.concurrent.duration._
@@ -123,8 +124,8 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
         "clientSecret" -> OIDCWrite.clientSecret,
         "project" -> OIDCWrite.project,
         "scopes" -> OIDCWrite.scopes,
-        DefaultSource.toAdditionalFlagKey("parseThisToTrue") -> "true",
-        DefaultSource.toAdditionalFlagKey("parseThisToFalse") -> "false",
+        toAdditionalFlagKey("flagValuedTrue", true) -> "parseThisToTrue",
+        toAdditionalFlagKey("flagValuedFalse", false) -> "parseThisToFalse",
       ),
       spark.sqlContext
     ).additionalFlags shouldBe(
