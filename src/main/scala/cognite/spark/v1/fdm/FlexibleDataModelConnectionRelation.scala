@@ -3,11 +3,7 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{
-  generateTableExpression,
-  queryFilterWithHasData,
-  sourceReference
-}
+import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{generateTableExpression, sourceReference}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ConnectionConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils.{
   createConnectionInstances,
@@ -20,7 +16,6 @@ import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValu
 import com.cognite.sdk.scala.v1.fdm.instances.{
   InstanceCreate,
   InstanceFilterRequest,
-  InstanceSource,
   InstanceType,
   SelectExpression
 }
