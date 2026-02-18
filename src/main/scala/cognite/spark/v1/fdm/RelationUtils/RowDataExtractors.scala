@@ -1,31 +1,13 @@
 package cognite.spark.v1.fdm.RelationUtils
 
 import cats.implicits._
-import cognite.spark.v1.fdm.RelationUtils.RowValuesParsers._
-import cognite.spark.v1.{
-  CdfSparkException,
-  CdfSparkIllegalArgumentException,
-  FieldNotSpecified,
-  FieldNull,
-  FieldSpecified,
-  OptionalField
-}
+import cognite.spark.v1.fdm.RelationUtils.RowValuesParsers.{safeConvertToDouble, safeConvertToFloat, safeConvertToInt, safeConvertToLong, skipNulls, tryAsDate, tryAsDates, tryAsTimestamp, tryAsTimestamps, tryConvertNumber, tryConvertNumberSeq}
+import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, FieldNotSpecified, FieldNull, FieldSpecified, OptionalField}
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
-  DirectNodeRelationProperty,
-  EnumProperty,
-  FileReference,
-  PrimitiveProperty,
-  SequenceReference,
-  TextProperty,
-  TimeSeriesReference
-}
-import com.cognite.sdk.scala.v1.fdm.common.properties.{
-  ListablePropertyType,
-  PrimitivePropType,
-  PropertyDefinition
-}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumProperty, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{ListablePropertyType, PrimitivePropType, PropertyDefinition}
 import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
@@ -472,4 +454,11 @@ object RowDataExtractors {
   def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
 
+
+  private[spark] def toAndFilter(filters: Vector[FilterDefinition]): Option[FilterDefinition] =
+    filters match {
+      case Vector() => None
+      case Vector(single) => Some(single)
+      case multiple => Some(FilterDefinition.And(multiple))
+    }
 }

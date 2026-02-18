@@ -1,13 +1,14 @@
 package cognite.spark.v1
 
 import cats.effect.IO
+import cognite.spark.compiletime.macros.SparkSchemaHelper.asRow
+import cognite.spark.v1.DefaultSource.toAdditionalFlagKey
 import com.cognite.sdk.scala.common.CdpApiException
 import com.cognite.sdk.scala.v1.{Event, GenericClient}
 import fs2.{Chunk, Stream}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers, ParallelTestExecution}
-import cognite.spark.compiletime.macros.SparkSchemaHelper.asRow
 import sttp.client3._
 
 import scala.concurrent.duration._
@@ -113,5 +114,25 @@ class SdkV1RddTest extends FlatSpec with Matchers with ParallelTestExecution wit
 
     assert(rdd.partitions.length == 1)
     assert(rdd.compute(CdfPartition(0), TaskContext.get()).size == nStreams * nItemsPerStream * 3) // * 3 because we duplicate the allStreams 3 times
+  }
+
+  it should "parse additional flags from relation config" in {
+    DefaultSource.parseRelationConfig(
+      Map(
+        "tokenUri" -> OIDCWrite.tokenUri,
+        "clientId" -> OIDCWrite.clientId,
+        "clientSecret" -> OIDCWrite.clientSecret,
+        "project" -> OIDCWrite.project,
+        "scopes" -> OIDCWrite.scopes,
+        toAdditionalFlagKey("flagValuedTrue", true) -> "parseThisToTrue",
+        toAdditionalFlagKey("flagValuedFalse", false) -> "parseThisToFalse",
+      ),
+      spark.sqlContext
+    ).additionalFlags shouldBe(
+      Map(
+        "parseThisToTrue" -> true,
+        "parseThisToFalse" -> false
+      )
+    )
   }
 }

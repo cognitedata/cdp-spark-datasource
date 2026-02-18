@@ -5,19 +5,21 @@ import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory
 import cognite.spark.v1.fdm.utils.FDMTestConstants._
 import com.cognite.sdk.scala.v1.fdm.instances.InstanceType
 import org.apache.spark.sql.{DataFrame, Row}
+import org.scalatest.Matchers
 
-object FDMSparkDataframeTestOperations extends SparkTest {
+object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
+
 
   def insertRowsToModel(
-      modelSpace: String,
-      modelExternalId: String,
-      modelVersion: String,
-      viewExternalId: String,
-      instanceSpace: Option[String],
-      df: DataFrame,
-      onConflict: String = "upsert",
-      ignoreNullFields: Boolean = true,
-      connectionPropertyName: Option[String] = None): Unit = {
+    modelSpace: String,
+    modelExternalId: String,
+    modelVersion: String,
+    viewExternalId: String,
+    instanceSpace: Option[String],
+    df: DataFrame,
+    onConflict: String = "upsert",
+    ignoreNullFields: Boolean = true,
+    connectionPropertyName: Option[String] = None): Unit = {
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -48,7 +50,10 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       viewVersion: String,
       instanceSpaceExternalId: String,
       df: DataFrame,
-      onConflict: String = "upsert"): Unit =
+      onConflict: String = "upsert",
+      autoCreateStartNodes: Option[Boolean] = None,
+      autoCreateEndNodes: Option[Boolean] = None,
+      autoCreateDirectRelations: Option[Boolean] = None): Unit =
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -67,13 +72,19 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("onconflict", onConflict)
       .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
+      .options(autoCreateStartNodes.map("autoCreateStartNodes" -> _.toString).toMap)
+      .options(autoCreateEndNodes.map("autoCreateEndNodes" -> _.toString).toMap)
+      .options(autoCreateDirectRelations.map("autoCreateDirectRelations" -> _.toString).toMap)
       .save()
 
   def insertEdgeRows(
       edgeTypeSpace: String,
       edgeTypeExternalId: String,
       df: DataFrame,
-      onConflict: String = "upsert"): Unit =
+      onConflict: String = "upsert",
+      autoCreateStartNodes: Option[Boolean] = None,
+      autoCreateEndNodes: Option[Boolean] = None,
+      autoCreateDirectRelations: Option[Boolean] = None): Unit =
     df.write
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -89,15 +100,18 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("onconflict", onConflict)
       .option("collectMetrics", value = true)
       .option("metricsPrefix", s"$edgeTypeSpace-$edgeTypeExternalId")
+      .options(autoCreateStartNodes.map("autoCreateStartNodes" -> _.toString).toMap)
+      .options(autoCreateEndNodes.map("autoCreateEndNodes" -> _.toString).toMap)
+      .options(autoCreateDirectRelations.map("autoCreateDirectRelations" -> _.toString).toMap)
       .save()
 
-
   def readRows(
-      instanceType: InstanceType,
-      viewSpaceExternalId: String,
-      viewExternalId: String,
-      viewVersion: String,
-      instanceSpaceExternalId: String): DataFrame =
+    instanceType: InstanceType,
+    viewSpaceExternalId: String,
+    viewExternalId: String,
+    viewVersion: String,
+    instanceSpaceExternalId: String,
+    useQuery: Boolean = false): DataFrame = {
     spark.read
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -115,25 +129,30 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("instanceSpace", instanceSpaceExternalId)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
       .option("collectMetrics", true)
+      .option("useQuery", useQuery)
       .load()
+  }
 
-  def readRows(edgeSpace: String, edgeExternalId: String): DataFrame =
+
+
+  def readEdgeWithEdgeType(edgeSpace: String, edgeExternalId: String, useQuery: Boolean = false): DataFrame =
     spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://$cluster.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://$cluster.cognitedata.com/.default")
-      .option("edgeTypeSpace", edgeSpace)
-      .option("edgeTypeExternalId", edgeExternalId)
-      .option("instanceType", "edge")
-      .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
-      .option("collectMetrics", value = true)
-      .load()
+        .format(DefaultSource.sparkFormatString)
+        .option("type", FlexibleDataModelRelationFactory.ResourceType)
+        .option("baseUrl", s"https://$cluster.cognitedata.com")
+        .option("tokenUri", tokenUri)
+        .option("audience", audience)
+        .option("clientId", clientId)
+        .option("clientSecret", clientSecret)
+        .option("project", project)
+        .option("scopes", s"https://$cluster.cognitedata.com/.default")
+        .option("edgeTypeSpace", edgeSpace)
+        .option("edgeTypeExternalId", edgeExternalId)
+        .option("instanceType", "edge")
+        .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
+        .option("collectMetrics", value = true)
+        .option("useQuery", useQuery)
+        .load()
 
   def readRowsFromModel(
       modelSpace: String,
@@ -141,33 +160,38 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       modelVersion: String,
       viewExternalId: String,
       instanceSpace: Option[String],
-      debug: Boolean = false): DataFrame =
-    spark.read
-      .format(DefaultSource.sparkFormatString)
-      .option("type", FlexibleDataModelRelationFactory.ResourceType)
-      .option("baseUrl", s"https://${cluster}.cognitedata.com")
-      .option("tokenUri", tokenUri)
-      .option("audience", audience)
-      .option("clientId", clientId)
-      .option("clientSecret", clientSecret)
-      .option("project", project)
-      .option("scopes", s"https://${cluster}.cognitedata.com/.default")
-      .option("modelSpace", modelSpace)
-      .option("modelExternalId", modelExternalId)
-      .option("modelVersion", modelVersion)
-      .option("instanceSpace", instanceSpace.orNull)
-      .option("viewExternalId", viewExternalId)
-      .option("metricsPrefix", s"$modelExternalId-$modelVersion")
-      .option("collectMetrics", value = true)
-      .option("sendDebugFlag", value = debug)
-      .load()
+      debug: Boolean = false,
+      useQuery: Boolean = false): DataFrame = {
+      spark.read
+        .format(DefaultSource.sparkFormatString)
+        .option("type", FlexibleDataModelRelationFactory.ResourceType)
+        .option("baseUrl", s"https://${cluster}.cognitedata.com")
+        .option("tokenUri", tokenUri)
+        .option("audience", audience)
+        .option("clientId", clientId)
+        .option("clientSecret", clientSecret)
+        .option("project", project)
+        .option("scopes", s"https://${cluster}.cognitedata.com/.default")
+        .option("modelSpace", modelSpace)
+        .option("modelExternalId", modelExternalId)
+        .option("modelVersion", modelVersion)
+        .option("instanceSpace", instanceSpace.orNull)
+        .option("viewExternalId", viewExternalId)
+        .option("metricsPrefix", s"$modelExternalId-$modelVersion")
+        .option("collectMetrics", value = true)
+        .option("sendDebugFlag", value = debug)
+        .option("useQuery", value = useQuery)
+        .load()
+  }
 
-  def readRowsFromModel(
+  def readRowsFromModelWithEdgeType(
      modelSpace: String,
      modelExternalId: String,
      modelVersion: String,
      edgeTypeSpace: String,
-     edgeTypeExternalId: String): DataFrame =
+     edgeTypeExternalId: String,
+     useQuery: Boolean = false
+  ): DataFrame =
     spark.read
       .format(DefaultSource.sparkFormatString)
       .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -185,6 +209,7 @@ object FDMSparkDataframeTestOperations extends SparkTest {
       .option("edgeTypeExternalId", edgeTypeExternalId)
       .option("metricsPrefix", s"$modelExternalId-$modelVersion")
       .option("collectMetrics", value = true)
+      .option("useQuery", useQuery)
       .load()
 
   def syncRows(

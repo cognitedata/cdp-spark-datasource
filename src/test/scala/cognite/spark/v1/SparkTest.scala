@@ -286,6 +286,8 @@ trait SparkTest {
       serverSideFilterNullValuesOnNonSchemaRawQueries = false,
       maxOutstandingRawInsertRequests = None,
       sendDebugFlag = false,
+      useQuery = false,
+      additionalFlags = Map.empty
     )
 
   private def getCounterSafe(metricsNamespace: String, resource: String): Option[Long] = {
