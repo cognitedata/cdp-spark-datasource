@@ -4,19 +4,10 @@ import cats.Apply
 import cats.effect.IO
 import cats.implicits._
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{
-  generateTableExpression,
-  queryFilterWithHasData,
-  sourceReference
-}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
+import cognite.spark.v1.fdm.RelationUtils.RowDataExtractors.{generateTableExpression, toAndFilter}
 import cognite.spark.v1.fdm.RelationUtils.RowToFDMPayloadConverters._
-import cognite.spark.v1.{
-  CdfSparkException,
-  CdfSparkIllegalArgumentException,
-  CdpConnector,
-  RelationConfig
-}
+import cognite.spark.v1.{CdfSparkException, CdfSparkIllegalArgumentException, CdpConnector, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition

@@ -2,31 +2,17 @@ package cognite.spark.v1.fdm.RelationUtils
 
 import cats.implicits._
 import cognite.spark.v1.CdfSparkException
-import cognite.spark.v1.fdm.RelationUtils.RowDataExtractors.{
-  extractEdgeEndNodeDirectRelation,
-  extractEdgeStartNodeDirectRelation,
-  extractEdgeTypeDirectRelation,
-  extractExternalId,
-  extractInstancePropertyValues,
-  extractNodeTypeDirectRelation,
-  extractSpaceOrDefault,
-  rowToString
-}
+import cognite.spark.v1.fdm.RelationUtils.RowDataExtractors.{extractEdgeEndNodeDirectRelation, extractEdgeStartNodeDirectRelation, extractEdgeTypeDirectRelation, extractExternalId, extractInstancePropertyValues, extractNodeTypeDirectRelation, extractSpaceOrDefault, rowToString, toAndFilter}
 import cognite.spark.v1.fdm.RelationUtils.Validators.validateSourceSchema
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition.HasData
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
 import com.cognite.sdk.scala.v1.fdm.common.sources.SourceReference
-import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{
-  EdgeDeletionRequest,
-  NodeDeletionRequest
-}
+import com.cognite.sdk.scala.v1.fdm.instances.InstanceDeletionRequest.{EdgeDeletionRequest, NodeDeletionRequest}
 import com.cognite.sdk.scala.v1.fdm.instances.NodeOrEdgeCreate.{EdgeWrite, NodeWrite}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  EdgeOrNodeData,
-  InstanceDeletionRequest,
-  InstancePropertyValue,
-  NodeOrEdgeCreate
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeOrNodeData, InstanceDeletionRequest, InstancePropertyValue, InstanceType, NodeOrEdgeCreate, SourceSelector}
+import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
@@ -286,4 +272,33 @@ object RowToFDMPayloadConverters {
           sources = None
         )
     }
+  def queryFilterWithHasData(
+    instanceFilter: Option[FilterDefinition],
+    viewReference: Option[ViewReference]): Option[FilterDefinition] =
+    toAndFilter(
+      viewReference.map(ref => HasData(Seq(ref))).toVector ++ instanceFilter.toVector
+    )
+
+  private def reservedPropertyNames(instanceType: InstanceType): Seq[String] = {
+    val result = Seq("space", "externalId", "_type")
+    instanceType match {
+      case InstanceType.Node => result
+      case InstanceType.Edge => result ++ Seq("startNode", "endNode", "type")
+    }
+  }
+
+  def sourceReference(
+    instanceType: InstanceType,
+    viewReference: Option[ViewReference],
+    selectedInstanceProps: Array[String]): Seq[SourceSelector] =
+    viewReference
+      .map(
+        r =>
+          SourceSelector(
+            source = r,
+            properties = selectedInstanceProps.toIndexedSeq.filter(p =>
+              !p.startsWith("node.") && !p.startsWith("edge.") && !p
+                .startsWith("metadata.") && !reservedPropertyNames(instanceType).contains(p))
+          ))
+      .toSeq
 }

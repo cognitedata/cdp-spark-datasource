@@ -8,7 +8,7 @@ import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{DirectNodeRelationProperty, EnumProperty, FileReference, PrimitiveProperty, SequenceReference, TextProperty, TimeSeriesReference}
 import com.cognite.sdk.scala.v1.fdm.common.properties.{ListablePropertyType, PrimitivePropType, PropertyDefinition}
-import com.cognite.sdk.scala.v1.fdm.instances.InstancePropertyValue
+import com.cognite.sdk.scala.v1.fdm.instances.{EdgeTableExpression, InstancePropertyValue, InstanceType, NodesTableExpression, TableExpression}
 import io.circe.syntax.EncoderOps
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
@@ -459,5 +459,15 @@ object RowDataExtractors {
       case Vector() => None
       case Vector(single) => Some(single)
       case multiple => Some(FilterDefinition.And(multiple))
+    }
+  def generateTableExpression(
+    instanceType: InstanceType,
+    filters: Option[FilterDefinition],
+    limit: Option[Int] = Some(1000)): TableExpression =
+    instanceType match {
+      case InstanceType.Edge =>
+        TableExpression(edges = Some(EdgeTableExpression(filter = filters)), limit = limit)
+      case InstanceType.Node =>
+        TableExpression(nodes = Some(NodesTableExpression(filter = filters)), limit = limit)
     }
 }

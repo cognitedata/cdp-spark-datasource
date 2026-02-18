@@ -3,22 +3,14 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{generateTableExpression, sourceReference}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ConnectionConfig
-import cognite.spark.v1.fdm.RelationUtils.RowToFDMPayloadConverters.{
-  createConnectionInstances,
-  createEdgeDeleteData
-}
+import cognite.spark.v1.fdm.RelationUtils.RowDataExtractors.generateTableExpression
+import cognite.spark.v1.fdm.RelationUtils.RowToFDMPayloadConverters.{createConnectionInstances, createEdgeDeleteData, sourceReference}
 import cognite.spark.v1.{CdfSparkException, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  InstanceCreate,
-  InstanceFilterRequest,
-  InstanceType,
-  SelectExpression
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceFilterRequest, InstanceType, SelectExpression}
 import fs2.Stream
 import io.circe.Json
 import org.apache.spark.sql.sources._
