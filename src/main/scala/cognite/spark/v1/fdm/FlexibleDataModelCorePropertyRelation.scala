@@ -154,7 +154,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           .map(toProjectedInstance(_, None, selectedInstanceProps))
       }
     }
-
   }
 
   private def usageBasedPropertyFilter(

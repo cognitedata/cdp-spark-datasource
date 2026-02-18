@@ -211,8 +211,8 @@ class FlexibleDataModelEdgeTest
   }
 
   it should "fetch edge with edgeType with both query and list" in {
-    testFetchEdgeEdgeType(true)
-    testFetchEdgeEdgeType(false)
+    testFetchEdgeEdgeType(useQuery = true)
+    testFetchEdgeEdgeType(useQuery = false)
   }
 
   def testFetchEdgeDataModel(useQuery: Boolean): Unit = {

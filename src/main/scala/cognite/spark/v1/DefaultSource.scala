@@ -597,7 +597,7 @@ object DefaultSource {
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext,
-      autoCreate: AutoCreateOptions) = {
+      autoCreate: AutoCreateOptions): Option[FlexibleDataModelBaseRelation] = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map4(
