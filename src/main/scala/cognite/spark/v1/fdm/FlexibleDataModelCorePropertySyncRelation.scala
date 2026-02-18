@@ -3,8 +3,9 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cognite.spark.v1.CdpConnector.ExtensionMethods
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{generateTableExpression, sourceReference}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ViewCorePropertyConfig
+import cognite.spark.v1.fdm.RelationUtils.RowDataExtractors.generateTableExpression
+import cognite.spark.v1.fdm.RelationUtils.RowToFDMPayloadConverters.sourceReference
 import cognite.spark.v1.{CdfSparkIllegalArgumentException, RelationConfig, SyncCursorCallback}
 import com.cognite.sdk.scala.common.{CdpApiException, ItemsWithCursor}
 import com.cognite.sdk.scala.v1.GenericClient
