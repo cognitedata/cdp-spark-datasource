@@ -454,7 +454,6 @@ object RowDataExtractors {
   def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
 
-
   private[spark] def toAndFilter(filters: Vector[FilterDefinition]): Option[FilterDefinition] =
     filters match {
       case Vector() => None
