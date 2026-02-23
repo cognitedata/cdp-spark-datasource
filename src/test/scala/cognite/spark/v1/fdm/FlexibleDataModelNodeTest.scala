@@ -305,15 +305,16 @@ class FlexibleDataModelNodeTest
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-  it should "handle ambiguous types when there is a type property in the view of the node" in {
-    val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
-    val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
+  def checkAmbiguousTypeHandling(useQuery: Boolean): Unit = {
+    val useQueryToString: String = if(useQuery) "Query" else "List"
+    val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode$useQueryToString"
+    val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode$useQueryToString"
     createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId,
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewAll, viewNodes, viewEdges) = setupAmbiguousTypeTest.unsafeRunSync()
+    val (viewAll, viewNodes, viewEdges) = setupAmbiguousTypeTest(useQueryToString).unsafeRunSync()
     val randomId = generateNodeExternalId
     val instanceExtIdAll = s"${randomId}All"
     val instanceExtIdNode = s"${randomId}Node"
@@ -340,27 +341,27 @@ class FlexibleDataModelNodeTest
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode
-            |""".stripMargin)
+                |""".stripMargin)
     //We don't support ambiguous names on edges as of now.
     def insertionEdgeDf(instanceExtId: String): DataFrame =
-    spark
-      .sql(s"""
-              |select
-              |'$instanceExtId' as externalId,
-              |named_struct(
-              |    'spaceExternalId', '$spaceExternalId',
-              |    'externalId', '$startNodeExtId'
-              |) as _type,
-              |"stringProp" as stringProp,
-              |named_struct(
-              |    'spaceExternalId', '$spaceExternalId',
-              |    'externalId', '$startNodeExtId'
-              |) as startNode,
-              |named_struct(
-              |    'spaceExternalId', '$spaceExternalId',
-              |    'externalId', '$endNodeExtId'
-              |) as endNode
-              |""".stripMargin)
+      spark
+        .sql(s"""
+                |select
+                |'$instanceExtId' as externalId,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$startNodeExtId'
+                |) as _type,
+                |"stringProp" as stringProp,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$startNodeExtId'
+                |) as startNode,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$endNodeExtId'
+                |) as endNode
+                |""".stripMargin)
 
     val insertionResult = Try {
       Vector(
@@ -402,22 +403,24 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
-    readEdgesDf.createTempView(s"edge_ambiguous_type_test_instances_table")
+    val tempViewName = s"edge_ambiguous_type_test_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    readEdgesDf.createTempView(tempViewName)
 
     val selectedEdgesBothTypes = spark
       .sql(
-        f"""select * from edge_ambiguous_type_test_instances_table
-          | where _type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
-          | and type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
-          |""".stripMargin)
+        f"""select * from $tempViewName
+           | where _type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
+           | and type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
+           |""".stripMargin)
       .collect()
 
     //In this case since both are present, we assume type refers to the EDGE property. There is no view prop here.
     val selectedEdgesTypeViewProperty = spark
       .sql(
-        f"""select * from edge_ambiguous_type_test_instances_table
+        f"""select * from $tempViewName
            | where type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
            |""".stripMargin)
       .collect()
@@ -425,10 +428,10 @@ class FlexibleDataModelNodeTest
     def deletionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
-             |select
-             |'$spaceExternalId' as space,
-             |'$instanceExtId' as externalId
-             |""".stripMargin)
+                |select
+                |'$spaceExternalId' as space,
+                |'$instanceExtId' as externalId
+                |""".stripMargin)
 
     val deletionResults = Try {
       Vector(
@@ -451,17 +454,17 @@ class FlexibleDataModelNodeTest
           onConflict = "delete"
         )
       ) ++
-      toExternalIds(selectedEdgesBothTypes).map(externalId =>
-        insertNodeRows(
-          instanceType = InstanceType.Edge,
-          viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewEdges.externalId,
-          viewVersion = viewEdges.version,
-          instanceSpaceExternalId = spaceExternalId,
-          deletionDf(externalId),
-          onConflict = "delete"
+        toExternalIds(selectedEdgesBothTypes).map(externalId =>
+          insertNodeRows(
+            instanceType = InstanceType.Edge,
+            viewSpaceExternalId = spaceExternalId,
+            viewExternalId = viewEdges.externalId,
+            viewVersion = viewEdges.version,
+            instanceSpaceExternalId = spaceExternalId,
+            deletionDf(externalId),
+            onConflict = "delete"
+          )
         )
-      )
     }
 
     deletionResults shouldBe Success(Vector((), (), ()))
@@ -472,6 +475,11 @@ class FlexibleDataModelNodeTest
 
     toExternalIds(selectedEdgesBothTypes).length shouldBe(1)
     toExternalIds(selectedEdgesTypeViewProperty).length shouldBe(1)
+  }
+
+  it should "handle ambiguous types when there is a type property in the view of the node" in {
+    checkAmbiguousTypeHandling(useQuery = false)
+    checkAmbiguousTypeHandling(useQuery = true)
   }
 
   it should "handle using type for edges instance property when there is no property named type in the associated view" in {
@@ -1676,13 +1684,13 @@ class FlexibleDataModelNodeTest
       cAll <- createContainerIfNotExists(Usage.All, containerProps, containerAllListExternalId)
       cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesListExternalId)
       cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesListExternalId)
-      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllListExternalId, viewVersion)
-      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesListExternalId, viewVersion)
-      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesListExternalId, viewVersion)
+      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllListExternalId + viewNameSuffix, viewVersion)
+      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesListExternalId + viewNameSuffix, viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesListExternalId + viewNameSuffix, viewVersion)
     } yield (viewAll, viewNodes, viewEdges)
   }
 
-  private def setupAmbiguousTypeTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
+  private def setupAmbiguousTypeTest(viewNameSuffix: String): IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
       "type" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
     )
@@ -1695,9 +1703,9 @@ class FlexibleDataModelNodeTest
       cAll <- createContainerIfNotExists(Usage.All, edgeContainerProps, containerAllAmbiguousTypeExternalId)
       cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesAmbiguousTypeExternalId)
       cEdges <- createContainerIfNotExists(Usage.Edge, edgeContainerProps, containerEdgesAmbiguousTypeExternalId)
-      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllAmbiguousTypeExternalId, viewVersion)
-      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesAmbiguousTypeExternalId, viewVersion)
-      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesAmbiguousTypeExternalId, viewVersion)
+      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllAmbiguousTypeExternalId + viewNameSuffix, viewVersion)
+      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesAmbiguousTypeExternalId + viewNameSuffix, viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesAmbiguousTypeExternalId + viewNameSuffix, viewVersion)
       _ <- IO.sleep(5.seconds)
     } yield (viewAll, viewNodes, viewEdges)
   }
