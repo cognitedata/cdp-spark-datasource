@@ -488,6 +488,8 @@ class FlexibleDataModelNodeTest
   }
 
   def testHandleUsingTypeForEdgesInstanceProperty(useQuery: Boolean): Unit = {
+    val useQueryToString: String = if(useQuery) "Query" else "List"
+
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -495,7 +497,7 @@ class FlexibleDataModelNodeTest
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewEdges) = setupTypeTest.unsafeRunSync()
+    val (viewEdges) = setupTypeTest(viewNameSuffix = useQueryToString).unsafeRunSync()
     val randomId = generateNodeExternalId
     val instanceExtIdEdge = s"${randomId}Edge"
 
@@ -1765,14 +1767,14 @@ class FlexibleDataModelNodeTest
     } yield (viewAll, viewNodes, viewEdges)
   }
 
-  private def setupTypeTest: IO[ViewDefinition] = {
+  private def setupTypeTest(viewNameSuffix: String): IO[ViewDefinition] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
       "stringProp" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable,
     )
 
     for {
       cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesTypeExternalId)
-      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesTypeExternalId, viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesTypeExternalId + viewNameSuffix, viewVersion)
       _ <- IO.sleep(5.seconds)
     } yield (viewEdges)
   }
