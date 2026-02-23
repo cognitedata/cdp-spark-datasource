@@ -1,0 +1,14 @@
+.idea/
+target/
+*.iml
+*~
+**/*.class
+src/test/scala/com/cognite/spark/connector/package.scala
+*.log
+metastore_db/
+.metals/
+.bloop/
+.env
+project/metals.sbt
+.vscode/
+.bsp/

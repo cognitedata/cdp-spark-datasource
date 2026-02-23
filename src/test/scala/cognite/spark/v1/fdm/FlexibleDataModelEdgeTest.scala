@@ -115,6 +115,11 @@ class FlexibleDataModelEdgeTest
 
 
   it should "fetch edges with filters" in {
+    testFetchEdgesWithFilters(useQuery = true)
+    testFetchEdgesWithFilters(useQuery = false)
+  }
+
+  def testFetchEdgesWithFilters(useQuery: Boolean): Unit = {
     val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
     val endNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchEndNode"
 
@@ -157,12 +162,17 @@ class FlexibleDataModelEdgeTest
       )
     } yield c1 ++ c2).unsafeRunSync()
 
-    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = edgeTypeExtId)
+    val readConnectionsDf = readEdgeWithEdgeType(
+      edgeSpace = spaceExternalId,
+      edgeExternalId = edgeTypeExtId,
+      useQuery = useQuery
+    )
 
-    readConnectionsDf.createTempView("connection_instances_table")
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
+    readConnectionsDf.createTempView("connection_instances_table" + tempViewUUID)
 
     val selectedConnectionInstances = spark
-      .sql(s"""select * from connection_instances_table
+      .sql(s"""select * from connection_instances_table$tempViewUUID
            | where startNode = named_struct('space', '$spaceExternalId', 'externalId', '${startNodeExtIdPrefix}1')
            | and space = '$spaceExternalId'
            |""".stripMargin)
@@ -245,8 +255,8 @@ class FlexibleDataModelEdgeTest
   }
 
   it should "fetch edges from a data model both with query and list" in {
-    testFetchEdgeDataModel(true)
-    testFetchEdgeDataModel(false)
+    testFetchEdgeDataModel(useQuery = true)
+    testFetchEdgeDataModel(useQuery = false)
   }
 
 

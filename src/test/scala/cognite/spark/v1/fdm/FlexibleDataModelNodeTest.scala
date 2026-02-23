@@ -483,6 +483,11 @@ class FlexibleDataModelNodeTest
   }
 
   it should "handle using type for edges instance property when there is no property named type in the associated view" in {
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = true)
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = false)
+  }
+
+  def testHandleUsingTypeForEdgesInstanceProperty(useQuery: Boolean): Unit = {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -532,21 +537,23 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
-    readEdgesDf.createTempView(s"edge_type_test_instances_table")
+    val tempViewName = s"edge_type_test_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    readEdgesDf.createTempView(tempViewName)
 
     //since there is no property named type in the view, this refers to the instance property and is equal to _type
     val selectedEdgesBothTypes = spark
       .sql(
-        f"""select * from edge_type_test_instances_table
+        f"""select * from $tempViewName
            | where type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
            |""".stripMargin)
       .collect()
 
     val selectedEdgesTypeViewProperty = spark
       .sql(
-        f"""select * from edge_type_test_instances_table
+        f"""select * from $tempViewName
            | where _type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
            |""".stripMargin)
       .collect()
@@ -974,6 +981,11 @@ class FlexibleDataModelNodeTest
   }
 
   it should "succeed when filtering nodes with type" in {
+    testFilterNodesWithType(useQuery = true)
+    testFilterNodesWithType(useQuery = false)
+  }
+
+  def testFilterNodesWithType(useQuery: Boolean): Unit = {
     val nullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeNullType"
     val nonNullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByType"
     val typeNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeType"
@@ -990,13 +1002,15 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewTypedNode.externalId,
       viewVersion = viewTypedNode.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
-    readNodesDf.createTempView(s"node_filter_instances_table")
+    val tempViewName = s"node_filter_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    readNodesDf.createTempView(tempViewName)
 
     val selectedNodes = spark
-      .sql(s"""select * from node_filter_instances_table
+      .sql(s"""select * from $tempViewName
               | where type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
               | and _type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
               | and space = '$spaceExternalId'
@@ -1007,6 +1021,11 @@ class FlexibleDataModelNodeTest
   }
 
   it should "succeed when filtering instances by properties" in {
+    testFilterInstancesByProperties(useQuery = true)
+    testFilterInstancesByProperties(useQuery = false)
+  }
+
+  def testFilterInstancesByProperties(useQuery: Boolean): Unit = {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
@@ -1014,7 +1033,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = view.externalId,
       viewVersion = view.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val syncDf = syncRows(
@@ -1025,8 +1045,10 @@ class FlexibleDataModelNodeTest
       cursor = ""
     )
 
-    readDf.createTempView(s"instance_filter_table")
-    syncDf.createTempView(s"sync_instance_filter_table")
+    val instanceFilterTempView = s"instance_filter_table${UUID.randomUUID().toString.replace("-", "")}"
+    val syncInstanceFilterTempView = s"sync_instance_filter_table${UUID.randomUUID().toString.replace("-", "")}"
+    readDf.createTempView(instanceFilterTempView)
+    syncDf.createTempView(syncInstanceFilterTempView)
     val filter =
       s"""
          |where
@@ -1041,11 +1063,11 @@ class FlexibleDataModelNodeTest
          |(forOrFilter1 == 5.1 or forOrFilter2 == 6.1) and
          |forIsNotNullFilter is not null and
          |forIsNullFilter is null""".stripMargin
-    val filterSql = s"""select * from instance_filter_table
+    val filterSql = s"""select * from $instanceFilterTempView
                     |$filter
                     |""".stripMargin
 
-    val syncSql = s"""select * from sync_instance_filter_table
+    val syncSql = s"""select * from $syncInstanceFilterTempView
                     |$filter
                     |""".stripMargin
     val filtered = spark
@@ -1078,6 +1100,11 @@ class FlexibleDataModelNodeTest
   }
 
   it should "successfully read from relation properties" in {
+    testReadFromRelationProperties(useQuery = true)
+    testReadFromRelationProperties(useQuery = false)
+  }
+
+  def testReadFromRelationProperties(useQuery: Boolean): Unit = {
     val viewDef = setupRelationReadPropsTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}Relation1"
 
@@ -1107,16 +1134,18 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = viewDef.space,
       viewVersion = viewDef.version,
       viewExternalId = viewDef.externalId,
-      instanceSpaceExternalId = viewDef.space
+      instanceSpaceExternalId = viewDef.space,
+      useQuery = useQuery
     )
-    dfFromModel.createTempView("temp_view_with_relations")
+    val tempViewName = s"temp_view_with_relations_${UUID.randomUUID().toString.replace("-", "")}"
+    dfFromModel.createTempView(tempViewName)
     val dfRead = spark
       .sql(s"""
               |select
               |'$nodeExtId1' as externalId,
               |`relProp` as relProp,
               |`relListProp` as relListProp
-              |from temp_view_with_relations
+              |from $tempViewName
               |""".stripMargin)
     val result2 = Try {
       insertNodeRows(
