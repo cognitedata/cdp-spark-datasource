@@ -741,8 +741,7 @@ class FlexibleDataModelNodeTest
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-
-  it should "succeed when fetching instances with select *" in {
+  def fetchAllInstancesSelectAll(useQuery: Boolean): Unit = {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertAllStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertAllEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -795,7 +794,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewNodes.externalId,
       viewVersion = viewNodes.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val syncNodesDf = syncRows(
@@ -811,7 +811,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val syncEdgesDf = syncRows(
@@ -827,7 +828,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewAll.externalId,
       viewVersion = viewAll.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val readNodesDfViewAll = readRows(
@@ -835,7 +837,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewAll.externalId,
       viewVersion = viewAll.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
 
@@ -854,30 +857,36 @@ class FlexibleDataModelNodeTest
 
     val readAllDf = nodesWithAllCols.unionAll(edgesWithAllCols)
 
-    readNodesDf.createTempView(s"node_instances_table")
-    readEdgesDf.createTempView(s"edge_instances_table")
-    readAllDf.createTempView(s"all_instances_table")
-    syncNodesDf.createTempView(s"sync_nodes_table")
-    syncEdgesDf.createTempView(s"sync_edges_table")
+    val readNodesTempView = s"node_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    val readEdgesTempView = s"edge_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    val readAllTempView = s"all_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    val syncNodesTempView = s"sync_nodes_table${UUID.randomUUID().toString.replace("-", "")}"
+    val syncEdgesTempView = s"sync_edges_table${UUID.randomUUID().toString.replace("-", "")}"
+
+    readNodesDf.createTempView(readNodesTempView)
+    readEdgesDf.createTempView(readEdgesTempView)
+    readAllDf.createTempView(readAllTempView)
+    syncNodesDf.createTempView(syncNodesTempView)
+    syncEdgesDf.createTempView(syncEdgesTempView)
 
     val selectedNodes = spark
-      .sql("select * from node_instances_table")
+      .sql(s"select * from $readNodesTempView")
       .collect()
 
     val selectedEdges = spark
-      .sql("select * from edge_instances_table")
+      .sql(s"select * from $readEdgesTempView")
       .collect()
 
     val selectedNodesAndEdges = spark
-      .sql("select * from all_instances_table")
+      .sql(s"select * from $readAllTempView")
       .collect()
 
     val syncedNodes = spark
-      .sql("select * from sync_nodes_table")
+      .sql(s"select * from $syncNodesTempView")
       .collect()
 
     val syncedEdges = spark
-      .sql("select * from sync_edges_table")
+      .sql(s"select * from $syncEdgesTempView")
       .collect()
 
     val syncedNodesExternalIds = toExternalIds(syncedNodes)
@@ -892,7 +901,12 @@ class FlexibleDataModelNodeTest
     (syncedEdgesExternalIds should contain).allElementsOf(filterEdges)
   }
 
-  it should "succeed when filtering edges with type, startNode & endNode" in {
+  it should "succeed when fetching instances with select *" in {
+    fetchAllInstancesSelectAll(useQuery = true)
+    fetchAllInstancesSelectAll(useQuery = false)
+  }
+
+  def testFilterEdgesByTypeStarNodeEndNode(useQuery: Boolean): Unit = {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -932,25 +946,31 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
-
-    readEdgesDf.createTempView(s"edge_filter_instances_table")
+    val tempViewName = s"edge_filter_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    readEdgesDf.createTempView(tempViewName)
 
     val selectedEdges = spark
-      .sql(s"""select * from edge_filter_instances_table
-           | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
-           | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
-           | and _type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
-           | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
-           | and space = '$spaceExternalId'
-           | """.stripMargin)
+      .sql(s"""select * from $tempViewName
+              | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
+              | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
+              | and _type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
+              | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
+              | and space = '$spaceExternalId'
+              | """.stripMargin)
       .collect()
 
     val actualAllEdgeExternalIds = toExternalIds(selectedEdges)
 
     allEdgeExternalIds.length shouldBe 2
     (actualAllEdgeExternalIds should contain).allElementsOf(allEdgeExternalIds)
+  }
+
+  it should "succeed when filtering edges with type, startNode & endNode" in {
+    testFilterEdgesByTypeStarNodeEndNode(useQuery = true)
+    testFilterEdgesByTypeStarNodeEndNode(useQuery = false)
   }
 
   it should "succeed when filtering nodes with type" in {
@@ -1191,7 +1211,7 @@ class FlexibleDataModelNodeTest
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
-  it should "successfully read from list of external id refs (files/Sequences)" in {
+  def testReadExternaldRefs(useQuery: Boolean): Unit = {
     val viewDef = setupExternalIdReferenceTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}FilesSeq1"
 
@@ -1218,11 +1238,13 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewDef.externalId,
       viewVersion = viewDef.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
-    readDf.createTempView(s"file_reference_table")
+    val tempViewName = s"file_reference_table${UUID.randomUUID().toString.replace("-", "")}"
+    readDf.createTempView(tempViewName)
     val rows: Array[Row] = spark
-      .sql(s"""select * from file_reference_table
+      .sql(s"""select * from $tempViewName
               | where externalId = '$nodeExtId1'
               | """.stripMargin)
       .collect()
@@ -1234,6 +1256,10 @@ class FlexibleDataModelNodeTest
     rows(0).getSeq[String](rows(0).fieldIndex("sequenceReferenceList")) should contain theSameElementsAs Seq("extId2", "extId3")
   }
 
+  it should "successfully read from list of external id refs (files/Sequences)" in {
+    testReadExternaldRefs(useQuery = true)
+    testReadExternaldRefs(useQuery = false)
+  }
 
   def testFilterInstance(debug: Boolean, useQuery: Boolean): Assertion = {
     setUpDataModel()
@@ -1684,9 +1710,9 @@ class FlexibleDataModelNodeTest
       cAll <- createContainerIfNotExists(Usage.All, containerProps, containerAllListExternalId)
       cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesListExternalId)
       cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesListExternalId)
-      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllListExternalId + viewNameSuffix, viewVersion)
-      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesListExternalId + viewNameSuffix, viewVersion)
-      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesListExternalId + viewNameSuffix, viewVersion)
+      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllListExternalId, viewVersion)
+      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesListExternalId, viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesListExternalId, viewVersion)
     } yield (viewAll, viewNodes, viewEdges)
   }
 
