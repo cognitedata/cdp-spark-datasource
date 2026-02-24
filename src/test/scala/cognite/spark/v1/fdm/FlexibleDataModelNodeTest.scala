@@ -428,10 +428,10 @@ class FlexibleDataModelNodeTest
     def deletionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
-                |select
-                |'$spaceExternalId' as space,
-                |'$instanceExtId' as externalId
-                |""".stripMargin)
+            |select
+            |'$spaceExternalId' as space,
+            |'$instanceExtId' as externalId
+            |""".stripMargin)
 
     val deletionResults = Try {
       Vector(
@@ -480,11 +480,6 @@ class FlexibleDataModelNodeTest
   it should "handle ambiguous types when there is a type property in the view of the node" in {
     checkAmbiguousTypeHandling(useQuery = false)
     checkAmbiguousTypeHandling(useQuery = true)
-  }
-
-  it should "handle using type for edges instance property when there is no property named type in the associated view" in {
-    testHandleUsingTypeForEdgesInstanceProperty(useQuery = true)
-    testHandleUsingTypeForEdgesInstanceProperty(useQuery = false)
   }
 
   def testHandleUsingTypeForEdgesInstanceProperty(useQuery: Boolean): Unit = {
@@ -591,6 +586,11 @@ class FlexibleDataModelNodeTest
 
     toExternalIds(selectedEdgesBothTypes).length shouldBe(1)
     toExternalIds(selectedEdgesTypeViewProperty).length shouldBe(1)
+  }
+
+  it should "handle using type for edges instance property when there is no property named type in the associated view" in {
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = true)
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = false)
   }
 
   it should "succeed when inserting all nullable & non nullable list values" in {
@@ -963,12 +963,12 @@ class FlexibleDataModelNodeTest
 
     val selectedEdges = spark
       .sql(s"""select * from $tempViewName
-              | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
-              | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
-              | and _type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
-              | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
-              | and space = '$spaceExternalId'
-              | """.stripMargin)
+            | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
+            | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
+            | and _type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
+            | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
+            | and space = '$spaceExternalId'
+            | """.stripMargin)
       .collect()
 
     val actualAllEdgeExternalIds = toExternalIds(selectedEdges)
