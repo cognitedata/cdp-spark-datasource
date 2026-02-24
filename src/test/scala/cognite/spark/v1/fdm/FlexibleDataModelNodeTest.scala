@@ -1012,7 +1012,13 @@ class FlexibleDataModelNodeTest
          |forLtFilter < 4 and
          |(forOrFilter1 == 5.1 or forOrFilter2 == 6.1) and
          |forIsNotNullFilter is not null and
-         |forIsNullFilter is null""".stripMargin
+         |forIsNullFilter is null and
+         |forEqualsFilter <=> 'str1' and
+         |!forEqualsFilter <=> null and
+         |forIsNullFilter <=> null and
+         |space <=> '$spaceExternalId' and
+         |!space <=> null
+         |""".stripMargin
     val filterSql = s"""select * from instance_filter_table
                     |$filter
                     |""".stripMargin
