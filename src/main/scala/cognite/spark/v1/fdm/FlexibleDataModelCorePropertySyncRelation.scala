@@ -159,7 +159,8 @@ private[spark] class FlexibleDataModelCorePropertySyncRelation(
           `with` = `with`,
           cursors = cursors,
           select = select,
-          includeTyping = Some(true)
+          includeTyping = Some(true),
+          additionalFlags = config.additionalFlags
         )
       )
       response.map { qr =>
