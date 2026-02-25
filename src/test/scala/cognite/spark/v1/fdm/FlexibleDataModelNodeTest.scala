@@ -305,15 +305,16 @@ class FlexibleDataModelNodeTest
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-  it should "handle ambiguous types when there is a type property in the view of the node" in {
-    val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
-    val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
+  def checkAmbiguousTypeHandling(useQuery: Boolean): Unit = {
+    val useQueryToString: String = if(useQuery) "Query" else "List"
+    val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode$useQueryToString"
+    val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode$useQueryToString"
     createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId,
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewAll, viewNodes, viewEdges) = setupAmbiguousTypeTest.unsafeRunSync()
+    val (viewAll, viewNodes, viewEdges) = setupAmbiguousTypeTest(useQueryToString).unsafeRunSync()
     val randomId = generateNodeExternalId
     val instanceExtIdAll = s"${randomId}All"
     val instanceExtIdNode = s"${randomId}Node"
@@ -340,27 +341,27 @@ class FlexibleDataModelNodeTest
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode
-            |""".stripMargin)
+                |""".stripMargin)
     //We don't support ambiguous names on edges as of now.
     def insertionEdgeDf(instanceExtId: String): DataFrame =
-    spark
-      .sql(s"""
-              |select
-              |'$instanceExtId' as externalId,
-              |named_struct(
-              |    'spaceExternalId', '$spaceExternalId',
-              |    'externalId', '$startNodeExtId'
-              |) as _type,
-              |"stringProp" as stringProp,
-              |named_struct(
-              |    'spaceExternalId', '$spaceExternalId',
-              |    'externalId', '$startNodeExtId'
-              |) as startNode,
-              |named_struct(
-              |    'spaceExternalId', '$spaceExternalId',
-              |    'externalId', '$endNodeExtId'
-              |) as endNode
-              |""".stripMargin)
+      spark
+        .sql(s"""
+                |select
+                |'$instanceExtId' as externalId,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$startNodeExtId'
+                |) as _type,
+                |"stringProp" as stringProp,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$startNodeExtId'
+                |) as startNode,
+                |named_struct(
+                |    'spaceExternalId', '$spaceExternalId',
+                |    'externalId', '$endNodeExtId'
+                |) as endNode
+                |""".stripMargin)
 
     val insertionResult = Try {
       Vector(
@@ -402,22 +403,24 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
-    readEdgesDf.createTempView(s"edge_ambiguous_type_test_instances_table")
+    val tempViewName = s"edge_ambiguous_type_test_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    readEdgesDf.createTempView(tempViewName)
 
     val selectedEdgesBothTypes = spark
       .sql(
-        f"""select * from edge_ambiguous_type_test_instances_table
-          | where _type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
-          | and type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
-          |""".stripMargin)
+        f"""select * from $tempViewName
+           | where _type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
+           | and type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
+           |""".stripMargin)
       .collect()
 
     //In this case since both are present, we assume type refers to the EDGE property. There is no view prop here.
     val selectedEdgesTypeViewProperty = spark
       .sql(
-        f"""select * from edge_ambiguous_type_test_instances_table
+        f"""select * from $tempViewName
            | where type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
            |""".stripMargin)
       .collect()
@@ -425,10 +428,10 @@ class FlexibleDataModelNodeTest
     def deletionDf(instanceExtId: String): DataFrame =
       spark
         .sql(s"""
-             |select
-             |'$spaceExternalId' as space,
-             |'$instanceExtId' as externalId
-             |""".stripMargin)
+            |select
+            |'$spaceExternalId' as space,
+            |'$instanceExtId' as externalId
+            |""".stripMargin)
 
     val deletionResults = Try {
       Vector(
@@ -451,17 +454,17 @@ class FlexibleDataModelNodeTest
           onConflict = "delete"
         )
       ) ++
-      toExternalIds(selectedEdgesBothTypes).map(externalId =>
-        insertNodeRows(
-          instanceType = InstanceType.Edge,
-          viewSpaceExternalId = spaceExternalId,
-          viewExternalId = viewEdges.externalId,
-          viewVersion = viewEdges.version,
-          instanceSpaceExternalId = spaceExternalId,
-          deletionDf(externalId),
-          onConflict = "delete"
+        toExternalIds(selectedEdgesBothTypes).map(externalId =>
+          insertNodeRows(
+            instanceType = InstanceType.Edge,
+            viewSpaceExternalId = spaceExternalId,
+            viewExternalId = viewEdges.externalId,
+            viewVersion = viewEdges.version,
+            instanceSpaceExternalId = spaceExternalId,
+            deletionDf(externalId),
+            onConflict = "delete"
+          )
         )
-      )
     }
 
     deletionResults shouldBe Success(Vector((), (), ()))
@@ -474,7 +477,14 @@ class FlexibleDataModelNodeTest
     toExternalIds(selectedEdgesTypeViewProperty).length shouldBe(1)
   }
 
-  it should "handle using type for edges instance property when there is no property named type in the associated view" in {
+  it should "handle ambiguous types when there is a type property in the view of the node" in {
+    checkAmbiguousTypeHandling(useQuery = false)
+    checkAmbiguousTypeHandling(useQuery = true)
+  }
+
+  def testHandleUsingTypeForEdgesInstanceProperty(useQuery: Boolean): Unit = {
+    val useQueryToString: String = if(useQuery) "Query" else "List"
+
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -482,7 +492,7 @@ class FlexibleDataModelNodeTest
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewEdges) = setupTypeTest.unsafeRunSync()
+    val (viewEdges) = setupTypeTest(viewNameSuffix = useQueryToString).unsafeRunSync()
     val randomId = generateNodeExternalId
     val instanceExtIdEdge = s"${randomId}Edge"
 
@@ -524,21 +534,23 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
-    readEdgesDf.createTempView(s"edge_type_test_instances_table")
+    val tempViewName = s"edge_type_test_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    readEdgesDf.createTempView(tempViewName)
 
     //since there is no property named type in the view, this refers to the instance property and is equal to _type
     val selectedEdgesBothTypes = spark
       .sql(
-        f"""select * from edge_type_test_instances_table
+        f"""select * from $tempViewName
            | where type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
            |""".stripMargin)
       .collect()
 
     val selectedEdgesTypeViewProperty = spark
       .sql(
-        f"""select * from edge_type_test_instances_table
+        f"""select * from $tempViewName
            | where _type = struct('${spaceExternalId}' as space, '${startNodeExtId}' as externalId)
            |""".stripMargin)
       .collect()
@@ -574,6 +586,11 @@ class FlexibleDataModelNodeTest
 
     toExternalIds(selectedEdgesBothTypes).length shouldBe(1)
     toExternalIds(selectedEdgesTypeViewProperty).length shouldBe(1)
+  }
+
+  it should "handle using type for edges instance property when there is no property named type in the associated view" in {
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = true)
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = false)
   }
 
   it should "succeed when inserting all nullable & non nullable list values" in {
@@ -733,8 +750,7 @@ class FlexibleDataModelNodeTest
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-
-  it should "succeed when fetching instances with select *" in {
+  def fetchAllInstancesSelectAll(useQuery: Boolean): Unit = {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertAllStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertAllEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -787,7 +803,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewNodes.externalId,
       viewVersion = viewNodes.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val syncNodesDf = syncRows(
@@ -803,7 +820,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val syncEdgesDf = syncRows(
@@ -819,7 +837,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewAll.externalId,
       viewVersion = viewAll.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val readNodesDfViewAll = readRows(
@@ -827,7 +846,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewAll.externalId,
       viewVersion = viewAll.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
 
@@ -846,30 +866,36 @@ class FlexibleDataModelNodeTest
 
     val readAllDf = nodesWithAllCols.unionAll(edgesWithAllCols)
 
-    readNodesDf.createTempView(s"node_instances_table")
-    readEdgesDf.createTempView(s"edge_instances_table")
-    readAllDf.createTempView(s"all_instances_table")
-    syncNodesDf.createTempView(s"sync_nodes_table")
-    syncEdgesDf.createTempView(s"sync_edges_table")
+    val readNodesTempView = s"node_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    val readEdgesTempView = s"edge_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    val readAllTempView = s"all_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    val syncNodesTempView = s"sync_nodes_table${UUID.randomUUID().toString.replace("-", "")}"
+    val syncEdgesTempView = s"sync_edges_table${UUID.randomUUID().toString.replace("-", "")}"
+
+    readNodesDf.createTempView(readNodesTempView)
+    readEdgesDf.createTempView(readEdgesTempView)
+    readAllDf.createTempView(readAllTempView)
+    syncNodesDf.createTempView(syncNodesTempView)
+    syncEdgesDf.createTempView(syncEdgesTempView)
 
     val selectedNodes = spark
-      .sql("select * from node_instances_table")
+      .sql(s"select * from $readNodesTempView")
       .collect()
 
     val selectedEdges = spark
-      .sql("select * from edge_instances_table")
+      .sql(s"select * from $readEdgesTempView")
       .collect()
 
     val selectedNodesAndEdges = spark
-      .sql("select * from all_instances_table")
+      .sql(s"select * from $readAllTempView")
       .collect()
 
     val syncedNodes = spark
-      .sql("select * from sync_nodes_table")
+      .sql(s"select * from $syncNodesTempView")
       .collect()
 
     val syncedEdges = spark
-      .sql("select * from sync_edges_table")
+      .sql(s"select * from $syncEdgesTempView")
       .collect()
 
     val syncedNodesExternalIds = toExternalIds(syncedNodes)
@@ -884,7 +910,12 @@ class FlexibleDataModelNodeTest
     (syncedEdgesExternalIds should contain).allElementsOf(filterEdges)
   }
 
-  it should "succeed when filtering edges with type, startNode & endNode" in {
+  it should "succeed when fetching instances with select *" in {
+    fetchAllInstancesSelectAll(useQuery = true)
+    fetchAllInstancesSelectAll(useQuery = false)
+  }
+
+  def testFilterEdgesByTypeStarNodeEndNode(useQuery: Boolean): Unit = {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -924,19 +955,20 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
-
-    readEdgesDf.createTempView(s"edge_filter_instances_table")
+    val tempViewName = s"edge_filter_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    readEdgesDf.createTempView(tempViewName)
 
     val selectedEdges = spark
-      .sql(s"""select * from edge_filter_instances_table
-           | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
-           | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
-           | and _type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
-           | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
-           | and space = '$spaceExternalId'
-           | """.stripMargin)
+      .sql(s"""select * from $tempViewName
+            | where startNode = struct('${startNodeRef.space}' as space, '${startNodeRef.externalId}' as externalId)
+            | and endNode = struct('${endNodeRef.space}' as space, '${endNodeRef.externalId}' as externalId)
+            | and _type = struct('${typeNodeRef.space}' as space, '${typeNodeRef.externalId}' as externalId)
+            | and directRelation1 = struct('${directNodeReference.space}' as space, '${directNodeReference.externalId}' as externalId)
+            | and space = '$spaceExternalId'
+            | """.stripMargin)
       .collect()
 
     val actualAllEdgeExternalIds = toExternalIds(selectedEdges)
@@ -945,7 +977,17 @@ class FlexibleDataModelNodeTest
     (actualAllEdgeExternalIds should contain).allElementsOf(allEdgeExternalIds)
   }
 
+  it should "succeed when filtering edges with type, startNode & endNode" in {
+    testFilterEdgesByTypeStarNodeEndNode(useQuery = true)
+    testFilterEdgesByTypeStarNodeEndNode(useQuery = false)
+  }
+
   it should "succeed when filtering nodes with type" in {
+    testFilterNodesWithType(useQuery = true)
+    testFilterNodesWithType(useQuery = false)
+  }
+
+  def testFilterNodesWithType(useQuery: Boolean): Unit = {
     val nullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeNullType"
     val nonNullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByType"
     val typeNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeType"
@@ -962,13 +1004,15 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewTypedNode.externalId,
       viewVersion = viewTypedNode.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
-    readNodesDf.createTempView(s"node_filter_instances_table")
+    val tempViewName = s"node_filter_instances_table${UUID.randomUUID().toString.replace("-", "")}"
+    readNodesDf.createTempView(tempViewName)
 
     val selectedNodes = spark
-      .sql(s"""select * from node_filter_instances_table
+      .sql(s"""select * from $tempViewName
               | where type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
               | and _type = struct('${spaceExternalId}' as space, '${typeNode}' as externalId)
               | and space = '$spaceExternalId'
@@ -979,6 +1023,11 @@ class FlexibleDataModelNodeTest
   }
 
   it should "succeed when filtering instances by properties" in {
+    testFilterInstancesByProperties(useQuery = true)
+    testFilterInstancesByProperties(useQuery = false)
+  }
+
+  def testFilterInstancesByProperties(useQuery: Boolean): Unit = {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
@@ -986,7 +1035,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = view.externalId,
       viewVersion = view.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val syncDf = syncRows(
@@ -997,8 +1047,10 @@ class FlexibleDataModelNodeTest
       cursor = ""
     )
 
-    readDf.createTempView(s"instance_filter_table")
-    syncDf.createTempView(s"sync_instance_filter_table")
+    val instanceFilterTempView = s"instance_filter_table${UUID.randomUUID().toString.replace("-", "")}"
+    val syncInstanceFilterTempView = s"sync_instance_filter_table${UUID.randomUUID().toString.replace("-", "")}"
+    readDf.createTempView(instanceFilterTempView)
+    syncDf.createTempView(syncInstanceFilterTempView)
     val filter =
       s"""
          |where
@@ -1018,11 +1070,12 @@ class FlexibleDataModelNodeTest
          |space <=> '$spaceExternalId' and
          |!externalId <=> null
          |""".stripMargin
-    val filterSql = s"""select * from instance_filter_table
+
+    val filterSql = s"""select * from $instanceFilterTempView
                     |$filter
                     |""".stripMargin
 
-    val syncSql = s"""select * from sync_instance_filter_table
+    val syncSql = s"""select * from $syncInstanceFilterTempView
                     |$filter
                     |""".stripMargin
     val filtered = spark
@@ -1055,6 +1108,11 @@ class FlexibleDataModelNodeTest
   }
 
   it should "successfully read from relation properties" in {
+    testReadFromRelationProperties(useQuery = true)
+    testReadFromRelationProperties(useQuery = false)
+  }
+
+  def testReadFromRelationProperties(useQuery: Boolean): Unit = {
     val viewDef = setupRelationReadPropsTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}Relation1"
 
@@ -1084,16 +1142,18 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = viewDef.space,
       viewVersion = viewDef.version,
       viewExternalId = viewDef.externalId,
-      instanceSpaceExternalId = viewDef.space
+      instanceSpaceExternalId = viewDef.space,
+      useQuery = useQuery
     )
-    dfFromModel.createTempView("temp_view_with_relations")
+    val tempViewName = s"temp_view_with_relations_${UUID.randomUUID().toString.replace("-", "")}"
+    dfFromModel.createTempView(tempViewName)
     val dfRead = spark
       .sql(s"""
               |select
               |'$nodeExtId1' as externalId,
               |`relProp` as relProp,
               |`relListProp` as relListProp
-              |from temp_view_with_relations
+              |from $tempViewName
               |""".stripMargin)
     val result2 = Try {
       insertNodeRows(
@@ -1188,7 +1248,7 @@ class FlexibleDataModelNodeTest
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
-  it should "successfully read from list of external id refs (files/Sequences)" in {
+  def testReadExternaldRefs(useQuery: Boolean): Unit = {
     val viewDef = setupExternalIdReferenceTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}FilesSeq1"
 
@@ -1215,11 +1275,13 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewDef.externalId,
       viewVersion = viewDef.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
-    readDf.createTempView(s"file_reference_table")
+    val tempViewName = s"file_reference_table${UUID.randomUUID().toString.replace("-", "")}"
+    readDf.createTempView(tempViewName)
     val rows: Array[Row] = spark
-      .sql(s"""select * from file_reference_table
+      .sql(s"""select * from $tempViewName
               | where externalId = '$nodeExtId1'
               | """.stripMargin)
       .collect()
@@ -1231,6 +1293,10 @@ class FlexibleDataModelNodeTest
     rows(0).getSeq[String](rows(0).fieldIndex("sequenceReferenceList")) should contain theSameElementsAs Seq("extId2", "extId3")
   }
 
+  it should "successfully read from list of external id refs (files/Sequences)" in {
+    testReadExternaldRefs(useQuery = true)
+    testReadExternaldRefs(useQuery = false)
+  }
 
   def testFilterInstance(debug: Boolean, useQuery: Boolean): Assertion = {
     setUpDataModel()
@@ -1687,7 +1753,7 @@ class FlexibleDataModelNodeTest
     } yield (viewAll, viewNodes, viewEdges)
   }
 
-  private def setupAmbiguousTypeTest: IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
+  private def setupAmbiguousTypeTest(viewNameSuffix: String): IO[(ViewDefinition, ViewDefinition, ViewDefinition)] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
       "type" -> FDMContainerPropertyDefinitions.DirectNodeRelationPropertyNonListWithoutDefaultValueNullable,
     )
@@ -1700,21 +1766,21 @@ class FlexibleDataModelNodeTest
       cAll <- createContainerIfNotExists(Usage.All, edgeContainerProps, containerAllAmbiguousTypeExternalId)
       cNodes <- createContainerIfNotExists(Usage.Node, containerProps, containerNodesAmbiguousTypeExternalId)
       cEdges <- createContainerIfNotExists(Usage.Edge, edgeContainerProps, containerEdgesAmbiguousTypeExternalId)
-      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllAmbiguousTypeExternalId, viewVersion)
-      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesAmbiguousTypeExternalId, viewVersion)
-      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesAmbiguousTypeExternalId, viewVersion)
+      viewAll <- createViewWithCorePropsIfNotExists(cAll, viewAllAmbiguousTypeExternalId + viewNameSuffix, viewVersion)
+      viewNodes <- createViewWithCorePropsIfNotExists(cNodes, viewNodesAmbiguousTypeExternalId + viewNameSuffix, viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesAmbiguousTypeExternalId + viewNameSuffix, viewVersion)
       _ <- IO.sleep(5.seconds)
     } yield (viewAll, viewNodes, viewEdges)
   }
 
-  private def setupTypeTest: IO[ViewDefinition] = {
+  private def setupTypeTest(viewNameSuffix: String): IO[ViewDefinition] = {
     val containerProps: Map[String, ContainerPropertyDefinition] = Map(
       "stringProp" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable,
     )
 
     for {
       cEdges <- createContainerIfNotExists(Usage.Edge, containerProps, containerEdgesTypeExternalId)
-      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesTypeExternalId, viewVersion)
+      viewEdges <- createViewWithCorePropsIfNotExists(cEdges, viewEdgesTypeExternalId + viewNameSuffix, viewVersion)
       _ <- IO.sleep(5.seconds)
     } yield (viewEdges)
   }
