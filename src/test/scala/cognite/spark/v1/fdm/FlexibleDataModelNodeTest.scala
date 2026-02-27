@@ -77,8 +77,8 @@ class FlexibleDataModelNodeTest
   private val containerAllRelationProps = "sparkDsTestContainerRelationProps2"
   private val viewAllRelationProps = "sparkDsTestViewRelationProps2"
 
-  private val containerFilterByProps = "sparkDsTestContainerFilterByProps2"
-  private val viewFilterByProps = "sparkDsTestViewFilterByProps2"
+  private val containerFilterByProps = "sparkDsTestContainerFilterByProps5"
+  private val viewFilterByProps = "sparkDsTestViewFilterByProps5"
 
   private val containerExternalIdReferenceProps = "sparkDsTestContainerExternalIdProps3"
   private val viewAllExternalIdProps = "sparkDsTestViewExternalIdProps3"
@@ -1064,7 +1064,13 @@ class FlexibleDataModelNodeTest
          |forLtFilter < 4 and
          |(forOrFilter1 == 5.1 or forOrFilter2 == 6.1) and
          |forIsNotNullFilter is not null and
-         |forIsNullFilter is null""".stripMargin
+         |forIsNullFilter is null and
+         |forEqualsNullSafeFilter <=> 'str2' and
+         |forEqualsNullSafeFilterIsNull <=> null and
+         |space <=> '$spaceExternalId' and
+         |!externalId <=> null
+         |""".stripMargin
+
     val filterSql = s"""select * from $instanceFilterTempView
                     |$filter
                     |""".stripMargin
@@ -1794,6 +1800,8 @@ class FlexibleDataModelNodeTest
       "dateProp1" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNonNullable,
       "forIsNotNullFilter" -> FDMContainerPropertyDefinitions.DateNonListWithDefaultValueNullable,
       "forIsNullFilter" -> FDMContainerPropertyDefinitions.JsonNonListWithoutDefaultValueNullable,
+      "forEqualsNullSafeFilter" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable,
+      "forEqualsNullSafeFilterIsNull" -> FDMContainerPropertyDefinitions.TextPropertyNonListWithoutDefaultValueNullable,
       "forTimeSeriesRef" -> FDMContainerPropertyDefinitions.TimeSeriesReference,
       "forFileRef" -> FDMContainerPropertyDefinitions.FileReference,
       "forSequenceRef" -> FDMContainerPropertyDefinitions.SequenceReference,
@@ -1868,7 +1876,8 @@ class FlexibleDataModelNodeTest
                         "forLtFilter" -> Some(InstancePropertyValue.Int64(3)),
                         "forOrFilter1" -> Some(InstancePropertyValue.Float64(5.1)),
                         "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
-                        "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now()))
+                        "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now())),
+                        "forEqualsNullSafeFilter" -> Some(InstancePropertyValue.String("str2")),
                       ))
                     ))),
                     `type` = None
@@ -1889,7 +1898,8 @@ class FlexibleDataModelNodeTest
                         "forOrFilter2" -> Some(InstancePropertyValue.Float64(6.1)),
                         "forIsNotNullFilter" -> Some(InstancePropertyValue.Date(LocalDate.now())),
                         "forIsNullFilter" -> Some(InstancePropertyValue.Object(Json.fromJsonObject(
-                          JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1)))))
+                          JsonObject("a" -> Json.fromString("a"), "b" -> Json.fromInt(1))))),
+                        "forEqualsNullSafeFilterIsNull" -> Some(InstancePropertyValue.String("str2")),
                       ))
                     ))),
                     `type` = None
