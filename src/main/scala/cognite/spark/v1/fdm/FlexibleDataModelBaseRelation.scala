@@ -29,7 +29,7 @@ import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import fs2.Stream
 import io.circe.Json
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.expressions.{GenericRow, GenericRowWithSchema}
+import org.apache.spark.sql.catalyst.expressions.{GenericRow, GenericRowWithSchema, Literal}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -107,6 +107,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       // reserved attributes case, make sure to update toReservedAttributeFilter when adding more
       case EqualTo(attribute, _) if isReservedAttribute(instanceType, attribute) =>
         toReservedAttributeFilter(instanceType, sparkFilter)
+      case EqualNullSafe(attribute, value) if isReservedAttribute(instanceType, attribute) =>
+        value match {
+          case Literal(null, _) =>
+            toReservedAttributeFilter(instanceType, IsNull(attribute))
+          case _ =>
+            toReservedAttributeFilter(instanceType, EqualTo(attribute, value))
+        }
       case IsNull(attribute) if isReservedAttribute(instanceType, attribute) =>
         toReservedAttributeFilter(instanceType, sparkFilter)
       case IsNotNull(attribute) if isReservedAttribute(instanceType, attribute) =>
@@ -148,6 +155,13 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
       case EqualTo(attribute, value) =>
         toFilterValueDefinition(attribute, value).map(
           FilterDefinition.Equals(getViewAttributeReference(viewReference, attribute), _))
+      case EqualNullSafe(attribute, value) =>
+        value match {
+          case Literal(null, _) =>
+            toInstanceFilter(IsNull(attribute), viewReference)
+          case _ =>
+            toInstanceFilter(EqualTo(attribute, value), viewReference)
+        }
       case In(attribute, values) =>
         toSeqFilterValueDefinition(attribute, values).map(
           FilterDefinition.In(getViewAttributeReference(viewReference, attribute), _))
