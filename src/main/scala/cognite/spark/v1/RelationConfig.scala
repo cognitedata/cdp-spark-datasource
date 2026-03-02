@@ -40,7 +40,8 @@ final case class RelationConfig(
     serverSideFilterNullValuesOnNonSchemaRawQueries: Boolean,
     maxOutstandingRawInsertRequests: Option[Int],
     sendDebugFlag: Boolean,
-    //When using query instead of list, by default DM will not send a next cursor if there is no index as it would be a performance hazard
+    //When using query instead of list, DM will not send a next cursor if there is no index and there's sort pushdown as it would be a performance hazard
+    //Note that currently there's no sort pushdown in datasource, so that's safe
     useQuery: Boolean,
     additionalFlags: Map[String, Boolean]
 ) {
