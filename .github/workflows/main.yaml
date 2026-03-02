@@ -47,7 +47,7 @@ jobs:
           if [ ${{github.ref }} == "refs/heads/master" ]; then
             TEST="+test"
           fi
-          sbt -Dsbt.log.noformat=true scalafmtCheck coverage $TEST coverageReport
+          sbt -Dsbt.log.noformat=true scalafmtCheck scalafmtSbtCheck coverage $TEST coverageReport
       - name: Upload Test Report
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always() # always run even if the previous step fails
