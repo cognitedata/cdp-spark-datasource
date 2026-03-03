@@ -113,6 +113,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
         sources = sourceReference(
           InstanceType.Edge,
           None,
+          // Note: since we don't supply viewReference here selectedFields will have no effect
           if (config.useQueryPushdownColumnsSelection) selectedFields else Array()),
       )
       Vector(
