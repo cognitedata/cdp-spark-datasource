@@ -3,7 +3,11 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{generateTableExpression, sourceReference}
+import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{
+  generateTableExpression,
+  queryFilterWithHasData,
+  sourceReference
+}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ConnectionConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils.{
   createConnectionInstances,
@@ -106,7 +110,9 @@ private[spark] class FlexibleDataModelConnectionRelation(
       val tableExpression =
         generateTableExpression(
           InstanceType.Edge,
-          Some(instanceFilters),
+          // Note: we don't provide a view reference atm, but for consistency with FlexibleDataModelCorePropertyRelation
+          //       let's have a shape that adds HasData filter for viewReference present case
+          queryFilterWithHasData(Some(instanceFilters), None),
           None
         )
       val selectExpression = SelectExpression(
