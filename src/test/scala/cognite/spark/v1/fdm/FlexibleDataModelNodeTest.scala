@@ -484,7 +484,7 @@ class FlexibleDataModelNodeTest
 
   def testHandleUsingTypeForEdgesInstanceProperty(useQuery: Boolean,
                                                   useQueryPushdownColumnsSelection: Boolean): Unit = {
-    val useQueryToString: String = if (useQuery) "Query" else "List"
+    val viewNameSuffix: String = if (useQuery) s"Query_${useQueryPushdownColumnsSelection}" else "List"
 
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
@@ -493,7 +493,7 @@ class FlexibleDataModelNodeTest
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewEdges) = setupTypeTest(viewNameSuffix = useQueryToString).unsafeRunSync()
+    val (viewEdges) = setupTypeTest(viewNameSuffix = viewNameSuffix).unsafeRunSync()
     val randomId = generateNodeExternalId
     val instanceExtIdEdge = s"${randomId}Edge"
 
