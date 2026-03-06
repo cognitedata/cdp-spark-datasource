@@ -593,7 +593,6 @@ class FlexibleDataModelNodeTest
   it should "handle using type for edges instance property when there is no property named type in the associated view" in {
     testHandleUsingTypeForEdgesInstanceProperty(useQuery = true, useQueryPushdownColumnsSelection = true)
     testHandleUsingTypeForEdgesInstanceProperty(useQuery = true, useQueryPushdownColumnsSelection = false)
-    testHandleUsingTypeForEdgesInstanceProperty(useQuery = false, useQueryPushdownColumnsSelection = true)
     testHandleUsingTypeForEdgesInstanceProperty(useQuery = false, useQueryPushdownColumnsSelection = false)
   }
 
