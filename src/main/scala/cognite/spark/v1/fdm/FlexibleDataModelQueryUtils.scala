@@ -26,9 +26,26 @@ object FlexibleDataModelQueryUtils {
       limit: Option[Int] = Some(1000)): TableExpression =
     instanceType match {
       case InstanceType.Edge =>
-        TableExpression(edges = Some(EdgeTableExpression(filter = filters)), limit = limit)
+        TableExpression(
+          edges = Some(EdgeTableExpression(
+            filter = filters,
+            from = None,
+            chainTo = None,
+            maxDistance = Some(1),
+            direction = None
+          )),
+          limit = limit
+        )
       case InstanceType.Node =>
-        TableExpression(nodes = Some(NodesTableExpression(filter = filters)), limit = limit)
+        TableExpression(
+          nodes = Some(NodesTableExpression(
+            filter = filters,
+            from = None,
+            chainTo = None,
+            direction = None
+          )),
+          limit = limit
+        )
     }
 
   private def reservedPropertyNames(instanceType: InstanceType): Seq[String] = {
