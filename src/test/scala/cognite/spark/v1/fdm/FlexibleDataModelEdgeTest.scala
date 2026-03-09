@@ -115,11 +115,13 @@ class FlexibleDataModelEdgeTest
 
 
   it should "fetch edges with filters" in {
-    testFetchEdgesWithFilters(useQuery = true)
-    testFetchEdgesWithFilters(useQuery = false)
+    testFetchEdgesWithFilters(useQuery = true, useQueryPushdownColumnsSelection = true)
+    testFetchEdgesWithFilters(useQuery = true, useQueryPushdownColumnsSelection = false)
+    testFetchEdgesWithFilters(useQuery = false, useQueryPushdownColumnsSelection = true)
+    testFetchEdgesWithFilters(useQuery = false, useQueryPushdownColumnsSelection = false)
   }
 
-  def testFetchEdgesWithFilters(useQuery: Boolean): Unit = {
+  def testFetchEdgesWithFilters(useQuery: Boolean, useQueryPushdownColumnsSelection: Boolean): Unit = {
     val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
     val endNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchEndNode"
 
@@ -165,7 +167,8 @@ class FlexibleDataModelEdgeTest
     val readConnectionsDf = readEdgeWithEdgeType(
       edgeSpace = spaceExternalId,
       edgeExternalId = edgeTypeExtId,
-      useQuery = useQuery
+      useQuery = useQuery,
+      useQueryPushdownColumnsSelection = useQueryPushdownColumnsSelection
     )
 
     val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
@@ -225,7 +228,7 @@ class FlexibleDataModelEdgeTest
     testFetchEdgeEdgeType(useQuery = false)
   }
 
-  def testFetchEdgeDataModel(useQuery: Boolean): Unit = {
+  def testFetchEdgeDataModel(useQuery: Boolean, useQueryPushdownColumnsSelection: Boolean): Unit = {
     val df = readRowsFromModelWithEdgeType(
       spaceExternalId,
       edgeTestDataModelExternalId,
@@ -233,6 +236,7 @@ class FlexibleDataModelEdgeTest
       spaceExternalId,
       edgeTypeExtId,
       useQuery = useQuery,
+      useQueryPushdownColumnsSelection = useQueryPushdownColumnsSelection
     )
 
     val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
@@ -255,8 +259,10 @@ class FlexibleDataModelEdgeTest
   }
 
   it should "fetch edges from a data model both with query and list" in {
-    testFetchEdgeDataModel(useQuery = true)
-    testFetchEdgeDataModel(useQuery = false)
+    testFetchEdgeDataModel(useQuery = true, useQueryPushdownColumnsSelection = true)
+    testFetchEdgeDataModel(useQuery = true, useQueryPushdownColumnsSelection = false)
+    testFetchEdgeDataModel(useQuery = false, useQueryPushdownColumnsSelection = true)
+    testFetchEdgeDataModel(useQuery = false, useQueryPushdownColumnsSelection = false)
   }
 
 
