@@ -100,7 +100,7 @@ lazy val commonSettings = Seq(
                   if (isSnapshot.value)
                     Some("snapshots".at(s"$artifactory/libs-snapshot-local/"))
                   else
-                    Some("local-releases".at(s"$artifactory/libs-release-local/"))
+                    Some("snapshots".at(s"$artifactory/libs-snapshot-local/"))
                 } else {
                   val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
                   if (isSnapshot.value) Some("central-snapshots".at(centralSnapshots))
