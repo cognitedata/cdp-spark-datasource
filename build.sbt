@@ -100,7 +100,7 @@ lazy val commonSettings = Seq(
                   if (isSnapshot.value)
                     Some("snapshots".at(s"$artifactory/libs-snapshot-local/"))
                   else
-                    Some("snapshots".at(s"$artifactory/libs-snapshot-local/"))
+                    Some("local-releases".at(s"$artifactory/libs-release-local/"))
                 } else {
                   val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
                   if (isSnapshot.value) Some("central-snapshots".at(centralSnapshots))
@@ -112,33 +112,9 @@ lazy val commonSettings = Seq(
   },
   Test / fork := true,
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
-  Test / javaOptions ++= Seq(
-    "--add-opens=java.base/java.lang=ALL-UNNAMED",
-    "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
-    "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
-    "--add-opens=java.base/java.io=ALL-UNNAMED",
-    "--add-opens=java.base/java.net=ALL-UNNAMED",
-    "--add-opens=java.base/java.nio=ALL-UNNAMED",
-    "--add-opens=java.base/java.util=ALL-UNNAMED",
-    "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
-    "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
-    "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
-    "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
-    "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
-    "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
-    "--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED"
-  ),
   // Yell at tests that take longer than 120 seconds to finish.
   // Yell at them once every 60 seconds.
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60"),
-  Test / parallelExecution := false,
-  // Run each test class in its own forked JVM to avoid Netty "failed to create a child event loop" when reusing one Spark session across many suites.
-  Test / testGrouping := (Test / definedTests).value.map { test =>
-    Tests.Group(
-      test.name,
-      Seq(test),
-      Tests.SubProcess(ForkOptions().withRunJVMOptions((Test / javaOptions).value.toVector)))
-  },
   // no need to lock submodules
   dependencyLockModuleFilter := moduleFilter(organization = "com.cognite.spark.datasource", name = "*")
 )

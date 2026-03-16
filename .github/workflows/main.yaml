@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ master, spark-4.0.2 ]
+    branches: [ master ]
   pull_request:
-    branches: [ master, spark-4.0.2 ]
+    branches: [ master ]
 
 jobs:
   build-and-push:
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: build-and-push
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/spark-4.0.2'
+    if: github.ref == 'refs/heads/master'
     environment: CD
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
