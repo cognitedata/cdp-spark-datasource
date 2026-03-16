@@ -5,7 +5,7 @@ import scala.xml.transform.{RewriteRule, RuleTransformer}
 
 val scala213 = "2.13.18"
 val supportedScalaVersions = List(scala213)
-val sparkVersion = "3.3.4"
+val sparkVersion = "4.0.2"
 val circeVersion = "0.14.9"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"

@@ -627,7 +627,7 @@ class FlexibleDataModelNodeTest
                 |    'spaceExternalId', '$spaceExternalId',
                 |    'externalId', '$endNodeExtId'
                 |) as endNode,
-                |array('stringListProp1Val', null, 'stringListProp2Val', 24) as stringListProp1,
+                |array('stringListProp1Val', null, 'stringListProp2Val',cast(24 as string)) as stringListProp1,
                 |null as stringListProp2,
                 |array(1, 2, 3) as intListProp1,
                 |null as intListProp2,
