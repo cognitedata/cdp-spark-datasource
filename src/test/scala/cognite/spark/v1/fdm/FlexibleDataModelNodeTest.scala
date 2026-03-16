@@ -482,8 +482,9 @@ class FlexibleDataModelNodeTest
     checkAmbiguousTypeHandling(useQuery = true)
   }
 
-  def testHandleUsingTypeForEdgesInstanceProperty(useQuery: Boolean): Unit = {
-    val useQueryToString: String = if(useQuery) "Query" else "List"
+  def testHandleUsingTypeForEdgesInstanceProperty(useQuery: Boolean,
+                                                  useQueryPushdownColumnsSelection: Boolean): Unit = {
+    val viewNameSuffix: String = if (useQuery) s"Query_${useQueryPushdownColumnsSelection}" else "List"
 
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
@@ -492,7 +493,7 @@ class FlexibleDataModelNodeTest
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewEdges) = setupTypeTest(viewNameSuffix = useQueryToString).unsafeRunSync()
+    val (viewEdges) = setupTypeTest(viewNameSuffix = viewNameSuffix).unsafeRunSync()
     val randomId = generateNodeExternalId
     val instanceExtIdEdge = s"${randomId}Edge"
 
@@ -535,7 +536,8 @@ class FlexibleDataModelNodeTest
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
       instanceSpaceExternalId = spaceExternalId,
-      useQuery = useQuery
+      useQuery = useQuery,
+      useQueryPushdownColumnsSelection = useQueryPushdownColumnsSelection
     )
     val tempViewName = s"edge_type_test_instances_table${UUID.randomUUID().toString.replace("-", "")}"
     readEdgesDf.createTempView(tempViewName)
@@ -589,8 +591,9 @@ class FlexibleDataModelNodeTest
   }
 
   it should "handle using type for edges instance property when there is no property named type in the associated view" in {
-    testHandleUsingTypeForEdgesInstanceProperty(useQuery = true)
-    testHandleUsingTypeForEdgesInstanceProperty(useQuery = false)
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = true, useQueryPushdownColumnsSelection = true)
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = true, useQueryPushdownColumnsSelection = false)
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = false, useQueryPushdownColumnsSelection = false)
   }
 
   it should "succeed when inserting all nullable & non nullable list values" in {
@@ -1298,7 +1301,8 @@ class FlexibleDataModelNodeTest
     testReadExternaldRefs(useQuery = false)
   }
 
-  def testFilterInstance(debug: Boolean, useQuery: Boolean): Assertion = {
+  def testFilterInstance(debug: Boolean, useQuery: Boolean,
+                         useQueryPushdownColumnsSelection: Boolean): Assertion = {
     setUpDataModel()
     val df = readRowsFromModel(
       modelSpace = spaceExternalId,
@@ -1307,7 +1311,8 @@ class FlexibleDataModelNodeTest
       viewExternalId = viewStartNodeAndEndNodesExternalId,
       instanceSpace = None,
       debug,
-      useQuery
+      useQuery,
+      useQueryPushdownColumnsSelection
     )
 
     val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
@@ -1327,13 +1332,15 @@ class FlexibleDataModelNodeTest
   }
 
   it should "successfully filter instances from a data model, and debug flag should have no impact on results" in {
-    testFilterInstance(debug = false, useQuery = true)
-    testFilterInstance(debug = true, useQuery = true)
+    testFilterInstance(debug = false, useQuery = true, useQueryPushdownColumnsSelection = true)
+    testFilterInstance(debug = true, useQuery = true, useQueryPushdownColumnsSelection = true)
   }
 
   it should "successfully filter instances from a data model, and query vs list flag should have no impact on results" in {
-    testFilterInstance(debug = true, useQuery = true)
-    testFilterInstance(debug = true, useQuery = false)
+    testFilterInstance(debug = true, useQuery = true, useQueryPushdownColumnsSelection = true)
+    testFilterInstance(debug = true, useQuery = true, useQueryPushdownColumnsSelection = false)
+    testFilterInstance(debug = true, useQuery = false, useQueryPushdownColumnsSelection = true)
+    testFilterInstance(debug = true, useQuery = false, useQueryPushdownColumnsSelection = false)
   }
 
   it should "successfully insert instances to a data model" in {
