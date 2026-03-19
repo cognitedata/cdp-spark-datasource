@@ -116,7 +116,12 @@ private[spark] class FlexibleDataModelConnectionRelation(
           None
         )
       val selectExpression = SelectExpression(
-        sources = sourceReference(InstanceType.Edge, None, selectedFields),
+        sources = sourceReference(
+          InstanceType.Edge,
+          None,
+          // Note: since we don't supply viewReference here selectedFields will have no effect
+          if (config.useQueryPushdownColumnsSelection) selectedFields else Array()
+        ),
       )
       Vector(
         client.instances
