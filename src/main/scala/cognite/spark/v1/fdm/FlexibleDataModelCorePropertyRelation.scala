@@ -123,7 +123,10 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
             None
           )
         val selectExpression = SelectExpression(
-          sources = sourceReference(instanceType, viewReference, selectedInstanceProps),
+          sources = sourceReference(
+            instanceType,
+            viewReference,
+            if (config.useQueryPushdownColumnsSelection) selectedInstanceProps else Array()),
         )
         client.instances
           .queryStream(

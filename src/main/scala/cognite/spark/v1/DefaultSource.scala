@@ -561,6 +561,8 @@ object DefaultSource {
       sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false),
       useQuery = toBoolean(parameters, "useQuery", defaultValue = false),
       additionalFlags = getAdditionalFlags(parameters),
+      useQueryPushdownColumnsSelection =
+        toBoolean(parameters, "useQueryPushdownColumnsSelection", defaultValue = false),
     )
   }
 
