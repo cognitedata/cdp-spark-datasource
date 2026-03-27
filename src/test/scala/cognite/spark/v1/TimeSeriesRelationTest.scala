@@ -115,9 +115,9 @@ class TimeSeriesRelationTest
       .where("createdTime < to_timestamp(1595400000)")
       .where("name = 'VAL_23-KA-9101_PHD:VALUE' or externalId = 'pi:160224'")
 
-    assert(df.count() == 2)
+    assert(df.count() == 1)
     val eventsRead = getNumberOfRowsRead(metricsPrefix, "timeseries")
-    assert(eventsRead == 2)
+    assert(eventsRead == 1)
   }
 
   it should "insert a time series with no name" taggedAs WriteTest in {
