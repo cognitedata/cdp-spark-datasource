@@ -286,7 +286,6 @@ trait SparkTest {
       serverSideFilterNullValuesOnNonSchemaRawQueries = false,
       maxOutstandingRawInsertRequests = None,
       sendDebugFlag = false,
-      useQuery = false,
       useQueryPushdownColumnsSelection = false
     )
 

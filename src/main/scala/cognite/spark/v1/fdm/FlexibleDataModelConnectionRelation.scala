@@ -19,7 +19,6 @@ import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.instances.{
   InstanceCreate,
-  InstanceFilterRequest,
   InstanceType,
   SelectExpression
 }
@@ -106,49 +105,31 @@ private[spark] class FlexibleDataModelConnectionRelation(
       case Right(v) => v
       case Left(err) => throw err
     }
-    if (config.useQuery) {
-      val tableExpression =
-        generateTableExpression(
-          InstanceType.Edge,
-          // Note: we don't provide a view reference atm, but for consistency with FlexibleDataModelCorePropertyRelation
-          //       let's have a shape that adds HasData filter for viewReference present case
-          queryFilterWithHasData(Some(instanceFilters), None),
-          None
+    val tableExpression =
+      generateTableExpression(
+        InstanceType.Edge,
+        // Note: we don't provide a view reference atm, but for consistency with FlexibleDataModelCorePropertyRelation
+        //       let's have a shape that adds HasData filter for viewReference present case
+        queryFilterWithHasData(Some(instanceFilters), None),
+        None
+      )
+    val selectExpression = SelectExpression(
+      sources = sourceReference(
+        InstanceType.Edge,
+        None,
+        // Note: since we don't supply viewReference here selectedFields will have no effect
+        if (config.useQueryPushdownColumnsSelection) selectedFields else Array()
+      ),
+    )
+    Vector(
+      client.instances
+        .queryStream(
+          inputTableExpression = tableExpression,
+          inputSelectExpression = selectExpression,
+          limit = config.limitPerPartition,
+          batchSize = config.batchSize
         )
-      val selectExpression = SelectExpression(
-        sources = sourceReference(
-          InstanceType.Edge,
-          None,
-          // Note: since we don't supply viewReference here selectedFields will have no effect
-          if (config.useQueryPushdownColumnsSelection) selectedFields else Array()
-        ),
-      )
-      Vector(
-        client.instances
-          .queryStream(
-            inputTableExpression = tableExpression,
-            inputSelectExpression = selectExpression,
-            limit = config.limitPerPartition,
-            batchSize = config.batchSize
-          )
-          .map(toProjectedInstance(_, None, selectedFields)))
-    } else {
-      val filterRequest = InstanceFilterRequest(
-        instanceType = Some(InstanceType.Edge),
-        filter = Some(instanceFilters),
-        sort = None,
-        limit = config.limitPerPartition,
-        cursor = None,
-        sources = None,
-        includeTyping = Some(true),
-        debug = optionalDebug(config.sendDebugFlag)
-      )
-      Vector(
-        client.instances
-          .filterStream(filterRequest, config.limitPerPartition)
-          .map(toProjectedInstance(_, None, selectedFields))
-      )
-    }
+        .map(toProjectedInstance(_, None, selectedFields)))
   }
 
   private def extractFilters(filters: Array[Filter]): Either[CdfSparkException, FilterDefinition] = {
