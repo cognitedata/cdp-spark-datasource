@@ -111,6 +111,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
     viewExternalId: String,
     viewVersion: String,
     instanceSpaceExternalId: String,
+    useQuery: Boolean = false,
     useQueryPushdownColumnsSelection: Boolean = false): DataFrame = {
     spark.read
       .format(DefaultSource.sparkFormatString)
@@ -129,14 +130,15 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
       .option("instanceSpace", instanceSpaceExternalId)
       .option("metricsPrefix", s"$viewExternalId-$viewVersion")
       .option("collectMetrics", true)
+      .option("useQuery", useQuery)
       .option("useQueryPushdownColumnsSelection", useQueryPushdownColumnsSelection)
       .load()
   }
 
 
 
-  def readEdgeWithEdgeType(edgeSpace: String, edgeExternalId: String,
-                           useQueryPushdownColumnsSelection: Boolean = false): DataFrame =
+  def readEdgeWithEdgeType(edgeSpace: String, edgeExternalId: String, useQuery: Boolean = false,
+                           useQueryPushdownColumnsSelection:Boolean  = false): DataFrame =
     spark.read
         .format(DefaultSource.sparkFormatString)
         .option("type", FlexibleDataModelRelationFactory.ResourceType)
@@ -152,6 +154,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
         .option("instanceType", "edge")
         .option("metricsPrefix", s"$edgeExternalId-$viewVersion")
         .option("collectMetrics", value = true)
+        .option("useQuery", useQuery)
         .option("useQueryPushdownColumnsSelection", useQueryPushdownColumnsSelection)
         .load()
 
@@ -162,6 +165,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
       viewExternalId: String,
       instanceSpace: Option[String],
       debug: Boolean = false,
+      useQuery: Boolean = false,
       useQueryPushdownColumnsSelection: Boolean = false): DataFrame = {
       spark.read
         .format(DefaultSource.sparkFormatString)
@@ -181,6 +185,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
         .option("metricsPrefix", s"$modelExternalId-$modelVersion")
         .option("collectMetrics", value = true)
         .option("sendDebugFlag", value = debug)
+        .option("useQuery", value = useQuery)
         .option("useQueryPushdownColumnsSelection", value = useQueryPushdownColumnsSelection)
         .load()
   }
@@ -191,6 +196,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
      modelVersion: String,
      edgeTypeSpace: String,
      edgeTypeExternalId: String,
+     useQuery: Boolean = false,
      useQueryPushdownColumnsSelection: Boolean = false
   ): DataFrame =
     spark.read
@@ -210,6 +216,7 @@ object FDMSparkDataframeTestOperations extends SparkTest with Matchers {
       .option("edgeTypeExternalId", edgeTypeExternalId)
       .option("metricsPrefix", s"$modelExternalId-$modelVersion")
       .option("collectMetrics", value = true)
+      .option("useQuery", useQuery)
       .option("useQueryPushdownColumnsSelection", useQueryPushdownColumnsSelection)
       .load()
 

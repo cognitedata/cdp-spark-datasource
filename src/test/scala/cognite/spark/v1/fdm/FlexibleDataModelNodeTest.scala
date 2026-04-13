@@ -305,15 +305,16 @@ class FlexibleDataModelNodeTest
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-  it should "handle ambiguous types when there is a type property in the view of the node" in {
-    val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
-    val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
+  def checkAmbiguousTypeHandling(useQuery: Boolean): Unit = {
+    val useQueryToString: String = if(useQuery) "Query" else "List"
+    val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode$useQueryToString"
+    val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode$useQueryToString"
     createStartAndEndNodesForEdgesIfNotExists(
       startNodeExtId,
       endNodeExtId,
       viewStartAndEndNodes.toSourceReference).unsafeRunSync()
 
-    val (viewAll, viewNodes, viewEdges) = setupAmbiguousTypeTest("").unsafeRunSync()
+    val (viewAll, viewNodes, viewEdges) = setupAmbiguousTypeTest(useQueryToString).unsafeRunSync()
     val randomId = generateNodeExternalId
     val instanceExtIdAll = s"${randomId}All"
     val instanceExtIdNode = s"${randomId}Node"
@@ -402,7 +403,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
     val tempViewName = s"edge_ambiguous_type_test_instances_table${UUID.randomUUID().toString.replace("-", "")}"
     readEdgesDf.createTempView(tempViewName)
@@ -475,8 +477,14 @@ class FlexibleDataModelNodeTest
     toExternalIds(selectedEdgesTypeViewProperty).length shouldBe(1)
   }
 
-  def testHandleUsingTypeForEdgesInstanceProperty(useQueryPushdownColumnsSelection: Boolean): Unit = {
-    val viewNameSuffix: String = s"$useQueryPushdownColumnsSelection"
+  it should "handle ambiguous types when there is a type property in the view of the node" in {
+    checkAmbiguousTypeHandling(useQuery = false)
+    checkAmbiguousTypeHandling(useQuery = true)
+  }
+
+  def testHandleUsingTypeForEdgesInstanceProperty(useQuery: Boolean,
+                                                  useQueryPushdownColumnsSelection: Boolean): Unit = {
+    val viewNameSuffix: String = if (useQuery) s"Query_${useQueryPushdownColumnsSelection}" else "List"
 
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertListEndNode"
@@ -528,6 +536,7 @@ class FlexibleDataModelNodeTest
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
       instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery,
       useQueryPushdownColumnsSelection = useQueryPushdownColumnsSelection
     )
     val tempViewName = s"edge_type_test_instances_table${UUID.randomUUID().toString.replace("-", "")}"
@@ -582,8 +591,9 @@ class FlexibleDataModelNodeTest
   }
 
   it should "handle using type for edges instance property when there is no property named type in the associated view" in {
-    testHandleUsingTypeForEdgesInstanceProperty(useQueryPushdownColumnsSelection = true)
-    testHandleUsingTypeForEdgesInstanceProperty(useQueryPushdownColumnsSelection = false)
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = true, useQueryPushdownColumnsSelection = true)
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = true, useQueryPushdownColumnsSelection = false)
+    testHandleUsingTypeForEdgesInstanceProperty(useQuery = false, useQueryPushdownColumnsSelection = false)
   }
 
   it should "succeed when inserting all nullable & non nullable list values" in {
@@ -743,7 +753,7 @@ class FlexibleDataModelNodeTest
     getDeletedMetricsCount(viewEdges) shouldBe 1
   }
 
-  it should "succeed when fetching instances with select *" in {
+  def fetchAllInstancesSelectAll(useQuery: Boolean): Unit = {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertAllStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}InsertAllEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -796,7 +806,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewNodes.externalId,
       viewVersion = viewNodes.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val syncNodesDf = syncRows(
@@ -812,7 +823,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val syncEdgesDf = syncRows(
@@ -828,7 +840,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewAll.externalId,
       viewVersion = viewAll.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val readNodesDfViewAll = readRows(
@@ -836,7 +849,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewAll.externalId,
       viewVersion = viewAll.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
 
@@ -899,7 +913,12 @@ class FlexibleDataModelNodeTest
     (syncedEdgesExternalIds should contain).allElementsOf(filterEdges)
   }
 
-  it should "succeed when filtering edges with type, startNode & endNode" in {
+  it should "succeed when fetching instances with select *" in {
+    fetchAllInstancesSelectAll(useQuery = true)
+    fetchAllInstancesSelectAll(useQuery = false)
+  }
+
+  def testFilterEdgesByTypeStarNodeEndNode(useQuery: Boolean): Unit = {
     val startNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsStartNode"
     val endNodeExtId = s"${viewStartNodeAndEndNodesExternalId}FilterByEdgePropsEndNode"
     createStartAndEndNodesForEdgesIfNotExists(
@@ -939,7 +958,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewEdges.externalId,
       viewVersion = viewEdges.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
     val tempViewName = s"edge_filter_instances_table${UUID.randomUUID().toString.replace("-", "")}"
     readEdgesDf.createTempView(tempViewName)
@@ -960,7 +980,17 @@ class FlexibleDataModelNodeTest
     (actualAllEdgeExternalIds should contain).allElementsOf(allEdgeExternalIds)
   }
 
+  it should "succeed when filtering edges with type, startNode & endNode" in {
+    testFilterEdgesByTypeStarNodeEndNode(useQuery = true)
+    testFilterEdgesByTypeStarNodeEndNode(useQuery = false)
+  }
+
   it should "succeed when filtering nodes with type" in {
+    testFilterNodesWithType(useQuery = true)
+    testFilterNodesWithType(useQuery = false)
+  }
+
+  def testFilterNodesWithType(useQuery: Boolean): Unit = {
     val nullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeNullType"
     val nonNullTypedNode = s"${viewStartNodeAndEndNodesExternalId}FilterByType"
     val typeNode = s"${viewStartNodeAndEndNodesExternalId}FilterByTypeType"
@@ -977,7 +1007,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewTypedNode.externalId,
       viewVersion = viewTypedNode.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val tempViewName = s"node_filter_instances_table${UUID.randomUUID().toString.replace("-", "")}"
@@ -995,6 +1026,11 @@ class FlexibleDataModelNodeTest
   }
 
   it should "succeed when filtering instances by properties" in {
+    testFilterInstancesByProperties(useQuery = true)
+    testFilterInstancesByProperties(useQuery = false)
+  }
+
+  def testFilterInstancesByProperties(useQuery: Boolean): Unit = {
     val (view, instanceExtIds) = setupFilteringByPropertiesTest.unsafeRunSync()
 
     val readDf = readRows(
@@ -1002,7 +1038,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = view.externalId,
       viewVersion = view.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
 
     val syncDf = syncRows(
@@ -1074,6 +1111,11 @@ class FlexibleDataModelNodeTest
   }
 
   it should "successfully read from relation properties" in {
+    testReadFromRelationProperties(useQuery = true)
+    testReadFromRelationProperties(useQuery = false)
+  }
+
+  def testReadFromRelationProperties(useQuery: Boolean): Unit = {
     val viewDef = setupRelationReadPropsTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}Relation1"
 
@@ -1103,7 +1145,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = viewDef.space,
       viewVersion = viewDef.version,
       viewExternalId = viewDef.externalId,
-      instanceSpaceExternalId = viewDef.space
+      instanceSpaceExternalId = viewDef.space,
+      useQuery = useQuery
     )
     val tempViewName = s"temp_view_with_relations_${UUID.randomUUID().toString.replace("-", "")}"
     dfFromModel.createTempView(tempViewName)
@@ -1208,7 +1251,7 @@ class FlexibleDataModelNodeTest
     propertyMapForInstances(nodeExtId2).get("doubleProp") shouldBe None
   }
 
-  it should "successfully read from list of external id refs (files/Sequences)" in {
+  def testReadExternaldRefs(useQuery: Boolean): Unit = {
     val viewDef = setupExternalIdReferenceTest.unsafeRunSync()
     val nodeExtId1 = s"${viewDef.externalId}FilesSeq1"
 
@@ -1235,7 +1278,8 @@ class FlexibleDataModelNodeTest
       viewSpaceExternalId = spaceExternalId,
       viewExternalId = viewDef.externalId,
       viewVersion = viewDef.version,
-      instanceSpaceExternalId = spaceExternalId
+      instanceSpaceExternalId = spaceExternalId,
+      useQuery = useQuery
     )
     val tempViewName = s"file_reference_table${UUID.randomUUID().toString.replace("-", "")}"
     readDf.createTempView(tempViewName)
@@ -1252,7 +1296,12 @@ class FlexibleDataModelNodeTest
     rows(0).getSeq[String](rows(0).fieldIndex("sequenceReferenceList")) should contain theSameElementsAs Seq("extId2", "extId3")
   }
 
-  def testFilterInstance(debug: Boolean,
+  it should "successfully read from list of external id refs (files/Sequences)" in {
+    testReadExternaldRefs(useQuery = true)
+    testReadExternaldRefs(useQuery = false)
+  }
+
+  def testFilterInstance(debug: Boolean, useQuery: Boolean,
                          useQueryPushdownColumnsSelection: Boolean): Assertion = {
     setUpDataModel()
     val df = readRowsFromModel(
@@ -1262,6 +1311,7 @@ class FlexibleDataModelNodeTest
       viewExternalId = viewStartNodeAndEndNodesExternalId,
       instanceSpace = None,
       debug,
+      useQuery,
       useQueryPushdownColumnsSelection
     )
 
@@ -1282,13 +1332,15 @@ class FlexibleDataModelNodeTest
   }
 
   it should "successfully filter instances from a data model, and debug flag should have no impact on results" in {
-    testFilterInstance(debug = false, useQueryPushdownColumnsSelection = true)
-    testFilterInstance(debug = true, useQueryPushdownColumnsSelection = true)
+    testFilterInstance(debug = false, useQuery = true, useQueryPushdownColumnsSelection = true)
+    testFilterInstance(debug = true, useQuery = true, useQueryPushdownColumnsSelection = true)
   }
 
-  it should "successfully filter instances from a data model with various column pushdown settings" in {
-    testFilterInstance(debug = true, useQueryPushdownColumnsSelection = true)
-    testFilterInstance(debug = true, useQueryPushdownColumnsSelection = false)
+  it should "successfully filter instances from a data model, and query vs list flag should have no impact on results" in {
+    testFilterInstance(debug = true, useQuery = true, useQueryPushdownColumnsSelection = true)
+    testFilterInstance(debug = true, useQuery = true, useQueryPushdownColumnsSelection = false)
+    testFilterInstance(debug = true, useQuery = false, useQueryPushdownColumnsSelection = true)
+    testFilterInstance(debug = true, useQuery = false, useQueryPushdownColumnsSelection = false)
   }
 
   it should "successfully insert instances to a data model" in {

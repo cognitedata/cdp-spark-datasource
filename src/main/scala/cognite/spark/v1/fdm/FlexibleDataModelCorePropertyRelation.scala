@@ -114,27 +114,47 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
       case Left(err) => throw err
     }
 
-    compatibleInstanceTypes(intendedUsage).distinct.map { instanceType =>
-      val tableExpression =
-        generateTableExpression(
-          instanceType,
-          queryFilterWithHasData(instanceFilter, viewReference),
-          None
+    if (config.useQuery) {
+      compatibleInstanceTypes(intendedUsage).distinct.map { instanceType =>
+        val tableExpression =
+          generateTableExpression(
+            instanceType,
+            queryFilterWithHasData(instanceFilter, viewReference),
+            None
+          )
+        val selectExpression = SelectExpression(
+          sources = sourceReference(
+            instanceType,
+            viewReference,
+            if (config.useQueryPushdownColumnsSelection) selectedInstanceProps else Array()),
         )
-      val selectExpression = SelectExpression(
-        sources = sourceReference(
-          instanceType,
-          viewReference,
-          if (config.useQueryPushdownColumnsSelection) selectedInstanceProps else Array()),
-      )
-      client.instances
-        .queryStream(
-          inputTableExpression = tableExpression,
-          inputSelectExpression = selectExpression,
+        client.instances
+          .queryStream(
+            inputTableExpression = tableExpression,
+            inputSelectExpression = selectExpression,
+            limit = config.limitPerPartition,
+            batchSize = config.batchSize
+          )
+          .map(toProjectedInstance(_, None, selectedInstanceProps))
+      }
+    } else {
+      val filterRequests = compatibleInstanceTypes(intendedUsage).map { instanceType =>
+        InstanceFilterRequest(
+          instanceType = Some(instanceType),
+          filter = instanceFilter,
+          sort = None,
           limit = config.limitPerPartition,
-          batchSize = config.batchSize
+          cursor = None,
+          sources = viewReference.map(r => Vector(InstanceSource(r))),
+          includeTyping = Some(true),
+          debug = optionalDebug(config.sendDebugFlag)
         )
-        .map(toProjectedInstance(_, None, selectedInstanceProps))
+      }
+      filterRequests.distinct.map { fr =>
+        client.instances
+          .filterStream(fr, config.limitPerPartition)
+          .map(toProjectedInstance(_, None, selectedInstanceProps))
+      }
     }
   }
 
