@@ -339,15 +339,6 @@ object DefaultSource {
   )
 
   val TRACING_PARAMETER_PREFIX: String = "com.cognite.tracing.parameter."
-  val ENABLED_ADDITIONAL_FLAG_KEY: String = "com.cognite.additional.flag.enabled."
-  val DISABLED_ADDITIONAL_FLAG_KEY: String = "com.cognite.additional.flag.disabled."
-
-  def toAdditionalFlagKey(key: String, enabled: Boolean): String =
-    if (enabled) {
-      ENABLED_ADDITIONAL_FLAG_KEY + key
-    } else {
-      DISABLED_ADDITIONAL_FLAG_KEY + key
-    }
 
   private def toBoolean(
       parameters: Map[String, String],
@@ -363,16 +354,6 @@ object DefaultSource {
           sys.error(s"$parameterName must be 'true' or 'false'")
         }
       case None => defaultValue
-    }
-
-  private def getAdditionalFlags(
-      parameters: Map[String, String]
-  ): Map[String, Boolean] =
-    parameters.collect {
-      case (key, value) if key.startsWith(ENABLED_ADDITIONAL_FLAG_KEY) =>
-        value -> true
-      case (key, value) if key.startsWith(DISABLED_ADDITIONAL_FLAG_KEY) =>
-        value -> false
     }
 
   private def toPositiveInt(parameters: Map[String, String], parameterName: String): Option[Int] =
@@ -561,7 +542,6 @@ object DefaultSource {
       maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests"),
       sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false),
       useQuery = toBoolean(parameters, "useQuery", defaultValue = false),
-      additionalFlags = getAdditionalFlags(parameters),
       useQueryPushdownColumnsSelection =
         toBoolean(parameters, "useQueryPushdownColumnsSelection", defaultValue = false),
     )

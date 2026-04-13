@@ -287,7 +287,6 @@ trait SparkTest {
       maxOutstandingRawInsertRequests = None,
       sendDebugFlag = false,
       useQuery = false,
-      additionalFlags = Map.empty,
       useQueryPushdownColumnsSelection = false
     )
 
