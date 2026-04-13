@@ -42,7 +42,6 @@ final case class RelationConfig(
     //When using query instead of list, DM will not send a next cursor if there is no index and there's sort pushdown as it would be a performance hazard
     //Note that currently there's no sort pushdown in datasource, so that's safe
     useQuery: Boolean,
-    additionalFlags: Map[String, Boolean],
     useQueryPushdownColumnsSelection: Boolean
 ) {
 
