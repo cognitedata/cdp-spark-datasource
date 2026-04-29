@@ -133,7 +133,6 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
             inputTableExpression = tableExpression,
             inputSelectExpression = selectExpression,
             limit = config.limitPerPartition,
-            additionalFlags = config.additionalFlags,
             batchSize = config.batchSize
           )
           .map(toProjectedInstance(_, None, selectedInstanceProps))
