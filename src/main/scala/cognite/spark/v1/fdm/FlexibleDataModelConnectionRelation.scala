@@ -17,11 +17,7 @@ import cognite.spark.v1.{CdfSparkException, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
-import com.cognite.sdk.scala.v1.fdm.instances.{
-  InstanceCreate,
-  InstanceType,
-  SelectExpression
-}
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceType, SelectExpression}
 import fs2.Stream
 import io.circe.Json
 import org.apache.spark.sql.sources._

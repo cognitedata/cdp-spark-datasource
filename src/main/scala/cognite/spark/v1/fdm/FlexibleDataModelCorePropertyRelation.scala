@@ -122,16 +122,14 @@ private[spark] class FlexibleDataModelCorePropertyRelation(
           None
         )
       val selectExpression = SelectExpression(
-        sources = sourceReference(
-          instanceType,
-          viewReference,
-          selectedInstanceProps),
+        sources = sourceReference(instanceType, viewReference, selectedInstanceProps),
       )
       client.instances
         .queryStream(
           inputTableExpression = tableExpression,
           inputSelectExpression = selectExpression,
           limit = config.limitPerPartition,
+          debug = optionalDebug(config.sendDebugFlag),
           batchSize = config.batchSize
         )
         .map(toProjectedInstance(_, None, selectedInstanceProps))
