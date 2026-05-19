@@ -123,7 +123,8 @@ private[spark] class FlexibleDataModelConnectionRelation(
           inputTableExpression = tableExpression,
           inputSelectExpression = selectExpression,
           limit = config.limitPerPartition,
-          batchSize = config.batchSize
+          batchSize = config.batchSize,
+          debug = optionalDebug(config.sendDebugFlag),
         )
         .map(toProjectedInstance(_, None, selectedFields)))
   }
