@@ -115,13 +115,10 @@ class FlexibleDataModelEdgeTest
 
 
   it should "fetch edges with filters" in {
-    testFetchEdgesWithFilters(useQuery = true, useQueryPushdownColumnsSelection = true)
-    testFetchEdgesWithFilters(useQuery = true, useQueryPushdownColumnsSelection = false)
-    testFetchEdgesWithFilters(useQuery = false, useQueryPushdownColumnsSelection = true)
-    testFetchEdgesWithFilters(useQuery = false, useQueryPushdownColumnsSelection = false)
+    testFetchEdgesWithFilters()
   }
 
-  def testFetchEdgesWithFilters(useQuery: Boolean, useQueryPushdownColumnsSelection: Boolean): Unit = {
+  def testFetchEdgesWithFilters(): Unit = {
     val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
     val endNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchEndNode"
 
@@ -166,9 +163,7 @@ class FlexibleDataModelEdgeTest
 
     val readConnectionsDf = readEdgeWithEdgeType(
       edgeSpace = spaceExternalId,
-      edgeExternalId = edgeTypeExtId,
-      useQuery = useQuery,
-      useQueryPushdownColumnsSelection = useQueryPushdownColumnsSelection
+      edgeExternalId = edgeTypeExtId
     )
 
     val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
@@ -186,7 +181,7 @@ class FlexibleDataModelEdgeTest
     (instExtIds should contain).allElementsOf(Array("edge1"))
   }
 
-  def testFetchEdgeEdgeType(useQuery: Boolean): Unit = {
+  def testFetchEdgeEdgeType(): Unit = {
     val created = (for {
       c1 <- createConnectionWriteInstances(
         externalId = "edgeForEdgeTypeFilter1",
@@ -208,7 +203,7 @@ class FlexibleDataModelEdgeTest
       )
     } yield c1 ++ c2).unsafeRunSync()
 
-    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = "edgeType", useQuery = useQuery)
+    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = "edgeType")
 
     val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
     readConnectionsDf.createTempView("connection_instances_table_edgetype" + tempViewUUID)
@@ -224,19 +219,16 @@ class FlexibleDataModelEdgeTest
   }
 
   it should "fetch edge with edgeType with both query and list" in {
-    testFetchEdgeEdgeType(useQuery = true)
-    testFetchEdgeEdgeType(useQuery = false)
+    testFetchEdgeEdgeType()
   }
 
-  def testFetchEdgeDataModel(useQuery: Boolean, useQueryPushdownColumnsSelection: Boolean): Unit = {
+  def testFetchEdgeDataModel(): Unit = {
     val df = readRowsFromModelWithEdgeType(
       spaceExternalId,
       edgeTestDataModelExternalId,
       viewVersion,
       spaceExternalId,
-      edgeTypeExtId,
-      useQuery = useQuery,
-      useQueryPushdownColumnsSelection = useQueryPushdownColumnsSelection
+      edgeTypeExtId
     )
 
     val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
@@ -259,10 +251,7 @@ class FlexibleDataModelEdgeTest
   }
 
   it should "fetch edges from a data model both with query and list" in {
-    testFetchEdgeDataModel(useQuery = true, useQueryPushdownColumnsSelection = true)
-    testFetchEdgeDataModel(useQuery = true, useQueryPushdownColumnsSelection = false)
-    testFetchEdgeDataModel(useQuery = false, useQueryPushdownColumnsSelection = true)
-    testFetchEdgeDataModel(useQuery = false, useQueryPushdownColumnsSelection = false)
+    testFetchEdgeDataModel()
   }
 
 
