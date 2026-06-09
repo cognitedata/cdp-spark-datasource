@@ -1,7 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.effect.unsafe.IORuntime
+import cognite.spark.v1.CdpConnector.ExtensionMethods
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import fs2.{Chunk, Stream}
 import org.log4s._
@@ -19,8 +19,10 @@ object StreamIterator {
     .setDaemon(true)
     .build()
 
-  def apply[A](stream: Stream[IO, A], queueBufferSize: Int, processChunk: Option[Chunk[A] => Chunk[A]])(
-      implicit IORuntime: IORuntime): Iterator[A] = {
+  def apply[A](
+      stream: Stream[IO, A],
+      queueBufferSize: Int,
+      processChunk: Option[Chunk[A] => Chunk[A]]): Iterator[A] = {
     // This pool will be used for draining the queue
     // Draining needs to have a separate pool to continuously drain the queue
     // while another thread pool fills the queue with data from CDF
@@ -44,7 +46,7 @@ object StreamIterator {
     // Continuously read the stream data into the queue on a separate thread pool
     val streamsToQueue: Future[Unit] = Future {
       try {
-        putOnQueueStream.compile.drain.unsafeRunSync()
+        putOnQueueStream.compile.drain.unsafeRunBlocking()
       } catch {
         case _: InterruptedException =>
         // Ignore this, as it means there was an exception thrown while draining the

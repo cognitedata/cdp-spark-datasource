@@ -395,7 +395,7 @@ final case class NumericDataPointsRdd(
     }
     partitions
       .map(_.toArray[Partition])
-      .unsafeRunSync()
+      .unsafeRunBlocking()
   }
 
   private def queryDoubles(id: CogniteId, lowerLimit: Instant, upperLimit: Instant, limit: Int) =
@@ -498,10 +498,10 @@ final case class NumericDataPointsRdd(
     val maxParallelism = scala.math.max(bucket.ranges.size, 500)
 
     // See comments in SdkV1Rdd.compute for an explanation.
-    val shouldStop = SignallingRef[IO, Boolean](false).unsafeRunSync()
+    val shouldStop = SignallingRef[IO, Boolean](false).unsafeRunBlocking()
     Option(context).foreach { ctx =>
       ctx.addTaskCompletionListener[Unit] { _ =>
-        shouldStop.set(true).unsafeRunSync()
+        shouldStop.set(true).unsafeRunBlocking()
       }
     }
 

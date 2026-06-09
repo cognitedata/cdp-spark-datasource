@@ -208,6 +208,44 @@ however it makes it impossible to null a field in CDF. When the `ignoreNullField
 to `false`, NULLs are written to CDF (when possible). Fields which are not specified are still ignored.
 See an example of using `.save()` under [Events below](#events).
 
+#### Data Modeling Instance Options (Nodes and Edges)
+
+When writing nodes or edges to CDF Data Modeling Service (DMS), the following options control how node references are handled:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `autoCreateStartNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced start node doesn't exist (edges only). Set to `false` for strict validation mode. |
+| `autoCreateEndNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced end node doesn't exist (edges only). Set to `false` for strict validation mode. |
+| `autoCreateDirectRelations` | `true` | When `true`, automatically creates placeholder nodes if a direct relation property references a node that doesn't exist. Set to `false` for strict validation mode. |
+
+**Disabling Auto-Create**
+
+By default, the Spark Datasource sets these options to `true`, which means placeholder nodes are automatically created when referenced nodes don't exist. If you want writes to fail instead when referenced nodes are missing, set the relevant options to `false`:
+
+```python
+# Python Example - Disable auto-create
+df.write.format("cognite.spark.v1") \
+    .option("type", "instances") \
+    .option("instanceType", "edge") \
+    .option("autoCreateStartNodes", "false") \
+    .option("autoCreateEndNodes", "false") \
+    .option("autoCreateDirectRelations", "false") \
+    .option("onConflict", "upsert") \
+    .save()
+```
+
+```scala
+// Scala Example - Disabling auto-create
+df.write.format("cognite.spark.v1")
+  .option("type", "instances")
+  .option("instanceType", "edge")
+  .option("autoCreateStartNodes", "false")
+  .option("autoCreateEndNodes", "false")
+  .option("autoCreateDirectRelations", "false")
+  .option("onConflict", "upsert")
+  .save()
+```
+
 ### Delete data
 
 We currently support deleting with `.save()` for assets, events and time series.
