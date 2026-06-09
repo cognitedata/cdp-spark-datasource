@@ -1,6 +1,7 @@
 package cognite.spark.v1
 
 import cats.effect.IO
+import cognite.spark.v1.CdpConnector.ExtensionMethods
 import cognite.spark.v1.PushdownUtilities.filtersToTimestampLimits
 import com.cognite.sdk.scala.common.StringDataPoint
 import com.cognite.sdk.scala.v1._
@@ -18,7 +19,6 @@ final case class StringDataPointsRdd(
     ids: Seq[CogniteId],
     toRow: StringDataPointsItem => Row
 ) extends RDD[Row](sparkContext, Nil) {
-  import CdpConnector.ioRuntime
   @transient lazy val client: GenericClient[IO] =
     CdpConnector.clientFromConfig(config)
 
@@ -76,7 +76,7 @@ final case class StringDataPointsRdd(
         }
         .compile
         .to(Seq)
-        .unsafeRunSync()
+        .unsafeRunBlocking()
         .iterator
     )
   }

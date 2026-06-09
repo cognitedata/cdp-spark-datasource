@@ -115,7 +115,7 @@ abstract class SdkV1Relation[A <: Product, I](config: RelationConfig, shortName:
         .create(resourcesToCreate.map(_.transformInto[C]))
         .flatMap(_ => incMetrics(itemsCreated, resourcesToCreate.size))
         .recoverWith {
-          case CdpApiException(_, 409, _, _, Some(duplicated), _, _, _, _) if doUpsert =>
+          case CdpApiException(_, 409, _, _, Some(duplicated), _, _, _, _, _) if doUpsert =>
             val moreExistingExternalIds = duplicated.flatMap(j => j("externalId")).map(_.asString.get)
             createOrUpdateByExternalId[R, U, C, S, ExternalIdF, T](
               existingExternalIds ++ moreExistingExternalIds.toSet,

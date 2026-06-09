@@ -104,7 +104,8 @@ class TimeSeriesRelationTest
     assert(eventsRead == 3)
   }
 
-  it should "not fetch all items if filter on externalId" taggedAs WriteTest in {
+  //TODO needs a rewrite to not depend on existing data
+  ignore should "not fetch all items if filter on externalId" taggedAs WriteTest in {
     val metricsPrefix = "pushdown.timeSeries.externalId"
     val df = dataFrameReaderUsingOidc
       .option("type", "timeseries")

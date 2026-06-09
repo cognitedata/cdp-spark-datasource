@@ -17,6 +17,7 @@ import com.cognite.sdk.scala.v1.fdm.views._
 import org.apache.spark.sql.DataFrame
 import org.scalatest.{FlatSpec, Matchers}
 
+import java.util.UUID
 import scala.util.{Success, Try}
 
 class FlexibleDataModelEdgeTest
@@ -114,10 +115,14 @@ class FlexibleDataModelEdgeTest
 
 
   it should "fetch edges with filters" in {
+    testFetchEdgesWithFilters()
+  }
+
+  def testFetchEdgesWithFilters(): Unit = {
     val startNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchStartNode"
     val endNodeExtIdPrefix = s"${startEndNodeViewExternalId}FetchEndNode"
 
-    val results = (for {
+    val created = (for {
       startEndNodeContainer <- createContainerIfNotExists(
         usage = Usage.Node,
         propsMap,
@@ -156,34 +161,81 @@ class FlexibleDataModelEdgeTest
       )
     } yield c1 ++ c2).unsafeRunSync()
 
-    val readConnectionsDf = readRows(edgeSpace = spaceExternalId, edgeExternalId = edgeTypeExtId)
+    val readConnectionsDf = readEdgeWithEdgeType(
+      edgeSpace = spaceExternalId,
+      edgeExternalId = edgeTypeExtId
+    )
 
-    readConnectionsDf.createTempView("connection_instances_table")
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
+    readConnectionsDf.createTempView("connection_instances_table" + tempViewUUID)
 
     val selectedConnectionInstances = spark
-      .sql(s"""select * from connection_instances_table
+      .sql(s"""select * from connection_instances_table$tempViewUUID
            | where startNode = named_struct('space', '$spaceExternalId', 'externalId', '${startNodeExtIdPrefix}1')
            | and space = '$spaceExternalId'
            |""".stripMargin)
       .collect()
 
     val instExtIds = toExternalIds(selectedConnectionInstances)
-    results.size shouldBe 2
+    created.size shouldBe 2
     (instExtIds should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "fetch edges from a data model" in {
-    val df = readRowsFromModel(
+  def testFetchEdgeEdgeType(): Unit = {
+    val created = (for {
+      c1 <- createConnectionWriteInstances(
+        externalId = "edgeForEdgeTypeFilter1",
+        typeNode = DirectRelationReference(space = spaceExternalId, externalId = "edgeType"),
+        startNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"start1"),
+        endNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"end1"),
+        autoCreateNodes = true
+      )
+      c2 <- createConnectionWriteInstances(
+        externalId = "edgeForEdgeTypeFilter2",
+        typeNode = DirectRelationReference(space = spaceExternalId, externalId = "wongEdgeType"),
+        startNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"start2"),
+        endNode =
+          DirectRelationReference(space = spaceExternalId, externalId = s"end2"),
+        autoCreateNodes = true
+      )
+    } yield c1 ++ c2).unsafeRunSync()
+
+    val readConnectionsDf = readEdgeWithEdgeType(edgeSpace = spaceExternalId, edgeExternalId = "edgeType")
+
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
+    readConnectionsDf.createTempView("connection_instances_table_edgetype" + tempViewUUID)
+
+    val selectedConnectionInstances = spark
+      .sql(s"""select * from connection_instances_table_edgetype$tempViewUUID""".stripMargin)
+      .collect()
+
+    val instExtIds = toExternalIds(selectedConnectionInstances)
+    created.size shouldBe 2
+    instExtIds.size shouldBe 1
+    instExtIds should be(Seq("edgeForEdgeTypeFilter1"))
+  }
+
+  it should "fetch edge with edgeType with both query and list" in {
+    testFetchEdgeEdgeType()
+  }
+
+  def testFetchEdgeDataModel(): Unit = {
+    val df = readRowsFromModelWithEdgeType(
       spaceExternalId,
       edgeTestDataModelExternalId,
       viewVersion,
       spaceExternalId,
-      edgeTypeExtId)
+      edgeTypeExtId
+    )
 
-    df.createTempView("data_model_read_connections_table")
+    val tempViewUUID = UUID.randomUUID().toString.replace("-", "")
+    df.createTempView("data_model_read_connections_table" + tempViewUUID)
 
     val rows = spark
-      .sql(s"""select * from data_model_read_connections_table
+      .sql(s"""select * from data_model_read_connections_table$tempViewUUID
            | where startNode = named_struct(
            |    'space', '$spaceExternalId',
            |    'externalId', '${startEndNodeViewExternalId}FetchStartNode1'
@@ -198,7 +250,12 @@ class FlexibleDataModelEdgeTest
     (toExternalIds(rows) should contain).allElementsOf(Array("edge1"))
   }
 
-  it should "insert edge to a data model" in {
+  it should "fetch edges from a data model both with query and list" in {
+    testFetchEdgeDataModel()
+  }
+
+
+    it should "insert edge to a data model" in {
     val df = spark
       .sql(s"""
            |select
@@ -229,7 +286,6 @@ class FlexibleDataModelEdgeTest
   }
 
   it should "pick the right property as default for _type even though two views in the data models have same property names" in {
-
     val df = spark
       .sql(
         s"""
@@ -346,7 +402,8 @@ class FlexibleDataModelEdgeTest
       externalId: String,
       typeNode: DirectRelationReference,
       startNode: DirectRelationReference,
-      endNode: DirectRelationReference): IO[Seq[SlimNodeOrEdge]] = {
+      endNode: DirectRelationReference,
+      autoCreateNodes: Boolean = false): IO[Seq[SlimNodeOrEdge]] = {
     val connectionInstances = Seq(
       EdgeWrite(
         `type` = typeNode,
@@ -357,7 +414,7 @@ class FlexibleDataModelEdgeTest
         sources = None
       )
     )
-    client.instances.createItems(InstanceCreate(connectionInstances, replace = Some(true)))
+    client.instances.createItems(InstanceCreate(connectionInstances, replace = Some(true), autoCreateEndNodes = Some(autoCreateNodes), autoCreateStartNodes = Some(autoCreateNodes)))
   }
 
 }

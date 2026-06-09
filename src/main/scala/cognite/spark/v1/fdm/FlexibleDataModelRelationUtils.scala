@@ -10,6 +10,7 @@ import cognite.spark.v1.{
   OptionalField
 }
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
+import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition._
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType.{
   DirectNodeRelationProperty,
@@ -869,4 +870,11 @@ object FlexibleDataModelRelationUtils {
 
   private def rowToString(row: Row): String =
     Try(row.json).getOrElse(row.mkString(", "))
+
+  private[spark] def toAndFilter(filters: Vector[FilterDefinition]): Option[FilterDefinition] =
+    filters match {
+      case Vector() => None
+      case Vector(single) => Some(single)
+      case multiple => Some(FilterDefinition.And(multiple))
+    }
 }
