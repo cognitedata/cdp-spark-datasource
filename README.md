@@ -1606,3 +1606,26 @@ res0: Long = 1000
 
 Note that if you're on an older version than `1.1.0` you'll need to use the old name,
 `cdp-spark-datasource`.
+
+## Development
+
+### Pre-commit setup
+Run the following to set up the pre-commit hooks defined in `.pre-commit-config.yaml`.
+After installation, the hooks run automatically on every `git commit`.
+
+```bash
+# Install the pre-commit tool
+pip install pre-commit
+
+# Install the git hooks for this repo
+pre-commit install
+
+# (Optional) run all hooks against the whole repo once
+pre-commit run --all-files
+```
+
+Hooks currently installed:
+1. scalafmt - formats staged Scala/sbt sources (standalone `scalafmt` CLI; requires `scalafmt` on PATH, e.g. via Coursier)
+2. end-of-file-fixer - ensures files end with a newline
+3. trailing-whitespace - trims trailing whitespace
+4. check-added-large-files - blocks files larger than 10 MB
