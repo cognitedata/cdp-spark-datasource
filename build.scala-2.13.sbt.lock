@@ -1,6 +1,6 @@
 {
   "lockVersion" : 1,
-  "timestamp" : "2026-03-16T19:40:34.610030Z",
+  "timestamp" : "2026-06-09T07:46:20.924061Z",
   "configurations" : [
     "compile",
     "optional",
@@ -13,11 +13,11 @@
     {
       "org" : "co.fs2",
       "name" : "fs2-core_2.13",
-      "version" : "3.11.0",
+      "version" : "3.13.0",
       "artifacts" : [
         {
           "name" : "fs2-core_2.13.jar",
-          "hash" : "sha1:c826e98190d0f45cd1ab52fb4675f2890dd21ce9"
+          "hash" : "sha1:855e978f169edc92e103aedd5bd566234608bee8"
         }
       ],
       "configurations" : [
@@ -30,11 +30,11 @@
     {
       "org" : "co.fs2",
       "name" : "fs2-io_2.13",
-      "version" : "3.11.0",
+      "version" : "3.13.0",
       "artifacts" : [
         {
           "name" : "fs2-io_2.13.jar",
-          "hash" : "sha1:d0e7805a44b3a88ef75bc6eb22a7c237ed82887e"
+          "hash" : "sha1:5f46171441a9cdc18dfd247022372ba4191b0309"
         }
       ],
       "configurations" : [
@@ -94,11 +94,11 @@
     {
       "org" : "com.cognite",
       "name" : "cognite-sdk-scala_2.13",
-      "version" : "2.35.969",
+      "version" : "2.38.1007",
       "artifacts" : [
         {
           "name" : "cognite-sdk-scala_2.13.jar",
-          "hash" : "sha1:53b2d977d4bdb19a2fc4824193eca6fd1311ffef"
+          "hash" : "sha1:c6d48774579887e28612ef02e3573fbd0b5361f6"
         }
       ],
       "configurations" : [
@@ -111,11 +111,11 @@
     {
       "org" : "com.comcast",
       "name" : "ip4s-core_2.13",
-      "version" : "3.6.0",
+      "version" : "3.8.0",
       "artifacts" : [
         {
           "name" : "ip4s-core_2.13.jar",
-          "hash" : "sha1:4b2e8c831697c325853ea8eeea1f28029805714a"
+          "hash" : "sha1:7051e76dd6efb5d362deb5d4e93aa2e230563456"
         }
       ],
       "configurations" : [
@@ -296,11 +296,11 @@
     {
       "org" : "com.google.protobuf",
       "name" : "protobuf-java",
-      "version" : "4.33.0",
+      "version" : "4.35.0",
       "artifacts" : [
         {
           "name" : "protobuf-java.jar",
-          "hash" : "sha1:5f82a81e6e7b6b7434d05a7bdd666b84d9eb0bc5"
+          "hash" : "sha1:6d5d7c2261b26586e772f7fd2d27716272ef7bdd"
         }
       ],
       "configurations" : [
@@ -641,11 +641,11 @@
     {
       "org" : "commons-io",
       "name" : "commons-io",
-      "version" : "2.18.0",
+      "version" : "2.22.0",
       "artifacts" : [
         {
           "name" : "commons-io.jar",
-          "hash" : "sha1:44084ef756763795b31c578403dd028ff4a22950"
+          "hash" : "sha1:5b1e18bc0ad651ed878029d83f88d9c8189fd51e"
         }
       ],
       "configurations" : [
@@ -2601,11 +2601,11 @@
     {
       "org" : "org.scala-lang.modules",
       "name" : "scala-collection-compat_2.13",
-      "version" : "2.12.0",
+      "version" : "2.14.0",
       "artifacts" : [
         {
           "name" : "scala-collection-compat_2.13.jar",
-          "hash" : "sha1:d6f2b9188a96532e6bcee67841d1dae3c7b07468"
+          "hash" : "sha1:73b62c66181022be8c2f63c60dd83201be1febde"
         }
       ],
       "configurations" : [
@@ -2704,11 +2704,11 @@
     {
       "org" : "org.scodec",
       "name" : "scodec-bits_2.13",
-      "version" : "1.1.38",
+      "version" : "1.2.4",
       "artifacts" : [
         {
           "name" : "scodec-bits_2.13.jar",
-          "hash" : "sha1:48b7983881f1f16a73cc85e863fc9e5401fed90d"
+          "hash" : "sha1:51c0b6503845fb7433a7cdced45e811cc83ccb27"
         }
       ],
       "configurations" : [
@@ -2863,11 +2863,11 @@
     {
       "org" : "org.tpolecat",
       "name" : "natchez-core_2.13",
-      "version" : "0.3.7",
+      "version" : "0.3.10",
       "artifacts" : [
         {
           "name" : "natchez-core_2.13.jar",
-          "hash" : "sha1:593d890614467ca4e29f0bfd70e70a65ae414dae"
+          "hash" : "sha1:2d0fa2272bec93f36f37cf9632e0eb537a270e48"
         }
       ],
       "configurations" : [
@@ -2909,12 +2909,46 @@
     },
     {
       "org" : "org.typelevel",
+      "name" : "algebra_2.13",
+      "version" : "2.13.0",
+      "artifacts" : [
+        {
+          "name" : "algebra_2.13.jar",
+          "hash" : "sha1:6599fd5793c47fd9e60ac889daa1b78491c20cfa"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "provided",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "org.typelevel",
       "name" : "case-insensitive_2.13",
-      "version" : "1.4.2",
+      "version" : "1.5.0",
       "artifacts" : [
         {
           "name" : "case-insensitive_2.13.jar",
-          "hash" : "sha1:690c34beb2359abd4154a72dc41ce1ee39095865"
+          "hash" : "sha1:771b613d614a0044c73a5a2c50a2ef022b319f32"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "provided",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "org.typelevel",
+      "name" : "cats-collections-core_2.13",
+      "version" : "0.9.10",
+      "artifacts" : [
+        {
+          "name" : "cats-collections-core_2.13.jar",
+          "hash" : "sha1:9db783dda63697132ac48e57326df06e98e5dd7e"
         }
       ],
       "configurations" : [
@@ -2927,11 +2961,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-core_2.13",
-      "version" : "2.11.0",
+      "version" : "2.13.0",
       "artifacts" : [
         {
           "name" : "cats-core_2.13.jar",
-          "hash" : "sha1:bf17f0927b59f990241657fd9ed7e37a40395f53"
+          "hash" : "sha1:0d33ecbd4e4f7fbb8363e20d308e1e41a304db91"
         }
       ],
       "configurations" : [
@@ -2944,11 +2978,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect-kernel_2.13",
-      "version" : "3.6.3",
+      "version" : "3.7.0",
       "artifacts" : [
         {
           "name" : "cats-effect-kernel_2.13.jar",
-          "hash" : "sha1:436fee2b01ccdfeacc2fc5ed362b9f6b0b46e908"
+          "hash" : "sha1:0687d12d58914b7a1c6db499810525874594e5ba"
         }
       ],
       "configurations" : [
@@ -2961,11 +2995,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect-std_2.13",
-      "version" : "3.6.3",
+      "version" : "3.7.0",
       "artifacts" : [
         {
           "name" : "cats-effect-std_2.13.jar",
-          "hash" : "sha1:e74f450eba21bda47f7b22dbb0807b2a7890b796"
+          "hash" : "sha1:5cc3b0c6d1b9a24ef494074106d2748d8a1cf945"
         }
       ],
       "configurations" : [
@@ -2978,11 +3012,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-effect_2.13",
-      "version" : "3.6.3",
+      "version" : "3.7.0",
       "artifacts" : [
         {
           "name" : "cats-effect_2.13.jar",
-          "hash" : "sha1:0f931fa3d85451292f8aeda94371f54670d32fae"
+          "hash" : "sha1:19aac6bceb358f0ef4112f315a3764c5e6babdab"
         }
       ],
       "configurations" : [
@@ -2995,11 +3029,11 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-kernel_2.13",
-      "version" : "2.11.0",
+      "version" : "2.13.0",
       "artifacts" : [
         {
           "name" : "cats-kernel_2.13.jar",
-          "hash" : "sha1:9f46f77ebad492c1abeb6ca27df78ba1fa05eb65"
+          "hash" : "sha1:59e79aff627bc00a6e756e0529578285ddbf6174"
         }
       ],
       "configurations" : [
@@ -3012,11 +3046,28 @@
     {
       "org" : "org.typelevel",
       "name" : "cats-mtl_2.13",
-      "version" : "1.3.1",
+      "version" : "1.6.0",
       "artifacts" : [
         {
           "name" : "cats-mtl_2.13.jar",
-          "hash" : "sha1:efe72b3961e17a4c370c5ec630d2482865ccbaed"
+          "hash" : "sha1:d3672c0c6c057f1c3d0ffd644a5bcb5f9bff7d45"
+        }
+      ],
+      "configurations" : [
+        "compile",
+        "provided",
+        "runtime",
+        "test"
+      ]
+    },
+    {
+      "org" : "org.typelevel",
+      "name" : "idna4s-core_2.13",
+      "version" : "0.1.0",
+      "artifacts" : [
+        {
+          "name" : "idna4s-core_2.13.jar",
+          "hash" : "sha1:b9fd2b274e66af61ed5278ac89f4c45f14bfea58"
         }
       ],
       "configurations" : [
@@ -3046,11 +3097,11 @@
     {
       "org" : "org.typelevel",
       "name" : "literally_2.13",
-      "version" : "1.1.0",
+      "version" : "1.2.0",
       "artifacts" : [
         {
           "name" : "literally_2.13.jar",
-          "hash" : "sha1:cf9eb9bf5b0f9f970f5af286459573e8ebc86938"
+          "hash" : "sha1:5e55e99e6c04142fbfcb0f316f1558bb07ad5c81"
         }
       ],
       "configurations" : [
