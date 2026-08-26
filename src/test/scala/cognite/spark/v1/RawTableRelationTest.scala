@@ -866,7 +866,6 @@ class RawTableRelationTest
           raw_table AS (
             SELECT
             from_json(columns,
-
             'externalId string'
             ) as json
             FROM table_which_does_not_exist

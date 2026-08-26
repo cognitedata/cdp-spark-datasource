@@ -123,9 +123,9 @@ lazy val commonSettings = Seq(
   Test / parallelExecution := false,
   // Run each test class in its own forked JVM to avoid Netty "failed to create a child event loop" when reusing one Spark session across many suites.
   Test / testGrouping := {
-    val forkJavaOptions = (Test / javaOptions).value.toVector
+    val opts = (Test / forkOptions).value
     (Test / definedTests).value.map { test =>
-      Tests.Group(test.name, Seq(test), Tests.SubProcess(ForkOptions().withRunJVMOptions(forkJavaOptions)))
+      Tests.Group(test.name, Seq(test), Tests.SubProcess(opts))
     }
   },
   dependencyLockModuleFilter := moduleFilter(organization = "com.cognite.spark.datasource", name = "*")
