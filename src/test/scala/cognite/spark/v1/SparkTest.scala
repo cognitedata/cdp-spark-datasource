@@ -157,6 +157,7 @@ trait SparkTest {
     // https://medium.com/@mrpowers/how-to-cut-the-run-time-of-a-spark-sbt-test-suite-by-40-52d71219773f
     .config("spark.sql.shuffle.partitions", "1")
     .config("spark.sql.storeAssignmentPolicy", "legacy")
+    .config("spark.sql.ansi.enabled", "false")
     .config("spark.app.id", this.getClass.getName + math.floor(math.random() * 1000).toLong.toString)
     .getOrCreate()
 
