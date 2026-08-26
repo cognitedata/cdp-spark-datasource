@@ -120,14 +120,14 @@ lazy val commonSettings = Seq(
   // Yell at them once every 60 seconds.
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60"),
   // no need to lock submodules
-  Test / parallelExecution := false,
-  // Run each test class in its own forked JVM to avoid Netty "failed to create a child event loop" when reusing one Spark session across many suites.
-  Test / testGrouping := {
+  // Uncomment locally to run each test class in its own forked JVM to avoid Netty "failed to create a child event loop"
+  // when reusing one Spark session across many suites.
+  /*Test / testGrouping := {
     val opts = (Test / forkOptions).value
     (Test / definedTests).value.map { test =>
       Tests.Group(test.name, Seq(test), Tests.SubProcess(opts))
     }
-  },
+  },*/
   dependencyLockModuleFilter := moduleFilter(organization = "com.cognite.spark.datasource", name = "*")
 )
 
