@@ -5,7 +5,7 @@ import scala.xml.transform.{RewriteRule, RuleTransformer}
 
 val scala213 = "2.13.18"
 val supportedScalaVersions = List(scala213)
-val sparkVersion = "3.3.4"
+val sparkVersion = "4.1.3"
 val circeVersion = "0.14.9"
 val sttpVersion = "3.5.2"
 val natchezVersion = "0.3.1"
@@ -42,7 +42,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.26." + patchVersion,
+  version := "4.0." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -111,11 +111,23 @@ lazy val commonSettings = Seq(
     if (gpgPass.isDefined) { gpgPass.map(_.toCharArray) } else { None }
   },
   Test / fork := true,
+  Test / javaOptions ++= Seq(
+    "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+    "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+  ),
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
   // Yell at tests that take longer than 120 seconds to finish.
   // Yell at them once every 60 seconds.
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-W", "120", "60"),
   // no need to lock submodules
+  // Uncomment locally to run each test class in its own forked JVM to avoid Netty "failed to create a child event loop"
+  // when reusing one Spark session across many suites.
+  /*Test / testGrouping := {
+    val opts = (Test / forkOptions).value
+    (Test / definedTests).value.map { test =>
+      Tests.Group(test.name, Seq(test), Tests.SubProcess(opts))
+    }
+  },*/
   dependencyLockModuleFilter := moduleFilter(organization = "com.cognite.spark.datasource", name = "*")
 )
 

@@ -308,14 +308,14 @@ There's also an option to delete assets from CDF that are not referenced in the 
 
 You may want to set up a Jupyter notebook with `pySpark` running.
 
-* Download spark version `2.4.5` [here](https://www.apache.org/dyn/closer.lua/spark/spark-2.4.5/spark-2.4.5-bin-hadoop2.7.tgz)
+* Download spark version `4.1.3` [here](https://spark.apache.org/downloads.html)
 
-* Follow the instructions given [here](https://www.sicara.ai/blog/2017-05-02-get-started-pyspark-jupyter-notebook-3-minutes), except that your Spark version will be `2.4.5`.
+* Follow the instructions given [here](https://www.sicara.ai/blog/2017-05-02-get-started-pyspark-jupyter-notebook-3-minutes), except that your Spark version will be `4.1.3`.
 
 * Start your Jupyter notebook with the following command (instead of `pyspark` as in the link above):
 
 ```
-pyspark --packages com.cognite.spark.datasource:cdf-spark-datasource_2.11:1.2.18
+pyspark --packages com.cognite.spark.datasource:cdf-spark-datasource_2.13:<latest-release>
 ```
 
 ### Example (Scala)
