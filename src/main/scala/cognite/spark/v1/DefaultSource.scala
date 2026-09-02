@@ -3,6 +3,7 @@ package cognite.spark.v1
 import cats.{Apply, Functor}
 import cats.effect.IO
 import cats.implicits._
+import cognite.spark.v1.CdpConnector.ExtensionMethods
 import cognite.spark.v1.fdm.{FlexibleDataModelBaseRelation, FlexibleDataModelRelationFactory}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.{
   ConnectionConfig,
@@ -63,21 +64,36 @@ class DefaultSource
       parameters: Map[String, String],
       config: RelationConfig,
       sqlContext: SQLContext): FlexibleDataModelBaseRelation = {
-    val corePropertySyncRelation = extractCorePropertySyncRelation(parameters, config, sqlContext)
-    val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext)
-    val datamodelBasedSync = extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext)
+
+    // Extract auto-create options once and pass to all helper methods
+    val autoCreate = extractAutoCreateOptions(parameters)
+
+    // If a view is specified with its own space and extId or no view is defined at all but just a instanceType and/or edgeType then we use one of these
+    val corePropertyRelation = extractCorePropertyRelation(parameters, config, sqlContext, autoCreate)
+    val connectionRelation = extractConnectionRelation(parameters, config, sqlContext, autoCreate)
+    val corePropertySyncRelation =
+      extractCorePropertySyncRelation(parameters, config, sqlContext, autoCreate)
+
+    //datamodelBased are used if the dataModel is specified (and a view within that datamodel). It uses the datamodel space/version to decide which space and version to use for the view.
+
     val dataModelBasedConnectionRelation =
-      extractDataModelBasedConnectionRelation(parameters, config, sqlContext)
+      extractDataModelBasedConnectionRelation(parameters, config, sqlContext, autoCreate)
     val dataModelBasedCorePropertyRelation =
-      extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext)
-    val connectionRelation = extractConnectionRelation(parameters, config, sqlContext)
+      extractDataModelBasedCorePropertyRelation(parameters, config, sqlContext, autoCreate)
+    val datamodelBasedSync =
+      extractDataModelBasedConnectionRelationSync(parameters, config, sqlContext, autoCreate)
 
     corePropertySyncRelation
-      .orElse(corePropertyRelation)
-      .orElse(datamodelBasedSync)
-      .orElse(dataModelBasedConnectionRelation)
-      .orElse(dataModelBasedCorePropertyRelation)
+    //Used if edgeTypeExternalId and edgeTypeSpace are defined
       .orElse(connectionRelation)
+      //Used if instanceType is defined to node or edge
+      .orElse(corePropertyRelation)
+      //sync checks for presence of cursor otherwise behave the same as dataModelBasedCoreProperty/ConnectionRelation
+      .orElse(datamodelBasedSync)
+      // instanceType is not defined but connectionPropertyName is defined along with a model's space/externalId/version and a view version
+      .orElse(dataModelBasedConnectionRelation)
+      // instanceType is not defined but space/externalId/version and a view version are defined.
+      .orElse(dataModelBasedCorePropertyRelation)
       .getOrElse(throw new CdfSparkException(
         s"""
              |Invalid combination of arguments!
@@ -240,9 +256,8 @@ class DefaultSource
           // Datapoints support 100_000 per request when inserting, but only 10_000 when deleting
           val batchSize = config.batchSize.getOrElse(Constants.DefaultDataPointsLimit)
           data.foreachPartition((rows: Iterator[Row]) => {
-            import CdpConnector.ioRuntime
             val batches = rows.grouped(batchSize).toVector
-            batches.parTraverse_(relation.delete).unsafeRunSync()
+            batches.parTraverse_(relation.delete).unsafeRunBlocking()
           })
         } else {
           // datapoints need special handling of dataframes and batches
@@ -282,8 +297,6 @@ class DefaultSource
           }
 
         dataRepartitioned.foreachPartition((rows: Iterator[Row]) => {
-          import CdpConnector.ioRuntime
-
           val maxParallelism = config.parallelismPerPartition
           val batches = Stream.fromIterator[IO](rows, chunkSize = batchSize).chunks
 
@@ -304,7 +317,7 @@ class DefaultSource
             }
             .compile
             .drain
-            .unsafeRunSync()
+            .unsafeRunBlocking()
         })
         relation
       case _ =>
@@ -317,6 +330,13 @@ object DefaultSource {
   @transient private val logger = getLogger
 
   val sparkFormatString: String = classTag[DefaultSource].runtimeClass.getCanonicalName
+
+  /** Options for auto-creating referenced nodes during instance creation */
+  final case class AutoCreateOptions(
+      startNodes: Boolean,
+      endNodes: Boolean,
+      directRelations: Boolean
+  )
 
   val TRACING_PARAMETER_PREFIX: String = "com.cognite.tracing.parameter."
 
@@ -516,12 +536,19 @@ object DefaultSource {
       rawEnsureParent = toBoolean(parameters, "rawEnsureParent", defaultValue = true),
       enableSinglePartitionDeleteAssetHierarchy = enableSinglePartitionDeleteAssetHierarchy,
       tracingConfig = extractTracingConfig(parameters),
-      useSharedThrottle = toBoolean(parameters, "useSharedThrottle", defaultValue = false),
       serverSideFilterNullValuesOnNonSchemaRawQueries =
         toBoolean(parameters, "filterNullFieldsOnNonSchemaRawQueries", defaultValue = false),
-      maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests")
+      maxOutstandingRawInsertRequests = toPositiveInt(parameters, "maxOutstandingRawInsertRequests"),
+      sendDebugFlag = toBoolean(parameters, "sendDebugFlag", defaultValue = false)
     )
   }
+
+  private def extractAutoCreateOptions(parameters: Map[String, String]): AutoCreateOptions =
+    AutoCreateOptions(
+      startNodes = toBoolean(parameters, "autoCreateStartNodes", defaultValue = true),
+      endNodes = toBoolean(parameters, "autoCreateEndNodes", defaultValue = true),
+      directRelations = toBoolean(parameters, "autoCreateDirectRelations", defaultValue = true)
+    )
 
   private[v1] def parseCogniteIds(jsonIds: String): List[CogniteId] = {
 
@@ -547,7 +574,8 @@ object DefaultSource {
   private def extractDataModelBasedCorePropertyRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
+      sqlContext: SQLContext,
+      autoCreate: AutoCreateOptions): Option[FlexibleDataModelBaseRelation] = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map4(
@@ -555,14 +583,24 @@ object DefaultSource {
         parameters.get("modelExternalId"),
         parameters.get("modelVersion"),
         parameters.get("viewExternalId")
-      )(DataModelViewConfig(_, _, _, _, instanceSpace))
+      )(
+        DataModelViewConfig(
+          _,
+          _,
+          _,
+          _,
+          instanceSpace,
+          autoCreate.startNodes,
+          autoCreate.endNodes,
+          autoCreate.directRelations))
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
   }
 
   private def extractDataModelBasedConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
+      sqlContext: SQLContext,
+      autoCreate: AutoCreateOptions) = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map5(
@@ -571,14 +609,25 @@ object DefaultSource {
         parameters.get("modelVersion"),
         parameters.get("viewExternalId"),
         parameters.get("connectionPropertyName")
-      )(DataModelConnectionConfig(_, _, _, _, _, instanceSpace))
+      )(
+        DataModelConnectionConfig(
+          _,
+          _,
+          _,
+          _,
+          _,
+          instanceSpace,
+          autoCreate.startNodes,
+          autoCreate.endNodes,
+          autoCreate.directRelations))
       .map(FlexibleDataModelRelationFactory.dataModelRelation(config, sqlContext, _))
   }
 
   private def extractDataModelBasedConnectionRelationSync(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext): Option[FlexibleDataModelBaseRelation] = {
+      sqlContext: SQLContext,
+      autoCreate: AutoCreateOptions): Option[FlexibleDataModelBaseRelation] = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map5(
@@ -596,27 +645,44 @@ object DefaultSource {
           parameters.get("syncCursorSaveCallbackUrl"),
           config,
           sqlContext,
-          DataModelViewConfig(t._1, t._2, t._3, t._4, instanceSpace)
+          DataModelViewConfig(
+            t._1,
+            t._2,
+            t._3,
+            t._4,
+            instanceSpace,
+            autoCreate.startNodes,
+            autoCreate.endNodes,
+            autoCreate.directRelations)
       ))
   }
 
   private def extractConnectionRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) = {
+      sqlContext: SQLContext,
+      autoCreate: AutoCreateOptions) = {
     val instanceSpace = parameters.get("instanceSpace")
     Apply[Option]
       .map2(
         parameters.get("edgeTypeSpace"),
         parameters.get("edgeTypeExternalId")
-      )(ConnectionConfig(_, _, instanceSpace))
+      )(
+        ConnectionConfig(
+          _,
+          _,
+          instanceSpace,
+          autoCreate.startNodes,
+          autoCreate.endNodes,
+          autoCreate.directRelations))
       .map(FlexibleDataModelRelationFactory.connectionRelation(config, sqlContext, _))
   }
 
   private def extractCorePropertySyncRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) =
+      sqlContext: SQLContext,
+      autoCreate: AutoCreateOptions) =
     Apply[Option]
       .map2(
         parameters.get("instanceType"),
@@ -648,14 +714,19 @@ object DefaultSource {
           viewCorePropConfig = ViewCorePropertyConfig(
             intendedUsage = usage,
             viewReference = viewReference,
-            instanceSpace = parameters.get("instanceSpace"))
+            instanceSpace = parameters.get("instanceSpace"),
+            autoCreateStartNodes = autoCreate.startNodes,
+            autoCreateEndNodes = autoCreate.endNodes,
+            autoCreateDirectRelations = autoCreate.directRelations
+          )
         )
       }
 
   private def extractCorePropertyRelation(
       parameters: Map[String, String],
       config: RelationConfig,
-      sqlContext: SQLContext) =
+      sqlContext: SQLContext,
+      autoCreate: AutoCreateOptions) =
     parameters
       .get("instanceType")
       .collect {
@@ -675,7 +746,10 @@ object DefaultSource {
                 parameters.get("viewExternalId"),
                 parameters.get("viewVersion")
               )(ViewReference.apply),
-            instanceSpace = parameters.get("instanceSpace")
+            instanceSpace = parameters.get("instanceSpace"),
+            autoCreateStartNodes = autoCreate.startNodes,
+            autoCreateEndNodes = autoCreate.endNodes,
+            autoCreateDirectRelations = autoCreate.directRelations
           )
         )
       }

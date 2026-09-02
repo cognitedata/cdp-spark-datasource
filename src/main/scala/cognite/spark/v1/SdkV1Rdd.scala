@@ -48,10 +48,10 @@ final case class SdkV1Rdd[A, I](
     // which does. We also need to interrupt our streams to stop
     // reading data from CDF, which can continue for a while even
     // after the iterator has stopped.
-    val shouldStop = SignallingRef[IO, Boolean](false).unsafeRunSync()
+    val shouldStop = SignallingRef[IO, Boolean](false).unsafeRunBlocking()
     Option(context).foreach { ctx =>
       ctx.addTaskCompletionListener[Unit] { _ =>
-        shouldStop.set(true).unsafeRunSync()
+        shouldStop.set(true).unsafeRunBlocking()
       }
     }
 

@@ -1,0 +1,21 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    -   id: trailing-whitespace
+        description: Trims trailing whitespace from all files.
+    -   id: end-of-file-fixer
+        description: Ensures files end with a newline.
+    -   id: check-added-large-files
+        description: Prevents committing large data files (e.g., parquet, csv).
+        args: ['--maxkb=10000']  # Limits files to 10MB
+
+-   repo: local
+    hooks:
+    -   id: scalafmt
+        name: scalafmt
+        description: Formats only the changed/staged Scala files via the standalone scalafmt CLI.
+        entry: scalafmt
+        language: system
+        files: '\.(scala|sbt|sc)$'
+        exclude: '(^|/)(scalafix-inputs/.*|scalafix-outputs/.*)$'

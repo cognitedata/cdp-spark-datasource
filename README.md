@@ -208,6 +208,44 @@ however it makes it impossible to null a field in CDF. When the `ignoreNullField
 to `false`, NULLs are written to CDF (when possible). Fields which are not specified are still ignored.
 See an example of using `.save()` under [Events below](#events).
 
+#### Data Modeling Instance Options (Nodes and Edges)
+
+When writing nodes or edges to CDF Data Modeling Service (DMS), the following options control how node references are handled:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `autoCreateStartNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced start node doesn't exist (edges only). Set to `false` for strict validation mode. |
+| `autoCreateEndNodes` | `true` | When `true`, automatically creates placeholder nodes if a referenced end node doesn't exist (edges only). Set to `false` for strict validation mode. |
+| `autoCreateDirectRelations` | `true` | When `true`, automatically creates placeholder nodes if a direct relation property references a node that doesn't exist. Set to `false` for strict validation mode. |
+
+**Disabling Auto-Create**
+
+By default, the Spark Datasource sets these options to `true`, which means placeholder nodes are automatically created when referenced nodes don't exist. If you want writes to fail instead when referenced nodes are missing, set the relevant options to `false`:
+
+```python
+# Python Example - Disable auto-create
+df.write.format("cognite.spark.v1") \
+    .option("type", "instances") \
+    .option("instanceType", "edge") \
+    .option("autoCreateStartNodes", "false") \
+    .option("autoCreateEndNodes", "false") \
+    .option("autoCreateDirectRelations", "false") \
+    .option("onConflict", "upsert") \
+    .save()
+```
+
+```scala
+// Scala Example - Disabling auto-create
+df.write.format("cognite.spark.v1")
+  .option("type", "instances")
+  .option("instanceType", "edge")
+  .option("autoCreateStartNodes", "false")
+  .option("autoCreateEndNodes", "false")
+  .option("autoCreateDirectRelations", "false")
+  .option("onConflict", "upsert")
+  .save()
+```
+
 ### Delete data
 
 We currently support deleting with `.save()` for assets, events and time series.
@@ -270,14 +308,14 @@ There's also an option to delete assets from CDF that are not referenced in the 
 
 You may want to set up a Jupyter notebook with `pySpark` running.
 
-* Download spark version `2.4.5` [here](https://www.apache.org/dyn/closer.lua/spark/spark-2.4.5/spark-2.4.5-bin-hadoop2.7.tgz)
+* Download spark version `4.1.3` [here](https://spark.apache.org/downloads.html)
 
-* Follow the instructions given [here](https://www.sicara.ai/blog/2017-05-02-get-started-pyspark-jupyter-notebook-3-minutes), except that your Spark version will be `2.4.5`.
+* Follow the instructions given [here](https://www.sicara.ai/blog/2017-05-02-get-started-pyspark-jupyter-notebook-3-minutes), except that your Spark version will be `4.1.3`.
 
 * Start your Jupyter notebook with the following command (instead of `pyspark` as in the link above):
 
 ```
-pyspark --packages com.cognite.spark.datasource:cdf-spark-datasource_2.11:1.2.18
+pyspark --packages com.cognite.spark.datasource:cdf-spark-datasource_2.13:<latest-release>
 ```
 
 ### Example (Scala)
@@ -1568,3 +1606,26 @@ res0: Long = 1000
 
 Note that if you're on an older version than `1.1.0` you'll need to use the old name,
 `cdp-spark-datasource`.
+
+## Development
+
+### Pre-commit setup
+Run the following to set up the pre-commit hooks defined in `.pre-commit-config.yaml`.
+After installation, the hooks run automatically on every `git commit`.
+
+```bash
+# Install the pre-commit tool
+pip install pre-commit
+
+# Install the git hooks for this repo
+pre-commit install
+
+# (Optional) run all hooks against the whole repo once
+pre-commit run --all-files
+```
+
+Hooks currently installed:
+1. scalafmt - formats staged Scala/sbt sources (standalone `scalafmt` CLI; requires `scalafmt` on PATH, e.g. via Coursier)
+2. end-of-file-fixer - ensures files end with a newline
+3. trailing-whitespace - trims trailing whitespace
+4. check-added-large-files - blocks files larger than 10 MB

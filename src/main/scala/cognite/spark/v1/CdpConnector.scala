@@ -1,16 +1,11 @@
 package cognite.spark.v1
 
 import cats.effect.IO
-import cats.effect.std.Queue
 import cats.effect.unsafe.{IORuntime, IORuntimeConfig}
-import com.cognite.sdk.scala.sttp.{
-  BackpressureThrottleBackend,
-  GzipBackend,
-  RateLimitingBackend,
-  RetryingBackend
-}
+import com.cognite.sdk.scala.sttp.{GzipBackend, RateLimitingBackend, RetryingBackend}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.google.common.util.concurrent.ThreadFactoryBuilder
+import org.apache.spark.TaskContext
 import org.apache.spark.datasource.MetricsSource
 import org.log4s._
 import sttp.client3.SttpBackend
@@ -22,7 +17,6 @@ import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import org.apache.spark.TaskContext
 
 object CdpConnector {
   @transient private val logger = getLogger
@@ -106,18 +100,6 @@ object CdpConnector {
         case _ => IO.unit
       })
 
-  private def throttlingSttpBackend(sttpBackend: SttpBackend[IO, Any]): SttpBackend[IO, Any] = {
-    // this backend throttles all requests when rate limiting from the service is encountered
-    val makeQueueOf1 = for {
-      queue <- Queue.bounded[IO, Unit](1)
-      _ <- queue.offer(())
-    } yield queue
-    new BackpressureThrottleBackend[IO, Any](
-      sttpBackend,
-      makeQueueOf1.unsafeRunBlocking(),
-      800.milliseconds)
-  }
-
   // package-private for tests
   private[v1] def wrapWithRetryingSttpBackend(
       sttpBackend: SttpBackend[IO, Any],
@@ -127,7 +109,6 @@ object CdpConnector {
       maxParallelRequests: Int = Constants.DefaultParallelismPerPartition,
       metricsPrefix: Option[String] = None,
       initialRetryDelayMillis: Int = Constants.DefaultInitialRetryDelay.toMillis.toInt,
-      useSharedThrottle: Boolean = false
   ): SttpBackend[IO, Any] = {
     val metricsBackend =
       metricsPrefix.fold(sttpBackend)(
@@ -148,14 +129,9 @@ object CdpConnector {
                     .getOrElse(IO.unit)
             }
         ))
-    val throttledBackend =
-      if (!useSharedThrottle) {
-        metricsBackend
-      } else {
-        throttlingSttpBackend(metricsBackend)
-      }
+
     val retryingBackend = new RetryingBackend[IO, Any](
-      throttledBackend,
+      metricsBackend,
       maxRetries = maxRetries,
       initialRetryDelay = initialRetryDelayMillis.milliseconds,
       maxRetryDelay = maxRetryDelaySeconds.seconds)

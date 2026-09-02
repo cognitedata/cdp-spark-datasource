@@ -1,3 +1,21 @@
+# 4.0.x
+
+## Enhancements
+
+* Upgrade Spark dependency from `3.3.4` to `4.1.3`.
+  - The project's CI/build JVM is bumped from JDK 11 to JDK 17 to support this. If you build or run this version of the datasource yourself, make sure your runtime uses JDK 17+.
+  - Certain queries that worked in Spark 3.x may now fail under Spark 4.x. For example, `spark.sql.ansi.enabled` is enabled by default starting in Spark 4.0, which can change the behavior of queries relying on implicit type coercions or that previously silently overflowed/truncated instead of raising an error. If you hit new query failures after upgrading, consider setting `spark.sql.ansi.enabled` to `false` on your Spark session to restore the previous (Spark 3.x) behavior.
+  - See the [Spark SQL migration guide](https://spark.apache.org/docs/4.1.0/sql-migration-guide.html) for the full list of behavior changes.
+
+# 3.24.x
+
+## Enhancements
+
+* Add `autoCreateStartNodes`, `autoCreateEndNodes` and `autoCreateDirectRelations` options for Data Modeling instances (nodes/edges).
+  - `autoCreateStartNodes` / `autoCreateEndNodes`: Control whether start/end nodes are auto-created when creating edges.
+  - `autoCreateDirectRelations`: Controls whether target nodes referenced by direct relation properties are auto-created.
+  - All options default to `true` for backwards compatibility. Set to `false` to fail writes when referenced nodes don't exist.
+
 # 2.3.2
 
 ## Fix

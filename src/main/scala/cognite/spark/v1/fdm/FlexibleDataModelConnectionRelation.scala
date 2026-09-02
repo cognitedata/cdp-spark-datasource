@@ -3,6 +3,11 @@ package cognite.spark.v1.fdm
 import cats.effect.IO
 import cats.implicits.toTraverseOps
 import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
+import cognite.spark.v1.fdm.FlexibleDataModelQueryUtils.{
+  generateTableExpression,
+  queryFilterWithHasData,
+  sourceReference
+}
 import cognite.spark.v1.fdm.FlexibleDataModelRelationFactory.ConnectionConfig
 import cognite.spark.v1.fdm.FlexibleDataModelRelationUtils.{
   createConnectionInstances,
@@ -12,7 +17,7 @@ import cognite.spark.v1.{CdfSparkException, RelationConfig}
 import com.cognite.sdk.scala.v1.GenericClient
 import com.cognite.sdk.scala.v1.fdm.common.DirectRelationReference
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceFilterRequest, InstanceType}
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceCreate, InstanceType, SelectExpression}
 import fs2.Stream
 import io.circe.Json
 import org.apache.spark.sql.sources._
@@ -62,8 +67,9 @@ private[spark] class FlexibleDataModelConnectionRelation(
             val instanceCreate = InstanceCreate(
               items = instances,
               replace = Some(false),
-              autoCreateStartNodes = Some(true),
-              autoCreateEndNodes = Some(true)
+              autoCreateStartNodes = Some(connectionConfig.autoCreateStartNodes),
+              autoCreateEndNodes = Some(connectionConfig.autoCreateEndNodes),
+              autoCreateDirectRelations = Some(connectionConfig.autoCreateDirectRelations)
             )
             client.instances.createItems(instanceCreate)
           }
@@ -86,7 +92,7 @@ private[spark] class FlexibleDataModelConnectionRelation(
 
   override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
       client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = {
-    val selectedFields = if (selectedColumns.isEmpty) {
+    val selectedFields: Array[String] = if (selectedColumns.isEmpty) {
       schema.fieldNames
     } else {
       selectedColumns
@@ -95,20 +101,31 @@ private[spark] class FlexibleDataModelConnectionRelation(
       case Right(v) => v
       case Left(err) => throw err
     }
-
-    val filterReq = InstanceFilterRequest(
-      instanceType = Some(InstanceType.Edge),
-      filter = Some(instanceFilters),
-      sort = None,
-      limit = config.limitPerPartition,
-      cursor = None,
-      sources = None,
-      includeTyping = Some(true)
+    val tableExpression =
+      generateTableExpression(
+        InstanceType.Edge,
+        // Note: we don't provide a view reference atm, but for consistency with FlexibleDataModelCorePropertyRelation
+        //       let's have a shape that adds HasData filter for viewReference present case
+        queryFilterWithHasData(Some(instanceFilters), None),
+        None
+      )
+    val selectExpression = SelectExpression(
+      sources = sourceReference(
+        InstanceType.Edge,
+        None,
+        // Note: since we don't supply viewReference here selectedFields will have no effect
+        selectedFields
+      ),
     )
-
     Vector(
       client.instances
-        .filterStream(filterReq, config.limitPerPartition)
+        .queryStream(
+          inputTableExpression = tableExpression,
+          inputSelectExpression = selectExpression,
+          limit = config.limitPerPartition,
+          batchSize = config.batchSize,
+          debug = optionalDebug(config.sendDebugFlag),
+        )
         .map(toProjectedInstance(_, None, selectedFields)))
   }
 
