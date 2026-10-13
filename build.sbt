@@ -42,7 +42,7 @@ lazy val commonSettings = Seq(
   organization := "com.cognite.spark.datasource",
   organizationName := "Cognite",
   organizationHomepage := Some(url("https://cognite.com")),
-  version := "3.26." + patchVersion,
+  version := "4.1." + patchVersion,
   isSnapshot := patchVersion.endsWith("-SNAPSHOT"),
   crossScalaVersions := supportedScalaVersions,
   semanticdbEnabled := true,
@@ -111,6 +111,11 @@ lazy val commonSettings = Seq(
     if (gpgPass.isDefined) { gpgPass.map(_.toCharArray) } else { None }
   },
   Test / fork := true,
+  // Spark 3.3 needs these on JDK 17 (spark-submit adds them, but forked test JVMs don't get them)
+  Test / javaOptions ++= Seq(
+    "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+    "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+  ),
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
   // Yell at tests that take longer than 120 seconds to finish.
   // Yell at them once every 60 seconds.
