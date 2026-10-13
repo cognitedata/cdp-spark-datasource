@@ -19,10 +19,10 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
 
-      - name: Set up JDK 11
+      - name: Set up JDK 17
         uses: coursier/setup-action@0ed4d7e7c42eae80e14370990582092c749253c4 # v2.0.0
         with:
-          jvm: temurin:11
+          jvm: temurin:17
           apps: sbt
 
       - name: Update lock
