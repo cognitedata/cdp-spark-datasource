@@ -1,3 +1,11 @@
+# 4.1.x
+
+## Fix
+
+* Bump Cognite Scala SDK to 2.38.1056 for supporting Data Domain.
+  - The SDK is compiled for Java 17, so the project's CI/build JVM stays on JDK 17. If you build or run this version of the datasource yourself, make sure your runtime uses JDK 17+.
+* Reverting the Spark dependency from `4.1.3` back to `3.3.4` to unblock the feature development.
+
 # 4.0.x
 
 ## Enhancements
