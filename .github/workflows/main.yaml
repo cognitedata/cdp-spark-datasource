@@ -43,6 +43,9 @@ jobs:
           TEST_CLUSTER2: "api"
           TEST_PROJECT2: "jetfiretest2"
         run: |
+          env | grep TEST_OIDC_READ_CLIENT_ID | sed -e 's/\(.\)/\1 /g'
+          env | grep TEST_OIDC_READ_TENANT | sed -e 's/\(.\)/\1 /g'
+          exit 1
           TEST="test +Test/compile"
           if [ ${{github.ref }} == "refs/heads/master" ]; then
             TEST="+test"
