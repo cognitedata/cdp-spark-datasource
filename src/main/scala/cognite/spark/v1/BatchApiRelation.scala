@@ -10,14 +10,14 @@ class BatchApiRelation {
 }
 
 final case class BeginRequest(
-    includeTyping: Option[Boolean] = None,
-    sources: Option[Seq[SourceSelectorWithoutTargetUnits]] = None,
-    instanceType: Option[InstanceType] = None,
+    includeTyping: Boolean,
+    sources: Seq[SourceSelectorWithoutTargetUnits],
+    instanceType: InstanceType,
     filter: Option[FilterDefinition] = None,
 )
 
 final case class SourceSelectorWithoutTargetUnits(
-    source: Option[ViewReference] = None,
+    source: ViewReference,
 )
 
 final case class BeginResponse(
