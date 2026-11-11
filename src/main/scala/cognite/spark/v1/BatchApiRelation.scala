@@ -63,7 +63,8 @@ object PollResponse {
       case SyncStatus.Progressing => Right(Progressing)
       case SyncStatus.Failed => Right(Failed)
       case SyncStatus.Ready => cursor.downField("readyId").as[UUID].map(Ready)
-      case other => Left(io.circe.DecodingFailure(s"Unknown PollResponse status: $other", cursor.history))
+      case other =>
+        Left(io.circe.DecodingFailure(s"Unknown PollResponse status: $other", cursor.history))
     }
   }
 }
