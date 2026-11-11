@@ -6,8 +6,7 @@ import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 
 import java.util.UUID
 
-class BatchApiRelation {
-}
+class BatchApiRelation {}
 
 final case class BeginRequest(
     includeTyping: Boolean,
@@ -28,23 +27,23 @@ final case class BeginResponse(
 sealed trait SyncStatus { def value: String }
 
 object SyncStatus {
-    case object Pending extends SyncStatus { val value = "pending" }
-    case object Backfilling extends SyncStatus { val value = "backfilling" }
-    case object Progressing extends SyncStatus { val value = "progressing" }
-    case object Ready extends SyncStatus { val value = "ready" }
-    case object Failed extends SyncStatus { val value = "failed" }
+  case object Pending extends SyncStatus { val value = "pending" }
+  case object Backfilling extends SyncStatus { val value = "backfilling" }
+  case object Progressing extends SyncStatus { val value = "progressing" }
+  case object Ready extends SyncStatus { val value = "ready" }
+  case object Failed extends SyncStatus { val value = "failed" }
 }
 
 sealed trait PollResponse { def status: SyncStatus }
 
 object PollResponse {
-    case object Pending extends PollResponse { val status: SyncStatus = SyncStatus.Pending }
-    case object Backfilling extends PollResponse { val status: SyncStatus = SyncStatus.Backfilling }
-    case object Progressing extends PollResponse { val status: SyncStatus = SyncStatus.Progressing }
-    case object Failed extends PollResponse { val status: SyncStatus = SyncStatus.Failed }
-    final case class Ready(readyId: UUID) extends PollResponse {
-        val status: SyncStatus = SyncStatus.Ready
-    }
+  case object Pending extends PollResponse { val status: SyncStatus = SyncStatus.Pending }
+  case object Backfilling extends PollResponse { val status: SyncStatus = SyncStatus.Backfilling }
+  case object Progressing extends PollResponse { val status: SyncStatus = SyncStatus.Progressing }
+  case object Failed extends PollResponse { val status: SyncStatus = SyncStatus.Failed }
+  final case class Ready(readyId: UUID) extends PollResponse {
+    val status: SyncStatus = SyncStatus.Ready
+  }
 }
 
 final case class ReadCursorsRequest(readyId: UUID)
@@ -56,5 +55,3 @@ final case class ReadResponse(
     items: Seq[InstanceDefinition],
     nextReadCursor: Option[String]
 )
-
-
