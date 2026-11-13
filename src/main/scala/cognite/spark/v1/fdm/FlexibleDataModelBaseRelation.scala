@@ -550,65 +550,94 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
 
   private def toFilterValueListDefinition(
       attribute: String,
-      values: Vector[Any]): Either[CdfSparkException, FilterValueDefinition] = {
-    val result = values.headOption match {
-      case Some(s: String) =>
-        io.circe.parser.parse(s).toOption match {
-          // Check if it's a complex Json Object first.
-          case Some(x) if x.isArray || x.isObject =>
-            Try(FilterValueDefinition.ObjectList(values.flatMap(v =>
-              io.circe.parser.parse(String.valueOf(v)).toOption))).toEither
-          case _ =>
-            Try(FilterValueDefinition.StringList(values.map(_.asInstanceOf[String]))).toEither
-        }
-      case Some(_: Int) =>
-        Try(FilterValueDefinition.IntegerList(values.map(_.asInstanceOf[Int].toLong))).toEither
-      case Some(_: Long) =>
-        Try(FilterValueDefinition.IntegerList(values.map(_.asInstanceOf[Long]))).toEither
-      case Some(_: Float) =>
-        Try(FilterValueDefinition.DoubleList(values.map(_.asInstanceOf[Float].toDouble))).toEither
-      case Some(_: Double) =>
-        Try(FilterValueDefinition.DoubleList(values.map(_.asInstanceOf[Double]))).toEither
-      case Some(_: Boolean) =>
-        Try(FilterValueDefinition.BooleanList(values.map(_.asInstanceOf[Boolean]))).toEither
-      case _ =>
-        Left(
-          new CdfSparkIllegalArgumentException(
-            s"Expecting an array of number, string, boolean or json for '$attribute', but found ${String
-              .valueOf(values)}"
-          )
-        )
-    }
-    result.leftMap {
-      case e: CdfSparkIllegalArgumentException => e
-      case e: Throwable =>
-        val arrAsStr = values.map(String.valueOf).mkString(",")
+      values: Vector[Any]): Either[CdfSparkException, FilterValueDefinition] =
+    // Nulls cannot be expressed as data-modeling filter values. This is defense in depth:
+    // IN filters drop nulls in toSeqFilterValueDefinition before reaching this method, so a null
+    // here comes from an equality filter against an array value (e.g. listProp = array('a', NULL)),
+    // which has no valid API representation.
+    if (values.contains(null)) {
+      Left(
         new CdfSparkIllegalArgumentException(
-          s"""Expecting an array of number, string, boolean or json for '$attribute', but found $arrAsStr
+          s"Null values are not supported in list filter values for '$attribute'"
+        )
+      )
+    } else {
+      val result = values.headOption match {
+        case Some(s: String) =>
+          io.circe.parser.parse(s).toOption match {
+            // Check if it's a complex Json Object first.
+            case Some(x) if x.isArray || x.isObject =>
+              Try(FilterValueDefinition.ObjectList(values.flatMap(v =>
+                io.circe.parser.parse(String.valueOf(v)).toOption))).toEither
+            case _ =>
+              Try(FilterValueDefinition.StringList(values.map(_.asInstanceOf[String]))).toEither
+          }
+        case Some(_: Int) =>
+          Try(FilterValueDefinition.IntegerList(values.map(_.asInstanceOf[Int].toLong))).toEither
+        case Some(_: Long) =>
+          Try(FilterValueDefinition.IntegerList(values.map(_.asInstanceOf[Long]))).toEither
+        case Some(_: Float) =>
+          Try(FilterValueDefinition.DoubleList(values.map(_.asInstanceOf[Float].toDouble))).toEither
+        case Some(_: Double) =>
+          Try(FilterValueDefinition.DoubleList(values.map(_.asInstanceOf[Double]))).toEither
+        case Some(_: Boolean) =>
+          Try(FilterValueDefinition.BooleanList(values.map(_.asInstanceOf[Boolean]))).toEither
+        case _ =>
+          Left(
+            new CdfSparkIllegalArgumentException(
+              s"Expecting an array of number, string, boolean or json for '$attribute', but found ${String
+                .valueOf(values)}"
+            )
+          )
+      }
+      result.leftMap {
+        case e: CdfSparkIllegalArgumentException => e
+        case e: Throwable =>
+          val arrAsStr = values.map(String.valueOf).mkString(",")
+          new CdfSparkIllegalArgumentException(
+            s"""Expecting an array of number, string, boolean or json for '$attribute', but found $arrAsStr
              |${e.getMessage}
              |""".stripMargin
-        )
+          )
+      }
     }
-  }
 
   private def toSeqFilterValueDefinition(
       attribute: String,
       value: Array[Any]): Either[CdfSparkException, SeqFilterValue] =
-    toFilterValueDefinition(attribute, value) match {
-      case Right(v: SeqFilterValue) => Right(v)
-      case Right(FilterValueDefinition.Double(v)) => Right(FilterValueDefinition.DoubleList(Seq(v)))
-      case Right(FilterValueDefinition.Integer(v)) => Right(FilterValueDefinition.IntegerList(Seq(v)))
-      case Right(FilterValueDefinition.String(v)) => Right(FilterValueDefinition.StringList(Seq(v)))
-      case Right(FilterValueDefinition.Boolean(v)) => Right(FilterValueDefinition.BooleanList(Seq(v)))
-      case Right(FilterValueDefinition.Object(v)) => Right(FilterValueDefinition.ObjectList(Seq(v)))
-      case Right(v) =>
+    // Nulls can appear in pushed-down IN lists, e.g. `space IN ('a', CASE WHEN false THEN 'b' END)`
+    // is pushed as In("space", Array("a", null)). Nulls never match in SQL IN semantics, and Spark
+    // re-applies every pushed filter itself (no unhandledFilters override), so dropping them only
+    // widens the API request and cannot change results.
+    value.filter(_ != null) match {
+      case nonNull if nonNull.isEmpty =>
         Left(
           new CdfSparkIllegalArgumentException(
-            s"Expecting a SeqFilterValue for '$attribute', but found ${v.getClass.getSimpleName} as ${value
-              .mkString(",")}"
+            s"Expecting at least one non-null value in IN filter for '$attribute'"
           )
         )
-      case Left(err) => Left(err)
+      case nonNull =>
+        toFilterValueDefinition(attribute, nonNull) match {
+          case Right(v: SeqFilterValue) => Right(v)
+          case Right(FilterValueDefinition.Double(v)) =>
+            Right(FilterValueDefinition.DoubleList(Seq(v)))
+          case Right(FilterValueDefinition.Integer(v)) =>
+            Right(FilterValueDefinition.IntegerList(Seq(v)))
+          case Right(FilterValueDefinition.String(v)) =>
+            Right(FilterValueDefinition.StringList(Seq(v)))
+          case Right(FilterValueDefinition.Boolean(v)) =>
+            Right(FilterValueDefinition.BooleanList(Seq(v)))
+          case Right(FilterValueDefinition.Object(v)) =>
+            Right(FilterValueDefinition.ObjectList(Seq(v)))
+          case Right(v) =>
+            Left(
+              new CdfSparkIllegalArgumentException(
+                s"Expecting a SeqFilterValue for '$attribute', but found ${v.getClass.getSimpleName} as ${value
+                  .mkString(",")}"
+              )
+            )
+          case Left(err) => Left(err)
+        }
     }
 }
 

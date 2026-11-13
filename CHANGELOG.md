@@ -16,6 +16,10 @@
 
 # 3.24.x
 
+## Fix
+
+* Data Modeling reads no longer fail with a NullPointerException when a pushed-down `IN` filter contains NULL values (e.g. `space IN ('a', CASE WHEN false THEN 'b' END)`). Nulls are dropped from `IN` lists before building the API request; remaining nulls in list filter values now raise a clear error instead of crashing request encoding.
+
 ## Enhancements
 
 * Add `autoCreateStartNodes`, `autoCreateEndNodes` and `autoCreateDirectRelations` options for Data Modeling instances (nodes/edges).
