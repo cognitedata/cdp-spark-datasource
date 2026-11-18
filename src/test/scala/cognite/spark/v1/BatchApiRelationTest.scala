@@ -196,7 +196,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
 
     api.recorded.count(_.path.contains("poll")) shouldBe 5
     def pollCount(status: String): Long =
-      MetricsSource.metricsMap.get(s"$prefix.BATCHAPI.poll.$status").value.getCount
+      MetricsSource.metricsMap.get(s"$prefix.batchapi.poll.$status").value.getCount
     pollCount("pending") shouldBe 2
     pollCount("backfilling") shouldBe 1
     pollCount("progressing") shouldBe 1

@@ -63,7 +63,7 @@ class BatchApiRelation(
   // TODO: while the SDK does not have this resource, do this hack
   private def requestSession(client: GenericClient[IO]) = {
     val session = client.requestSession
-    session.copy(tags = session.tags + (GenericClient.RESOURCE_TYPE_TAG -> BatchApiRelation.name))
+    session.copy(tags = session.tags + (GenericClient.RESOURCE_TYPE_TAG -> BatchApiRelation.httpResourceType))
   }
 
   private def pollUntilReady(client: GenericClient[IO]): IO[UUID] = {
@@ -142,7 +142,10 @@ class BatchApiRelation(
 }
 
 object BatchApiRelation extends NamedRelation {
-  override val name: String = "BATCHAPI"
+  override val name: String = "batchapi"
+
+  // Resource-type tag on HTTP requests; the SDK names its own after the uppercase resource, e.g. ASSETS.
+  private val httpResourceType: String = "BATCHAPI"
 
   private val defaultPollInterval = 15.seconds
 
