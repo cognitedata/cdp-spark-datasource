@@ -15,19 +15,20 @@ import sttp.client3._
 import sttp.client3.circe._
 
 import java.util.UUID
+import scala.concurrent.duration._
 
 /**
-  * Read-only relation over the batch API. Each read cursor is paged to exhaustion through
-  * `/models/instances/swap/read`, one stream per cursor.
+  * Read-only relation over the batch API. Polls the batch until it is ready, fetches its read
+  * cursors, then pages each cursor to exhaustion through `/models/swamp/read`.
   *
   * @param config common relation configs
-  * @param readCursors cursors obtained from the batch API read-cursors endpoint
+  * @param statusId id of the batch, returned when it was begun
   * @param typing property typing returned when the batch was begun; needed to decode instance properties
   * @param sqlContext sql context
   */
 class BatchApiRelation(
     config: RelationConfig,
-    readCursors: Seq[String],
+    statusId: UUID,
     typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]]
 )(val sqlContext: SQLContext)
     extends CdfRelation(config, BatchApiRelation.name)
@@ -46,8 +47,39 @@ class BatchApiRelation(
       deduplicateRows = false
     )
 
+  // The read cursors are only known once the batch is ready, so polling happens inside the stream.
+  // A single stream also means SdkV1Rdd creates exactly one Spark partition: only one task reads.
   private def getStreams(client: GenericClient[IO]): Seq[Stream[IO, InstanceDefinition]] =
-    readCursors.map(readAll(client, _))
+    Seq(
+      Stream
+        .eval(pollUntilReady(client).flatMap(fetchReadCursors(client, _)))
+        .flatMap(cursors => Stream.emits(cursors).flatMap(readAll(client, _))))
+
+  private def requestSession(client: GenericClient[IO]) =
+    client.requestSession.withResourceType(GenericClient.DATAMODELS)
+
+  private def pollUntilReady(client: GenericClient[IO]): IO[UUID] = {
+    val session = requestSession(client)
+    session
+      .get[PollResponse, PollResponse](
+        uri"${session.baseUrl}/${BatchApiRelation.pathPrefix}/poll/$statusId",
+        identity
+      )
+      .flatMap {
+        case PollResponse.Ready(readyId) => IO.pure(readyId)
+        case PollResponse.Failed =>
+          IO.raiseError(new CdfSparkException(s"Batch API batch $statusId failed"))
+        case _ => IO.sleep(BatchApiRelation.pollInterval) *> pollUntilReady(client)
+      }
+  }
+
+  private def fetchReadCursors(client: GenericClient[IO], readyId: UUID): IO[Seq[String]] = {
+    val session = requestSession(client)
+    session.get[Seq[String], ReadCursorsResponse](
+      uri"${session.baseUrl}/${BatchApiRelation.pathPrefix}/cursors/$readyId",
+      _.readCursors
+    )
+  }
 
   private def readAll(client: GenericClient[IO], readCursor: String): Stream[IO, InstanceDefinition] =
     Stream.unfoldChunkEval[IO, Option[String], InstanceDefinition](Some(readCursor)) {
@@ -58,10 +90,10 @@ class BatchApiRelation(
 
   private def readPage(client: GenericClient[IO], readCursor: String): IO[ReadResponse] = {
     implicit val readResponseDecoder: Decoder[ReadResponse] = ReadResponse.decoder(typing)
-    val requestSession = client.requestSession.withResourceType(GenericClient.DATAMODELS)
-    requestSession.post[ReadResponse, ReadResponse, ReadRequest](
+    val session = requestSession(client)
+    session.post[ReadResponse, ReadResponse, ReadRequest](
       ReadRequest(readCursor),
-      uri"${requestSession.baseUrl}/models/swamp/read",
+      uri"${session.baseUrl}/${BatchApiRelation.pathPrefix}/read",
       identity
     )
   }
@@ -86,6 +118,9 @@ class BatchApiRelation(
 
 object BatchApiRelation extends NamedRelation {
   override val name: String = "batchapi"
+
+  private val pathPrefix = "models/swamp"
+  private val pollInterval = 15.seconds
 
   val schema: StructType = DataTypes.createStructType(
     Array(
@@ -161,6 +196,11 @@ object PollResponse {
 
 final case class ReadCursorsRequest(readyId: UUID)
 final case class ReadCursorsResponse(readCursors: Seq[String])
+
+object ReadCursorsResponse {
+  implicit val decoder: Decoder[ReadCursorsResponse] =
+    Decoder.forProduct1("readCursors")(ReadCursorsResponse.apply)
+}
 
 final case class ReadRequest(readCursor: String)
 
