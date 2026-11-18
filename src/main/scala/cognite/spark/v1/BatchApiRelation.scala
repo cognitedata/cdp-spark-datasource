@@ -7,6 +7,9 @@ import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDefinition, InstanceType,
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import fs2.{Chunk, Stream}
 import io.circe.{Decoder, Encoder}
+import natchez.Trace.Implicits.noop
+import org.apache.spark.TaskContext
+import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan}
 import org.apache.spark.sql.types.{DataTypes, StructType}
@@ -57,8 +60,12 @@ class BatchApiRelation(
         .eval(pollUntilReady(client).flatMap(fetchReadCursors(client, _)))
         .flatMap(cursors => Stream.emits(cursors).flatMap(readAll(client, _))))
 
-  private def requestSession(client: GenericClient[IO]) =
-    client.requestSession.withResourceType(GenericClient.DATAMODELS)
+  // HACK: RESOURCE_TYPE is sealed in the SDK, so tag with a plain string: the metrics backend only calls toString on it.
+  // TODO: while the SDK does not have this resource, do this hack
+  private def requestSession(client: GenericClient[IO]) = {
+    val session = client.requestSession
+    session.copy(tags = session.tags + (GenericClient.RESOURCE_TYPE_TAG -> BatchApiRelation.name))
+  }
 
   private def pollUntilReady(client: GenericClient[IO]): IO[UUID] = {
     val session = requestSession(client)
@@ -67,7 +74,10 @@ class BatchApiRelation(
         uri"${session.baseUrl}/models/swamp/poll/$statusId",
         identity
       )
-      .flatTap(response => IO(logger.info(s"Batch $statusId poll status: ${response.status.value}")))
+      .flatTap { response =>
+        IO(logger.info(s"Batch $statusId poll status: ${response.status.value}")) *>
+          incPollMetrics(response.status)
+      }
       .flatMap {
         case PollResponse.Ready(readyId) => IO.pure(readyId)
         case PollResponse.Failed =>
@@ -75,6 +85,19 @@ class BatchApiRelation(
         case _ => IO.sleep(BatchApiRelation.pollInterval) *> pollUntilReady(client)
       }
   }
+
+  private def incPollMetrics(status: SyncStatus): IO[Unit] =
+    IO(
+      if (config.collectMetrics) {
+        MetricsSource
+          .getOrCreateAttemptTrackingCounter(
+            config.metricsTrackAttempts,
+            config.metricsPrefix,
+            s"$name.poll.${status.value}",
+            Option(TaskContext.get()))
+          .inc()
+      }
+    )
 
   private def fetchReadCursors(client: GenericClient[IO], readyId: UUID): IO[Seq[String]] = {
     val session = requestSession(client)
@@ -120,7 +143,7 @@ class BatchApiRelation(
 }
 
 object BatchApiRelation extends NamedRelation {
-  override val name: String = "batchapi"
+  override val name: String = "BATCHAPI"
 
   private val pollInterval = 15.seconds
 
