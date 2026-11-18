@@ -62,7 +62,7 @@ class BatchApiRelation(
     val session = requestSession(client)
     session
       .get[PollResponse, PollResponse](
-        uri"${session.baseUrl}/${BatchApiRelation.pathPrefix}/poll/$statusId",
+        uri"${session.baseUrl}/models/swamp/poll/$statusId",
         identity
       )
       .flatMap {
@@ -76,7 +76,7 @@ class BatchApiRelation(
   private def fetchReadCursors(client: GenericClient[IO], readyId: UUID): IO[Seq[String]] = {
     val session = requestSession(client)
     session.get[Seq[String], ReadCursorsResponse](
-      uri"${session.baseUrl}/${BatchApiRelation.pathPrefix}/cursors/$readyId",
+      uri"${session.baseUrl}/models/swamp/cursors/$readyId",
       _.readCursors
     )
   }
@@ -93,7 +93,7 @@ class BatchApiRelation(
     val session = requestSession(client)
     session.post[ReadResponse, ReadResponse, ReadRequest](
       ReadRequest(readCursor),
-      uri"${session.baseUrl}/${BatchApiRelation.pathPrefix}/read",
+      uri"${session.baseUrl}/models/swamp/read",
       identity
     )
   }
@@ -119,7 +119,6 @@ class BatchApiRelation(
 object BatchApiRelation extends NamedRelation {
   override val name: String = "batchapi"
 
-  private val pathPrefix = "models/swamp"
   private val pollInterval = 15.seconds
 
   val schema: StructType = DataTypes.createStructType(
