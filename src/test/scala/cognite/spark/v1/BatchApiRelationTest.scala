@@ -4,10 +4,14 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import com.cognite.sdk.scala.common.BearerTokenAuth
 import com.cognite.sdk.scala.v1.GenericClient
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceType, TypePropertyDefinition}
+import io.circe.Json
+import io.circe.parser.parse
 import natchez.Kernel
 import natchez.Trace.Implicits.noop
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.types.{StringType, StructField}
 import org.scalatest.{FlatSpec, Matchers}
 import sttp.client3.impl.cats.implicits.asyncMonadError
 import sttp.client3.testing.SttpBackendStub
@@ -19,7 +23,9 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration._
+import scala.io.Source
 import scala.jdk.CollectionConverters._
+import scala.util.Using
 
 object BatchApiRelationTest {
   final case class RecordedRequest(
@@ -144,9 +150,13 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
       sttpBackend = backend
     )
 
-  private def relation(config: RelationConfig) =
-    new BatchApiRelation(config, statusId, Some(Map.empty), pollInterval = 1.millisecond)(
-      spark.sqlContext)
+  private def relation(config: RelationConfig, typing: Typing = Some(Map.empty)) =
+    new BatchApiRelation(
+      config,
+      statusId,
+      InstanceType.Node,
+      typing,
+      pollInterval = 1.millisecond)(spark.sqlContext)
 
   private def readAll(relation: BatchApiRelation, api: FakeBatchApi): List[String] = {
     val streams = relation.getStreams(clientFor(api.backend))
@@ -232,5 +242,71 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
 
     (api.recorded should have).size(3)
     api.recorded.map(_.resourceType) shouldBe List.fill(3)(Some("BATCHAPI"))
+  }
+
+  // Fixtures copied from the batch API's own DTO tests (services/batch-api/api/src/test/resources),
+  // so that a change in its wire format shows up here.
+  private type Typing = Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]]
+
+  private def resourceJson(name: String): Json =
+    Using.resource(Source.fromResource(s"batchapi/$name"))(source => parse(source.mkString)) match {
+      case Right(json) => json
+      case Left(e) => fail(s"Could not parse $name: ${e.getMessage}")
+    }
+
+  private def fixtureTyping: Typing =
+    resourceJson("begin_response.json").hcursor.downField("typing").as[Typing] match {
+      case Right(typing) => typing
+      case Left(e) => fail(s"Could not decode typing: ${e.getMessage}")
+    }
+
+  private def fixtureReadResponse(typing: Typing): ReadResponse =
+    resourceJson("read_response.json").as[ReadResponse](ReadResponse.decoder(typing)) match {
+      case Right(response) => response
+      case Left(e) => fail(s"Could not decode the read response: ${e.getMessage}")
+    }
+
+  it should "derive its schema from the begin typing, followed by the node columns" in {
+    val schema = BatchApiRelation.deriveSchema(InstanceType.Node, fixtureTyping)
+
+    schema.fieldNames.toSeq shouldBe Seq(
+      "prop1",
+      "space",
+      "externalId",
+      "node.version",
+      "node.createdTime",
+      "node.lastUpdatedTime",
+      "node.deletedTime",
+      "_type")
+    schema("prop1") shouldBe StructField("prop1", StringType, nullable = true)
+  }
+
+  it should "use the edge columns for edges" in {
+    val schema = BatchApiRelation.deriveSchema(InstanceType.Edge, fixtureTyping)
+
+    schema.fieldNames.toSeq should contain allOf ("prop1", "edge.version", "type", "startNode", "endNode")
+    schema.fieldNames.toSeq should not contain "node.version"
+  }
+
+  it should "decode a batch API read response and turn its items into rows" in {
+    val typing = fixtureTyping
+    val response = fixtureReadResponse(typing)
+    response.nextReadCursor shouldBe Some("nextCursor")
+    response.items should have size 1
+
+    val row = relation(config(), typing).toRow(response.items.head, Array.empty)
+
+    val expected: Seq[Any] =
+      Seq("value", "mySpace", "node-1", 1L, 1700000000000L, 1700000000000L, 0L, null)
+    row.toSeq shouldBe expected
+  }
+
+  it should "only return the requested columns" in {
+    val typing = fixtureTyping
+    val response = fixtureReadResponse(typing)
+
+    val row = relation(config(), typing).toRow(response.items.head, Array("externalId", "prop1"))
+
+    row.toSeq shouldBe Seq("node-1", "value")
   }
 }

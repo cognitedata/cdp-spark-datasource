@@ -1,0 +1,20 @@
+{
+  "typing": {
+    "mySpace": {
+      "myView/v1": {
+        "prop1": {
+          "constraintState": {},
+          "type": {
+            "type": "text",
+            "list": false,
+            "collation": "ucs_basic"
+          },
+          "immutable": false,
+          "nullable": true,
+          "autoIncrement": false
+        }
+      }
+    }
+  },
+  "statusId": "3f2b8c1e-7a4d-4e5f-9b6a-1c2d3e4f5a6b"
+}
