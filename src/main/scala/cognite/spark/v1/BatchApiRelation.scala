@@ -63,7 +63,8 @@ class BatchApiRelation(
   // TODO: while the SDK does not have this resource, do this hack
   private def requestSession(client: GenericClient[IO]) = {
     val session = client.requestSession
-    session.copy(tags = session.tags + (GenericClient.RESOURCE_TYPE_TAG -> BatchApiRelation.httpResourceType))
+    session.copy(
+      tags = session.tags + (GenericClient.RESOURCE_TYPE_TAG -> BatchApiRelation.httpResourceType))
   }
 
   private def pollUntilReady(client: GenericClient[IO]): IO[UUID] = {

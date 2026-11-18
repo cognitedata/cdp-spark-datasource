@@ -124,7 +124,10 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
             case Seq("cursors", _) =>
               Response.ok(s"""{"readCursors":[${readCursors.map(c => s""""$c"""").mkString(",")}]}""")
             case Seq("read") =>
-              pages.get(readCursorOf(body)).map(Response.ok(_)).getOrElse(Response("", StatusCode.NotFound))
+              pages
+                .get(readCursorOf(body))
+                .map(Response.ok(_))
+                .getOrElse(Response("", StatusCode.NotFound))
             case _ => Response("", StatusCode.NotFound)
           }
       }
@@ -147,7 +150,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
 
   private def readAll(relation: BatchApiRelation, api: FakeBatchApi): List[String] = {
     val streams = relation.getStreams(clientFor(api.backend))
-    streams should have size 1
+    (streams should have).size(1)
     streams.head.compile.toList.unsafeRunSync().map(_.externalId)
   }
 
@@ -227,7 +230,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
 
     readAll(relation(config()), api) shouldBe List("a")
 
-    api.recorded should have size 3
+    (api.recorded should have).size(3)
     api.recorded.map(_.resourceType) shouldBe List.fill(3)(Some("BATCHAPI"))
   }
 }
