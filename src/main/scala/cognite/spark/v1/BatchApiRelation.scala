@@ -9,7 +9,7 @@ import natchez.Trace.Implicits.noop
 import org.apache.spark.TaskContext
 import org.apache.spark.datasource.MetricsSource
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan}
+import org.apache.spark.sql.sources.PrunedScan
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import org.log4s.getLogger
@@ -35,12 +35,12 @@ class BatchApiRelation(
     pollInterval: FiniteDuration = BatchApiRelation.defaultPollInterval
 )(val sqlContext: SQLContext)
     extends CdfRelation(config, BatchApiRelation.name)
-    with PrunedFilteredScan {
+    with PrunedScan {
   @transient private lazy val logger = getLogger
 
   override def schema: StructType = BatchApiRelation.schema
 
-  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
+  override def buildScan(requiredColumns: Array[String]): RDD[Row] =
     SdkV1Rdd[InstanceDefinition, (String, String)](
       sqlContext.sparkContext,
       config,
