@@ -11,6 +11,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{Filter, PrunedFilteredScan}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
+import org.log4s.getLogger
 import sttp.client3._
 import sttp.client3.circe._
 
@@ -33,6 +34,7 @@ class BatchApiRelation(
 )(val sqlContext: SQLContext)
     extends CdfRelation(config, BatchApiRelation.name)
     with PrunedFilteredScan {
+  @transient private lazy val logger = getLogger
 
   override def schema: StructType = BatchApiRelation.schema
 
@@ -65,6 +67,7 @@ class BatchApiRelation(
         uri"${session.baseUrl}/models/swamp/poll/$statusId",
         identity
       )
+      .flatTap(response => IO(logger.info(s"Batch $statusId poll status: ${response.status.value}")))
       .flatMap {
         case PollResponse.Ready(readyId) => IO.pure(readyId)
         case PollResponse.Failed =>
