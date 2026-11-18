@@ -31,7 +31,8 @@ import scala.concurrent.duration._
 class BatchApiRelation(
     config: RelationConfig,
     statusId: UUID,
-    typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]]
+    typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]],
+    pollInterval: FiniteDuration = BatchApiRelation.defaultPollInterval
 )(val sqlContext: SQLContext)
     extends CdfRelation(config, BatchApiRelation.name)
     with PrunedFilteredScan {
@@ -52,7 +53,7 @@ class BatchApiRelation(
 
   // The read cursors are only known once the batch is ready, so polling happens inside the stream.
   // A single stream also means SdkV1Rdd creates exactly one Spark partition: only one task reads.
-  private def getStreams(client: GenericClient[IO]): Seq[Stream[IO, InstanceDefinition]] =
+  private[v1] def getStreams(client: GenericClient[IO]): Seq[Stream[IO, InstanceDefinition]] =
     Seq(
       Stream
         .eval(pollUntilReady(client).flatMap(fetchReadCursors(client, _)))
@@ -80,7 +81,7 @@ class BatchApiRelation(
         case PollResponse.Ready(readyId) => IO.pure(readyId)
         case PollResponse.Failed =>
           IO.raiseError(new CdfSparkException(s"Batch API batch $statusId failed"))
-        case _ => IO.sleep(BatchApiRelation.pollInterval) *> pollUntilReady(client)
+        case _ => IO.sleep(pollInterval) *> pollUntilReady(client)
       }
   }
 
@@ -143,7 +144,7 @@ class BatchApiRelation(
 object BatchApiRelation extends NamedRelation {
   override val name: String = "BATCHAPI"
 
-  private val pollInterval = 15.seconds
+  private val defaultPollInterval = 15.seconds
 
   val schema: StructType = DataTypes.createStructType(
     Array(
