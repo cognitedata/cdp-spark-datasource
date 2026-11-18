@@ -2,9 +2,7 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.v1.fdm.common.filters.FilterDefinition
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDefinition, InstanceType, TypePropertyDefinition}
-import com.cognite.sdk.scala.v1.fdm.views.ViewReference
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDefinition, TypePropertyDefinition}
 import fs2.{Chunk, Stream}
 import io.circe.{Decoder, Encoder}
 import natchez.Trace.Implicits.noop
@@ -159,22 +157,6 @@ object BatchApiRelation extends NamedRelation {
     ))
 }
 
-final case class BeginRequest(
-    includeTyping: Boolean,
-    sources: Seq[SourceSelectorWithoutTargetUnits],
-    instanceType: InstanceType,
-    filter: Option[FilterDefinition] = None,
-)
-
-final case class SourceSelectorWithoutTargetUnits(
-    source: ViewReference,
-)
-
-final case class BeginResponse(
-    typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]] = None,
-    statusId: UUID
-)
-
 sealed trait SyncStatus { def value: String }
 
 object SyncStatus {
@@ -184,7 +166,6 @@ object SyncStatus {
   case object Ready extends SyncStatus { val value = "ready" }
   case object Failed extends SyncStatus { val value = "failed" }
 
-  implicit val encoder: Encoder[SyncStatus] = Encoder.encodeString.contramap(_.value)
   implicit val decoder: Decoder[SyncStatus] = Decoder.decodeString.emap {
     case "pending" => Right(Pending)
     case "backfilling" => Right(Backfilling)
@@ -219,7 +200,6 @@ object PollResponse {
   }
 }
 
-final case class ReadCursorsRequest(readyId: UUID)
 final case class ReadCursorsResponse(readCursors: Seq[String])
 
 object ReadCursorsResponse {
