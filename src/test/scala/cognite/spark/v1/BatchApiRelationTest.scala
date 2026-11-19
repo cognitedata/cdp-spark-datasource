@@ -3,15 +3,30 @@ package cognite.spark.v1
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import com.cognite.sdk.scala.common.BearerTokenAuth
+import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation
+import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceType, TypePropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
+  ViewCorePropertyDefinition,
+  ViewPropertyDefinition
+}
+import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyType}
+import com.cognite.sdk.scala.v1.fdm.instances.{
+  InstanceDefinition,
+  InstancePropertyValue,
+  InstanceType,
+  TypePropertyDefinition
+}
+import fs2.Stream
 import io.circe.Json
 import io.circe.parser.parse
 import natchez.Kernel
 import natchez.Trace.Implicits.noop
 import org.apache.spark.datasource.MetricsSource
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types.{StringType, StructField}
+import org.apache.spark.sql.sources.Filter
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.{Row, SQLContext, SparkSession}
 import org.scalatest.{FlatSpec, Matchers}
 import sttp.client3.impl.cats.implicits.asyncMonadError
 import sttp.client3.testing.SttpBackendStub
@@ -19,9 +34,11 @@ import sttp.client3.{Response, StringBody}
 import sttp.model.StatusCode
 import sttp.monad.MonadAsyncError
 
+import java.time.ZonedDateTime
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
+import scala.collection.immutable.ListMap
 import scala.concurrent.duration._
 import scala.io.Source
 import scala.jdk.CollectionConverters._
@@ -33,6 +50,33 @@ object BatchApiRelationTest {
       path: Seq[String],
       body: String,
       resourceType: Option[Any])
+
+  final case class TestProperty(
+      propertyType: PropertyType,
+      nullable: Boolean,
+      value: InstancePropertyValue)
+
+  // An FDM relation with the schema and row mapping FDM itself uses, for comparing with batch.
+  // It does not read anything.
+  class FdmReference(
+      config: RelationConfig,
+      usage: Usage,
+      viewProps: Map[String, ViewPropertyDefinition])(val sqlContext: SQLContext)
+      extends FlexibleDataModelBaseRelation(config, sqlContext) {
+    override def schema: StructType =
+      deriveViewPropertySchemaWithUsageSpecificAttributes(usage, viewProps)
+
+    override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
+        client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = Seq.empty
+
+    override def insert(rows: Seq[Row]): IO[Unit] = IO.unit
+    override def upsert(rows: Seq[Row]): IO[Unit] = IO.unit
+    override def update(rows: Seq[Row]): IO[Unit] = IO.unit
+    override def delete(rows: Seq[Row]): IO[Unit] = IO.unit
+
+    def row(instance: InstanceDefinition): Row =
+      toRow(toProjectedInstance(instance, None, schema.fieldNames))
+  }
 }
 
 class BatchApiRelationTest extends FlatSpec with Matchers {
@@ -150,11 +194,14 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
       sttpBackend = backend
     )
 
-  private def relation(config: RelationConfig, typing: Typing = Some(Map.empty)) =
+  private def relation(
+      config: RelationConfig,
+      typing: Typing = Some(Map.empty),
+      instanceType: InstanceType = InstanceType.Node) =
     new BatchApiRelation(
       config,
       statusId,
-      InstanceType.Node,
+      instanceType,
       typing,
       pollInterval = 1.millisecond)(spark.sqlContext)
 
@@ -308,5 +355,182 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
     val row = relation(config(), typing).toRow(response.items.head, Array("externalId", "prop1"))
 
     row.toSeq shouldBe Seq("node-1", "value")
+  }
+
+  // Properties of several kinds, described both as a begin typing and as an FDM view.
+  private val testProperties: Map[String, TestProperty] = Map(
+    "name" -> TestProperty(PropertyType.TextProperty(), true, InstancePropertyValue.String("n1")),
+    "count" -> TestProperty(
+      PropertyType.PrimitiveProperty(PrimitivePropType.Int64),
+      false,
+      InstancePropertyValue.Int64(5L)),
+    "active" -> TestProperty(
+      PropertyType.PrimitiveProperty(PrimitivePropType.Boolean),
+      true,
+      InstancePropertyValue.Boolean(true)),
+    "tags" -> TestProperty(
+      PropertyType.TextProperty(list = Some(true)),
+      true,
+      InstancePropertyValue.StringList(Seq("a", "b"))),
+    "seen" -> TestProperty(
+      PropertyType.PrimitiveProperty(PrimitivePropType.Timestamp),
+      true,
+      InstancePropertyValue.Timestamp(ZonedDateTime.parse("2024-01-02T03:04:05Z"))),
+    "owner" -> TestProperty(
+      PropertyType.DirectNodeRelationProperty(None, None),
+      true,
+      InstancePropertyValue.ViewDirectNodeRelation(
+        Some(DirectRelationReference("space", "owner-1"))))
+  )
+
+  private val testTyping: Typing = Some(
+    Map(
+      "space" -> Map("view/v1" -> testProperties.map {
+        case (name, property) =>
+          name -> TypePropertyDefinition(
+            nullable = Some(property.nullable),
+            defaultValue = None,
+            description = None,
+            name = None,
+            `type` = property.propertyType)
+      })))
+
+  // Sorted by name, like batch, so that the property columns come out in the same order.
+  private val testViewProperties: Map[String, ViewPropertyDefinition] = ListMap(
+    testProperties.toSeq.sortBy(_._1).map {
+      case (name, property) =>
+        name -> (ViewCorePropertyDefinition(
+          nullable = Some(property.nullable),
+          defaultValue = None,
+          `type` = property.propertyType): ViewPropertyDefinition)
+    }: _*)
+
+  private val testPropertyValues =
+    Map("space" -> Map("view/v1" -> testProperties.map { case (name, p) => name -> p.value }))
+
+  private def testNode(version: Option[Long] = None, deletedTime: Option[Long] = None) =
+    InstanceDefinition.NodeDefinition(
+      space = "space",
+      externalId = "n1",
+      createdTime = 1L,
+      lastUpdatedTime = 2L,
+      deletedTime = deletedTime,
+      version = version,
+      properties = Some(testPropertyValues),
+      `type` = Some(DirectRelationReference("typeSpace", "nodeType"))
+    )
+
+  private def testEdge =
+    InstanceDefinition.EdgeDefinition(
+      `type` = DirectRelationReference("typeSpace", "edgeType"),
+      space = "space",
+      externalId = "e1",
+      createdTime = 1L,
+      lastUpdatedTime = 2L,
+      deletedTime = Some(9L),
+      version = Some(4L),
+      properties = Some(testPropertyValues),
+      startNode = DirectRelationReference("space", "start"),
+      endNode = DirectRelationReference("space", "end")
+    )
+
+  private def fdmReference(usage: Usage) =
+    new BatchApiRelationTest.FdmReference(config(), usage, testViewProperties)(spark.sqlContext)
+
+  private val relationStruct = StructType(
+    Seq(StructField("space", StringType, false), StructField("externalId", StringType, false)))
+
+  it should "have the same schema as the FDM relation for nodes" in {
+    BatchApiRelation.deriveSchema(InstanceType.Node, testTyping) shouldBe
+      fdmReference(Usage.Node).schema
+  }
+
+  it should "have the same schema as the FDM relation for edges" in {
+    BatchApiRelation.deriveSchema(InstanceType.Edge, testTyping) shouldBe
+      fdmReference(Usage.Edge).schema
+  }
+
+  it should "not expose an instanceType column, and expose typed start and end nodes for edges" in {
+    val nodeSchema = BatchApiRelation.deriveSchema(InstanceType.Node, testTyping)
+    val edgeSchema = BatchApiRelation.deriveSchema(InstanceType.Edge, testTyping)
+
+    nodeSchema.fieldNames.toSeq should not contain "instanceType"
+    edgeSchema.fieldNames.toSeq shouldBe Seq(
+      "active",
+      "count",
+      "name",
+      "owner",
+      "seen",
+      "tags",
+      "space",
+      "externalId",
+      "edge.version",
+      "edge.createdTime",
+      "edge.lastUpdatedTime",
+      "edge.deletedTime",
+      "type",
+      "_type",
+      "startNode",
+      "endNode")
+    edgeSchema("startNode") shouldBe StructField("startNode", relationStruct, false)
+    edgeSchema("endNode") shouldBe StructField("endNode", relationStruct, false)
+    edgeSchema("type") shouldBe StructField("type", relationStruct, true)
+    edgeSchema("_type") shouldBe StructField("_type", relationStruct, false)
+  }
+
+  it should "default version to -1 and deletedTime to 0 when the instance has none" in {
+    val row = relation(config(), testTyping)
+      .toRow(testNode(), Array("node.version", "node.deletedTime"))
+
+    val expected: Seq[Any] = Seq(-1L, 0L)
+    row.toSeq shouldBe expected
+  }
+
+  it should "keep the version and deletedTime of an edge that has them" in {
+    val row = relation(config(), testTyping, InstanceType.Edge)
+      .toRow(testEdge, Array("edge.version", "edge.deletedTime"))
+
+    val expected: Seq[Any] = Seq(4L, 9L)
+    row.toSeq shouldBe expected
+  }
+
+  private def dataFrame(row: Row, schema: StructType) =
+    spark.createDataFrame(java.util.Collections.singletonList(row), schema)
+
+  it should "produce the same DataFrame as the FDM relation for a node" in {
+    val node = testNode(version = Some(3L))
+    val fdm = fdmReference(Usage.Node)
+    val batch = relation(config(), testTyping)
+
+    val fdmDf = dataFrame(fdm.row(node), fdm.schema)
+    val batchDf = dataFrame(batch.toRow(node, Array.empty), batch.schema)
+
+    batchDf.schema shouldBe fdmDf.schema
+    batchDf.collect().toSeq shouldBe fdmDf.collect().toSeq
+
+    // guards against comparing two frames that are empty or all null
+    val row = batchDf.collect().head
+    row.getAs[String]("name") shouldBe "n1"
+    row.getAs[Long]("node.version") shouldBe 3L
+    row.getAs[Row]("owner").getString(1) shouldBe "owner-1"
+    row.getAs[Row]("_type").getString(1) shouldBe "nodeType"
+  }
+
+  it should "produce the same DataFrame as the FDM relation for an edge" in {
+    val edge = testEdge
+    val fdm = fdmReference(Usage.Edge)
+    val batch = relation(config(), testTyping, InstanceType.Edge)
+
+    val fdmDf = dataFrame(fdm.row(edge), fdm.schema)
+    val batchDf = dataFrame(batch.toRow(edge, Array.empty), batch.schema)
+
+    batchDf.schema shouldBe fdmDf.schema
+    batchDf.collect().toSeq shouldBe fdmDf.collect().toSeq
+
+    val row = batchDf.collect().head
+    row.getAs[Long]("edge.deletedTime") shouldBe 9L
+    row.getAs[Row]("startNode").getString(1) shouldBe "start"
+    row.getAs[Row]("endNode").getString(1) shouldBe "end"
+    row.getAs[Row]("type").getString(1) shouldBe "edgeType"
   }
 }
