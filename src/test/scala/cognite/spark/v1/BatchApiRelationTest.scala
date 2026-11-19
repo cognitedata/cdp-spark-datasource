@@ -196,7 +196,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
 
   private def relation(
       config: RelationConfig,
-      typing: Typing = Some(Map.empty),
+      typing: Typing = Map.empty,
       instanceType: InstanceType = InstanceType.Node) =
     new BatchApiRelation(
       config,
@@ -293,7 +293,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
 
   // Fixtures copied from the batch API's own DTO tests (services/batch-api/api/src/test/resources),
   // so that a change in its wire format shows up here.
-  private type Typing = Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]]
+  private type Typing = Map[String, Map[String, Map[String, TypePropertyDefinition]]]
 
   private def resourceJson(name: String): Json =
     Using.resource(Source.fromResource(s"batchapi/$name"))(source => parse(source.mkString)) match {
@@ -383,7 +383,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
         Some(DirectRelationReference("space", "owner-1"))))
   )
 
-  private val testTyping: Typing = Some(
+  private val testTyping: Typing =
     Map(
       "space" -> Map("view/v1" -> testProperties.map {
         case (name, property) =>
@@ -393,7 +393,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
             description = None,
             name = None,
             `type` = property.propertyType)
-      })))
+      }))
 
   // Sorted by name, like batch, so that the property columns come out in the same order.
   private val testViewProperties: Map[String, ViewPropertyDefinition] = ListMap(

@@ -29,14 +29,15 @@ import scala.concurrent.duration._
   * @param statusId id of the batch, returned when it was begun
   * @param instanceType whether the batch contains nodes or edges
   * @param typing property typing returned when the batch was begun; decodes instance properties and
-  *               determines the schema
+  *               determines the schema. It is required, so a begin response without typing (begun
+  *               without `includeTyping`) must be rejected before the relation is created
   * @param sqlContext sql context
   */
 class BatchApiRelation(
     config: RelationConfig,
     statusId: UUID,
     instanceType: InstanceType,
-    typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]],
+    typing: Map[String, Map[String, Map[String, TypePropertyDefinition]]],
     pollInterval: FiniteDuration = BatchApiRelation.defaultPollInterval
 )(val sqlContext: SQLContext)
     extends CdfRelation(config, BatchApiRelation.name)
@@ -157,13 +158,12 @@ object BatchApiRelation extends NamedRelation {
   // A batch is begun from a single view, so property names are unique.
   private[v1] def deriveSchema(
       instanceType: InstanceType,
-      typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]]): StructType = {
+      typing: Map[String, Map[String, Map[String, TypePropertyDefinition]]]): StructType = {
     val usage = instanceType match {
       case InstanceType.Node => Usage.Node
       case InstanceType.Edge => Usage.Edge
     }
     val properties = typing
-      .getOrElse(Map.empty)
       .values
       .flatMap(_.values)
       .fold(Map.empty[String, TypePropertyDefinition])(_ ++ _)
@@ -243,10 +243,10 @@ final case class ReadResponse(
 object ReadResponse {
   // Read responses carry no typing of their own; instance properties are decoded using the typing from begin.
   def decoder(
-      typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]]
+      typing: Map[String, Map[String, Map[String, TypePropertyDefinition]]]
   ): Decoder[ReadResponse] = {
     implicit val instanceDecoder: Decoder[InstanceDefinition] =
-      InstanceDefinition.instancePropertyDefinitionBasedInstanceDecoder(typing)
+      InstanceDefinition.instancePropertyDefinitionBasedInstanceDecoder(Some(typing))
     Decoder.forProduct2("items", "nextReadCursor")(ReadResponse.apply)
   }
 }
