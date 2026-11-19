@@ -140,7 +140,7 @@ private[spark] object FlexibleDataModelInstanceMapping {
       FlexibleDataModelRelationUtils.extractInstancePropertyValue(dataTypeOf(key), value)
 
     val allAvailablePropValues: Map[String, InstancePropertyValue] =
-      i.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
+      i.properties.getOrElse(Map.empty).values.flatMap(_.values).flatten.toMap
     i match {
       case n: InstanceDefinition.NodeDefinition =>
         ProjectedFlexibleDataModelInstance(

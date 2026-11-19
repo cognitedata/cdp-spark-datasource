@@ -163,10 +163,7 @@ object BatchApiRelation extends NamedRelation {
       case InstanceType.Node => Usage.Node
       case InstanceType.Edge => Usage.Edge
     }
-    val properties = typing
-      .values
-      .flatMap(_.values)
-      .fold(Map.empty[String, TypePropertyDefinition])(_ ++ _)
+    val properties = typing.values.flatMap(_.values).flatten.toMap
     val propertyFields = properties.toSeq.sortBy(_._1).map {
       case (name, definition) =>
         FlexibleDataModelInstanceMapping.propertyField(
