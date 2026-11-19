@@ -2,7 +2,9 @@ package cognite.spark.v1
 
 import cats.effect.IO
 import com.cognite.sdk.scala.v1.GenericClient
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDefinition, TypePropertyDefinition}
+import cognite.spark.v1.fdm.FlexibleDataModelInstanceMapping
+import com.cognite.sdk.scala.v1.fdm.common.Usage
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDefinition, InstanceType, TypePropertyDefinition}
 import fs2.{Chunk, Stream}
 import io.circe.{Decoder, Encoder}
 import natchez.Trace.Implicits.noop
@@ -25,20 +27,26 @@ import scala.concurrent.duration._
   *
   * @param config common relation configs
   * @param statusId id of the batch, returned when it was begun
-  * @param typing property typing returned when the batch was begun; needed to decode instance properties
+  * @param instanceType whether the batch contains nodes or edges
+  * @param typing property typing returned when the batch was begun; decodes instance properties and
+  *               determines the schema. It is required, so a begin response without typing (begun
+  *               without `includeTyping`) must be rejected before the relation is created
   * @param sqlContext sql context
   */
 class BatchApiRelation(
     config: RelationConfig,
     statusId: UUID,
-    typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]],
+    instanceType: InstanceType,
+    typing: Map[String, Map[String, Map[String, TypePropertyDefinition]]],
     pollInterval: FiniteDuration = BatchApiRelation.defaultPollInterval
 )(val sqlContext: SQLContext)
     extends CdfRelation(config, BatchApiRelation.name)
     with PrunedScan {
   @transient private lazy val logger = getLogger
 
-  override def schema: StructType = BatchApiRelation.schema
+  private val derivedSchema: StructType = BatchApiRelation.deriveSchema(instanceType, typing)
+
+  override def schema: StructType = derivedSchema
 
   override def buildScan(requiredColumns: Array[String]): RDD[Row] =
     SdkV1Rdd[InstanceDefinition, (String, String)](
@@ -124,21 +132,17 @@ class BatchApiRelation(
     )
   }
 
-  private def toRow(instance: InstanceDefinition, requiredColumns: Array[String]): Row = {
+  private[v1] def toRow(instance: InstanceDefinition, requiredColumns: Array[String]): Row = {
     if (config.collectMetrics) {
       itemsRead.inc()
     }
-    val values = Map[String, Any](
-      "instanceType" -> instance.instanceType.productPrefix.toLowerCase,
-      "space" -> instance.space,
-      "externalId" -> instance.externalId,
-      "version" -> instance.version.orNull,
-      "createdTime" -> instance.createdTime,
-      "lastUpdatedTime" -> instance.lastUpdatedTime,
-      "deletedTime" -> instance.deletedTime.orNull
-    )
     val columns = if (requiredColumns.isEmpty) schema.fieldNames else requiredColumns
-    Row.fromSeq(columns.toSeq.map(values))
+    val projected = FlexibleDataModelInstanceMapping.toProjectedInstance(
+      instance,
+      cursor = None,
+      columns,
+      key => schema(key).dataType)
+    FlexibleDataModelInstanceMapping.toRow(projected.properties)
   }
 }
 
@@ -150,16 +154,26 @@ object BatchApiRelation extends NamedRelation {
 
   private val defaultPollInterval = 15.seconds
 
-  val schema: StructType = DataTypes.createStructType(
-    Array(
-      DataTypes.createStructField("instanceType", DataTypes.StringType, false),
-      DataTypes.createStructField("space", DataTypes.StringType, false),
-      DataTypes.createStructField("externalId", DataTypes.StringType, false),
-      DataTypes.createStructField("version", DataTypes.LongType, true),
-      DataTypes.createStructField("createdTime", DataTypes.LongType, false),
-      DataTypes.createStructField("lastUpdatedTime", DataTypes.LongType, false),
-      DataTypes.createStructField("deletedTime", DataTypes.LongType, true)
-    ))
+  // One column per property in the typing, followed by the node or edge columns, as for FDM relations.
+  // A batch is begun from a single view, so property names are unique.
+  private[v1] def deriveSchema(
+      instanceType: InstanceType,
+      typing: Map[String, Map[String, Map[String, TypePropertyDefinition]]]): StructType = {
+    val usage = instanceType match {
+      case InstanceType.Node => Usage.Node
+      case InstanceType.Edge => Usage.Edge
+    }
+    val properties = typing.values.flatMap(_.values).flatten.toMap
+    val propertyFields = properties.toSeq.sortBy(_._1).map {
+      case (name, definition) =>
+        FlexibleDataModelInstanceMapping.propertyField(
+          name,
+          definition.`type`,
+          definition.nullable.getOrElse(true))
+    }
+    DataTypes.createStructType(
+      (propertyFields ++ FlexibleDataModelInstanceMapping.usageBasedSchemaAttributes(usage)).toArray)
+  }
 }
 
 sealed trait SyncStatus { def value: String }
@@ -226,10 +240,10 @@ final case class ReadResponse(
 object ReadResponse {
   // Read responses carry no typing of their own; instance properties are decoded using the typing from begin.
   def decoder(
-      typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]]
+      typing: Map[String, Map[String, Map[String, TypePropertyDefinition]]]
   ): Decoder[ReadResponse] = {
     implicit val instanceDecoder: Decoder[InstanceDefinition] =
-      InstanceDefinition.instancePropertyDefinitionBasedInstanceDecoder(typing)
+      InstanceDefinition.instancePropertyDefinitionBasedInstanceDecoder(Some(typing))
     Decoder.forProduct2("items", "nextReadCursor")(ReadResponse.apply)
   }
 }
