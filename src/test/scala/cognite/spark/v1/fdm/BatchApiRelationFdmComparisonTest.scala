@@ -201,8 +201,11 @@ class BatchApiRelationFdmComparisonTest
     schema.fields.map(f => f.name -> ((f.dataType, f.nullable))).toMap
 
   private def orderedRows(df: DataFrame): Array[Row] = {
-    val cols = df.columns.sorted.toIndexedSeq
-    df.select(cols.head, cols.tail: _*).orderBy("externalId").collect()
+    // Backticks required: FDM metadata columns are flat names with dots (e.g. node.createdTime),
+    // and Spark would otherwise parse them as nested struct field access.
+    val cols =
+      df.columns.sorted.map(c => org.apache.spark.sql.functions.col(s"`$c`")).toIndexedSeq
+    df.select(cols: _*).orderBy("externalId").collect()
   }
 
   private def assertSameSchema(batch: StructType, fdm: StructType): Unit = {
