@@ -166,10 +166,8 @@ object BatchApiRelation extends NamedRelation {
     val properties = typing.values.flatMap(_.values).flatten.toMap
     val propertyFields = properties.toSeq.sortBy(_._1).map {
       case (name, definition) =>
-        FlexibleDataModelInstanceMapping.propertyField(
-          name,
-          definition.`type`,
-          definition.nullable.getOrElse(true))
+        FlexibleDataModelInstanceMapping
+          .propertyField(name, definition.`type`, definition.nullable.getOrElse(true))
     }
     DataTypes.createStructType(
       (propertyFields ++ FlexibleDataModelInstanceMapping.usageBasedSchemaAttributes(usage)).toArray)

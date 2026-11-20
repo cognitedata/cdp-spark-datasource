@@ -261,10 +261,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
         propDef match {
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
             Vector(
-              FlexibleDataModelInstanceMapping.propertyField(
-                propName,
-                corePropDef.`type`,
-                corePropDef.nullable.getOrElse(true)))
+              FlexibleDataModelInstanceMapping
+                .propertyField(propName, corePropDef.`type`, corePropDef.nullable.getOrElse(true)))
           case _ => Vector.empty
         }
     } ++ usageBasedSchemaAttributes(usage) ++ metadataAttributes()

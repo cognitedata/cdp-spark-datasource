@@ -73,9 +73,7 @@ object BatchApiViaDm {
           .dropNullValues
     }
 
-  def encodeReadResponse(
-      items: Seq[InstanceDefinition],
-      nextReadCursor: Option[String]): Json =
+  def encodeReadResponse(items: Seq[InstanceDefinition], nextReadCursor: Option[String]): Json =
     Json
       .obj(
         "items" -> items.map(encodeInstance).asJson,
@@ -129,10 +127,8 @@ object BatchApiViaDm {
       limit
     )
     val selectExpression = SelectExpression(
-      sources = FlexibleDataModelQueryUtils.sourceReference(
-        instanceType,
-        Some(viewReference),
-        propertyNames)
+      sources =
+        FlexibleDataModelQueryUtils.sourceReference(instanceType, Some(viewReference), propertyNames)
     )
     client.instances
       .queryStream(
