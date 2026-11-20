@@ -1,11 +1,7 @@
 package cognite.spark.v1
 
-import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import com.cognite.sdk.scala.common.BearerTokenAuth
-import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation
-import cognite.spark.v1.fdm.FlexibleDataModelBaseRelation.ProjectedFlexibleDataModelInstance
-import com.cognite.sdk.scala.v1.GenericClient
+import cognite.spark.v1.BatchApiTestSupport.FakeBatchApi
 import com.cognite.sdk.scala.v1.fdm.common.{DirectRelationReference, Usage}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.{
   ViewCorePropertyDefinition,
@@ -18,65 +14,25 @@ import com.cognite.sdk.scala.v1.fdm.instances.{
   InstanceType,
   TypePropertyDefinition
 }
-import fs2.Stream
 import io.circe.Json
 import io.circe.parser.parse
-import natchez.Kernel
-import natchez.Trace.Implicits.noop
 import org.apache.spark.datasource.MetricsSource
-import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
-import org.apache.spark.sql.{Row, SQLContext, SparkSession}
+import org.apache.spark.sql.{Row, SparkSession}
 import org.scalatest.{FlatSpec, Matchers}
-import sttp.client3.impl.cats.implicits.asyncMonadError
-import sttp.client3.testing.SttpBackendStub
-import sttp.client3.{Response, StringBody}
-import sttp.model.StatusCode
-import sttp.monad.MonadAsyncError
 
 import java.time.ZonedDateTime
 import java.util.UUID
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.immutable.ListMap
 import scala.concurrent.duration._
 import scala.io.Source
-import scala.jdk.CollectionConverters._
 import scala.util.Using
 
 object BatchApiRelationTest {
-  final case class RecordedRequest(
-      method: String,
-      path: Seq[String],
-      body: String,
-      resourceType: Option[Any])
-
   final case class TestProperty(
       propertyType: PropertyType,
       nullable: Boolean,
       value: InstancePropertyValue)
-
-  // An FDM relation with the schema and row mapping FDM itself uses, for comparing with batch.
-  // It does not read anything.
-  class FdmReference(
-      config: RelationConfig,
-      usage: Usage,
-      viewProps: Map[String, ViewPropertyDefinition])(val sqlContext: SQLContext)
-      extends FlexibleDataModelBaseRelation(config, sqlContext) {
-    override def schema: StructType =
-      deriveViewPropertySchemaWithUsageSpecificAttributes(usage, viewProps)
-
-    override def getStreams(filters: Array[Filter], selectedColumns: Array[String])(
-        client: GenericClient[IO]): Seq[Stream[IO, ProjectedFlexibleDataModelInstance]] = Seq.empty
-
-    override def insert(rows: Seq[Row]): IO[Unit] = IO.unit
-    override def upsert(rows: Seq[Row]): IO[Unit] = IO.unit
-    override def update(rows: Seq[Row]): IO[Unit] = IO.unit
-    override def delete(rows: Seq[Row]): IO[Unit] = IO.unit
-
-    def row(instance: InstanceDefinition): Row =
-      toRow(toProjectedInstance(instance, None, schema.fieldNames))
-  }
 }
 
 class BatchApiRelationTest extends FlatSpec with Matchers {
@@ -95,36 +51,11 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
     .getOrCreate()
 
   private def config(collectMetrics: Boolean = false, metricsPrefix: String = ""): RelationConfig =
-    RelationConfig(
-      auth = CdfSparkAuth.Static(BearerTokenAuth("token")),
-      clientTag = None,
-      applicationName = Some("BatchApiRelationTest"),
-      projectName = project,
-      batchSize = Some(Constants.DefaultBatchSize),
-      limitPerPartition = None,
-      partitions = Constants.DefaultPartitions,
-      maxRetries = Constants.DefaultMaxRetries,
-      maxRetryDelaySeconds = Constants.DefaultMaxRetryDelaySeconds,
-      initialRetryDelayMillis = Constants.DefaultInitialRetryDelay.toMillis.toInt,
+    BatchApiTestSupport.relationConfig(
+      project = project,
       collectMetrics = collectMetrics,
-      collectTestMetrics = false,
-      metricsTrackAttempts = false,
       metricsPrefix = metricsPrefix,
-      baseUrl = "https://api.cognitedata.com",
-      onConflict = OnConflictOption.Abort,
-      applicationId = "BatchApiRelationTest",
-      parallelismPerPartition = Constants.DefaultParallelismPerPartition,
-      ignoreUnknownIds = true,
-      deleteMissingAssets = false,
-      subtrees = AssetSubtreeOption.Ingest,
-      ignoreNullFields = true,
-      rawEnsureParent = false,
-      enableSinglePartitionDeleteAssetHierarchy = false,
-      tracingConfig = TracingConfig(new Kernel(Map.empty), None, None),
-      serverSideFilterNullValuesOnNonSchemaRawQueries = false,
-      maxOutstandingRawInsertRequests = None,
-      sendDebugFlag = false
-    )
+      applicationId = "BatchApiRelationTest")
 
   private def node(externalId: String): String =
     s"""{"instanceType":"node","space":"space","externalId":"$externalId","version":1,"createdTime":1,"lastUpdatedTime":2,"properties":{}}"""
@@ -138,65 +69,11 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
   private val pollBackfilling = """{"status":"backfilling"}"""
   private val pollProgressing = """{"status":"progressing"}"""
   private val pollFailed = """{"status":"failed"}"""
-  private val pollReady = s"""{"status":"ready","readyId":"$readyId"}"""
-
-  // Serves the scripted poll responses in order (repeating the last one), the given cursors,
-  // and one page per read cursor. Anything else gets a 404, and every request is recorded.
-  private final class FakeBatchApi(
-      pollResponses: Seq[String],
-      readCursors: Seq[String],
-      pages: Map[String, String]) {
-    val requests = new ConcurrentLinkedQueue[RecordedRequest]()
-    private val polls = new AtomicInteger(0)
-
-    private def readCursorOf(body: String): String =
-      io.circe.parser
-        .parse(body)
-        .flatMap(_.hcursor.get[String]("readCursor"))
-        .getOrElse("")
-
-    val backend: SttpBackendStub[IO, Any] =
-      SttpBackendStub(implicitly[MonadAsyncError[IO]]).whenRequestMatchesPartial {
-        case request =>
-          val body = request.body match {
-            case StringBody(s, _, _) => s
-            case _ => ""
-          }
-          requests.add(
-            RecordedRequest(
-              request.method.method,
-              request.uri.path,
-              body,
-              request.tag(GenericClient.RESOURCE_TYPE_TAG)))
-          request.uri.path.dropWhile(_ != "swamp").drop(1) match {
-            case Seq("poll", _) =>
-              Response.ok(pollResponses(math.min(polls.getAndIncrement(), pollResponses.size - 1)))
-            case Seq("cursors", _) =>
-              Response.ok(s"""{"readCursors":[${readCursors.map(c => s""""$c"""").mkString(",")}]}""")
-            case Seq("read") =>
-              pages
-                .get(readCursorOf(body))
-                .map(Response.ok(_))
-                .getOrElse(Response("", StatusCode.NotFound))
-            case _ => Response("", StatusCode.NotFound)
-          }
-      }
-
-    def recorded: List[RecordedRequest] = requests.asScala.toList
-  }
-
-  private def clientFor(backend: SttpBackendStub[IO, Any]): GenericClient[IO] =
-    new GenericClient[IO](
-      applicationName = "BatchApiRelationTest",
-      projectName = project,
-      baseUrl = "https://api.cognitedata.com",
-      auth = BearerTokenAuth("token"),
-      sttpBackend = backend
-    )
+  private val pollReady = FakeBatchApi.readyPoll(readyId)
 
   private def relation(
       config: RelationConfig,
-      typing: Typing = Map.empty,
+      typing: BatchApiViaDm.Typing = Map.empty,
       instanceType: InstanceType = InstanceType.Node) =
     new BatchApiRelation(
       config,
@@ -206,7 +83,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
       pollInterval = 1.millisecond)(spark.sqlContext)
 
   private def readAll(relation: BatchApiRelation, api: FakeBatchApi): List[String] = {
-    val streams = relation.getStreams(clientFor(api.backend))
+    val streams = relation.getStreams(BatchApiTestSupport.clientFor(api.backend, project))
     (streams should have).size(1)
     streams.head.compile.toList.unsafeRunSync().map(_.externalId)
   }
@@ -293,21 +170,19 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
 
   // Fixtures copied from the batch API's own DTO tests (services/batch-api/api/src/test/resources),
   // so that a change in its wire format shows up here.
-  private type Typing = Map[String, Map[String, Map[String, TypePropertyDefinition]]]
-
   private def resourceJson(name: String): Json =
     Using.resource(Source.fromResource(s"batchapi/$name"))(source => parse(source.mkString)) match {
       case Right(json) => json
       case Left(e) => fail(s"Could not parse $name: ${e.getMessage}")
     }
 
-  private def fixtureTyping: Typing =
-    resourceJson("begin_response.json").hcursor.downField("typing").as[Typing] match {
+  private def fixtureTyping: BatchApiViaDm.Typing =
+    resourceJson("begin_response.json").hcursor.downField("typing").as[BatchApiViaDm.Typing] match {
       case Right(typing) => typing
       case Left(e) => fail(s"Could not decode typing: ${e.getMessage}")
     }
 
-  private def fixtureReadResponse(typing: Typing): ReadResponse =
+  private def fixtureReadResponse(typing: BatchApiViaDm.Typing): ReadResponse =
     resourceJson("read_response.json").as[ReadResponse](ReadResponse.decoder(typing)) match {
       case Right(response) => response
       case Left(e) => fail(s"Could not decode the read response: ${e.getMessage}")
@@ -383,7 +258,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
         Some(DirectRelationReference("space", "owner-1"))))
   )
 
-  private val testTyping: Typing =
+  private val testTyping: BatchApiViaDm.Typing =
     Map(
       "space" -> Map("view/v1" -> testProperties.map {
         case (name, property) =>
@@ -435,7 +310,7 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
     )
 
   private def fdmReference(usage: Usage) =
-    new BatchApiRelationTest.FdmReference(config(), usage, testViewProperties)(spark.sqlContext)
+    new BatchApiTestSupport.FdmReference(config(), usage, testViewProperties)(spark.sqlContext)
 
   private val relationStruct = StructType(
     Seq(StructField("space", StringType, false), StructField("externalId", StringType, false)))

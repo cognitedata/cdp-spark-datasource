@@ -4,7 +4,7 @@ import cats.effect.IO
 import com.cognite.sdk.scala.v1.GenericClient
 import cognite.spark.v1.fdm.FlexibleDataModelInstanceMapping
 import com.cognite.sdk.scala.v1.fdm.common.Usage
-import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDefinition, InstanceType, TypePropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.instances.{InstanceDefinition, InstanceType}
 import fs2.{Chunk, Stream}
 import io.circe.{Decoder, Encoder}
 import natchez.Trace.Implicits.noop
@@ -37,7 +37,7 @@ class BatchApiRelation(
     config: RelationConfig,
     statusId: UUID,
     instanceType: InstanceType,
-    typing: Map[String, Map[String, Map[String, TypePropertyDefinition]]],
+    typing: BatchApiRelation.Typing,
     pollInterval: FiniteDuration = BatchApiRelation.defaultPollInterval
 )(val sqlContext: SQLContext)
     extends CdfRelation(config, BatchApiRelation.name)
@@ -149,6 +149,8 @@ class BatchApiRelation(
 object BatchApiRelation extends NamedRelation {
   override val name: String = "batchapi"
 
+  type Typing = BatchApiViaDm.Typing
+
   // Resource-type tag on HTTP requests; the SDK names its own after the uppercase resource, e.g. ASSETS.
   private val httpResourceType: String = "BATCHAPI"
 
@@ -156,9 +158,7 @@ object BatchApiRelation extends NamedRelation {
 
   // One column per property in the typing, followed by the node or edge columns, as for FDM relations.
   // A batch is begun from a single view, so property names are unique.
-  private[v1] def deriveSchema(
-      instanceType: InstanceType,
-      typing: Map[String, Map[String, Map[String, TypePropertyDefinition]]]): StructType = {
+  private[v1] def deriveSchema(instanceType: InstanceType, typing: Typing): StructType = {
     val usage = instanceType match {
       case InstanceType.Node => Usage.Node
       case InstanceType.Edge => Usage.Edge
@@ -239,9 +239,7 @@ final case class ReadResponse(
 
 object ReadResponse {
   // Read responses carry no typing of their own; instance properties are decoded using the typing from begin.
-  def decoder(
-      typing: Map[String, Map[String, Map[String, TypePropertyDefinition]]]
-  ): Decoder[ReadResponse] = {
+  def decoder(typing: BatchApiRelation.Typing): Decoder[ReadResponse] = {
     implicit val instanceDecoder: Decoder[InstanceDefinition] =
       InstanceDefinition.instancePropertyDefinitionBasedInstanceDecoder(Some(typing))
     Decoder.forProduct2("items", "nextReadCursor")(ReadResponse.apply)

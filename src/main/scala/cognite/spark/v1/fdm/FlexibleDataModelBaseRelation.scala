@@ -255,7 +255,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   protected def deriveViewPropertySchemaWithUsageSpecificAttributes(
       usage: Usage,
       viewProps: Map[String, ViewPropertyDefinition]): StructType = {
-    val fields = viewProps.flatMap {
+    // Sort property columns by name so the schema matches BatchApiRelation (and is stable).
+    val fields = viewProps.toSeq.sortBy(_._1).flatMap {
       case (propName, propDef) =>
         propDef match {
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
