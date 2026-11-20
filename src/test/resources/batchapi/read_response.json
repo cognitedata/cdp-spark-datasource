@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "instanceType": "node",
+      "version": 1,
+      "space": "mySpace",
+      "externalId": "node-1",
+      "createdTime": 1700000000000,
+      "lastUpdatedTime": 1700000000000,
+      "properties": {
+        "mySpace": {
+          "myView/v1": {
+            "prop1": "value"
+          }
+        }
+      }
+    }
+  ],
+  "nextReadCursor": "nextCursor"
+}

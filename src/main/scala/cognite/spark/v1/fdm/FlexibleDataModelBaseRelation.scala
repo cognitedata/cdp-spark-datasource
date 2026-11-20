@@ -22,14 +22,13 @@ import com.cognite.sdk.scala.v1.fdm.common.filters.FilterValueDefinition.{
 }
 import com.cognite.sdk.scala.v1.fdm.common.filters.{FilterDefinition, FilterValueDefinition}
 import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition.ViewPropertyDefinition
-import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyType._
-import com.cognite.sdk.scala.v1.fdm.common.properties.{PrimitivePropType, PropertyDefinition}
+import com.cognite.sdk.scala.v1.fdm.common.properties.PropertyDefinition
 import com.cognite.sdk.scala.v1.fdm.instances._
 import com.cognite.sdk.scala.v1.fdm.views.ViewReference
 import fs2.Stream
 import io.circe.Json
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.expressions.{GenericRow, GenericRowWithSchema, Literal}
+import org.apache.spark.sql.catalyst.expressions.{GenericRowWithSchema, Literal}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -61,12 +60,7 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     if (config.collectMetrics) {
       itemsRead.inc()
     }
-    new GenericRow(a.properties.map {
-      // For startNode, endNode, type & DirectRelationReference & list of DirectRelationReference
-      case a: Array[Array[Any]] => a.map(new GenericRow(_))
-      case a: Array[Any] => new GenericRow(a)
-      case e => e
-    })
+    FlexibleDataModelInstanceMapping.toRow(a.properties)
   }
 
   protected def optionalDebug(shouldEnable: Boolean): Option[InstanceDebugParameters] =
@@ -84,9 +78,6 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     alwaysReservedAttributes.contains(attribute) ||
     (instanceType == InstanceType.Edge && edgeReservedAttributes.contains(attribute))
   }
-
-  private def extractInstancePropertyValue(key: String, value: InstancePropertyValue): Any =
-    FlexibleDataModelRelationUtils.extractInstancePropertyValue(schema.apply(key).dataType, value)
 
   private def getVersionedViewExternalId(viewReference: ViewReference): String =
     s"${viewReference.externalId}/${viewReference.version}"
@@ -254,107 +245,24 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   protected def toProjectedInstance(
       i: InstanceDefinition,
       cursor: Option[String],
-      selectedInstanceProps: Array[String]): ProjectedFlexibleDataModelInstance = {
-    // Merging all the properties without considering the space & view/container externalId
-    // At the time of this impl there is no requirement to consider properties with same name
-    // in different view/containers
-
-    val allAvailablePropValues: Map[String, InstancePropertyValue] =
-      i.properties.getOrElse(Map.empty).values.flatMap(_.values).fold(Map.empty)(_ ++ _)
-    i match {
-      case n: InstanceDefinition.NodeDefinition =>
-        ProjectedFlexibleDataModelInstance(
-          externalId = n.externalId,
-          properties = selectedInstanceProps.map {
-            case s if s.equalsIgnoreCase("space") => n.space
-            case s if s.equalsIgnoreCase("spaceExternalId") => n.space
-            case s if s.equalsIgnoreCase("externalId") => n.externalId
-            case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
-            case s if s.equalsIgnoreCase("_type") =>
-              n.`type`.map(t => Array(t.space, t.externalId)).orNull
-            case s if s.equalsIgnoreCase("node.version") => n.version.getOrElse(-1)
-            case s if s.equalsIgnoreCase("node.lastUpdatedTime") => n.lastUpdatedTime
-            case s if s.equalsIgnoreCase("node.deletedTime") => n.deletedTime.getOrElse(0L)
-            case s if s.equalsIgnoreCase("node.createdTime") => n.createdTime
-            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(p, it)).orNull
-          },
-          space = n.space
-        )
-      case e: InstanceDefinition.EdgeDefinition =>
-        ProjectedFlexibleDataModelInstance(
-          externalId = e.externalId,
-          properties = selectedInstanceProps.map {
-            case s if s.equalsIgnoreCase("space") => e.space
-            case s if s.equalsIgnoreCase("spaceExternalId") => e.space
-            case s if s.equalsIgnoreCase("externalId") => e.externalId
-            case s if s.equalsIgnoreCase("startNode") => Array(e.startNode.space, e.startNode.externalId)
-            case s if s.equalsIgnoreCase("endNode") => Array(e.endNode.space, e.endNode.externalId)
-            case s if s.equalsIgnoreCase("_type") => Array(e.`type`.space, e.`type`.externalId)
-            case s if s.equalsIgnoreCase("type") => Array(e.`type`.space, e.`type`.externalId)
-            case s if s.equalsIgnoreCase("metadata.cursor") => cursor.getOrElse("")
-            case s if s.equalsIgnoreCase("edge.version") => e.version.getOrElse(-1)
-            case s if s.equalsIgnoreCase("edge.lastUpdatedTime") => e.lastUpdatedTime
-            case s if s.equalsIgnoreCase("edge.deletedTime") => e.deletedTime.getOrElse(0L)
-            case s if s.equalsIgnoreCase("edge.createdTime") => e.createdTime
-            case p => allAvailablePropValues.get(p).map(it => extractInstancePropertyValue(p, it)).orNull
-          },
-          space = e.space
-        )
-    }
-  }
+      selectedInstanceProps: Array[String]): ProjectedFlexibleDataModelInstance =
+    FlexibleDataModelInstanceMapping.toProjectedInstance(
+      i,
+      cursor,
+      selectedInstanceProps,
+      key => schema.apply(key).dataType)
 
   protected def deriveViewPropertySchemaWithUsageSpecificAttributes(
       usage: Usage,
       viewProps: Map[String, ViewPropertyDefinition]): StructType = {
-    def primitivePropTypeToSparkDataType(ppt: PrimitivePropType): DataType = ppt match {
-      case PrimitivePropType.Timestamp => DataTypes.TimestampType
-      case PrimitivePropType.Date => DataTypes.DateType
-      case PrimitivePropType.Boolean => DataTypes.BooleanType
-      case PrimitivePropType.Float32 => DataTypes.FloatType
-      case PrimitivePropType.Float64 => DataTypes.DoubleType
-      case PrimitivePropType.Int32 => DataTypes.IntegerType
-      case PrimitivePropType.Int64 => DataTypes.LongType
-      case PrimitivePropType.Json => DataTypes.StringType
-    }
-
-    val fields = viewProps.flatMap {
+    // Sort property columns by name so the schema matches BatchApiRelation (and is stable).
+    val fields = viewProps.toSeq.sortBy(_._1).flatMap {
       case (propName, propDef) =>
         propDef match {
           case corePropDef: PropertyDefinition.ViewCorePropertyDefinition =>
-            val nullable = corePropDef.nullable.getOrElse(true)
-            corePropDef.`type` match {
-              case t: DirectNodeRelationProperty if t.isList =>
-                Vector(relationReferenceSchema(propName, nullable = nullable, list = true))
-              case _: DirectNodeRelationProperty =>
-                Vector(relationReferenceSchema(propName, nullable = nullable))
-              case t: TextProperty if t.isList =>
-                Vector(
-                  DataTypes.createStructField(
-                    propName,
-                    DataTypes.createArrayType(DataTypes.StringType, nullable),
-                    nullable))
-              case _: TextProperty =>
-                Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
-              case _: EnumProperty =>
-                Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
-              case p @ PrimitiveProperty(ppt, _) if p.isList =>
-                Vector(
-                  DataTypes.createStructField(
-                    propName,
-                    DataTypes.createArrayType(primitivePropTypeToSparkDataType(ppt), nullable),
-                    nullable))
-              case PrimitiveProperty(ppt, _) =>
-                Vector(
-                  DataTypes.createStructField(propName, primitivePropTypeToSparkDataType(ppt), nullable))
-              case p: CDFExternalIdReference if p.isList =>
-                Vector(
-                  DataTypes.createStructField(
-                    propName,
-                    DataTypes.createArrayType(DataTypes.StringType, nullable),
-                    nullable))
-              case _: CDFExternalIdReference =>
-                Vector(DataTypes.createStructField(propName, DataTypes.StringType, nullable))
-            }
+            Vector(
+              FlexibleDataModelInstanceMapping
+                .propertyField(propName, corePropDef.`type`, corePropDef.nullable.getOrElse(true)))
           case _ => Vector.empty
         }
     } ++ usageBasedSchemaAttributes(usage) ++ metadataAttributes()
@@ -364,47 +272,8 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
   protected def metadataAttributes(): Array[StructField] = Array.empty
 
   // schema fields for relation references and node/edge identifiers
-  protected def usageBasedSchemaAttributes(usage: Usage): Array[StructField] = {
-    val nodeAttributes = Array(
-      DataTypes.createStructField("node.version", DataTypes.LongType, true),
-      DataTypes.createStructField("node.createdTime", DataTypes.LongType, true),
-      DataTypes.createStructField("node.lastUpdatedTime", DataTypes.LongType, true),
-      DataTypes.createStructField("node.deletedTime", DataTypes.LongType, true),
-    )
-
-    val edgeAttributes = Array(
-      DataTypes.createStructField("edge.version", DataTypes.LongType, true),
-      DataTypes.createStructField("edge.createdTime", DataTypes.LongType, true),
-      DataTypes.createStructField("edge.lastUpdatedTime", DataTypes.LongType, true),
-      DataTypes.createStructField("edge.deletedTime", DataTypes.LongType, true),
-      relationReferenceSchema("type", nullable = true)
-    )
-
-    val baseAttributes = Array(
-      DataTypes.createStructField("space", DataTypes.StringType, false),
-      DataTypes.createStructField("externalId", DataTypes.StringType, false)
-    )
-
-    def relationReferenceAttributes(nullable: Boolean) = Array(
-      relationReferenceSchema("startNode", nullable),
-      relationReferenceSchema("endNode", nullable)
-    )
-
-    def typeAttribute(nullable: Boolean) =
-      Array(
-        relationReferenceSchema("_type", nullable),
-      )
-
-    usage match {
-      case Usage.Node =>
-        baseAttributes ++ nodeAttributes ++ typeAttribute(true)
-      case Usage.Edge =>
-        baseAttributes ++ edgeAttributes ++ typeAttribute(false) ++ relationReferenceAttributes(false)
-      case Usage.All =>
-        baseAttributes ++ nodeAttributes ++ edgeAttributes ++ typeAttribute(true) ++ relationReferenceAttributes(
-          true)
-    }
-  }
+  protected def usageBasedSchemaAttributes(usage: Usage): Array[StructField] =
+    FlexibleDataModelInstanceMapping.usageBasedSchemaAttributes(usage)
 
   // Filter definition for node/edge `type`, `startNode` & `endNode`
   private def createEqualsAttributeFilter(
@@ -439,30 +308,11 @@ abstract class FlexibleDataModelBaseRelation(config: RelationConfig, sqlContext:
     Vector(instanceType.productPrefix.toLowerCase(Locale.US), instanceAttribute)
   }
 
-  private def relationReferenceInnerStruct(): StructType =
-    DataTypes.createStructType(
-      Array(
-        DataTypes.createStructField("space", DataTypes.StringType, false),
-        DataTypes.createStructField("externalId", DataTypes.StringType, false)
-      )
-    )
   protected def relationReferenceSchema(
       name: String,
       nullable: Boolean,
       list: Boolean = false): StructField =
-    if (list) {
-      DataTypes.createStructField(
-        name,
-        DataTypes.createArrayType(relationReferenceInnerStruct()),
-        nullable
-      )
-    } else {
-      DataTypes.createStructField(
-        name,
-        relationReferenceInnerStruct(),
-        nullable
-      )
-    }
+    FlexibleDataModelInstanceMapping.relationReferenceSchema(name, nullable, list)
 
   private def toComparableFilterValueDefinition(
       attribute: String,
