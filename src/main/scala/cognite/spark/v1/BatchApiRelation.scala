@@ -90,8 +90,8 @@ class BatchApiRelation(
       }
       .metered(pollInterval)
       .unNone
-      .interruptAfter(maxPollDuration)
       .head
+      .interruptAfter(maxPollDuration)
       .ifEmpty {
         Stream.raiseError[IO](
           new CdfSparkException(s"Batch API batch $statusId was not ready after $maxPollDuration"))
