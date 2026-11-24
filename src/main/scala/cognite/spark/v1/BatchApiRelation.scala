@@ -32,7 +32,8 @@ class BatchApiRelation(
     config: RelationConfig,
     statusId: UUID,
     typing: Option[Map[String, Map[String, Map[String, TypePropertyDefinition]]]],
-    pollInterval: FiniteDuration = BatchApiRelation.defaultPollInterval
+    pollInterval: FiniteDuration = BatchApiRelation.defaultPollInterval,
+    maxPollDuration: FiniteDuration = BatchApiRelation.defaultMaxPollduration
 )(val sqlContext: SQLContext)
     extends CdfRelation(config, BatchApiRelation.name)
     with PrunedScan {
@@ -55,8 +56,8 @@ class BatchApiRelation(
   // A single stream also means SdkV1Rdd creates exactly one Spark partition: only one task reads.
   private[v1] def getStreams(client: GenericClient[IO]): Seq[Stream[IO, InstanceDefinition]] =
     Seq(
-      Stream
-        .eval(pollUntilReady(client).flatMap(fetchReadCursors(client, _)))
+      pollUntilReady(client)
+        .evalMap(fetchReadCursors(client, _))
         .flatMap(cursors => Stream.emits(cursors).flatMap(readAll(client, _))))
 
   // HACK: RESOURCE_TYPE is sealed in the SDK, so tag with a plain string: the metrics backend only calls toString on it.
@@ -67,24 +68,34 @@ class BatchApiRelation(
       tags = session.tags + (GenericClient.RESOURCE_TYPE_TAG -> BatchApiRelation.httpResourceType))
   }
 
-  private def pollUntilReady(client: GenericClient[IO]): IO[UUID] = {
-    val session = requestSession(client)
-    session
-      .get[PollResponse, PollResponse](
-        uri"${session.baseUrl}/models/swamp/poll/$statusId",
-        identity
-      )
-      .flatTap { response =>
-        IO(logger.info(s"Batch $statusId poll status: ${response.status.value}")) *>
-          incPollMetrics(response.status)
+  private def pollUntilReady(client: GenericClient[IO]): Stream[IO, UUID] =
+    Stream
+      .repeatEval {
+        val session = requestSession(client)
+        session
+          .get[PollResponse, PollResponse](
+            uri"${session.baseUrl}/models/swamp/poll/$statusId",
+            identity
+          )
+          .flatTap { response =>
+            IO(logger.info(s"Batch $statusId poll status: ${response.status.value}")) *>
+              incPollMetrics(response.status)
+          }
+          .flatMap {
+            case PollResponse.Ready(readyId) => IO.some(readyId)
+            case PollResponse.Failed =>
+              IO.raiseError(new CdfSparkException(s"Batch API batch $statusId failed"))
+            case _ => IO.none
+          }
       }
-      .flatMap {
-        case PollResponse.Ready(readyId) => IO.pure(readyId)
-        case PollResponse.Failed =>
-          IO.raiseError(new CdfSparkException(s"Batch API batch $statusId failed"))
-        case _ => IO.sleep(pollInterval) *> pollUntilReady(client)
+      .metered(pollInterval)
+      .unNone
+      .interruptAfter(maxPollDuration)
+      .head
+      .ifEmpty {
+        Stream.raiseError[IO](
+          new CdfSparkException(s"Batch API batch $statusId was not ready after $maxPollDuration"))
       }
-  }
 
   private def incPollMetrics(status: SyncStatus): IO[Unit] =
     IO(
@@ -149,6 +160,7 @@ object BatchApiRelation extends NamedRelation {
   private val httpResourceType: String = "BATCHAPI"
 
   private val defaultPollInterval = 15.seconds
+  private val defaultMaxPollduration = 2.hour
 
   val schema: StructType = DataTypes.createStructType(
     Array(
