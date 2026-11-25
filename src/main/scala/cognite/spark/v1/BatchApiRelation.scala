@@ -88,14 +88,13 @@ class BatchApiRelation(
             case _ => IO.none
           }
       }
-      .metered(pollInterval)
+      .spaced(pollInterval)
       .unNone
       .head
-      .interruptAfter(maxPollDuration)
-      .ifEmpty {
+      .timeoutOnPullTo(
+        maxPollDuration,
         Stream.raiseError[IO](
-          new CdfSparkException(s"Batch API batch $statusId was not ready after $maxPollDuration"))
-      }
+          new CdfSparkException(s"Batch API batch $statusId was not ready after $maxPollDuration")))
 
   private def incPollMetrics(status: SyncStatus): IO[Unit] =
     IO(

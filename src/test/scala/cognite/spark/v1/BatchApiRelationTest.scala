@@ -13,7 +13,7 @@ import sttp.client3.impl.cats.implicits.asyncMonadError
 import sttp.client3.testing.SttpBackendStub
 import sttp.client3.{Response, StringBody}
 import sttp.model.StatusCode
-import sttp.monad.MonadAsyncError
+import sttp.monad.MonadError
 
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -95,7 +95,8 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
   private final class FakeBatchApi(
       pollResponses: Seq[String],
       readCursors: Seq[String],
-      pages: Map[String, String]) {
+      pages: Map[String, String],
+      pageResponseDelay: FiniteDuration = 1.millisecond) {
     val requests = new ConcurrentLinkedQueue[RecordedRequest]()
     private val polls = new AtomicInteger(0)
 
@@ -106,30 +107,31 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
         .getOrElse("")
 
     val backend: SttpBackendStub[IO, Any] =
-      SttpBackendStub(implicitly[MonadAsyncError[IO]]).whenRequestMatchesPartial {
-        case request =>
-          val body = request.body match {
-            case StringBody(s, _, _) => s
-            case _ => ""
-          }
-          requests.add(
-            RecordedRequest(
-              request.method.method,
-              request.uri.path,
-              body,
-              request.tag(GenericClient.RESOURCE_TYPE_TAG)))
-          request.uri.path.dropWhile(_ != "swamp").drop(1) match {
-            case Seq("poll", _) =>
-              Response.ok(pollResponses(math.min(polls.getAndIncrement(), pollResponses.size - 1)))
-            case Seq("cursors", _) =>
-              Response.ok(s"""{"readCursors":[${readCursors.map(c => s""""$c"""").mkString(",")}]}""")
-            case Seq("read") =>
-              pages
-                .get(readCursorOf(body))
-                .map(Response.ok(_))
-                .getOrElse(Response("", StatusCode.NotFound))
-            case _ => Response("", StatusCode.NotFound)
-          }
+      SttpBackendStub(MonadError[IO]).whenAnyRequest.thenRespondF { request =>
+        val body = request.body match {
+          case StringBody(s, _, _) => s
+          case _ => ""
+        }
+        requests.add(
+          RecordedRequest(
+            request.method.method,
+            request.uri.path,
+            body,
+            request.tag(GenericClient.RESOURCE_TYPE_TAG)))
+        request.uri.path.dropWhile(_ != "swamp").drop(1) match {
+          case Seq("poll", _) =>
+            IO(Response.ok(pollResponses(math.min(polls.getAndIncrement(), pollResponses.size - 1))))
+          case Seq("cursors", _) =>
+            IO(Response.ok(s"""{"readCursors":[${readCursors.map(c => s""""$c"""").mkString(",")}]}"""))
+          case Seq("read") =>
+            pages
+              .get(readCursorOf(body))
+              .map { response =>
+                IO.sleep(pageResponseDelay).as(Response.ok(response))
+              }
+              .getOrElse(IO(Response("", StatusCode.NotFound)))
+          case _ => IO(Response("", StatusCode.NotFound))
+        }
       }
 
     def recorded: List[RecordedRequest] = requests.asScala.toList
@@ -144,8 +146,11 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
       sttpBackend = backend
     )
 
-  private def relation(config: RelationConfig) =
-    new BatchApiRelation(config, statusId, Some(Map.empty), pollInterval = 1.millisecond)(
+  private def relation(
+      config: RelationConfig,
+      pollInterval: FiniteDuration = 1.millisecond,
+      maxPollDuration: FiniteDuration = 1.second) =
+    new BatchApiRelation(config, statusId, Some(Map.empty), pollInterval, maxPollDuration)(
       spark.sqlContext)
 
   private def readAll(relation: BatchApiRelation, api: FakeBatchApi): List[String] = {
@@ -219,6 +224,37 @@ class BatchApiRelationTest extends FlatSpec with Matchers {
 
     e.getMessage should include(statusId.toString)
     api.recorded.map(_.path.dropWhile(_ != "swamp").drop(1).head) shouldBe List("poll", "poll")
+  }
+
+  it should "fail without fetching cursors when the total poll time surpaces maxPollTime" in {
+    val api = new FakeBatchApi(
+      pollResponses = Seq(pollPending, pollPending, pollPending, pollReady),
+      readCursors = Seq("c1"),
+      pages = Map.empty
+    )
+
+    val e = intercept[CdfSparkException] {
+      readAll(relation(config(), pollInterval = 600.millisecond), api)
+    }
+
+    e.getMessage should include(statusId.toString)
+    // polls twice and gives up
+    api.recorded.map(_.path.dropWhile(_ != "swamp").drop(1).head) shouldBe List("poll", "poll")
+  }
+
+  it should "read all pages if polling is done before maxPollTime, even if paging itself takes more than maxPollTime" in {
+    val api = new FakeBatchApi(
+      pollResponses = Seq(pollPending, pollReady),
+      readCursors = Seq("c1"),
+      pages = Map(
+        "c1" -> page(Seq("a"), Some("c2")),
+        "c2" -> page(Seq("b"), Some("c3")),
+        "c3" -> page(Seq("c"), None),
+      ),
+      pageResponseDelay = 100.millisecond
+    )
+    
+    readAll(relation(config(), pollInterval = 900.millisecond), api) shouldBe List("a", "b", "c")
   }
 
   it should "tag its requests with the BATCHAPI resource type" in {
