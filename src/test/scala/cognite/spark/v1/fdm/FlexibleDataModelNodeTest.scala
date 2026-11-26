@@ -1091,6 +1091,93 @@ class FlexibleDataModelNodeTest
     syncedInstanceExtIds shouldBe Vector(s"${view.externalId}Node1")
   }
 
+  it should "succeed when IN filters contain NULL values" in {
+    testInFiltersWithNullValues()
+  }
+
+  def testInFiltersWithNullValues(): Unit = {
+    val (view, _) = setupFilteringByPropertiesTest.unsafeRunSync()
+
+    val readDf = readRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      instanceSpaceExternalId = spaceExternalId
+    )
+
+    val syncDf = syncRows(
+      instanceType = InstanceType.Node,
+      viewSpaceExternalId = spaceExternalId,
+      viewExternalId = view.externalId,
+      viewVersion = view.version,
+      cursor = ""
+    )
+
+    val readTempView = s"instance_null_in_filter_table${UUID.randomUUID().toString.replace("-", "")}"
+    val syncTempView =
+      s"sync_instance_null_in_filter_table${UUID.randomUUID().toString.replace("-", "")}"
+    readDf.createTempView(readTempView)
+    syncDf.createTempView(syncTempView)
+
+    // The CASE constant-folds to NULL, reproducing the customer query shape
+    // `space IN ('...', NULL)` on a reserved attribute. Without null handling the
+    // pushed-down filter crashes request encoding with a NullPointerException.
+    val nullInFilter =
+      s"""
+         |where
+         |forEqualsFilter = 'str1' and
+         |forInFilter in ('str1', 'str2', NULL) and
+         |space in ('$spaceExternalId', CASE WHEN 'A' = 'B' THEN 'x' END) and
+         |!externalId <=> null
+         |""".stripMargin
+
+    val filtered = spark
+      .sql(s"""select * from $readTempView
+              |$nullInFilter
+              |""".stripMargin)
+      .collect()
+
+    val synced = spark
+      .sql(s"""select * from $syncTempView
+              |$nullInFilter
+              |""".stripMargin)
+      .collect()
+
+    filtered.length shouldBe 1
+    synced.length shouldBe 1
+    val filteredNullInExtIds =
+      filtered.map(row => row.getString(row.schema.fieldIndex("externalId"))).toVector
+    val syncedNullInExtIds =
+      synced.map(row => row.getString(row.schema.fieldIndex("externalId"))).toVector
+    filteredNullInExtIds shouldBe Vector(s"${view.externalId}Node1")
+    syncedNullInExtIds shouldBe Vector(s"${view.externalId}Node1")
+
+    // `x NOT IN ('1', NULL)` is never true in SQL, so this must return 0 rows. The pushdown
+    // drops the NULL and fetches `NOT IN ('1')`; Spark re-applies the original predicate.
+    val notInFilter =
+      s"""
+         |where
+         |forEqualsFilter = 'str1' and
+         |forInFilter not in ('1', NULL)
+         |""".stripMargin
+
+    val filteredNotIn = spark
+      .sql(s"""select * from $readTempView
+              |$notInFilter
+              |""".stripMargin)
+      .collect()
+
+    val syncedNotIn = spark
+      .sql(s"""select * from $syncTempView
+              |$notInFilter
+              |""".stripMargin)
+      .collect()
+
+    filteredNotIn.length shouldBe 0
+    syncedNotIn.length shouldBe 0
+  }
+
   it should "successfully read from relation properties" in {
     testReadFromRelationProperties()
   }
